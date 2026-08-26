@@ -51,19 +51,18 @@ test.describe('Applications Center', () => {
     await expect(centerPage.searchInput).toHaveValue('test search query');
   });
 
-  test('status filter buttons are clickable', async ({ page }) => {
+  test('status filter selects a value in the dropdown', async ({ page }) => {
     await loginAsAdmin(page);
 
     const centerPage = new ApplicationCenterPage(page);
     await centerPage.goto();
+    await centerPage.openFilters();
 
-    const statusButtons = page.locator('[data-testid^="center-button-status-"]');
-    const count = await statusButtons.count();
-
-    if (count > 0) {
-      await statusButtons.first().click();
-      await expect(statusButtons.first()).toHaveClass(/status-btn--active/);
-    }
+    // Статусы - мультивыбор в дропдауне (#1398): выбор отмечает пункт галочкой,
+    // а подпись кнопки перестаёт быть плейсхолдером «Все статусы».
+    await centerPage.selectFilterOption('statuses', 'В работе');
+    await expect(page.locator('.base-dropdown__check--on')).toHaveCount(1);
+    await expect(centerPage.getSelectedFilterLabel('statuses')).toHaveText('В работе');
   });
 
   test('clicking application row opens detail panel', async ({ page }) => {
@@ -92,16 +91,12 @@ test.describe('Applications Center', () => {
 
     const centerPage = new ApplicationCenterPage(page);
     await centerPage.goto();
+    await centerPage.openFilters();
 
-    const statusBtn = page.locator('[data-testid^="center-button-status-"]').first();
-    if (await statusBtn.isVisible()) {
-      await statusBtn.click();
+    await centerPage.selectFilterOption('statuses', 'В работе');
+    await centerPage.resetFilters();
 
-      if (await centerPage.resetFiltersButton.isVisible()) {
-        await centerPage.resetFilters();
-        await expect(page.locator('.status-btn--active')).toHaveCount(0);
-      }
-    }
+    await expect(centerPage.getSelectedFilterLabel('statuses')).toHaveText('Все статусы');
   });
 
   test('applications show status badges', async ({ page }) => {

@@ -1,6 +1,6 @@
 <template>
   <div class="approvers-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Принимающие заявки
       </h3>
@@ -17,11 +17,16 @@
           История
         </button>
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Добавить принимающего"
           :disabled="isAdding"
           @click="openAddModal"
         >
-          Добавить принимающего
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить принимающего</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -35,8 +40,8 @@
         class="table-section"
         :class="{ 'with-details': selectedApprover }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -44,11 +49,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -57,11 +62,11 @@
               <p :class="{ 'active-sort': sortField === 'full_name' }">
                 ФИО
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'full_name', desc: sortField === 'full_name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col date-col"
@@ -70,11 +75,11 @@
               <p :class="{ 'active-sort': sortField === 'created_at' }">
                 Добавлен
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'created_at', desc: sortField === 'created_at' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
@@ -82,22 +87,38 @@
             <div
               v-for="approver in sortedApprovers"
               :key="approver.id"
-              class="table-row"
+              class="table-row rt-row"
               :class="{ selected: selectedApprover && selectedApprover.id === approver.id }"
               @click="selectApprover(approver)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ approver.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="ФИО"
+              >
                 <span
                   class="truncate-text"
                   :title="getFullName(approver)"
                 >
                   {{ getFullName(approver) }}
                 </span>
+                <span
+                  v-if="approver.display_name"
+                  class="mask-tag"
+                  :title="`Маска: ${approver.display_name}`"
+                >
+                  маска
+                </span>
               </div>
-              <div class="table-col date-col">
+              <div
+                class="table-col date-col"
+                data-label="Добавлен"
+              >
                 <span class="cell-content">{{ formatDate(approver.created_at) }}</span>
               </div>
             </div>
@@ -128,6 +149,13 @@
               <h3 class="details-title">
                 {{ getFullName(selectedApprover) }}
               </h3>
+              <span
+                v-if="selectedApprover.display_name"
+                class="mask-tag"
+                :title="`Заявитель видит: ${selectedApprover.display_name}`"
+              >
+                {{ selectedApprover.display_name }}
+              </span>
             </div>
             <div class="details-header-actions">
               <button
@@ -156,6 +184,32 @@
             <div class="info-row">
               <span class="info-label">Добавлен:</span>
               <span class="info-value">{{ formatDate(selectedApprover.created_at) }}</span>
+            </div>
+
+            <div class="mask-block">
+              <span class="info-label">Отображаемое имя:</span>
+              <div class="mask-field">
+                <input
+                  v-model="maskDraft"
+                  class="lk-input mask-input"
+                  type="text"
+                  maxlength="255"
+                  placeholder="Реальное ФИО (по умолчанию)"
+                  data-testid="approver-mask-input"
+                  @keyup.enter="saveMask"
+                >
+                <button
+                  class="lk-button lk-button--primary mask-save"
+                  :disabled="isSavingMask || !maskChanged"
+                  data-testid="approver-mask-save"
+                  @click="saveMask"
+                >
+                  {{ isSavingMask ? 'Сохранение...' : 'Сохранить' }}
+                </button>
+              </div>
+              <p class="mask-hint">
+                Заявитель увидит это имя вместо реального ФИО в блоке «Принял» и в истории заявки. Пусто - реальное ФИО.
+              </p>
             </div>
 
             <div class="details-meta">
@@ -325,11 +379,13 @@ import ApplicationApproverHistoryModal from './ApplicationApproverHistoryModal.v
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
-import { getApprovers, getAllUsers, addApprover, deleteApprover } from '@/api/approvers';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { getApprovers, getAllUsers, addApprover, updateApprover, deleteApprover } from '@/api/approvers';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'ApplicationApproversManagement',
-  components: { SearchComponent, RefreshButton, ApplicationApproverHistoryModal },
+  components: { SearchComponent, RefreshButton, ApplicationApproverHistoryModal, AppIcon },
   setup() {
     const overlay = { close: () => {} };
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
@@ -344,6 +400,8 @@ export default {
       sortDirection: 'asc',
       isLoading: false,
       selectedApprover: null,
+      maskDraft: '',
+      isSavingMask: false,
       pendingDeleteIds: [],
       showAddModal: false,
       userSearchQuery: '',
@@ -356,10 +414,10 @@ export default {
   },
   computed: {
     filteredApprovers() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.approvers.filter(a => !this.pendingDeleteIds.includes(a.id));
-      if (q) {
-        list = list.filter(a => this.getFullName(a).toLowerCase().includes(q));
+      if (variants.length) {
+        list = list.filter(a => matchesSearch(this.getFullName(a), variants));
       }
       return list;
     },
@@ -394,15 +452,16 @@ export default {
       );
     },
     filteredAvailableUsers() {
-      const q = this.userSearchQuery.trim().toLowerCase();
-      if (!q) return this.availableUsers.slice(0, 10);
-      return this.availableUsers.filter(u => {
-        return (
-          this.getFullName(u).toLowerCase().includes(q) ||
-          u.username.toLowerCase().includes(q) ||
-          (u.position || '').toLowerCase().includes(q)
-        );
-      }).slice(0, 10);
+      const variants = buildSearchVariants(this.userSearchQuery);
+      if (!variants.length) return this.availableUsers.slice(0, 10);
+      return this.availableUsers.filter(u => matchesSearch(
+        `${this.getFullName(u)} ${u.username} ${u.position || ''}`,
+        variants,
+      )).slice(0, 10);
+    },
+    maskChanged() {
+      const current = (this.selectedApprover?.display_name || '').trim();
+      return this.maskDraft.trim() !== current;
     },
   },
   created() {
@@ -444,6 +503,26 @@ export default {
     },
     selectApprover(approver) {
       this.selectedApprover = approver;
+      this.maskDraft = approver.display_name || '';
+    },
+    async saveMask() {
+      if (!this.selectedApprover || this.isSavingMask || !this.maskChanged) return;
+      const approver = this.selectedApprover;
+      const value = this.maskDraft.trim();
+      this.isSavingMask = true;
+      try {
+        await updateApprover(approver.id, value || null);
+        await this.refresh();
+        if (value) {
+          useDeletionsStore().notify({ prefix: 'Отображаемое имя задано: ', bold: value });
+        } else {
+          useDeletionsStore().notify({ prefix: 'Маска снята, показывается реальное ФИО' });
+        }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить отображаемое имя', type: 'error' });
+      } finally {
+        this.isSavingMask = false;
+      }
     },
     openHistory() {
       this.showHistory = true;
@@ -473,6 +552,7 @@ export default {
           const fresh = this.approvers.find(a => a.id === this.selectedApprover.id);
           if (fresh) {
             this.selectedApprover = fresh;
+            this.maskDraft = fresh.display_name || '';
           } else if (!this.pendingDeleteIds.includes(this.selectedApprover.id)) {
             this.selectedApprover = null;
           }
@@ -574,9 +654,9 @@ export default {
 
 <style scoped>
 .approvers-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -585,7 +665,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
   gap: 12px;
 }
@@ -594,7 +674,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -605,8 +685,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -619,7 +699,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Master-detail layout */
@@ -634,12 +714,12 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -649,8 +729,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -658,7 +738,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -674,21 +754,22 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -696,7 +777,7 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -724,7 +805,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -733,11 +814,11 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row:last-child {
@@ -755,7 +836,7 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -769,20 +850,20 @@ export default {
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -791,7 +872,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -799,7 +880,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -821,7 +902,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
   word-break: break-word;
@@ -849,14 +930,14 @@ export default {
 }
 
 .delete-action-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .delete-action-btn:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .details-body {
@@ -868,7 +949,7 @@ export default {
 .info-row {
   display: flex;
   padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   gap: 16px;
 }
 
@@ -879,14 +960,14 @@ export default {
 .info-label {
   width: 120px;
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .info-value {
   flex: 1;
   font-size: 0.95em;
-  color: #000;
+  color: var(--text);
 }
 
 .details-meta {
@@ -894,7 +975,7 @@ export default {
   gap: 16px;
   margin-top: 12px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .no-selection-message {
@@ -902,9 +983,66 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
+}
+
+/* Маска отображаемого имени */
+.name-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.name-col .truncate-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.mask-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mask-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border);
+}
+
+.mask-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mask-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.mask-save {
+  flex-shrink: 0;
+}
+
+.mask-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 /* Модалка */
@@ -914,7 +1052,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -927,11 +1065,11 @@ export default {
 .approvers-modal {
   width: 100%;
   max-width: 480px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
-  max-height: 90vh;
+  max-height: calc(var(--app-vh, 1vh) * 90);
   display: flex;
   flex-direction: column;
 }
@@ -941,7 +1079,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -949,7 +1087,7 @@ export default {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -960,7 +1098,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -969,8 +1107,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -988,7 +1126,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -1003,13 +1141,13 @@ export default {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   max-height: 250px;
   overflow-y: auto;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   margin-top: 4px;
 }
 
@@ -1020,7 +1158,7 @@ export default {
 
 .user-item {
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -1030,7 +1168,7 @@ export default {
 }
 
 .user-item:hover {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .user-info {
@@ -1042,28 +1180,28 @@ export default {
 .user-name {
   font-weight: 500;
   font-size: 14px;
-  color: #000;
+  color: var(--text);
 }
 
 .user-details {
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .user-username {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .user-position {
-  color: #999;
+  color: var(--text-muted);
 }
 
 .no-results-message {
   padding: 12px;
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -1081,13 +1219,13 @@ export default {
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
-  color: #666;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .selected-count {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 12px;
@@ -1097,9 +1235,9 @@ export default {
 .users-list-container {
   overflow-y: auto;
   max-height: 200px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .users-list {
@@ -1112,7 +1250,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   transition: background-color 0.15s ease;
 }
 
@@ -1121,7 +1259,7 @@ export default {
 }
 
 .selected-user:hover {
-  background-color: #f0f0f0;
+  background-color: var(--border);
 }
 
 .selected-user-info {
@@ -1134,31 +1272,31 @@ export default {
 .selected-user-name {
   font-weight: 500;
   font-size: 14px;
-  color: #000;
+  color: var(--text);
 }
 
 .selected-user-username {
   font-size: 12px;
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .selected-user-position {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
 .no-selected-hint {
   padding: 16px 12px;
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .remove-user-btn {
   background: none;
   border: none;
-  color: #999;
+  color: var(--text-muted);
   font-size: 18px;
   cursor: pointer;
   padding: 4px 8px;
@@ -1167,8 +1305,8 @@ export default {
 }
 
 .remove-user-btn:hover {
-  background-color: #fee2e2;
-  color: #ef4444;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 /* Анимация открытия/закрытия (зеркало CitizenshipManagement) */
@@ -1184,7 +1322,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .approvers-modal,
@@ -1205,28 +1343,21 @@ export default {
 .users-list-container::-webkit-scrollbar-track,
 .table-body::-webkit-scrollbar-track,
 .modal-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
 }
 
 .user-dropdown-content::-webkit-scrollbar-thumb,
 .users-list-container::-webkit-scrollbar-thumb,
 .table-body::-webkit-scrollbar-thumb,
 .modal-body::-webkit-scrollbar-thumb {
-  background: #ccc;
+  background: var(--border);
   border-radius: 4px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
     height: auto;
     padding: 16px;
-  }
-  .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
   }
   .content-container {
     flex-direction: column;
@@ -1240,10 +1371,22 @@ export default {
   }
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
   .table-body {
     max-height: 300px;
+  }
+
+  /* Список -> карточки (rt-table): поиск ужимаем, иначе строка контролов
+     (поиск+История+компактные Добавить/Обновить) не помещается на 375-390px. */
+  :deep(.search) {
+    width: 110px;
+  }
+
+  .rt-row .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 </style>

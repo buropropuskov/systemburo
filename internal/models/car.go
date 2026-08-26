@@ -3,9 +3,13 @@ package models
 import "time"
 
 type Car struct {
-	ID                 int        `json:"id"`
-	AttachmentID       int        `gorm:"index" json:"attachment_id"`
-	Attachment         Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	ID           int        `json:"id"`
+	AttachmentID int        `gorm:"index" json:"attachment_id"`
+	Attachment   Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	// SupplementID - каким дополнением заявки добавлена машина (#1685). NULL - пришла с
+	// исходной подачей. По нему принятие дополнения активирует только его строки, а
+	// интерфейс выделяет новые. Без FK: дополнения не удаляются, отмена у них - статус.
+	SupplementID       *int       `gorm:"index" json:"supplement_id"`
 	CarNumber          *string    `gorm:"size:50;index" json:"car_number"`
 	CarBrand           *string    `gorm:"size:100" json:"car_brand"` // deprecated: оставлен на N релизов, см. mark_name
 	MarkID             *int       `gorm:"index" json:"mark_id,omitempty"`
@@ -21,33 +25,20 @@ type Car struct {
 	Status             *int       `gorm:"index" json:"status"`
 	DateAdded          *time.Time `json:"date_added"`
 	DateRemoved        *time.Time `json:"date_removed"`
+	// Согласие субъекта на обработку персональных данных: см. Employee.PDConsentAt.
+	// У машин поле шаблона по умолчанию выключено (номер и марка субъекта не
+	// идентифицируют), колонки заведены для случая, когда администратор его включит.
+	PDConsentAt       *time.Time `json:"pd_consent_at"`
+	PDConsentByUserID *int       `json:"pd_consent_by_user_id"`
 	// IsPurged - финальное удаление из корзины (#186). Запись остаётся в БД для
 	// аудита, но скрывается даже из корзины. Восстановление невозможно.
-	IsPurged           bool       `gorm:"default:false;index" json:"is_purged"`
-	PurgedAt           *time.Time `json:"purged_at,omitempty"`
-	PurgedByUserID     *int       `json:"purged_by_user_id,omitempty"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
-	TerritoryExitTime  *time.Time `json:"territory_exit_time"`
+	IsPurged          bool       `gorm:"default:false;index" json:"is_purged"`
+	PurgedAt          *time.Time `json:"purged_at,omitempty"`
+	PurgedByUserID    *int       `json:"purged_by_user_id,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	TerritoryExitTime *time.Time `json:"territory_exit_time"`
 }
-
-type CarHistory struct {
-	ID         int       `json:"id"`
-	CarID      int       `gorm:"index" json:"car_id"`
-	Car        Car       `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	UserID     *int      `gorm:"index" json:"user_id"`
-	User       *User     `json:"-"`
-	ActionType string    `gorm:"size:50" json:"action_type"`
-	FieldName  *string   `gorm:"size:100" json:"field_name"`
-	OldValue   *string   `gorm:"type:text" json:"old_value"`
-	NewValue   *string   `gorm:"type:text" json:"new_value"`
-	Comment    *string   `gorm:"type:text" json:"comment"`
-	Metadata   *string   `gorm:"type:jsonb" json:"metadata"`
-	CreatedAt  time.Time `json:"created_at"`
-	TableID    *int      `json:"table_id"`
-}
-
-func (CarHistory) TableName() string { return "cars_history" }
 
 type UniqueCar struct {
 	ID             int           `json:"id"`
@@ -60,29 +51,12 @@ type UniqueCar struct {
 	FormatID       *int          `json:"format_id"`
 	UserID         *int          `gorm:"index" json:"user_id"`
 	User           *User         `json:"-"`
-	Status         *bool         `gorm:"default:false" json:"status"`
-	CreatedAt      time.Time     `json:"created_at"`
+	// Согласие субъекта на обработку персональных данных: см. Employee.PDConsentAt.
+	PDConsentAt       *time.Time `json:"pd_consent_at"`
+	PDConsentByUserID *int       `json:"pd_consent_by_user_id"`
+	Status            *bool      `gorm:"default:false" json:"status"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
-
-// UniqueCarHistory хранит аудит изменений мастер-записи автомобиля (unique_cars).
-// Используется отдельная таблица: cars_history.car_id ссылается на cars
-// (заявочная сущность), а здесь нужна ссылка на unique_cars (мастер).
-type UniqueCarHistory struct {
-	ID          int       `json:"id"`
-	UniqueCarID int       `gorm:"index" json:"unique_car_id"`
-	UniqueCar   UniqueCar `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	UserID      *int      `gorm:"index" json:"user_id"`
-	User        *User     `json:"-"`
-	ActionType  string    `gorm:"size:50" json:"action_type"`
-	FieldName   *string   `gorm:"size:100" json:"field_name"`
-	OldValue    *string   `gorm:"type:text" json:"old_value"`
-	NewValue    *string   `gorm:"type:text" json:"new_value"`
-	Comment     *string   `gorm:"type:text" json:"comment"`
-	Metadata    *string   `gorm:"type:jsonb" json:"metadata"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-func (UniqueCarHistory) TableName() string { return "unique_cars_history" }
 
 type CarUnloadPlace struct {
 	ID            int     `json:"id"`
@@ -92,4 +66,18 @@ type CarUnloadPlace struct {
 	OrderIndex    *int    `json:"order_index"`
 	PlannedTime   *string `gorm:"size:20" json:"planned_time"`
 	Notes         *string `gorm:"type:text" json:"notes"`
+}
+
+// CarTargetTable — привязка машины к таблице проходной «Проезд» (#1036). Машина
+// показывается только в выбранных cars-таблицах, а не во всех сразу. Зеркало
+// EmployeeTargetTable для сотрудников.
+type CarTargetTable struct {
+	ID         int  `json:"id"`
+	CarID      int  `gorm:"index" json:"car_id"`
+	TableID    int  `gorm:"index" json:"table_id"`
+	OrderIndex *int `json:"order_index"`
+	// Source - источник привязки (#1227): "application" (из заявки, дефолт колонки -
+	// бэкфиллит existing строки и покрывает сырой submit-INSERT без явного source) или
+	// "manual" (bulk-добавление/перенос/ручное добавление - проставляется явно в Create).
+	Source string `gorm:"type:varchar(20);not null;default:application" json:"source"`
 }

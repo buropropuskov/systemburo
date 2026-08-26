@@ -10,12 +10,6 @@
       <p class="forbidden__message">
         У вас нет прав на просмотр запрашиваемой страницы. Если вы считаете это ошибкой, обратитесь к администратору.
       </p>
-      <p
-        v-if="permissionKey"
-        class="forbidden__hint"
-      >
-        Требуемое право: <code>{{ permissionKey }}</code>
-      </p>
       <div class="forbidden__actions">
         <button
           class="lk-button lk-button--primary"
@@ -37,11 +31,6 @@
 <script>
 export default {
   name: 'ForbiddenPage',
-  computed: {
-    permissionKey() {
-      return this.$route.query.permission || this.$route.meta?.permission || null;
-    },
-  },
   methods: {
     goHome() {
       this.$router.push('/news');
@@ -56,16 +45,20 @@ export default {
 
 <style scoped>
 .forbidden {
-  min-height: 100vh;
+  /* zoom-safe (#1097): vh под корневым zoom раздувается -> низ за экраном, см. Error500. */
+  min-height: calc(var(--app-vh, 1vh) * 100);
+  /* B.3 (#1097): svh стабилизирует высоту на мобилке, min() держит zoom-корректность, см. Error500. */
+  min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--color-bg);
+  /* Фон страницы, не подложка внутри карточки: --color-bg это алиас --surface-2. */
+  background: var(--bg);
 }
 
 .forbidden__card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -79,7 +72,7 @@ export default {
   margin: 0;
   font-size: 64px;
   font-weight: 700;
-  color: var(--color-primary);
+  color: var(--accent-text);
   line-height: 1;
 }
 
@@ -97,22 +90,10 @@ export default {
   color: var(--color-text-muted);
 }
 
-.forbidden__hint {
-  margin: 0 0 20px 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.forbidden__hint code {
-  font-family: 'JetBrains Mono', monospace;
-  background: var(--color-bg-secondary);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-}
-
 .forbidden__actions {
   display: flex;
   gap: 10px;
   justify-content: center;
+  margin-top: 20px;
 }
 </style>

@@ -6,8 +6,17 @@
     >
       <div
         class="modal-content"
+        :class="{ 'is-dragging': sheetDragging }"
+        :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
         @click.stop
+        @touchstart="onSheetTouchStart"
+        @touchmove="onSheetTouchMove"
+        @touchend="onSheetTouchEnd"
       >
+        <div
+          class="sheet-handle"
+          aria-hidden="true"
+        />
         <div class="modal-header">
           <div class="modal-header__top">
             <h3>Привязка новых сотрудников</h3>
@@ -19,7 +28,10 @@
             ×
           </button>
         </div>
-        <div class="modal-body">
+        <div
+          ref="modalBody"
+          class="modal-body"
+        >
           <div class="binding-info">
             <p class="binding-description">
               Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
@@ -94,6 +106,10 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
     name: 'EmployeeBindingModal',
     props: {
@@ -104,6 +120,23 @@ export default {
         hasCompany: Boolean
     },
     emits: ['confirm-binding', 'skip-binding', 'close'],
+    setup(_, { emit }) {
+        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке;
+        // Escape и блокировка прокрутки фона - в mounted/beforeUnmount ниже.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             bindToOrganization: false,
@@ -118,6 +151,14 @@ export default {
                 return 'Отправить';
             }
         }
+    },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown);
+        setBodyScrollLock(this, true);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown);
+        releaseBodyScrollLock(this);
     },
     methods: {
         formatFullName(employee) {
@@ -134,8 +175,12 @@ export default {
                 bindToOrganization: this.bindToOrganization,
                 bindToCompany: this.bindToCompany
             });
+        },
+
+        handleKeydown(e) {
+            if (e.key === 'Escape') this.$emit('close');
         }
-    }
+    },
 }
 </script>
 
@@ -147,7 +192,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -157,7 +202,7 @@ export default {
 }
 
 .modal-content {
-    background: white;
+    background: var(--surface);
     border-radius: 20px;
     padding: 0;
     width: 500px;
@@ -171,7 +216,7 @@ export default {
     justify-content: space-between;
     align-items: flex-start;
     padding: 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header__top {
@@ -184,7 +229,7 @@ export default {
 
 .modal-header h3 {
     margin: 0;
-    color: #333;
+    color: var(--text);
     font-size: 18px;
 }
 
@@ -193,7 +238,7 @@ export default {
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 0;
     width: 30px;
     height: 30px;
@@ -204,7 +249,7 @@ export default {
 }
 
 .modal-close:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .modal-body {
@@ -220,7 +265,7 @@ export default {
 .binding-description {
     font-size: 14px;
     line-height: 1.5;
-    color: #666;
+    color: var(--text-muted);
     margin-bottom: 20px;
     text-align: left;
 }
@@ -228,7 +273,7 @@ export default {
 .section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     margin-bottom: 10px;
 }
 
@@ -247,9 +292,9 @@ export default {
 
 .employee-item {
     padding: 10px 12px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
-    background: #f8f9fa;
+    background: var(--surface-2);
 }
 
 .employee-info {
@@ -260,19 +305,19 @@ export default {
 
 .employee-name {
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     font-size: 14px;
 }
 
 .employee-position {
-    color: #666;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
 .binding-options-section {
     margin-bottom: 20px;
     padding-top: 20px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .binding-options {
@@ -297,21 +342,21 @@ export default {
 }
 
 .option-text {
-    color: #333;
+    color: var(--text);
 }
 
 .warning-section {
     margin-top: 15px;
     padding: 12px;
-    background: #fff5f5;
+    background: var(--danger-bg);
     border-radius: 8px;
-    border: 1px solid #ffcccc;
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .warning-text {
     font-size: 12px;
     line-height: 1.5;
-    color: #666;
+    color: var(--text-muted);
     margin: 0;
     text-align: left;
 }
@@ -321,12 +366,12 @@ export default {
     justify-content: flex-end;
     gap: 10px;
     padding-top: 20px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .confirm-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 12px;
     padding: 12px 30px;
@@ -337,23 +382,20 @@ export default {
 }
 
 .confirm-btn:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .red {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 @media (max-width: 768px) {
-    .modal-content {
-        width: 95vw;
-        margin: 10px;
-        max-height: 400px;
-    }
+    /* Размеры листа приходят из глобального .modal-content (App.vue) с !important -
+       локальные width/max-height/radius здесь были мёртвыми и вводили в заблуждение. */
     
     .modal-body {
         max-height: 350px;
@@ -362,6 +404,37 @@ export default {
     .confirm-btn {
         width: 100%;
         min-width: auto;
+    }
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 10px auto 2px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    /* Лист выезжает снизу глобальным паттерном .modal-content (App.vue), здесь -
+       ползунок и возврат листа на место после недотянутого свайпа. */
+    .sheet-handle {
+        display: block;
+    }
+
+    .modal-content {
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .modal-close {
+        min-width: 40px;
+        min-height: 40px;
     }
 }
 </style>

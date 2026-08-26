@@ -12,8 +12,17 @@
       >
         <div
           class="employees-history-modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <h3>История проходов сотрудников (таблица)</h3>
             <div class="header-actions">
@@ -22,11 +31,11 @@
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -63,11 +72,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -104,11 +113,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedEmployeeName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': employeeDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -159,11 +168,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -172,7 +181,7 @@
 
           <div
             ref="scrollContainer"
-            class="modal-content"
+            class="history-scroll"
           >
             <div
               v-if="loading"
@@ -246,10 +255,15 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useDeletionsStore } from '@/stores/deletions';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'EmployeesTableHistoryModal',
+  components: { AppIcon },
   props: {
     tableId: {
       type: Number,
@@ -273,7 +287,21 @@ export default {
     const requestClose = () => { visible.value = false; };
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
-    return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
+    // Bottom-sheet на мобилке: свайп вниз за ползунок закрывает (как в истории сотрудника).
+    const scrollContainer = ref(null);
+    const swipe = useSwipeDismiss(requestClose, {
+      getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
+      scrollContainer,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
   },
   data() {
     return {
@@ -308,7 +336,7 @@ export default {
       const emps = new Map();
       this.history.forEach(item => {
         if (item.employee_id && !emps.has(item.employee_id)) {
-          const fullName = [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ');
+          const fullName = [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ');
           emps.set(item.employee_id, {
             id: item.employee_id,
             name: fullName || `ID: ${item.employee_id}`
@@ -425,10 +453,12 @@ export default {
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
     document.addEventListener('keydown', this.onKeydown);
+    setBodyScrollLock(this, true);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
     document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
   },
   methods: {
     async loadHistory() {
@@ -450,15 +480,21 @@ export default {
     },
 
     getEmployeeName(item) {
-      return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ') || `ID: ${item.employee_id}`;
+      return [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ') || `ID: ${item.employee_id}`;
     },
 
     getActionClass(actionType) {
-      if (actionType === 'entry' || actionType === 'restore') return 'dot-entry';
+      // Зелёная точка - сотрудник появляется/остаётся в таблице (проход, восстановление,
+      // добавление/перенос, ввод в работу, снятие с ЧС). Остальное (выход, удаление,
+      // вывод из работы по истечении срока, добавление в ЧС) - красная по умолчанию.
+      if (['entry', 'restore', 'added_to_table', 'moved_between_tables', 'activate', 'create', 'unblacklisted', 'blacklist_override'].includes(actionType)) return 'dot-entry';
       return 'dot-exit';
     },
 
     getActionText(item) {
+      // GetByTable (/employees/history/table/:id) не фильтрует action_type (урок #1085),
+      // поэтому словарь обязан покрывать все действия сотрудника, иначе deactivate/create/
+      // прочие текут в журнал сырым английским кодом.
       if (item.action_type === 'entry') {
         return 'Проход на территорию';
       } else if (item.action_type === 'exit') {
@@ -469,6 +505,28 @@ export default {
         return 'Восстановление в таблице';
       } else if (item.action_type === 'purge') {
         return 'Безвозвратное удаление';
+      } else if (item.action_type === 'added_to_table') {
+        return 'Добавлен в таблицу проходной';
+      } else if (item.action_type === 'moved_between_tables') {
+        return 'Перенесён между таблицами';
+      } else if (item.action_type === 'unbound_from_table') {
+        return 'Снят с таблицы';
+      } else if (item.action_type === 'create') {
+        return 'Подана заявка на сотрудника';
+      } else if (item.action_type === 'activate') {
+        return 'Сотрудник введён в работу';
+      } else if (item.action_type === 'deactivate') {
+        return 'Сотрудник выведен из работы';
+      } else if (item.action_type === 'blacklisted') {
+        return 'Добавлен в чёрный список';
+      } else if (item.action_type === 'unblacklisted') {
+        return 'Снят с чёрного списка';
+      } else if (item.action_type === 'blacklist_override') {
+        return 'Пропущен несмотря на подозрение в обходе ЧС';
+      } else if (item.action_type === 'blacklist_override_revoke') {
+        return 'Отменено подтверждение пропуска (обход ЧС)';
+      } else if (item.action_type === 'update') {
+        return item.field_name ? `Изменено поле "${item.field_name}"` : 'Данные обновлены';
       }
       return item.action_type;
     },
@@ -669,7 +727,7 @@ export default {
         
       } catch (error) {
         console.error('Error exporting to Excel:', error);
-        alert('Ошибка при экспорте в Excel');
+        useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
       }
@@ -686,10 +744,10 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
@@ -699,7 +757,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -740,15 +798,30 @@ export default {
   to { transform: scale(0.95); opacity: 0; }
 }
 
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 10px auto 2px;
+  flex-shrink: 0;
+}
+
+@keyframes employeesTableHistorySlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 .employees-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
 }
 
 .modal-header {
@@ -756,14 +829,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -778,19 +851,19 @@ export default {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -806,8 +879,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -816,7 +889,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -828,14 +901,14 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
   padding: 15px 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
   flex-shrink: 0;
 }
 
@@ -858,13 +931,13 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .search-input {
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
   width: 200px;
@@ -874,7 +947,7 @@ export default {
 
 .search-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -889,21 +962,21 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .select-trigger:hover {
-  border-color: #4F5BDF;
-  background: #f5f5f5;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .selected-value {
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -936,10 +1009,10 @@ export default {
   right: 0;
   max-height: 300px;
   overflow-y: auto;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 1000;
 }
 
@@ -950,10 +1023,10 @@ export default {
 .select-option {
   padding: 8px 12px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -961,17 +1034,17 @@ export default {
 }
 
 .select-option:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .select-option.selected {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
   font-weight: 500;
 }
 
 .date-input {
   padding: 6px 8px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 12px;
   width: 120px;
@@ -979,7 +1052,7 @@ export default {
 }
 
 .date-separator {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -988,11 +1061,11 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
@@ -1000,11 +1073,12 @@ export default {
 }
 
 .sort-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;
@@ -1014,7 +1088,9 @@ export default {
   transform: rotate(180deg);
 }
 
-.modal-content {
+/* Имя .modal-content ловило глобальное min-width:100vw из App.vue и распирало
+   внутренний блок внутри самого окна - у скролл-контейнера своё имя. */
+.history-scroll {
   padding: 20px;
   overflow-y: auto;
   flex: 1;
@@ -1026,14 +1102,14 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1074,7 +1150,7 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
 .dot-entry { background: #059669; }
@@ -1095,47 +1171,101 @@ export default {
 
 .employee-info {
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-size: 13px;
 }
 
 .table-name {
   font-weight: 500;
-  color: #8b5cf6;
+  color: var(--accent-text);
   font-size: 12px;
   font-style: italic;
 }
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: окно выезжает снизу, свайп вниз за ползунок закрывает. Своё имя
+     класса не ловит глобальный паттерн .modal-content из App.vue, поэтому лист
+     описан здесь целиком - раньше карточка 900px с радиусом 30px просто липла к
+     нижней кромке экрана. */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+    top: 0;
+    height: 100dvh;
+    bottom: auto;
+  }
+
+  .employees-history-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    transition: transform 0.3s ease;
+  }
+
+  .employees-history-modal.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
+  .close-btn,
+  .export-btn {
+    min-height: 40px;
+  }
+
+  .modal-fade-enter-active .employees-history-modal {
+    animation: employeesTableHistorySlideUp 0.3s ease-out;
+  }
+
+  .modal-fade-leave-active .employees-history-modal {
+    animation: none;
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .modal-fade-leave-to .employees-history-modal {
+    transform: translateY(100%);
+  }
+
+  .modal-fade-leave-active {
+    transition: opacity 0.3s ease;
+  }
+
+  /* flex-элемент с min-width:auto в колонке = ширина по содержимому: без width
+     фильтры распирали окно шире экрана. */
   .filter-row {
     flex-direction: column;
     align-items: flex-start;
+    width: 100%;
+    min-width: 0;
   }
   
   .search-filter,

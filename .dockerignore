@@ -1,16 +1,13 @@
 frontend/
 backend/
-.claude/
-.git/
-docs/superpowers/
+# Скрытые каталоги и файлы в корне: конфигурация VCS, хуки, локальные инструменты.
+# В контекст сборки не нужны и заметно его раздувают.
+.*
 dump-*.sql
 *.docx
-*.md
+# Рекурсивно: документация в образ не копируется, но попадает в контекст сборки.
+**/*.md
 test-results/
 frontend/test-results/
 scripts/
-.superpowers/
-.playwright-mcp/
-.githooks/
-.env
 *.log

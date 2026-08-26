@@ -23,7 +23,7 @@ func (s *stubMaintenanceService) GetStatus(ctx context.Context) (*services.Maint
 func (s *stubMaintenanceService) GetStatusCached(ctx context.Context) *services.MaintenanceStatus {
 	return &services.MaintenanceStatus{Enabled: s.enabled}
 }
-func (s *stubMaintenanceService) Enable(ctx context.Context, _ int, _, _, _ string) error {
+func (s *stubMaintenanceService) Enable(ctx context.Context, _ int, _ string, _ services.MaintenanceParams) error {
 	s.enabled = true
 	return nil
 }

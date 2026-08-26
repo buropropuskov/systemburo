@@ -9,6 +9,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 /**
  * Полноширинная обёртка страниц /admin/*: растягивает вложенный компонент
@@ -21,11 +22,42 @@ const root = ref(null);
 let resizeObserver = null;
 let lastHeight = -1;
 
+/**
+ * На телефоне обёртка высоту НЕ фиксирует и скролл себе не забирает.
+ *
+ * Замер стенда (390x844, «Доступные мне»): `documentElement.scrollHeight`
+ * равнялся `clientHeight`, то есть окно не прокручивалось вовсе, а
+ * прокручивалась эта обёртка - 789px видимой части при содержимом 1453.
+ * Вложенный скроллпорт не отдаёт инерцию, не сворачивает адресную строку
+ * браузера и залипает на границе, поэтому жест ощущается как «то скроллит,
+ * то зависает, то дёргает» (претензия пользователя, волна 5).
+ *
+ * Порог 767.98 - тот же, на котором таблицы становятся карточками
+ * (`responsive-tables.css`), иначе ровно на 768 собирается гибрид.
+ */
+const MOBILE_QUERY = '(max-width: 767.98px)';
+
+function isMobileViewport() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(MOBILE_QUERY).matches;
+}
+
 function applyHeight() {
   const el = root.value;
   if (!el) return;
+  if (isMobileViewport()) {
+    // Инлайновую высоту снимаем: она могла остаться от десктопной ширины
+    // после поворота экрана или изменения размера окна.
+    if (el.style.height) el.style.height = '';
+    lastHeight = -1;
+    return;
+  }
+  // rect.top под корневым zoom - в device-px, а innerHeight - НЕзумленный;
+  // делим доступную device-высоту на zoom, чтобы получить CSS-высоту (иначе
+  // элемент выходит в zoom раз выше экрана - пустой длинный хвост снизу).
   const top = el.getBoundingClientRect().top;
-  const height = Math.max(0, Math.round(window.innerHeight - top));
+  const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom()));
   // Защита от ResizeObserver-петли: пишем стиль только при реальном изменении.
   if (height === lastHeight) return;
   lastHeight = height;
@@ -88,5 +120,35 @@ onBeforeUnmount(() => {
    внутреннего скролла тела (.table-body / .tab-content уже overflow:auto). */
 .admin-page :deep(.management-header) {
   flex-shrink: 0;
+}
+
+/* --- Телефон: один скроллпорт на экран (#1097 волна 5) ----------------------
+   Прокручивается страница, и только она. Высоту здесь не держим (её снимает
+   applyHeight), карточку не растягиваем на всю высоту и внутренние области
+   тела не делаем прокручиваемыми - иначе на экране оказывается два-три
+   вложенных скроллпорта, и палец попадает то в один, то в другой.
+   `!important` обязателен: правила-источники объявлены внутри самих
+   компонентов управления, а те - lazy route-чанки, чей scoped-CSS грузится
+   позже общего бандла (урок #1097 S9a). */
+@media (max-width: 767.98px) {
+  .admin-page {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: var(--gutter, 12px);
+  }
+
+  .admin-page :deep(.dashboard-card) {
+    height: auto !important;
+    border-radius: var(--radius-lg, 20px);
+  }
+
+  .admin-page :deep(.content-container),
+  .admin-page :deep(.table-body),
+  .admin-page :deep(.tab-content) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }
 </style>

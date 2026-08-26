@@ -4,11 +4,11 @@
 .idea/
 .vscode/
 
-# Claude Code / Superpowers
-.claude/
-.superpowers/
-.playwright-mcp/
-*.plan.md
+# Зависимости и кэши сборки (в т.ч. node_modules/.vite от прогона vitest из корня)
+node_modules/
+
+# Собранные архивы поставки (make package)
+/dist/
 
 # Дампы БД
 *.sql
@@ -21,4 +21,16 @@ frontend/test-results/
 # Временные файлы
 *.tmp
 mockup-*.html
-sidebar-*.png
+# Отладочные снимки экрана в корне: копятся десятками при ручной проверке вёрстки.
+# Ограничено корнем - изображения фронтенда лежат во frontend/public и нужны сборке.
+/*.png
+
+# Runtime-загрузки (тестовые/локальные артефакты, не хранятся в VCS)
+internal/handlers/uploads/
+
+# Файловый архив бланков при локальном запуске (ARCHIVE_HOST_PATH по умолчанию).
+# Содержит персональные данные и в VCS не попадает никогда.
+/archive/
+
+# Отчёт локального прогона сканера секретов
+gitleaks.log

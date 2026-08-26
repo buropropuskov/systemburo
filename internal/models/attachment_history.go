@@ -5,25 +5,16 @@ import (
 	"time"
 )
 
-// UniqueAttachmentHistory логирует действия над шаблоном вложения: создание,
-// изменение, архивацию и восстановление. Нужна для аудита (#416): шаблоны вложений
-// привязаны к Excel-бланкам и заявкам, важно знать кто и когда менял.
-// FK (UniqueAttachmentID) намеренно без constraint: аудит должен пережить удаление шаблона.
-type UniqueAttachmentHistory struct {
-	ID                 int             `json:"id"`
-	UniqueAttachmentID int             `gorm:"index;not null" json:"unique_attachment_id"`
-	ActorUserID        *int            `gorm:"index" json:"actor_user_id,omitempty"`
-	ActionType         string          `gorm:"size:32;index" json:"action_type"`
-	Details            json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt          time.Time       `json:"created_at"`
-}
-
-// UniqueAttachmentActionType - константы для UniqueAttachmentHistory.ActionType.
+// UniqueAttachmentActionType - константы action-типов истории шаблонов вложений.
 const (
 	UniqueAttachmentActionCreated  = "created"
 	UniqueAttachmentActionUpdated  = "updated"
 	UniqueAttachmentActionArchived = "archived"
 	UniqueAttachmentActionRestored = "restored"
+	// UniqueAttachmentActionListImported - загружен заполненный Excel-бланк для массового
+	// ввода списка (blank-import, срез C3). details несёт имя файла и сводку разбора
+	// (сколько строк прочитано/принято/отклонено) - кто, когда и что именно загрузил.
+	UniqueAttachmentActionListImported = "list_imported"
 )
 
 // UniqueAttachmentHistoryItem - запись истории с именем актора для API (LEFT JOIN users).

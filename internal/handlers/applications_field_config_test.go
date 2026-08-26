@@ -96,6 +96,15 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "Места разгрузки")
 	})
 
+	t.Run("cars: настроенное required passage_tables - без проезда 400", func(t *testing.T) {
+		uaID := seedUniqueAttachment(t, db, "cars", "h9_passage_req", "tmpl")
+		seedFieldConfig(t, db, uaID, "passage_tables", true, true)
+		data := `{"vehicles": [{"car_number": "A123AA77", "car_brand": "Kamaz", "mark_id": null}]}`
+		rec := submitFC(t, e, token, orgName, "cars", uaID, data)
+		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "Проезд")
+	})
+
 	t.Run("cars: by-fact 'По факту' проходит required number и mark", func(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "cars", "h9_byfact", "tmpl")
 		seedFieldConfig(t, db, uaID, "number", true, true)

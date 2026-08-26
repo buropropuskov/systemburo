@@ -5,20 +5,7 @@ import (
 	"time"
 )
 
-// SystemTableHistory логирует CRUD-действия над системной таблицей (#345).
-// Используется для отображения "Истории" в конструкторе таблиц.
-// Поля и слоты пишутся в Details как diff/snapshot - формат зависит от ActionType.
-type SystemTableHistory struct {
-	ID            int             `json:"id"`
-	SystemTableID int             `gorm:"index" json:"system_table_id"`
-	ActionType    string          `gorm:"size:30;index" json:"action_type"`
-	Details       json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	UserID        *int            `gorm:"index" json:"user_id,omitempty"`
-	User          *User           `gorm:"foreignKey:UserID" json:"-"`
-	CreatedAt     time.Time       `json:"created_at"`
-}
-
-// SystemTableActionType - константы для SystemTableHistory.ActionType.
+// SystemTableActionType - константы action-типов истории системных таблиц.
 const (
 	SystemTableActionCreated         = "created"
 	SystemTableActionUpdated         = "updated"

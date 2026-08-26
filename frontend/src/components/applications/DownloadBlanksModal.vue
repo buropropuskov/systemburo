@@ -1,109 +1,142 @@
 <template>
   <Teleport to="body">
-    <div
-      class="dbm-overlay"
-      data-testid="download-blanks-modal"
-      @click.self="$emit('close')"
-    >
-      <div class="dbm-modal">
-        <div class="dbm-header">
-          <h3 class="dbm-title">
-            Скачивание бланков
-          </h3>
-          <button
-            class="dbm-close"
-            @click="$emit('close')"
-          >
-            &times;
-          </button>
-        </div>
-
-        <div
-          v-if="isLoading"
-          class="dbm-state"
-        >
-          <span class="dbm-spinner" />
-        </div>
-        <div
-          v-else-if="error"
-          class="dbm-state dbm-state--error"
-        >
-          {{ error }}
-        </div>
-        <div
-          v-else-if="!eligibleAttachments.length"
-          class="dbm-state"
-        >
-          У заявки нет вложений с настроенным шаблоном бланка.
-        </div>
-        <div
-          v-else
-          class="dbm-list"
-        >
-          <label
-            v-for="att in eligibleAttachments"
-            :key="att.id"
-            class="dbm-item"
-            :class="{ selected: selectedIds.includes(att.id) }"
-          >
-            <input
-              v-model="selectedIds"
-              type="checkbox"
-              :value="att.id"
-              class="dbm-checkbox"
-            >
-            <div class="dbm-item-info">
-              <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
-              <span
-                v-if="attachmentTypeLabel(att.attachment_type)"
-                class="dbm-item-type"
-              >{{ attachmentTypeLabel(att.attachment_type) }}</span>
-            </div>
+    <transition name="modal-fade">
+      <div
+        v-if="show"
+        class="dbm-overlay"
+        data-testid="download-blanks-modal"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
+      >
+        <div class="dbm-modal">
+          <div class="dbm-header">
+            <h3 class="dbm-title">
+              Скачивание бланков
+            </h3>
             <button
-              class="dbm-item-download"
-              :disabled="downloadingId === att.id"
-              @click.prevent="downloadOne(att)"
+              class="dbm-close"
+              @click="$emit('close')"
             >
-              {{ downloadingId === att.id ? '...' : 'Скачать' }}
+              &times;
             </button>
-          </label>
-        </div>
+          </div>
 
-        <footer
-          v-if="eligibleAttachments.length"
-          class="dbm-footer"
-        >
-          <button
-            class="dbm-btn dbm-btn--ghost"
-            @click="$emit('close')"
+          <!-- Наполнение бланка - тумблер, а не вкладки: включено или нет, третьего
+               состояния нет, и подпись читается сразу. Блок отделён от списка фоном и
+               рамкой, а тумблер стоит справа - у строк списка он слева, и без этого
+               настройка читалась как ещё одно вложение. Видно только тем, кому документы
+               участников положены; остальным идёт строка о том, почему в файле прочерки. -->
+          <div
+            v-if="showDocumentsChoice"
+            class="dbm-option"
           >
-            Закрыть
-          </button>
-          <button
-            class="dbm-btn dbm-btn--ghost"
-            :disabled="downloadingAll"
-            @click="downloadAll"
+            <span class="dbm-option-text">
+              <span class="dbm-option-title">Паспортные данные</span>
+              <span class="dbm-option-hint">{{ withDocuments ? 'Попадут в бланк' : 'В бланке будет прочерк' }}</span>
+            </span>
+            <ToggleSwitch
+              v-model="withDocuments"
+              data-testid="blank-documents-toggle"
+            />
+          </div>
+          <p
+            v-if="!isLoading && !error && eligibleAttachments.length && !canChooseDocuments"
+            class="dbm-docs-note"
+            data-testid="blank-documents-note"
           >
-            Скачать все
-          </button>
-          <button
-            class="dbm-btn dbm-btn--primary"
-            :disabled="!selectedIds.length || downloadingAll"
-            @click="downloadSelected"
+            Паспортные данные, патент и иное разрешение в бланке заменены прочерком: нет права на их выгрузку.
+          </p>
+
+          <div
+            v-if="isLoading"
+            class="dbm-state"
           >
-            {{ downloadingAll ? 'Скачивание...' : `Скачать (${selectedIds.length})` }}
-          </button>
-        </footer>
+            <span class="dbm-spinner" />
+          </div>
+          <div
+            v-else-if="error"
+            class="dbm-state dbm-state--error"
+          >
+            {{ error }}
+          </div>
+          <div
+            v-else-if="!eligibleAttachments.length"
+            class="dbm-state"
+          >
+            У заявки нет вложений с настроенным шаблоном бланка.
+          </div>
+          <template v-else>
+            <span class="dbm-list-title">Вложения</span>
+            <div class="dbm-list">
+              <div
+                v-for="att in eligibleAttachments"
+                :key="att.id"
+                class="dbm-item"
+                :class="{ selected: selectedIds.includes(att.id) }"
+              >
+                <ToggleSwitch
+                  :model-value="selectedIds.includes(att.id)"
+                  :data-testid="`blank-select-${att.id}`"
+                  @update:model-value="toggleSelected(att.id, $event)"
+                />
+                <div class="dbm-item-info">
+                  <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
+                  <span
+                    v-if="attachmentTypeLabel(att.attachment_type)"
+                    class="dbm-item-type"
+                  >{{ attachmentTypeLabel(att.attachment_type) }}</span>
+                </div>
+                <button
+                  class="dbm-item-download"
+                  :disabled="downloadingId === att.id"
+                  @click.prevent="downloadOne(att)"
+                >
+                  {{ downloadingId === att.id ? '...' : 'Скачать' }}
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <footer
+            v-if="eligibleAttachments.length"
+            class="dbm-footer"
+          >
+            <button
+              class="dbm-btn dbm-btn--ghost"
+              @click="$emit('close')"
+            >
+              Закрыть
+            </button>
+            <button
+              class="dbm-btn dbm-btn--ghost"
+              :disabled="downloadingAll"
+              @click="downloadAll"
+            >
+              Скачать все
+            </button>
+            <button
+              class="dbm-btn dbm-btn--primary"
+              :disabled="!selectedIds.length || downloadingAll"
+              @click="downloadSelected"
+            >
+              {{ downloadingAll ? 'Скачивание...' : `Скачать (${selectedIds.length})` }}
+            </button>
+          </footer>
+        </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
 <script>
 import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
-import { useUiStore } from '@/stores/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 
 const TYPE_LABELS = {
   cars: 'Автомобили',
@@ -113,11 +146,18 @@ const TYPE_LABELS = {
 
 export default {
   name: 'DownloadBlanksModal',
+  components: { ToggleSwitch },
   props: {
-    applicationId: { type: Number, required: true },
+    show: { type: Boolean, default: false },
+    applicationId: { type: Number, default: 0 },
     applicationInfo: { type: Object, default: null },
   },
   emits: ['close'],
+  setup(props, { emit }) {
+    // Закрытие по подложке - через общий composable: он отличает клик по фону от
+    // протяжки, начатой внутри окна (выделение текста мышью не должно закрывать).
+    return useOverlayClose(() => emit('close'));
+  },
   data() {
     return {
       attachments: [],
@@ -126,17 +166,69 @@ export default {
       downloadingId: null,
       downloadingAll: false,
       error: '',
+      // Наполнение бланка. Выключено - паспорт, патент и иное разрешение заменены
+      // прочерком. Умолчание намеренно закрытое: вынос персональных данных из
+      // системы должен быть отдельным решением, а не тем, что случилось само.
+      documentsRequested: false,
     };
   },
   computed: {
     eligibleAttachments() {
       return this.attachments.filter(att => att.has_template);
     },
+    // Пара прав, а не одно: detail.documents открывает документы на экране карточки,
+    // detail.documents.export - их вынос файлом. Отзыв первого гасит и второе.
+    canExportDocuments() {
+      const perms = usePermissionsStore();
+      return perms.hasPermission('detail.documents') && perms.hasPermission('detail.documents.export');
+    },
+    // Инициатор заявки сам набирал паспорта участников в форме подачи - из своей же
+    // заявки они и уходят. Тот же вывод делает сервер (canExportBlankDocuments),
+    // здесь это лишь про то, показывать ли переключатель.
+    isInitiator() {
+      const senderID = this.applicationInfo?.sender_user_id;
+      const userID = useAuthStore().userId;
+      return Boolean(senderID) && Boolean(userID) && senderID === userID;
+    },
+    canChooseDocuments() {
+      return this.canExportDocuments || this.isInitiator;
+    },
+    showDocumentsChoice() {
+      return !this.isLoading && !this.error && this.eligibleAttachments.length > 0 && this.canChooseDocuments;
+    },
+    // Тумблер наполнения: право проверяется здесь же, поэтому включённое состояние
+    // без права невозможно в принципе - даже если оно осталось от прошлого открытия.
+    withDocuments: {
+      get() {
+        return this.canChooseDocuments && this.documentsRequested;
+      },
+      set(value) {
+        this.documentsRequested = value;
+      },
+    },
   },
-  mounted() {
-    this.load();
+  watch: {
+    // Модалка всегда смонтирована (для leave-анимации): грузим вложения при
+    // открытии, а не на mount (иначе fetch с пустым applicationId на старте).
+    // Закрытие модалки снимает обработчик Escape: он висит на документе, и без
+    // снятия каждое открытие добавляло бы ещё один.
+    show(visible) {
+      if (visible && this.applicationId) {
+        this.selectedIds = [];
+        this.documentsRequested = false;
+        this.load();
+      }
+      if (visible) document.addEventListener('keydown', this.onKeydown);
+      else document.removeEventListener('keydown', this.onKeydown);
+    },
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape') this.$emit('close');
+    },
     async load() {
       this.isLoading = true;
       try {
@@ -152,13 +244,21 @@ export default {
     attachmentTypeLabel(t) {
       return TYPE_LABELS[t] || t || '';
     },
+    // Тумблер строки списка: выбор для «Скачать (N)». Массив, а не Set - его же
+    // читает разметка, а Vue не отслеживает изменения Set.
+    toggleSelected(id, on) {
+      this.selectedIds = on
+        ? [...this.selectedIds, id]
+        : this.selectedIds.filter((selected) => selected !== id);
+    },
     async downloadOne(att) {
       this.downloadingId = att.id;
       try {
-        const { blob, filename } = await downloadBlank(this.applicationId, att.id);
+        const { blob, filename } = await downloadBlank(this.applicationId, att.id,
+          { withDocuments: this.withDocuments });
         saveBlobAs(blob, filename);
       } catch (err) {
-        useUiStore().error(err.message || 'Не удалось скачать');
+        useDeletionsStore().notify({ prefix: 'Не удалось скачать: ', bold: err.message || 'ошибка сервера', type: 'error' });
       } finally {
         this.downloadingId = null;
       }
@@ -180,10 +280,11 @@ export default {
       const zip = new JSZip();
       for (const id of ids) {
         try {
-          const { blob, filename } = await downloadBlank(this.applicationId, id);
+          const { blob, filename } = await downloadBlank(this.applicationId, id,
+            { withDocuments: this.withDocuments });
           zip.file(filename, blob);
         } catch (err) {
-          useUiStore().error(err.message || 'Не удалось скачать файл');
+          useDeletionsStore().notify({ prefix: 'Не удалось скачать файл: ', bold: err.message || 'ошибка сервера', type: 'error' });
         }
       }
       const content = await zip.generateAsync({ type: 'blob' });
@@ -193,7 +294,7 @@ export default {
       const org = info?.organization_name || '';
       const parts = [num, date, org].filter(Boolean).join('_').replace(/[/\\:*?"<>|]/g, '_');
       saveBlobAs(content, `${parts}.zip`);
-      useUiStore().success(`Скачано: ${ids.length} файлов в ZIP`);
+      useDeletionsStore().notify({ prefix: 'Скачано: ', bold: `${ids.length} файлов в ZIP` });
     },
     async downloadAll() {
       this.selectedIds = this.eligibleAttachments.map(a => a.id);
@@ -207,24 +308,27 @@ export default {
 .dbm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  /* Открывается по кнопке "Скачать" ИЗ детали заявки (overlay 10002), поэтому должна
+     быть выше неё - иначе список бланков уходит ЗА деталь. В один ряд с историей
+     (12000), которая тоже вызывается из детали (#1097 R3-2, лестница z-index детали). */
+  z-index: 12000;
 }
 
 .dbm-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   padding: 0;
   width: 480px;
   max-width: 92vw;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 32px var(--shadow-drop);
 }
 
 .dbm-header {
@@ -262,6 +366,56 @@ export default {
   color: var(--color-text);
 }
 
+/* Блок настройки бланка. Отделён от перечня вложений собственным фоном и рамкой, а
+   тумблер стоит справа - в строках списка он слева. Без этого настройка читалась как
+   ещё одно вложение: одинаковый тумблер, одинаковая строка. */
+.dbm-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 24px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.dbm-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dbm-option-title {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.dbm-option-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Подпись перечня: второй маркер границы между настройкой и списком. */
+.dbm-list-title {
+  display: block;
+  padding: 18px 24px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.dbm-docs-note {
+  margin: 0;
+  padding: 12px 24px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
 .dbm-state {
   display: flex;
   align-items: center;
@@ -272,7 +426,7 @@ export default {
 }
 
 .dbm-state--error {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .dbm-spinner {
@@ -280,7 +434,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: dbm-spin 0.7s linear infinite;
 }
@@ -304,26 +458,18 @@ export default {
   padding: 10px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  cursor: pointer;
   transition: all 0.15s;
-  background: #fff;
+  background: var(--surface);
 }
 
 .dbm-item:hover {
-  border-color: var(--color-primary);
-  background: #f8faff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .dbm-item.selected {
-  border-color: var(--color-primary);
-  background: #eef4ff;
-}
-
-.dbm-checkbox {
-  accent-color: var(--color-primary);
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .dbm-item-info {
@@ -352,7 +498,7 @@ export default {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--color-primary);
+  color: var(--accent-text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
@@ -362,7 +508,7 @@ export default {
 }
 
 .dbm-item-download:hover {
-  background: #eef4ff;
+  background: var(--accent-tint);
 }
 
 .dbm-item-download:disabled {
@@ -394,7 +540,7 @@ export default {
 
 .dbm-btn--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .dbm-btn--primary:hover:not(:disabled) {
@@ -408,7 +554,17 @@ export default {
 }
 
 .dbm-btn--ghost:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

@@ -259,6 +259,16 @@ func (s *PermissionGroupService) SetUserRole(ctx context.Context, userID int, ro
 	return nil
 }
 
+// SetUserAdmin переключает флаг администратора у пользователя (выдача/снятие админки).
+func (s *PermissionGroupService) SetUserAdmin(ctx context.Context, userID int, isAdmin bool) error {
+	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).
+		Update("is_admin", isAdmin).Error; err != nil {
+		return fmt.Errorf("failed to set admin flag: %w", err)
+	}
+	s.resolver.Invalidate(userID)
+	return nil
+}
+
 // UnassignFromUser убирает группу у юзера.
 func (s *PermissionGroupService) UnassignFromUser(ctx context.Context, userID, groupID int) error {
 	if err := s.db.WithContext(ctx).

@@ -1,6 +1,6 @@
 <template>
   <div class="number-format-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Управление форматами номеров
       </h3>
@@ -18,11 +18,16 @@
           :title="'Поиск форматов...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
           data-testid="nf-add-btn"
+          aria-label="Добавить"
           @click="openAddModal"
         >
-          Добавить
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -31,11 +36,58 @@
       </div>
     </div>
 
+    <div
+      v-if="selectedIds.length"
+      class="bulk-bar"
+      data-testid="numberformat-bulk-bar"
+    >
+      <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+      <div class="bulk-actions">
+        <button
+          v-if="!showArchive"
+          class="pill pill-danger"
+          data-testid="numberformat-bulk-archive"
+          @click="startBulkOperation('archive')"
+        >
+          В архив
+        </button>
+        <button
+          v-else
+          class="pill pill-restore"
+          data-testid="numberformat-bulk-restore"
+          @click="startBulkOperation('restore')"
+        >
+          Восстановить
+        </button>
+        <button
+          class="pill pill-ghost bulk-clear"
+          data-testid="numberformat-bulk-clear"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="content-container">
       <!-- Левая часть - список форматов -->
       <div class="table-section">
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
+            <div
+              class="header-col check-col"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                aria-label="Выбрать все"
+                data-testid="numberformat-select-all"
+                @change="toggleSelectAll"
+              >
+            </div>
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -43,11 +95,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -56,19 +108,19 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
           <div class="table-body">
             <div
-              v-for="item in filteredFormats"
+              v-for="(item, index) in filteredFormats"
               :key="item.format.id"
-              class="table-row"
+              class="table-row rt-row"
               data-testid="nf-row"
               :class="{
                 selected: selectedFormat && selectedFormat.format.id === item.format.id,
@@ -76,10 +128,29 @@
               }"
               @click="selectFormat(item)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="isSelected(item.format.id)"
+                  :aria-label="`Выбрать ${item.format.name}`"
+                  data-testid="numberformat-row-check"
+                  @click="onRowCheck(item.format, index, $event)"
+                >
+              </div>
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ item.format.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="item.format.name"
@@ -657,6 +728,17 @@
       @cancel="archiveConfirmFormat = null"
     />
 
+    <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      cancel-text="Отмена"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
+
     <LicensePlateFormatHistoryModal
       v-if="historyForFormat"
       :format="historyForFormat"
@@ -668,6 +750,7 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
@@ -677,6 +760,10 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
+import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 function defaultCell() {
   return {
@@ -698,7 +785,8 @@ const CELL_TYPE_LABELS = {
 
 export default {
   name: 'NumberFormat',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal },
+  mixins: [openFromSearchLink((vm) => vm.formats, 'selectFormat', (row) => row?.format?.id)],
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal, AppIcon },
   setup() {
     // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
     const addOverlay = { close: () => {} };
@@ -741,18 +829,24 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
     };
   },
   computed: {
     filteredFormats() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.formats.filter(item =>
         this.showArchive ? !item.format.is_active : item.format.is_active);
-      if (q) {
-        list = list.filter(item =>
-          item.format.name.toLowerCase().includes(q)
-          || String(item.format.id).includes(q)
-          || (item.format.country_code && item.format.country_code.toLowerCase().includes(q)));
+      if (variants.length) {
+        list = list.filter(item => matchesSearch(
+          `${item.format.name} ${item.format.id} ${item.format.country_code || ''}`,
+          variants,
+        ));
       }
       return this.sortList(list);
     },
@@ -770,6 +864,36 @@ export default {
     },
     isDirty() {
       return this.isAddDirty || this.isDetailsDirty;
+    },
+    allSelected() {
+      return this.filteredFormats.length > 0 && this.selectedIds.length === this.filteredFormats.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление форматов' : 'Архивация форматов';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные форматы (${n})?`
+        : `Архивировать выбранные форматы (${n})? Их можно будет восстановить из архива.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
+    },
+  },
+  watch: {
+    // Смена фильтра/поиска/режима меняет видимый список - убираем из выбора
+    // строки, которых больше не видно (реактивно, не только после refresh).
+    filteredFormats() {
+      this.pruneSelection();
     },
   },
   created() {
@@ -882,6 +1006,7 @@ export default {
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         this.formats = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         if (this.selectedFormat) {
           const fresh = this.formats.find(f => f.format.id === this.selectedFormat.format.id);
           const visible = fresh && (this.showArchive ? !fresh.format.is_active : fresh.format.is_active);
@@ -891,6 +1016,7 @@ export default {
             this.selectedFormat = null;
           }
         }
+        this.pruneSelection();
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'форматы номеров', type: 'error' });
       } finally {
@@ -907,6 +1033,7 @@ export default {
       this.showArchive = value === 'archive';
       this.selectedFormat = null;
       this.detailError = '';
+      this.clearSelection();
     },
     async selectFormat(item) {
       if (this.selectedFormat && this.selectedFormat.format.id === item.format.id) return;
@@ -1073,16 +1200,7 @@ export default {
       this.historyForFormat = item.format;
     },
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
     getCellTypeLabel(type) {
       return CELL_TYPE_LABELS[type] || type;
@@ -1103,16 +1221,212 @@ export default {
       if (!letters) return '';
       return letters.length > maxLength ? `${letters.substring(0, maxLength)}...` : letters;
     },
+
+    // --- Групповой выбор ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(format, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== format.id) {
+        const list = this.filteredFormats.map(item => item.format);
+        const anchor = list.findIndex(f => f.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(format.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = format.id;
+          return;
+        }
+      }
+      this.toggleSelect(format.id);
+      this.lastSelectedId = format.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.filteredFormats.map(item => item.format.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.filteredFormats.map(item => item.format.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveLicenseFormats(ids) : await bulkRestoreLicenseFormats(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.refresh();
+      return true;
+    },
   },
 };
 </script>
 
 <style scoped>
 .number-format-container {
-  background: #fff;
+  position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
+}
+
+/* Панель групповых операций - оверлей поверх .management-header (не reflow,
+   список не прыгает при выборе - урок #510). Высота = высоте шапки (50px). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint-solid);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pill-ghost {
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+}
+.pill-ghost:hover {
+  background: var(--accent-tint);
+}
+.bulk-clear {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+}
+.bulk-clear:hover {
+  background: var(--surface-2);
+}
+.pill-danger {
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+}
+.pill-danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.pill-restore {
+  background: var(--success);
+  color: var(--fill-text);
+}
+.pill-restore:hover {
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
+}
+.check-col {
+  width: 8%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent-text);
+  margin: 0;
 }
 
 .management-header {
@@ -1120,7 +1434,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
   gap: 12px;
 }
@@ -1129,7 +1443,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -1144,8 +1458,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1155,7 +1469,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Master-detail layout (эталон TableConstructor / MarksManagement) */
@@ -1170,12 +1484,12 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1185,8 +1499,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -1194,7 +1508,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -1210,21 +1524,22 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1232,18 +1547,18 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
 .id-col {
-  width: 25%;
-  min-width: 60px;
+  width: 22%;
+  min-width: 56px;
 }
 
 .name-col {
-  width: 75%;
-  min-width: 160px;
+  width: 70%;
+  min-width: 150px;
 }
 
 .table-body {
@@ -1255,7 +1570,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1264,16 +1579,16 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .table-row:last-child {
@@ -1291,11 +1606,11 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .table-row.inactive .id-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .truncate-text {
@@ -1311,8 +1626,8 @@ export default {
   font-size: 0.7em;
   padding: 1px 8px;
   border-radius: 999px;
-  background: #e8eafe;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 600;
   vertical-align: middle;
 }
@@ -1320,14 +1635,14 @@ export default {
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -1340,14 +1655,14 @@ export default {
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1356,7 +1671,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -1364,7 +1679,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -1386,7 +1701,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
   word-break: break-word;
@@ -1395,11 +1710,11 @@ export default {
 .format-preview {
   font-family: monospace;
   font-size: 0.9em;
-  color: #475569;
-  background: #f8fafc;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   padding: 4px 10px;
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .details-header-actions {
@@ -1410,8 +1725,8 @@ export default {
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -1431,33 +1746,33 @@ export default {
 }
 
 .history-btn {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .history-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .archive-action-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .archive-action-btn:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .restore-btn {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--fill-text);
 }
 
 .restore-btn:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .details-body {
@@ -1485,13 +1800,13 @@ export default {
 
 .field-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .field-hint {
   font-size: 0.75em;
-  color: #999;
+  color: var(--text-muted);
   line-height: 1.3;
 }
 
@@ -1501,9 +1816,9 @@ export default {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: #f8f9ff;
+  background: var(--accent-tint);
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   cursor: pointer;
 }
 
@@ -1512,7 +1827,7 @@ export default {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent-text);
 }
 
 .default-checkbox-body {
@@ -1524,12 +1839,12 @@ export default {
 .default-checkbox-text {
   font-size: 0.9em;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 }
 
 .default-checkbox-hint {
   font-size: 0.8em;
-  color: #666;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -1548,8 +1863,8 @@ export default {
 
 .cell-card {
   text-align: left;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 10px 12px;
   transition: all 0.2s ease;
@@ -1561,9 +1876,9 @@ export default {
 }
 
 .cell-card:hover:not(:disabled) {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 2px 4px rgba(79, 91, 223, 0.1);
-  background: #f8f9ff;
+  background: var(--accent-tint);
 }
 
 .cell-card:disabled {
@@ -1581,7 +1896,7 @@ export default {
 .cell-badge {
   font-size: 0.75em;
   font-weight: 600;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .cell-type-badge {
@@ -1592,18 +1907,19 @@ export default {
 }
 
 .cell-type-badge.letters {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .cell-type-badge.numbers {
-  background: #d1fae5;
-  color: #059669;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
 .cell-type-badge.mixed {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  color: var(--warning-text);
 }
 
 .cell-card-details {
@@ -1614,23 +1930,23 @@ export default {
 }
 
 .cell-length {
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .cell-letters {
   font-family: monospace;
-  background: #f8fafc;
+  background: var(--accent-tint);
   padding: 2px 6px;
   border-radius: 10px;
-  color: #475569;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .cell-padding {
-  color: #666;
+  color: var(--text-muted);
 }
 
 .details-actions {
@@ -1642,11 +1958,11 @@ export default {
   display: flex;
   gap: 16px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .form-error {
-  color: #d73a3a;
+  color: var(--danger-text);
   font-size: 0.85em;
 }
 
@@ -1655,7 +1971,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
@@ -1667,7 +1983,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1680,12 +1996,12 @@ export default {
 .nf-modal {
   width: 100%;
   max-width: 680px;
-  max-height: 88vh;
+  max-height: calc(var(--app-vh, 1vh) * 88);
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
 }
 
@@ -1698,7 +2014,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -1706,7 +2022,7 @@ export default {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1717,7 +2033,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -1726,8 +2042,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -1743,7 +2059,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -1767,8 +2083,8 @@ export default {
 }
 
 .cell-edit-card {
-  background: #f8f9fa;
-  border: 1px solid #e6e6e6;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 12px;
 }
@@ -1783,13 +2099,13 @@ export default {
 .cell-number {
   font-size: 0.8em;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .cell-remove-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -1803,8 +2119,8 @@ export default {
 }
 
 .cell-remove-btn:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .cell-edit-fields {
@@ -1840,7 +2156,7 @@ export default {
 }
 
 .length-dash {
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1854,14 +2170,14 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: #f8f9ff;
-  border: 1px solid #e6e6e6;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 15px;
 }
 
 .cell-preview-label {
   font-size: 0.8em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1869,7 +2185,7 @@ export default {
   font-family: monospace;
   font-size: 1.1em;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 /* Анимация открытия/закрытия */
@@ -1885,7 +2201,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .nf-modal,
@@ -1894,17 +2210,33 @@ export default {
   transform: translateY(20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    height: auto;
-    padding: 16px;
+    padding: 10px var(--gutter, 16px);
   }
   .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .archive-dropdown {
+    min-width: 92px;
+  }
+  :deep(.search) {
+    width: 110px;
+  }
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+  .check-col {
+    min-height: 44px;
   }
   .content-container {
     flex-direction: column;
@@ -1917,10 +2249,24 @@ export default {
   }
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
   .table-body {
     max-height: 300px;
+  }
+  /* Card-режим: у ячейки имени есть вертикаль - снимаем усечение
+     .truncate-text, иначе бейдж "по умолчанию"/"(архив)" в конце строки
+     режется (ellipsis прячет всё, что после него). Сам бейдж-пилюля остаётся
+     цельной строкой - переносится на новую строку как единое целое, а не
+     разрывается по словам. #1097 polish */
+  .name-col .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .name-col .default-badge,
+  .name-col .inactive-badge {
+    white-space: nowrap;
   }
   .form-row {
     flex-direction: column;

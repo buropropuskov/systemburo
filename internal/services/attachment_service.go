@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -34,13 +36,13 @@ type AttachmentService interface {
 }
 
 type attachmentService struct {
-	db      *gorm.DB
-	history AttachmentHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewAttachmentService создаёт новый экземпляр AttachmentService.
 func NewAttachmentService(db *gorm.DB) AttachmentService {
-	return &attachmentService{db: db, history: NewAttachmentHistoryService(db)}
+	return &attachmentService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetActive возвращает все активные шаблоны вложений.
@@ -106,14 +108,33 @@ func (s *attachmentService) Create(ctx context.Context, userID int, req models.C
 		Title:          &titleUpper,
 		Instruction:    req.Instruction,
 		IsActive:       true,
+		AutoExport:     req.AutoExport == nil || *req.AutoExport,
 	}
 
-	if err := s.db.WithContext(ctx).Create(&attachment).Error; err != nil {
+	// Запись идёт транзакцией из двух шагов: у auto_export задан default:true, а gorm
+	// выбрасывает из INSERT поля с нулевым значением, когда у колонки есть значение
+	// по умолчанию - выключенный тумблер молча превращался бы во включённый, и бланки
+	// типа уезжали бы в архив вопреки решению администратора (#1615). Судить по
+	// attachment.AutoExport после вставки нельзя: там уже default из базы.
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&attachment).Error; err != nil {
+			return err
+		}
+		if req.AutoExport != nil && !*req.AutoExport {
+			if err := tx.Model(&models.UniqueAttachment{}).
+				Where("id = ?", attachment.ID).Update("auto_export", false).Error; err != nil {
+				return err
+			}
+			attachment.AutoExport = false
+		}
+		return nil
+	})
+	if err != nil {
 		slog.Error("failed to create attachment", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
 
-	s.history.Log(ctx, attachment.ID, &userID, models.UniqueAttachmentActionCreated, map[string]any{"display_name": req.DisplayName})
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &attachment.ID, models.UniqueAttachmentActionCreated, &userID, map[string]any{"display_name": req.DisplayName})
 	return &models.CreateUniqueAttachmentResponse{
 		ID:      attachment.ID,
 		Message: "Вложение успешно создано",
@@ -134,15 +155,22 @@ func (s *attachmentService) Update(ctx context.Context, userID, id int, req mode
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
 		}
 
+		fields := map[string]interface{}{
+			"attachment_type": req.AttachmentType,
+			"name":            req.Name,
+			"display_name":    req.DisplayName,
+			"title":           titleUpper,
+			"instruction":     req.Instruction,
+		}
+		// Тумблер архива обновляем только когда клиент его прислал: форма шаблона
+		// вложения и форма настроек архива -- разные экраны, и одна не должна гасить
+		// настройку другой.
+		if req.AutoExport != nil {
+			fields["auto_export"] = *req.AutoExport
+		}
 		if err := tx.Model(&models.UniqueAttachment{}).
 			Where("id = ?", id).
-			Updates(map[string]interface{}{
-				"attachment_type": req.AttachmentType,
-				"name":            req.Name,
-				"display_name":    req.DisplayName,
-				"title":           titleUpper,
-				"instruction":     req.Instruction,
-			}).Error; err != nil {
+			Updates(fields).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating attachment")
 		}
 		details = buildAttachmentUpdateDetails(prev, req, titleUpper)
@@ -154,7 +182,7 @@ func (s *attachmentService) Update(ctx context.Context, userID, id int, req mode
 
 	// Логируем только если что-то реально изменилось - иначе спам "Изменены данные".
 	if len(details) > 0 {
-		s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionUpdated, details)
+		s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &id, models.UniqueAttachmentActionUpdated, &userID, details)
 	}
 	return nil
 }
@@ -174,7 +202,7 @@ func (s *attachmentService) Delete(ctx context.Context, userID, id int) error {
 	if err := s.db.WithContext(ctx).Model(&attachment).Update("is_active", false).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting attachment")
 	}
-	s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &id, models.UniqueAttachmentActionArchived, &userID, nil)
 	return nil
 }
 
@@ -193,13 +221,51 @@ func (s *attachmentService) Restore(ctx context.Context, userID, id int) error {
 	if err := s.db.WithContext(ctx).Model(&attachment).Update("is_active", true).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring attachment")
 	}
-	s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &id, models.UniqueAttachmentActionRestored, &userID, nil)
 	return nil
 }
 
 // GetHistory возвращает историю изменений шаблона вложения (новые сверху).
+// #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
+// перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
+// audit_log. Замороженная unique_attachment_histories дропнута в дроп-sweep (F.8).
+// Форму стережёт TestAttachments_History_*.
 func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.UniqueAttachmentHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT a.id AS id, a.action AS action_type, a.details AS details,
+			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ? AND a.entity_id = ?
+		ORDER BY a.created_at DESC, a.id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueAttachment, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment history")
+	}
+
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
+	items := make([]models.UniqueAttachmentHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.UniqueAttachmentHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // buildAttachmentUpdateDetails собирает diff изменённых полей шаблона вложения как {old, new}.
@@ -222,6 +288,9 @@ func buildAttachmentUpdateDetails(prev models.UniqueAttachment, req models.Updat
 	}
 	if strPtrVal(prev.Instruction) != strPtrVal(req.Instruction) {
 		details["instruction"] = map[string]any{"old": strPtrVal(prev.Instruction), "new": strPtrVal(req.Instruction)}
+	}
+	if req.AutoExport != nil && prev.AutoExport != *req.AutoExport {
+		details["auto_export"] = map[string]any{"old": prev.AutoExport, "new": *req.AutoExport}
 	}
 	return details
 }

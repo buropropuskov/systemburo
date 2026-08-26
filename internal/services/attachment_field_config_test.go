@@ -37,7 +37,7 @@ func TestFieldRegistryFor_GroupsByType(t *testing.T) {
 		},
 		{
 			attType:   "cars",
-			wantKeys:  []string{"entry_date_from", "number", "mark", "unloading_places"},
+			wantKeys:  []string{"entry_date_from", "number", "mark", "unloading_places", "passage_tables"},
 			absentKey: []string{"last_name", "item_name"},
 		},
 		{
@@ -109,6 +109,7 @@ func TestRegistryDefaults_MatchForms(t *testing.T) {
 		// cars
 		{"cars", "number", true, true, true},
 		{"cars", "unloading_places", true, true, true},
+		{"cars", "passage_tables", true, true, true},
 		// items
 		{"items", "quantity", true, true, true},
 	}

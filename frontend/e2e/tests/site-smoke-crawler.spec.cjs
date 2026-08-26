@@ -13,7 +13,7 @@
  * 6. assert: 0 pageerror, 0 неотфильтрованных console.error
  *
  * Запуск:
- *   E2E_BASE_URL=https://stagingburo.washka17.site \
+ *   E2E_BASE_URL=https://stagingburo.washka17.ru \
  *   E2E_HTTP_USER=admin E2E_HTTP_PASSWORD=... \
  *   E2E_SUPERADMIN_USER=buropropuskov E2E_SUPERADMIN_PASSWORD=admin123 \
  *     npx playwright test e2e/tests/site-smoke-crawler.spec.cjs --reporter=list
@@ -39,6 +39,8 @@ const REPORT_DIR = path.resolve(__dirname, '..', '..', 'site-crawl-reports');
 // - /submit-form (redirect на /new-application)
 // - /table (redirect на /personal-cabinet)
 // - /table/:tableName (нужен параметр - не unit-навигация)
+// - /500, /maintenance, /403 (открываются только по факту события, прямой
+//   заход редиректит - краулить нечего, они проверяются отдельной спекой)
 const ROUTES = [
   { path: '/news', name: 'NewsAndReview' },
   { path: '/personal-cabinet', name: 'Account' },
@@ -56,9 +58,6 @@ const ROUTES = [
   { path: '/admin/roles', name: 'AdminRoles' },
   { path: '/admin/access-denials', name: 'AccessDenialsLog' },
   { path: '/admin/system-control', name: 'SystemControl' },
-  { path: '/403', name: 'Forbidden' },
-  { path: '/maintenance', name: 'Maintenance' },
-  { path: '/500', name: 'Error500' },
 ];
 
 if (!fs.existsSync(REPORT_DIR)) fs.mkdirSync(REPORT_DIR, { recursive: true });

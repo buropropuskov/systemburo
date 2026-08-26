@@ -32,8 +32,9 @@ func TestPermissions_GetMy_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/permissions/my", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	perms := testutil.ParseResponse[[]models.UserPermissionResponse](t, rec)
-	assert.Equal(t, 0, len(perms))
+	resp := testutil.ParseResponse[models.MyPermissionsResponse](t, rec)
+	assert.Equal(t, "normal", resp.Mode)
+	assert.Equal(t, 0, len(resp.Permissions))
 }
 
 func TestPermissions_GetMy_WithPermissions(t *testing.T) {
@@ -173,40 +174,24 @@ func TestPermissions_UpdateUserPermissions_Upsert(t *testing.T) {
 	assert.Equal(t, "deny", perms[0].Value)
 }
 
-func TestPermissions_GetTree(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "treeuser", "password123", 1, td.OrgID, td.CompanyID)
-	h := testutil.AuthHeader(token)
-
-	rec := testutil.GET(t, e, "/permissions/tree", h)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	tree := testutil.ParseResponse[[]models.PermissionTreeNode](t, rec)
-	// Should have at least the seeded tab permissions
-	assert.GreaterOrEqual(t, len(tree), 4)
-}
-
 func TestPermissions_AutoGenerate(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "autogenuser", "password123", 1, td.OrgID, td.CompanyID)
+	// auto-generate закрыт правом конструктора таблиц - зовём под админом.
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
 	body := `{"table_id":1,"table_name":"test_table"}`
 	rec := testutil.POST(t, e, "/permissions/auto-generate", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// Verify permissions were created
+	// Verify permissions were created (по одному на глагол, всего 10).
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.test_table.%").Count(&count)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(10), count)
 
 	// Verify specific keys
 	var perm models.Permission
@@ -214,9 +199,9 @@ func TestPermissions_AutoGenerate(t *testing.T) {
 	assert.Equal(t, "table", perm.Category)
 	assert.Contains(t, perm.DisplayName, "test_table")
 
-	var editPerm models.Permission
-	require.NoError(t, db.Where("key = ?", "table.test_table.edit").First(&editPerm).Error)
-	assert.Equal(t, "table", editPerm.Category)
+	var entryPerm models.Permission
+	require.NoError(t, db.Where("key = ?", "table.test_table.entry").First(&entryPerm).Error)
+	assert.Equal(t, "table", entryPerm.Category)
 }
 
 func TestPermissions_AutoGenerate_Idempotent(t *testing.T) {
@@ -225,7 +210,8 @@ func TestPermissions_AutoGenerate_Idempotent(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "idempuser", "password123", 1, td.OrgID, td.CompanyID)
+	// auto-generate закрыт правом конструктора таблиц - зовём под админом.
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
 	body := `{"table_id":2,"table_name":"idem_table"}`
@@ -237,10 +223,10 @@ func TestPermissions_AutoGenerate_Idempotent(t *testing.T) {
 	rec = testutil.POST(t, e, "/permissions/auto-generate", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// Should still only have 2 permissions
+	// Should still only have 10 permissions (идемпотентно, без дублей)
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.idem_table.%").Count(&count)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(10), count)
 }
 
 func TestPermissions_DefaultSeeded(t *testing.T) {
@@ -276,8 +262,12 @@ func TestPermissions_SystemTableCreate_AutoGenerates(t *testing.T) {
 	rec := testutil.POST(t, e, "/system-tables", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// Verify permissions were auto-generated
+	// Verify permissions were auto-generated (по одному на глагол: view/entry/exit/
+	// detail/history/versions/export/report/trash/delete).
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.autogen_test.%").Count(&count)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(10), count)
+
+	var viewPerm models.Permission
+	require.NoError(t, db.Where("key = ?", "table.autogen_test.view").First(&viewPerm).Error)
 }

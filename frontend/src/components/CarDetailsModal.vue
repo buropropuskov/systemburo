@@ -105,11 +105,11 @@
                   :disabled="history.length === 0 || isExporting"
                   @click="exportHistory"
                 >
-                  <img
+                  <AppIcon
                     v-if="!isExporting"
-                    src="@/assets/icons/export.png"
+                    name="export"
                     class="export-icon"
-                  >
+                  />
                   <span v-if="!isExporting">Экспорт</span>
                   <div
                     v-else
@@ -395,11 +395,13 @@ import { apiRequest } from '@/api/client'
 import CarHistoryModal from './CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useDeletionsStore } from '@/stores/deletions';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'CarDetailsModal',
-    components: { LoaderSpinner, CarHistoryModal },
+    components: { AppIcon, LoaderSpinner, CarHistoryModal },
   props: {
     car: {
       type: Object,
@@ -986,7 +988,7 @@ export default {
         
       } catch (error) {
         console.error('Error exporting to Excel:', error);
-        alert('Ошибка при экспорте в Excel');
+        useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
       }
@@ -1029,7 +1031,7 @@ export default {
     },
 
     openApplication() {
-      console.log('Открыть заявку', this.car.applicationId || this.car.application_id);
+      // Переход к заявке не реализован: кнопка сейчас ничего не делает.
     },
 
     close() {
@@ -1049,7 +1051,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1074,14 +1076,14 @@ export default {
 }
 
 .car-details-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 650px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   position: absolute;
 }
 
@@ -1096,14 +1098,14 @@ export default {
 }
 
 .modal-content.place-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 50px;
   padding: 0;
   padding-bottom: 15px;
   width: 520px;
   height: 450px;
   max-height: 450px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   display: flex;
   flex-direction: column;
   position: absolute;
@@ -1126,14 +1128,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-with-status {
@@ -1151,25 +1153,25 @@ export default {
 
 .history-btn, .application-btn {
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .history-btn:hover, .application-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 30px;
   height: 30px;
@@ -1181,8 +1183,8 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .modal-close {
@@ -1198,7 +1200,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-content {
@@ -1210,8 +1212,8 @@ export default {
 }
 
 .car-info-section {
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 15px;
 }
@@ -1219,7 +1221,7 @@ export default {
 .car-info-section h4 {
   margin: 0 0 12px 0;
   font-size: 15px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -1238,13 +1240,13 @@ export default {
 
 .info-label {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
 .info-value {
   font-size: 14px;
-  color: #333;
+  color: var(--text);
   font-weight: 500;
   word-break: break-word;
 }
@@ -1256,7 +1258,7 @@ export default {
 .places-section h5, .status-section h5 {
   margin: 0 0 8px 0;
   font-size: 13px;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1267,28 +1269,28 @@ export default {
 }
 
 .place-item {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
   padding: 4px 12px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .place-item:hover {
-  background: #f0f0f0;
-  border-color: #4F5BDF;
+  background: var(--border);
+  border-color: var(--accent);
 }
 
 .place-item.active {
-  background: #4F5BDF;
-  color: white;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .no-places {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
   padding: 4px 0;
@@ -1303,26 +1305,26 @@ export default {
 }
 
 .status-on-territory {
-  background: rgba(79, 91, 223, 0.1);
-  color: #4F5BDF;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent-text);
   border: 1px solid rgba(79, 91, 223, 0.3);
 }
 
 .status-exited {
-  background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger-text);
   border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .status-not-entered {
-  background: #f5f5f5;
-  color: #9ca3af;
-  border: 1px solid #e6e6e6;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .history-section {
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 15px;
 }
@@ -1337,7 +1339,7 @@ export default {
 .history-section h4 {
   margin: 0;
   font-size: 15px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -1346,19 +1348,19 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 28px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -1374,8 +1376,8 @@ export default {
 .export-loader {
   width: 14px;
   height: 14px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1411,7 +1413,7 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
 .dot-entry { background: #059669; }
@@ -1430,28 +1432,28 @@ export default {
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
 }
 
 .loading-container {
@@ -1466,8 +1468,8 @@ export default {
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1479,7 +1481,7 @@ export default {
 
 .no-history {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 30px 20px;
   font-size: 13px;
   font-style: italic;
@@ -1487,7 +1489,7 @@ export default {
 
 .time-info {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .place-details {
@@ -1510,31 +1512,32 @@ export default {
 
 .comment-text {
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 8px;
   padding: 8px 12px;
-  background: #fff3e0;
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   border-radius: 8px;
-  border-left: 3px solid #f39c12;
+  border-left: 3px solid var(--warning);
 }
 
 .map-link-btn {
   padding: 4px 12px;
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   text-decoration: none;
   border-radius: 30px;
   font-size: 12px;
   font-weight: 500;
   transition: all 0.2s ease;
-  border: 1px solid #4F5BDF;
+  border: 1px solid var(--accent);
   white-space: nowrap;
 }
 
 .map-link-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .photo-container {
@@ -1542,8 +1545,8 @@ export default {
   width: 100%;
   height: 200px;
   overflow: hidden;
-  border: 1px solid #e6e6e6;
-  background: #f5f5f5;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .photo-wrapper {
@@ -1582,21 +1585,21 @@ export default {
   height: 30px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
   font-weight: bold;
-  color: #333;
+  color: var(--text);
   transition: all 0.2s ease;
 }
 
 .photo-control-btn:hover {
-  background: #4F5BDF;
-  color: white;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .no-photo-placeholder {
@@ -1605,11 +1608,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
-  color: #999;
+  background: var(--surface-2);
+  color: var(--text-muted);
   font-size: 14px;
   border-radius: 20px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .schedule-grid {
@@ -1619,26 +1622,26 @@ export default {
 }
 
 .schedule-day-card {
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px var(--shadow-drop);
   transition: all 0.2s ease;
 }
 
 .schedule-day-card.current-day {
-  outline: 1px solid #4F5BDF;
+  outline: 1px solid var(--accent);
 }
 
 .schedule-day-card .day-name {
-  background: #f0f3ff;
+  background: var(--accent-tint);
   padding: 8px 10px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-size: 13px;
   text-align: center;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .schedule-day-card .day-slots {
@@ -1650,9 +1653,9 @@ export default {
 
 .slot-badge {
   padding: 6px 8px;
-  background: #f8f9fa;
+  background: var(--surface-2);
   border-radius: 20px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   font-size: 11px;
   display: flex;
   flex-direction: column;
@@ -1661,18 +1664,18 @@ export default {
 }
 
 .slot-badge.active-slot {
-  background: #e8f5e9;
-  border-color: #81c784;
+  background: var(--success-bg);
+  border-color: var(--success);
 }
 
 .round-clock-text {
   font-weight: 500;
-  color: #000;
+  color: var(--text);
   font-size: 11px;
 }
 
 .slot-time {
-  color: #333;
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -1689,22 +1692,22 @@ export default {
 }
 
 .next-day-badge {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .inactive-badge {
-  background: #ffebee;
-  color: #c62828;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .no-schedule {
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   font-size: 13px;
   font-style: italic;
   padding: 16px;
-  background: #f8f9fa;
+  background: var(--surface-2);
   border-radius: 8px;
 }
 

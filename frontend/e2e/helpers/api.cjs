@@ -33,17 +33,19 @@ async function getToken(username, password = 'testpass123') {
 }
 
 async function createOrganization(token, name) {
+  // type обязателен с #1046 - иначе POST вернёт 400.
   const res = await apiAuth('/organizations', token, {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, type: 'Организация' }),
   });
   return unwrap(await res.json());
 }
 
 async function createCompany(token, name, organizationId) {
+  // type обязателен с #1046 - иначе POST вернёт 400.
   const res = await apiAuth('/companies', token, {
     method: 'POST',
-    body: JSON.stringify({ name, organization_id: organizationId }),
+    body: JSON.stringify({ name, type: 'Организация', organization_id: organizationId }),
   });
   return unwrap(await res.json());
 }

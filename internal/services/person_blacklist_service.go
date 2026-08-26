@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,7 +27,16 @@ type PersonBlacklistService interface {
 	Create(ctx context.Context, req models.CreatePersonBlacklistRequest, userID int) (*models.PersonBlacklist, error)
 	Archive(ctx context.Context, id int, userID int) error
 	Restore(ctx context.Context, id int, userID int) error
+	// BulkArchive снимает набор записей из чёрного списка через Archive (полный каскад
+	// реактивации employees для каждой). Несуществующие id -> в Errors (частичный успех
+	// 207), не валят операцию. Дубли id дедуплицируются.
+	BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
+	// BulkRestore возвращает набор записей в чёрный список через Restore.
+	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
+	// Impact - предпросмотр последствий внесения: сколько активных работников
+	// перестанет действовать, из каких таблиц постов они уйдут и в каких заявках есть.
+	Impact(ctx context.Context, lastName, firstName, middleName string) (*BlacklistImpact, error)
 	// FindSimilar - активные записи ЧС, чьё нормализованное ФИО БЛИЗКО (но не обязательно
 	// равно) нормализованному ФИО заявки: триграммная similarity + word_similarity (учёт
 	// отсутствия отчества), порог 0.7. Слой предупреждения о возможном обходе (#481): точное
@@ -45,13 +55,13 @@ type PersonBlacklistService interface {
 }
 
 type personBlacklistService struct {
-	db      *gorm.DB
-	history PersonBlacklistHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewPersonBlacklistService создаёт реализацию.
-func NewPersonBlacklistService(db *gorm.DB, history PersonBlacklistHistoryService) PersonBlacklistService {
-	return &personBlacklistService{db: db, history: history}
+func NewPersonBlacklistService(db *gorm.DB, recorder AuditRecorder) PersonBlacklistService {
+	return &personBlacklistService{db: db, recorder: recorder}
 }
 
 func (s *personBlacklistService) GetAll(ctx context.Context, includeArchived bool) ([]models.PersonBlacklist, error) {
@@ -104,7 +114,7 @@ func (s *personBlacklistService) Create(ctx context.Context, req models.CreatePe
 			"reason":                entry.Reason,
 			"employees_deactivated": deactivated,
 		}
-		return s.history.Log(ctx, tx, entry.ID, &userID, models.BlacklistActionCreated, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityPersonBlacklist, &entry.ID, models.BlacklistActionCreated, &userID, details)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -135,7 +145,7 @@ func (s *personBlacklistService) Archive(ctx context.Context, id int, userID int
 			"full_name":             personFullName(*e),
 			"employees_reactivated": reactivated,
 		}
-		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionArchived, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityPersonBlacklist, &e.ID, models.BlacklistActionArchived, &userID, details)
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка снятия из чёрного списка")
@@ -163,7 +173,7 @@ func (s *personBlacklistService) Restore(ctx context.Context, id int, userID int
 			"full_name":             personFullName(*e),
 			"employees_deactivated": deactivated,
 		}
-		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionRestored, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityPersonBlacklist, &e.ID, models.BlacklistActionRestored, &userID, details)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -172,6 +182,44 @@ func (s *personBlacklistService) Restore(ctx context.Context, id int, userID int
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка возврата в чёрный список")
 	}
 	return nil
+}
+
+// BulkArchive снимает набор записей чёрного списка людей через Archive (полный
+// каскад реактивации employees для каждой). Несуществующие id -> в Errors
+// (частичный успех 207), не валят операцию. Дубли id дедуплицируются.
+func (s *personBlacklistService) BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		e, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Запись чёрного списка не найдена")
+			continue
+		}
+		if err := s.Archive(ctx, id, userID); err != nil {
+			res.addError(id, personFullName(*e), bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore возвращает набор записей в чёрный список людей через Restore.
+func (s *personBlacklistService) BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		e, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Запись чёрного списка не найдена")
+			continue
+		}
+		if err := s.Restore(ctx, id, userID); err != nil {
+			res.addError(id, personFullName(*e), bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 func (s *personBlacklistService) Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error) {
@@ -324,7 +372,7 @@ func (s *personBlacklistService) Update(ctx context.Context, id int, req models.
 			details["employees_reactivated"] = reactivated
 			details["employees_deactivated"] = deactivated
 		}
-		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityPersonBlacklist, &e.ID, models.BlacklistActionUpdated, &userID, details)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -350,7 +398,7 @@ func (s *personBlacklistService) Purge(ctx context.Context, id int, userID int) 
 			"full_name": personFullName(*e),
 			"reason":    e.Reason,
 		}
-		if err := s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionPurged, details); err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityPersonBlacklist, &e.ID, models.BlacklistActionPurged, &userID, details); err != nil {
 			return err
 		}
 		return tx.Where("id = ?", e.ID).Delete(&models.PersonBlacklist{}).Error
@@ -361,12 +409,64 @@ func (s *personBlacklistService) Purge(ctx context.Context, id int, userID int) 
 	return nil
 }
 
+// GetHistory возвращает историю записи ЧС людей (новые сверху).
+// Read-switch #870 (F.4): до-cutover строки person_blacklist_histories подняты в
+// audit_log разовым backfill'ом (details уже jsonb - перенос verbatim), читаем
+// только audit_log. Форму стережёт TestPersonBlacklist_History_BackfillLegacyIntoAudit.
 func (s *personBlacklistService) GetHistory(ctx context.Context, id int) ([]models.PersonBlacklistHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	return s.queryHistory(ctx, &id)
 }
 
+// GetAllHistory возвращает весь журнал ЧС людей (все записи, включая удалённые).
 func (s *personBlacklistService) GetAllHistory(ctx context.Context) ([]models.PersonBlacklistHistoryItem, error) {
-	return s.history.GetAllHistory(ctx)
+	return s.queryHistory(ctx, nil)
+}
+
+const personBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+
+func (s *personBlacklistService) queryHistory(ctx context.Context, entityID *int) ([]models.PersonBlacklistHistoryItem, error) {
+	where := "a.entity_type = ?"
+	args := []interface{}{models.AuditEntityPersonBlacklist}
+	if entityID != nil {
+		where += " AND a.entity_id = ?"
+		args = append(args, *entityID)
+	}
+
+	query := `
+		SELECT a.id, a.entity_id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
+			` + personBLActorName + ` AS user_name, a.created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE ` + where + `
+		ORDER BY a.created_at DESC, a.id DESC`
+
+	type row struct {
+		ID         int             `gorm:"column:id"`
+		EntityID   int             `gorm:"column:entity_id"`
+		ActionType string          `gorm:"column:action_type"`
+		Details    json.RawMessage `gorm:"column:details"`
+		UserID     *int            `gorm:"column:user_id"`
+		UserName   string          `gorm:"column:user_name"`
+		CreatedAt  time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории чёрного списка")
+	}
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
+	items := make([]models.PersonBlacklistHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.PersonBlacklistHistoryItem{
+			ID:         r.ID,
+			EntityID:   r.EntityID,
+			ActionType: r.ActionType,
+			Details:    r.Details,
+			UserID:     r.UserID,
+			UserName:   maskName(masks, r.UserID, r.UserName),
+			CreatedAt:  r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // deactivateMatchingEmployees гасит (status 1 -> 0, date_deleted) активных employees,
@@ -390,8 +490,7 @@ func (s *personBlacklistService) deactivateMatchingEmployees(ctx context.Context
 			Updates(map[string]interface{}{"status": 0, "date_deleted": now}).Error; err != nil {
 			return 0, err
 		}
-		hist := models.EmployeeHistory{EmployeeID: id, UserID: &userID, ActionType: "blacklisted", Comment: &comment, CreatedAt: now}
-		if err := tx.Create(&hist).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "blacklisted", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			return 0, err
 		}
 	}
@@ -418,15 +517,13 @@ func (s *personBlacklistService) reactivateMatchingEmployees(ctx context.Context
 		Pluck("emp.id", &ids).Error; err != nil {
 		return 0, err
 	}
-	now := time.Now().UTC()
 	comment := fmt.Sprintf("Сотрудник %s снят с чёрного списка", personFullName(e))
 	for _, id := range ids {
 		if err := tx.Model(&models.Employee{}).Where("id = ?", id).
 			Updates(map[string]interface{}{"status": 1, "date_deleted": nil}).Error; err != nil {
 			return 0, err
 		}
-		hist := models.EmployeeHistory{EmployeeID: id, UserID: &userID, ActionType: "unblacklisted", Comment: &comment, CreatedAt: now}
-		if err := tx.Create(&hist).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "unblacklisted", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			return 0, err
 		}
 	}
@@ -449,4 +546,9 @@ func personFullName(e models.PersonBlacklist) string {
 		fio += " " + strings.TrimSpace(*e.MiddleName)
 	}
 	return fio
+}
+
+// Impact - см. PersonBlacklistService.Impact.
+func (s *personBlacklistService) Impact(ctx context.Context, lastName, firstName, middleName string) (*BlacklistImpact, error) {
+	return personBlacklistImpact(ctx, s.db, lastName, firstName, middleName)
 }

@@ -54,7 +54,7 @@ export default {
 }
 
 .form-field__required {
-  color: var(--color-danger);
+  color: var(--danger-text);
   margin-left: 2px;
 }
 
@@ -66,7 +66,7 @@ export default {
 
 .form-field__error {
   font-size: 11px;
-  color: var(--color-danger);
+  color: var(--danger-text);
   margin-top: 2px;
 }
 

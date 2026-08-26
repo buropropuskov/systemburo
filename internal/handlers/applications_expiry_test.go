@@ -22,9 +22,10 @@ func TestCheckExpiredAttachments(t *testing.T) {
 	// Create the service directly for calling CheckExpiredAttachments.
 	permSvc := services.NewPermissionService(db)
 	notifSvc := services.NewNotificationService(db)
-	vblSvc := services.NewVehicleBlacklistService(db, services.NewVehicleBlacklistHistoryService(db))
-	pblSvc := services.NewPersonBlacklistService(db, services.NewPersonBlacklistHistoryService(db))
-	appSvc := services.NewApplicationService(db, permSvc, notifSvc, vblSvc, pblSvc)
+	blRecorder := services.NewAuditRecorder(db)
+	vblSvc := services.NewVehicleBlacklistService(db, blRecorder)
+	pblSvc := services.NewPersonBlacklistService(db, blRecorder)
+	appSvc := services.NewApplicationService(db, permSvc, notifSvc, vblSvc, pblSvc, blRecorder)
 
 	tests := []struct {
 		name string
@@ -75,12 +76,12 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				require.NotNil(t, car.Status)
 				assert.Equal(t, 0, *car.Status, "car should be deactivated")
 
-				// Verify car history entry created
-				var historyCount int64
-				db.Model(&models.CarHistory{}).
-					Where("car_id = ? AND action_type = 'deactivate'", car.ID).
-					Count(&historyCount)
-				assert.Equal(t, int64(1), historyCount, "car deactivation history should be created")
+				// Деактивация по сроку пишется в audit_log (#870, срез 1.12c).
+				var auditCount int64
+				db.Model(&models.AuditLog{}).
+					Where("entity_type = ? AND entity_id = ? AND action = 'deactivate'", models.AuditEntityCar, car.ID).
+					Count(&auditCount)
+				assert.Equal(t, int64(1), auditCount, "car deactivation should be in audit_log")
 			},
 		},
 		{

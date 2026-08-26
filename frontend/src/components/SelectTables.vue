@@ -1,29 +1,36 @@
 <template>
-  <div class="select-tables-section">
+  <div
+    class="select-tables-section"
+    :class="{ card: !selectionMode }"
+  >
     <div class="detail-group">
-      <div class="select-tables__header">
-        <label class="detail-label">Целевые таблицы (по умолчанию):</label>
-        <div
+      <div
+        v-if="!selectionMode"
+        class="sec-title"
+      >
+        Целевые таблицы <span class="sec-note">(по умолчанию)</span>
+        <span
           v-if="hasSelectedTables"
-          class="tables-actions"
+          class="sec-actions"
         >
-          <button 
-            class="save-tables-btn" 
+          <span class="save-hint"><span class="dot" />несохранённые</span>
+          <button
+            class="btn-mini primary"
             :disabled="isSaving"
             @click="saveOrganizationTables"
           >
             {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
           </button>
-          <button 
-            class="cancel-tables-btn" 
+          <button
+            class="btn-mini"
             :disabled="isSaving"
             @click="cancelTablesChanges"
           >
             Отмена
           </button>
-        </div>
+        </span>
       </div>
-      
+
       <div class="select-tables-container">
         <div class="tables-grid">
           <div 
@@ -52,20 +59,31 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 export default {
   name: 'SelectTables',
   props: {
     entity: {
       type: Object,
-      required: true
+      default: null
     },
     entityType: {
       type: String,
       required: true,
       validator: value => ['organization', 'company'].includes(value)
+    },
+    // Режим «только выбор» (групповые операции): без fetch/save сущности,
+    // выбор через v-model (массив id таблиц), без Сохранить/Отмена.
+    selectionMode: {
+      type: Boolean,
+      default: false
+    },
+    modelValue: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['tables-updated'],
+  emits: ['tables-updated', 'dirty-change', 'update:modelValue'],
   data() {
     return {
       allTables: [],
@@ -92,16 +110,25 @@ export default {
     entity: {
       immediate: true,
       handler(newEntity) {
+        if (this.selectionMode) return;
         if (newEntity && newEntity.id) {
           this.fetchEntityTables(newEntity.id);
         }
+      }
+    },
+    // fix 5: поднимаем dirty-состояние таблиц в dirtyTracker родителя.
+    hasSelectedTables: {
+      immediate: true,
+      handler(dirty) {
+        if (this.selectionMode) return;
+        this.$emit('dirty-change', dirty);
       }
     }
   },
   async mounted() {
     await this.fetchAllTables();
-    
-    if (this.entity && this.entity.id) {
+
+    if (!this.selectionMode && this.entity && this.entity.id) {
       await this.fetchEntityTables(this.entity.id);
     }
   },
@@ -150,13 +177,11 @@ export default {
         });
         if (response.ok) {
           const data = await response.json();
-          console.log('Fetched all tables:', data);
-          console.log('Filtered tables (excluding cars):', data.filter(t => this.getTableType(t) !== 'cars'));
           this.allTables = data;
         }
       } catch (error) {
         console.error("Error fetching tables:", error);
-        this.showNotification("Ошибка при загрузке таблиц", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'таблицы', type: 'error' });
       }
     },
 
@@ -170,8 +195,7 @@ export default {
         });
         if (response.ok) {
           const tables = await response.json();
-          console.log(`Fetched ${this.entityType} tables:`, tables);
-          
+
           this.selectedTables = tables.map(table => {
             if (table.table) {
               return {
@@ -219,16 +243,16 @@ export default {
         
         if (response.ok) {
           this.originalSelectedTables = JSON.parse(JSON.stringify(this.selectedTables));
-          this.showNotification("Таблицы по умолчанию успешно обновлены", "success");
+          useDeletionsStore().notify({ prefix: 'Таблицы сохранены для ', bold: this.entity.name, type: 'success' });
           this.$emit('tables-updated');
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении таблиц", "error");
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить таблицы: ', bold: error.message || 'ошибка сервера', type: 'error' });
           await this.fetchEntityTables(this.entity.id);
         }
       } catch (error) {
         console.error("Error updating organization tables:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить таблицы: ', bold: 'ошибка сети', type: 'error' });
         await this.fetchEntityTables(this.entity.id);
       } finally {
         this.isSaving = false;
@@ -241,8 +265,15 @@ export default {
 
     toggleTable(table) {
       const tableId = this.getTableId(table);
+      if (this.selectionMode) {
+        const ids = this.modelValue.includes(tableId)
+          ? this.modelValue.filter(id => id !== tableId)
+          : [...this.modelValue, tableId];
+        this.$emit('update:modelValue', ids);
+        return;
+      }
       const tableObj = this.getTableObject(table);
-      
+
       const index = this.selectedTables.findIndex(t => t.id === tableId);
       if (index > -1) {
         this.selectedTables.splice(index, 1);
@@ -252,34 +283,8 @@ export default {
     },
 
     isTableSelected(tableId) {
+      if (this.selectionMode) return this.modelValue.includes(tableId);
       return this.selectedTables.some(t => t.id === tableId);
-    },
-
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
     }
   },
 };
@@ -287,21 +292,101 @@ export default {
 
 <style scoped>
 .select-tables-section {
-  margin-top: 5px;
+  box-sizing: border-box;
 }
 
-.select-tables__header {
+/* карточка-секция (эталон мокапа .card) */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--surface-sunken);
+}
+
+.sec-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: var(--accent-text);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  height: 35px;
+  /* резерв под появляющиеся Сохранить/Отмена (btn-mini 28px) - чтобы их
+     появление не двигало чипсы/список ниже */
+  min-height: 28px;
+  gap: 8px;
+}
+
+.sec-note {
+  text-transform: none;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.sec-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+}
+
+.save-hint {
+  font-size: 11px;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  border-radius: 8px;
+  padding: 3px 9px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  display: inline-block;
+}
+
+.btn-mini {
+  height: 28px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.btn-mini.primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.btn-mini:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.btn-mini:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .select-tables-container {
   width: fit-content;
-  background: #FFF;
+  background: var(--surface);
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   padding: 12px;
 }
 
@@ -315,10 +400,10 @@ export default {
 .table-item {
   height: 30px;
   border-radius: 50px;
-  background: #f2f2f2;
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 140px;
   min-width: 80px;
   padding: 0 12px;
@@ -333,83 +418,28 @@ export default {
 }
 
 .table-item:hover {
-  background: #e8e8e8;
+  background: var(--row-hover);
 }
 
 .table-item.selected {
-  background: #4F5BDF;
-  color: #FFF;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .no-tables-message {
   text-align: center;
   padding: 20px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-style: italic;
-}
-
-.tables-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.save-tables-btn {
-  padding: 0px 8px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 20px;
-}
-
-.save-tables-btn:hover:not(:disabled) {
-  background: #3a45b2;
-}
-
-.save-tables-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.cancel-tables-btn {
-  padding: 0px 8px;
-  font-weight: 600;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 20px;
-}
-
-.cancel-tables-btn:hover:not(:disabled) {
-  background: #4b5563;
-}
-
-.cancel-tables-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.detail-label {
-  font-size: 0.85em;
-  color: #a2a2a2;
-  font-weight: 400;
 }
 
 @media (max-width: 768px) {
   .tables-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
-  .tables-actions {
-    flex-direction: column;
+
+  .sec-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

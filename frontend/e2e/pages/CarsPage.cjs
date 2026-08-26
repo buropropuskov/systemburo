@@ -4,7 +4,9 @@ class CarsPage {
     this.root = page.getByTestId('cars-page');
     this.addButton = page.getByTestId('cars-view-add-button');
     this.modal = page.getByTestId('cars-view-modal');
-    this.modalCloseButton = page.getByTestId('cars-view-modal-close');
+    // Крестик рисует BaseModal общей разметкой, поэтому ищем его от самого окна:
+    // тот же testid есть у всех модалок приложения.
+    this.modalCloseButton = this.modal.getByTestId('modal-button-close');
     this.formatDropdown = page.getByTestId('cars-view-format-dropdown');
   }
 

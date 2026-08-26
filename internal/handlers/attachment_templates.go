@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"systemburo/internal/download"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -104,7 +105,7 @@ func (h *AttachmentTemplateHandler) DownloadFileByID(c echo.Context) error {
 	if t.FilePath == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "Файл шаблона не загружен")
 	}
-	return c.File(t.FilePath)
+	return download.Serve(c, download.File{Path: t.FilePath})
 }
 
 // Upload godoc
@@ -139,6 +140,8 @@ func (h *AttachmentTemplateHandler) Upload(c echo.Context) error {
 	if startRow < 1 || endRow < startRow {
 		return echo.NewHTTPError(http.StatusBadRequest, "Некорректный диапазон строк")
 	}
+	// Таблица ТМЦ настраивается отдельно, после привязки полей: при загрузке файла
+	// привязок ещё нет, а по ним определяется начало таблицы.
 
 	userID, _ := c.Get("user_id").(int)
 	t, err := h.service.Upload(c.Request().Context(), uaID, file, models.CreateTemplateRequest{
@@ -175,6 +178,72 @@ func (h *AttachmentTemplateHandler) UpdateMappings(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Маппинги обновлены")
+}
+
+// ListTemplateSources godoc
+// @Summary      Шаблоны-источники для переноса привязок
+// @Tags         attachment-templates
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.TemplateSource
+// @Router       /attachments/template-sources [get]
+func (h *AttachmentTemplateHandler) ListTemplateSources(c echo.Context) error {
+	sources, err := h.service.ListTemplateSources(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, sources)
+}
+
+// CopyMappings godoc
+// @Summary      Перенести привязки с другого шаблона
+// @Tags         attachment-templates
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Param        request body models.CopyMappingsRequest true "Шаблон-источник и режим переноса"
+// @Success      200 {object} models.CopyMappingsResult
+// @Router       /attachments/{id}/template/copy-mappings [post]
+func (h *AttachmentTemplateHandler) CopyMappings(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.CopyMappingsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	res, err := h.service.CopyMappings(c.Request().Context(), uaID, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
+// UpdateParams godoc
+// @Summary      Изменить границы строк списка без перезагрузки файла
+// @Tags         attachment-templates
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Param        request body models.UpdateTemplateParamsRequest true "Границы строк списка"
+// @Success      200 {string} string "Параметры списка сохранены"
+// @Router       /attachments/{id}/template/params [put]
+func (h *AttachmentTemplateHandler) UpdateParams(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateTemplateParamsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateParams(c.Request().Context(), uaID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Параметры списка сохранены")
 }
 
 // Delete godoc
@@ -216,7 +285,7 @@ func (h *AttachmentTemplateHandler) DownloadFile(c echo.Context) error {
 	if t.FilePath == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "Файл шаблона не загружен")
 	}
-	return c.File(t.FilePath)
+	return download.Serve(c, download.File{Path: t.FilePath})
 }
 
 // GetFields godoc

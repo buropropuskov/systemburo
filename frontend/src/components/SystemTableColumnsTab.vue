@@ -640,10 +640,10 @@ export default {
 /* Toggle "Обычный | Увеличенный" - сегмент-контрол как в Оформление. */
 .columns-tab__mode-toggle {
   display: inline-flex;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .columns-tab__mode-btn {
@@ -651,19 +651,19 @@ export default {
   background: transparent;
   border: none;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .columns-tab__mode-btn:hover:not(.columns-tab__mode-btn--active) {
-  background: #f0f0f0;
-  color: #333;
+  background: var(--border);
+  color: var(--text);
 }
 
 .columns-tab__mode-btn--active {
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-weight: 500;
 }
 
@@ -671,7 +671,7 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .columns-tab__hint {
@@ -679,7 +679,7 @@ export default {
   align-items: baseline;
   gap: 10px;
   font-size: 13px;
-  color: #4b5563;
+  color: var(--text-muted);
   line-height: 1.45;
 }
 
@@ -687,8 +687,8 @@ export default {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 9px;
@@ -703,7 +703,7 @@ export default {
 
 .columns-tab__hint-dash {
   flex-shrink: 0;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .columns-tab__hint-text {
@@ -712,29 +712,29 @@ export default {
 }
 
 .columns-tab__hint-text strong {
-  color: #1f2937;
+  color: var(--text);
   font-weight: 600;
 }
 
 .columns-tab__hint-note {
   margin: 4px 0 0;
   padding-top: 6px;
-  border-top: 1px dashed #e6e6e6;
+  border-top: 1px dashed var(--border);
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
 .columns-tab__hint-note strong {
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
 .columns-tab__empty {
   padding: 24px;
   text-align: center;
-  color: #a2a2a2;
-  background: #f9fafb;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   border-radius: 12px;
 }
 
@@ -748,19 +748,19 @@ export default {
 }
 
 .columns-tab__item {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 10px;
   transition: opacity 0.15s ease, background-color 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .columns-tab__item:hover {
-  background: #f9fafb;
+  background: var(--accent-tint);
 }
 
 .columns-tab__item--off {
-  background: #fafafa;
-  border-color: #ececec;
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 
 .columns-tab__item--dragging {
@@ -768,8 +768,8 @@ export default {
      тянем. transition: none убирает анимацию перетаскиваемого узла -
      дрожания между DOM и ghost-картинкой курсора нет. */
   opacity: 0.4;
-  background: #f0f4ff;
-  border-color: #4F5BDF;
+  background: var(--accent-tint);
+  border-color: var(--accent);
   border-style: dashed;
   transition: none !important;
 }
@@ -788,14 +788,14 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: grab;
   flex-shrink: 0;
   transition: color 0.15s ease;
 }
 
 .columns-tab__handle:hover {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .columns-tab__item--dragging .columns-tab__handle,
@@ -815,7 +815,7 @@ export default {
 .columns-tab__checkbox {
   width: 12px;
   height: 12px;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent-text);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -823,18 +823,18 @@ export default {
 .columns-tab__label {
   font-size: 14px;
   font-weight: 500;
-  color: #000;
+  color: var(--text);
   flex: 1;
 }
 
 .columns-tab__item--off .columns-tab__label {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .columns-tab__field-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  color: #c0c0c0;
+  color: var(--text-muted);
 }
 
 .columns-tab__width {
@@ -847,19 +847,19 @@ export default {
 
 .columns-tab__width-label {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .columns-tab__width-input {
   width: 32px;
   padding: 2px 4px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 11px;
   text-align: right;
-  color: #333;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   -moz-appearance: textfield;
 }
 
@@ -871,7 +871,7 @@ export default {
 
 .columns-tab__width-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .columns-tab__priority {
@@ -884,24 +884,24 @@ export default {
 
 .columns-tab__priority-label {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .columns-tab__priority-select {
   width: 38px;
   padding: 2px 4px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 11px;
-  color: #333;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   cursor: pointer;
 }
 
 .columns-tab__priority-select:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 /* Селект "Жирность" - шире обычного priority-select, чтобы трёхзначные значения
@@ -919,11 +919,11 @@ export default {
   justify-content: center;
   min-width: 42px;
   padding: 2px 6px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 11px;
-  color: #000;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   white-space: nowrap;
   line-height: 1;
 }
@@ -950,36 +950,36 @@ export default {
 }
 
 .columns-tab__btn--secondary {
-  background: #fff;
-  border-color: #e6e6e6;
-  color: #333;
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
 }
 
 .columns-tab__btn--secondary:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #c0c0c0;
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 
 .columns-tab__btn--primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .columns-tab__btn--primary:hover:not(:disabled) {
-  background: #3b48c4;
-  border-color: #3b48c4;
+  background: var(--accent-hover);
+  border-color: var(--accent);
 }
 
 .columns-tab__status {
   margin: 0;
   font-size: 13px;
-  color: #079D1D;
+  color: var(--success-text);
   text-align: right;
 }
 
 .columns-tab__status--error {
-  color: #c62828;
+  color: var(--danger-text);
 }
 
 .columns-tab__preview {
@@ -992,13 +992,13 @@ export default {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .columns-tab__preview-hint {
   margin: 0;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 /* Scale-обёртка: внутренний элемент рендерится при ширине 100%/SCALE и затем
@@ -1011,8 +1011,8 @@ export default {
      × scale 0.6 = 150px + ~20px запас на скругление/границу = 175px. */
   height: 175px;
   border-radius: 18px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .columns-tab__preview-scale {
@@ -1025,9 +1025,9 @@ export default {
 .columns-tab__preview-unknown {
   padding: 16px;
   text-align: center;
-  color: #a2a2a2;
-  background: #f9fafb;
-  border: 1px solid #e6e6e6;
+  color: var(--text-muted);
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 12px;
 }
 

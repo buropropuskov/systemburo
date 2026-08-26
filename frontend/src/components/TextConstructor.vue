@@ -3,23 +3,38 @@
     class="text-constructor"
     :class="{ 'is-disabled': disabled }"
   >
-    <div class="editor-toolbar">
+    <div
+      class="editor-toolbar"
+      @mousedown.prevent
+    >
       <div class="toolbar-group">
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('bold') }"
+          data-tooltip="Жирный"
+          :disabled="disabled"
+          @click="runCommand((c) => c.toggleBold())"
+        >
+          <strong>B</strong>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('italic') }"
           data-tooltip="Курсив"
           :disabled="disabled"
-          @click="formatText('italic')"
+          @click="runCommand((c) => c.toggleItalic())"
         >
           <em>I</em>
         </button>
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('underline') }"
           data-tooltip="Подчеркивание"
           :disabled="disabled"
-          @click="formatText('underline')"
+          @click="runCommand((c) => c.toggleUnderline())"
         >
           <u>U</u>
         </button>
@@ -29,29 +44,22 @@
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('bulletList') }"
           data-tooltip="Маркированный список"
           :disabled="disabled"
-          @click="insertList('ul')"
+          @click="runCommand((c) => c.toggleBulletList())"
         >
           • L
         </button>
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('orderedList') }"
           data-tooltip="Нумерованный список"
           :disabled="disabled"
-          @click="insertList('ol')"
+          @click="runCommand((c) => c.toggleOrderedList())"
         >
           1. L
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          data-tooltip="Добавить элемент списка"
-          :disabled="disabled"
-          @click="insertListItem()"
-        >
-          Li
         </button>
       </div>
 
@@ -59,28 +67,151 @@
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('heading', { level: 1 }) }"
           data-tooltip="Заголовок h1"
           :disabled="disabled"
-          @click="insertHeading('h1')"
+          @click="runCommand((c) => c.toggleHeading({ level: 1 }))"
         >
           h1
         </button>
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('heading', { level: 2 }) }"
           data-tooltip="Заголовок h2"
           :disabled="disabled"
-          @click="insertHeading('h2')"
+          @click="runCommand((c) => c.toggleHeading({ level: 2 }))"
         >
           h2
+        </button>
+      </div>
+
+      <div class="toolbar-group align-group">
+        <button
+          type="button"
+          class="toolbar-btn align-btn"
+          :class="{ active: isAlignActive('left') }"
+          data-tooltip="По левому краю"
+          :disabled="disabled"
+          @click="applyAlign('left')"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="2"
+              y="3"
+              width="12"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="2"
+              y="7.2"
+              width="8"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="2"
+              y="11.4"
+              width="11"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn align-btn"
+          :class="{ active: isAlignActive('center') }"
+          data-tooltip="По центру"
+          :disabled="disabled"
+          @click="applyAlign('center')"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="2"
+              y="3"
+              width="12"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="4"
+              y="7.2"
+              width="8"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="2.5"
+              y="11.4"
+              width="11"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn align-btn"
+          :class="{ active: isAlignActive('right') }"
+          data-tooltip="По правому краю"
+          :disabled="disabled"
+          @click="applyAlign('right')"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="2"
+              y="3"
+              width="12"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="6"
+              y="7.2"
+              width="8"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="3"
+              y="11.4"
+              width="11"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+          </svg>
         </button>
       </div>
 
       <div class="toolbar-group">
         <div
           class="custom-select"
-          @mouseenter="showTooltip = true"
-          @mouseleave="showTooltip = false"
         >
           <div
             class="select-header"
@@ -88,34 +219,45 @@
             @click="toggleFontSizeDropdown"
           >
             <span class="select-value">{{ selectedFontSize }}</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <svg
               class="select-arrow"
               :class="{ rotated: fontSizeDropdownOpen }"
+              viewBox="0 0 10 6"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
             >
+              <path
+                d="M1 1L5 5L9 1"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </div>
-          <div
-            v-if="fontSizeDropdownOpen"
-            class="select-dropdown"
-          >
+          <transition name="select-fade">
             <div
-              v-for="size in fontSizes"
-              :key="size"
-              class="select-option"
-              :class="{ active: selectedFontSize === size }"
-              @click="selectFontSize(size)"
+              v-if="fontSizeDropdownOpen"
+              class="select-dropdown"
             >
-              {{ size }}
+              <div
+                v-for="size in fontSizes"
+                :key="size"
+                class="select-option"
+                :class="{ active: selectedFontSize === size }"
+                @click="selectFontSize(size)"
+              >
+                {{ size }}
+              </div>
             </div>
-          </div>
+          </transition>
         </div>
       </div>
 
       <div class="toolbar-group">
         <div
           class="custom-select fixed-width-select"
-          @mouseenter="showTooltip = true"
-          @mouseleave="showTooltip = false"
         >
           <div
             class="select-header"
@@ -123,27 +265,40 @@
             @click="toggleFontWeightDropdown"
           >
             <span class="select-value">{{ selectedFontWeight.label }}</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <svg
               class="select-arrow"
               :class="{ rotated: fontWeightDropdownOpen }"
+              viewBox="0 0 10 6"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
             >
+              <path
+                d="M1 1L5 5L9 1"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </div>
-          <div
-            v-if="fontWeightDropdownOpen"
-            class="select-dropdown"
-          >
+          <transition name="select-fade">
             <div
-              v-for="weight in fontWeights"
-              :key="weight.value"
-              class="select-option"
-              :class="{ active: selectedFontWeight.value === weight.value }"
-              :style="{ fontWeight: weight.value }"
-              @click="selectFontWeight(weight)"
+              v-if="fontWeightDropdownOpen"
+              class="select-dropdown"
             >
-              {{ weight.label }}
+              <div
+                v-for="weight in fontWeights"
+                :key="weight.value"
+                class="select-option"
+                :class="{ active: selectedFontWeight.value === weight.value }"
+                :style="{ fontWeight: weight.value }"
+                @click="selectFontWeight(weight)"
+              >
+                {{ weight.label }}
+              </div>
             </div>
-          </div>
+          </transition>
         </div>
       </div>
 
@@ -153,7 +308,7 @@
           class="toolbar-btn color-btn black-text"
           data-tooltip="Черный"
           :disabled="disabled"
-          @click="insertColor('black-text')"
+          @click="applyColor('black-text')"
         >
           A
         </button>
@@ -162,7 +317,7 @@
           class="toolbar-btn color-btn red-text"
           data-tooltip="Красный"
           :disabled="disabled"
-          @click="insertColor('red-text')"
+          @click="applyColor('red-text')"
         >
           A
         </button>
@@ -171,7 +326,7 @@
           class="toolbar-btn color-btn green-text"
           data-tooltip="Зеленый"
           :disabled="disabled"
-          @click="insertColor('green-text')"
+          @click="applyColor('green-text')"
         >
           A
         </button>
@@ -180,7 +335,7 @@
           class="toolbar-btn color-btn blue-text"
           data-tooltip="Синий"
           :disabled="disabled"
-          @click="insertColor('blue-text')"
+          @click="applyColor('blue-text')"
         >
           A
         </button>
@@ -211,7 +366,7 @@
           class="toolbar-btn"
           data-tooltip="Перенос строки"
           :disabled="disabled"
-          @click="insertBreak()"
+          @click="runCommand((c) => c.setHardBreak())"
         >
           ↵
         </button>
@@ -222,8 +377,8 @@
           type="button"
           class="toolbar-btn undo-btn"
           data-tooltip="Назад (Ctrl+Z)"
-          :disabled="disabled || historyIndex === 0"
-          @click="undo()"
+          :disabled="disabled || !canUndo"
+          @click="runCommand((c) => c.undo())"
         >
           ↶
         </button>
@@ -237,24 +392,29 @@
           ⎚
         </button>
       </div>
+      <div
+        v-if="$slots['header-actions']"
+        class="tc-header-actions"
+      >
+        <slot name="header-actions" />
+      </div>
     </div>
 
-    <div class="textarea-container">
-      <textarea
-        ref="textarea"
-        :value="modelValue"
-        :placeholder="placeholder"
-        :rows="rows"
-        :disabled="disabled"
-        class="constructor-textarea"
-        @input="handleInput"
-        @keydown.ctrl.z.prevent="handleCtrlZ"
-      />
-      <div
-        class="resize-handle"
-        @mousedown="startResize"
-      />
+    <!-- Полоса вложений живёт между панелью и текстом, как в почтовом клиенте:
+         вложения относятся к письму целиком, а не к месту курсора. Пустой слот
+         ничего не рисует, поэтому у прочих мест применения вид не меняется. -->
+    <div
+      v-if="$slots.attachments"
+      class="tc-attachments"
+    >
+      <slot name="attachments" />
     </div>
+
+    <EditorContent
+      :editor="editor"
+      class="editor-content"
+      :style="{ minHeight: minContentHeight }"
+    />
 
     <div
       v-if="imageError"
@@ -264,105 +424,6 @@
       {{ imageError }}
     </div>
 
-    <div
-      v-if="imageBlocks.length > 1"
-      class="image-blocks"
-    >
-      <div class="image-blocks__header">
-        <span class="image-blocks__title">Расположение изображений</span>
-        <span class="image-blocks__hint">перетащите карточку или используйте стрелки</span>
-      </div>
-      <div class="image-blocks__list">
-        <div
-          v-for="(block, index) in imageBlocks"
-          :key="block.id"
-          class="image-block"
-          :class="{
-            'image-block--dragging': draggingIndex === index,
-            'image-block--target': dragOverIndex === index && draggingIndex !== index
-          }"
-          draggable="true"
-          @dragstart="onBlockDragStart(index, $event)"
-          @dragover.prevent="onBlockDragOver(index)"
-          @dragleave="onBlockDragLeave"
-          @drop.prevent="onBlockDrop(index)"
-          @dragend="onBlockDragEnd"
-        >
-          <span class="image-block__handle" aria-hidden="true">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="4" cy="3" r="1.4" fill="currentColor" />
-              <circle cx="4" cy="7" r="1.4" fill="currentColor" />
-              <circle cx="4" cy="11" r="1.4" fill="currentColor" />
-              <circle cx="10" cy="3" r="1.4" fill="currentColor" />
-              <circle cx="10" cy="7" r="1.4" fill="currentColor" />
-              <circle cx="10" cy="11" r="1.4" fill="currentColor" />
-            </svg>
-          </span>
-          <img
-            :src="block.src"
-            class="image-block__preview"
-            :alt="`Изображение ${index + 1}`"
-          />
-          <span class="image-block__index">#{{ index + 1 }}</span>
-          <div class="image-block__actions">
-            <button
-              type="button"
-              class="image-block__btn"
-              :disabled="index === 0"
-              title="Переместить выше"
-              @click="moveImageBlock(index, index - 1)"
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              class="image-block__btn"
-              :disabled="index === imageBlocks.length - 1"
-              title="Переместить ниже"
-              @click="moveImageBlock(index, index + 1)"
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              class="image-block__btn image-block__btn--danger"
-              title="Удалить"
-              @click="removeImageBlock(index)"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div
-      v-if="modelValue"
-      class="editor-preview"
-    >
-      <div class="preview-header">
-        <h5>Предпросмотр</h5>
-        <button
-          type="button"
-          class="preview-expand-btn"
-          @click="openPreviewModal"
-        >
-          Открыть в окне
-        </button>
-      </div>
-      <div class="preview-content-container">
-        <div
-          ref="previewContent"
-          class="preview-content"
-          v-html="sanitizedContent"
-        />
-        <div
-          class="resize-handle preview-resize"
-          @mousedown="startPreviewResize"
-        />
-      </div>
-    </div>
-
     <BaseModal
       :show="previewModalOpen"
       title="Предпросмотр контента"
@@ -370,700 +431,328 @@
       @close="previewModalOpen = false"
     >
       <div
-        class="preview-modal-content"
+        class="preview-modal-content text-constructor-content"
         v-html="sanitizedContent"
       />
     </BaseModal>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useEditor, EditorContent } from '@tiptap/vue-3';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Placeholder from '@tiptap/extension-placeholder';
 import { sanitizeHtml } from '@/utils/sanitize';
 import BaseModal from '@/components/ui/BaseModal.vue';
+import {
+  ColorClass,
+  FontSizeClass,
+  FontWeightClass,
+  ClassHeading,
+  ConstructorImage,
+  TextAlignClass,
+} from './text-constructor/extensions';
 
-const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = [
   'image/png',
   'image/jpeg',
   'image/gif',
   'image/webp',
-  'image/svg+xml'
+  'image/svg+xml',
 ];
 
-export default {
-  name: 'TextConstructor',
-  components: { BaseModal },
-  props: {
-    modelValue: {
-      type: String,
-      default: ''
-    },
-    placeholder: {
-      type: String,
-      default: 'Введите текст...'
-    },
-    rows: {
-      type: Number,
-      default: 4
-    },
-    disabled: {
-      type: Boolean,
-      default: false
-    },
-    maxImageBytes: {
-      type: Number,
-      default: DEFAULT_MAX_IMAGE_BYTES
+const props = defineProps({
+  modelValue: { type: String, default: '' },
+  placeholder: { type: String, default: 'Введите текст...' },
+  rows: { type: Number, default: 4 },
+  disabled: { type: Boolean, default: false },
+  maxImageBytes: { type: Number, default: 5 * 1024 * 1024 },
+});
+
+const emit = defineEmits(['update:modelValue']);
+
+const fontSizes = ['10px', '12px', '14px', '16px', '18px', '20px'];
+const fontWeights = [
+  { label: 'Black', value: '900' },
+  { label: 'Bold', value: '600' },
+  { label: 'Medium', value: '500' },
+  { label: 'Regular', value: '400' },
+  { label: 'Light', value: '300' },
+];
+
+const selectedFontSize = ref('14px');
+const selectedFontWeight = ref({ label: 'Regular', value: '400' });
+const fontSizeDropdownOpen = ref(false);
+const fontWeightDropdownOpen = ref(false);
+const previewModalOpen = ref(false);
+const imageError = ref('');
+const imageInput = ref(null);
+const canUndo = ref(false);
+let imageErrorTimer = null;
+let onDocClick = null;
+
+const minContentHeight = computed(() => `${Math.max(1, props.rows) * 26}px`);
+const sanitizedContent = computed(() => sanitizeHtml(props.modelValue));
+
+const editor = useEditor({
+  content: props.modelValue || '',
+  editable: !props.disabled,
+  extensions: [
+    StarterKit.configure({ heading: false }),
+    Underline,
+    ClassHeading,
+    ColorClass,
+    FontSizeClass,
+    FontWeightClass,
+    ConstructorImage,
+    TextAlignClass,
+    Placeholder.configure({ placeholder: () => props.placeholder }),
+  ],
+  onUpdate: ({ editor: instance }) => {
+    canUndo.value = instance.can().undo();
+    const html = instance.isEmpty ? '' : instance.getHTML();
+    if (html !== props.modelValue) {
+      emit('update:modelValue', html);
     }
   },
-  emits: ['update:modelValue'],
-  data() {
-    return {
-      selectedFontSize: '14px',
-      fontSizeDropdownOpen: false,
-      fontSizes: ['10px', '12px', '14px', '16px', '18px', '20px'],
-      fontWeightDropdownOpen: false,
-      selectedFontWeight: { label: 'Regular', value: '400' },
-      fontWeights: [
-        { label: 'Black', value: '900' },
-        { label: 'Bold', value: '600' },
-        { label: 'Medium', value: '500' },
-        { label: 'Regular', value: '400' },
-        { label: 'Light', value: '300' }
-      ],
-      showTooltip: true,
-      history: [''],
-      historyIndex: 0,
-      isResizing: false,
-      isPreviewResizing: false,
-      startHeight: 0,
-      startY: 0,
-      previewStartHeight: 0,
-      previewMinHeight: 150,
-      previewMaxHeight: 350,
-      imageError: '',
-      imageErrorTimer: null,
-      previewModalOpen: false,
-      onDocClick: null,
-      draggingIndex: null,
-      dragOverIndex: null,
-      imageMatchRegex: /<img\b[^>]*>/gi
-    };
-  },
-  computed: {
-    sanitizedContent() {
-      return sanitizeHtml(this.modelValue);
-    },
-    imageBlocks() {
-      const html = this.modelValue || '';
-      const matches = html.match(this.imageMatchRegex) || [];
-      return matches.map((tag, idx) => {
-        const srcMatch = tag.match(/src=["']([^"']+)["']/i);
-        return {
-          id: `img-${idx}-${(srcMatch ? srcMatch[1] : '').slice(0, 20)}`,
-          tag,
-          src: srcMatch ? srcMatch[1] : ''
-        };
-      });
-    }
-  },
-  watch: {
-    modelValue(newValue) {
-      if (this.history[this.historyIndex] !== newValue) {
-        this.history = [newValue];
-        this.historyIndex = 0;
-      }
-    }
-  },
-  mounted() {
-    this.history = [this.modelValue];
-    this.historyIndex = 0;
-
-    this.$nextTick(() => {
-      if (this.$refs.previewContent) {
-        this.$refs.previewContent.style.height = this.previewMinHeight + 'px';
-        this.$refs.previewContent.style.minHeight = this.previewMinHeight + 'px';
-        this.$refs.previewContent.style.maxHeight = this.previewMaxHeight + 'px';
-      }
-    });
-
-    this.onDocClick = (e) => {
-      if (!this.$el.contains(e.target)) {
-        this.fontSizeDropdownOpen = false;
-        this.fontWeightDropdownOpen = false;
-        this.showTooltip = true;
-      }
-    };
-    document.addEventListener('click', this.onDocClick);
-  },
-  beforeUnmount() {
-    if (this.onDocClick) {
-      document.removeEventListener('click', this.onDocClick);
-    }
-    document.removeEventListener('mousemove', this.handleResize);
-    document.removeEventListener('mouseup', this.stopResize);
-    document.removeEventListener('mousemove', this.handlePreviewResize);
-    document.removeEventListener('mouseup', this.stopPreviewResize);
-    if (this.imageErrorTimer) {
-      clearTimeout(this.imageErrorTimer);
-    }
-  },
-  methods: {
-    /**
-     * Извлекает все <img> теги из modelValue, заменяя их плейсхолдерами,
-     * чтобы потом восстановить в произвольном порядке.
-     * @returns {{ skeleton: string, imgs: string[] }}
-     */
-    extractImageSkeleton() {
-      const imgs = [];
-      const skeleton = (this.modelValue || '').replace(this.imageMatchRegex, (match) => {
-        imgs.push(match);
-        return ` IMG_${imgs.length - 1} `;
-      });
-      return { skeleton, imgs };
-    },
-
-    /**
-     * Восстанавливает HTML по skeleton'у с переупорядоченными изображениями.
-     * @param {string} skeleton
-     * @param {string[]} imgs
-     */
-    rebuildHtmlFromSkeleton(skeleton, imgs) {
-      return skeleton.replace(/ IMG_(\d+) /g, (_, i) => imgs[Number(i)] || '');
-    },
-
-    moveImageBlock(from, to) {
-      if (to < 0 || to >= this.imageBlocks.length) return;
-      const { skeleton, imgs } = this.extractImageSkeleton();
-      const [moved] = imgs.splice(from, 1);
-      imgs.splice(to, 0, moved);
-      const next = this.rebuildHtmlFromSkeleton(skeleton, imgs);
-      this.addToHistory(next);
-      this.$emit('update:modelValue', next);
-    },
-
-    removeImageBlock(index) {
-      const { skeleton, imgs } = this.extractImageSkeleton();
-      imgs.splice(index, 1);
-      const next = this.rebuildHtmlFromSkeleton(skeleton, imgs);
-      this.addToHistory(next);
-      this.$emit('update:modelValue', next);
-    },
-
-    onBlockDragStart(index, event) {
-      this.draggingIndex = index;
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = 'move';
-      }
-    },
-
-    onBlockDragOver(index) {
-      this.dragOverIndex = index;
-    },
-
-    onBlockDragLeave() {
-      this.dragOverIndex = null;
-    },
-
-    onBlockDrop(targetIndex) {
-      if (this.draggingIndex === null || this.draggingIndex === targetIndex) {
-        this.dragOverIndex = null;
-        return;
-      }
-      this.moveImageBlock(this.draggingIndex, targetIndex);
-      this.draggingIndex = null;
-      this.dragOverIndex = null;
-    },
-
-    onBlockDragEnd() {
-      this.draggingIndex = null;
-      this.dragOverIndex = null;
-    },
-
-    handleInput(event) {
-      this.addToHistory(event.target.value);
-      this.$emit('update:modelValue', event.target.value);
-    },
-
-    handleCtrlZ() {
-      this.undo();
-    },
-
-    addToHistory(value) {
-      this.history = this.history.slice(0, this.historyIndex + 1);
-      this.history.push(value);
-      this.historyIndex++;
-    },
-
-    undo() {
-      if (this.historyIndex > 0) {
-        this.historyIndex--;
-        const previousValue = this.history[this.historyIndex];
-        this.$emit('update:modelValue', previousValue);
-
-        this.$nextTick(() => {
-          if (!this.$refs.textarea) return;
-          this.$refs.textarea.value = previousValue;
-          const textarea = this.$refs.textarea;
-          const currentScrollPos = textarea.scrollTop;
-          textarea.focus();
-          textarea.scrollTop = currentScrollPos;
-        });
-      }
-    },
-
-    startResize(e) {
-      this.isResizing = true;
-      this.startY = e.clientY;
-      this.startHeight = this.$refs.textarea.offsetHeight;
-
-      document.addEventListener('mousemove', this.handleResize);
-      document.addEventListener('mouseup', this.stopResize);
-      e.preventDefault();
-    },
-
-    handleResize(e) {
-      if (!this.isResizing) return;
-
-      const deltaY = e.clientY - this.startY;
-      const newHeight = Math.max(150, Math.min(350, this.startHeight + deltaY));
-
-      this.$refs.textarea.style.height = newHeight + 'px';
-    },
-
-    stopResize() {
-      this.isResizing = false;
-      document.removeEventListener('mousemove', this.handleResize);
-      document.removeEventListener('mouseup', this.stopResize);
-    },
-
-    startPreviewResize(e) {
-      this.isPreviewResizing = true;
-      this.startY = e.clientY;
-      this.previewStartHeight = this.$refs.previewContent.offsetHeight;
-
-      document.addEventListener('mousemove', this.handlePreviewResize);
-      document.addEventListener('mouseup', this.stopPreviewResize);
-      e.preventDefault();
-    },
-
-    handlePreviewResize(e) {
-      if (!this.isPreviewResizing) return;
-
-      const deltaY = e.clientY - this.startY;
-      const newHeight = Math.max(this.previewMinHeight, Math.min(this.previewMaxHeight, this.previewStartHeight + deltaY));
-
-      this.$refs.previewContent.style.height = newHeight + 'px';
-    },
-
-    stopPreviewResize() {
-      this.isPreviewResizing = false;
-      document.removeEventListener('mousemove', this.handlePreviewResize);
-      document.removeEventListener('mouseup', this.stopPreviewResize);
-    },
-
-    insertAtCursor(text, opts = {}) {
-      const textarea = this.$refs.textarea;
-      if (!textarea) return;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const currentScrollPos = textarea.scrollTop;
-      const newValue = textarea.value.substring(0, start) + text + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        const cursor = opts.selectStart != null
-          ? opts.selectStart
-          : start + text.length;
-        textarea.setSelectionRange(cursor, cursor);
-        textarea.scrollTop = currentScrollPos;
-      });
-    },
-
-    formatText(type) {
-      if (this.disabled) return;
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
-
-      if (!selectedText) return;
-
-      let formattedText = '';
-      switch (type) {
-        case 'italic':
-          formattedText = `<em>${selectedText}</em>`;
-          break;
-        case 'underline':
-          formattedText = `<u>${selectedText}</u>`;
-          break;
-      }
-
-      const currentScrollPos = textarea.scrollTop;
-      const newValue = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
-        textarea.scrollTop = currentScrollPos;
-      });
-    },
-
-    insertList(type) {
-      if (this.disabled) return;
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
-
-      const currentScrollPos = textarea.scrollTop;
-
-      let list;
-      if (selectedText) {
-        const items = selectedText.split('\n').filter(item => item.trim());
-        const listItems = items.map(item => `  <li>${item.trim()}</li>`).join('\n');
-        list = type === 'ul'
-          ? `<ul>\n${listItems}\n</ul>`
-          : `<ol>\n${listItems}\n</ol>`;
-      } else {
-        list = type === 'ul'
-          ? `<ul>\n  <li>Элемент списка</li>\n</ul>`
-          : `<ol>\n  <li>Элемент списка</li>\n</ol>`;
-      }
-
-      const newValue = textarea.value.substring(0, start) + list + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        const newPosition = start + list.indexOf('<li>') + 4;
-        textarea.setSelectionRange(newPosition, newPosition);
-        textarea.scrollTop = currentScrollPos;
-      });
-    },
-
-    insertListItem() {
-      if (this.disabled) return;
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const value = textarea.value;
-
-      const currentScrollPos = textarea.scrollTop;
-
-      const textBeforeCursor = value.substring(0, start);
-      const lastNewLine = textBeforeCursor.lastIndexOf('\n');
-      const currentLineStart = lastNewLine + 1;
-      const currentLine = textBeforeCursor.substring(currentLineStart);
-
-      let listItem;
-      if (currentLine.trim().startsWith('<li>') && currentLine.includes('</li>')) {
-        const lineEnd = textBeforeCursor.indexOf('</li>', currentLineStart) + 5;
-        listItem = '\n  <li>Новый элемент списка</li>';
-        const newValue = value.substring(0, lineEnd) + listItem + value.substring(lineEnd);
-        this.addToHistory(newValue);
-        this.$emit('update:modelValue', newValue);
-
-        this.$nextTick(() => {
-          textarea.focus();
-          const newPosition = lineEnd + listItem.length;
-          textarea.setSelectionRange(newPosition, newPosition);
-          textarea.scrollTop = currentScrollPos;
-        });
-      } else {
-        listItem = '<li>Новый элемент списка</li>';
-        const newValue = value.substring(0, start) + listItem + value.substring(start);
-        this.addToHistory(newValue);
-        this.$emit('update:modelValue', newValue);
-
-        this.$nextTick(() => {
-          textarea.focus();
-          const newPosition = start + listItem.length;
-          textarea.setSelectionRange(newPosition, newPosition);
-          textarea.scrollTop = currentScrollPos;
-        });
-      }
-    },
-
-    insertHeading(level) {
-      if (this.disabled) return;
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end) || 'Заголовок';
-
-      const currentScrollPos = textarea.scrollTop;
-
-      const heading = `<${level} class="heading-${level}">${selectedText}</${level}>`;
-      const newValue = textarea.value.substring(0, start) + heading + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        textarea.scrollTop = currentScrollPos;
-      });
-    },
-
-    insertColor(colorClass) {
-      if (this.disabled) return;
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
-
-      if (!selectedText) return;
-
-      const currentScrollPos = textarea.scrollTop;
-
-      const coloredText = `<span class="${colorClass}">${selectedText}</span>`;
-      const newValue = textarea.value.substring(0, start) + coloredText + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        textarea.scrollTop = currentScrollPos;
-      });
-    },
-
-    insertBreak() {
-      if (this.disabled) return;
-      this.insertAtCursor('<br>');
-    },
-
-    triggerImagePicker() {
-      if (this.disabled) return;
-      this.clearImageError();
-      if (this.$refs.imageInput) {
-        this.$refs.imageInput.value = '';
-        this.$refs.imageInput.click();
-      }
-    },
-
-    /**
-     * Обрабатывает выбор файла, валидирует тип и размер,
-     * читает в data:URL и вставляет тег <img> в textarea.
-     */
-    async handleImageSelected(event) {
-      const file = event.target?.files?.[0];
-      if (!file) return;
-
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        this.setImageError('Неподдерживаемый формат. Разрешены: PNG, JPEG, GIF, WEBP, SVG.');
-        return;
-      }
-      if (file.size > this.maxImageBytes) {
-        const maxMb = Math.round(this.maxImageBytes / (1024 * 1024));
-        this.setImageError(`Файл слишком большой. Максимальный размер: ${maxMb} МБ.`);
-        return;
-      }
-
-      try {
-        const dataUrl = await this.readFileAsDataUrl(file);
-        const safeAlt = (file.name || 'image')
-          .replace(/[<>"'&]/g, '')
-          .slice(0, 100);
-        const imgTag = `<img src="${dataUrl}" alt="${safeAlt}" class="constructor-image">`;
-        this.insertAtCursor(imgTag);
-      } catch (err) {
-        this.setImageError('Не удалось прочитать файл. Попробуйте ещё раз.');
-        console.error('TextConstructor image read error:', err);
-      } finally {
-        if (this.$refs.imageInput) {
-          this.$refs.imageInput.value = '';
-        }
-      }
-    },
-
-    readFileAsDataUrl(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(reader.error || new Error('FileReader error'));
-        reader.readAsDataURL(file);
-      });
-    },
-
-    setImageError(msg) {
-      this.imageError = msg;
-      if (this.imageErrorTimer) clearTimeout(this.imageErrorTimer);
-      this.imageErrorTimer = setTimeout(() => {
-        this.imageError = '';
-      }, 4500);
-    },
-
-    clearImageError() {
-      this.imageError = '';
-      if (this.imageErrorTimer) {
-        clearTimeout(this.imageErrorTimer);
-        this.imageErrorTimer = null;
-      }
-    },
-
-    openPreviewModal() {
-      if (!this.modelValue) return;
-      this.previewModalOpen = true;
-    },
-
-    toggleFontSizeDropdown() {
-      if (this.disabled) return;
-      this.fontSizeDropdownOpen = !this.fontSizeDropdownOpen;
-      this.fontWeightDropdownOpen = false;
-      this.showTooltip = !this.fontSizeDropdownOpen;
-    },
-
-    selectFontSize(size) {
-      this.selectedFontSize = size;
-      this.fontSizeDropdownOpen = false;
-      this.showTooltip = true;
-      this.applyFontSize();
-    },
-
-    applyFontSize() {
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
-
-      if (!selectedText) return;
-
-      const currentScrollPos = textarea.scrollTop;
-
-      const fontSizeClass = `font-size-${this.selectedFontSize.replace('px', '')}`;
-      const sizedText = `<span class="${fontSizeClass}">${selectedText}</span>`;
-      const newValue = textarea.value.substring(0, start) + sizedText + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        textarea.scrollTop = currentScrollPos;
-      });
-    },
-
-    toggleFontWeightDropdown() {
-      if (this.disabled) return;
-      this.fontWeightDropdownOpen = !this.fontWeightDropdownOpen;
-      this.fontSizeDropdownOpen = false;
-      this.showTooltip = !this.fontWeightDropdownOpen;
-    },
-
-    selectFontWeight(weight) {
-      this.selectedFontWeight = weight;
-      this.fontWeightDropdownOpen = false;
-      this.showTooltip = true;
-      this.applyFontWeight();
-    },
-
-    applyFontWeight() {
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
-
-      if (!selectedText) return;
-
-      const currentScrollPos = textarea.scrollTop;
-
-      const weightClass = `font-weight-${this.selectedFontWeight.value}`;
-      const weightedText = `<span class="${weightClass}">${selectedText}</span>`;
-      const newValue = textarea.value.substring(0, start) + weightedText + textarea.value.substring(end);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-
-      this.$nextTick(() => {
-        textarea.focus();
-        textarea.scrollTop = currentScrollPos;
-      });
+});
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    const instance = editor.value;
+    if (!instance) return;
+    const current = instance.isEmpty ? '' : instance.getHTML();
+    if ((value || '') !== current) {
+      instance.commands.setContent(value || '', false);
     }
   }
-};
+);
+
+watch(
+  () => props.disabled,
+  (value) => {
+    editor.value?.setEditable(!value);
+  }
+);
+
+onMounted(() => {
+  onDocClick = (event) => {
+    const root = editor.value?.options?.element?.closest('.text-constructor');
+    if (root && !root.contains(event.target)) {
+      fontSizeDropdownOpen.value = false;
+      fontWeightDropdownOpen.value = false;
+    }
+  };
+  document.addEventListener('click', onDocClick);
+});
+
+onBeforeUnmount(() => {
+  if (onDocClick) document.removeEventListener('click', onDocClick);
+  if (imageErrorTimer) clearTimeout(imageErrorTimer);
+  editor.value?.destroy();
+});
+
+/**
+ * Запускает chain-команду на редакторе. Фокус дёргаем только когда редактор уже
+ * активен: без этого тап по кнопке тулбара на телефоне открывал клавиатуру, хотя
+ * пользователь ещё не собирался печатать. При наборе фокус наоборот сохраняем
+ * (вместе с mousedown.prevent на панели), чтобы клавиатура не схлопывалась.
+ * @param {(chain: import('@tiptap/core').ChainedCommands) => import('@tiptap/core').ChainedCommands} build
+ */
+function runCommand(build) {
+  if (props.disabled || !editor.value) return;
+  const chain = editor.value.isFocused ? editor.value.chain().focus() : editor.value.chain();
+  build(chain).run();
+}
+
+function applyColor(colorClass) {
+  runCommand((c) => c.setColorClass(colorClass));
+}
+
+/**
+ * Выравнивание: если выделена картинка - выравниваем её (float left/right или center),
+ * иначе выравниваем текущий абзац/заголовок. Кнопки тулбара общие для текста и картинки.
+ */
+function applyAlign(alignment) {
+  if (props.disabled || !editor.value) return;
+  if (editor.value.isActive('image')) {
+    runCommand((c) => c.setImageAlign(alignment));
+  } else {
+    runCommand((c) => c.setTextAlignClass(alignment));
+  }
+}
+
+function isAlignActive(alignment) {
+  if (!editor.value) return false;
+  return (
+    editor.value.isActive('image', { align: alignment }) ||
+    editor.value.isActive({ textAlign: alignment })
+  );
+}
+
+function toggleFontSizeDropdown() {
+  if (props.disabled) return;
+  fontSizeDropdownOpen.value = !fontSizeDropdownOpen.value;
+  fontWeightDropdownOpen.value = false;
+}
+
+function selectFontSize(size) {
+  selectedFontSize.value = size;
+  fontSizeDropdownOpen.value = false;
+  runCommand((c) => c.setFontSizeClass(`font-size-${size.replace('px', '')}`));
+}
+
+function toggleFontWeightDropdown() {
+  if (props.disabled) return;
+  fontWeightDropdownOpen.value = !fontWeightDropdownOpen.value;
+  fontSizeDropdownOpen.value = false;
+}
+
+function selectFontWeight(weight) {
+  selectedFontWeight.value = weight;
+  fontWeightDropdownOpen.value = false;
+  runCommand((c) => c.setFontWeightClass(`font-weight-${weight.value}`));
+}
+
+function openPreviewModal() {
+  if (!props.modelValue) return;
+  previewModalOpen.value = true;
+}
+
+function triggerImagePicker() {
+  if (props.disabled) return;
+  clearImageError();
+  if (imageInput.value) {
+    imageInput.value.value = '';
+    imageInput.value.click();
+  }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error || new Error('FileReader error'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleImageSelected(event) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    setImageError('Неподдерживаемый формат. Разрешены: PNG, JPEG, GIF, WEBP, SVG.');
+    return;
+  }
+  if (file.size > props.maxImageBytes) {
+    const maxMb = Math.round(props.maxImageBytes / (1024 * 1024));
+    setImageError(`Файл слишком большой. Максимальный размер: ${maxMb} МБ.`);
+    return;
+  }
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const safeAlt = (file.name || 'image').replace(/[<>"'&]/g, '').slice(0, 100);
+    runCommand((c) => c.setImage({ src: dataUrl, alt: safeAlt }));
+  } catch (err) {
+    setImageError('Не удалось прочитать файл. Попробуйте ещё раз.');
+    console.error('TextConstructor image read error:', err);
+  } finally {
+    if (imageInput.value) imageInput.value.value = '';
+  }
+}
+
+function setImageError(message) {
+  imageError.value = message;
+  if (imageErrorTimer) clearTimeout(imageErrorTimer);
+  imageErrorTimer = setTimeout(() => {
+    imageError.value = '';
+  }, 4500);
+}
+
+function clearImageError() {
+  imageError.value = '';
+  if (imageErrorTimer) {
+    clearTimeout(imageErrorTimer);
+    imageErrorTimer = null;
+  }
+}
+
+defineExpose({ editor });
 </script>
 
 <style scoped>
 .text-constructor {
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   margin-bottom: 10px;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .text-constructor:focus-within {
-  border-color: #4F5BDF;
-  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
 }
 
 .text-constructor.is-disabled {
-  opacity: 0.65;
-  background: #f7f7f9;
+  opacity: 0.7;
 }
 
 .editor-toolbar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Слот действий справа от инструментов (напр. согласие + отправка в форме заявки). */
+.tc-header-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
-  flex-wrap: nowrap;
-  background: #fafafa;
-  border-radius: 12px 12px 0 0;
 }
 
 .toolbar-group {
   display: flex;
-  gap: 4px;
   align-items: center;
-  padding-right: 8px;
-  border-right: 1px solid #e6e6e6;
-}
-
-.toolbar-group:last-child {
-  border-right: none;
-  padding-right: 0;
-}
-
-.toolbar-group.lists-group {
-  width: 130px;
-  justify-content: space-between;
+  gap: 4px;
 }
 
 .toolbar-btn {
-  padding: 4px 6px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  color: #1a1a1a;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
-  min-width: 32px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   position: relative;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
-.toolbar-btn:hover:not(:disabled) {
-  background: #eef0ff;
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+/* Только на устройствах с настоящим hover: на таче :hover залипает после тапа,
+   и кнопка выглядит зажатой, а подсказка повисает. */
+@media (hover: hover) {
+  .toolbar-btn:hover:not(:disabled) {
+    background: var(--accent-tint);
+    border-color: var(--accent);
+  }
 }
 
-.toolbar-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.toolbar-btn:focus-visible {
-  outline: none;
-  border-color: #4F5BDF;
-  box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.25);
+.toolbar-btn.active {
+  background: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .toolbar-btn:disabled {
@@ -1071,612 +760,276 @@ export default {
   cursor: not-allowed;
 }
 
-.image-btn {
-  font-weight: 600;
-  letter-spacing: 0.5px;
+.align-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.align-btn svg {
+  display: block;
+}
+
+.color-btn.black-text { color: #000; }
+.color-btn.red-text { color: #ff0000; }
+.color-btn.green-text { color: #079d1d; }
+.color-btn.blue-text { color: #4f5bdf; }
+
+.color-btn.active {
+  color: inherit;
+}
+
+@media (hover: hover) {
+  .color-btn:hover:not(:disabled) {
+    color: inherit;
+  }
+
+  .toolbar-btn[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--hint-bg);
+    color: var(--hint-text);
+    font-size: 11px;
+    white-space: nowrap;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 10;
+  }
 }
 
 .image-input {
   display: none;
 }
 
-.undo-btn {
-  background: #f8f9fa;
-  border-color: #e9ecef;
-}
-
-.undo-btn:hover:not(:disabled) {
-  background: #eef0ff;
-  border-color: #4F5BDF;
-}
-
-.preview-btn {
-  background: #f8f9fa;
-  border-color: #e9ecef;
-}
-
-.preview-btn:hover:not(:disabled) {
-  background: #eef0ff;
-  border-color: #4F5BDF;
-  color: #4F5BDF;
-}
-
-/* Tooltip pattern, общий для кнопок и селектов */
-.toolbar-btn:hover:not(:disabled)::after,
-.custom-select:hover .select-header::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: -32px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1a1a1a;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  white-space: nowrap;
-  z-index: 1000;
-  font-weight: normal;
-  font-family: inherit;
-  pointer-events: none;
-  opacity: 0;
-  animation: tooltipFadeIn 0.15s ease forwards;
-}
-
-@keyframes tooltipFadeIn {
-  to { opacity: 1; }
-}
-
 .custom-select {
   position: relative;
-  width: fit-content;
-}
-
-.custom-select .select-header::after {
-  content: none;
-}
-
-.custom-select:hover .select-header::after {
-  content: attr(data-tooltip);
-}
-
-.custom-select:hover .select-header[data-tooltip=""]::after {
-  content: none;
 }
 
 .custom-select.fixed-width-select {
-  width: 78px;
+  width: 92px;
 }
-
-.color-btn {
-  font-weight: bold;
-}
-
-.black-text { color: #000 !important; }
-.red-text { color: #FF0000 !important; }
-.green-text { color: #079D1D !important; }
-.blue-text { color: #4F5BDF !important; }
 
 .select-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: white;
+  gap: 6px;
+  min-width: 64px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
   cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  height: 28px;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-  position: relative;
-  width: 100%;
+  font-size: 13px;
+  transition: border-color 0.15s ease;
 }
 
-.select-header:hover {
-  border-color: #4F5BDF;
-  background: #f8f9ff;
-}
-
-.select-value {
-  color: #000;
+@media (hover: hover) {
+  .select-header:hover {
+    border-color: var(--accent);
+  }
 }
 
 .select-arrow {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  color: var(--text-muted);
   transition: transform 0.2s ease;
-  margin-left: 4px;
-  transform: rotate(90deg);
 }
 
 .select-arrow.rotated {
-  transform: rotate(-90deg);
+  transform: rotate(180deg);
 }
 
 .select-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  z-index: 1000;
-  margin-top: 4px;
-  max-height: 200px;
+  z-index: 20;
+  max-height: 220px;
   overflow-y: auto;
-  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.select-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.select-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.select-fade-enter-from,
+.select-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .select-option {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.15s ease;
-  color: #000;
-  border-radius: 6px;
-}
-
-.select-option:hover {
-  background: #eef0ff;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .select-option.active {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
-.textarea-container {
-  position: relative;
-  overflow: hidden;
+@media (hover: hover) {
+  .select-option:hover {
+    background: var(--accent-tint);
+    color: var(--accent-text);
+  }
 }
 
-.constructor-textarea {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-  border-radius: 0;
-  min-height: 150px;
-  max-height: 350px;
-  resize: none;
-  display: block;
-  overflow-y: auto;
-  background: transparent;
-  color: #1a1a1a;
+.tc-attachments {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
 }
 
-.constructor-textarea:focus {
+.editor-content {
+  padding: 12px 14px;
+}
+
+.editor-content :deep(.ProseMirror) {
   outline: none;
+  min-height: inherit;
+  line-height: 150%;
+  word-break: break-word;
+  /* Дефолтный размер вводимого текста (без выбранного font-size-класса). */
+  font-size: 14px;
 }
 
-.constructor-textarea:disabled {
-  cursor: not-allowed;
-  background: transparent;
+/* Чтобы плавающие (float) картинки не вылезали за пределы редактора. */
+.editor-content :deep(.ProseMirror)::after {
+  content: '';
+  display: block;
+  clear: both;
 }
 
-.constructor-textarea::placeholder {
-  color: #9aa0a6;
-  font-style: italic;
-}
-
-.constructor-textarea::-webkit-scrollbar {
-  display: none;
-}
-
-.constructor-textarea {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.resize-handle {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background: transparent;
-  cursor: ns-resize;
-  z-index: 10;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
-}
-
-.resize-handle:hover {
-  background: #4F5BDF;
-  opacity: 0.3;
-}
-
-.resize-handle:active {
-  background: #4F5BDF;
-  opacity: 0.5;
+.editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 .constructor-error {
-  margin: 10px 12px 0;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: #fff1f1;
-  border: 1px solid #f5c2c2;
-  color: #b3261e;
+  padding: 6px 14px 10px;
+  color: var(--danger-text);
   font-size: 12px;
-}
-
-.editor-preview {
-  border-top: 1px solid #e6e6e6;
-  background: #fafafa;
-  border-radius: 0 0 12px 12px;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 12px 8px 12px;
-}
-
-.preview-header h5 {
-  margin: 0;
-  color: #000;
-  font-size: 0.9em;
-  font-weight: 600;
-}
-
-.preview-expand-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: #4F5BDF;
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 8px;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.preview-expand-btn:hover {
-  background: #eef0ff;
-  border-color: #4F5BDF;
-}
-
-.preview-content-container {
-  position: relative;
-  padding: 0 12px 12px 12px;
-}
-
-.preview-content {
-  background: white;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid #e6e6e6;
-  overflow-y: auto;
-  min-height: 150px;
-  max-height: 350px;
-  resize: none;
-}
-
-.preview-resize {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
-  height: 8px;
-  background: transparent;
-  cursor: ns-resize;
-  z-index: 10;
-}
-
-.preview-resize:hover {
-  background: #4F5BDF;
-  opacity: 0.3;
-}
-
-.preview-resize:active {
-  background: #4F5BDF;
-  opacity: 0.5;
 }
 
 .preview-modal-content {
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #1a1a1a;
-  max-height: 70vh;
+  padding: 24px 28px;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
 }
 
-/* Изображения внутри редактора и preview */
-.preview-content :deep(img),
+/* Рендер форматирования внутри редактора и в модалке предпросмотра (round-trip с потребителями) */
+.editor-content :deep(strong),
+.preview-modal-content :deep(strong) { font-weight: 600; }
+.editor-content :deep(em),
+.preview-modal-content :deep(em) { font-style: italic; }
+.editor-content :deep(u),
+.preview-modal-content :deep(u) { text-decoration: underline; }
+.editor-content :deep(ul),
+.editor-content :deep(ol),
+.preview-modal-content :deep(ul),
+.preview-modal-content :deep(ol) { padding-left: 20px; }
+.editor-content :deep(h1),
+.preview-modal-content :deep(h1) { font-size: 24px; font-weight: 700; margin: 0 0 8px; line-height: 1.2; }
+.editor-content :deep(h2),
+.preview-modal-content :deep(h2) { font-size: 20px; font-weight: 600; margin: 8px 0 6px; line-height: 1.3; }
+
+.editor-content :deep(.black-text),
+.preview-modal-content :deep(.black-text) { color: #000; }
+.editor-content :deep(.red-text),
+.preview-modal-content :deep(.red-text) { color: #ff0000; }
+.editor-content :deep(.green-text),
+.preview-modal-content :deep(.green-text) { color: #079d1d; }
+.editor-content :deep(.blue-text),
+.preview-modal-content :deep(.blue-text) { color: var(--accent-text); }
+
+.editor-content :deep(.font-size-10),
+.preview-modal-content :deep(.font-size-10) { font-size: 10px; }
+.editor-content :deep(.font-size-12),
+.preview-modal-content :deep(.font-size-12) { font-size: 12px; }
+.editor-content :deep(.font-size-14),
+.preview-modal-content :deep(.font-size-14) { font-size: 14px; }
+.editor-content :deep(.font-size-16),
+.preview-modal-content :deep(.font-size-16) { font-size: 16px; }
+.editor-content :deep(.font-size-18),
+.preview-modal-content :deep(.font-size-18) { font-size: 18px; }
+.editor-content :deep(.font-size-20),
+.preview-modal-content :deep(.font-size-20) { font-size: 20px; }
+
+.editor-content :deep(.font-weight-300),
+.preview-modal-content :deep(.font-weight-300) { font-weight: 300; }
+.editor-content :deep(.font-weight-400),
+.preview-modal-content :deep(.font-weight-400) { font-weight: 400; }
+.editor-content :deep(.font-weight-500),
+.preview-modal-content :deep(.font-weight-500) { font-weight: 500; }
+.editor-content :deep(.font-weight-600),
+.preview-modal-content :deep(.font-weight-600) { font-weight: 600; }
+.editor-content :deep(.font-weight-900),
+.preview-modal-content :deep(.font-weight-900) { font-weight: 900; }
+
+.editor-content :deep(.text-align-left),
+.preview-modal-content :deep(.text-align-left) { text-align: left; }
+.editor-content :deep(.text-align-center),
+.preview-modal-content :deep(.text-align-center) { text-align: center; }
+.editor-content :deep(.text-align-right),
+.preview-modal-content :deep(.text-align-right) { text-align: right; }
+
+.editor-content :deep(img),
 .preview-modal-content :deep(img) {
   max-width: 100%;
+  border-radius: 8px;
+}
+
+.editor-content :deep(img:not([height])),
+.preview-modal-content :deep(img:not([height])) {
   height: auto;
-  border-radius: 10px;
-  margin: 6px 0;
-  display: inline-block;
 }
 
-.preview-content :deep(.constructor-image),
-.preview-modal-content :deep(.constructor-image) {
-  border: 1px solid #e6e6e6;
+/* Выравнивание картинок (float-обтекание) в предпросмотре */
+.preview-modal-content :deep(.constructor-image.img-align-left) {
+  float: left;
+  margin: 0 14px 10px 0;
 }
 
-/* Размеры и жирность шрифта */
-.font-size-10 { font-size: 10px !important; }
-.font-size-12 { font-size: 12px !important; }
-.font-size-14 { font-size: 14px !important; }
-.font-size-16 { font-size: 16px !important; }
-.font-size-18 { font-size: 18px !important; }
-.font-size-20 { font-size: 20px !important; }
-
-.font-weight-300 { font-weight: 300 !important; }
-.font-weight-400 { font-weight: 400 !important; }
-.font-weight-500 { font-weight: 500 !important; }
-.font-weight-600 { font-weight: 600 !important; }
-.font-weight-900 { font-weight: 900 !important; }
-
-.heading-h1,
-.heading-h1 :deep(*) {
-  font-size: 24px !important;
-  font-weight: 700 !important;
-  color: #000 !important;
-  margin: 16px 0 8px 0 !important;
-  line-height: 1.2 !important;
+.preview-modal-content :deep(.constructor-image.img-align-right) {
+  float: right;
+  margin: 0 0 10px 14px;
 }
 
-.heading-h2,
-.heading-h2 :deep(*) {
-  font-size: 20px !important;
-  font-weight: 600 !important;
-  color: #000 !important;
-  margin: 14px 0 6px 0 !important;
-  line-height: 1.3 !important;
+.preview-modal-content :deep(.constructor-image.img-align-center) {
+  display: block;
+  float: none;
+  margin: 10px auto;
 }
 
-.preview-content :deep(*),
-.preview-modal-content :deep(*) {
-  font-size: 14px;
-  max-font-size: 20px !important;
-  min-font-size: 10px !important;
-}
-
-.preview-content :deep(.font-size-10),
-.preview-modal-content :deep(.font-size-10) { font-size: 10px !important; }
-.preview-content :deep(.font-size-12),
-.preview-modal-content :deep(.font-size-12) { font-size: 12px !important; }
-.preview-content :deep(.font-size-14),
-.preview-modal-content :deep(.font-size-14) { font-size: 14px !important; }
-.preview-content :deep(.font-size-16),
-.preview-modal-content :deep(.font-size-16) { font-size: 16px !important; }
-.preview-content :deep(.font-size-18),
-.preview-modal-content :deep(.font-size-18) { font-size: 18px !important; }
-.preview-content :deep(.font-size-20),
-.preview-modal-content :deep(.font-size-20) { font-size: 20px !important; }
-
-.preview-content :deep(.font-weight-300),
-.preview-modal-content :deep(.font-weight-300) { font-weight: 300 !important; }
-.preview-content :deep(.font-weight-400),
-.preview-modal-content :deep(.font-weight-400) { font-weight: 400 !important; }
-.preview-content :deep(.font-weight-500),
-.preview-modal-content :deep(.font-weight-500) { font-weight: 500 !important; }
-.preview-content :deep(.font-weight-600),
-.preview-modal-content :deep(.font-weight-600) { font-weight: 600 !important; }
-.preview-content :deep(.font-weight-900),
-.preview-modal-content :deep(.font-weight-900) { font-weight: 900 !important; }
-
-.preview-content :deep(.black-text),
-.preview-modal-content :deep(.black-text) { color: #000 !important; }
-.preview-content :deep(.red-text),
-.preview-modal-content :deep(.red-text) { color: #FF0000 !important; }
-.preview-content :deep(.green-text),
-.preview-modal-content :deep(.green-text) { color: #079D1D !important; }
-.preview-content :deep(.blue-text),
-.preview-modal-content :deep(.blue-text) { color: #4F5BDF !important; }
-
-.preview-content :deep(.heading-h1),
-.preview-content :deep(.heading-h1 *),
-.preview-modal-content :deep(.heading-h1),
-.preview-modal-content :deep(.heading-h1 *) {
-  font-size: 24px !important;
-  font-weight: 700 !important;
-  color: #000 !important;
-  margin: 10px 0 8px 0 !important;
-  line-height: 1.2 !important;
-}
-
-.preview-content :deep(.heading-h2),
-.preview-content :deep(.heading-h2 *),
-.preview-modal-content :deep(.heading-h2),
-.preview-modal-content :deep(.heading-h2 *) {
-  font-size: 20px !important;
-  font-weight: 600 !important;
-  color: #000 !important;
-  margin: 8px 0 6px 0 !important;
-  line-height: 1.3 !important;
-}
-
-.heading-h1 strong,
-.heading-h2 strong,
-.preview-content :deep(.heading-h1 strong),
-.preview-content :deep(.heading-h2 strong),
-.preview-modal-content :deep(.heading-h1 strong),
-.preview-modal-content :deep(.heading-h2 strong) {
-  font-size: inherit !important;
-  font-weight: inherit !important;
-  color: inherit !important;
-}
-
-.preview-content :deep(ul),
-.preview-content :deep(ol),
-.preview-modal-content :deep(ul),
-.preview-modal-content :deep(ol) {
-  padding-left: 24px !important;
-}
-
-.preview-content :deep(li),
-.preview-modal-content :deep(li) {
-  line-height: 1.4 !important;
-}
-
-.editor-toolbar::-webkit-scrollbar {
-  display: none;
-}
-
-.editor-toolbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-@media (max-width: 768px) {
-  .editor-toolbar {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .toolbar-group {
-    padding-right: 4px;
-    margin-right: 4px;
-  }
-
-  .toolbar-group.lists-group {
-    width: 110px;
-  }
-
-  .toolbar-btn {
-    min-width: 28px;
-    height: 26px;
-    font-size: 11px;
-    padding: 4px 6px;
-  }
-
-  .custom-select.fixed-width-select {
-    width: 70px;
-  }
-
-  .select-header {
-    font-size: 11px;
-    padding: 4px 6px;
-  }
-}
-
-.image-blocks {
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-secondary);
-}
-
-.image-blocks__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.image-blocks__title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.image-blocks__hint {
-  font-size: 11px;
-  color: var(--color-text-muted);
-}
-
-.image-blocks__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.image-block {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: #fff;
-  cursor: grab;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-}
-
-.image-block:hover {
-  border-color: var(--color-primary);
-}
-
-.image-block--dragging {
-  opacity: 0.4;
-  cursor: grabbing;
-}
-
-.image-block--target {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus);
-}
-
-.image-block__handle {
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-  display: flex;
-}
-
-.image-block__preview {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  border: 1px solid var(--color-border);
-}
-
-.image-block__index {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-primary);
-  min-width: 24px;
-}
-
-.image-block__actions {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-}
-
-.image-block__btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--color-border);
-  background: #fff;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.image-block__btn:hover:not(:disabled) {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
-}
-
-.image-block__btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.image-block__btn--danger:hover:not(:disabled) {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
+.preview-modal-content::after {
+  content: '';
+  display: block;
+  clear: both;
 }
 </style>

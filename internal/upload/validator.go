@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
+	"strings"
 )
 
 // ValidateFileType reads the first 512 bytes from r, detects the MIME type
@@ -27,6 +29,25 @@ func ValidateFileType(r io.Reader, allowedTypes []string) (string, error) {
 	return "", fmt.Errorf("file type %q not allowed (allowed: %v)", detected, allowedTypes)
 }
 
+// OfficeMimeByName уточняет тип офисного документа по имени файла. Нужен потому,
+// что docx, xlsx и pptx - это zip: по сигнатуре они неразличимы, и определение
+// возвращает первый допустимый офисный тип из списка. Без уточнения таблица
+// попадала в базу как текстовый документ, и интерфейс красил её не тем цветом.
+func OfficeMimeByName(detected, originalName string) string {
+	if !isOfficeType(detected) {
+		return detected
+	}
+	switch strings.ToLower(filepath.Ext(originalName)) {
+	case ".xlsx":
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case ".pptx":
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case ".docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	}
+	return detected
+}
+
 func isOfficeType(mime string) bool {
 	switch mime {
 	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -37,8 +58,14 @@ func isOfficeType(mime string) bool {
 	return false
 }
 
-// MimeToExt возвращает расширение файла по MIME-типу, определённому из magic bytes.
-func MimeToExt(mime string) string {
+// MimeToExt возвращает расширение файла по MIME-типу, определённому из magic bytes,
+// и оригинальному имени.
+//
+// Имя нужно для форматов, неразличимых по сигнатуре: docx, xlsx и pptx - это zip,
+// и по одним magic bytes таблица легла бы на диск с расширением документа. Для
+// таких типов расширение берётся из имени и только из белого списка, чтобы имя из
+// формы не задавало произвольное расширение файла на диске.
+func MimeToExt(mime, originalName string) string {
 	switch mime {
 	case "image/jpeg":
 		return ".jpg"
@@ -48,8 +75,38 @@ func MimeToExt(mime string) string {
 		return ".gif"
 	case "image/webp":
 		return ".webp"
+	case "application/pdf":
+		return ".pdf"
+	}
+	if isOfficeType(mime) {
+		if ext := officeExtFromName(originalName); ext != "" {
+			return ext
+		}
+		return officeDefaultExt(mime)
+	}
+	return ".bin"
+}
+
+// officeExtFromName возвращает расширение офисного документа из имени файла, если
+// оно входит в белый список.
+func officeExtFromName(name string) string {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".docx", ".xlsx", ".pptx":
+		return ext
+	}
+	return ""
+}
+
+// officeDefaultExt -- расширение по MIME-типу, когда имя файла его не подсказало.
+func officeDefaultExt(mime string) string {
+	switch mime {
+	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+		return ".xlsx"
+	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+		return ".pptx"
 	default:
-		return ".bin"
+		return ".docx"
 	}
 }
 

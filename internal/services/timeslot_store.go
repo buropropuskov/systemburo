@@ -22,20 +22,30 @@ type timeSlotModel interface {
 // timeSlotStore -- generic-CRUD временных слотов поверх произвольной модели слота.
 // Раньше эта логика была продублирована в system_table и unload_place сервисах;
 // специфика таблицы (имя FK-колонки, проверка родителя, конструктор слота) задаётся
-// полями, остальное общее.
+// полями, остальное общее. Для single-owner таблиц (расписание Бюро) fkColumn пуст:
+// фильтрации по родителю нет, parentID игнорируется.
 type timeSlotStore[T timeSlotModel] struct {
 	db          *gorm.DB
-	entity      string                                                 // для логов: "system_table" | "unload_place"
-	fkColumn    string                                                 // "table_id" | "unload_place_id"
+	entity      string                                                 // для логов: "system_table" | "unload_place" | "bureau"
+	fkColumn    string                                                 // "table_id" | "unload_place_id"; "" для single-owner
 	checkParent func(ctx context.Context, parentID int) error          // существование родителя + текст 404
 	newSlot     func(parentID int, req models.CreateTimeSlotRequest) T // конструктор слота с FK и полями
+}
+
+// scopeParent ограничивает запрос родителем для parent-keyed стора. Для
+// single-owner стора (fkColumn == "") фильтр не добавляется -- таблица
+// обслуживает единственного владельца, parentID не используется.
+func (st timeSlotStore[T]) scopeParent(q *gorm.DB, parentID int) *gorm.DB {
+	if st.fkColumn == "" {
+		return q
+	}
+	return q.Where(st.fkColumn+" = ?", parentID)
 }
 
 // list возвращает слоты родителя, отсортированные по дню и времени открытия.
 func (st timeSlotStore[T]) list(ctx context.Context, parentID int) ([]T, error) {
 	slots := make([]T, 0)
-	if err := st.db.WithContext(ctx).
-		Where(st.fkColumn+" = ?", parentID).
+	if err := st.scopeParent(st.db.WithContext(ctx), parentID).
 		Order("day_of_week, open_time").
 		Find(&slots).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching time slots")
@@ -70,8 +80,7 @@ func (st timeSlotStore[T]) add(ctx context.Context, parentID int, req models.Cre
 // update применяет переданные поля к существующему слоту (404, если слота нет).
 func (st timeSlotStore[T]) update(ctx context.Context, parentID, slotID int, req models.UpdateTimeSlotRequest) error {
 	var existing T
-	if err := st.db.WithContext(ctx).
-		Where("id = ? AND "+st.fkColumn+" = ?", slotID, parentID).
+	if err := st.scopeParent(st.db.WithContext(ctx).Where("id = ?", slotID), parentID).
 		First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errTimeSlotNotFound()
@@ -107,9 +116,7 @@ func (st timeSlotStore[T]) update(ctx context.Context, parentID, slotID int, req
 		updates["is_active"] = *req.IsActive
 	}
 
-	result := st.db.WithContext(ctx).
-		Model(new(T)).
-		Where("id = ? AND "+st.fkColumn+" = ?", slotID, parentID).
+	result := st.scopeParent(st.db.WithContext(ctx).Model(new(T)).Where("id = ?", slotID), parentID).
 		Updates(updates)
 	if result.Error != nil {
 		slog.Error("не удалось обновить временной слот", "entity", st.entity, "slot_id", slotID, "parent_id", parentID, "error", result.Error)
@@ -124,8 +131,7 @@ func (st timeSlotStore[T]) update(ctx context.Context, parentID, slotID int, req
 
 // remove удаляет слот родителя (404, если слота нет).
 func (st timeSlotStore[T]) remove(ctx context.Context, parentID, slotID int) error {
-	result := st.db.WithContext(ctx).
-		Where("id = ? AND "+st.fkColumn+" = ?", slotID, parentID).
+	result := st.scopeParent(st.db.WithContext(ctx).Where("id = ?", slotID), parentID).
 		Delete(new(T))
 	if result.Error != nil {
 		slog.Error("не удалось удалить временной слот", "entity", st.entity, "slot_id", slotID, "parent_id", parentID, "error", result.Error)

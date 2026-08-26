@@ -3,11 +3,16 @@
     <BlacklistTabBase
       ref="base"
       empty-noun="людей"
-      :entity-icon="userIcon"
+      entity-icon="user"
       :api-list="listPersonBlacklist"
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
       :lookup-card="lookupPerson"
+      :bulk-archive-fn="bulkArchivePersonBlacklist"
+      :bulk-restore-fn="bulkRestorePersonBlacklist"
+      testid-prefix="person-bl"
+      tab-key="persons"
+      cascade-noun-plural="сотрудники"
       @count="$emit('count', $event)"
       @create="showCreate = true"
       @archive="askArchive"
@@ -42,7 +47,7 @@
       @created="onCreated"
     />
     <PersonBlacklistHistoryModal
-      v-if="showHistory"
+      :show="showHistory"
       :current-user-name="currentUserName"
       @close="showHistory = false"
     />
@@ -73,12 +78,21 @@
       :current-user-name="currentUserName"
       @close="showDetails = false"
     />
+    <BlacklistImpactModal
+      :show="!!restoreItem"
+      :subject="restoreSubject"
+      :impact="restoreImpact"
+      confirm-label="Вернуть в чёрный список"
+      @confirm="confirmRestore"
+      @close="restoreItem = null"
+    />
   </div>
 </template>
 
 <script>
 import BlacklistTabBase from './BlacklistTabBase.vue';
 import BlacklistCreateModal from './BlacklistCreateModal.vue';
+import BlacklistImpactModal from './BlacklistImpactModal.vue';
 import PersonBlacklistHistoryModal from './PersonBlacklistHistoryModal.vue';
 import AddToBlacklistModal from './AddToBlacklistModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
@@ -89,12 +103,14 @@ import {
   updatePersonBlacklist,
   archivePersonBlacklist,
   restorePersonBlacklist,
+  personBlacklistImpact,
   purgePersonBlacklist,
+  bulkArchivePersonBlacklist,
+  bulkRestorePersonBlacklist,
 } from '@/api/blacklist';
 import { lookupUniqueEmployee } from '@/api/employees';
 import { formatDateTime } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
-import userIcon from '@/assets/icons/user.png';
 
 /**
  * Вкладка "Люди" чёрного списка (#443). Конфигурирует BlacklistTabBase под людей
@@ -102,15 +118,16 @@ import userIcon from '@/assets/icons/user.png';
  */
 export default {
   name: 'PersonBlacklistTab',
-  components: { BlacklistTabBase, BlacklistCreateModal, PersonBlacklistHistoryModal, AddToBlacklistModal, ConfirmationModal, EmployeeDetailsModal },
+  components: { BlacklistTabBase, BlacklistCreateModal, BlacklistImpactModal, PersonBlacklistHistoryModal, AddToBlacklistModal, ConfirmationModal, EmployeeDetailsModal },
   props: {
     currentUserName: { type: String, default: '' },
   },
   emits: ['count'],
   data() {
     return {
-      showCreate: false, archiveItem: null, showHistory: false, userIcon, detailsEmployee: null, showDetails: false,
+      showCreate: false, archiveItem: null, showHistory: false, detailsEmployee: null, showDetails: false,
       editItem: null, savingEdit: false, editError: '', purgeItem: null,
+      restoreItem: null, restoreSubject: '', restoreImpact: { matches: 0, tables: [], rows: [] },
     };
   },
   computed: {
@@ -128,6 +145,8 @@ export default {
   methods: {
     listPersonBlacklist,
     createPersonBlacklist,
+    bulkArchivePersonBlacklist,
+    bulkRestorePersonBlacklist,
     primaryText(item) {
       return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ');
     },
@@ -209,7 +228,36 @@ export default {
         useDeletionsStore().notify({ prefix: 'Не удалось убрать: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
+    /**
+     * Возврат из архива деактивирует совпадающих работников так же, как первичное
+     * внесение, поэтому и предупреждение то же - см. VehicleBlacklistTab.
+     */
     async doRestore(item) {
+      try {
+        const impact = await personBlacklistImpact({
+          lastName: item.last_name,
+          firstName: item.first_name,
+          middleName: item.middle_name || '',
+        });
+        if (impact && impact.matches > 0) {
+          this.restoreItem = item;
+          this.restoreImpact = impact;
+          this.restoreSubject = this.primaryText(item);
+          return;
+        }
+      } catch (e) {
+        console.warn('Предпросмотр последствий возврата не удался, продолжаем', e);
+      }
+      await this.persistRestore(item);
+    },
+
+    confirmRestore() {
+      const item = this.restoreItem;
+      this.restoreItem = null;
+      if (item) this.persistRestore(item);
+    },
+
+    async persistRestore(item) {
       try {
         await restorePersonBlacklist(item.id);
         useDeletionsStore().notify({ prefix: 'Человек ', bold: this.primaryText(item), suffix: ' возвращён в чёрный список' });

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -254,6 +256,120 @@ func TestGetApplications_Archive_IncludesRefused_ExcludesInWork(t *testing.T) {
 	assert.NotContains(t, active, float64(refusedID))
 }
 
+// Правила архива, завязанные на сроки вложений и момент отзыва (#1097 follow-up).
+// Один SetupTestApp на все кейсы: пакет handlers - единственный DB-бинарь и уже
+// упирается в CI-таймаут, отдельный сетап на каждый кейс стоит дороже самого теста.
+func TestGetApplications_ArchiveRules(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+	adminID := getUserID(t, db, "testadmin")
+
+	// Заявка с одним вложением (по умолчанию действует до 2099) в заданном статусе.
+	closedApp := func(name, status string) int {
+		uaID := seedUniqueAttachment(t, db, "cars", "tmpl_"+name, "Disp_"+name)
+		appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+			Update("status", status).Error)
+		return appID
+	}
+	// Второе вложение заявки с заданной датой окончания (nil - бессрочное).
+	addAttachment := func(appID int, name string, dateTo *string) {
+		label := "Disp " + name
+		require.NoError(t, db.Create(&models.Attachment{
+			ApplicationID:         &appID,
+			AttachmentType:        "cars",
+			AttachmentName:        &name,
+			AttachmentDisplayName: &label,
+			EntryDateTo:           dateTo,
+		}).Error)
+	}
+	expireFirst := func(appID int, dateTo string) {
+		require.NoError(t, db.Model(&models.Attachment{}).Where("application_id = ?", appID).
+			Update("entry_date_to", dateTo).Error)
+	}
+	ids := func(query string) []float64 {
+		rec := testutil.GET(t, e, query, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code)
+		apps := testutil.ParseSlice(t, rec)
+		out := make([]float64, 0, len(apps))
+		for _, a := range apps {
+			if id, ok := a["id"].(float64); ok {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	ptr := func(s string) *string { return &s }
+
+	t.Run("месяц считается от последнего вложения", func(t *testing.T) {
+		appID := closedApp("last_att", models.StatusCompleted)
+		expireFirst(appID, "2025-01-01")
+		addAttachment(appID, "cars_second", ptr(time.Now().AddDate(0, 0, -1).Format("2006-01-02")))
+
+		assert.NotContains(t, ids("/applications?archive=true"), float64(appID),
+			"второе вложение истекло вчера - месяц не прошёл, заявка не архивная")
+		assert.Contains(t, ids("/applications"), float64(appID), "пока не архивная - в активных")
+
+		expireFirst(appID, time.Now().AddDate(0, 0, -40).Format("2006-01-02"))
+		assert.Contains(t, ids("/applications?archive=true"), float64(appID),
+			"все вложения просрочены больше месяца - заявка архивная")
+	})
+
+	t.Run("бессрочное вложение держит заявку активной", func(t *testing.T) {
+		appID := closedApp("open_ended", models.StatusCompleted)
+		expireFirst(appID, "2025-01-01")
+		addAttachment(appID, "cars_no_end", nil)
+
+		assert.NotContains(t, ids("/applications?archive=true"), float64(appID))
+		assert.Contains(t, ids("/applications"), float64(appID))
+	})
+
+	t.Run("отозванная архивируется через месяц после отзыва", func(t *testing.T) {
+		// Вложение действует до 2099 - по общему правилу заявка не архивная никогда.
+		withdrawn := func(name string, at time.Time) int {
+			appID := closedApp(name, models.StatusWithdrawn)
+			require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+				Update("withdrawn_at", at).Error)
+			return appID
+		}
+		freshID := withdrawn("wd_fresh", time.Now().AddDate(0, 0, -3))
+		oldID := withdrawn("wd_old", time.Now().AddDate(0, 0, -40))
+
+		archived := ids("/applications?archive=true")
+		assert.Contains(t, archived, float64(oldID), "отозвана больше месяца назад - в архиве")
+		assert.NotContains(t, archived, float64(freshID), "отозвана 3 дня назад - ещё не в архиве")
+		assert.Contains(t, ids("/applications"), float64(freshID))
+	})
+
+	t.Run("отозванная без withdrawn_at - по срокам вложений", func(t *testing.T) {
+		appID := closedApp("wd_legacy", models.StatusWithdrawn)
+		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+			Update("withdrawn_at", nil).Error)
+		expireFirst(appID, "2025-01-01")
+
+		assert.Contains(t, ids("/applications?archive=true"), float64(appID),
+			"без withdrawn_at работает старое правило по срокам вложений")
+	})
+
+	t.Run("гейт read-only не срабатывает у неархивной заявки", func(t *testing.T) {
+		appID := closedApp("gate_mixed", models.StatusCompleted)
+		expireFirst(appID, "2025-01-01")
+		addAttachment(appID, "cars_gate_second", ptr(time.Now().AddDate(0, 1, 0).Format("2006-01-02")))
+
+		// Проверяем именно архивный гейт по тексту ошибки: 403 у approve может прийти и
+		// по другой причине (пользователь не ответственный), она к архиву не относится.
+		body := fmt.Sprintf(`{"user_id":%d,"status":"approved"}`, adminID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), body, testutil.AuthHeader(token))
+		assert.NotContains(t, rec.Body.String(), "Архивная заявка",
+			"заявка с ещё действующим вложением не архивная - гейт срабатывать не должен")
+	})
+}
+
 // --- Part 3: Active today ---
 
 func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
@@ -290,25 +406,9 @@ func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
 	assert.Equal(t, float64(todayAppID), apps[0]["id"])
 }
 
-func TestForwardApplication_ArchivedReturns403(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-
-	// Create and archive an application
-	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl3", "Cars3")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
-
-	// Try to forward — should get 403
-	body := `{"users":[{"user_id":1,"required_approval":true}]}`
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusForbidden, rec.Code)
-}
+// Пересылка архивной заявки разрешена с #869 - позитивный кейс в
+// applications_forward_archive_test.go (TestForwardApplication_Archived_Allowed).
+// Read-only архива остаётся на approve/take-to-work (тесты ниже).
 
 func TestApproveApplication_ArchivedReturns403(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
@@ -350,6 +450,187 @@ func TestTakeToWork_ArchivedReturns403(t *testing.T) {
 	body := fmt.Sprintf(`{"user_id":%d,"action":"accept"}`, adminID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// TestForwardAttachmentsRead проверяет фильтрацию чтения вложений по получателю пересылки
+// (#680): получатель видит только пересланные ему вложения и их теги, отправитель и
+// получатель без ограничений - все.
+func TestForwardAttachmentsRead(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	// createAppWithTwoCars создаёт заявку с двумя cars-вложениями, возвращает их ID.
+	createAppWithTwoCars := func(t *testing.T, token, prefix string) (appID, attID1, attID2 int) {
+		t.Helper()
+		uaID1 := seedUniqueAttachment(t, db, "cars", prefix+"_a", prefix+" A")
+		uaID2 := seedUniqueAttachment(t, db, "cars", prefix+"_b", prefix+" B")
+		body := fmt.Sprintf(`{
+			"message": "read filter test",
+			"organization": "Test Organization",
+			"responsible_person": "Test Person",
+			"contact_phone": "+79001234567",
+			"data_approval": true,
+			"attachments": [
+				{"attachment_type":"cars","attachment_name":"cars_a","attachment_display_name":"Cars A",
+				 "unique_attachment_id":%d,"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
+				 "entry_time_from":"08:00","entry_time_to":"18:00",
+				 "data":{"vehicles":[{"car_number":"B001BB777","car_brand":"Honda"}]}},
+				{"attachment_type":"cars","attachment_name":"cars_b","attachment_display_name":"Cars B",
+				 "unique_attachment_id":%d,"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
+				 "entry_time_from":"08:00","entry_time_to":"18:00",
+				 "data":{"vehicles":[{"car_number":"C001CC777","car_brand":"Mazda"}]}}
+			]
+		}`, uaID1, uaID2)
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, "create: %s", rec.Body.String())
+		resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+
+		rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", resp.ApplicationID), testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code)
+		atts := testutil.ParseSlice(t, rec)
+		require.Len(t, atts, 2)
+		return resp.ApplicationID, int(atts[0]["id"].(float64)), int(atts[1]["id"].(float64))
+	}
+
+	attachmentIDs := func(t *testing.T, token string, appID int) []int {
+		t.Helper()
+		rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code)
+		out := make([]int, 0)
+		for _, a := range testutil.ParseSlice(t, rec) {
+			out = append(out, int(a["id"].(float64)))
+		}
+		return out
+	}
+
+	findApp := func(apps []map[string]interface{}, id int) map[string]interface{} {
+		for _, a := range apps {
+			if int(a["id"].(float64)) == id {
+				return a
+			}
+		}
+		return nil
+	}
+
+	t.Run("recipient_sees_only_forwarded_attachments", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fr_sender1", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, attID1, attID2 := createAppWithTwoCars(t, senderToken, "fr_cars1")
+
+		respToken := testutil.RegisterAndLogin(t, e, "fr_resp1", "pass123", 1, td.OrgID, td.CompanyID)
+		respID := getUserID(t, db, "fr_resp1")
+
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}],"attachment_ids":[%d]}`, respID, attID1)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		assert.Equal(t, []int{attID1}, attachmentIDs(t, respToken, appID), "получатель видит только пересланное вложение")
+		assert.ElementsMatch(t, []int{attID1, attID2}, attachmentIDs(t, senderToken, appID), "отправитель видит все")
+	})
+
+	t.Run("recipient_without_subset_sees_all", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fr_sender2", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, attID1, attID2 := createAppWithTwoCars(t, senderToken, "fr_cars2")
+
+		respToken := testutil.RegisterAndLogin(t, e, "fr_resp2", "pass123", 1, td.OrgID, td.CompanyID)
+		respID := getUserID(t, db, "fr_resp2")
+
+		// Пересыл без attachment_ids -> строк нет -> получатель видит все (обратная совместимость).
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, respID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		assert.ElementsMatch(t, []int{attID1, attID2}, attachmentIDs(t, respToken, appID))
+	})
+
+	t.Run("detail_endpoints_403_for_hidden_attachment", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fr_sender3", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, attID1, attID2 := createAppWithTwoCars(t, senderToken, "fr_cars3")
+
+		respToken := testutil.RegisterAndLogin(t, e, "fr_resp3", "pass123", 1, td.OrgID, td.CompanyID)
+		respID := getUserID(t, db, "fr_resp3")
+
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}],"attachment_ids":[%d]}`, respID, attID1)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		recHidden := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID2), testutil.AuthHeader(respToken))
+		assert.Equal(t, http.StatusForbidden, recHidden.Code, "скрытое вложение -> 403")
+
+		recVisible := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID1), testutil.AuthHeader(respToken))
+		assert.Equal(t, http.StatusOK, recVisible.Code, "пересланное вложение доступно")
+
+		recSender := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID2), testutil.AuthHeader(senderToken))
+		assert.Equal(t, http.StatusOK, recSender.Code, "отправитель видит любое вложение")
+	})
+
+	t.Run("tags_reflect_only_visible_attachments", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fr_sender4", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, attID1, attID2 := createAppWithTwoCars(t, senderToken, "fr_cars4")
+
+		// Теги только на СКРЫТОМ вложении: получатель не должен их увидеть.
+		require.NoError(t, db.Model(&models.Attachment{}).Where("id = ?", attID2).
+			Updates(map[string]interface{}{"roof_access": true, "free_parking": true}).Error)
+
+		respToken := testutil.RegisterAndLogin(t, e, "fr_resp4", "pass123", 1, td.OrgID, td.CompanyID)
+		respID := getUserID(t, db, "fr_resp4")
+
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}],"attachment_ids":[%d]}`, respID, attID1)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		recResp := testutil.GET(t, e, "/applications", testutil.AuthHeader(respToken))
+		require.Equal(t, http.StatusOK, recResp.Code)
+		respApp := findApp(testutil.ParseSlice(t, recResp), appID)
+		require.NotNil(t, respApp, "получатель видит заявку в Центре")
+		assert.Equal(t, false, respApp["has_roof_access"], "тег скрытого вложения не виден получателю")
+		assert.Equal(t, false, respApp["has_free_parking"], "тег скрытого вложения не виден получателю")
+
+		recSender := testutil.GET(t, e, "/applications", testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, recSender.Code)
+		senderApp := findApp(testutil.ParseSlice(t, recSender), appID)
+		require.NotNil(t, senderApp)
+		assert.Equal(t, true, senderApp["has_roof_access"], "отправитель видит тег")
+		assert.Equal(t, true, senderApp["has_free_parking"], "отправитель видит тег")
+	})
+
+	t.Run("superadmin_recipient_sees_all_tags", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fr_sender5", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, attID1, attID2 := createAppWithTwoCars(t, senderToken, "fr_cars5")
+
+		require.NoError(t, db.Model(&models.Attachment{}).Where("id = ?", attID2).
+			Updates(map[string]interface{}{"roof_access": true, "free_parking": true}).Error)
+
+		// Получатель с ограниченным набором, но он же супер-админ -> видит все теги (bypass).
+		superToken := testutil.RegisterAndLogin(t, e, "fr_super5", "pass123", 1, td.OrgID, td.CompanyID)
+		superID := getUserID(t, db, "fr_super5")
+		require.NoError(t, db.Model(&models.User{}).Where("id = ?", superID).Update("is_super_admin", true).Error)
+
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}],"attachment_ids":[%d]}`, superID, attID1)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		recSuper := testutil.GET(t, e, "/applications", testutil.AuthHeader(superToken))
+		require.Equal(t, http.StatusOK, recSuper.Code)
+		superApp := findApp(testutil.ParseSlice(t, recSuper), appID)
+		require.NotNil(t, superApp, "супер-админ видит заявку")
+		assert.Equal(t, true, superApp["has_roof_access"], "супер-админ не ограничивается пересылом - видит все теги")
+		assert.Equal(t, true, superApp["has_free_parking"], "супер-админ не ограничивается пересылом - видит все теги")
+	})
 }
 
 // --- Unauthorized tests for new endpoints ---

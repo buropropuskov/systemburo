@@ -11,10 +11,10 @@
       </div>
     </div>
     
-    <div class="card-content">
+    <div class="card-content rt-table">
       <!-- Заголовок таблицы всегда отображается -->
       <div class="cars-header">
-        <div class="header-row">
+        <div class="header-row rt-head-row">
           <div class="header-col checkbox-col">
             <!-- Пустой заголовок для чекбокса -->
           </div>
@@ -25,14 +25,14 @@
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col place-col"
@@ -41,14 +41,14 @@
             <p :class="{ 'active-sort': sortField === 'unload_place' }">
               Место разгрузки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'unload_place',
                 'desc': sortField === 'unload_place' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col date-col"
@@ -57,14 +57,14 @@
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
               Действует до
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'entry_date_to',
                 'desc': sortField === 'entry_date_to' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col time-col"
@@ -73,14 +73,14 @@
             <p :class="{ 'active-sort': sortField === 'entry_time' }">
               Время
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'entry_time',
                 'desc': sortField === 'entry_time' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col status-col"
@@ -89,14 +89,14 @@
             <p :class="{ 'active-sort': sortField === 'status' }">
               Статус
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'status',
                 'desc': sortField === 'status' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div class="header-col actions-col">
             <!-- Пустой заголовок для действий -->
@@ -120,27 +120,42 @@
               class="car-item"
               :style="{ animationDelay: `${index * 0.1}s` }"
             >
-              <div class="car-row">
+              <div class="car-row rt-row">
                 <div class="car-col checkbox-col">
-                  <input 
-                    v-model="car.checked" 
+                  <input
+                    v-model="car.checked"
                     type="checkbox"
                     class="checkbox-input"
                   >
                 </div>
-                <div class="car-col organization-col">
+                <div
+                  class="car-col organization-col"
+                  data-label="Организация"
+                >
                   {{ car.organization }}
                 </div>
-                <div class="car-col place-col">
+                <div
+                  class="car-col place-col"
+                  data-label="Место разгрузки"
+                >
                   {{ formatUnloadPlaces(car.unload_places) }}
                 </div>
-                <div class="car-col date-col">
+                <div
+                  class="car-col date-col"
+                  data-label="Действует до"
+                >
                   {{ formatDate(car.entry_date_to) }}
                 </div>
-                <div class="car-col time-col">
+                <div
+                  class="car-col time-col"
+                  data-label="Время"
+                >
                   {{ formatTimeRange(car.entry_time_from, car.entry_time_to) }}
                 </div>
-                <div class="car-col status-col">
+                <div
+                  class="car-col status-col"
+                  data-label="Статус"
+                >
                   <span class="status-text">
                     {{ car.status }}
                   </span>
@@ -148,13 +163,13 @@
                 <div class="car-col actions-col">
                   <button 
                     class="delete-btn" 
+                    title="Удалить"
                     @click="deleteCar(car)"
                   >
-                    <img 
-                      src="@/assets/icons/trashcan.png" 
-                      alt="Удалить" 
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -175,10 +190,13 @@
 <script>
 import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   components: {
-    RefreshButton
+    RefreshButton,
+    AppIcon,
   },
   props: {
     searchQuery: {
@@ -212,7 +230,8 @@ export default {
       sortField: null,
       sortDirection: 'desc',
       carsData: [],
-      unloadingPlacesMap: new Map()
+      unloadingPlacesMap: new Map(),
+      pendingAnimationTimeouts: []
     };
   },
   computed: {
@@ -220,15 +239,18 @@ export default {
       let filtered = [...this.carsData];
 
       // Поиск по всем полям
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        filtered = filtered.filter(car => 
-          car.organization.toLowerCase().includes(query) ||
-          this.formatUnloadPlaces(car.unload_places).toLowerCase().includes(query) ||
-          car.status.toLowerCase().includes(query) ||
-          this.formatTimeRange(car.entry_time_from, car.entry_time_to).toLowerCase().includes(query) ||
-          this.formatDate(car.entry_date_to).toLowerCase().includes(query)
-        );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (variants.length) {
+        filtered = filtered.filter(car => {
+          const haystack = [
+            car.organization,
+            this.formatUnloadPlaces(car.unload_places),
+            car.status,
+            this.formatTimeRange(car.entry_time_from, car.entry_time_to),
+            this.formatDate(car.entry_date_to),
+          ].join(' ');
+          return matchesSearch(haystack, variants);
+        });
       }
 
       // Фильтр по организации
@@ -321,11 +343,15 @@ export default {
       this.fetchCars();
     });
     
-    setTimeout(() => {
+    this.pendingAnimationTimeouts.push(setTimeout(() => {
       document.querySelectorAll('.car-item').forEach(item => {
         item.classList.add('animate-in');
       });
-    }, 100);
+    }, 100));
+  },
+  beforeUnmount() {
+    this.pendingAnimationTimeouts.forEach(id => clearTimeout(id));
+    this.pendingAnimationTimeouts = [];
   },
   methods: {
     async fetchUnloadingPlaces() {
@@ -397,11 +423,11 @@ export default {
         this.carsData = Array.from(uniqueOrganizations.values());
 
         this.$nextTick(() => {
-          setTimeout(() => {
+          this.pendingAnimationTimeouts.push(setTimeout(() => {
             document.querySelectorAll('.car-item').forEach(item => {
               item.classList.add('animate-in');
             });
-          }, 100);
+          }, 100));
         });
       } catch (error) {
         console.error("Ошибка при загрузке автомобилей по факту:", error);
@@ -504,18 +530,17 @@ export default {
 
 <style scoped>
 .cars-fact-card {
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 65%;
   min-height: 222px;
   max-height: 222px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
 .card-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -537,13 +562,13 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-weight: 600;
   font-size: 1.1em;
 }
 
 .highlight-text {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .card-content {
@@ -563,7 +588,7 @@ export default {
 /* cars-header повторяет геометрию cars-body (padding-right + margin-right 4px),
    чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .cars-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   padding-right: 4px;
   margin-right: 4px;
@@ -579,7 +604,7 @@ export default {
 
 .header-col {
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: left;
   padding: 0 0px;
   font-size: 14px;
@@ -594,21 +619,22 @@ export default {
 }
 
 .header-col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -616,7 +642,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 500 !important;
 }
 
@@ -686,7 +712,7 @@ export default {
 }
 
 .car-item:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .car-row {
@@ -694,7 +720,7 @@ export default {
   width: 100%;
   padding: 10px 16px;
   align-items: center;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .car-col {
@@ -723,7 +749,7 @@ export default {
 }
 
 .status-text {
-  color: #079D1D;
+  color: var(--success-text);
   font-weight: 500;
 }
 
@@ -740,10 +766,11 @@ export default {
 }
 
 .delete-btn:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;
@@ -756,7 +783,7 @@ export default {
 
 .no-data-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -778,7 +805,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 3px;
   border: 1px solid transparent;
   background-clip: content-box;
@@ -786,7 +813,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb:hover {
-  background: #C5D1FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border: 1px solid transparent;
   background-clip: content-box;
   transform: scale(1.1);
@@ -794,7 +821,7 @@ export default {
 
 .cars-body {
   scrollbar-width: thin;
-  scrollbar-color: #D9E2FF transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
   scroll-behavior: smooth;
   overscroll-behavior: contain;
 }
@@ -815,23 +842,12 @@ export default {
   transition: transform 0.5s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .cars-fact-card {
     width: 100%;
     height: auto;
   }
-  
-  .header-row,
-  .car-row {
-    flex-wrap: wrap;
-  }
-  
-  .header-col,
-  .car-col {
-    width: 50% !important;
-    margin-bottom: 4px;
-  }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
@@ -839,10 +855,31 @@ export default {
     height: auto;
     padding: 16px;
   }
-  
+
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  /* rt-row (#1097 S8) сидит на .car-row, а не на v-for-корне .car-item -
+     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
+     матчит (соседние .car-item, не .car-row), спейсинг карточек добираем тут. */
+  .car-item + .car-item {
+    margin-top: 8px;
+  }
+
+  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
+     места, чем в узкой табличной колонке. */
+  .cars-fact-card .rt-row > [data-label] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* Тач-таргет >=44px (WCAG) для кнопки удаления. */
+  .delete-btn {
+    width: 44px;
+    height: 44px;
   }
 }
 </style>

@@ -32,12 +32,12 @@ jobs:
       - name: Run crawler against ${{ inputs.target }}
         working-directory: frontend
         env:
-          E2E_BASE_URL: https://stagingburo.washka17.site
+          E2E_BASE_URL: https://stagingburo.washka17.ru
           E2E_HTTP_USER: ${{ secrets.STAGING_BASIC_AUTH_USER }}
           E2E_HTTP_PASSWORD: ${{ secrets.STAGING_BASIC_AUTH_PASSWORD }}
           E2E_SUPERADMIN_USER: buropropuskov
           E2E_SUPERADMIN_PASSWORD: ${{ secrets.STAGING_SUPERADMIN_PASSWORD }}
-          E2E_API_BASE_URL: https://stagingburo.washka17.site/api
+          E2E_API_BASE_URL: https://stagingburo.washka17.ru/api
         run: npx playwright test e2e/tests/site-smoke-crawler.spec.cjs --workers=1 --reporter=list
       - name: Upload crawl report
         if: always()

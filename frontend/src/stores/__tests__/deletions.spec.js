@@ -108,4 +108,28 @@ describe('deletions store', () => {
       expect(apiRequest).not.toHaveBeenCalled();
     });
   });
+
+  describe('notify — типы и заголовки', () => {
+    it('резолвит дефолтный заголовок для каждого типа', () => {
+      const store = useDeletionsStore();
+
+      store.notify({ bold: 'A', type: 'success' });
+      store.notify({ bold: 'B', type: 'error' });
+      store.notify({ bold: 'C', type: 'warning' });
+      store.notify({ bold: 'D', type: 'info' });
+
+      expect(store.items.map(i => i.title)).toEqual(['Успешно', 'Ошибка', 'Внимание', 'Уведомление']);
+      expect(store.items.map(i => i.type)).toEqual(['success', 'error', 'warning', 'info']);
+    });
+
+    it('пустая строка убирает заголовок, явный title побеждает дефолт', () => {
+      const store = useDeletionsStore();
+
+      store.notify({ bold: 'A', type: 'warning', title: '' });
+      store.notify({ bold: 'B', type: 'info', title: 'Свой заголовок' });
+
+      expect(store.items[0].title).toBe('');
+      expect(store.items[1].title).toBe('Свой заголовок');
+    });
+  });
 });

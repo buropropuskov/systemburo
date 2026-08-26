@@ -2,8 +2,10 @@ package handlers_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -37,7 +39,12 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 	middleNameOld := "Иванович"
 	posOld := "Грузчик"
 	otherOld := "разрешение-1"
+	consentAt := time.Now().UTC()
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток (Create
+		// требует отметку). Без этого правка добавила бы отметку и история получила
+		// бы лишнее изменение pd_consent_at.
+		PDConsentAt:     &consentAt,
 		LastName:        &lastNameOld,
 		FirstName:       &firstNameOld,
 		MiddleName:      &middleNameOld,
@@ -55,6 +62,7 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 	newLast := "Петров"
 	newPos := "Старший грузчик"
 	req := services.NewUniqueEmployeeRequest{
+		PDConsent:       true,
 		LastName:        &newLast,
 		FirstName:       &firstNameOld,
 		MiddleName:      &middleNameOld,
@@ -69,28 +77,36 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 	require.NotNil(t, resp)
 	assert.Equal(t, "Петров", *resp.LastName)
 
+	// После cutover (#870, срез 1.13c) запись идёт в audit_log[unique_employee].
 	// Должно быть ровно две записи — last_name и position.
-	var history []models.UniqueEmployeeHistory
-	require.NoError(t, db.Where("unique_employee_id = ?", emp.ID).Order("id").Find(&history).Error)
-	require.Len(t, history, 2)
+	var entries []models.AuditLog
+	require.NoError(t, db.Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueEmployee, emp.ID).
+		Order("id").Find(&entries).Error)
+	require.Len(t, entries, 2, "ожидаются ровно две записи (last_name, position) в audit_log")
 
-	byField := make(map[string]models.UniqueEmployeeHistory, len(history))
-	for _, h := range history {
-		require.NotNil(t, h.FieldName)
-		byField[*h.FieldName] = h
+	type fieldDetails struct {
+		FieldName *string `json:"field_name"`
+		OldValue  *string `json:"old_value"`
+		NewValue  *string `json:"new_value"`
+	}
+	byField := make(map[string]fieldDetails, len(entries))
+	for _, e := range entries {
+		assert.Equal(t, "data_changed", e.Action)
+		require.NotNil(t, e.ActorUserID)
+		assert.Equal(t, owner.ID, *e.ActorUserID)
+		var det fieldDetails
+		require.NoError(t, json.Unmarshal(e.Details, &det))
+		require.NotNil(t, det.FieldName)
+		byField[*det.FieldName] = det
 	}
 
-	if h, ok := byField["last_name"]; assert.True(t, ok, "ожидалась запись last_name") {
-		assert.Equal(t, "data_changed", h.ActionType)
-		assert.Equal(t, "Иванов", deref(h.OldValue))
-		assert.Equal(t, "Петров", deref(h.NewValue))
-		require.NotNil(t, h.UserID)
-		assert.Equal(t, owner.ID, *h.UserID)
+	if d, ok := byField["last_name"]; assert.True(t, ok, "ожидалась запись last_name") {
+		assert.Equal(t, "Иванов", deref(d.OldValue))
+		assert.Equal(t, "Петров", deref(d.NewValue))
 	}
-	if h, ok := byField["position"]; assert.True(t, ok, "ожидалась запись position") {
-		assert.Equal(t, "data_changed", h.ActionType)
-		assert.Equal(t, "Грузчик", deref(h.OldValue))
-		assert.Equal(t, "Старший грузчик", deref(h.NewValue))
+	if d, ok := byField["position"]; assert.True(t, ok, "ожидалась запись position") {
+		assert.Equal(t, "Грузчик", deref(d.OldValue))
+		assert.Equal(t, "Старший грузчик", deref(d.NewValue))
 	}
 }
 
@@ -115,6 +131,8 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 	first := "Пётр"
 	middle := "Алексеевич"
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток.
+		PDConsentAt:    ptrTime(time.Now().UTC()),
 		LastName:       &last,
 		FirstName:      &first,
 		MiddleName:     &middle,
@@ -127,6 +145,7 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 	svc := services.NewUniqueEmployeeService(db)
 
 	req := services.NewUniqueEmployeeRequest{
+		PDConsent:      true,
 		LastName:       &last,
 		FirstName:      &first,
 		MiddleName:     &middle,
@@ -137,9 +156,10 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
 	require.NoError(t, err)
 
+	// При no-op апдейте audit_log[unique_employee] не пополняется (#870, срез 1.13c).
 	var count int64
-	require.NoError(t, db.Model(&models.UniqueEmployeeHistory{}).
-		Where("unique_employee_id = ?", emp.ID).
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueEmployee, emp.ID).
 		Count(&count).Error)
 	assert.Equal(t, int64(0), count, "не должно создаваться записей истории при no-op апдейте")
 }
@@ -193,14 +213,22 @@ func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	var history []models.UniqueCarHistory
-	require.NoError(t, db.Where("unique_car_id = ?", car.ID).Order("id").Find(&history).Error)
-	require.Len(t, history, 1, "ожидается ровно одна запись (format_id)")
-	assert.Equal(t, "data_changed", history[0].ActionType)
-	require.NotNil(t, history[0].FieldName)
-	assert.Equal(t, "format_id", *history[0].FieldName)
-	assert.Equal(t, "1", deref(history[0].OldValue))
-	assert.Equal(t, "2", deref(history[0].NewValue))
+	// После cutover (#870, срез 1.12d) запись идёт в audit_log[unique_car].
+	var entries []models.AuditLog
+	require.NoError(t, db.Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueCar, car.ID).
+		Order("id").Find(&entries).Error)
+	require.Len(t, entries, 1, "ожидается ровно одна запись (format_id) в audit_log")
+	assert.Equal(t, "data_changed", entries[0].Action)
+
+	var det struct {
+		FieldName *string `json:"field_name"`
+		OldValue  *string `json:"old_value"`
+		NewValue  *string `json:"new_value"`
+	}
+	require.NoError(t, json.Unmarshal(entries[0].Details, &det))
+	assert.Equal(t, "format_id", deref(det.FieldName))
+	assert.Equal(t, "1", deref(det.OldValue))
+	assert.Equal(t, "2", deref(det.NewValue))
 }
 
 // TestUniqueEmployeeService_GetHistory_ReturnsRecords проверяет, что GetHistory
@@ -224,6 +252,8 @@ func TestUniqueEmployeeService_GetHistory_ReturnsRecords(t *testing.T) {
 	first := "Иван"
 	pos := "Грузчик"
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток.
+		PDConsentAt:    ptrTime(time.Now().UTC()),
 		LastName:       &last,
 		FirstName:      &first,
 		Position:       &pos,
@@ -237,6 +267,7 @@ func TestUniqueEmployeeService_GetHistory_ReturnsRecords(t *testing.T) {
 
 	newLast := "Петров"
 	req := services.NewUniqueEmployeeRequest{
+		PDConsent:      true,
 		LastName:       &newLast,
 		FirstName:      &first,
 		Position:       &pos,
@@ -295,6 +326,8 @@ func TestUniqueEmployeeService_GetHistory_Forbidden(t *testing.T) {
 
 	last := "Сидоров"
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток.
+		PDConsentAt:    ptrTime(time.Now().UTC()),
 		LastName:       &last,
 		OrganizationID: &td.OrgID,
 		CompanyID:      &td.CompanyID,

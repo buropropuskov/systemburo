@@ -39,7 +39,7 @@ export default {
     display: flex;
     gap: 30px;
     padding: 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .custom-fields__item {
@@ -51,19 +51,19 @@ export default {
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     outline: none;
-    background: #FFF;
+    background: var(--surface);
     border-radius: 15px;
     padding: 5px 10px;
     font-family: inherit;
@@ -72,10 +72,23 @@ export default {
 }
 
 .input:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .input--error {
-    border-color: #ff4444;
+    border-color: var(--danger);
+}
+
+/* Фикс-ширные (260px) поля в ряд не влезают на узком - стекаем в колонку. */
+@media (max-width: 768px) {
+    .custom-fields {
+        flex-direction: column;
+        gap: 16px;
+        padding: 12px;
+    }
+
+    .custom-fields__item {
+        width: 100%;
+    }
 }
 </style>

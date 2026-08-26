@@ -48,7 +48,7 @@ test.describe('Dictionaries API - CRUD', () => {
 
     const createRes = await request.post(`${API_BASE}/organizations`, {
       headers: headers(token),
-      data: { name },
+      data: { name, type: 'Организация' },
     });
     expect(createRes.ok() || createRes.status() === 201).toBeTruthy();
     const createdId = (await createRes.json()).data?.id;
@@ -68,7 +68,7 @@ test.describe('Dictionaries API - CRUD', () => {
 
     const createRes = await request.post(`${API_BASE}/companies`, {
       headers: headers(token),
-      data: { name },
+      data: { name, type: 'Организация' },
     });
     expect(createRes.ok() || createRes.status() === 201).toBeTruthy();
     const createdId = (await createRes.json()).data?.id;

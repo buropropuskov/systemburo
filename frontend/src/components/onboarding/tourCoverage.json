@@ -1,0 +1,379 @@
+{
+  "routes": {
+    "/403": {
+      "skip": "служебная страница отказа в доступе, не пользовательский сценарий"
+    },
+    "/accessible-attachments": {
+      "tour": "guard",
+      "step": "sec-aa-intro"
+    },
+    "/admin/access-denials": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "/admin/approvers": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/attachment-types": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/blacklist": {
+      "tour": "admin",
+      "step": "admin-blacklist"
+    },
+    "/admin/citizenship": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/companies": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/data-processing": {
+      "skip": "настройка текста согласия на обработку персональных данных; правится раз в несколько лет"
+    },
+    "/admin/documents": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/feedback": {
+      "tour": "admin",
+      "step": "admin-feedback"
+    },
+    "/admin/file-archive": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "/admin/guide": {
+      "tour": "admin",
+      "step": "admin-finish"
+    },
+    "/admin/marks": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/news": {
+      "tour": "admin",
+      "step": "admin-news"
+    },
+    "/admin/number-formats": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/organizations": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/pd-audit": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "/admin/permission-groups": {
+      "tour": "admin",
+      "step": "admin-permission-groups"
+    },
+    "/admin/requests": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "/admin/roles": {
+      "tour": "admin",
+      "step": "admin-roles"
+    },
+    "/admin/settings": {
+      "tour": "admin",
+      "step": "admin-settings"
+    },
+    "/admin/system-control": {
+      "tour": "admin",
+      "step": "admin-settings"
+    },
+    "/admin/unload-places": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/user-types": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "/admin/users": {
+      "tour": "admin",
+      "step": "admin-users-create"
+    },
+    "/analytics": {
+      "tour": "admin",
+      "step": "admin-analytics"
+    },
+    "/carsview": {
+      "tour": "user",
+      "step": "cars-filters"
+    },
+    "/center": {
+      "tour": "approve",
+      "step": "apr-center-list"
+    },
+    "/data-processing": {
+      "skip": "текст согласия на обработку персональных данных; открывается ссылкой из формы, а сам момент подписания показан шагом createapp-consent"
+    },
+    "/employeesview": {
+      "tour": "user",
+      "step": "employees-filters"
+    },
+    "/new-application": {
+      "tour": "user",
+      "step": "createapp-selector"
+    },
+    "/news": {
+      "tour": "user",
+      "step": "news"
+    },
+    "/notification-settings": {
+      "tour": "user",
+      "step": "notif-categories"
+    },
+    "/personal-cabinet": {
+      "tour": "user",
+      "step": "cabinet-profile"
+    },
+    "/table-constructor": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "/table/:tableName": {
+      "tour": "guard",
+      "step": "sec-fact-intro"
+    },
+    "/table/:tableName/trash": {
+      "skip": "корзина таблицы: восстановление удалённых строк, редкая операция бюро"
+    },
+    "/table/:tableName/versions": {
+      "skip": "снимки версий таблицы, узкий инструмент разбора инцидентов"
+    }
+  },
+  "permissions": {
+    "page.center": {
+      "tour": "approve",
+      "step": "apr-nav-center"
+    },
+    "page.new_application": {
+      "tour": "user",
+      "step": "createapp-selector"
+    },
+    "page.available": {
+      "tour": "guard",
+      "step": "sec-nav-accessible"
+    },
+    "page.tables": {
+      "tour": "guard",
+      "step": "sec-nav-tables"
+    },
+    "page.employees": {
+      "tour": "user",
+      "step": "employees-filters"
+    },
+    "page.cars": {
+      "tour": "user",
+      "step": "cars-filters"
+    },
+    "page.statistics": {
+      "tour": "admin",
+      "step": "admin-analytics"
+    },
+    "page.admin": {
+      "tour": "admin",
+      "step": "admin-open"
+    },
+    "page.news": {
+      "tour": "user",
+      "step": "news"
+    },
+    "page.personal_cabinet": {
+      "tour": "user",
+      "step": "cabinet-profile"
+    },
+    "header.report_problem": {
+      "tour": "user",
+      "step": "header-feedback"
+    },
+    "header.create_application": {
+      "tour": "user",
+      "step": "header-submit"
+    },
+    "center.archive": {
+      "tour": "accept",
+      "step": "acc-center-archive"
+    },
+    "center.application_history": {
+      "skip": "журнал заявки согласующему не положен - права у роли нет; тем, у кого право есть, отдельный урок не нужен"
+    },
+    "action.forward.application": {
+      "tour": "approve",
+      "step": "apr-detail-forward"
+    },
+    "action.supplement.application": {
+      "tour": "user",
+      "step": "detail-supplement"
+    },
+    "action.approve.application": {
+      "tour": "approve",
+      "step": "apr-detail-vote"
+    },
+    "action.export.applications": {
+      "tour": "accept",
+      "step": "acc-detail-download"
+    },
+    "action.import.list": {
+      "skip": "право по умолчанию есть только у администраторов и выдаётся точечно: массовый ввод бланком - узкий сценарий для отдельных заявителей с большими списками (мероприятия на сотни-тысячи человек), а не основной путь подачи. Обычный пользователь без права его не увидит вовсе"
+    },
+    "application.organization.override": {
+      "skip": "послабление в форме заявки для отдельных сотрудников: подать от чужой организации. Основной сценарий - своя организация из профиля, она и показана"
+    },
+    "application.organization.moderate": {
+      "tour": "accept",
+      "step": "acc-detail-org-moderation"
+    },
+    "detail.full_history": {
+      "skip": "кнопка внутри карточки автомобиля или сотрудника, деталь второго уровня"
+    },
+    "detail.open_application": {
+      "skip": "переход из карточки автомобиля или сотрудника в заявку, деталь второго уровня"
+    },
+    "detail.entry_exit_history": {
+      "skip": "раздел «История въездов и выездов» внутри карточки, деталь второго уровня"
+    },
+    "detail.documents": {
+      "skip": "раздел «Документы» внутри карточки, деталь второго уровня"
+    },
+    "detail.documents.export": {
+      "skip": "переключатель наполнения бланка в окне скачивания: видят только администраторы, и появляется он уже внутри действия, которому учит шаг про скачивание бланков"
+    },
+    "entity.cars.read": {
+      "tour": "user",
+      "step": "cars-table"
+    },
+    "entity.cars.write": {
+      "tour": "user",
+      "step": "cars-add"
+    },
+    "entity.cars.delete": {
+      "skip": "удаление записи из реестра, деталь внутри уже показанного списка"
+    },
+    "entity.cars.manual_add": {
+      "skip": "добавление машины прямо в таблицу проходной, минуя заявку: операция бюро, не заявителя"
+    },
+    "entity.employees.read": {
+      "tour": "user",
+      "step": "employees-table"
+    },
+    "entity.employees.write": {
+      "tour": "user",
+      "step": "employees-add"
+    },
+    "entity.employees.delete": {
+      "skip": "удаление записи из реестра, деталь внутри уже показанного списка"
+    },
+    "entity.employees.manual_add": {
+      "skip": "добавление сотрудника прямо в таблицу проходной, минуя заявку: операция бюро, не заявителя"
+    },
+    "section.registry.organization": {
+      "skip": "вкладка охвата в реестрах: чьи записи видно. Тур показывает список в том охвате, который выдан смотрящему"
+    },
+    "section.registry.company": {
+      "skip": "вкладка охвата в реестрах: чьи записи видно. Тур показывает список в том охвате, который выдан смотрящему"
+    },
+    "section.registry.all_system": {
+      "skip": "вкладка охвата в реестрах: чьи записи видно. Тур показывает список в том охвате, который выдан смотрящему"
+    },
+    "page.admin.users": {
+      "tour": "admin",
+      "step": "admin-users-create"
+    },
+    "page.admin.monitoring": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "page.admin.pd_audit": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "page.admin.feedback": {
+      "tour": "admin",
+      "step": "admin-feedback"
+    },
+    "page.admin.blacklist": {
+      "tour": "admin",
+      "step": "admin-blacklist"
+    },
+    "page.admin.directories": {
+      "tour": "admin",
+      "step": "admin-directories"
+    },
+    "page.admin.tables_constructor": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "page.admin.file_archive": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "page.admin.settings": {
+      "tour": "admin",
+      "step": "admin-settings"
+    },
+    "action.manage.file_archive": {
+      "skip": "настройка выгрузки бланков на диск: узкая администраторская операция внутри уже названного раздела"
+    },
+    "action.download.file_archive": {
+      "skip": "выгрузка файлов из архива: узкая операция внутри уже названного раздела"
+    },
+    "permission.audit.read": {
+      "tour": "admin",
+      "step": "admin-more"
+    },
+    "permission.audit.manage": {
+      "tour": "admin",
+      "step": "admin-roles"
+    },
+    "action.ban.user": {
+      "tour": "admin",
+      "step": "admin-users-ban"
+    },
+    "action.grant.admin": {
+      "tour": "admin",
+      "step": "admin-permission-groups"
+    },
+    "user.impersonate": {
+      "skip": "вход от имени пользователя: разбор одной проблемной учётной записи внутри уже названного раздела «Пользователи», к тому же режим сам себя объясняет полосой с кнопкой возврата"
+    },
+    "page.admin.system_control": {
+      "tour": "admin",
+      "step": "admin-settings"
+    },
+    "guide.user": {
+      "tour": "user",
+      "step": "guide"
+    },
+    "guide.guard": {
+      "skip": "тот же блок «Руководство» на «Обзоре», только раздел для охраны; механику показывает шаг guide тура заявителя"
+    },
+    "guide.admin": {
+      "skip": "тот же блок «Руководство» на «Обзоре», только раздел для администратора; механику показывает шаг guide тура заявителя"
+    },
+    "action.password.rotate_all": {
+      "skip": "узкая административная настройка: смену паролей всей организации запускают в исключительных случаях, обучать этому в обзорном туре незачем"
+    }
+  },
+  "elements": {
+    "app-detail-button-participants": {
+      "skip": "кнопка «Получатели» в шапке карточки заявки: справка по требованию, а не часть основного пути. Состав согласующих и их решения тур уже разбирает шагом detail-status в блоке «Согласование заявки», а полный список с читателями нужен в разбирательствах - «кто это видел», - которые обзорным туром не покрываются"
+    },
+    "app-participant-card": {
+      "skip": "карточка участника: открывается кликом по строке в списке получателей или по согласующему в блоке «Согласование заявки» - то есть на шаг глубже, чем сам список, который в тур уже не взят. Нужна, когда с человеком надо связаться по конкретной заявке, а это разбирательство, а не основной путь; отдельный шаг про неё пришлось бы начинать с открытия окна получателей и вести обзорный тур в глубину справочного экрана"
+    },
+    "employee-pd-consent": {
+      "skip": "отметка «Работник дал согласие на обработку своих персональных данных» в бланке «Сотрудники», в карточке реестра и в сводке разбора бланка (там она одна на весь загруженный список): поле внутри формы, о котором система говорит сама - кнопка «Добавить» не работает, а подсказка на ней прямо называет незакрытое требование. Момент подписания общего согласия заявки тур уже показывает шагом createapp-consent, а перечислять в обзорном туре каждое обязательное поле формы значит превратить его в чтение формы вслух"
+    }
+  }
+}

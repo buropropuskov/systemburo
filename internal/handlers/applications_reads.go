@@ -38,6 +38,40 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 	return RespondSuccess(c, users)
 }
 
+// GetApplicationParticipants godoc
+// @Summary      Участники заявки
+// @Description  Возвращает всех участников заявки одним списком: отправителя, принявшего
+// @Description  в работу, согласующих, ответственных и читателей. На каждого - роли
+// @Description  машинными ключами, должность, организация, компания и контакты.
+// @Description  Один человек - одна запись, даже если ролей у него несколько.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {array}  services.ApplicationParticipant
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/participants [get]
+func (h *ApplicationHandler) GetApplicationParticipants(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	participants, err := h.service.GetApplicationParticipants(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, participants)
+}
+
 // GetApplicationHistory godoc
 // @Summary      История заявки
 // @Description  Возвращает записи истории заявки в обратном хронологическом порядке.
@@ -151,7 +185,7 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	attachments, err := h.service.GetApplicationAttachments(c.Request().Context(), id)
+	attachments, err := h.service.GetApplicationAttachments(c.Request().Context(), id, viewerUserID(c))
 	if err != nil {
 		return err
 	}
@@ -179,12 +213,31 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Вложение-сирота ручного добавления (#1049, application_id NULL -> appID 0) не
+	// принадлежит заявке: app-detail путь к нему закрыт для всех, включая super и
+	// принимающего (иначе они байпасят CanAccessApplication на appID 0). Ручные машины
+	// доступны только через таблицы (/cars/active-for-table), не через вложение заявки.
+	if appID == 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	cars, err := h.service.GetAttachmentCars(c.Request().Context(), id)
+	canView, err := h.service.CanViewAttachment(c.Request().Context(), appID, id, viewerUserID(c))
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	// Карточка заявки: сюда доходят автор, согласующие, принимающий и супер-админ
+	// (CanAccessApplication выше). Им состав нужен целиком, вместе с непринятым
+	// дополнением - иначе автор не увидит, что его добавка ушла на согласование,
+	// а согласующему нечего будет решать (#1685).
+	cars, err := h.service.GetAttachmentCars(c.Request().Context(), id, services.SupplementScopeAll)
 	if err != nil {
 		return err
 	}
@@ -212,12 +265,27 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Вложение-сирота ручного добавления (#1049, application_id NULL -> appID 0) не
+	// принадлежит заявке: app-detail путь к нему закрыт для всех, включая super и
+	// принимающего (иначе они байпасят CanAccessApplication на appID 0). Ручные машины
+	// доступны только через таблицы (/cars/active-for-table), не через вложение заявки.
+	if appID == 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id)
+	canView, err := h.service.CanViewAttachment(c.Request().Context(), appID, id, viewerUserID(c))
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id, services.SupplementScopeAll)
 	if err != nil {
 		return err
 	}
@@ -245,12 +313,27 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Вложение-сирота ручного добавления (#1049, application_id NULL -> appID 0) не
+	// принадлежит заявке: app-detail путь к нему закрыт для всех, включая super и
+	// принимающего (иначе они байпасят CanAccessApplication на appID 0). Ручные машины
+	// доступны только через таблицы (/cars/active-for-table), не через вложение заявки.
+	if appID == 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	items, err := h.service.GetAttachmentItems(c.Request().Context(), id)
+	canView, err := h.service.CanViewAttachment(c.Request().Context(), appID, id, viewerUserID(c))
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	items, err := h.service.GetAttachmentItems(c.Request().Context(), id, services.SupplementScopeAll)
 	if err != nil {
 		return err
 	}

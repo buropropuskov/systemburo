@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"systemburo/internal/models"
@@ -12,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestUserService_UpdatePassword_CreatesNotification проверяет, что после
-// admin-смены пароля у целевого пользователя появляется уведомление
-// password_changed.
-func TestUserService_UpdatePassword_CreatesNotification(t *testing.T) {
+// TestUserService_UpdatePassword_AdminChange_CreatesNotification проверяет, что
+// при смене пароля админом (id вызывающего != целевого) у пользователя
+// появляется уведомление password_changed с текстом про администратора.
+func TestUserService_UpdatePassword_AdminChange_CreatesNotification(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -24,7 +25,7 @@ func TestUserService_UpdatePassword_CreatesNotification(t *testing.T) {
 	target := models.User{
 		Username:       "target_for_pass_change",
 		Password:       "x",
-		TypeID:         1, // обычный юзер
+		TypeID:         1,
 		OrganizationID: &td.OrgID,
 		CompanyID:      &td.CompanyID,
 	}
@@ -33,14 +34,14 @@ func TestUserService_UpdatePassword_CreatesNotification(t *testing.T) {
 	notifSvc := services.NewNotificationService(db)
 	userSvc := services.NewUserService(db, notifSvc)
 
-	// callerTypeID=6 = buropropuskov (admin). target.TypeID=1 -> selfChange=false
-	// -> сообщение про админа.
+	// callerUserID != target.ID -> selfChange=false -> сообщение про админа.
+	callerUserID := target.ID + 1000
 	err := userSvc.UpdatePassword(
 		context.Background(),
-		6, // callerTypeID admin
-		0, // callerUserID (для аудита)
+		callerUserID,
 		target.Username,
 		models.UpdatePasswordRequest{Password: "newpassword12345"},
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -54,22 +55,27 @@ func TestUserService_UpdatePassword_CreatesNotification(t *testing.T) {
 	require.NotNil(t, n.Title)
 	assert.Equal(t, "Пароль изменён", *n.Title)
 	require.NotNil(t, n.Message)
-	assert.Contains(t, *n.Message, "Администратор")
+	// Должность того, кто сменил пароль, человеку не сообщается: важен факт, а сменить
+	// пароль может не только администратор. Требование владельца по итогам работы на
+	// стенде (#974) - прежний текст начинался со слова «Администратор».
+	assert.Equal(t, "Ваш пароль в системе был изменён.", *n.Message)
+	assert.NotContains(t, *n.Message, "Администратор")
 	require.NotNil(t, n.Data)
 	assert.Contains(t, *n.Data, "changed_at")
-	assert.Contains(t, *n.Data, "changed_by_type_id")
+	assert.Contains(t, *n.Data, fmt.Sprintf("\"changed_by_user_id\": %d", callerUserID))
 }
 
-// TestUserService_UpdatePassword_NonAdmin_NoNotification проверяет, что если
-// вызывающий не admin (нет прав), пароль не меняется и уведомление не пишется.
-func TestUserService_UpdatePassword_NonAdmin_NoNotification(t *testing.T) {
+// TestUserService_UpdatePassword_SelfChange_Notification проверяет, что при
+// смене собственного пароля (id вызывающего == целевого) уведомление содержит
+// текст "Ваш пароль был успешно изменён".
+func TestUserService_UpdatePassword_SelfChange_Notification(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
 	target := models.User{
-		Username:       "target_nonadmin",
+		Username:       "self_pass_change",
 		Password:       "x",
 		TypeID:         1,
 		OrganizationID: &td.OrgID,
@@ -82,14 +88,18 @@ func TestUserService_UpdatePassword_NonAdmin_NoNotification(t *testing.T) {
 
 	err := userSvc.UpdatePassword(
 		context.Background(),
-		1, // обычный юзер -> Forbidden
-		0, // callerUserID (для аудита)
+		target.ID, // сам себе сменил
 		target.Username,
-		models.UpdatePasswordRequest{Password: "newpass12345"},
+		models.UpdatePasswordRequest{Password: "newpassword12345"},
+		nil,
 	)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	notifs, err := notifSvc.GetByUserID(context.Background(), target.ID)
 	require.NoError(t, err)
-	assert.Empty(t, notifs)
+	require.Len(t, notifs, 1)
+
+	n := notifs[0]
+	require.NotNil(t, n.Message)
+	assert.Contains(t, *n.Message, "успешно изменён")
 }

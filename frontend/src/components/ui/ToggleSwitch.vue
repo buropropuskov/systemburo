@@ -58,13 +58,20 @@ export default {
   width: 36px;
   height: 20px;
   border-radius: 10px;
-  background: #ccc;
+  background: var(--border);
   transition: background 0.2s ease;
   flex-shrink: 0;
 }
 
 .toggle-switch.checked .toggle-switch__track {
   background: var(--color-primary);
+}
+
+/* Инпут визуально скрыт, поэтому кольцо фокуса рисует трек - иначе клавиатурная
+   навигация по тумблерам идёт вслепую. */
+.toggle-switch input:focus-visible + .toggle-switch__track {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .toggle-switch__thumb {
@@ -74,8 +81,7 @@ export default {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: var(--surface);
   transition: transform 0.2s ease;
 }
 

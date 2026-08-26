@@ -33,7 +33,30 @@ func (h *EmployeeHandler) CreateEmployee(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	resp, err := h.service.CreateEmployee(c.Request().Context(), req)
+	resp, err := h.service.CreateEmployee(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
+// CreateManualEmployees обрабатывает POST /employees/manual.
+// @Summary Ручное добавление сотрудников в таблицу без заявки (#1049)
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.ManualEmployeeRequest true "Сотрудники, организация/компания и целевая таблица"
+// @Success 200 {object} services.ManualEmployeeResponse
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /employees/manual [post]
+func (h *EmployeeHandler) CreateManualEmployees(c echo.Context) error {
+	var req services.ManualEmployeeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	resp, err := h.service.CreateManualEmployees(c.Request().Context(), req, GetUserID(c))
 	if err != nil {
 		return err
 	}
@@ -158,4 +181,91 @@ func (h *EmployeeHandler) RestoreEmployee(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Employee restored successfully")
+}
+
+// BulkMoveTable обрабатывает POST /employees/bulk/move-table.
+// @Summary      Групповой перенос сотрудников между таблицами
+// @Description  Снимает у выбранных сотрудников привязку к исходной таблице и привязывает к целевым. Требует права admin.
+// @Tags         employees
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.EmployeeBulkMoveTableRequest true "ID сотрудников, исходная и целевые таблицы"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /employees/bulk/move-table [post]
+func (h *EmployeeHandler) BulkMoveTable(c echo.Context) error {
+	var req services.EmployeeBulkMoveTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны сотрудники")
+	}
+	res, err := h.service.BulkMoveTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAddTable обрабатывает POST /employees/bulk/add-table.
+// @Summary      Групповое добавление сотрудников в таблицы
+// @Description  Привязывает выбранных сотрудников к дополнительным таблицам, не отвязывая существующие. Требует права admin.
+// @Tags         employees
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.EmployeeBulkAddTableRequest true "ID сотрудников и таблицы"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /employees/bulk/add-table [post]
+func (h *EmployeeHandler) BulkAddTable(c echo.Context) error {
+	var req services.EmployeeBulkAddTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны сотрудники")
+	}
+	res, err := h.service.BulkAddTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkUnbindTable обрабатывает POST /employees/bulk/unbind-table.
+// @Summary      Групповая отвязка сотрудников от таблицы
+// @Description  Снимает у выбранных сотрудников привязку к одной таблице; при снятии последней привязки сотрудник деактивируется. Требует права admin.
+// @Tags         employees
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.EmployeeBulkUnbindTableRequest true "ID сотрудников и таблица"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /employees/bulk/unbind-table [post]
+func (h *EmployeeHandler) BulkUnbindTable(c echo.Context) error {
+	var req services.EmployeeBulkUnbindTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны сотрудники")
+	}
+	res, err := h.service.BulkUnbindTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
 }

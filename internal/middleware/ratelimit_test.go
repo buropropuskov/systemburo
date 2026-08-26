@@ -3,6 +3,7 @@ package middleware_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -80,4 +81,64 @@ func TestLoginRateLimit_PerIPIsolation(t *testing.T) {
 	rec = httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code, "другой IP имеет независимый счётчик")
+}
+
+// TestRateLimit_SharedJWTPrefixTokensIsolated - регресс на баг ключа token[:20].
+// Первые ~36 символов любого HS256-JWT это base64 заголовка
+// {"alg":"HS256","typ":"JWT"}, одинаковый у всех -> старый ключ схлопывал всех
+// авторизованных в одно ведро и делил лимит на всю систему. Ключ по хешу всего
+// токена должен давать каждому токену независимое ведро.
+func TestRateLimit_SharedJWTPrefixTokensIsolated(t *testing.T) {
+	e := echo.New()
+	e.Use(mw.RateLimit(2, 60))
+	e.GET("/x", func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
+
+	const jwtHeaderPrefix = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+	tokenA := jwtHeaderPrefix + ".payloadAAAAAAAAAAAA.signatureAAAA"
+	tokenB := jwtHeaderPrefix + ".payloadBBBBBBBBBBBB.signatureBBBB"
+
+	do := func(token string) int {
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	// tokenA исчерпывает своё ведро (лимит 2), 3-й запрос -> 429.
+	require.Equal(t, http.StatusOK, do(tokenA))
+	require.Equal(t, http.StatusOK, do(tokenA))
+	require.Equal(t, http.StatusTooManyRequests, do(tokenA))
+
+	// tokenB с ОДИНАКОВЫМ 20-символьным префиксом обязан иметь своё ведро.
+	assert.Equal(t, http.StatusOK, do(tokenB), "токен с общим JWT-префиксом не должен делить ведро")
+	assert.Equal(t, http.StatusOK, do(tokenB))
+	assert.Equal(t, http.StatusTooManyRequests, do(tokenB), "своё ведро tokenB тоже лимитируется")
+}
+
+// TestRateLimit_SetsRetryAfterOn429 - глобальный лимитер отдаёт Retry-After,
+// чтобы клиент знал, через сколько повторить.
+func TestRateLimit_SetsRetryAfterOn429(t *testing.T) {
+	e := echo.New()
+	e.Use(mw.RateLimit(1, 60))
+	e.GET("/x", func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
+
+	const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"
+	do := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		return rec
+	}
+
+	require.Equal(t, http.StatusOK, do().Code)
+	rec := do()
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	// Retry-After - реальный остаток окна (не полное окно): для только что занятого
+	// слота это ~window, но зависит от границы секунды, поэтому проверяем диапазон.
+	ra, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+	require.NoError(t, err)
+	assert.Greater(t, ra, 0)
+	assert.LessOrEqual(t, ra, 60)
 }

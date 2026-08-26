@@ -37,10 +37,41 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.ForwardApplication(c.Request().Context(), username, id, req); err != nil {
+	if err := h.service.ForwardApplication(c.Request().Context(), username, id, IsSuperAdmin(c), req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Application forwarded successfully")
+}
+
+// GetForwardMessages godoc
+// @Summary      Ветка заявки (пересылки)
+// @Description  Возвращает ветку заявки (#967) - все пересылки с автором, получателями и сопроводительным текстом (если он был), хронологически (старые сверху). Видно всем получателям заявки.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {array}  services.ForwardMessageItem
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/forward-messages [get]
+func (h *ApplicationHandler) GetForwardMessages(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	messages, err := h.service.GetForwardMessages(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, messages)
 }
 
 // ApproveApplicationByUser godoc
@@ -276,6 +307,34 @@ func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
 	return RespondMessage(c, "Application restored, ready to take to work")
 }
 
+// WithdrawApplication godoc
+// @Summary      Отзыв своей заявки отправителем
+// @Description  Отправитель отзывает собственную заявку: статус -> "Отозвана",
+// @Description  машины/люди/вложения деактивируются. Обратного пути нет (только дублирование).
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/withdraw [post]
+func (h *ApplicationHandler) WithdrawApplication(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	if err := h.service.WithdrawApplication(c.Request().Context(), username, id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Application withdrawn")
+}
+
 // RevokeApproval godoc
 // @Summary      Отзыв согласования
 // @Description  Пользователь отзывает ранее данное согласование/отказ.
@@ -332,8 +391,111 @@ func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error 
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id); err != nil {
+	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id, username); err != nil {
 		return err
 	}
 	return RespondMessage(c, "All items statuses updated successfully")
+}
+
+// AssignElementTables godoc
+// @Summary      Назначение постов элементам заявки
+// @Description  Принимающий добавляет или снимает посты проезда/прохода у машин и сотрудников заявки (#1393).
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                    true "ID заявки"
+// @Param        request body services.AssignElementTablesRequest    true "Элементы, посты и режим"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/elements/tables [put]
+func (h *ApplicationHandler) AssignElementTables(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.AssignElementTablesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.AssignElementTables(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Посты обновлены")
+}
+
+// RemoveApplicationElements godoc
+// @Summary      Удаление людей или машин из поданной заявки
+// @Description  Принимающий убирает элемент из заявки: элемент, по которому решение «пропустить» неприемлемо, иначе держал бы всю заявку. Удаление мягкое - строка уходит в корзину, история сохраняется.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                          true "ID заявки"
+// @Param        request body services.RemoveApplicationElementsRequest    true "Тип элементов, идентификаторы и причина"
+// @Success      200 {object} map[string]interface{} "success + число убранных"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/elements [delete]
+func (h *ApplicationHandler) RemoveApplicationElements(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.RemoveApplicationElementsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	removed, err := h.service.RemoveApplicationElements(c.Request().Context(), username, id, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"removed": removed})
+}
+
+// AssignCarUnloadPlaces godoc
+// @Summary      Назначение мест разгрузки машинам заявки
+// @Description  Принимающий добавляет или снимает места разгрузки у машин заявки (#1393).
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                     true "ID заявки"
+// @Param        request body services.AssignCarUnloadPlacesRequest    true "Машины, места и режим"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/elements/unload-places [put]
+func (h *ApplicationHandler) AssignCarUnloadPlaces(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.AssignCarUnloadPlacesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.AssignCarUnloadPlaces(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Места разгрузки обновлены")
 }

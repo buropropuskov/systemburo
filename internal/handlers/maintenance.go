@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"systemburo/internal/services"
 
@@ -46,10 +47,41 @@ func (h *MaintenanceHandler) GetAdminStatus(c echo.Context) error {
 }
 
 // MaintenanceToggleRequest — тело PUT /api/admin/maintenance.
+// PlannedStart/PlannedEnd — объявленное окно работ в RFC3339; либо оба
+// заданы, либо оба пусты (режим без объявленного срока).
 type MaintenanceToggleRequest struct {
 	Enabled      bool   `json:"enabled"`
 	Message      string `json:"message" validate:"max=500"`
+	PlannedStart string `json:"planned_start" validate:"max=40"`
+	PlannedEnd   string `json:"planned_end" validate:"max=40"`
 	SupportEmail string `json:"support_email" validate:"max=255"`
+	SupportPhone string `json:"support_phone" validate:"max=40"`
+}
+
+// parseWindow разбирает объявленное окно работ и нормализует его в UTC.
+// Окно опционально, но задаётся целиком: с одной половиной страница техработ
+// не смогла бы показать ни срок окончания, ни прогресс.
+func parseWindow(req MaintenanceToggleRequest) (start, end string, err error) {
+	if req.PlannedStart == "" && req.PlannedEnd == "" {
+		return "", "", nil
+	}
+	if req.PlannedStart == "" || req.PlannedEnd == "" {
+		return "", "", echo.NewHTTPError(http.StatusBadRequest,
+			"укажите и начало, и окончание технических работ")
+	}
+	startAt, parseErr := time.Parse(time.RFC3339, req.PlannedStart)
+	if parseErr != nil {
+		return "", "", echo.NewHTTPError(http.StatusBadRequest, "некорректная дата начала работ")
+	}
+	endAt, parseErr := time.Parse(time.RFC3339, req.PlannedEnd)
+	if parseErr != nil {
+		return "", "", echo.NewHTTPError(http.StatusBadRequest, "некорректная дата окончания работ")
+	}
+	if !endAt.After(startAt) {
+		return "", "", echo.NewHTTPError(http.StatusBadRequest,
+			"окончание работ должно быть позже начала")
+	}
+	return startAt.UTC().Format(time.RFC3339), endAt.UTC().Format(time.RFC3339), nil
 }
 
 // ToggleMaintenance включает или выключает режим обслуживания.
@@ -68,7 +100,18 @@ func (h *MaintenanceHandler) ToggleMaintenance(c echo.Context) error {
 	}
 
 	if req.Enabled {
-		if err := h.service.Enable(c.Request().Context(), userID, username, req.Message, req.SupportEmail); err != nil {
+		plannedStart, plannedEnd, err := parseWindow(req)
+		if err != nil {
+			return err
+		}
+		params := services.MaintenanceParams{
+			Message:      req.Message,
+			PlannedStart: plannedStart,
+			PlannedEnd:   plannedEnd,
+			SupportEmail: req.SupportEmail,
+			SupportPhone: req.SupportPhone,
+		}
+		if err := h.service.Enable(c.Request().Context(), userID, username, params); err != nil {
 			return err
 		}
 	} else {

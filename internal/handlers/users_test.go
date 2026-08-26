@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +25,12 @@ func TestUsers_GetAll(t *testing.T) {
 	// Register a second user
 	testutil.RegisterUser(t, e, "regularuser", "password123", 1, td.OrgID, td.CompanyID)
 
+	// Активность одного из юзеров: колонка «В сети» в админке рисуется по last_seen,
+	// поэтому список обязан отдавать его как заполненным, так и явным null.
+	seen := time.Now().UTC().Add(-2 * time.Minute)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "regularuser").
+		Update("last_seen", seen).Error)
+
 	rec := testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -35,7 +43,21 @@ func TestUsers_GetAll(t *testing.T) {
 		assert.Contains(t, u, "username")
 		assert.Contains(t, u, "type_id")
 		assert.Contains(t, u, "user_type")
+		assert.Contains(t, u, "last_seen")
 	}
+
+	byLogin := map[string]map[string]any{}
+	for _, u := range list {
+		if login, ok := u["username"].(string); ok {
+			byLogin[login] = u
+		}
+	}
+	require.Contains(t, byLogin, "regularuser")
+	activeSeen, ok := byLogin["regularuser"]["last_seen"].(string)
+	require.True(t, ok, "last_seen активного юзера приходит строкой-датой")
+	parsed, err := time.Parse(time.RFC3339Nano, activeSeen)
+	require.NoError(t, err)
+	assert.WithinDuration(t, seen, parsed, time.Second)
 }
 
 func TestUsers_GetAll_Unauthorized(t *testing.T) {
@@ -243,7 +265,7 @@ func TestUsers_UpdateOrganization(t *testing.T) {
 	testutil.RegisterUser(t, e, "targetuser", "password123", 1, td.OrgID, td.CompanyID)
 
 	// Create a second organization
-	rec := testutil.POST(t, e, "/organizations", `{"name":"New Organization"}`, h)
+	rec := testutil.POST(t, e, "/organizations", `{"name":"New Organization","type":"Организация"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	orgResp := testutil.ParseMap(t, rec)
@@ -283,7 +305,7 @@ func TestUsers_UpdateCompany(t *testing.T) {
 	testutil.RegisterUser(t, e, "targetuser", "password123", 1, td.OrgID, td.CompanyID)
 
 	// Create a second company
-	rec := testutil.POST(t, e, "/companies", `{"name":"New Company"}`, h)
+	rec := testutil.POST(t, e, "/companies", `{"name":"New Company","type":"Организация"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	compResp := testutil.ParseMap(t, rec)
@@ -538,10 +560,61 @@ func TestUsers_ManagerAlsoHasAdminAccess(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	// type_id=5 is "manager" -- also has admin privileges
+	// manager (type_id=5) перенесён миграцией на is_admin, поэтому сохраняет
+	// доступ к управлению пользователями и после снятия type-проверок (Ф5).
 	managerToken := testutil.RegisterManager(t, e, "manager1", td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(managerToken)
 
 	rec := testutil.GET(t, e, "/users/all", h)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestCreateUser_WeakPassword_Rejected(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	// Пароль без цифры при require_digit=true (дефолт) -> 400
+	body := fmt.Sprintf(`{"username":"weakpw","password":"passwordonly","type_id":1,"organization_id":%d}`, td.OrgID)
+	rec := testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Слишком короткий пароль -> 400
+	body = fmt.Sprintf(`{"username":"weakpw2","password":"ab1","type_id":1,"organization_id":%d}`, td.OrgID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Валидный пароль (буква + цифра, >= 8 символов) -> 200
+	body = fmt.Sprintf(`{"username":"strongpw","password":"password123","type_id":1,"organization_id":%d}`, td.OrgID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Contains(t, []int{http.StatusOK, http.StatusCreated}, rec.Code)
+}
+
+func TestUpdatePassword_WeakPassword_Rejected(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	// Создаём целевого пользователя через DB (как в TestUsers_UpdatePassword)
+	testutil.RegisterUser(t, e, "pwpolicytarget", "password123", 1, td.OrgID, td.CompanyID)
+
+	// Слабый пароль (нет цифры) -> 400
+	rec := testutil.PUT(t, e, "/users/pwpolicytarget/password", `{"password":"weakpassword"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Слишком короткий -> 400
+	rec = testutil.PUT(t, e, "/users/pwpolicytarget/password", `{"password":"short1"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Валидный пароль -> 200
+	rec = testutil.PUT(t, e, "/users/pwpolicytarget/password", `{"password":"newpassword123"}`, h)
 	assert.Equal(t, http.StatusOK, rec.Code)
 }

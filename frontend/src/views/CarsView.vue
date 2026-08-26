@@ -13,8 +13,17 @@
       </p>
     </header>
 
-    <div class="carsview__filters">
-      <div class="filters-container">
+    <!-- Десктоп: поиск и табы области над карточкой. На мобилке этот блок физически
+         переезжает под шапку списка (.carsview__toolbar) - через v-if, а не скрытой
+         копией: иначе data-testid и якорь тура задвоились бы в DOM. -->
+    <div
+      v-if="!isNarrow"
+      class="carsview__filters"
+    >
+      <div
+        class="filters-container"
+        data-testid="ob-cars-filters"
+      >
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск машин...'"
@@ -24,7 +33,7 @@
           class="filter-tabs"
         >
           <button
-            v-if="ownershipInfo.has_organization"
+            v-if="ownershipInfo.has_organization && canSeeOrganization"
             class="filter-tab"
             data-testid="filter-tab-organization"
             :class="{ 'filter-tab--active': currentFilter === 'organization' }"
@@ -34,7 +43,7 @@
             Машины организации
           </button>
           <button
-            v-if="ownershipInfo.has_company"
+            v-if="ownershipInfo.has_company && canSeeCompany"
             class="filter-tab"
             data-testid="filter-tab-company"
             :class="{ 'filter-tab--active': currentFilter === 'company' }"
@@ -53,6 +62,7 @@
             Мои машины
           </button>
           <button
+            v-if="canSeeAllSystem"
             class="filter-tab"
             data-testid="filter-tab-all-system"
             :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
@@ -65,10 +75,70 @@
       </div>
     </div>
 
+    <!-- Мобилка: табы области в bottom-sheet. Место в разметке роли не играет -
+         FilterSheet рендерится через BaseModal, а тот телепортирует себя в body. -->
+    <FilterSheet
+      v-if="isNarrow"
+      :show="showScopeSheet"
+      :has-active-filters="scopeFilterActive"
+      @close="showScopeSheet = false"
+      @reset="resetScopeFilter"
+    >
+      <div
+        v-if="ownershipInfo"
+        class="filter-section"
+      >
+        <span class="filter-label">Область</span>
+        <div class="filter-tabs">
+          <button
+            v-if="ownershipInfo.has_organization && canSeeOrganization"
+            class="filter-tab"
+            data-testid="cars-scope-organization"
+            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+            @click="switchScopeFromSheet('organization')"
+          >
+            Машины организации
+          </button>
+          <button
+            v-if="ownershipInfo.has_company && canSeeCompany"
+            class="filter-tab"
+            data-testid="cars-scope-company"
+            :class="{ 'filter-tab--active': currentFilter === 'company' }"
+            @click="switchScopeFromSheet('company')"
+          >
+            Машины компании
+          </button>
+          <button
+            class="filter-tab"
+            data-testid="cars-scope-user"
+            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+            @click="switchScopeFromSheet('user')"
+          >
+            Мои машины
+          </button>
+          <button
+            v-if="canSeeAllSystem"
+            class="filter-tab"
+            data-testid="cars-scope-all-system"
+            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+            @click="switchScopeFromSheet('all_system')"
+          >
+            Все машины системы
+          </button>
+        </div>
+      </div>
+    </FilterSheet>
+
     <div class="carsview__container">
       <!-- Таблица автомобилей -->
-      <div class="cars-card">
-        <div class="card-header">
+      <div
+        class="cars-card"
+        data-testid="ob-cars-table"
+      >
+        <div
+          class="card-header"
+          data-testid="ob-cars-table-head"
+        >
           <div class="card-header__title">
             <h3 class="card-title">
               <span
@@ -88,15 +158,33 @@
                 class="highlight-text"
               >Мои <span class="blue">автомобили</span></span>
             </h3>
+            <!-- Счётчик записей рядом с заголовком - только на мобилке: на десктопе
+                 то же число уже стоит в футере таблицы («Показано X из Y»). -->
+            <span
+              v-if="isNarrow"
+              class="card-header__count"
+              data-testid="cars-count-badge"
+            >{{ carsTotal }}</span>
           </div>
           <div class="card-header__settings">
+            <!-- На мобилке «Добавить» переезжает в панель у нижнего края экрана
+                 (.carsview__action-bar), в шапке остаётся одно действие. -->
             <button
-              v-if="currentFilter !== 'all_system'"
+              v-if="!isNarrow && currentFilter !== 'all_system' && canWriteCars"
               class="add-button"
               data-testid="cars-view-add-button"
               @click="showAddCarModal"
             >
               Добавить
+            </button>
+            <!-- Журнал реестра открыт администратору, см. EmployeeView. -->
+            <button
+              v-if="canManageAllEntities"
+              class="log-button"
+              data-testid="cars-registry-log"
+              @click="showRegistryLog = true"
+            >
+              Журнал
             </button>
             <RefreshButton
               :loading="loading"
@@ -104,10 +192,28 @@
             />
           </div>
         </div>
-                
-        <div class="card-content">
-          <!-- Заголовок таблицы всегда отображается -->
-          <div class="cars-header">
+
+        <!-- Мобилка: поиск и «Фильтр» отдельной полосой 36px под шапкой экрана. -->
+        <div
+          v-if="isNarrow"
+          class="carsview__toolbar"
+          data-testid="ob-cars-filters"
+        >
+          <SearchComponent
+            v-model="searchQuery"
+            :title="'Поиск машин...'"
+          />
+          <FilterButton
+            v-if="ownershipInfo"
+            :active="scopeFilterActive"
+            data-testid="cars-filter-btn"
+            @click="showScopeSheet = true"
+          />
+        </div>
+
+        <div class="card-content rt-table">
+          <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
+          <div class="cars-header rt-head-row">
             <div class="header-row">
               <div
                 class="header-col number-col"
@@ -116,14 +222,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   №
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col car-number-col"
@@ -132,14 +238,14 @@
                 <p :class="{ 'active-sort': sortField === 'number' }">
                   Номер
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'number',
                     'desc': sortField === 'number' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col brand-col"
@@ -148,14 +254,14 @@
                 <p :class="{ 'active-sort': sortField === 'mark' }">
                   Марка
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'mark',
                     'desc': sortField === 'mark' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col format-col"
@@ -164,14 +270,14 @@
                 <p :class="{ 'active-sort': sortField === 'format_name' }">
                   Формат номера
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'format_name',
                     'desc': sortField === 'format_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -180,14 +286,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
@@ -197,14 +303,14 @@
                 <p :class="{ 'active-sort': sortField === 'organization_name' }">
                   Организация
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'organization_name',
                     'desc': sortField === 'organization_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'company' || currentFilter === 'all_system'"
@@ -214,14 +320,14 @@
                 <p :class="{ 'active-sort': sortField === 'company_name' }">
                   Компания
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'company_name',
                     'desc': sortField === 'company_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col actions-col">
                 Действия
@@ -239,7 +345,8 @@
                 <LoaderSpinner label="Загрузка машин…" />
               </div>
               <div
-                v-else-if="filteredCars.length > 0"
+                v-else-if="sortedCars.length > 0"
+                ref="carsBody"
                 class="cars-body"
               >
                 <div
@@ -248,23 +355,38 @@
                   class="car-item"
                 >
                   <div
-                    class="car-row"
+                    class="car-row rt-row"
                     title="Открыть детали машины"
                     @click="openCarDetails(car)"
                   >
-                    <div class="car-col number-col">
+                    <div
+                      class="car-col number-col"
+                      data-label="№"
+                    >
                       {{ car.id }}
                     </div>
-                    <div class="car-col car-number-col">
+                    <div
+                      class="car-col car-number-col"
+                      data-label="Номер"
+                    >
                       {{ car.number }}
                     </div>
-                    <div class="car-col brand-col">
+                    <div
+                      class="car-col brand-col"
+                      data-label="Марка"
+                    >
                       {{ car.mark }}
                     </div>
-                    <div class="car-col format-col">
+                    <div
+                      class="car-col format-col"
+                      data-label="Формат номера"
+                    >
                       {{ car.format_name || 'Не указан' }}
                     </div>
-                    <div class="car-col status-col">
+                    <div
+                      class="car-col status-col"
+                      data-label="Статус"
+                    >
                       <StatusBadge
                         v-if="isCarBlacklisted(car)"
                         status="Чёрный список"
@@ -277,6 +399,7 @@
                     <div
                       v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
                       class="car-col org-col"
+                      data-label="Организация"
                       :title="car.organization_name || ''"
                     >
                       {{ car.organization_name || '—' }}
@@ -284,37 +407,38 @@
                     <div
                       v-if="currentFilter === 'company' || currentFilter === 'all_system'"
                       class="car-col company-col"
+                      data-label="Компания"
                       :title="car.company_name || ''"
                     >
                       {{ car.company_name || '—' }}
                     </div>
                     <div class="car-col actions-col">
                       <button
-                        v-if="canEditCar(car)"
+                        v-if="showEditCar(car)"
                         class="edit-btn"
-                        title="Редактировать"
+                        title="Изменить"
                         @click.stop="editCar(car)"
                       >
-                        <img
-                          src="@/assets/icons/edit.png"
-                          alt="Редактировать"
+                        <AppIcon
+                          name="edit"
                           class="edit-icon"
-                        >
+                        />
+                        <span class="action-btn__label">Изменить</span>
                       </button>
                       <button
-                        v-if="canEditCar(car)"
+                        v-if="showDeleteCar(car)"
                         class="delete-btn"
                         title="Удалить"
                         @click.stop="openDeleteCarConfirmation(car)"
                       >
-                        <img
-                          src="@/assets/icons/trashcan.png"
-                          alt="Удалить"
+                        <AppIcon
+                          name="trashcan"
                           class="delete-icon"
-                        >
+                        />
+                        <span class="action-btn__label">Удалить</span>
                       </button>
                       <span
-                        v-if="!canEditCar(car)"
+                        v-if="!showEditCar(car) && !showDeleteCar(car)"
                         class="read-only-text"
                         :title="canEditTooltip(car)"
                       >
@@ -323,6 +447,64 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Бесшовная подгрузка (#1158): sentinel внизу СКРОЛЛИРУЕМОГО cars-body -
+                     IntersectionObserver триггерит loadMore без кнопки "Показать ещё". -->
+                <div
+                  v-if="hasMoreCars"
+                  :ref="setCarsSentinelRef"
+                  class="scroll-sentinel"
+                  data-testid="cars-scroll-sentinel"
+                >
+                  <LoaderSpinner
+                    v-if="listLoading"
+                    label="Загрузка…"
+                  />
+                  <!-- Ошибка догрузки следующей порции (#1173): список уже частично
+                       загружен, автодогрузка остановлена circuit-breaker'ом. -->
+                  <div
+                    v-else-if="listError"
+                    class="sentinel-error"
+                    data-testid="cars-scroll-sentinel-error"
+                  >
+                    <span>Не удалось загрузить ещё</span>
+                    <button
+                      type="button"
+                      class="lk-button lk-button--secondary lk-button--sm"
+                      :disabled="listLoading"
+                      @click="retryCars"
+                    >
+                      {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- In-flight retry при пустом списке (#1173): пока listLoading -
+                   спиннер, не проваливаемся в error/"Автомобилей нет". listLoading
+                   выставляет composable из retry() (this.loading он не трогает). -->
+              <div
+                v-else-if="listLoading"
+                class="loading-message"
+                data-testid="cars-list-loading"
+              >
+                <LoaderSpinner label="Загрузка…" />
+              </div>
+              <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а
+                   не потому что машин реально нет. -->
+              <div
+                v-else-if="listError"
+                class="list-error-state"
+                data-testid="cars-list-error"
+              >
+                <p>Не удалось загрузить автомобили. Проверьте соединение.</p>
+                <button
+                  type="button"
+                  class="lk-button lk-button--secondary"
+                  :disabled="listLoading"
+                  @click="retryCars"
+                >
+                  {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                </button>
               </div>
               <p
                 v-else
@@ -330,6 +512,13 @@
               >
                 {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Автомобилей нет' }}
               </p>
+            </div>
+            <div
+              v-if="!loading && sortedCars.length"
+              class="table-footer"
+              data-testid="cars-table-footer"
+            >
+              {{ footerText }}
             </div>
           </div>
         </div>
@@ -362,7 +551,16 @@
             </p>
           </template>
           <template v-else-if="currentFilter === 'all_system'">
-            <p class="help__text">
+            <p
+              v-if="canManageAllEntities"
+              class="help__text"
+            >
+              Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. Как администратор вы можете изменить или удалить любую машину, к какой бы организации она ни была привязана. Добавлять машины нужно на вкладках выше - там видно, за кем закрепится запись.
+            </p>
+            <p
+              v-else
+              class="help__text"
+            >
               Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
             </p>
           </template>
@@ -370,216 +568,257 @@
       </div>
     </div>
 
-    <!-- Модальное окно добавления машины -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div
-          v-if="showModal && currentFilter !== 'all_system'"
-          class="modal-overlay"
-          data-testid="cars-view-modal"
-          @click="closeModal"
-        >
-          <div
-            class="modal-content"
-            @click.stop
-          >
-            <div class="modal-header">
-              <div class="modal-header__top">
-                <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
-                <div
-                  v-if="notification.show"
-                  class="notification-badge"
-                  :class="notification.type"
+    <!-- Мобилка: главное действие экрана - широкая кнопка в панели, прижатой к низу
+         экрана, у пальца. data-bottom-action-bar - контракт для ScrollTopButton:
+         кнопка «наверх» поднимается над панелью, чтобы не лечь на «Добавить». -->
+    <div
+      v-if="isNarrow && currentFilter !== 'all_system' && canWriteCars"
+      class="carsview__action-bar"
+      data-bottom-action-bar
+    >
+      <button
+        class="add-button add-button--wide"
+        data-testid="cars-view-add-button"
+        @click="showAddCarModal"
+      >
+        Добавить машину
+      </button>
+    </div>
+
+    <!-- Модальное окно добавления машины - контракт окна из BaseModal (крестик,
+         overlay, Escape, свайп-вниз/bottom-sheet на мобилке), а не своя разметка. -->
+    <BaseModal
+      :show="showModal && (currentFilter !== 'all_system' || !!editingCar)"
+      :title="editingCar ? 'Редактирование' : 'Добавление Т/С'"
+      width="500px"
+      radius="30px"
+      content-testid="cars-view-modal"
+      @close="closeModal"
+    >
+      <div class="data__completion">
+        <div class="completion__format">
+          <div class="format__header">
+            <label class="format__label">Формат номеров</label>
+            <button
+              class="add-button"
+              :disabled="!canSaveCar"
+              @click="saveCar"
+            >
+              {{ editingCar ? 'Сохранить' : 'Добавить' }}
+            </button>
+          </div>
+          <div class="format__dropdown">
+            <button
+              class="dropdown__button"
+              data-testid="cars-view-format-dropdown"
+              @click="toggleFormatDropdown"
+            >
+              <div class="button__content">
+                <span class="button__text">{{ selectedFormatText }}</span>
+                <svg
+                  class="button__arrow"
+                  :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  {{ notification.message }}
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+            </button>
+            <transition name="dropdown">
+              <div
+                v-if="isFormatDropdownOpen"
+                class="dropdown__menu"
+              >
+                <div 
+                  v-for="format in availableFormats" 
+                  :key="format.format.id"
+                  class="dropdown__item" 
+                  @click="selectFormat(format)"
+                >
+                  <span class="item__text">{{ format.format.name }}</span>
                 </div>
               </div>
-              <button
-                class="modal-close"
-                data-testid="cars-view-modal-close"
-                @click="closeModal"
-              >
-                ×
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="data__completion">
-                <div class="completion__format">
-                  <div class="format__header">
-                    <label class="format__label">Формат номеров</label>
-                    <button
-                      class="add-button"
-                      :disabled="!canSaveCar"
-                      @click="saveCar"
-                    >
-                      {{ editingCar ? 'Сохранить' : 'Добавить' }}
-                    </button>
-                  </div>
-                  <div class="format__dropdown">
-                    <button
-                      class="dropdown__button"
-                      data-testid="cars-view-format-dropdown"
-                      @click="toggleFormatDropdown"
-                    >
-                      <div class="button__content">
-                        <span class="button__text">{{ selectedFormatText }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
-                          class="button__arrow"
-                          :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-                        >
-                      </div>
-                    </button>
-                    <transition name="dropdown">
-                      <div
-                        v-if="isFormatDropdownOpen"
-                        class="dropdown__menu"
-                      >
-                        <div 
-                          v-for="format in availableFormats" 
-                          :key="format.format.id"
-                          class="dropdown__item" 
-                          @click="selectFormat(format)"
-                        >
-                          <span class="item__text">{{ format.format.name }}</span>
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
-                </div>
+            </transition>
+          </div>
+        </div>
                         
-                <div class="completion__fields">
-                  <div class="completion__number">
-                    <div class="completion__number-header">
-                      <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                    </div>
+        <div class="completion__fields">
+          <div class="completion__number">
+            <div class="completion__number-header">
+              <label class="input__label">Номер Т/C <span class="required">*</span></label>
+            </div>
                                 
-                    <!-- Динамический формат из базы данных -->
-                    <div
-                      v-if="selectedFormat"
-                      class="number__field"
+            <!-- Динамический формат из базы данных -->
+            <div
+              v-if="selectedFormat"
+              class="number__field"
+            >
+              <input 
+                v-for="(cell, index) in selectedFormat.cells" 
+                :key="index"
+                v-model="numberParts[index]" 
+                class="number__input"
+                :placeholder="getPlaceholder(cell)"
+                :maxlength="cell.max_length"
+                :style="{ width: getInputWidth(cell) }"
+                @input="validatePart(index, $event, cell)"
+                @blur="formatPart(index, cell)"
+              >
+            </div>
+            <div
+              v-else
+              class="no-format-message"
+            >
+              Выберите формат номера
+            </div>
+          </div>
+                            
+          <div class="completion__mark">
+            <div class="completion__mark-header">
+              <label class="input__label">Марка Т/С <span class="required">*</span></label>
+            </div>
+            <div class="mark__field">
+              <div class="mark__dropdown">
+                <button
+                  class="mark__dropdown-button"
+                  @click="toggleMarkDropdown"
+                >
+                  <div class="mark__button-content">
+                    <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                    <svg
+                      class="mark__button-arrow"
+                      :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                      viewBox="0 0 10 6"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
                     >
+                      <path
+                        d="M1 1L5 5L9 1"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </button>
+                <transition name="dropdown">
+                  <div
+                    v-if="isMarkDropdownOpen"
+                    class="mark__dropdown-menu"
+                  >
+                    <div class="mark__search">
                       <input 
-                        v-for="(cell, index) in selectedFormat.cells" 
-                        :key="index"
-                        v-model="numberParts[index]" 
-                        class="number__input"
-                        :placeholder="getPlaceholder(cell)"
-                        :maxlength="cell.max_length"
-                        :style="{ width: getInputWidth(cell) }"
-                        @input="validatePart(index, $event, cell)"
-                        @blur="formatPart(index, cell)"
+                        v-model="markSearch" 
+                        class="mark__search-input"
+                        placeholder="Поиск марки..."
+                        @input="filterMarks"
                       >
                     </div>
-                    <div
-                      v-else
-                      class="no-format-message"
-                    >
-                      Выберите формат номера
-                    </div>
-                  </div>
-                            
-                  <div class="completion__mark">
-                    <div class="completion__mark-header">
-                      <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                    </div>
-                    <div class="mark__field">
-                      <div class="mark__dropdown">
-                        <button
-                          class="mark__dropdown-button"
-                          @click="toggleMarkDropdown"
-                        >
-                          <div class="mark__button-content">
-                            <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                            <img
-                              src="@/assets/icons/arrow.png"
-                              class="mark__button-arrow"
-                              :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
-                            >
-                          </div>
-                        </button>
-                        <transition name="dropdown">
-                          <div
-                            v-if="isMarkDropdownOpen"
-                            class="mark__dropdown-menu"
-                          >
-                            <div class="mark__search">
-                              <input 
-                                v-model="markSearch" 
-                                class="mark__search-input"
-                                placeholder="Поиск марки..."
-                                @input="filterMarks"
-                              >
-                            </div>
-                            <div class="mark__dropdown-list">
-                              <div
-                                v-for="mark in filteredMarks"
-                                :key="mark.id"
-                                class="mark__dropdown-item"
-                                @click="selectMark(mark)"
-                              >
-                                <span class="mark__item-text">{{ mark.name }}</span>
-                              </div>
-                              <div
-                                v-if="!filteredMarks.length"
-                                class="mark__dropdown-empty"
-                              >
-                                Марки не найдены
-                              </div>
-                            </div>
-                          </div>
-                        </transition>
+                    <div class="mark__dropdown-list">
+                      <div
+                        v-for="mark in filteredMarks"
+                        :key="mark.id"
+                        class="mark__dropdown-item"
+                        @click="selectMark(mark)"
+                      >
+                        <span class="mark__item-text">{{ mark.name }}</span>
+                      </div>
+                      <div
+                        v-if="!filteredMarks.length"
+                        class="mark__dropdown-empty"
+                      >
+                        Марки не найдены
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <!-- Привязка -->
-                <div
-                  v-if="currentFilter !== 'all_system'"
-                  class="completion__binding"
-                >
-                  <label class="input__label">Привязка</label>
-                  <div class="binding-info">
-                    <p class="binding-note">
-                      <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
-                      Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
-                    </p>
-                  </div>
-                  <div class="binding-options">
-                    <label
-                      v-if="ownershipInfo && ownershipInfo.has_organization"
-                      class="binding-option"
-                    >
-                      <input
-                        v-model="bindToOrganization"
-                        type="checkbox"
-                        :disabled="bindToCompany"
-                      >
-                      <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
-                    </label>
-                    <label
-                      v-if="ownershipInfo && ownershipInfo.has_company"
-                      class="binding-option"
-                    >
-                      <input
-                        v-model="bindToCompany"
-                        type="checkbox"
-                        :disabled="bindToOrganization"
-                      >
-                      <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
-                    </label>
-                    <div class="user-binding">
-                      <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
-                    </div>
-                  </div>
-                </div>
+                </transition>
               </div>
             </div>
           </div>
         </div>
-      </Transition>
-    </Teleport>
+
+        <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
+             вместо переключателей «привязать к моей организации» показываем, за кем
+             запись закреплена. -->
+        <div
+          v-if="editingForeignRecord"
+          class="completion__binding"
+        >
+          <label class="input__label">Привязка</label>
+          <div class="binding-info">
+            <p
+              class="binding-note"
+              data-testid="cars-foreign-binding-note"
+            >
+              Запись закреплена за
+              <strong v-if="editingCar.user_name">пользователем «{{ editingCar.user_name }}»</strong>
+              <strong v-else>другим пользователем</strong>
+              <template v-if="editingCar.organization_name">
+                , организация «{{ editingCar.organization_name }}»
+              </template>
+              <template v-if="editingCar.company_name">
+                , компания «{{ editingCar.company_name }}»
+              </template>.
+              Правка данных привязку не меняет.
+            </p>
+          </div>
+        </div>
+
+        <!-- Привязка -->
+        <div
+          v-if="currentFilter !== 'all_system' && !editingForeignRecord"
+          class="completion__binding"
+        >
+          <label class="input__label">Привязка</label>
+          <div class="binding-info">
+            <p class="binding-note">
+              <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
+              Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
+            </p>
+          </div>
+          <div class="binding-options">
+            <label
+              v-if="ownershipInfo && ownershipInfo.has_organization"
+              class="binding-option"
+            >
+              <input
+                v-model="bindToOrganization"
+                type="checkbox"
+              >
+              <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
+            </label>
+            <label
+              v-if="ownershipInfo && ownershipInfo.has_company"
+              class="binding-option"
+            >
+              <input
+                v-model="bindToCompany"
+                type="checkbox"
+              >
+              <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
+            </label>
+            <div class="user-binding">
+              <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </BaseModal>
+    <RegistryLogModal
+      :show="showRegistryLog"
+      entity="cars"
+      @close="showRegistryLog = false"
+    />
+
     <ConfirmationModal
       :show="showDeleteCarModal"
       title="Подтверждение удаления"
@@ -617,45 +856,104 @@
 </template>
 
 <script>
+import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
+import { getViewportZoom } from '@/utils/viewportScale'
+import { getUniqueCarsPaginated } from '@/api/cars'
+import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
+import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
+import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
+import RegistryLogModal from '@/components/RegistryLogModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
-import { listVehicleBlacklist } from '@/api/blacklist';
+import BaseModal from '@/components/ui/BaseModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
+
+// Размер порции бесшовной подгрузки реестра машин (#1158, срез 2) - аналог
+// APPLICATIONS_PER_PAGE в ApplicationsCenter.
+const CARS_PER_PAGE = 30;
 
 export default {
     components: {
         SearchComponent,
+        FilterButton,
+        FilterSheet,
         RefreshButton,
+        RegistryLogModal,
         LoaderSpinner,
         StatusBadge,
         ConfirmationModal,
         VehicleDetailsModal,
-        ApplicationDetail
+        ApplicationDetail,
+        BaseModal,
+        AppIcon,
+    },
+    setup() {
+        // Бесшовная подгрузка реестра машин порциями (#1158, срез 2): composable
+        // инкапсулирует page/per_page/аккумуляцию/hasMore/seq-guard, тот же паттерн,
+        // что useInfiniteList в ApplicationsCenter. carsData - алиас infiniteList.items:
+        // pre-existing спека (CarsViewPermissionGating) пишет wrapper.vm.carsData
+        // напрямую, переименование сломало бы её без пользы.
+        const infiniteList = useInfiniteList({ perPage: CARS_PER_PAGE });
+        // Мобилка (<=768): табы области сворачиваются в кнопку «Фильтр» + FilterSheet
+        // (эпик mobile-filter-collapse, S3); десктоп-табы остаются инлайн.
+        const { isNarrow } = useNarrowScreen();
+        return {
+            isNarrow,
+            ...useApplicationDetailLink(),
+            carsData: infiniteList.items,
+            carsTotal: infiniteList.total,
+            carsPage: infiniteList.page,
+            hasMoreCars: infiniteList.hasMore,
+            // canLoadMoreCars/listError/retryCarsList (#1173) - устойчивость бесшовной
+            // подгрузки к ошибкам бэка (5xx/сеть): canLoadMore гейтит АВТОдогрузку
+            // (observer + loadAllRemaining), hasMoreCars по-прежнему гейтит видимость
+            // sentinel-контейнера (внутри него рисуется error+retry).
+            canLoadMoreCars: infiniteList.canLoadMore,
+            listLoading: infiniteList.loading,
+            listError: infiniteList.error,
+            loadCarsList: infiniteList.load,
+            loadMoreCarsList: infiniteList.loadMore,
+            retryCarsList: infiniteList.retry,
+            observeCarsSentinel: infiniteList.observeSentinel,
+            disconnectCarsSentinel: infiniteList.disconnectObserver,
+        };
     },
     data() {
         return {
             loading: true,
-            searchQuery: '',
+            // Из адреса: переход из сквозного поиска приносит запрос с собой,
+            // и список должен уйти на сервер сразу с ним.
+            searchQuery: readSearchFromRoute(this.$route),
             sortField: null,
             sortDirection: 'desc',
-            carsData: [],
-            blacklistKeys: new Set(),
+            // carsData/carsTotal/hasMoreCars/listLoading выставлены из useInfiniteList
+            // в setup() (#1158, срез 2).
             searchTimeout: null,
-            currentFilter: 'user',
+            // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
+            // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
+            fetchSeq: 0,
+            currentFilter: registryScopeForRoute(this.$route, (p) => usePermissionsStore().hasPermission(p)),
+            // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
+            showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
+            showRegistryLog: false,
             showDeleteCarModal: false,
             carToDelete: null,
             availableFormats: [],
             showDetailsViewModal: false,
             detailsCar: null,
-            showApplicationDetail: false,
-            selectedApplication: null,
             // Места разгрузки: список для имён + карта active_car_id -> [place ids]
             allUnloadingPlaces: [],
             carUnloadPlacesMap: {},
@@ -678,35 +976,52 @@ export default {
             bindToOrganization: false,
             bindToCompany: false,
             
-            // Уведомления
-            notification: {
-                show: false,
-                message: '',
-                type: 'success' // 'success' или 'error'
-            },
-            
             // Редактирование
             editingCar: null,
             originalCarData: null
         };
     },
     computed: {
-        filteredCars() {
-            if (!this.searchQuery.trim()) {
-                return this.carsData;
-            }
-            
-            const query = this.searchQuery.toLowerCase().trim();
-            return this.carsData.filter(car => 
-                car.number.toLowerCase().includes(query) ||
-                car.mark.toLowerCase().includes(query) ||
-                (car.format_name && car.format_name.toLowerCase().includes(query)) ||
-                (car.status ? 'активна' : 'неактивна').includes(query)
-            );
+        // Вкладка «Автомобили организации» (раздел реестра по организации).
+        canSeeOrganization() {
+            return usePermissionsStore().hasPermission('section.registry.organization');
         },
-
+        // Вкладка «Автомобили компании» (раздел реестра по компании).
+        canSeeCompany() {
+            return usePermissionsStore().hasPermission('section.registry.company');
+        },
+        // Вкладка «Все машины системы» (all_system) - по разделу каталога;
+        // супер/админ проходят, обычный юзер без гранта не видит. Бэк дополнительно
+        // отдаёт 403 на all_system без прав.
+        canSeeAllSystem() {
+            return usePermissionsStore().hasPermission('section.registry.all_system');
+        },
+        // Право изменять реестр авто (кнопки «Добавить»/«Редактировать»). Базовая
+        // роль выдаёт его по умолчанию; админ может отозвать ролью.
+        canWriteCars() {
+            return usePermissionsStore().hasPermission('entity.cars.write');
+        },
+        // Право удалять из реестра авто (кнопка «Удалить»). Базовая роль выдаёт
+        // по умолчанию; админ может отозвать ролью, не затрагивая изменение.
+        canDeleteCars() {
+            return usePermissionsStore().hasPermission('entity.cars.delete');
+        },
+        // Администратор системы: правит и удаляет запись независимо от привязки.
+        // Признак приходит из ownership-info - того же ответа, которым решает бэкенд,
+        // иначе кнопка появилась бы там, где сервер отвечает 403.
+        canManageAllEntities() {
+            return this.ownershipInfo?.can_manage_all === true;
+        },
+        // Правим запись, которая не относится ни к нам, ни к нашей организации или
+        // компании: так бывает только у администратора. Форма в этом режиме не
+        // предлагает переключатели привязки - они говорят про МОЮ организацию.
+        editingForeignRecord() {
+            return !!this.editingCar && !this.carBelongsToUser(this.editingCar);
+        },
+        // Поиск по тексту выполняется на бэке через search_query (#1158, срез 2) -
+        // здесь не дублируем, carsData уже отфильтрован сервером.
         sortedCars() {
-            const cars = [...this.filteredCars];
+            const cars = [...this.carsData];
             
             if (!this.sortField) {
                 return cars;
@@ -769,6 +1084,29 @@ export default {
             return !!this.searchQuery.trim();
         },
 
+        // Область отличается от дефолтной («Мои машины») - точка-индикатор на кнопке
+        // «Фильтр» и доступность «Сбросить» в мобильном bottom-sheet (S3). Поиск сюда
+        // не входит: он остаётся снаружи sheet (в шапке), как в S1/S2.
+        scopeFilterActive() {
+            return this.currentFilter !== 'user';
+        },
+
+        // Сортировка по колонкам - клиентская и должна идти по ВСЕМУ набору (как на
+        // dev до пагинации), а не по одной загруженной порции: при активной сортировке
+        // догружаем остаток (см. loadAllRemainingCars, #1158). Других клиентских
+        // фильтров не осталось (поиск и filter_type - серверные), поэтому unlike
+        // ApplicationsCenter здесь isFullLoad зависит только от sortField.
+        isFullLoad() {
+            return !!this.sortField;
+        },
+
+        // Футер "Показано X из Y": клиентских фильтров, урезающих carsData, не
+        // осталось (сортировка не убирает строки), поэтому shown всегда равен total
+        // загруженных, а "из carsTotal" - серверному счётчику всех совпадений.
+        footerText() {
+            return `Показано ${this.sortedCars.length} из ${this.carsTotal}`;
+        },
+
         selectedFormatText() {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
         },
@@ -798,34 +1136,28 @@ export default {
         }
     },
     watch: {
-        searchQuery() {
+        // Пользователь уже на странице: mounted не перевызовется, а адрес сменился.
+        '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
+        // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
+        // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
+        // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
+        searchQuery(val) {
+            writeSearchToRoute(this.$router, this.$route, val);
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
-                this.$forceUpdate();
-            }, 50);
-        },
-        
-        bindToOrganization(newVal) {
-            if (newVal) {
-                this.bindToCompany = false;
-            }
-        },
-        
-        bindToCompany(newVal) {
-            if (newVal) {
-                this.bindToOrganization = false;
-            }
+                this.fetchCars({ withPlaces: false });
+            }, 300);
         }
     },
     async mounted() {
         await Promise.all([
             this.fetchOwnershipInfo(),
             this.fetchFormats(),
-            this.loadMarks(),
-            this.loadBlacklist()
+            this.loadMarks()
         ]);
         // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
+        this.openFromSearchLink();
         
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
@@ -848,6 +1180,10 @@ export default {
         }
     },
     beforeUnmount() {
+        this.disconnectCarsSentinel();
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
         window.removeEventListener('resize', this._applyHeight);
         if (this._headerObs) {
             this._headerObs.disconnect();
@@ -855,6 +1191,11 @@ export default {
         }
     },
     methods: {
+        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
+        openFromSearchLink() {
+            openItemFromRoute({ router: this.$router, route: this.$route, items: this.carsData, open: this.openCarDetails });
+        },
+
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
          * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем.
@@ -867,8 +1208,11 @@ export default {
                 this._lastHeight = -1;
                 return;
             }
+            // rect.top под корневым zoom - device-px, innerHeight - НЕзумленный;
+            // делим на zoom, чтобы высота была в layout-px (иначе на мониторах >1440
+            // контейнер выходит в zoom раз ниже экрана). См. AdminPageShell/AccountComponent.
             const top = el.getBoundingClientRect().top;
-            const height = Math.max(0, Math.round(window.innerHeight - top));
+            const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom()));
             if (height === this._lastHeight) return;
             this._lastHeight = height;
             el.style.height = `${height}px`;
@@ -894,6 +1238,9 @@ export default {
                 entry_time_from: car.active_entry_time_from,
                 entry_time_to: car.active_entry_time_to,
                 isActive: car.status,
+                // Логин владельца сервер отдаёт только администратору, поэтому карточка
+                // рисует строку по факту наличия значения, а не по своей проверке роли.
+                user_name: car.user_name || null,
             };
             this.showDetailsViewModal = true;
         },
@@ -901,24 +1248,26 @@ export default {
             this.showDetailsViewModal = false;
             this.detailsCar = null;
         },
-        handleOpenApplication(applicationId) {
-            if (!applicationId) return;
-            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
-            this.selectedApplication = { id: applicationId };
-            this.showApplicationDetail = true;
-        },
-        closeApplicationDetail() {
-            this.showApplicationDetail = false;
-            this.selectedApplication = null;
-        },
+
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.
          * Логика совпадает с backend canEditCar (unique_car_service.go):
-         * автор, или организация совпадает, или компания совпадает.
-         * filter=all_system - read-only по согласованию (PR #198).
+         * администратор системы правит любую запись, остальные - свою, своей
+         * организации или своей компании. До этого вкладка «Все в системе» была
+         * read-only для всех (PR #198); бюро обязано чинить записи контрагентов.
          */
         canEditCar(car) {
+            if (this.canManageAllEntities) return true;
             if (this.currentFilter === 'all_system') return false;
+            return this.carBelongsToUser(car);
+        },
+        /**
+         * Машина «своя»: автор записи, её организация или компания совпадает с
+         * текущим пользователем. Вынесено из canEditCar, потому что администратору
+         * право даёт не принадлежность, а роль - а форме правки нужно знать именно
+         * принадлежность, чтобы не переписать чужую привязку своей.
+         */
+        carBelongsToUser(car) {
             if (!this.ownershipInfo) return false;
             if (car.user_id != null && car.user_id === this.ownershipInfo.user_id) return true;
             if (car.organization_id != null && this.ownershipInfo.organization_id != null
@@ -927,54 +1276,109 @@ export default {
                 && car.company_id === this.ownershipInfo.company_id) return true;
             return false;
         },
+        showEditCar(car) {
+            return this.canEditCar(car) && this.canWriteCars;
+        },
+        showDeleteCar(car) {
+            return this.canEditCar(car) && this.canDeleteCars;
+        },
         canEditTooltip(car) {
-            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
-            if (this.canEditCar(car)) return '';
-            return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
-        },
-
-        async loadBlacklist() {
-            try {
-                const items = await listVehicleBlacklist();
-                const list = Array.isArray(items) ? items : [];
-                this.blacklistKeys = new Set(list.map((e) => this.blacklistKey(e.car_number, e.mark_name)));
-            } catch (error) {
-                console.error('Не удалось загрузить чёрный список машин:', error);
-                this.blacklistKeys = new Set();
-            }
-        },
-
-        // Ключ зеркалит серверный CheckByName: LOWER(TRIM) номера и марки. И mark_name в ЧС,
-        // и mark в реестре - снапшоты имени марки; при переименовании марки между событиями
-        // они могут разойтись (edge case, дизайн унаследован от каскада ЧС).
-        blacklistKey(number, mark) {
-            return `${(number || '').trim().toLowerCase()}|${(mark || '').trim().toLowerCase()}`;
+            if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
+            if (!this.canEditCar(car)) return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
+            return 'Недостаточно прав для изменения или удаления';
         },
 
         isCarBlacklisted(car) {
-            return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark));
+            return car.is_blacklisted === true;
         },
 
-        async fetchCars() {
+        /**
+         * @param {{withPlaces?: boolean}} [opts] withPlaces=false пропускает две
+         *   тяжёлые полные выборки мест разгрузки (/unload-places + /cars/unload-places),
+         *   которые не зависят от search_query - при поиске (дебаунс на каждый ввод) их
+         *   дёргать не нужно. Дефолт true (mount/смена filter_type/refresh/удаление/
+         *   application-changed) - там active_car_id и набор мест могли измениться.
+         *   Событийные вызовы из шаблона (@refresh/@application-changed) передают event
+         *   первым аргументом, а не { withPlaces: false } -> `!== false` даёт true, места
+         *   грузятся. seq-токен защищает от продолжения устаревшего прохода (#632).
+         */
+        async fetchCars(opts = {}) {
+            const withPlaces = opts.withPlaces !== false;
+            const seq = ++this.fetchSeq;
             this.loading = true;
             try {
-                const response = await apiRequest(`/unique-cars?filter_type=${this.currentFilter}`, {
-                    method: "GET"});
+                await this.loadCarsList(this.buildCarsPage, { reset: true });
+                if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
 
-                if (response.ok) {
-                    this.carsData = await response.json();
-                    // Места разгрузки тоже перезагружаем: при смене активной заявки у машины
-                    // меняется active_car_id и набор мест, иначе карта устаревает после рефреша.
+                // Клиентская сортировка требует ВЕСЬ набор (как на dev до пагинации):
+                // догружаем оставшиеся порции, чтобы сортировка шла по полному списку (#1158).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingCars(seq);
+                    if (seq !== this.fetchSeq) return;
+                }
+
+                // Места разгрузки: при смене активной заявки у машины меняется
+                // active_car_id и набор мест, иначе карта устаревает после рефреша.
+                // При поиске (withPlaces=false) не трогаем - от search_query не зависят.
+                if (withPlaces) {
                     await Promise.all([this.fetchUnloadingPlaces(), this.fetchCarUnloadPlaces()]);
-                } else {
-                    console.error("Ошибка при загрузке машин");
-                    this.carsData = [];
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
-                this.carsData = [];
             } finally {
-                this.loading = false;
+                if (seq === this.fetchSeq) this.loading = false;
+            }
+        },
+
+        // Догрузка всех оставшихся порций (full-load режим: активная клиентская
+        // сортировка, #1158). seq-guard прерывает устаревший проход, если пользователь
+        // сменил фильтр/поиск и стартовал новый fetchCars; guard - от бесконечного
+        // цикла, если total/hasMore разъедутся.
+        async loadAllRemainingCars(seq) {
+            let guard = 0;
+            // canLoadMoreCars (не hasMoreCars, #1173): при ошибке бэка на промежуточной
+            // странице circuit-breaker останавливает цикл сразу, не дожидаясь guard>200.
+            while (this.canLoadMoreCars && seq === this.fetchSeq) {
+                await this.loadMoreCarsList(this.buildCarsPage);
+                if (++guard > 200) break;
+            }
+        },
+
+        /**
+         * fetchPage для useInfiniteList (#1158): строит параметры текущего
+         * фильтра/поиска плюс page/per_page - бэк переключается на GetAllPaginated,
+         * как только видит per_page (internal/handlers/unique_cars.go).
+         */
+        async buildCarsPage(page, perPage) {
+            const params = { filter_type: this.currentFilter, page, per_page: perPage };
+            if (this.searchQuery.trim()) {
+                params.search_query = this.searchQuery.trim();
+            }
+            const { items, meta } = await getUniqueCarsPaginated(params);
+            return { items, total: (meta && meta.total) || 0 };
+        },
+
+        // Автодогрузка следующей порции по пересечению sentinel с cars-body (#1158).
+        // root - сам .cars-body: у него свой overflow-y:auto, не документ, дефолтный
+        // root (viewport) пересечение бы не заметил. el=null (v-if="hasMoreCars"===false)
+        // просто отключает observer.
+        setCarsSentinelRef(el) {
+            this.observeCarsSentinel(el, this.buildCarsPage, { root: this.$refs.carsBody || null });
+        },
+
+        // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
+        // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
+        async retryCars() {
+            try {
+                await this.retryCarsList();
+                // full-load (клиентская сортировка): retry вернул только упавшую
+                // страницу, но сортировка идёт по ВСЕМУ набору - дозагружаем остаток,
+                // иначе результат по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingCars(this.fetchSeq);
+                }
+            } catch (error) {
+                console.error("Ошибка сети при повторной попытке загрузки машин:", error);
             }
         },
 
@@ -1060,13 +1464,18 @@ export default {
 
                 if (response.ok) {
                     await this.fetchCars();
-                    this.showNotification('Автомобиль успешно удален!', 'success');
+                    const num = car.number || '';
+                    useDeletionsStore().notify({
+                        prefix: 'Автомобиль ',
+                        bold: num,
+                        suffix: ' удалён',
+                    });
                 } else {
-                    alert("Ошибка при удалении автомобиля");
+                    useDeletionsStore().notify({ prefix: 'Ошибка при удалении автомобиля', type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при удалении автомобиля:", error);
-                alert("Ошибка при удалении автомобиля");
+                useDeletionsStore().notify({ prefix: 'Ошибка при удалении автомобиля', type: 'error' });
             }
         },
 
@@ -1109,7 +1518,6 @@ export default {
             this.bindToCompany = !!car.company_id;
             
             this.showModal = true;
-            this.hideNotification();
         },
 
         // Проверка наличия изменений
@@ -1134,6 +1542,13 @@ export default {
                 return true;
             }
 
+            // У чужой записи привязку форма не показывает и не отправляет, поэтому и
+            // сравнивать нечего: иначе организация администратора не совпала бы с
+            // организацией записи, и «изменения» находились бы всегда.
+            if (this.editingForeignRecord) {
+                return false;
+            }
+
             // Проверяем изменения в привязке к организации
             const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
             if (currentOrgId !== this.originalCarData.organization_id) {
@@ -1156,11 +1571,30 @@ export default {
                 this.sortField = field;
                 this.sortDirection = 'desc';
             }
+            // Сортировка клиентская - должна идти по всему набору. Если ещё не всё
+            // загружено, догружаем остаток (тот же паттерн, что в Центре заявок, #1158).
+            if (this.isFullLoad && this.hasMoreCars) {
+                this.fetchCars();
+            }
         },
 
         switchFilter(filterType) {
             this.currentFilter = filterType;
             this.fetchCars();
+        },
+
+        // Мобильный bottom-sheet: выбор области применяется и закрывает лист (одиночный
+        // выбор, как пикер), поиск остаётся снаружи (S3 эпика mobile-filter-collapse).
+        switchScopeFromSheet(filterType) {
+            this.switchFilter(filterType);
+            this.showScopeSheet = false;
+        },
+
+        // «Сбросить фильтры» в sheet - вернуть дефолтную область «Мои машины» и закрыть
+        // лист. Кнопка активна только при scopeFilterActive, лишнего fetch на дефолте нет.
+        resetScopeFilter() {
+            this.switchFilter('user');
+            this.showScopeSheet = false;
         },
 
         showAddCarModal() {
@@ -1171,7 +1605,6 @@ export default {
             this.editingCar = null;
             this.showModal = true;
             this.filteredMarks = this.marks;
-            this.hideNotification();
             this.resetNewCar();
         },
 
@@ -1179,7 +1612,6 @@ export default {
             this.showModal = false;
             this.editingCar = null;
             this.resetNewCar();
-            this.hideNotification();
         },
 
         resetNewCar() {
@@ -1205,24 +1637,6 @@ export default {
                 this.bindToCompany = false;
             }
             // При редактировании поля НЕ очищаются - остаются текущие значения машины
-        },
-
-        // Уведомления
-        showNotification(message, type = 'success') {
-            this.notification = {
-                show: true,
-                message: message,
-                type: type
-            };
-            
-            // Автоматически скрываем уведомление через 3 секунды
-            setTimeout(() => {
-                this.hideNotification();
-            }, 3000);
-        },
-
-        hideNotification() {
-            this.notification.show = false;
         },
 
         // Формат номера методы
@@ -1396,13 +1810,13 @@ export default {
 
         async saveCar() {
             if (!this.canSaveCar) {
-                this.showNotification('Заполните все обязательные поля правильно', 'error');
+                useDeletionsStore().notify({ bold: 'Заполните обязательные поля', type: 'error' });
                 return;
             }
 
             // Проверяем изменения для редактирования
             if (this.editingCar && !this.hasChanges()) {
-                this.showNotification('Изменений не обнаружено', 'info');
+                useDeletionsStore().notify({ bold: 'Изменений не обнаружено', type: 'info' });
                 return;
             }
 
@@ -1414,11 +1828,20 @@ export default {
                 const carData = {
                     number: number,
                     mark: this.selectedMark,
-                    format_id: this.selectedFormat.format.id,
-                    user_id: this.ownershipInfo.user_id,
-                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
+                    format_id: this.selectedFormat.format.id
                 };
+                if (this.editingForeignRecord) {
+                    // Администратор правит машину чужой организации: привязку переносим
+                    // как есть. Прежние поля брались из ownership-info правящего, то есть
+                    // машина контрагента переехала бы к бюро вместе с исправлением марки.
+                    // user_id не отправляем вовсе - сервер сохранит прежнего владельца.
+                    carData.organization_id = this.editingCar.organization_id ?? null;
+                    carData.company_id = this.editingCar.company_id ?? null;
+                } else {
+                    carData.user_id = this.ownershipInfo.user_id;
+                    carData.organization_id = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+                    carData.company_id = this.bindToCompany ? this.ownershipInfo.company_id : null;
+                }
 
                 let response;
                 if (this.editingCar) {
@@ -1436,8 +1859,8 @@ export default {
                 }
 
                 if (response.ok) {
-                    const action = this.editingCar ? 'обновлен' : 'добавлен';
-                    this.showNotification(`Автомобиль успешно ${action}!`, 'success');
+                    const action = this.editingCar ? 'обновлён' : 'добавлен';
+                    useDeletionsStore().notify({ prefix: 'Автомобиль ', bold: action, type: 'success' });
                     
                     // Обновляем список машин
                     this.fetchCars();
@@ -1457,18 +1880,15 @@ export default {
                     }
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть - см. EmployeeEditModal (#2021):
+                    // он различает, где именно нашлась машина, а подмена отправляла
+                    // человека искать её в свой список, где её нет.
                     const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
-                    
-                    // Специальные сообщения для дубликатов
-                    if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
-                        this.showNotification("Автомобиль уже привязан к вашему аккаунту", 'error');
-                    } else {
-                        this.showNotification(errorMessage, 'error');
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при сохранении автомобиля:", error);
-                this.showNotification("Ошибка при сохранении автомобиля", 'error');
+                useDeletionsStore().notify({ prefix: 'Не удалось сохранить ', bold: 'автомобиль', type: 'error' });
             }
         }
     }
@@ -1495,7 +1915,9 @@ export default {
 }
 
 .carsview__help {
-    border: 1px solid #e6e6e6;
+    /* Карточка-подсказка лежит на фоне страницы и несёт его же цвет без этой строки. */
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 16px 20px;
 }
@@ -1516,14 +1938,14 @@ export default {
 
 .carsview__subtitle {
     font-size: 13px;
-    color: var(--color-text-muted, #6b7280);
+    color: var(--color-text-muted, var(--text-muted));
     margin: 0;
 }
 
 .carsview__filters {
     padding-bottom: 15px;
     width: 100%;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .filters-container {
@@ -1539,8 +1961,8 @@ export default {
 
 .filter-tab {
     padding: 0px 16px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: 50px;
     cursor: pointer;
     font-size: 14px;
@@ -1549,35 +1971,34 @@ export default {
 }
 
 .filter-tab:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .filter-tab--active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 /* Стили для таблицы */
 .cars-card {
-    background-color: #fff;
+    background-color: var(--surface);
     border-radius: 30px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     overflow: hidden;
     width: 75%;
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
 .card-header {
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1598,9 +2019,29 @@ export default {
     align-items: center;
 }
 
+/* Кнопка журнала стоит в шапке между «Добавить» и «Обновить», поэтому повторяет их
+   мерки: высота 25px, радиус 50px, текст 12px. Общий .lk-button здесь выбивался из
+   ряда - он крупнее и с другим радиусом. */
+.log-button {
+    height: 25px;
+    padding: 0 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.log-button:hover {
+    background: var(--surface-2);
+}
+
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 6px 12px;
@@ -1610,24 +2051,24 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
 
 .card-title {
     margin: 0;
-    color: #000;
+    color: var(--text);
     font-weight: 600;
     font-size: 1.0em;
 }
 
 .highlight-text {
-    color: #000;
+    color: var(--text);
 }
 
 .card-content {
@@ -1649,7 +2090,7 @@ export default {
 /* cars-header повторяет геометрию cars-body (padding-right + margin-right 4px),
    чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .cars-header {
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     padding-right: 4px;
     margin-right: 4px;
@@ -1665,7 +2106,7 @@ export default {
 
 .header-col {
     font-weight: 500;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: left;
     padding: 0 8px;
     font-size: 14px;
@@ -1678,21 +2119,22 @@ export default {
 }
 
 .header-col:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-    filter: brightness(0);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: brightness(0);
+    color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1700,7 +2142,7 @@ export default {
 }
 
 .active-sort {
-    color: #333 !important;
+    color: var(--text) !important;
     font-weight: 500 !important;
 }
 
@@ -1766,7 +2208,7 @@ export default {
 }
 
 .car-item:hover {
-    background-color: #fafafa;
+    background-color: var(--surface-2);
 }
 
 .car-row {
@@ -1774,7 +2216,7 @@ export default {
     width: 100%;
     padding: 10px 16px;
     align-items: center;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
 }
 
@@ -1808,7 +2250,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 3px;
     border: 1px solid transparent;
     background-clip: content-box;
@@ -1816,7 +2258,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb:hover {
-    background: #C5D1FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border: 1px solid transparent;
     background-clip: content-box;
     transform: scale(1.1);
@@ -1824,7 +2266,7 @@ export default {
 
 .cars-body {
     scrollbar-width: thin;
-    scrollbar-color: #D9E2FF transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
     scroll-behavior: smooth;
     overscroll-behavior: contain;
 }
@@ -1844,14 +2286,15 @@ export default {
 }
 
 .edit-btn:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .delete-btn:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .edit-icon, .delete-icon {
+    color: var(--text);
     width: 16px;
     height: 16px;
     opacity: 0.7;
@@ -1863,15 +2306,30 @@ export default {
     opacity: 1;
 }
 
+/* Подпись кнопки действия. На десктопе кнопка остаётся иконкой, поэтому подпись прячем
+   clip-приёмом, а не display: none - она служит доступным именем кнопки (у иконки alt
+   пустой, она декоративная). На мобилке подпись показывается вместо иконки. */
+.action-btn__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .read-only-text {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-style: italic;
 }
 
 .no-data-message {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     margin: 0;
     font-size: 14px;
@@ -1890,9 +2348,61 @@ export default {
     min-height: 0;
 }
 
+/* Бесшовная подгрузка (#1158): sentinel внизу .cars-body, футер под таблицей. */
+.scroll-sentinel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 10px 0;
+}
+
+/* Устойчивость к ошибкам бэка (#1173): первичная загрузка упала - список пуст,
+   вместо "Автомобилей нет" показываем причину + retry. */
+.list-error-state {
+    text-align: center;
+    color: var(--danger-text);
+    padding: 40px 20px;
+    margin: 0;
+    font-size: 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.list-error-state p {
+    margin: 0;
+}
+
+/* Кнопка повтора - единственное действие на пустом экране, поэтому добираем ей норму
+   тач-таргета здесь, а не общим правилом пилюли (то раздувает кнопки всей системы). */
+.list-error-state .lk-button {
+    min-height: 36px;
+}
+
+/* Ошибка догрузки следующей порции (#1173) - компактный вариант рядом с sentinel. */
+.sentinel-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--danger-text);
+    font-size: 13px;
+}
+
+.table-footer {
+    flex-shrink: 0;
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
 .loading-message {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     font-size: 14px;
     flex-grow: 1;
@@ -1907,150 +2417,23 @@ export default {
     line-height: 150%; font-size: 14px;
 }
 
-/* Модальное окно */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(0.1px);
-    -webkit-backdrop-filter: blur(0.1px);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active {
-    transition: opacity 0.18s ease;
-}
-.modal-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-    opacity: 0;
-}
-.modal-fade-enter-active .modal-content {
-    animation: modal-scale-in 0.18s ease;
-}
-@keyframes modal-scale-in {
-    from { transform: scale(0.96); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-.modal-content {
-    background: white;
-    border-radius: 20px;
-    padding: 0;
-    width: 500px;
-    max-width: 90vw;
-    max-height: 90vh;
-    overflow: hidden;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 20px;
-    border-bottom: 1px solid #e6e6e6;
-}
-
-.modal-header__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 1;
-    height: 25px;
-}
-
-.modal-header h3 {
-    margin: 0;
-    color: #333;
-    font-size: 18px;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #a2a2a2;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 10px;
-}
-
-.modal-close:hover {
-    color: #333;
-}
-
-.modal-body {
-    padding: 20px;
-    max-height: 70vh;
-    overflow-y: auto;
-}
-
-/* Бейдж уведомления */
-.notification-badge {
-    padding: 6px 12px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-block;
-    max-width: fit-content;
-    animation: slideIn 0.3s ease-out;
-}
-
-.notification-badge.success {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-
-.notification-badge.info {
-    background-color: #fffbeb;
-    color: #b45309;
-    border: 1px solid #fcd34d;
-}
-
-.notification-badge.error {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Стили формы добавления машины */
+/* Модальное окно добавления машины теперь на BaseModal (шапка/крестик/overlay/
+   Escape/bottom-sheet - его контракт). base-modal__body у BaseModal идёт БЕЗ padding
+   (отступы несёт содержимое) - без них поля упирались в края окна и на телефоне
+   читались еле-еле ("отступов нет по бокам"). Значение - как у соседних окон на
+   BaseModal (ChangePasswordModal/AttachmentMappingCopyModal): 20px по бокам вровень
+   с заголовком шапки. */
 .data__completion {
-    padding: 0;
+    padding: 14px 20px 18px;
 }
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .completion__format {
@@ -2069,7 +2452,7 @@ export default {
 
 .format__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .format__dropdown {
@@ -2079,8 +2462,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -2089,7 +2472,7 @@ export default {
 }
 
 .dropdown__button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .button__content {
@@ -2102,19 +2485,20 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
 }
 
 .button__arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .button__arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .dropdown__menu {
@@ -2122,11 +2506,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -2142,7 +2526,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -2155,7 +2539,7 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
 }
 
 .completion__fields {
@@ -2183,18 +2567,18 @@ export default {
     min-width: 100%;
     height: 40px;
     display: flex;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     overflow: hidden;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .no-format-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 10px;
-    background: #f8f8f8;
+    background: var(--surface-2);
     border-radius: 10px;
 }
 
@@ -2210,7 +2594,7 @@ export default {
 }
 
 .number__input:not(:last-child) {
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .number__input:first-child {
@@ -2222,12 +2606,12 @@ export default {
 }
 
 .number__input::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
 .number__input:focus {
-    background-color: #f8f8f8;
+    background-color: var(--surface-2);
 }
 
 /* Mark dropdown styles */
@@ -2245,8 +2629,8 @@ export default {
 .mark__dropdown-button {
     width: 100%;
     height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
@@ -2255,12 +2639,13 @@ export default {
 }
 
 .mark__dropdown-button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .mark__button-content {
     display: flex;
     align-items: center;
+    gap: 10px;
     width: 100%;
     height: 100%;
     justify-content: space-between;
@@ -2268,18 +2653,25 @@ export default {
 
 .mark__button-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
+    /* Без нулевого минимума флекс-элемент не сжимается ниже своего текста,
+       и длинная марка лезет под стрелку вместо многоточия. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mark__button-arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .mark__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .mark__dropdown-menu {
@@ -2287,11 +2679,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 220px;
     overflow: hidden;
@@ -2299,12 +2691,12 @@ export default {
 
 .mark__search {
     padding: 10px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .mark__search-input {
     width: 100%;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 5px 10px;
     outline: none;
@@ -2320,11 +2712,11 @@ export default {
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
 }
 
 .mark__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .mark__dropdown-item:last-child {
@@ -2333,7 +2725,7 @@ export default {
 
 .mark__item-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
 }
 
 /* Анимации для dropdown */
@@ -2352,7 +2744,7 @@ export default {
 .completion__binding {
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .binding-info {
@@ -2362,7 +2754,7 @@ export default {
 
 .binding-note {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     line-height: 1.4;
     margin: 0 0 10px 0;
 }
@@ -2396,12 +2788,12 @@ export default {
 
 .user-binding-text {
     font-size: 10px;
-    color: #000;
+    color: var(--text);
     font-weight: 400;
 }
 
 .red {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 @media (max-width: 768px) {
@@ -2410,70 +2802,111 @@ export default {
         height: auto;
     }
 
-    /* Синхронный horizontal scroll: scroll на .card-content */
-    .card-content {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
-    }
+    /* Таблица машин -> карточки через rt-* (responsive-tables.css, брейкпоинт 767.98).
+       Прежний горизонтальный скролл 800px убран: строки собираются в карточки,
+       заголовок таблицы скрыт (rt-head-row). Зазор между карточками - ниже, в
+       блоке 767.98 (сиблинг .rt-row+.rt-row не сработает: rt-row на .car-row,
+       вложенном в .car-item - v-for-обёртку). */
 
-    .cars-header,
-    .cars-body {
-        overflow: visible !important;
-        min-width: 800px;
-    }
-
-    .header-row,
-    .car-row {
-        flex-wrap: nowrap !important;
-        min-width: 800px;
-    }
-
-    .header-col,
-    .car-col {
-        width: auto !important;
-        min-width: 100px !important;
-        flex: 1 1 auto !important;
-        margin-bottom: 0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    /* filter-tabs не помещаются в 1 строку - горизонтальный scroll */
-    .filters-container {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-
-    .filter-tabs {
-        overflow-x: auto;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .filter-tabs::-webkit-scrollbar {
+    /* Заголовок страницы с подзаголовком на мобилке не показываем: то же название
+       («Мои автомобили») несёт шапка списка, а поясняющий абзац дублирует блок
+       подсказки под таблицей. Освобождённые ~60px уходят под сами карточки. */
+    .carsview__header {
         display: none;
     }
 
-    .filter-tab {
-        white-space: nowrap;
+    /* Поиск и «Фильтр» - отдельная полоса 36px под шапкой списка. Разметка гейтится
+       isNarrow (768), поэтому и правила стоят здесь, а не в блоке 767.98: иначе ровно
+       на 768.0 полоса отрендерилась бы без своих стилей.
+
+       Боковой отступ - 8px, столько же, сколько у .cars-body: рамка поиска встаёт ровно
+       над рамкой первой карточки. Прежние 12px давали третий уступ между шапкой и
+       списком. */
+    .carsview__toolbar {
+        display: flex;
         flex-shrink: 0;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-bottom: 1px solid var(--border);
     }
 
-    .card-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        height: auto;
-        padding: 16px;
+    .carsview__toolbar :deep(.search) {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        height: 36px;
     }
-    
-    .card-header__settings {
-        width: 100%;
-        justify-content: flex-end;
+
+    /* Счётчик записей рядом с заголовком экрана. */
+    .card-header__count {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 7px;
+        border-radius: var(--radius-pill);
+        background: var(--accent-tint);
+        color: var(--accent-text);
+        font-size: 12px;
+        font-weight: 700;
     }
-    
+
+    /* Панель главного действия у нижнего края. fixed, а не sticky: панель обязана
+       держаться у нижней кромки видимой области независимо от прокрутки, поэтому
+       нижний отступ страницы резервирует её высоту (8 + 44 + 12 = 64px), иначе
+       последняя карточка уезжает под панель. */
+    .carsview__action-bar {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 90;
+        display: flex;
+        gap: 8px;
+        padding: 8px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+    }
+
+    /* Шапка списка и модалка машины делят класс .add-button, поэтому широкий вариант -
+       отдельный модификатор, а не правило по контексту: в модалке кнопка сохранения
+       остаётся своей ширины. */
+    .add-button--wide {
+        flex: 1;
+        height: 44px;
+        padding: 0 16px;
+        border-radius: var(--radius-pill);
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
+       (десктоп-табы скрыты v-if="!isNarrow"). Правила через data-v достают до
+       телепортнутого контента sheet: каждый таб на всю ширину строкой - единый ровный
+       вид на любой ширине телефона (тексты табов разной длины). */
+    .filter-tabs {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .filter-tab {
+        flex: 1 1 100%;
+        white-space: nowrap;
+        text-align: center;
+    }
+
+    /* Отступы страницы по токену --gutter (12px на <=768, 10px на <=480). Хардкод
+       20px съедал 40px ширины: на 320px шапка карточки не помещалась в строку в
+       принципе, из-за чего кнопки и уезжали во вторую. Сама шапка - ниже, в блоке
+       767.98 (переключается вместе с телом таблицы). */
+    .carsview {
+        padding: var(--gutter);
+        padding-bottom: calc(64px + var(--gutter) + env(safe-area-inset-bottom, 0px));
+    }
+
     .cars-card {
         width: 100%;
         flex: none;
@@ -2490,20 +2923,349 @@ export default {
     .completion__fields {
         flex-direction: column;
     }
-    
-    .modal-content {
-        width: 95vw;
-        margin: 10px;
-    }
-    
+
     .format-actions {
         flex-direction: column;
         width: 100%;
     }
     
-    .add-button,
-    .add-button-secondary {
-        width: 100%;
+    /* Кнопка сохранения в модалке машины - по содержимому, а не на всю ширину
+       (третий круг замечаний владельца, #1097 w9): прежний width:100% растягивал
+       «Добавить»/«Сохранить» в «сосиску» на всю строку шапки, из-за чего подпись
+       «Формат номеров» слева не помещалась и переносилась на вторую строку.
+       .format__header остаётся flex + justify-content:space-between - кнопка
+       по содержимому справа, подпись слева на одной строке. */
+
+    /* Подписи чекбоксов привязки («Привязать к организации/компании») на телефоне
+       было еле видно - +2px к шрифту и увеличенный чекбокс (12px -> 18px, тот же приём,
+       что у выбора машин/сотрудников в ExistingCarsModal/ExistingEmployeesModal: видимый
+       квадрат остаётся некрупным, а тач-таргет строки дотягивает до нормы проекта 36px
+       через min-height, а не раздутый чекбокс). */
+    .binding-option {
+        min-height: 36px;
+        font-size: 14px;
+    }
+
+    .binding-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .user-binding-text {
+        font-size: 12px;
+    }
+}
+
+/* Шапка блока и карточки машин на мобилке. Порог 767.98 - тот же, на котором таблица
+   превращается в карточки (responsive-tables.css) и на котором RefreshButton сворачивается
+   в иконку: шапка и тело переключаются вместе, гибрида на 768.0 нет. Зазор между карточками
+   отдельным правилом (а не через .rt-row+.rt-row): rt-row навешен на .car-row, вложенный в
+   .car-item (v-for-обёртку), поэтому соседние .rt-row не являются прямыми сиблингами. */
+@media (max-width: 767.98px) {
+    /* Прокручивается страница, и только она (#1097 волна 6). Список лежал в трёх
+       вложенных областях прокрутки подряд (.card-content -> .cars-container ->
+       .cars-body), палец попадал в них, а не в документ, и экран стоял на месте.
+       Проверено настоящим тач-драгом; window.scrollTo этот дефект не ловит. */
+    .card-content,
+    .cars-container,
+    .cars-table-area,
+    .cars-body {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Шапка экрана одной строкой 48px: заголовок, счётчик записей, «Обновить».
+       «Добавить» отсюда ушло вниз, в панель у пальца - в шапке рядом с заголовком
+       место есть ровно на одно действие.
+
+       Боковой отступ собран из слагаемых, а не записан числом: заголовок обязан
+       стоять на той же вертикали, что текст карточек списка, а тот отбит от рамки
+       панели отступом тела (8) + рамкой карточки (1) + её внутренним отступом
+       (14 - глобальный responsive-tables.css). Прежние 12px ставили заголовок на
+       11px левее текста карточек - шапка читалась прижатой к краю. */
+    .card-header {
+        flex-wrap: nowrap;
+        gap: 8px;
+        height: 48px;
+        padding: 0 calc(8px + 1px + 14px);
+    }
+
+    /* min-width: 0 обязателен: flex-элемент не сжимается ниже min-content, и длинный
+       заголовок («Все машины системы») выдавил бы кнопки за край экрана вместо того,
+       чтобы обрезаться многоточием. */
+    .card-header__title {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    /* 18px - кегль имени экрана в проекте (.carsview__title, .employeesview__title,
+       .center__title). На мобилке заголовок страницы скрыт, и имя экрана несёт именно
+       эта строка, поэтому она берёт его размер, а не уменьшенный табличный. */
+    .card-title {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 18px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .card-header__settings {
+        flex-shrink: 0;
+        gap: 6px;
+    }
+
+    /* Своих правил для «Обновить» шапка больше не держит: RefreshButton на этом же пороге
+       сам сворачивается в круг 36px с иконкой. Прежние оверрайды возвращали текстовую
+       пилюлю 88px, а на <=480 гасили саму стрелку - её пропажу и забраковали. */
+
+    /* Одинаковый зазор вокруг карточек: у .cars-body асимметрия от десктопного
+       скроллбара (padding-right + margin-right по 4px), из-за неё слева карточки
+       упирались в рамку блока, а справа висел отступ 8px. */
+    .cars-body {
+        padding: 8px;
+        margin-right: 0;
+    }
+
+    .cars-body .car-item + .car-item {
+        margin-top: 8px;
+    }
+
+    /* Карточка по образцу среза 2 (ApplicationAttachmentDetail.vue): подписи полей убраны,
+       значения выровнены влево, порядковый номер на мобилке не показываем вовсе.
+       !important обязателен: правило-источник в responsive-tables.css стоит на той же
+       специфичности (0,3,0), а оба view - lazy route-чанки, их scoped-CSS грузится позже
+       глобального, и при равной специфичности исход решал бы порядок загрузки. */
+    .car-row.rt-row > .number-col {
+        display: none !important;
+    }
+
+    .car-row.rt-row > [data-label]::before {
+        display: none !important;
+    }
+
+    /* Исключение из «убрать все подписи»: «Формат номера» без подписи нечитаем (значение
+       вида «Российский» само по себе ни о чём не говорит), а организация и компания идут
+       двумя соседними строками с однотипными названиями - без подписи не различить, где
+       какая. */
+    .car-row.rt-row > .format-col::before,
+    .car-row.rt-row > .org-col::before,
+    .car-row.rt-row > .company-col::before {
+        display: block !important;
+    }
+
+    /* Поле карточки - строка не ниже 30px с содержимым по центру по вертикали: без
+       общего минимума строки разной высоты (бейдж статуса против одной строки текста)
+       давали рваную сетку, и список читался кашей.
+
+       Разделитель полей рисуем СВЕРХУ у ячеек 2..N, а не снизу: последней в строке идёт
+       колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
+       достаёт и пунктир висел бы оторванной чертой над нижним краем карточки.
+       white-space/overflow-wrap - потому что .car-col держит nowrap ради десктопной
+       таблицы, и длинное название организации уезжало бы вправо за край.
+       break-word, а не anywhere: anywhere разрешает браузеру считать разрыв ПОСЕРЕДИНЕ
+       слова годной точкой при расчёте min-content для флекс-элемента, из-за чего значение
+       рвалось прямо внутри слова («Российска|я Федераци|я», формат номера) даже когда
+       слово почти помещалось целиком - break-word ломает слово только как последний
+       выход, когда для него в принципе нет места на строке. */
+    .car-row.rt-row > .car-col {
+        align-items: center !important;
+        justify-content: flex-start !important;
+        min-height: 30px;
+        height: auto;
+        border-bottom: none !important;
+        text-align: left !important;
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+
+    /* Формат номера и статус делят одну строку. В колоночном стеке бейдж занимал собственную
+       полосу, в которой кроме него ничего не было - пустая строка в каждой карточке, и
+       читалось это как случайно уехавший элемент. Пара выбрана по соседству в разметке
+       (формат идёт прямо перед статусом и рендерится всегда, без v-if), приём взят у карточек
+       проходной (PeopleTable/CarsTable): карточка переводится из колонки в строку с переносом,
+       каждой ячейке задаётся базис 100% (во флекс-строке перенос держит БАЗИС, а не width), а
+       паре-исключению - ширина по содержимому.
+
+       Специфичность выше правил-источников и !important обязательны: responsive-tables.css
+       объявляет и flex-direction, и width со своим !important, коротким селектором их не
+       перебить. */
+    .rt-table .car-row.rt-row {
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        column-gap: 8px;
+        row-gap: 0;
+    }
+
+    .rt-table .car-row.rt-row > * {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* Номер и марка - одна строка карточки, приёмом талона проходной (см.
+       responsive-tables.css rt-pass__plate/rt-pass__mark): владелец сверяет номер с
+       маркой одним взглядом, а совмещённая строка освобождает высоту сверху карточки -
+       раньше её съедала пара «формат номера + бейдж статуса», сам бейдж теперь стоит в
+       подвале карточки (см. .status-col ниже), поэтому format-col занимает свою строку
+       целиком и не нуждается в колоночной раскладке. border-top: none у brand-col - она
+       делит строку с car-number-col, а не начинает свою, пунктир-разделитель ей не нужен. */
+    .rt-table .car-row.rt-row > .car-number-col {
+        flex: 0 1 auto !important;
+        width: auto !important;
+        min-width: 0;
+        font-weight: 700;
+    }
+
+    .rt-table .car-row.rt-row > .brand-col {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0;
+        color: var(--text-muted);
+        border-top: none !important;
+    }
+
+    .rt-table .car-row.rt-row > .format-col::before {
+        text-align: left;
+    }
+
+    /* Бейдж статуса - в подвал карточки, одной строкой с кнопками «Изменить»/«Удалить»
+       (разбор второго круга замечаний владельца, #1097 w8). Раньше бейдж делил строку с
+       format-col: тот нёс пунктирную границу сверху, а бейдж - нет, но оба выравнивались
+       по одной Y-координате через align-self: flex-start, поэтому бейдж вставал прямо на
+       чужую границу («стоит поперёк»).
+
+       align-self: flex-start, а не center (третий круг замечаний, #1097 w9): бейдж и
+       кнопки - соседние ячейки одной обёрнутой flex-строки, их высоты по контенту не
+       совпадают ровно (badge ~27px против пилюль-кнопок 28px). center центрирует каждую
+       ячейку НЕЗАВИСИМО в высоте строки - верхние края (а с ними border-top) расходятся
+       на разницу высот, и сплошная линия подвала «переламывается» ровно после бейджа.
+       flex-start прижимает обе ячейки к верхнему краю строки - border-top гарантированно
+       на одной Y без зависимости от разницы высот контента. */
+    .rt-table .car-row.rt-row > .status-col {
+        order: 10;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        align-self: flex-start;
+        margin-top: 2px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
+    }
+
+    .car-row.rt-row > .car-col ~ .car-col {
+        border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
+    /* Номер строки скрыт, но в DOM он первый - без сброса верхний пунктир достался бы
+       гос. номеру и висел бы отдельной чертой у верхнего края карточки. */
+    .car-row.rt-row > .number-col + .car-col {
+        border-top: none;
+    }
+
+    /* Колонка действий не несёт data-label, поэтому держала бы desktop-ширину 80px и
+       обрезала бы кнопки / «Только просмотр». Подвал карточки отделён сплошной линией:
+       пунктир остаётся разделителем полей, сплошная - границей данных и действий.
+       !important нужен, чтобы перебить пунктир из сиблинг-правила выше: оно специфичнее
+       (0,4,0 против 0,3,0) и иначе выигрывает. order/flex ставят колонку действий ПОСЛЕ
+       бейджа статуса в той же строке подвала (order: 11 > 10 у .status-col), а
+       justify-content прижимает кнопки к правому краю, оставляя бейдж слева. */
+    .car-row.rt-row > .actions-col {
+        order: 11;
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        align-self: flex-start;
+        /* Базовое правило поля карточки несёт flex-start с !important - без такой же
+           пометки кнопки липнут к бейджу вместо правого края. */
+        justify-content: flex-end !important;
+        gap: 6px;
+        margin-top: 2px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
+        /* Настоящая причина разрыва линии подвала: .status-col и .actions-col - два
+           РАЗНЫХ flex-элемента, у каждого свой border-top, а между ними column-gap: 8px
+           родителя (.car-row.rt-row) - это пустое место без бордюра, в котором линия
+           физически прерывается, хотя цвет/толщина границ совпадают. margin-left тянет
+           бокс .actions-col (а с ним и border-top) вплотную к .status-col, закрывая зазор;
+           кнопки внутри не сдвигаются - их прижимает вправо justify-content: flex-end. */
+        margin-left: -8px;
+    }
+
+    /* Действия - компактные бейджи 28px в подвале карточки. Прежние пилюли 44px
+       («жирные огромные») забирали половину карточки; зона нажатия остаётся 44px за счёт
+       невидимого ::before (28 + 8 сверху + 8 снизу), то есть глаз видит бейдж, а палец
+       по-прежнему не промахивается (эталон §8, тач-таргет >=44px). Классы .lk-button на
+       разметку не вешаем: на десктопе это остаётся безрамочная иконка, поэтому
+       pill-геометрию повторяем здесь, в мобильном блоке. */
+    .car-row.rt-row .edit-btn,
+    .car-row.rt-row .delete-btn {
+        position: relative;
+        height: 28px;
+        margin: 0;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill);
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .car-row.rt-row .edit-btn::before,
+    .car-row.rt-row .delete-btn::before {
+        content: "";
+        position: absolute;
+        inset: -8px -2px;
+    }
+
+    .car-row.rt-row .edit-btn {
+        color: var(--accent-text);
+        border-color: var(--accent);
+    }
+
+    .car-row.rt-row .delete-btn {
+        color: var(--danger-text);
+        border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+    }
+
+    .car-row.rt-row .edit-icon,
+    .car-row.rt-row .delete-icon {
+        display: none;
+    }
+
+    .car-row.rt-row .action-btn__label {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        white-space: nowrap;
+    }
+
+    .car-row.rt-row > .actions-col .read-only-text {
+        white-space: normal;
+    }
+}
+
+/* Очень узкие телефоны (--bp-mobile-sm = 480px): в шапке остались заголовок, счётчик и
+   круг «Обновить» 36px, ужимать нечего - боковой отступ страницы уже меньше (--gutter
+   10px), а сам ряд держит те же вертикали, что список. Кегль заголовка и отступы шапки
+   здесь НЕ уменьшаем: разный размер имени экрана между 481 и 480 - тот самый разнобой,
+   на который жаловался владелец («микроскопический шрифт»). На 320px заголовку остаётся
+   320 - 2x(10+1+23) - 36 - 6 - счётчик - 6 = ~176px, длинное имя обрезается многоточием. */
+@media (max-width: 480px) {
+    .card-header {
+        gap: 6px;
+    }
+
+    .card-header__settings {
+        gap: 4px;
+    }
+
+    .carsview__toolbar {
+        gap: 6px;
     }
 }
 </style>

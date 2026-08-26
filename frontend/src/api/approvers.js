@@ -17,6 +17,18 @@ export async function getApprovers() {
   return unwrap(res, 'Не удалось загрузить принимающих');
 }
 
+/**
+ * Роль текущего пользователя в согласовании заявок: принимающий и/или согласующий.
+ * Гейтит туры «Принимающий»/«Согласующий» - права на них выдаются не грантом, а
+ * записью в справочниках, поэтому по permissions это не определить.
+ *
+ * @returns {Promise<{ is_approver: boolean, is_reviewer: boolean }>}
+ */
+export async function getMyApprovalRole() {
+  const res = await apiRequest('/application-approvers/me');
+  return unwrap(res, 'Не удалось загрузить роль согласования');
+}
+
 export async function getAllUsers() {
   const res = await apiRequest('/users/all');
   return unwrap(res, 'Не удалось загрузить пользователей');
@@ -28,6 +40,18 @@ export async function addApprover(userId) {
     body: JSON.stringify({ user_id: userId }),
   });
   return unwrap(res, 'Не удалось добавить принимающего');
+}
+
+/**
+ * Задать/снять маску отображаемого имени принимающего. displayName === null или пустая
+ * строка снимают маску (заявитель снова видит реальное ФИО).
+ */
+export async function updateApprover(id, displayName) {
+  const res = await apiRequest(`/application-approvers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ display_name: displayName }),
+  });
+  return unwrap(res, 'Не удалось сохранить отображаемое имя');
 }
 
 export async function deleteApprover(id) {

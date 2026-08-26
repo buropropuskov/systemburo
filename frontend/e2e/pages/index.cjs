@@ -7,4 +7,11 @@ module.exports = {
   ...require('./CarsPage'),
   ...require('./EmployeesPage'),
   ...require('./CreateApplicationPage'),
+  ...require('./TablesPage'),
+  ...require('./ApplicationDetailModal'),
+  ...require('./SupplementModal'),
+  ...require('./EmployeeFormSection'),
+  ...require('./PeopleTablePage'),
+  ...require('./NotificationsDropdown'),
+  ...require('./NotificationDetailModal'),
 };

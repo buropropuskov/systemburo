@@ -1,0 +1,501 @@
+/*
+ * Брендирование driver.js-поповера онбординг-тура. Класс ob-popover навешивается
+ * на .driver-popover через popoverClass. Все анимации - только transform/opacity.
+ */
+
+.driver-popover.ob-popover {
+  /* Фон/текст поповера driver.js по умолчанию белые - в тёмной теме тур
+     светился бы белым окном поверх тёмного экрана. */
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  padding: 22px 24px 18px;
+  max-width: 410px;
+  min-width: 300px;
+  font-family: 'Montserrat', sans-serif;
+}
+
+/*
+ * Плавное закрытие тура: driver.js делает только fade-in, на destroy убирает
+ * overlay и поповер мгновенно. Перед удалением DOM хост вешает .ob-fade-out на
+ * .driver-overlay (SVG-затемнение) и .driver-popover - оба плавно затухают.
+ */
+.driver-overlay.ob-fade-out,
+.driver-popover.ob-fade-out {
+  opacity: 0 !important;
+  transition: opacity 0.24s ease !important;
+}
+
+/*
+ * driver.css задаёт font-family прямо на потомках (.driver-popover * и
+ * font-shorthand на title/description/buttons -> sans-serif), что перебивает
+ * Montserrat, унаследованный с контейнера. Форсируем Montserrat на всех
+ * потомках с большей специфичностью (две классные селекции + универсальный).
+ */
+.driver-popover.ob-popover * {
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Шаги с демо-скриншотом таблицы - шире, чтобы реальный компонент читался. */
+.driver-popover.ob-popover.ob-popover--wide {
+  max-width: 600px;
+}
+
+.driver-popover.ob-popover .driver-popover-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  padding-right: 18px;
+}
+
+.driver-popover.ob-popover .driver-popover-description {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+/*
+ * Стрелку-указатель driver.js скрываем: её позицию считает сам driver и она
+ * нередко съезжает/выглядит криво на больших целях. Подсвеченный спотлайт и так
+ * однозначно показывает элемент, к которому относится шаг.
+ */
+.driver-popover.ob-popover .driver-popover-arrow {
+  display: none;
+}
+
+/* Крестик закрытия: фикс позиции и центровки символа */
+.driver-popover.ob-popover .driver-popover-close-btn {
+  top: 14px;
+  right: 15px;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 22px;
+  text-align: center;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+
+.driver-popover.ob-popover .driver-popover-close-btn:hover {
+  color: var(--accent-text);
+}
+
+/* --- Демо-скриншот в теле поповера (шаги с пустыми у новичка блоками) --- */
+.driver-popover.ob-popover .ob-popover__demo {
+  margin: 12px 0 2px;
+}
+
+.driver-popover.ob-popover .ob-popover__demo-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.driver-popover.ob-popover .ob-popover__demo-caption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* --- Финал: галочка-празднование + CTA --- */
+.driver-popover.ob-popover .ob-popover__celebrate {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 12px;
+}
+
+.driver-popover.ob-popover .ob-popover__check {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(0);
+  opacity: 0;
+  animation: ob-check-pop 0.4s cubic-bezier(0.34, 1.4, 0.5, 1) forwards;
+}
+
+@keyframes ob-check-pop {
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* --- Футер: прогресс сверху, затем ряд "Пропустить ... Назад Далее" --- */
+.driver-popover.ob-popover .driver-popover-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.driver-popover.ob-popover .driver-popover-progress-text {
+  display: none;
+}
+
+.driver-popover.ob-popover .driver-popover-navigation-btns {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Кнопки навигации pill-стиль под бренд, выровнены по центру */
+.driver-popover.ob-popover .driver-popover-prev-btn,
+.driver-popover.ob-popover .driver-popover-next-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  text-shadow: none;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  padding: 0 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Назад: прижимает себя и Далее вправо, "Пропустить" остаётся слева */
+.driver-popover.ob-popover .driver-popover-prev-btn {
+  margin-left: auto;
+  background: var(--surface);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.driver-popover.ob-popover .driver-popover-prev-btn:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.driver-popover.ob-popover .driver-popover-prev-btn.driver-popover-btn-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.driver-popover.ob-popover .driver-popover-next-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.driver-popover.ob-popover .driver-popover-next-btn:hover {
+  background: var(--accent-hover);
+  border-color: var(--color-primary-hover);
+}
+
+/* "Пропустить" - подчёркнуто-вторичная, слева, по центру высоты кнопок */
+/* driver.css рисует кнопки футера в своей манере - в том числе белой тенью текста
+   (.driver-popover-footer button { text-shadow: 1px 1px #fff }). На тёмной подложке
+   она читается как обводка, поэтому гасим её для всех кнопок попапа разом: прежний
+   точечный text-shadow: none стоял только у «Назад»/«Далее». */
+.driver-popover.ob-popover .driver-popover-footer button {
+  text-shadow: none;
+}
+
+.driver-popover.ob-popover .ob-popover__skip {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  text-shadow: none;
+  /* Нативную отрисовку гасим явно: под color-scheme: dark браузер рисует <button>
+     тёмной кнопкой с рельефной рамкой, и «Пропустить обучение» выглядела выпуклой. */
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0 2px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.driver-popover.ob-popover .ob-popover__skip:hover {
+  color: var(--accent-text);
+}
+
+/* --- Сквозной прогресс "шаг X из N" + полоска --- */
+.ob-popover__progress {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+}
+
+/* Счётчик - кнопка: по нему раскрывается список шагов тура. Селекторы усилены
+   до трёх классов: driver.css красит кнопки футера по `.driver-popover-footer
+   button`, и одиночный класс он перебивает. */
+/*
+ * Название главы над счётчиком шагов. Держим тише самого счётчика: это ориентир
+ * «где я в туре», а не главная строка карточки.
+ */
+.driver-popover.ob-popover .ob-popover__chapter {
+  align-self: flex-start;
+  margin-bottom: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
+.driver-popover.ob-popover .ob-popover__step-label {
+  align-self: flex-start;
+  width: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.driver-popover.ob-popover .ob-popover__step-label:disabled {
+  cursor: default;
+}
+
+.driver-popover.ob-popover .ob-popover__step-label:not(:disabled)::after {
+  content: ' \25be';
+}
+
+.ob-popover__progress.is-open .ob-popover__step-label::after {
+  content: ' \25b4';
+}
+
+.driver-popover.ob-popover .ob-popover__step-label:not(:disabled):hover {
+  color: var(--accent-text);
+}
+
+/*
+ * Список шагов тура: в туре заявителя их за сорок, и без перехода по списку
+ * вернуться к нужному месту можно было только прокликав всё заново. Список -
+ * слой поверх карточки (absolute), иначе раскрытие растит поповер, а driver его
+ * не переставляет, и нижние пункты уезжают за край экрана.
+ */
+.driver-popover.ob-popover .ob-popover__steps {
+  display: none;
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  text-align: left;
+}
+
+.ob-popover__progress.is-open .ob-popover__steps {
+  display: block;
+}
+
+/* Места снизу не хватило - раскрываем список над счётчиком. */
+.ob-popover__progress--up .ob-popover__steps {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.driver-popover.ob-popover .ob-popover__steps-group {
+  padding: 8px 8px 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.driver-popover.ob-popover .ob-popover__steps-item {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.driver-popover.ob-popover .ob-popover__steps-item:hover {
+  background: var(--border);
+}
+
+.driver-popover.ob-popover .ob-popover__steps-item.is-passed {
+  color: var(--color-text-muted);
+}
+
+.driver-popover.ob-popover .ob-popover__steps-item.is-current {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.ob-popover__bar {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  background: var(--border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.ob-popover__bar-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transform-origin: left center;
+  transition: transform 0.2s ease;
+}
+
+.ob-popover__next-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-popover__bar-fill,
+  .ob-popover__check {
+    transition: none;
+    animation: none;
+  }
+
+  .driver-popover.ob-popover .ob-popover__check {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/*
+ * Затемнение тура поверх модалок приложения.
+ *
+ * driver.js не задаёт z-index своему SVG-затемнению вовсе, поэтому оно ложится
+ * по порядку в DOM - ниже карточки заявки (10002), истории (12000) и прочих
+ * окон. Результат выглядел как «подсветка не работает»: вырез в затемнении есть,
+ * но сама модалка целиком нарисована сверху и светится вся.
+ *
+ * 12500 - выше карточки заявки (10002) и истории (12000), но НИЖЕ глобальных
+ * диалогов (20000+) и стека уведомлений: вопрос подтверждения и сообщение об
+ * ошибке обязаны оставаться поверх тура, иначе человек не сможет на них ответить.
+ * Замок на лестницу слоёв - globalDialogLayers.spec.js.
+ *
+ * !important обязателен: driver.js пишет свой z-index (10000) инлайн-стилем на
+ * SVG, и без перебивки правило класса проигрывает.
+ */
+.driver-overlay {
+  z-index: 12500 !important;
+}
+
+/*
+ * Подсвеченный элемент поднимаем над затемнением - иначе вырез покажет не его,
+ * а то, что лежит ниже. position нужен, чтобы z-index вообще применился.
+ *
+ * Класс СВОЙ, а не `driver-active-element`: driver.js вешает свой в начале
+ * перехода, когда вырез ещё едет к новой цели. Поднятая раньше выреза форма
+ * заявки читалась как «сначала светятся инпуты, потом появляется блок» - поэтому
+ * поднимаем цель, только когда переход доехал (onHighlighted).
+ */
+.ob-highlighted {
+  position: relative;
+  z-index: 12501;
+}
+
+/*
+ * driver.js 1.4 вешает прямому родителю подсвеченной цели правило
+ * `:not(body):has(> .driver-active-element) { overflow: hidden !important }`.
+ * Для выпадающей панели это стирает её с экрана: список уведомлений лежит
+ * внутри круглой кнопки-колокольчика 35x35, и на своём же шаге панель
+ * обрезалась до размеров кнопки. В DOM она при этом целая - 360x427, opacity 1,
+ * два десятка карточек внутри, - поэтому автопроверки по DOM были зелёными, а
+ * человек видел подсвеченную пустоту (жалоба владельца, три захода).
+ *
+ * Селектор повторяет драйверовский, но начинается с `html`: onboarding.css
+ * грузится из main.js, а driver.css приезжает позже вместе с чанком тура, и при
+ * равной специфичности победило бы правило библиотеки. Апстрим убрал своё
+ * правило в 1.6.0 («positioned highlighted elements and their children (e.g.
+ * dropdown menus) no longer get clipped», #454 и #563) - после обновления
+ * библиотеки эта строка станет безвредной, снимать её отдельно не нужно.
+ */
+html :not(body):has(> .driver-active-element) {
+  overflow: visible !important;
+}
+
+/*
+ * Плавный переезд поповера между шагами.
+ *
+ * driver.js переставляет поповер, записывая left/top инлайном, - без перехода
+ * это выглядит телепортацией: между соседними шагами карточка прыгала на
+ * 400-900 пикселей (замер по туру заявителя). Анимируем именно позицию и
+ * размер; opacity остаётся за driver.js.
+ *
+ * Только transform/opacity тут не обойтись: driver.js управляет left/top, и
+ * подменять его позиционирование - значит воевать с библиотекой на каждом шаге.
+ */
+.driver-popover {
+  transition:
+    left 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 200ms ease,
+    height 200ms ease;
+}
+
+/*
+ * Первый показ в сегменте: driver.js рисует поповер в углу и только потом
+ * считает позицию. С переходом это читалось бы как «карточка приехала из
+ * ниоткуда», поэтому первый кадр ставим мгновенно (класс снимается на
+ * следующем кадре - см. onPopoverRender).
+ */
+.driver-popover.ob-popover--instant {
+  transition: none;
+}
+
+/* Уважаем системную настройку: при отключённой анимации переездов нет. */
+@media (prefers-reduced-motion: reduce) {
+  .driver-popover {
+    transition: none;
+  }
+}
+
+/*
+ * Вырез подсветки меняется мгновенно - по просьбе владельца (#1771).
+ * Пробовали переливать его через `transition: d` на пути затемнения:
+ * технически работает, но воспринималось как «квадрат медленно выползает».
+ * Плавность оставлена только у поповера, у выреза - намеренно нет.
+ */

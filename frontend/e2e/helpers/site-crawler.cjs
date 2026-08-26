@@ -10,7 +10,7 @@
 const DESTRUCTIVE_REGEX = /(удалить|сбросить|заблокировать|забанить|очистить|выйти|выход|сохранить|создать|подтвердить|применить|архивировать|разбанить|разблокировать|снять блок|delete|remove|reset|ban|logout|save|create|confirm|apply|archive)/i;
 
 // href которые ведут вовне сайта или меняют контекст
-const DANGEROUS_HREF = /^(mailto:|tel:|javascript:|https?:\/\/(?!stagingburo\.washka17\.site))/i;
+const DANGEROUS_HREF = /^(mailto:|tel:|javascript:|https?:\/\/(?!stagingburo\.washka17\.ru))/i;
 
 // Известные ложные console.error - не считаем регрессией
 const EXPECTED_ERRORS_WHITELIST = [
@@ -122,7 +122,7 @@ async function closeOpenedOverlays(page) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
     // Иногда модалка не закрывается на Escape - клик по body вне модалки
-    const overlay = page.locator('.modal-overlay, .form-modal, .rename-modal, .permission-tree-modal').first();
+    const overlay = page.locator('.base-modal-overlay, .modal-overlay, .form-modal, .rename-modal, .permission-tree-modal').first();
     if (await overlay.isVisible({ timeout: 200 }).catch(() => false)) {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(150);

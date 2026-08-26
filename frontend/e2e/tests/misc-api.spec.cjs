@@ -65,23 +65,15 @@ test.describe('Misc API endpoints', () => {
     expect(Array.isArray(data)).toBeTruthy();
   });
 
-  test('GET /permissions/tree возвращает дерево прав', async ({ request }) => {
-    const token = await loginAsSuperAdmin(request);
-    const res = await request.get(`${API_BASE}/permissions/tree`, { headers: headers(token) });
-    expect(res.ok()).toBeTruthy();
-    const data = (await res.json()).data;
-    expect(data).toBeTruthy();
-  });
-
-  test('GET /permissions/my возвращает массив (пустой для superadmin - у него bypass)', async ({ request }) => {
+  test('GET /permissions/my отдаёт режим super для суперадмина (bypass)', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const res = await request.get(`${API_BASE}/permissions/my`, { headers: headers(token) });
     expect(res.ok()).toBeTruthy();
-    const data = (await res.json()).data || [];
-    // Суперадмин обходит resolver через is_super_admin - resolver возвращает
-    // PermissionSet с IsSuperAdmin=true и пустыми keys. Фронт проверяет
-    // isSuperAdmin отдельно в usePermissionsStore.hasPermission. Здесь просто
-    // убеждаемся что endpoint работает и возвращает массив.
-    expect(Array.isArray(data)).toBeTruthy();
+    const data = (await res.json()).data || {};
+    // Новый формат: { mode, permissions[{key,value,source}], denied, banned, ban_reason }.
+    // Суперадмин -> mode=super, permissions пуст (всё разрешено через is_super_admin,
+    // фронт проверяет режим отдельно).
+    expect(data.mode).toBe('super');
+    expect(Array.isArray(data.permissions)).toBeTruthy();
   });
 });

@@ -26,7 +26,7 @@
           >
             <path
               d="M15 18L9 12L15 6"
-              stroke="#4F5BDF"
+              stroke="currentColor"
               stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -44,12 +44,19 @@
             class="trash-filters__search"
             @input="onSearchChange"
           />
-          <OrganizationFilter
-            ref="organizationFilter"
-            :value="filters.organizationId"
-            :organizations="organizations"
-            @change="onOrganizationChange"
-          />
+          <div class="trash-filters__control">
+            <BaseDropdown
+              :model-value="filters.organizationIds"
+              :options="organizations"
+              placeholder="Все организации"
+              summary-label="Организация"
+              data-testid="trash-filter-organizations"
+              multiple
+              searchable
+              teleport
+              @update:model-value="onOrganizationsChange"
+            />
+          </div>
           <DateFilter
             :selected-date="filters.selectedDate"
             :date-range-start="filters.dateFrom"
@@ -68,11 +75,10 @@
             :disabled="!items.length || isExporting"
             @click="onExport"
           >
-            <img
-              src="@/assets/icons/export.png"
+            <AppIcon
+              name="export"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Экспорт
           </button>
           <button
@@ -81,11 +87,10 @@
             :disabled="!items.length"
             @click="onClearAll"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
+            <AppIcon
+              name="trashcan"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Очистить
           </button>
         </div>
@@ -152,10 +157,10 @@
         </div>
         <table
           v-else-if="items.length"
-          class="trash-table"
+          class="trash-table rt-table"
           data-testid="trash-table"
         >
-          <thead>
+          <thead class="rt-head-row">
             <tr>
               <th class="trash-table__th trash-table__th-check">
                 <input
@@ -173,16 +178,15 @@
                 @click="col.sortable && sortBy(col.key)"
               >
                 <span>{{ col.label }}</span>
-                <img
+                <AppIcon
                   v-if="col.sortable"
-                  src="@/assets/icons/sort.png"
+                  name="sort"
                   class="trash-table__sort"
                   :class="{
                     'trash-table__sort--sorted': sortField === col.key,
                     'trash-table__sort--desc': sortField === col.key && sortDir === 'desc',
                   }"
-                  alt=""
-                >
+                />
               </th>
               <th class="trash-table__th-actions" />
             </tr>
@@ -191,7 +195,7 @@
             <tr
               v-for="item in sortedItems"
               :key="item.id"
-              class="trash-table__row"
+              class="trash-table__row rt-row"
               data-testid="trash-row"
               @click="onRowClick(item)"
             >
@@ -203,45 +207,79 @@
                   type="checkbox"
                   class="trash-check"
                   :checked="isSelected(item.id)"
+                  :aria-label="`Выбрать запись ${item.application_number || item.id}`"
                   data-testid="trash-row-check"
                   @change="toggleSelect(item.id)"
                 >
               </td>
-              <td class="trash-table__td trash-table__td--muted">
+              <td
+                class="trash-table__td trash-table__td--muted"
+                data-label="Номер заявки"
+              >
                 {{ item.application_number || '—' }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Дата и время удаления"
+              >
                 {{ formatDateTime(item.deleted_at) }}
               </td>
               <template v-if="tableType === 'cars'">
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Номер Т/С"
+                >
                   {{ item.car_number || '—' }}
                 </td>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Марка"
+                >
                   {{ item.mark_name || '—' }}
                 </td>
               </template>
               <template v-else>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Фамилия"
+                >
                   {{ item.last_name || '—' }}
                 </td>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Имя"
+                >
                   {{ item.first_name || '—' }}
                 </td>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Отчество"
+                >
                   {{ item.middle_name || '—' }}
                 </td>
               </template>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Организация"
+              >
                 {{ item.organization || '—' }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Действует до"
+              >
                 {{ formatDate(item.entry_date_to) }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Время"
+              >
                 {{ formatTimeRange(item) }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Статус"
+              >
                 <span class="trash-badge trash-badge--deleted">
                   {{ tableType === 'cars' ? 'Удалена' : 'Удалён' }}
                 </span>
@@ -256,10 +294,10 @@
                   data-testid="trash-purge-one"
                   @click="onPurgeOne(item.id)"
                 >
-                  <img
-                    src="@/assets/icons/trashcan.png"
-                    alt=""
-                  >
+                  <AppIcon
+                    name="trashcan"
+                    class="trash-icon-btn__icon"
+                  />
                 </button>
               </td>
             </tr>
@@ -324,11 +362,10 @@
 <script>
 import ExcelJS from 'exceljs';
 import { apiRequest } from '@/api/client';
-import { useUiStore } from '@/stores/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
-import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
@@ -336,13 +373,15 @@ import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetails
 import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TrashView',
   components: {
-    SearchComponent, OrganizationFilter, DateFilter, RefreshButton,
+    SearchComponent, BaseDropdown, DateFilter, RefreshButton,
     VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
     ApplicationDetail,
+    AppIcon,
   },
   data() {
     return {
@@ -357,7 +396,7 @@ export default {
       error: '',
       filters: {
         search: '',
-        organizationId: null,
+        organizationIds: [],
         selectedDate: null,
         dateFrom: null,
         dateTo: null,
@@ -443,9 +482,6 @@ export default {
   async mounted() {
     this.fetchCurrentUser();
     this.fetchOrganizations();
-    // Подгружаем настроенные длительности уведомлений после авторизации
-    // (на холодном старте App.vue запрос мог уйти до получения токена).
-    useDeletionsStore().loadDurations();
     await this.fetchTable();
     if (this.tableID) await this.reload();
   },
@@ -502,13 +538,13 @@ export default {
           dateFrom: this.filters.selectedDate || this.filters.dateFrom || '',
           dateTo: this.filters.selectedDate || this.filters.dateTo || '',
         };
-        if (this.filters.organizationId) {
-          params.organizationId = this.filters.organizationId;
+        if (this.filters.organizationIds.length) {
+          params.organizationIds = this.filters.organizationIds;
         }
         const data = await listTrash(this.tableID, params);
         this.items = Array.isArray(data) ? data : [];
       } catch {
-        useUiStore().error('Не удалось загрузить корзину');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить корзину', type: 'error' });
       } finally {
         this.isLoading = false;
       }
@@ -517,8 +553,8 @@ export default {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => this.reload(), 300);
     },
-    onOrganizationChange(payload) {
-      this.filters.organizationId = payload && payload.id ? payload.id : null;
+    onOrganizationsChange(ids) {
+      this.filters.organizationIds = Array.isArray(ids) ? ids : [];
       this.reload();
     },
     onDateClear() {
@@ -635,13 +671,13 @@ export default {
       try {
         const response = await apiRequest(`/applications/${applicationId}/details`, {});
         if (!response.ok) {
-          useUiStore().error('Не удалось загрузить заявку');
+          useDeletionsStore().notify({ prefix: 'Не удалось загрузить заявку', type: 'error' });
           return;
         }
         this.selectedApplication = await response.json();
         this.showApplicationDetail = true;
       } catch {
-        useUiStore().error('Не удалось загрузить заявку');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить заявку', type: 'error' });
       }
     },
     closeApplicationDetail() {
@@ -659,11 +695,11 @@ export default {
           this.notifyRestored(r, firstItem);
         }
         if (r < req) {
-          useUiStore().warning(`Восстановлено ${r} из ${req}. У остальных нет активной согласованной заявки.`);
+          useDeletionsStore().notify({ prefix: `Восстановлено ${r} из ${req}. У остальных нет активной согласованной заявки.`, type: 'error' });
         }
         await this.reload();
       } catch {
-        useUiStore().error('Не удалось восстановить');
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить', type: 'error' });
       }
     },
     notifyRestored(count, firstItem) {
@@ -718,19 +754,19 @@ export default {
     async purgeOne(id) {
       try {
         await purgeItem(this.tableID, id);
-        useUiStore().success('Запись удалена безвозвратно');
+        useDeletionsStore().notify({ prefix: 'Запись удалена безвозвратно' });
         await this.reload();
       } catch {
-        useUiStore().error('Не удалось удалить');
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить', type: 'error' });
       }
     },
     async clearAllConfirmed() {
       try {
         const result = await clearTrash(this.tableID);
-        useUiStore().success(`Корзина очищена: ${(result && result.purged) || 0} запис(ей)`);
+        useDeletionsStore().notify({ prefix: `Корзина очищена: ${(result && result.purged) || 0} запис(ей)` });
         await this.reload();
       } catch {
-        useUiStore().error('Не удалось очистить');
+        useDeletionsStore().notify({ prefix: 'Не удалось очистить', type: 'error' });
       }
     },
     openHistory() {
@@ -802,7 +838,7 @@ export default {
         window.URL.revokeObjectURL(url);
       } catch (e) {
         console.error('Ошибка экспорта корзины', e);
-        useUiStore().error('Ошибка при экспорте');
+        useDeletionsStore().notify({ prefix: 'Ошибка при экспорте', type: 'error' });
       } finally {
         this.isExporting = false;
       }
@@ -845,7 +881,7 @@ export default {
 
 .trash-title__prefix,
 .trash-title__name {
-  color: #A2A2A2;
+  color: var(--text-muted);
   transition: color 0.2s ease;
 }
 
@@ -858,15 +894,15 @@ export default {
 }
 
 .trash-title__link:hover .trash-title__prefix {
-  color: #000;
+  color: var(--text);
 }
 
 .trash-title__link:hover .trash-title__name {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .trash-title__sep {
-  color: #000;
+  color: var(--text);
 }
 
 .trash-back-btn {
@@ -875,24 +911,25 @@ export default {
   gap: 5px;
   height: 25px;
   padding: 0 12px;
-  background: #FFF;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 50px;
   font-family: 'Montserrat', sans-serif;
   font-weight: 500;
   font-size: 14px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   text-decoration: none;
   white-space: nowrap;
   transition: all 0.2s ease;
 }
 
 .trash-back-btn:hover {
-  background: #f2f2f2;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .trash-back-btn__icon {
+  color: var(--accent-text);
   width: 14px;
   height: 14px;
 }
@@ -904,7 +941,7 @@ export default {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .trash-filters__group {
@@ -922,19 +959,21 @@ export default {
   flex: 0 0 auto;
 }
 
-.trash-filters :deep(.field) {
+/* Ширина ряда живёт на обёртке: у .base-dropdown своей ширины нет, и без неё кнопка
+   дёргалась бы при смене подписи "Все организации" -> "Организация: 2". */
+.trash-filters__control {
   width: 200px;
+  max-width: 100%;
+}
+
+/* Кнопка дропдауна под контракт ряда: те же 35px, радиус 15px и отступы, что у поиска
+   и календаря рядом. :deep обязателен - кнопка живёт внутри дочернего компонента и хэша
+   этого файла не несёт; min-height:0 гасит собственные 30px BaseDropdown. */
+.trash-filters__control :deep(.base-dropdown__button) {
   height: 35px;
-  background-color: #fff;
-  border: 1px solid #e6e6e6;
+  min-height: 0;
   border-radius: 15px;
   padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  box-sizing: border-box;
-  cursor: pointer;
 }
 
 .trash-tool-btn {
@@ -944,20 +983,20 @@ export default {
   gap: 5px;
   height: 25px;
   padding: 0 12px;
-  background: #FFF;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s ease;
 }
 
 .trash-tool-btn:hover:not(:disabled) {
-  background: #f2f2f2;
+  background: var(--surface-2);
 }
 
 .trash-tool-btn:disabled {
@@ -971,9 +1010,8 @@ export default {
 }
 
 .trash-card {
-  background: #FFFFFF;
-  border: 1px solid #E6E6E6;
-  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 30px;
   overflow: hidden;
   max-height: 600px;
@@ -988,7 +1026,7 @@ export default {
   gap: 12px;
   padding: 0 20px;
   height: 50px;
-  border-bottom: 1px solid #E6E6E6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -997,24 +1035,24 @@ export default {
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   font-size: 16px;
-  color: #000000;
+  color: var(--text);
 }
 
 .trash-history-btn {
   padding: 4px 12px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-family: 'Montserrat', sans-serif;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .trash-history-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .trash-card__spacer {
@@ -1023,15 +1061,15 @@ export default {
 
 .trash-card__selected {
   font-size: 13px;
-  color: #A2A2A2;
+  color: var(--text-muted);
 }
 
 .trash-restore-btn {
   height: 25px;
   padding: 0 18px;
-  background: #4F5BDF;
-  border: 1px solid #4F5BDF;
-  color: #FFFFFF;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-contrast);
   border-radius: 50px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
@@ -1041,7 +1079,7 @@ export default {
 }
 
 .trash-restore-btn:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .trash-restore-btn:disabled {
@@ -1062,7 +1100,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.6);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
   z-index: 2;
 }
 
@@ -1070,7 +1108,7 @@ export default {
   padding: 60px 24px;
   text-align: center;
   font-family: 'Montserrat', sans-serif;
-  color: #A2A2A2;
+  color: var(--text-muted);
   font-size: 14px;
   display: flex;
   flex-direction: column;
@@ -1079,14 +1117,14 @@ export default {
 }
 
 .trash-state--error {
-  color: #FF6668;
+  color: var(--danger-text);
 }
 
 .trash-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid #E6E6E6;
-  border-top-color: #4F5BDF;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: trash-spin 0.8s linear infinite;
 }
@@ -1107,7 +1145,7 @@ export default {
   font-weight: 500;
   font-size: 14px;
   line-height: 17px;
-  color: #A2A2A2;
+  color: var(--text-muted);
   white-space: nowrap;
   user-select: none;
 }
@@ -1125,18 +1163,19 @@ export default {
 }
 
 .trash-table__th--sortable:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .trash-table__th--sortable:hover .trash-table__sort {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .trash-table__th--active {
-  color: #333;
+  color: var(--text);
 }
 
 .trash-table__sort {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   margin-left: 6px;
@@ -1146,7 +1185,7 @@ export default {
 }
 
 .trash-table__sort--sorted {
-  filter: brightness(0);
+  color: var(--text);
   opacity: 1;
 }
 
@@ -1164,7 +1203,7 @@ export default {
 }
 
 .trash-table__row:hover {
-  background: #f8f9ff;
+  background: var(--accent-tint);
 }
 
 .trash-table__td {
@@ -1172,12 +1211,12 @@ export default {
   font-weight: 400;
   font-size: 14px;
   line-height: 17px;
-  color: #000000;
-  border-top: 1px solid #F0F0F0;
+  color: var(--text);
+  border-top: 1px solid var(--border);
 }
 
 .trash-table__td--muted {
-  color: #A2A2A2;
+  color: var(--text-muted);
 }
 
 .trash-table__td--actions {
@@ -1197,16 +1236,16 @@ export default {
 }
 
 .trash-badge--deleted {
-  background-color: #ffebee;
-  color: #c62828;
-  border-color: #ffcdd2;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .trash-check {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent-text);
   display: block;
 }
 
@@ -1223,10 +1262,10 @@ export default {
 }
 
 .trash-icon-btn:hover {
-  background: #f0f0f0;
+  background: var(--border);
 }
 
-.trash-icon-btn img {
+.trash-icon-btn__icon {
   width: 20px;
   height: 20px;
 }
@@ -1236,14 +1275,75 @@ export default {
     flex-direction: column;
     align-items: stretch;
   }
+  /* При переносе кнопок (Восстановить/История/Обновить) на вторую строку
+     фиксированная height:50px обрезала бы шапку - вторая строка налезала на
+     список. Высота по контенту + min 50px, чтобы тело начиналось ниже. */
   .trash-card__header {
     flex-wrap: wrap;
+    height: auto;
+    min-height: 50px;
+    padding: 10px 20px;
+    row-gap: 8px;
   }
 }
 
-@media (max-width: 768px) {
+/* На <768 реальная <table> конвертируется в карточки (rt-* из
+   responsive-tables.css: thead скрыт, каждый tr -> flex-карточка с data-label
+   подписями). Брейкпоинт 767.98 = как в responsive-tables.css, иначе на ровно
+   768px card-конверсия не включится, а тач-правки да -> гибрид (урок #1097 S8). */
+@media (max-width: 767.98px) {
+  .trash-view {
+    padding: 12px;
+  }
+
   .trash-title {
     font-size: 16px;
+  }
+
+  /* table-layout:auto меряет ширину <table> по самому длинному неразрывному
+     токену даже когда tr/td переопределены во flex (rt-row/[data-label]) - без
+     fixed карточка распирается шире вьюпорта (эталон AccessDenialsLog). */
+  .trash-table {
+    table-layout: fixed;
+  }
+
+  /* Длинные значения без пробелов (номер Т/С, организация) переносятся внутри
+     карточки, а не уходят в скрытый горизонт-скролл обёртки. */
+  .trash-table .rt-row > [data-label] {
+    overflow-wrap: anywhere;
+  }
+
+  /* Десктопный разделитель строк (border-top на ячейке) в card-режиме дал бы
+     ВТОРУЮ линию поверх dashed border-bottom подписей (rt-инфра) - гасим, чтобы
+     между полями была ровно одна пунктирная линия, а над чекбоксом/под Статусом
+     не висел лишний разделитель. */
+  .trash-table__td {
+    border-top: none;
+  }
+
+  /* Ячейки без data-label (чекбокс выбора, кнопка безвозвратного удаления)
+     идут своими строками карточки - тач-таргет 44px. */
+  .trash-table__td-check,
+  .trash-table__td--actions {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .trash-table__td--actions {
+    justify-content: flex-end;
+    padding: 6px 0 0;
+  }
+
+  /* Последнее подписанное поле (Статус) стоит перед ячейкой действий без
+     подписи - его dashed-разделитель повис бы; убираем. */
+  .trash-table .rt-row > [data-label]:nth-last-child(2) {
+    border-bottom: none;
+  }
+
+  /* Фильтры на всю ширину телефона (в столбце они иначе 200px слева). */
+  .trash-filters__control {
+    width: 100%;
   }
 }
 </style>

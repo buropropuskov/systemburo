@@ -26,10 +26,11 @@ func TestCarHistory_CreatedAtIsValidISO8601(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carutc1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carutc1"), "cars")
 
 	// Сделаем действие, чтобы появилась запись истории.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
-		`{"territory_status": 1}`, testutil.AuthHeader(token))
+		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
@@ -78,9 +79,10 @@ func TestCarHistory_DeleteActionRecordedAtUTC(t *testing.T) {
 	afterUTC := time.Now().UTC().Add(2 * time.Second)
 
 	// Получаем запись из БД напрямую и убеждаемся, что момент в UTC-окне.
-	var hist models.CarHistory
+	// После cutover (#870, срез 1.12c) delete пишется в audit_log.
+	var hist models.AuditLog
 	require.NoError(t,
-		db.Where("car_id = ? AND action_type = ?", carID, "delete").
+		db.Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "delete").
 			Order("created_at DESC").
 			First(&hist).Error)
 
@@ -128,10 +130,11 @@ func TestCarsCurrentStatus_TerritoryEntryTimeIsUTC(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carutc3", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carutc3"), "cars")
 
 	// Делаем "въезд", который проставит territory_entry_time через time.Now().UTC().
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
-		`{"territory_status": 1}`, testutil.AuthHeader(token))
+		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	rec = testutil.GET(t, e, "/cars/history/current-status", testutil.AuthHeader(token))
@@ -155,6 +158,3 @@ func TestCarsCurrentStatus_TerritoryEntryTimeIsUTC(t *testing.T) {
 		strings.Count(entryTime, "-") >= 3
 	assert.Truef(t, hasTZ, "entry_time=%q должно содержать TZ-маркер", entryTime)
 }
-
-// проверяем, что объект models.CarHistory не используется напрямую -- референс через тип:
-var _ = models.CarHistory{}

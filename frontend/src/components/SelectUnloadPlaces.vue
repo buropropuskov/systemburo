@@ -1,29 +1,36 @@
 <template>
-  <div class="unload-places-section">
+  <div
+    class="unload-places-section"
+    :class="{ card: !selectionMode }"
+  >
     <div class="detail-group">
-      <div class="unload-places__header">
-        <label class="detail-label">Места разгрузки (по умолчанию):</label>
-        <div
+      <div
+        v-if="!selectionMode"
+        class="sec-title"
+      >
+        Места разгрузки <span class="sec-note">(по умолчанию)</span>
+        <span
           v-if="hasSelectedPlaces"
-          class="places-actions"
+          class="sec-actions"
         >
-          <button 
-            class="save-places-btn" 
+          <span class="save-hint"><span class="dot" />несохранённые</span>
+          <button
+            class="btn-mini primary"
             :disabled="isSaving"
             @click="saveUnloadPlaces"
           >
             {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
           </button>
-          <button 
-            class="cancel-places-btn" 
+          <button
+            class="btn-mini"
             :disabled="isSaving"
             @click="cancelUnloadPlacesChanges"
           >
             Отмена
           </button>
-        </div>
+        </span>
       </div>
-      
+
       <div class="unload-places-container">
         <div class="unload-places-grid">
           <div 
@@ -56,15 +63,25 @@ export default {
   props: {
     entity: {
       type: Object,
-      required: true
+      default: null
     },
     entityType: {
       type: String,
       required: true,
       validator: value => ['organization', 'company'].includes(value)
+    },
+    // Режим «только выбор» (для групповых операций): без fetch/save сущности,
+    // выбор через v-model (массив id мест), без Сохранить/Отмена.
+    selectionMode: {
+      type: Boolean,
+      default: false
+    },
+    modelValue: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['places-updated'],
+  emits: ['places-updated', 'dirty-change', 'update:modelValue'],
   data() {
     return {
       allUnloadPlaces: [],
@@ -75,7 +92,7 @@ export default {
   },
   computed: {
     hasSelectedPlaces() {
-      return JSON.stringify(this.selectedUnloadPlaces.map(p => p.id).sort()) !== 
+      return JSON.stringify(this.selectedUnloadPlaces.map(p => p.id).sort()) !==
              JSON.stringify(this.originalSelectedPlaces.map(p => p.id).sort());
     }
   },
@@ -83,16 +100,25 @@ export default {
     entity: {
       immediate: true,
       handler(newEntity) {
+        if (this.selectionMode) return;
         if (newEntity && newEntity.id) {
           this.fetchEntityUnloadPlaces(newEntity.id);
         }
+      }
+    },
+    // fix 5: поднимаем dirty-состояние мест в dirtyTracker родителя.
+    hasSelectedPlaces: {
+      immediate: true,
+      handler(dirty) {
+        if (this.selectionMode) return;
+        this.$emit('dirty-change', dirty);
       }
     }
   },
   async mounted() {
     await this.fetchAllUnloadPlaces();
-    
-    if (this.entity && this.entity.id) {
+
+    if (!this.selectionMode && this.entity && this.entity.id) {
       await this.fetchEntityUnloadPlaces(this.entity.id);
     }
   },
@@ -171,6 +197,13 @@ export default {
     },
 
     toggleUnloadPlace(place) {
+      if (this.selectionMode) {
+        const ids = this.modelValue.includes(place.id)
+          ? this.modelValue.filter(id => id !== place.id)
+          : [...this.modelValue, place.id];
+        this.$emit('update:modelValue', ids);
+        return;
+      }
       const index = this.selectedUnloadPlaces.findIndex(p => p.id === place.id);
       if (index > -1) {
         this.selectedUnloadPlaces.splice(index, 1);
@@ -180,6 +213,7 @@ export default {
     },
 
     isPlaceSelected(placeId) {
+      if (this.selectionMode) return this.modelValue.includes(placeId);
       return this.selectedUnloadPlaces.some(p => p.id === placeId);
     }
   },
@@ -188,21 +222,101 @@ export default {
 
 <style scoped>
 .unload-places-section {
-  margin-top: 5px;
+  box-sizing: border-box;
 }
 
-.unload-places__header {
+/* карточка-секция (эталон мокапа .card) */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--surface-sunken);
+}
+
+.sec-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: var(--accent-text);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  height: 35px;
+  /* резерв под появляющиеся Сохранить/Отмена (btn-mini 28px) - чтобы их
+     появление не двигало чипсы/список ниже */
+  min-height: 28px;
+  gap: 8px;
+}
+
+.sec-note {
+  text-transform: none;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.sec-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+}
+
+.save-hint {
+  font-size: 11px;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  border-radius: 8px;
+  padding: 3px 9px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  display: inline-block;
+}
+
+.btn-mini {
+  height: 28px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.btn-mini.primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.btn-mini:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.btn-mini:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .unload-places-container {
   width: fit-content;
-  background: #FFF;
+  background: var(--surface);
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   padding: 12px;
 }
 
@@ -216,10 +330,10 @@ export default {
 .place-item {
   height: 30px;
   border-radius: 50px;
-  background: #f2f2f2;
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 140px;
   min-width: 80px;
   padding: 0 12px;
@@ -233,83 +347,28 @@ export default {
 }
 
 .place-item:hover {
-  background: #e8e8e8;
+  background: var(--row-hover);
 }
 
 .place-item.selected {
-  background: #4F5BDF;
-  color: #FFF;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .no-places-message {
   text-align: center;
   padding: 20px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-style: italic;
-}
-
-.places-actions {
-  display: flex;
-  gap: 8px; 
-}
-
-.save-places-btn {
-  padding: 0px 8px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 20px;
-}
-
-.save-places-btn:hover:not(:disabled) {
-  background: #3a45b2;
-}
-
-.save-places-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.cancel-places-btn {
-  padding: 0px 8px;
-  font-weight: 600;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 20px;
-}
-
-.cancel-places-btn:hover:not(:disabled) {
-  background: #4b5563;
-}
-
-.cancel-places-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.detail-label {
-  font-size: 0.85em;
-  color: #a2a2a2;
-  font-weight: 400;
 }
 
 @media (max-width: 768px) {
   .unload-places-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
-  .places-actions {
-    flex-direction: column;
+
+  .sec-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

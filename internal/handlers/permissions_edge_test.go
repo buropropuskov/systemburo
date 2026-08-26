@@ -45,23 +45,30 @@ func TestPermissions_GrantDefaultPermissions_Idempotent(t *testing.T) {
 	assert.Equal(t, int64(5), count, "double GrantDefaultPermissions should not create duplicates")
 }
 
-func TestPermissions_AutoGenerate_AnyAuthenticatedUser(t *testing.T) {
+// auto-generate плодит ключи прав для таблицы. Раньше роут был открыт любому
+// авторизованному (обычный юзер мог засорять каталог прав); теперь закрыт правом
+// конструктора таблиц. Обычный юзер получает 403, ключи не создаются; админ - 200.
+func TestPermissions_AutoGenerate_RequiresTablesConstructor(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	// Regular user (type_id=1) can call auto-generate.
-	// NOTE: The endpoint has no admin restriction -- any authenticated user succeeds.
-	regularToken := testutil.RegisterAndLogin(t, e, "regauto1", "password123", 1, td.OrgID, td.CompanyID)
-
 	body := `{"table_id":100,"table_name":"edge_test_table"}`
-	rec := testutil.POST(t, e, "/permissions/auto-generate", body, testutil.AuthHeader(regularToken))
-	assert.Equal(t, http.StatusOK, rec.Code,
-		"auto-generate has no admin check -- any authenticated user can call it")
 
-	// Verify permissions were created
+	regularToken := testutil.RegisterAndLogin(t, e, "regauto1", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, "/permissions/auto-generate", body, testutil.AuthHeader(regularToken))
+	require.Equal(t, http.StatusForbidden, rec.Code,
+		"обычный юзер не должен генерировать права таблиц")
+
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.edge_test_table.%").Count(&count)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(0), count, "при 403 ключи прав не создаются")
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec = testutil.POST(t, e, "/permissions/auto-generate", body, testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code, "админ генерирует права таблицы")
+
+	db.Model(&models.Permission{}).Where("key LIKE ?", "table.edge_test_table.%").Count(&count)
+	assert.Equal(t, int64(10), count)
 }

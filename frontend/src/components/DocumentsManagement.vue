@@ -1,7 +1,7 @@
 <template>
   <div class="documents-container dashboard-card">
     <!-- Шапка 50px -->
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">Документы</h3>
       <div class="header-controls">
         <BaseDropdown
@@ -19,10 +19,15 @@
           Управление группами
         </button>
         <button
-          class="lk-button lk-button--primary"
+          class="lk-button lk-button--primary rt-btn-compact"
+          aria-label="Загрузить документы"
           @click="openUploadModal"
         >
-          Загрузить документы
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Загрузить документы</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -109,7 +114,7 @@
           <div>
             <div class="doc-detail-filename">{{ selectedDoc.file_name }}</div>
             <div class="doc-detail-meta">
-              {{ formatFileSize(selectedDoc.file_size) }} &middot;
+              {{ formatBytes(selectedDoc.file_size) }} &middot;
               загружен {{ formatDate(selectedDoc.created_at) }}
             </div>
           </div>
@@ -316,7 +321,7 @@
                 <div class="uq-fields">
                   <div class="uq-filename">
                     {{ item.file.name }}
-                    <span class="uq-size">&middot; {{ formatFileSize(item.file.size) }}</span>
+                    <span class="uq-size">&middot; {{ formatBytes(item.file.size) }}</span>
                   </div>
                   <input
                     v-model="item.title"
@@ -444,7 +449,7 @@
                   </div>
                   <template v-else>
                     <div class="grp-name">{{ grp.name }}</div>
-                    <div class="grp-cnt">{{ grp.doc_count ?? 0 }} документов</div>
+                    <div class="grp-cnt">{{ grp.count ?? 0 }} документов</div>
                   </template>
                 </div>
                 <div
@@ -532,6 +537,7 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import FileTypeIcon from './ui/FileTypeIcon.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { formatBytes } from '@/utils/download';
 import {
   listDocumentGroups,
   createDocumentGroup,
@@ -692,7 +698,11 @@ export default {
           published_at: this.editForm.published_at || null,
           is_visible: this.editForm.is_visible,
         };
-        await updateDocument(this.selectedDoc.id, payload);
+        const result = await updateDocument(this.selectedDoc.id, payload);
+        if (result?.message) {
+          this.editError = result.message;
+          return;
+        }
         const title = this.editForm.title;
         // Обновляем в локальном массиве
         const idx = this.documents.findIndex((d) => d.id === this.selectedDoc.id);
@@ -767,11 +777,14 @@ export default {
     },
     onDragOver(idx) {
       if (this.dragDocIdx === null || this.dragDocIdx === idx) return;
-      const arr = this.filteredDocuments;
-      const moved = arr[this.dragDocIdx];
-      arr.splice(this.dragDocIdx, 1);
-      arr.splice(idx, 0, moved);
-      // Синхронизируем с основным массивом (filteredDocuments computed — только чтение по ссылке)
+      const visible = this.filteredDocuments;
+      const movedDoc = visible[this.dragDocIdx];
+      const targetDoc = visible[idx];
+      const from = this.documents.indexOf(movedDoc);
+      if (from === -1) return;
+      this.documents.splice(from, 1);
+      const to = this.documents.indexOf(targetDoc);
+      this.documents.splice(to === -1 ? this.documents.length : to, 0, movedDoc);
       this.dragDocIdx = idx;
     },
     async onDragEnd() {
@@ -783,9 +796,8 @@ export default {
       const ids = this.filteredDocuments.map((d) => d.id);
       try {
         await reorderDocuments(groupId, ids);
-      } catch (e) {
-        // Порядок не критичен — тихо логируем
-        console.warn('reorderDocuments failed:', e);
+      } catch {
+        // порядок документов не критичен для пользователя — ошибку не показываем
       }
     },
 
@@ -929,7 +941,7 @@ export default {
       this.isCreatingGroup = true;
       try {
         const g = await createDocumentGroup({ name });
-        const newGroup = { ...g, doc_count: 0 };
+        const newGroup = { ...g, count: 0 };
         this.groups.push(newGroup);
         this.editableGroups.push({ ...newGroup, _editMode: false, _editName: name });
         this.newGroupName = '';
@@ -957,10 +969,10 @@ export default {
         await reorderDocumentGroups(ids);
         // Синхронизируем this.groups
         this.groups = [...this.editableGroups.map((g) => ({
-          id: g.id, name: g.name, doc_count: g.doc_count, sort_order: g.sort_order,
+          id: g.id, name: g.name, count: g.count, sort_order: g.sort_order,
         }))];
-      } catch (e) {
-        console.warn('reorderDocumentGroups failed:', e);
+      } catch {
+        // порядок групп не критичен для пользователя — ошибку не показываем
       }
     },
 
@@ -969,12 +981,7 @@ export default {
       if (!dt) return '';
       return new Date(dt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
-    formatFileSize(bytes) {
-      if (!bytes) return '';
-      if (bytes < 1024) return `${bytes} Б`;
-      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`;
-      return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
-    },
+    formatBytes,
     fileWord(n) {
       if (n % 10 === 1 && n % 100 !== 11) return 'файл';
       if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'файла';
@@ -988,9 +995,9 @@ export default {
 .documents-container {
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border-radius: 35px;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -1009,7 +1016,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
   flex-shrink: 0;
 }
 
@@ -1068,8 +1075,8 @@ export default {
   padding: 10px 16px;
   border-top: 1px solid var(--color-border);
   font-size: 12px;
-  color: #8a8a9a;
-  background: #fafbfd;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   flex-shrink: 0;
 }
 
@@ -1084,7 +1091,7 @@ export default {
   gap: 10px;
   padding: 10px 16px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
 }
 
@@ -1093,15 +1100,15 @@ export default {
 }
 
 .docs-row:hover {
-  background: #fafbff;
+  background: var(--accent-tint);
 }
 
 .docs-row.selected {
-  background: #f0f4ff;
+  background: var(--accent-tint);
 }
 
 .docs-drag-handle {
-  color: #cdd0e0;
+  color: var(--accent-text);
   cursor: grab;
   font-size: 14px;
   user-select: none;
@@ -1116,7 +1123,7 @@ export default {
 .docs-row-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1125,7 +1132,7 @@ export default {
 
 .docs-row-meta {
   font-size: 10.5px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 3px;
 }
 
@@ -1137,13 +1144,13 @@ export default {
 }
 
 .docs-badge--hidden {
-  background: #f0f0f4;
-  color: #8a8a9a;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .docs-badge--group {
-  background: #eef0ff;
-  color: var(--color-primary);
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 /* --- Панель деталей --- */
@@ -1163,12 +1170,12 @@ export default {
 .doc-detail-filename {
   font-size: 15px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .doc-detail-meta {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 3px;
 }
 
@@ -1180,12 +1187,12 @@ export default {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #555;
+  color: var(--text);
   margin-bottom: 6px;
 }
 
 .form-error {
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 12px;
   margin-top: 6px;
 }
@@ -1202,19 +1209,19 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 11px 0;
-  border-top: 1px solid #f2f2f7;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   margin-bottom: 4px;
 }
 
 .switch-label {
   font-size: 12.5px;
   font-weight: 600;
-  color: #444;
+  color: var(--text);
 }
 
 .switch-desc {
   font-size: 10.5px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1222,7 +1229,7 @@ export default {
   width: 42px;
   height: 24px;
   border-radius: 50px;
-  background: #d4d7e3;
+  background: var(--accent);
   position: relative;
   flex-shrink: 0;
   cursor: pointer;
@@ -1241,7 +1248,7 @@ export default {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   top: 3px;
   left: 3px;
   transition: transform 0.18s ease;
@@ -1257,7 +1264,7 @@ export default {
   gap: 8px;
   margin-top: 18px;
   padding-top: 16px;
-  border-top: 1px solid #f2f2f7;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   flex-wrap: wrap;
 }
 
@@ -1267,14 +1274,14 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #b3b3c2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .no-results {
   padding: 30px;
   text-align: center;
-  color: #b9b9c6;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -1286,7 +1293,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1296,11 +1303,11 @@ export default {
 .docs-modal {
   width: 560px;
   max-width: 95vw;
-  max-height: 90vh;
-  background: #fff;
+  max-height: calc(var(--app-vh, 1vh) * 90);
+  background: var(--surface);
   border-radius: 30px;
   box-shadow: 0 20px 60px rgba(20, 22, 60, 0.18);
-  border: 1px solid #edeef5;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1318,14 +1325,14 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 20px;
-  color: #b3b3c2;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
@@ -1347,20 +1354,20 @@ export default {
 
 /* --- Dropzone --- */
 .dropzone {
-  border: 2px dashed #cfd4ff;
+  border: 2px dashed color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 16px;
-  background: #f8f9ff;
+  background: var(--accent-tint);
   padding: 26px;
   text-align: center;
-  color: #8a8fb5;
+  color: var(--accent-text);
   font-size: 12.5px;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .dropzone--over {
-  border-color: var(--color-primary);
-  background: #eef0ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .dropzone-text {
@@ -1369,7 +1376,7 @@ export default {
 
 .dropzone-hint {
   font-size: 11px;
-  color: #b3b6cf;
+  color: var(--accent-text);
   margin-top: 6px;
 }
 
@@ -1391,11 +1398,11 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: 14px;
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .uq-drag {
-  color: #cdd0e0;
+  color: var(--accent-text);
   cursor: grab;
   font-size: 13px;
   margin-top: 3px;
@@ -1407,8 +1414,8 @@ export default {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  background: #eef0ff;
-  color: var(--color-primary);
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
   display: flex;
@@ -1429,18 +1436,18 @@ export default {
 .uq-filename {
   font-size: 12px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .uq-size {
-  color: #b3b6cf;
+  color: var(--accent-text);
   font-weight: 400;
 }
 
 .uq-remove {
   background: none;
   border: none;
-  color: #cdaeb0;
+  color: var(--danger-text);
   cursor: pointer;
   font-size: 16px;
   margin-top: 2px;
@@ -1450,7 +1457,7 @@ export default {
 }
 
 .uq-remove:hover {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 /* --- Строки групп --- */
@@ -1471,7 +1478,7 @@ export default {
 }
 
 .grp-drag {
-  color: #cdd0e0;
+  color: var(--accent-text);
   cursor: grab;
   user-select: none;
   font-size: 14px;
@@ -1485,12 +1492,12 @@ export default {
 .grp-name {
   font-size: 12.5px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .grp-cnt {
   font-size: 10.5px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1536,5 +1543,66 @@ export default {
 /* --- BaseDropdown для фильтра групп --- */
 .group-filter-dropdown {
   min-width: 140px;
+}
+
+/* Список уже card-like (иконка+название+бейджи+мета вместо колонок таблицы) -
+   rt-table/data-label тут не подходят (нет head-row, нечего скрывать/подписывать),
+   поэтому карточный вид на узком экране собираем локально: master-detail
+   стекается (компонент раньше не имел ни одного @media - на мобилке колонки
+   .table-section/.details-section просто сжимались бок о бок), .docs-row
+   получает границу и радиус карточки, шапка ужимается тем же приёмом, что и
+   в остальных 5 компонентах среза. */
+@media (max-width: 767.98px) {
+  .management-header {
+    height: auto;
+    padding: 16px;
+  }
+
+  .group-filter-dropdown {
+    min-width: 110px;
+    width: auto;
+  }
+
+  /* 4 контрола (дропдаун + 2 текстовых кнопки + Обновить) не помещаются в
+     одну строку даже на всю ширину контейнера - "Управление группами" длинный
+     текст, не компактится (не Add-кнопка). Переносим строкой ВНУТРИ
+     header-controls, а не разваливаем на вертикальный стек по одной кнопке -
+     каждый контрол остаётся пилюлей нормальной ширины. */
+  .header-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .content-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .table-section,
+  .table-section.with-details,
+  .details-section,
+  .no-selection-message {
+    width: 100%;
+  }
+
+  .table-section {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table-body {
+    max-height: 320px;
+    padding: 8px;
+  }
+
+  .docs-row {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 15px);
+    margin-bottom: 8px;
+  }
+
+  .docs-row:last-child {
+    margin-bottom: 0;
+  }
 }
 </style>

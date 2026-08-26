@@ -7,10 +7,12 @@
     <div class="completion__header">
       <h3>Добавление Т/С</h3>
       <button
+        v-if="allowExistingSearch"
         class="completion__button"
+        data-testid="ob-form-existing"
         @click="openExistingCarsModal"
       >
-        Добавить существующую(-ие)
+        {{ isNarrow ? 'Добавить сущ.' : 'Добавить существующую(-ие)' }}
       </button>
     </div>
 
@@ -28,23 +30,65 @@
           >
             Просмотреть
           </button>
+          <div class="add-existing-wrap">
+            <button
+              class="add-existing-btn"
+              :disabled="!canAddExistingCars"
+              @click="addExistingCars"
+              @mouseenter="showExistingTooltip = true"
+              @mouseleave="showExistingTooltip = false"
+            >
+              Добавить
+            </button>
+            <div
+              v-if="showExistingTooltip && !canAddExistingCars"
+              class="tooltip"
+            >
+              <div class="tooltip-content">
+                {{ existingCarsTooltip }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Список добавленных машин: номер - марка -->
+      <div class="existing-cars-list">
+        <div
+          v-for="car in displayedExistingCars"
+          :key="car.id || car.number"
+          class="existing-car-item"
+        >
+          <span>{{ car.number }} - {{ car.mark || 'не указана' }}</span>
           <button
-            class="add-existing-btn"
-            :disabled="!canAddExistingCars"
-            @click="addExistingCars"
+            class="existing-car-remove"
+            type="button"
+            title="Убрать машину"
+            @click="removeExistingCar(car)"
           >
-            Добавить
+            ×
           </button>
         </div>
+        <button
+          v-if="selectedExistingCars.length > 5 && !showAllExistingCars"
+          class="show-all-btn"
+          @click="showAllExistingCars = true"
+        >
+          Показать все ({{ selectedExistingCars.length }})
+        </button>
       </div>
     </div>
 
     <!-- Форма для добавления новой машины -->
-    <div v-else>
+    <div
+      v-else
+      class="completion__body"
+    >
       <div class="completion__format">
         <div class="format__header">
-          <label class="format__label">Формат номеров</label>
-          <div class="format-actions">
+          <div
+            class="format-actions"
+            @click="revealBlockedHint($event)"
+          >
             <button
               v-if="editingVehicle"
               class="cancel-edit-btn"
@@ -71,6 +115,10 @@
               </div>
             </div>
           </div>
+          <!-- В DOM лейбл после кнопок: на мобилке шапка разворачивается в поток,
+               и лейбл встаёт прямо над своим дропдауном, а не над липкой строкой.
+               На десктопе order возвращает его влево. -->
+          <label class="format__label">Формат номеров</label>
         </div>
         <div class="format__dropdown">
           <button 
@@ -80,11 +128,11 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedFormatText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
                 :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-              >
+              />
             </div>
           </button>
           <transition name="dropdown">
@@ -114,7 +162,7 @@
               v-if="fieldRequired('number')"
               class="required"
             >*</span></label>
-            <div class="number-fact">
+            <label class="number-fact fact-toggle">
               <input
                 v-model="isNumberByFact"
                 class="fact-checkbox"
@@ -122,10 +170,12 @@
                 :disabled="editingVehicle && editingVehicle.isExisting"
                 @change="handleNumberByFactChange"
               >
-              <p class="fact-text">
-                по факту
-              </p>
-            </div>
+              <span
+                class="fact-switch"
+                aria-hidden="true"
+              />
+              <span class="fact-text">по факту</span>
+            </label>
           </div>
           <!-- Поле "по факту" -->
           <div
@@ -147,6 +197,7 @@
             <input
               v-for="(cell, index) in selectedFormat.cells"
               :key="index"
+              ref="numberCells"
               v-model="numberParts[index]"
               class="number__input"
               :placeholder="getPlaceholder(cell)"
@@ -176,17 +227,19 @@
               v-if="fieldRequired('mark')"
               class="required"
             >*</span></label>
-            <div class="mark-fact">
+            <label class="mark-fact fact-toggle">
               <input
                 v-model="isMarkByFact"
                 class="fact-checkbox"
                 type="checkbox"
                 @change="handleMarkByFactChange"
               >
-              <p class="fact-text">
-                по факту
-              </p>
-            </div>
+              <span
+                class="fact-switch"
+                aria-hidden="true"
+              />
+              <span class="fact-text">по факту</span>
+            </label>
           </div>
           <div
             v-if="isMarkByFact"
@@ -208,12 +261,25 @@
                 @click="toggleMarkDropdown"
               >
                 <div class="mark__button-content">
-                  <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                  <img
-                    src="@/assets/icons/arrow.png"
+                  <span
+                    class="mark__button-text"
+                    :title="selectedMark || ''"
+                  >{{ selectedMark || 'Выберите марку' }}</span>
+                  <svg
                     class="mark__button-arrow"
                     :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                    viewBox="0 0 10 6"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
+                    <path
+                      d="M1 1L5 5L9 1"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
                 </div>
               </button>
               <transition name="dropdown">
@@ -288,6 +354,7 @@
     <div
       v-if="fieldVisible('unloading_places')"
       class="completion__unloading"
+      data-testid="ob-form-places"
     >
       <label class="input__label">Места разгрузки (выбор) <span
         v-if="fieldRequired('unloading_places')"
@@ -305,7 +372,7 @@
             'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
             'unloading__item--inactive': place.status !== 'active'
           }"
-          @click="toggleUnloadingPlace(place)"
+          @click="toggleUnloadingPlace(place, $event)"
           @mouseenter="showInactiveTooltip(place, $event)"
           @mouseleave="hideInactiveTooltip"
         >
@@ -332,9 +399,47 @@
       </div>
     </div>
 
+    <!-- Проезд -->
+    <div
+      v-if="fieldVisible('passage_tables')"
+      class="completion__passage"
+    >
+      <label class="input__label">Проезд <span
+        v-if="fieldRequired('passage_tables')"
+        class="required"
+      >*</span></label>
+      <TargetTablesGrid
+        v-if="!loadingPassageTables && filteredPassageTables.length > 0"
+        v-model="selectedPassageTables"
+        :tables="filteredPassageTables"
+        :attached-ids="attachedTablesIds"
+      />
+      <div
+        v-else-if="loadingPassageTables"
+        class="loading-message"
+      >
+        Загрузка мест проезда...
+      </div>
+      <div
+        v-else
+        class="no-tables-message"
+      >
+        Нет доступных мест проезда
+      </div>
+      <div
+        v-if="errors.passageTables"
+        class="error-message"
+      >
+        {{ errors.passageTables }}
+      </div>
+    </div>
+
+    <!-- Предупреждения выбранных мест (#1183): режим работы против срока + текст/окна -
+         рендерятся единой плавающей панелью в CreateApplication (@notices-change). -->
+
     <!-- Tooltip для неактивных мест -->
     <div
-      v-if="inactiveTooltip.visible" 
+      v-if="inactiveTooltip.visible"
       class="inactive-tooltip"
       :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
     >
@@ -350,6 +455,7 @@
       :user-organization-id="userOrganizationId"
       :user-company-id="userCompanyId"
       :initial-selected-cars="selectedExistingCars"
+      :z-index="existingModalZIndex"
       @cars-selected="onExistingCarsSelected"
       @close="closeExistingCarsModal"
     />
@@ -358,19 +464,29 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getViewportZoom } from '@/utils/viewportScale'
 import { checkVehicleBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
+import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
-import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
+import { validatePartValue, formatPartValue, initializeNumberParts, matchNumberToFormat } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
+import { collectActiveWarnings } from '@/utils/warningWindows'
+import { buildScheduleReport } from '@/utils/scheduleCheck'
+import { findDuplicateVehicle, vehicleLabel } from '@/utils/applicationDuplicates'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
+import { resetVehicleFormState } from './entryFormReset'
+import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'VehicleForm',
     components: {
-        ExistingCarsModal
+        AppIcon,
+        ExistingCarsModal,
+        TargetTablesGrid
     },
     props: {
         userOrganization: {
@@ -393,6 +509,12 @@ export default {
             type: Array,
             default: () => []
         },
+        // Места разгрузки на уровне заявки (#706): приоритетный источник начального
+        // выбора. Пусто - падаем на автоподстановку по организации/компании.
+        applicationUnloadPlaces: {
+            type: Array,
+            default: () => []
+        },
         // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
         // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей машин) - срез H-7.
         fieldConfig: {
@@ -403,12 +525,30 @@ export default {
         disabled: {
             type: Boolean,
             default: false
+        },
+        // Ручное добавление (#1049): DTO ManualVehicle не имеет existing_car_id, поэтому
+        // выбор "существующей" машины создал бы дубликат - прячем поиск в этом контексте.
+        allowExistingSearch: {
+            type: Boolean,
+            default: true
+        },
+        // Слой окна «Добавить существующую(-ие)». Дефолт 1000 - подача заявки; форма,
+        // встроенная в окно поверх детали заявки, поднимает его (#1685).
+        existingModalZIndex: {
+            type: Number,
+            default: 1000
+        },
+        // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
+        // time_to } в API-формате (YYYY-MM-DD + ЧЧ:ММ). Против него сверяется расписание
+        // (time_slots) выбранных мест - предупреждаем, если место закрыто на границе срока.
+        entryPeriod: {
+            type: Object,
+            default: null
         }
     },
-    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added'],
+    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places', 'notices-change'],
     setup(props) {
         const instance = getCurrentInstance()
-        const toast = useToast()
         // Геттер сохраняет реактивность пропса fieldConfig (#529).
         const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
 
@@ -420,9 +560,13 @@ export default {
             })
 
             if (vm.selectedExistingCars.length > 0) {
-                return [
+                const existingRules = [
                     { check: !fieldVisible('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
                 ]
+                if (fieldVisible('passage_tables') && fieldRequired('passage_tables')) {
+                    existingRules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место проезда' })
+                }
+                return existingRules
             }
 
             return [
@@ -442,17 +586,23 @@ export default {
                     message: 'номер Т/С'
                 },
                 { check: !fieldVisible('mark') || !fieldRequired('mark') || vm.isMarkByFact || !!vm.selectedMark, message: 'марка Т/С' },
-                { check: !fieldVisible('unloading_places') || !fieldRequired('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
+                { check: !fieldVisible('unloading_places') || !fieldRequired('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' },
+                { check: !fieldVisible('passage_tables') || !fieldRequired('passage_tables') || vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место проезда' }
             ]
         })
 
-        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast, fieldVisible, fieldRequired }
+        // Причина блокировки кнопки живёт на hover - на телефоне его нет,
+        // поэтому там показываем её сразу под кнопкой.
+        const { isNarrow } = useNarrowScreen()
+        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired, isNarrow }
     },
     data() {
         return {
             numberParts: [],
             isNumberByFact: false,
             availableFormats: [],
+            // Промис загрузки справочника форматов - см. mounted и applyEditedVehicleNumber.
+            formatsReady: null,
             selectedFormat: null,
             isFormatDropdownOpen: false,
             isMarkByFact: false,
@@ -466,11 +616,17 @@ export default {
             attachedUnloadingPlaces: [],
             selectedUnloadingPlaces: [],
             loadingUnloadingPlaces: false,
-            errors: { unloadingPlaces: '' },
+            allPassageTables: [],
+            attachedPassageTables: [],
+            selectedPassageTables: [],
+            loadingPassageTables: false,
+            errors: { unloadingPlaces: '', passageTables: '' },
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
             showExistingCarsModal: false,
             selectedExistingCars: [],
+            showExistingTooltip: false,
+            showAllExistingCars: false,
             editingVehicle: null,
             inactiveTooltip: {
                 visible: false,
@@ -483,7 +639,14 @@ export default {
             checkingTimeout: null,
             // Проверка ЧС (#443): null или { is_blacklisted, reason }
             blacklistInfo: null,
-            blacklistTimeout: null
+            blacklistTimeout: null,
+            // Опорный момент для предупреждений окон (#1183 S4): тикает раз в минуту,
+            // чтобы баннер релевантных окон не залипал по времени.
+            warningNow: new Date(),
+            warningTimer: null,
+            // Дебаунс эмита предупреждений наверх (#1183 polish): быстрая смена мест/
+            // времени коалесцируется, панель не дёргается.
+            noticesTimer: null
         }
     },
     computed: {
@@ -497,8 +660,84 @@ export default {
                 return place && place.status !== 'active';
             });
             const placesOk = !this.fieldVisible('unloading_places') || (this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected);
-            return this.selectedExistingCars.length > 0 && placesOk;
+            // "Проезд" обязателен так же, как для новой машины (см. useFormValidation) -
+            // без выбранной таблицы проезда кнопка "Добавить" для существующих не активна.
+            const passageOk = !this.fieldVisible('passage_tables') || !this.fieldRequired('passage_tables') || this.selectedPassageTables.length > 0;
+            return this.selectedExistingCars.length > 0 && placesOk && passageOk;
         },
+        existingCarsTooltip() {
+            if (this.canAddExistingCars) return '';
+            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                return place && place.status !== 'active';
+            });
+            const missing = [];
+            if (this.fieldVisible('unloading_places') && this.selectedUnloadingPlaces.length === 0) {
+                missing.push('хотя бы одно место разгрузки');
+            }
+            if (hasInactiveSelected) {
+                missing.push('убрать неактивное место разгрузки');
+            }
+            if (this.fieldVisible('passage_tables') && this.fieldRequired('passage_tables') && this.selectedPassageTables.length === 0) {
+                missing.push('хотя бы одно место проезда');
+            }
+            if (missing.length === 0) return 'Заполните обязательные поля';
+            if (missing.length === 1) return `Заполните поле: ${missing[0]}`;
+            return `Заполните поля:\n${missing.map(f => `• ${f}`).join('\n')}`;
+        },
+        displayedExistingCars() {
+            if (this.showAllExistingCars) return this.selectedExistingCars;
+            return this.selectedExistingCars.slice(0, 5);
+        },
+        attachedTablesIds() {
+            return this.attachedPassageTables.map(table => table.id);
+        },
+        filteredPassageTables() {
+            return this.allPassageTables.filter(item => {
+                const table = item.table || item;
+                return table && table.table_type === 'cars';
+            }).map(item => {
+                if (item.table) {
+                    return item;
+                } else {
+                    return { table: item };
+                }
+            });
+        },
+        // Предупреждения выбранных мест разгрузки и таблиц проезда (#1183): группа на
+        // место со свободным текстом (S1), активными сейчас окнами (S4) и отчётом
+        // "режим работы против окна пребывания срока" (S5). Окна зависят от warningNow
+        // (тикает раз в минуту), расписание - от entryPeriod; всё реактивно, панель
+        // в CreateApplication обновляется на лету при смене мест/времени.
+        noticeGroups() {
+            const at = this.warningNow;
+            const groups = [];
+
+            this.selectedUnloadingPlaces.forEach(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                if (!place) return;
+                const { free, windows } = collectActiveWarnings(place, at);
+                const schedule = buildScheduleReport(place.time_slots, this.entryPeriod);
+                if (free || windows.length || (schedule && schedule.anyClosed)) {
+                    groups.push({ id: `place-${place.id}`, name: place.name, free, windows, schedule });
+                }
+            });
+
+            this.selectedPassageTables.forEach(tableId => {
+                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
+                if (!item) return;
+                const { free, windows } = collectActiveWarnings(
+                    { warning: item.table.warning, warning_windows: item.warning_windows },
+                    at
+                );
+                const schedule = buildScheduleReport(item.time_slots, this.entryPeriod);
+                if (free || windows.length || (schedule && schedule.anyClosed)) {
+                    groups.push({ id: `table-${item.table.id}`, name: item.table.display_name || item.table.name, free, windows, schedule });
+                }
+            });
+
+            return groups;
+        }
     },
     watch: {
         // Следим за изменениями частей номера для проверки активности
@@ -508,34 +747,99 @@ export default {
                 this.checkVehicleActive();
                 this.checkBlacklist();
             }
+        },
+        // Авто-выделение: если organizationId пришёл позже mounted() (async loadUserData),
+        // а места ещё не выбраны - подставляем по организации.
+        userOrganizationId(newVal, oldVal) {
+            if (newVal && !oldVal &&
+                this.selectedUnloadingPlaces.length === 0 &&
+                this.applicationUnloadPlaces.length === 0) {
+                this.autoSelectPlaces();
+            }
+        },
+        userCompanyId(newVal, oldVal) {
+            if (newVal && !oldVal &&
+                !this.userOrganizationId &&
+                this.selectedUnloadingPlaces.length === 0 &&
+                this.applicationUnloadPlaces.length === 0) {
+                this.autoSelectPlaces();
+            }
+        },
+        // Предупреждения наверх в единую панель, дебаунс - гасит дёрганье при
+        // быстрой смене мест/времени.
+        noticeGroups: {
+            handler(groups) {
+                if (this.noticesTimer) clearTimeout(this.noticesTimer);
+                this.noticesTimer = setTimeout(() => {
+                    this.$emit('notices-change', groups);
+                }, 150);
+            },
+            deep: true,
+            immediate: true
         }
     },
     async mounted() {
+        // Промис держим отдельно: правка строки может прийти раньше, чем справочник
+        // форматов доедет, и тогда подбор формата по номеру ложно не находит ничего.
+        this.formatsReady = this.loadLicensePlateFormats();
         await Promise.all([
-            this.loadLicensePlateFormats(),
+            this.formatsReady,
             this.loadUnloadingPlaces(),
-            this.loadMarks()
+            this.loadMarks(),
+            this.loadPassageTables()
         ]);
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.format__dropdown')) {
-                this.isFormatDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.mark__dropdown')) {
-                this.isMarkDropdownOpen = false;
-            }
-        });
+        document.addEventListener('click', this.handleDocumentClick);
+        this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
     },
     beforeUnmount() {
+        if (this.hintTimer) clearTimeout(this.hintTimer);
+        if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+        document.removeEventListener('click', this.handleDocumentClick);
         if (this.checkingTimeout) {
             clearTimeout(this.checkingTimeout);
         }
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
         }
+        if (this.warningTimer) {
+            clearInterval(this.warningTimer);
+        }
+        if (this.noticesTimer) {
+            clearTimeout(this.noticesTimer);
+        }
+        // Форма уходит (смена типа вложения) - гасим панель, чтобы не висели стейл-группы.
+        this.$emit('notices-change', []);
     },
     methods: {
+        /**
+         * Причина блокировки на телефоне показывается по тапу на зону кнопки
+         * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
+         * тапа через pointer-events) и гаснет сама.
+         */
+        revealBlockedHint(event) {
+            // Тап по «Отменить» в режиме редактирования - не повод объяснять,
+            // почему заблокировано добавление.
+            if (event && event.target.closest('.cancel-edit-btn')) return;
+            if (!this.isNarrow || this.canAddVehicle) return;
+            this.showTooltip = true;
+            if (this.hintTimer) clearTimeout(this.hintTimer);
+            this.hintTimer = setTimeout(() => { this.showTooltip = false; }, 3000);
+        },
+
+        // Закрывает дропдауны формата/марки при клике вне них. Именованный метод (не
+        // анонимная стрелка в mounted) - иначе removeEventListener не снимет слушатель
+        // и он копится при частом откр/закр формы в модалке ручного добавления.
+        handleDocumentClick(e) {
+            if (!e.target.closest('.format__dropdown')) {
+                this.isFormatDropdownOpen = false;
+            }
+
+            if (!e.target.closest('.mark__dropdown')) {
+                this.isMarkDropdownOpen = false;
+            }
+        },
+
         // Новый метод для проверки активной заявки
         async checkVehicleActive() {
             // Отменяем предыдущий таймаут
@@ -624,6 +928,58 @@ export default {
             }
         },
 
+        // Авто-выделение мест по организации / компании (без сброса allUnloadingPlaces).
+        // Вызывается из watch, когда userOrganizationId приходит позже mounted().
+        async autoSelectPlaces() {
+            try {
+                if (this.userOrganizationId) {
+                    const orgRes = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, { method: 'GET' });
+                    if (orgRes.ok) {
+                        const places = await orgRes.json();
+                        if (Array.isArray(places) && places.length > 0) {
+                            this.attachedUnloadingPlaces = places;
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(places);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' организации' });
+                                this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
+                            }
+                            return;
+                        }
+                    }
+                }
+
+                if (this.userCompanyId) {
+                    const compRes = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, { method: 'GET' });
+                    if (compRes.ok) {
+                        const places = await compRes.json();
+                        if (Array.isArray(places) && places.length > 0) {
+                            this.attachedUnloadingPlaces = places;
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(places);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' компании' });
+                                this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Ошибка при авто-выделении мест разгрузки:', err);
+            }
+        },
+
+        // Из привязанных к организации/компании мест берём id тех, что реально активны.
+        // org/company-эндпоинт отдаёт места без поля status (SELECT только id/name/description),
+        // поэтому статус сверяем с авторитетным allUnloadingPlaces (по нему же рендерится грид) -
+        // иначе фильтр `place.status === 'active'` по ответу без status давал пусто и автовыбор не
+        // срабатывал (в отличие от людей, где нормализация дефолтит status в 'active').
+        activeAttachedIds(attachedPlaces) {
+            const ids = attachedPlaces.map(place => place.id);
+            // Общий список ещё не подгружен (гонка позднего organizationId) - берём все
+            // привязанные: бэк уже вернул только is_active, статус уточнится при рендере.
+            if (this.allUnloadingPlaces.length === 0) return ids;
+            return ids.filter(id => this.allUnloadingPlaces.some(place => place.id === id && place.status === 'active'));
+        },
+
         async loadUnloadingPlaces() {
             this.loadingUnloadingPlaces = true;
             this.allUnloadingPlaces = [];
@@ -644,31 +1000,41 @@ export default {
                     this.allUnloadingPlaces = await allPlacesResponse.json();
                 }
 
-                if (this.userOrganizationId) {
-                    const orgPlacesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, {
-                        method: "GET"});
+                if (this.applicationUnloadPlaces.length > 0) {
+                    // Приоритет - единый выбор мест заявки (#706): предзаполняем новое
+                    // cars-вложение уже сделанным выбором, минуя автоподстановку.
+                    this.selectedUnloadingPlaces = [...this.applicationUnloadPlaces];
+                } else {
+                    if (this.userOrganizationId) {
+                        const orgPlacesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, {
+                            method: "GET"});
 
-                    if (orgPlacesResponse.ok) {
-                        this.attachedUnloadingPlaces = await orgPlacesResponse.json();
-                        const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
-                        this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
-                        if (this.selectedUnloadingPlaces.length > 0) {
-                            this.toast.success('Место разгрузки выбрано автоматически для вашей организации');
+                        if (orgPlacesResponse.ok) {
+                            this.attachedUnloadingPlaces = await orgPlacesResponse.json();
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(this.attachedUnloadingPlaces);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' организации' });
+                            }
                         }
                     }
-                }
 
-                if (this.attachedUnloadingPlaces.length === 0 && this.userCompanyId) {
-                    const companyPlacesResponse = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, {
-                        method: "GET"});
+                    if (this.attachedUnloadingPlaces.length === 0 && this.userCompanyId) {
+                        const companyPlacesResponse = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, {
+                            method: "GET"});
 
-                    if (companyPlacesResponse.ok) {
-                        this.attachedUnloadingPlaces = await companyPlacesResponse.json();
-                        const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
-                        this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
-                        if (this.selectedUnloadingPlaces.length > 0) {
-                            this.toast.success('Место разгрузки выбрано автоматически для вашей компании');
+                        if (companyPlacesResponse.ok) {
+                            this.attachedUnloadingPlaces = await companyPlacesResponse.json();
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(this.attachedUnloadingPlaces);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' компании' });
+                            }
                         }
+                    }
+
+                    // Поднимаем автоподставленный выбор на уровень заявки, чтобы он
+                    // пережил удаление последнего cars-вложения и ушёл в items (#706).
+                    if (this.selectedUnloadingPlaces.length > 0) {
+                        this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
                     }
                 }
 
@@ -683,14 +1049,118 @@ export default {
             }
         },
 
-        getPlaceTooltip(place) {
-            if (place.status !== 'active') {
-                if (place.status_comment) {
-                    return `Недоступно: ${place.status_comment}`;
+        async loadPassageTables() {
+            this.loadingPassageTables = true;
+            this.allPassageTables = [];
+            this.attachedPassageTables = [];
+            this.selectedPassageTables = [];
+
+            try {
+                const authStore = useAuthStore();
+                if (!authStore.token) {
+                    console.error("Токен не найден");
+                    return;
                 }
-                return 'Недоступно';
+
+                const allTablesResponse = await apiRequest("/system-tables", {
+                    method: "GET"});
+
+                if (allTablesResponse.ok) {
+                    const tables = await allTablesResponse.json();
+                    this.allPassageTables = tables.map(table => {
+                        if (table.table) {
+                            return table;
+                        } else {
+                            return {
+                                table: {
+                                    id: table.id,
+                                    name: table.name,
+                                    display_name: table.display_name,
+                                    table_type: table.table_type,
+                                    status: table.status || 'active',
+                                    status_comment: table.status_comment,
+                                    location_description: table.location_description,
+                                    map_link: table.map_link
+                                },
+                                time_slots: table.time_slots || [],
+                                photos: table.photos || [],
+                                current_status: table.current_status || 'closed'
+                            };
+                        }
+                    });
+                } else {
+                    console.error("Ошибка при загрузке системных таблиц");
+                }
+
+                if (this.userOrganizationId) {
+                    const orgTablesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/tables`, {
+                        method: "GET"});
+
+                    if (orgTablesResponse.ok) {
+                        const orgTables = await orgTablesResponse.json();
+                        this.attachedPassageTables = orgTables.map(table => {
+                            if (table.table) {
+                                return table;
+                            } else {
+                                return {
+                                    table: {
+                                        id: table.id,
+                                        name: table.name,
+                                        display_name: table.display_name,
+                                        table_type: table.table_type,
+                                        status: table.status || 'active',
+                                        status_comment: table.status_comment,
+                                        location_description: table.location_description,
+                                        map_link: table.map_link
+                                    },
+                                    time_slots: table.time_slots || [],
+                                    photos: table.photos || [],
+                                    current_status: table.current_status || 'closed'
+                                };
+                            }
+                        });
+                    }
+                }
+
+                if (this.attachedPassageTables.length === 0 && this.userCompanyId) {
+                    const companyTablesResponse = await apiRequest(`/companies/${this.userCompanyId}/tables`, {
+                        method: "GET"});
+
+                    if (companyTablesResponse.ok) {
+                        const companyTables = await companyTablesResponse.json();
+                        this.attachedPassageTables = companyTables.map(table => {
+                            if (table.table) {
+                                return table;
+                            } else {
+                                return {
+                                    table: {
+                                        id: table.id,
+                                        name: table.name,
+                                        display_name: table.display_name,
+                                        table_type: table.table_type,
+                                        status: table.status || 'active',
+                                        status_comment: table.status_comment,
+                                        location_description: table.location_description,
+                                        map_link: table.map_link
+                                    },
+                                    time_slots: table.time_slots || [],
+                                    photos: table.photos || [],
+                                    current_status: table.current_status || 'closed'
+                                };
+                            }
+                        });
+                    }
+                }
+
+                this.validatePassageTables();
+
+            } catch (error) {
+                console.error("Ошибка при загрузке мест проезда:", error);
+                this.allPassageTables = [];
+                this.attachedPassageTables = [];
+            } finally {
+                this.loadingPassageTables = false;
             }
-            return '';
         },
 
         showInactiveTooltip(place, event) {
@@ -704,14 +1174,21 @@ export default {
                 
                 // Позиционируем тултип
                 this.$nextTick(() => {
+                    // position:fixed тултип внутри зазумленного <html>: rect device-px ->
+                    // делим на zoom (inline left/top = layout-px). Отступ -10 не делим.
+                    const z = getViewportZoom();
                     const rect = event.target.getBoundingClientRect();
-                    this.inactiveTooltip.x = rect.left + rect.width / 2;
-                    this.inactiveTooltip.y = rect.top - 10;
+                    this.inactiveTooltip.x = (rect.left + rect.width / 2) / z;
+                    this.inactiveTooltip.y = rect.top / z - 10;
                 });
             }
         },
 
         hideInactiveTooltip() {
+            if (this.inactiveTooltipTimer) {
+                clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = null;
+            }
             this.inactiveTooltip.visible = false;
         },
 
@@ -741,6 +1218,25 @@ export default {
 
             // Проверяем активность после изменения номера
             this.checkVehicleActive();
+
+            // Клетка заполнена до предела - курсор сам прыгает в следующую,
+            // чтобы номер набирался без ручного перескока между клетками.
+            this.advanceCellFocus(index, value, cell);
+        },
+
+        /**
+         * Переводит фокус в следующую клетку номера, когда текущая заполнена
+         * полностью (только при вводе вперёд, не при стирании/правке короче).
+         */
+        advanceCellFocus(index, value, cell) {
+            if (!value || value.length < cell.max_length) return;
+            const cells = this.selectedFormat && this.selectedFormat.cells;
+            if (!cells || index >= cells.length - 1) return;
+            this.$nextTick(() => {
+                const inputs = this.$refs.numberCells;
+                const next = Array.isArray(inputs) ? inputs[index + 1] : null;
+                if (next && !next.disabled) next.focus();
+            });
         },
 
         formatPart(index, cell) {
@@ -767,9 +1263,13 @@ export default {
             }
         },
         
-        toggleUnloadingPlace(place) {
-            // Не даем выбрать неактивное место
+        toggleUnloadingPlace(place, event) {
             if (place.status !== 'active') {
+                // На телефоне hover не наступает, и причина недоступности была недостижима:
+                // показываем её по тапу и гасим сама через пару секунд.
+                this.showInactiveTooltip(place, event);
+                if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = setTimeout(() => this.hideInactiveTooltip(), 2500);
                 return;
             }
             
@@ -779,12 +1279,18 @@ export default {
             } else {
                 this.selectedUnloadingPlaces.push(place.id);
             }
+            // Единый выбор на заявку (#706): синхронизируем во все cars-вложения и items.
+            this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
         },
         
         validateUnloadingPlaces() {
             this.errors.unloadingPlaces = this.selectedUnloadingPlaces.length === 0 ? '' : '';
         },
-        
+
+        validatePassageTables() {
+            this.errors.passageTables = this.selectedPassageTables.length === 0 ? '' : '';
+        },
+
         formatUnloadingPlaces() {
             if (this.selectedUnloadingPlaces.length === 0) return '';
             
@@ -818,7 +1324,7 @@ export default {
 
             // Проверка активной заявки
             if (this.activeCarInfo && !this.isNumberByFact) {
-                alert('Невозможно добавить автомобиль, на который уже есть активная заявка');
+                useDeletionsStore().notify({ prefix: 'Невозможно добавить автомобиль: ', bold: 'на него уже есть активная заявка', type: 'error' });
                 return;
             }
             
@@ -840,10 +1346,25 @@ export default {
                 markName: markName,
                 unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
+                passage_tables: [...this.selectedPassageTables],
                 formatId: this.selectedFormat ? this.selectedFormat.format.id : null,
                 isExisting: false
             };
-            
+
+            const duplicate = findDuplicateVehicle(
+                this.existingVehicles,
+                newVehicle,
+                this.editingVehicle ? this.editingVehicle.id : null,
+            );
+            if (duplicate) {
+                useDeletionsStore().notify({
+                    prefix: `${vehicleLabel(duplicate)} `,
+                    bold: 'уже добавлена в список',
+                    type: 'error',
+                });
+                return;
+            }
+
             if (this.editingVehicle) {
                 newVehicle.id = this.editingVehicle.id;
                 this.$emit('vehicle-updated', newVehicle);
@@ -853,7 +1374,7 @@ export default {
                 this.clearVehicleFormPartial();
             }
         },
-        
+
         clearVehicleFormPartial() {
             this.initializeNumberParts();
             this.selectedMark = '';
@@ -869,9 +1390,11 @@ export default {
             this.selectedMark = '';
             this.selectedMarkId = null;
             this.selectedUnloadingPlaces = [];
+            this.selectedPassageTables = [];
             this.isNumberByFact = false;
             this.isMarkByFact = false;
             this.errors.unloadingPlaces = '';
+            this.errors.passageTables = '';
             this.selectedExistingCars = [];
             this.editingVehicle = null;
             this.activeCarInfo = null;
@@ -888,18 +1411,31 @@ export default {
 
         onExistingCarsSelected(cars) {
             this.selectedExistingCars = cars;
+            this.showAllExistingCars = false;
             this.showExistingCarsModal = false;
             this.clearVehicleFormPartial();
         },
 
+        // Отмена добавления конкретной существующей машины из блока "Машин добавлено".
+        removeExistingCar(car) {
+            const key = car.id || car.number;
+            this.selectedExistingCars = this.selectedExistingCars.filter(c => (c.id || c.number) !== key);
+            if (this.selectedExistingCars.length <= 5) this.showAllExistingCars = false;
+        },
+
         addExistingCars() {
             if (this.selectedExistingCars.length === 0) {
-                alert('Выберите машины для добавления');
+                useDeletionsStore().notify({ bold: 'Выберите машины для добавления', type: 'error' });
                 return;
             }
 
             if (this.selectedUnloadingPlaces.length === 0) {
-                alert('Выберите места разгрузки');
+                useDeletionsStore().notify({ bold: 'Выберите места разгрузки', type: 'error' });
+                return;
+            }
+
+            if (this.fieldVisible('passage_tables') && this.fieldRequired('passage_tables') && this.selectedPassageTables.length === 0) {
+                useDeletionsStore().notify({ bold: 'Выберите места проезда', type: 'error' });
                 return;
             }
 
@@ -910,12 +1446,40 @@ export default {
                 markName: car.mark_name || car.mark || null,
                 unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
+                passage_tables: [...this.selectedPassageTables],
                 formatId: car.format_id,
                 isExisting: true,
                 existingCarId: car.id
             }));
-            
-            this.$emit('vehicles-added', vehicles);
+
+            // Модалка выбора уже гасит добавленные строки, но выбор мог устареть, а в каталоге
+            // встречаются записи с одним номером - отсеиваем здесь ещё раз.
+            const list = [...this.existingVehicles];
+            const toAdd = [];
+            const skipped = [];
+            vehicles.forEach(vehicle => {
+                if (findDuplicateVehicle(list, vehicle)) {
+                    skipped.push(vehicleLabel(vehicle));
+                    return;
+                }
+                list.push(vehicle);
+                toAdd.push(vehicle);
+            });
+
+            if (skipped.length > 0) {
+                useDeletionsStore().notify({
+                    prefix: `${skipped.join(', ')} `,
+                    bold: skipped.length > 1 ? 'уже в списке - пропущены' : 'уже добавлена в список',
+                    type: 'error',
+                });
+            }
+
+            if (toAdd.length === 0) {
+                this.clearExistingCarsSelection();
+                return;
+            }
+
+            this.$emit('vehicles-added', toAdd);
             this.clearExistingCarsSelection();
         },
 
@@ -923,7 +1487,49 @@ export default {
             this.selectedExistingCars = [];
         },
 
-        editVehicle(vehicle) {
+        // Раскладывает номер редактируемой строки по ячейкам формата (U3). Строка несёт
+        // formatId в двух случаях: добавлена вручную (numberParts.join(' ') - части через
+        // пробел) или пришла из импорта бланка с явно выбранным форматом (доводка владельца,
+        // BlankImportResult.buildVehicleFromRow) - там строка сырая, без пробелов по границам
+        // ячеек. matchNumberToFormat разбирает оба вида одинаково (сам убирает пробелы и
+        // раскладывает по cells формата), поэтому раскладка идёт через него всегда, а не
+        // прямым split(' '). formatId не пришёл или номер в него не лёг - формат подбирается
+        // по самой строке среди ВСЕХ активных форматов. Не подошёл ни один - явно сообщаем об
+        // этом, а не оставляем пустые ячейки под чужим форматом молча.
+        async applyEditedVehicleNumber(vehicle) {
+            if (!this.availableFormats.length && this.formatsReady) {
+                await this.formatsReady;
+            }
+            const knownFormat = vehicle.formatId
+                ? this.availableFormats.find(f => f.format.id === vehicle.formatId)
+                : null;
+
+            if (knownFormat) {
+                const matched = matchNumberToFormat(vehicle.plateNumber, [knownFormat]);
+                if (matched) {
+                    this.selectedFormat = knownFormat;
+                    this.numberParts = matched.parts;
+                    return;
+                }
+            }
+
+            const guessed = matchNumberToFormat(vehicle.plateNumber, this.availableFormats);
+            if (guessed) {
+                this.selectedFormat = guessed.format;
+                this.numberParts = guessed.parts;
+                return;
+            }
+
+            this.selectedFormat = null;
+            this.numberParts = [];
+            useDeletionsStore().notify({
+                prefix: `Номер "${vehicle.plateNumber}" не подошёл ни под один формат. `,
+                bold: 'Выберите формат и введите номер вручную',
+                type: 'error',
+            });
+        },
+
+        async editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
             this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
@@ -949,6 +1555,7 @@ export default {
                 restoreMarkSelection();
                 this.isNumberByFact = vehicle.plateNumber === 'По факту';
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
+                this.selectedPassageTables = vehicle.passage_tables || [];
 
                 if (vehicle.formatId) {
                     const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
@@ -961,16 +1568,13 @@ export default {
                     this.isNumberByFact = true;
                 } else {
                     this.isNumberByFact = false;
-                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
-                    if (format) {
-                        this.selectedFormat = format;
-                        this.numberParts = vehicle.plateNumber.split(' ');
-                    }
+                    await this.applyEditedVehicleNumber(vehicle);
                 }
 
                 restoreMarkSelection();
 
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
+                this.selectedPassageTables = vehicle.passage_tables || [];
             }
 
             // Перепроверяем ЧС для редактируемой машины (для "по факту" watcher
@@ -980,8 +1584,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingVehicle = null;
-            this.clearVehicleForm();
+            resetVehicleFormState(this);
         },
         
         toggleMarkDropdown() {
@@ -1047,17 +1650,17 @@ export default {
 <style scoped>
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .data__completion {
     padding: 15px;
     width: 450px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .data__completion--locked {
@@ -1079,8 +1682,9 @@ export default {
 }
 
 .format__label {
+    order: -1;
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .format-actions {
@@ -1091,9 +1695,9 @@ export default {
 }
 
 .cancel-edit-btn {
-    background: #f8f8f8;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
@@ -1102,12 +1706,12 @@ export default {
 }
 
 .cancel-edit-btn:hover {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -1119,11 +1723,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1137,15 +1741,14 @@ export default {
 }
 
 .tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
-    max-width: 419px;
-    white-space: normal;
-    word-break: break-word;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    max-width: 420px;
+    min-width: 420px;
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tooltip-content::before {
@@ -1154,7 +1757,7 @@ export default {
     bottom: 100%;
     right: 40px;
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
 }
 
 .inactive-tooltip {
@@ -1165,13 +1768,13 @@ export default {
 }
 
 .inactive-tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 300px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .inactive-tooltip-content::before {
@@ -1181,15 +1784,15 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--hint-bg);
 }
 
 .active-warning {
     width: 100%;
     margin-top: 10px;
     padding: 12px;
-    background: #fff3cd;
-    border: 1px solid #ffeeba;
+    background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
     border-radius: 10px;
     display: flex;
     gap: 12px;
@@ -1207,13 +1810,13 @@ export default {
 
 .warning-title {
     font-weight: 600;
-    color: #856404;
+    color: var(--warning-text);
     margin: 0 0 5px 0;
     font-size: 14px;
 }
 
 .warning-details {
-    color: #856404;
+    color: var(--warning-text);
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
@@ -1223,8 +1826,8 @@ export default {
     width: 100%;
     margin-top: 10px;
     padding: 12px;
-    background: #fff5f5;
-    border: 1px solid #f5c2c7;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 10px;
     display: flex;
     gap: 12px;
@@ -1233,7 +1836,7 @@ export default {
 
 .blacklist-warning .warning-title,
 .blacklist-warning .warning-details {
-    color: #b02a37;
+    color: var(--danger-text);
 }
 
 .format__dropdown {
@@ -1243,8 +1846,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -1253,11 +1856,11 @@ export default {
 }
 
 .dropdown__button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .dropdown__button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1278,7 +1881,7 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
     display: block;
 }
@@ -1300,11 +1903,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -1320,7 +1923,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -1333,7 +1936,7 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1366,15 +1969,64 @@ export default {
     gap: 5px;
 }
 
-.fact-checkbox {
-    width: 12px;
-    height: 12px;
+/* Тумблер вместо чекбокса 12px: попасть в него пальцем было нельзя, а подпись
+   не была кликабельной. Нативный input прячем, но оставляем в потоке для фокуса
+   с клавиатуры; вся пара «переключатель + подпись» - один label. */
+.fact-toggle {
     cursor: pointer;
+    user-select: none;
 }
 
-.fact-checkbox:disabled {
-    cursor: not-allowed;
+.fact-checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fact-switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+    border-radius: var(--radius-pill);
+    background: var(--border);
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.fact-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface);
+    transition: transform 0.2s ease;
+}
+
+.fact-checkbox:checked + .fact-switch {
+    background: var(--color-primary);
+}
+
+.fact-checkbox:checked + .fact-switch::after {
+    transform: translateX(14px);
+}
+
+.fact-checkbox:focus-visible + .fact-switch {
+    box-shadow: var(--shadow-focus);
+}
+
+.fact-checkbox:disabled + .fact-switch {
     opacity: 0.6;
+}
+
+/* Курсор на всём label, а не только на переключателе: label и есть кликабельная зона. */
+.fact-toggle:has(.fact-checkbox:disabled) {
+    cursor: not-allowed;
 }
 
 .fact-text {
@@ -1386,10 +2038,10 @@ export default {
     min-width: 202px;
     height: 40px;
     display: flex;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     overflow: hidden;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .number__field--fact {
@@ -1408,7 +2060,7 @@ export default {
 }
 
 .number__input:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1416,11 +2068,11 @@ export default {
     width: 100%;
     text-align: left;
     padding: 0 15px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .number__input:not(:last-child) {
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .number__input:first-child {
@@ -1432,22 +2084,22 @@ export default {
 }
 
 .number__input::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
 .number__input:focus {
-    background-color: #f8f8f8;
+    background-color: var(--surface-2);
 }
 
 .no-format-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 10px;
-    background: #f8f8f8;
+    background: var(--surface-2);
     border-radius: 10px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .mark__field {
@@ -1457,7 +2109,7 @@ export default {
 }
 
 .mark__field--fact {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     overflow: hidden;
 }
@@ -1470,17 +2122,19 @@ export default {
 .mark__dropdown-button {
     width: 100%;
     height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
-    padding: 0 15px;
+    /* Правый паддинг больше левого - без запаса длинная марка обрезалась
+       эллипсисом впритык к стрелке, и они визуально слипались. */
+    padding: 0 20px 0 15px;
     transition: border-color 0.2s;
 }
 
 .mark__dropdown-button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .mark__button-content {
@@ -1489,40 +2143,54 @@ export default {
     width: 100%;
     height: 100%;
     justify-content: space-between;
+    /* Тот же зазор, что у BaseDropdown.vue: без него текст и стрелка - соседние
+       flex-элементы без гарантированного расстояния - сходятся вплотную. */
+    gap: 10px;
 }
 
 .mark__button-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 150px;
+    /* Без min-width: 0 flex-элемент с white-space: nowrap отказывается сжиматься
+       ниже собственной content-ширины (дефолтный min-width: auto у flex-детей) -
+       ellipsis объявлен, но не срабатывает, и длинная марка вылезает за поле. */
+    min-width: 0;
     display: block;
 }
 
+/* Стрелка - тот же inline SVG-шеврон, что у BaseDropdown.vue (см. другие дропдауны
+   проекта): растровый arrow.png 10x10 на Retina-экранах масштабируется блоками
+   пикселей и выглядит зазубренным, SVG чёткий на любом DPI. Поворот -90/90deg (не
+   0/180, как у BaseDropdown) - это боковое меню (dropdown__menu открывается вправо
+   от кнопки), не выпадающее вниз. Знак важен: шеврон нарисован остриём вниз, и
+   поворот по часовой уводит его влево, от меню. */
 .mark__button-arrow {
     width: 10px;
     height: 10px;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
+    transform: rotate(-90deg);
     flex-shrink: 0;
 }
 
 .mark__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(90deg);
 }
 
 .mark__dropdown-menu {
     position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    top: 0;
+    left: 100%;
+    width: 220px;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
-    margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    margin-left: 5px;
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 220px;
     overflow: hidden;
@@ -1530,12 +2198,12 @@ export default {
 
 .mark__search {
     padding: 10px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .mark__search-input {
     width: 100%;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 5px 10px;
     outline: none;
@@ -1551,20 +2219,31 @@ export default {
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
 }
 
 .mark__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .mark__dropdown-item:last-child {
     border-bottom: none;
 }
 
+.mark__dropdown-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    padding: 16px 15px;
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: center;
+}
+
 .mark__item-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1578,11 +2257,11 @@ export default {
     background: transparent;
     padding: 0 15px;
     font-size: 14px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .mark__input--fact::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
@@ -1596,9 +2275,9 @@ export default {
 
 .unloading-source {
     font-size: 12px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 500;
-    background: #f0f2ff;
+    background: var(--accent-tint);
     padding: 5px 10px;
     border-radius: 8px;
     display: inline-block;
@@ -1606,7 +2285,7 @@ export default {
 
 .attached-count {
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: normal;
 }
 
@@ -1614,8 +2293,8 @@ export default {
     position: absolute;
     top: 2px;
     right: 2px;
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border-radius: 50%;
     width: 16px;
     height: 16px;
@@ -1637,8 +2316,8 @@ export default {
 
 .unloading__item {
     height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
+    background: var(--surface-2);
+    color: var(--text-muted);
     border-radius: 50px;
     display: flex;
     align-items: center;
@@ -1657,42 +2336,56 @@ export default {
 }
 
 .unloading__item:hover:not(.unloading__item--active):not(.unloading__item--inactive) {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .unloading__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .unloading__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
     cursor: not-allowed;
     opacity: 0.7;
 }
 
 .error-message {
     font-size: 11px;
-    color: #ff4444;
+    color: var(--danger-text);
     margin-top: 5px;
 }
 
 .loading-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 20px;
 }
 
 .no-places-message {
     font-size: 12px;
-    color: #ff6b6b;
+    color: var(--danger-text);
     text-align: center;
     padding: 20px;
-    background: #fff5f5;
+    background: var(--danger-bg);
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.completion__passage {
+    margin-top: 15px;
+}
+
+.no-tables-message {
+    font-size: 12px;
+    color: var(--danger-text);
+    text-align: center;
+    padding: 20px;
+    background: var(--danger-bg);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -1702,25 +2395,25 @@ export default {
     height: 25px;
     padding: 0 15px;
     border-radius: 50px;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     outline: none;
     font-size: 11px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
     cursor: pointer;
 }
 
 .completion__button:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .existing-cars-info {
     margin-bottom: 15px;
     padding: 10px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    border-radius: 15px;
+    border: 1px solid var(--border);
 }
 
 .existing-cars-header {
@@ -1732,7 +2425,7 @@ export default {
 .existing-cars-count {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .existing-cars-actions {
@@ -1741,9 +2434,9 @@ export default {
 }
 
 .view-cars-btn {
-    background: white;
-    color: #4F5BDF;
-    border: 1px solid #4F5BDF;
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     border-radius: 15px;
     padding: 5px 10px;
     font-size: 11px;
@@ -1751,12 +2444,12 @@ export default {
 }
 
 .view-cars-btn:hover {
-    background: #f0f2ff;
+    background: var(--accent-tint);
 }
 
 .add-existing-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 5px 10px;
@@ -1765,13 +2458,74 @@ export default {
 }
 
 .add-existing-btn:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-existing-btn:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+.existing-cars-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.existing-car-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text);
+    padding: 3px 6px;
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.existing-car-remove {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    line-height: 1;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.existing-car-remove:hover {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+}
+
+.add-existing-wrap {
+    position: relative;
+    /* inline-flex плотно оборачивает кнопку - она остаётся в исходной позиции
+       и виде, не смещается; tooltip позиционируется относительно неё. */
+    display: inline-flex;
+}
+
+.show-all-btn {
+    margin-top: 2px;
+    background: none;
+    border: none;
+    color: var(--accent-text);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 6px;
+    text-align: left;
+}
+
+.show-all-btn:hover {
+    text-decoration: underline;
 }
 
 .dropdown-enter-active,
@@ -1783,5 +2537,217 @@ export default {
 .dropdown-leave-to {
     opacity: 0;
     transform: translateY(-10px);
+}
+
+/* Форма (450px) + список машин рядом не влезают на планшете - стекаем в колонку
+   (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1024px) {
+    .data__completion {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+}
+
+@media (max-width: 768px) {
+    /* Подсказка поверх НАД кнопкой: в потоке она двигала форму. Контейнер
+       кнопок - её positioned-родитель. */
+    .tooltip {
+        position: absolute;
+        top: auto;
+        bottom: calc(100% + 10px);
+        right: 0;
+        left: auto;
+        margin: 0;
+        width: min(320px, calc(100vw - 44px));
+        z-index: 1100;
+    }
+
+    .tooltip-content::before {
+        display: none;
+    }
+
+    /* Тап по заблокированной кнопке уходит контейнеру и показывает причину. */
+    .add-button:disabled {
+        pointer-events: none;
+    }
+
+    /* Заголовок блока и кнопка «Добавить сущ.» - строго одна строка. nowrap, а не
+       перенос: флекс решает про перенос по НАТУРАЛЬНОЙ ширине элемента, до
+       flex-shrink, поэтому сжимаемый заголовок кнопку в строке не удерживал -
+       «Добавление Т/С» (165px при 18.72px по умолчанию) плюс кнопка 124px требовали
+       299px при 268 доступных на 320, и кнопка падала под заголовок.
+       Кегль заголовка задан явно (по умолчанию h3 = 18.72px): 15px совпадает с
+       подписью соседнего списка, на узких телефонах 14px - как у неё же. */
+    .completion__header {
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .completion__header h3 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .completion__button {
+        flex-shrink: 0;
+        min-height: 36px;
+    }
+
+    /* Лейбл и кнопка добавления - на одной линии. */
+
+    /* Кнопка «Добавить» - внизу формы, куда пользователь приходит, заполнив поля.
+       contents у двух обёрток выводит строку кнопок в прямые дети формы, флекс с
+       order отправляет её в конец; лейбл «Формат номеров» остаётся над дропдауном. */
+    /* Места разгрузки и проезд - сиблинги этой обёртки, поэтому флекс с order
+       живёт на всей форме, а обёртка разворачивается. */
+    .data__completion {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .completion__body {
+        display: contents;
+    }
+
+    .completion__format,
+    .format__header {
+        display: contents;
+    }
+
+    .format-actions {
+        order: 999;
+        justify-content: stretch;
+        margin-top: 4px;
+        padding: 4px 0;
+    }
+
+    .format-actions .add-button {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    .format-actions .cancel-edit-btn {
+        min-height: 44px;
+    }
+
+    /* Компенсация потерянных отступов contents-обёрток. */
+    /* order:-1 нужен только десктопной строке шапки: во флексе всей формы он
+       утаскивал лейбл в самое начало. */
+    .format__label {
+        order: 0;
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .format__dropdown {
+        margin-bottom: 15px;
+    }
+
+    .tooltip-content {
+        max-width: 100%;
+        white-space: pre-line;
+    }
+
+    .tooltip-content {
+        min-width: 0;
+        max-width: calc(100vw - 40px);
+    }
+
+    /* Дропдаун марки раскрывался ВПРАВО от поля (left:100%) - на узком уезжает
+       за край экрана. На мобильном раскрываем вниз, как у EmployeeForm. */
+    .mark__dropdown-menu {
+        left: 0;
+        top: 100%;
+        width: 100%;
+        margin-left: 0;
+        margin-top: 5px;
+    }
+
+    /* Поля и гриды перестраивались только с 480 - на 481-768 форма ещё жила
+       десктопной сеткой. */
+    .completion__fields {
+        flex-direction: column;
+    }
+
+    .unloading__grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100%;
+    }
+
+    /* Поле госномера было фиксировано на 202px - ячейки под палец не попадали.
+       В колонке flex:1 ширину не задаёт, поэтому растягиваем сами блоки. */
+    .completion__number,
+    .completion__mark {
+        width: 100%;
+    }
+
+    /* Ячейки растянулись по ширине, а высота и шрифт остались десктопными -
+       поле выглядело приплюснутым. */
+    .number__field {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+        height: 52px;
+    }
+
+    .number__input {
+        font-size: 18px;
+        font-weight: 500;
+    }
+
+    .number__input::placeholder {
+        font-size: 15px;
+    }
+
+    .mark__dropdown,
+    .mark__dropdown-button,
+    .mark__field {
+        width: 100%;
+    }
+
+    .dropdown__button {
+        height: 40px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button {
+        height: 36px;
+        font-size: 12px;
+    }
+
+    /* Названия мест не влезали в 164px и обрезались многоточием - пускаем в
+       две строки вместо ellipsis. */
+    .unloading__item {
+        height: auto;
+        min-height: 36px;
+        padding: 6px 10px;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.25;
+    }
+}
+
+/* Узкие телефоны: на 320 ряду шапки формы остаётся 268px. Кегль как у подписи
+   соседнего списка (14px) и более плотные поля кнопки дают запас - заголовок
+   читается целиком, без многоточия. */
+@media (max-width: 480px) {
+    .completion__header h3 {
+        font-size: 14px;
+    }
+
+    .completion__button {
+        padding: 0 12px;
+    }
 }
 </style>

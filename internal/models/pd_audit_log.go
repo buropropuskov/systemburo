@@ -17,3 +17,39 @@ type PDAuditLog struct {
 }
 
 func (PDAuditLog) TableName() string { return "pd_audit_logs" }
+
+// PDAuditFilter -- фильтры страницы журнала доступа к персональным данным (#1472).
+type PDAuditFilter struct {
+	UserID     *int       `query:"user_id"`
+	Username   *string    `query:"username"`
+	Action     *string    `query:"action"`
+	Resource   *string    `query:"resource"`
+	OnlyDenied *bool      `query:"only_denied"`
+	From       *time.Time `query:"from"`
+	To         *time.Time `query:"to"`
+	Page       int        `query:"page"`
+	Limit      int        `query:"limit"`
+}
+
+// PDAuditResponse -- запись журнала с ФИО пользователя для экрана.
+type PDAuditResponse struct {
+	ID         int       `json:"id"`
+	UserID     *int      `json:"user_id"`
+	Username   string    `json:"username"`
+	UserName   string    `json:"user_name,omitempty"`
+	Action     string    `json:"action"`
+	Resource   string    `json:"resource"`
+	IPAddress  string    `json:"ip_address"`
+	Method     string    `json:"method"`
+	Path       string    `json:"path"`
+	StatusCode int       `json:"status_code"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// PDAuditPageResponse -- страница журнала.
+type PDAuditPageResponse struct {
+	Items []PDAuditResponse `json:"items"`
+	Total int64             `json:"total"`
+	Page  int               `json:"page"`
+	Limit int               `json:"limit"`
+}

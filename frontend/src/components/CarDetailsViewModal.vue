@@ -104,7 +104,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   backdrop-filter: blur(0.1px);
   display: flex;
   align-items: center;
@@ -115,9 +115,9 @@ export default {
 
 .modal-content {
   width: min(560px, 100%);
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 40px var(--shadow-drop);
   overflow: hidden;
 }
 
@@ -126,14 +126,14 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 18px 22px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-close {
@@ -141,20 +141,20 @@ export default {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #6e7280;
+  color: var(--text-muted);
   padding: 4px 10px;
   border-radius: 8px;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .modal-close:hover {
-  background: #f0f0f5;
-  color: #1a1a1a;
+  background: var(--accent-tint);
+  color: var(--text);
 }
 
 .modal-body {
   padding: 18px 22px;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
 }
 
@@ -172,13 +172,13 @@ export default {
 
 .detail-label {
   font-size: 12px;
-  color: #6e7280;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .detail-value {
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-fade-enter-active,

@@ -178,7 +178,7 @@ func TestRequirePermissionV2_LogsBannedReason(t *testing.T) {
 func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, nil)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
 
 	targetID, _, cleanup := setupMWUser(t, db, false, false)
 	defer cleanup()
@@ -196,7 +196,7 @@ func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 	}
 	defer db.Delete(&rt)
 
-	if err := banSvc.Ban(context.Background(), targetID, actorID); err != nil {
+	if err := banSvc.Ban(context.Background(), targetID, actorID, ""); err != nil {
 		t.Fatalf("ban: %v", err)
 	}
 
@@ -216,12 +216,12 @@ func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 func TestUserBanService_CannotBanSelf(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, nil)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
 
 	userID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
 
-	err := banSvc.Ban(context.Background(), userID, userID)
+	err := banSvc.Ban(context.Background(), userID, userID, "")
 	if err == nil {
 		t.Error("expected error when banning self")
 	}
@@ -230,14 +230,14 @@ func TestUserBanService_CannotBanSelf(t *testing.T) {
 func TestUserBanService_CannotBanSuperAdmin(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, nil)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
 
 	targetID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
 	actorID, _, cleanupActor := setupMWUser(t, db, true, false)
 	defer cleanupActor()
 
-	err := banSvc.Ban(context.Background(), targetID, actorID)
+	err := banSvc.Ban(context.Background(), targetID, actorID, "")
 	if err == nil {
 		t.Error("expected error when banning super-admin")
 	}
@@ -268,34 +268,46 @@ func TestBanCheck_AllowsActiveUser(t *testing.T) {
 	}
 }
 
+// banCheckHarness строит echo с GET и POST /test под BanCheck для заданного юзера.
+func banCheckHarness(userID int, svc *services.BanCheckService) *echo.Echo {
+	e := echo.New()
+	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("user_id", userID)
+			return next(c)
+		}
+	}
+	ok := func(c echo.Context) error { return c.String(http.StatusOK, "ok") }
+	e.GET("/test", ok, inject, middleware.BanCheck(svc))
+	e.POST("/test", ok, inject, middleware.BanCheck(svc))
+	return e
+}
+
 func TestBanCheck_DeniesBannedUser(t *testing.T) {
+	// Забаненный: чтение (GET) проходит read-only, мутация (POST) -- 403.
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewBanCheckService(db, time.Minute)
 
 	userID, _, cleanup := setupMWUser(t, db, false, true)
 	defer cleanup()
 
-	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
-		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				c.Set("user_id", userID)
-				return next(c)
-			}
-		},
-		middleware.BanCheck(svc),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for banned user, got %d (body: %s)", rec.Code, rec.Body.String())
+	e := banCheckHarness(userID, svc)
+
+	recGet := httptest.NewRecorder()
+	e.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/test", nil))
+	if recGet.Code != http.StatusOK {
+		t.Errorf("expected 200 GET for banned user (read-only), got %d (body: %s)", recGet.Code, recGet.Body.String())
+	}
+
+	recPost := httptest.NewRecorder()
+	e.ServeHTTP(recPost, httptest.NewRequest(http.MethodPost, "/test", nil))
+	if recPost.Code != http.StatusForbidden {
+		t.Errorf("expected 403 POST for banned user, got %d (body: %s)", recPost.Code, recPost.Body.String())
 	}
 }
 
 func TestBanCheck_DeniesArchivedUser(t *testing.T) {
-	// Архивный (is_active=false) юзер с живым access-токеном должен получать 403
-	// на каждом запросе - офбординг не ждёт истечения токена.
+	// Архивный (is_active=false) с живым access-токеном: read-only, мутации -- 403.
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewBanCheckService(db, time.Minute)
 
@@ -305,21 +317,18 @@ func TestBanCheck_DeniesArchivedUser(t *testing.T) {
 		t.Fatalf("archive user: %v", err)
 	}
 
-	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
-		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				c.Set("user_id", userID)
-				return next(c)
-			}
-		},
-		middleware.BanCheck(svc),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for archived user, got %d (body: %s)", rec.Code, rec.Body.String())
+	e := banCheckHarness(userID, svc)
+
+	recGet := httptest.NewRecorder()
+	e.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/test", nil))
+	if recGet.Code != http.StatusOK {
+		t.Errorf("expected 200 GET for archived user (read-only), got %d (body: %s)", recGet.Code, recGet.Body.String())
+	}
+
+	recPost := httptest.NewRecorder()
+	e.ServeHTTP(recPost, httptest.NewRequest(http.MethodPost, "/test", nil))
+	if recPost.Code != http.StatusForbidden {
+		t.Errorf("expected 403 POST for archived user, got %d (body: %s)", recPost.Code, recPost.Body.String())
 	}
 }
 
@@ -329,7 +338,7 @@ func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	banCache := services.NewBanCheckService(db, time.Hour)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, banCache)
+	banSvc := services.NewUserBanService(db, resolver, banCache, services.NewAuditRecorder(db))
 
 	targetID, _, cleanup := setupMWUser(t, db, false, false)
 	defer cleanup()
@@ -346,7 +355,7 @@ func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
 	}
 
 	// 2. Баним - должен инвалидировать кэш.
-	if err := banSvc.Ban(context.Background(), targetID, actorID); err != nil {
+	if err := banSvc.Ban(context.Background(), targetID, actorID, ""); err != nil {
 		t.Fatalf("ban: %v", err)
 	}
 
@@ -387,7 +396,7 @@ func TestBanCheck_InvalidationAfterArchiveReflectsImmediately(t *testing.T) {
 	}
 
 	// 2. Архивируем через сервис - должен сбросить кэш.
-	if err := userSvc.Delete(context.Background(), adminTypeID, adminTypeID, target.Username); err != nil {
+	if err := userSvc.Delete(context.Background(), adminTypeID, target.Username); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
 

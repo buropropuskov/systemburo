@@ -19,8 +19,35 @@ export async function updateUserPermissions(userId, data) {
   return res.json();
 }
 
-export async function getPermissionTree() {
-  const res = await apiRequest('/permissions/tree');
+// Эффективные права целевого юзера с источником (роль/группа/override) для
+// правого столбца UserAccessModal. Формат: {mode, permissions[{key,value,source}],
+// denied, banned, ban_reason}. Только super-admin (#187 Фаза 3).
+export async function getUserEffectivePermissions(userId) {
+  const res = await apiRequest(`/permissions/user/${userId}/effective`);
+  return res.json();
+}
+
+// Иерархический каталог точечных прав (категория -> листья, super_only, table.*).
+export async function getPermissionCatalog() {
+  const res = await apiRequest('/permissions/catalog');
+  return res.json();
+}
+
+// Выдача/снятие флага "Администратор" целевому юзеру (super-only).
+export async function setUserAdmin(userId, isAdmin) {
+  const res = await apiRequest(`/users/${userId}/admin`, {
+    method: 'PUT',
+    body: JSON.stringify({ is_admin: isAdmin }),
+  });
+  return res.json();
+}
+
+// Назначение роли юзеру (null = без роли).
+export async function setUserRole(userId, roleId) {
+  const res = await apiRequest(`/users/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role_id: roleId }),
+  });
   return res.json();
 }
 
@@ -108,13 +135,26 @@ export async function deleteRole(id) {
   const res = await apiRequest(`/roles/${id}`, {
     method: 'DELETE',
   });
-  return res.json();
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body?.error || body?.message || 'Не удалось удалить роль');
+  }
+  return body;
 }
 
 export async function setRoleDefaultGroups(id, groupIds) {
   const res = await apiRequest(`/roles/${id}/default-groups`, {
     method: 'PUT',
     body: JSON.stringify({ group_ids: groupIds }),
+  });
+  return res.json();
+}
+
+// Точечные права роли (полная замена прямых allow-грантов по ключам каталога).
+export async function setRolePermissions(id, keys) {
+  const res = await apiRequest(`/roles/${id}/permissions`, {
+    method: 'PUT',
+    body: JSON.stringify({ keys }),
   });
   return res.json();
 }
@@ -159,8 +199,11 @@ export async function archiveAccessDenials(cutoff) {
 
 // --- Ban (#230) ---
 
-export async function banUser(userId) {
-  const res = await apiRequest(`/users/${userId}/ban`, { method: 'POST' });
+export async function banUser(userId, reason = '') {
+  const res = await apiRequest(`/users/${userId}/ban`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
   return res.json();
 }
 

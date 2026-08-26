@@ -27,8 +27,23 @@ func NewApproverHandler(service services.ApproverService) *ApproverHandler {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers [get]
 func (h *ApproverHandler) GetAll(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	result, err := h.service.GetAll(c.Request().Context(), typeID)
+	result, err := h.service.GetAll(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
+// GetRecipients godoc
+// @Summary      Принимающие для строки получателей заявки
+// @Description  Отдаёт только отображаемые имена: маску, если она задана администратором, иначе ФИО. Доступно любому авторизованному работнику.
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.ApplicationRecipient
+// @Router       /application-approvers/recipients [get]
+func (h *ApproverHandler) GetRecipients(c echo.Context) error {
+	result, err := h.service.GetRecipients(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -44,8 +59,7 @@ func (h *ApproverHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/available-users [get]
 func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	result, err := h.service.GetAvailableUsers(c.Request().Context(), typeID)
+	result, err := h.service.GetAvailableUsers(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -64,7 +78,6 @@ func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers [post]
 func (h *ApproverHandler) Create(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Get("username").(string)
 
 	var req models.CreateApproverRequest
@@ -72,11 +85,42 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.Create(c.Request().Context(), typeID, req.UserID, username); err != nil {
+	if err := h.service.Create(c.Request().Context(), req.UserID, username); err != nil {
 		return err
 	}
 	return RespondCreated(c, map[string]string{
 		"message": "Approver added successfully",
+	})
+}
+
+// Update godoc
+// @Summary      Задать/снять маску отображаемого имени принимающего
+// @Tags         application-approvers
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "Approver ID"
+// @Param        body body models.UpdateApproverRequest true "Display name (null/empty снимает маску)"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /application-approvers/{id} [patch]
+func (h *ApproverHandler) Update(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateApproverRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	actorUsername, _ := c.Get("username").(string)
+	if err := h.service.Update(c.Request().Context(), id, req.DisplayName, actorUsername); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]string{
+		"message": "Approver updated successfully",
 	})
 }
 
@@ -91,13 +135,12 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/{id} [delete]
 func (h *ApproverHandler) Delete(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	actorUsername, _ := c.Get("username").(string)
-	if err := h.service.Delete(c.Request().Context(), typeID, id, actorUsername); err != nil {
+	if err := h.service.Delete(c.Request().Context(), id, actorUsername); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]string{
@@ -120,4 +163,29 @@ func (h *ApproverHandler) GetHistory(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, history)
+}
+
+// IsApprover godoc
+// @Summary      Роли текущего пользователя в согласовании заявок
+// @Description  Возвращает только ответ про себя: is_approver - принимающий,
+// @Description  is_reviewer - согласующий хоть в одной организации или компании.
+// @Description  Полный состав принимающих отдаёт GET /application-approvers, он
+// @Description  закрыт правом администратора.
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]bool
+// @Router       /application-approvers/me [get]
+func (h *ApproverHandler) IsApprover(c echo.Context) error {
+	username := GetUsername(c)
+	ctx := c.Request().Context()
+	isApprover, err := h.service.IsApprover(ctx, username)
+	if err != nil {
+		return err
+	}
+	isReviewer, err := h.service.IsReviewer(ctx, username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]bool{"is_approver": isApprover, "is_reviewer": isReviewer})
 }

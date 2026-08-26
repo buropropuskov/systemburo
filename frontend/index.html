@@ -1,9 +1,31 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" href="/icon.jpg">
+    <script>
+      // Тема до первого кадра (#1415): CSS грузится <link>-ом в <head>, поэтому
+      // при выборе тёмной темы браузер успел бы отрисовать светлый фон, пока
+      // подтянется бандл. Список id дублирует frontend/src/utils/theme.js -
+      // дубль закреплён тестом src/utils/__tests__/theme.spec.js.
+      (function () {
+        try {
+          var stored = localStorage.getItem('app-theme');
+          var known = ['light', 'dark'];
+          if (known.indexOf(stored) !== -1) {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch (e) {
+          // localStorage недоступен - остаётся светлая из атрибута на <html>.
+        }
+      })();
+    </script>
+    <link rel="icon" href="/icon-192.png">
+    <!-- PWA (#974): устанавливаемость нужна прежде всего iOS - Safari отдаёт Web
+         Push только сайту, добавленному на экран "Домой" (display: standalone). -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#4F5BDF">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">

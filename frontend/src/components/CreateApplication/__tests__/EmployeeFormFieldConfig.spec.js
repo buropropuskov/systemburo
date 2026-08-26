@@ -17,9 +17,6 @@ vi.mock('@/api/blacklist', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' })
 }));
-vi.mock('@/composables/useToast', () => ({
-  useToast: vi.fn().mockReturnValue({ success: vi.fn(), error: vi.fn() })
-}));
 vi.mock('@/components/CreateApplication/ExistingEmployeesModal.vue', () => ({
   default: { name: 'ExistingEmployeesModal', template: '<div />' }
 }));
@@ -148,6 +145,7 @@ describe('EmployeeForm - потребление field-config (#529 H-6)', () => 
       props: { fieldConfig: {
         last_name: optional, first_name: optional, position: optional,
         citizenship: optional, passport: optional, patent: optional, target_tables: optional,
+        pd_consent: optional,
       } }
     });
     expect(w.vm.canAddEmployee).toBe(true);

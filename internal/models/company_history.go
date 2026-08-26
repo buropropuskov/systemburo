@@ -5,26 +5,25 @@ import (
 	"time"
 )
 
-// CompanyHistory логирует действия над компанией: создание, переименование,
-// архивацию и восстановление. Нужна для аудита (#412).
-//
-// CompanyID - над какой компанией действие, ActorUserID - кто его совершил.
-// FK намеренно без constraint: аудит должен пережить любые изменения.
-type CompanyHistory struct {
-	ID          int             `json:"id"`
-	CompanyID   int             `gorm:"index;not null" json:"company_id"`
-	ActorUserID *int            `gorm:"index" json:"actor_user_id,omitempty"`
-	ActionType  string          `gorm:"size:32;index" json:"action_type"`
-	Details     json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-}
-
-// CompanyActionType - константы для CompanyHistory.ActionType.
+// CompanyActionType - константы action-типов истории компании.
+// renamed/retyped/updated различают, что именно изменилось при обновлении
+// (только имя / только тип / и то и другое).
 const (
 	CompanyActionCreated  = "created"
 	CompanyActionRenamed  = "renamed"
+	CompanyActionRetyped  = "retyped"
+	CompanyActionUpdated  = "updated"
 	CompanyActionArchived = "archived"
 	CompanyActionRestored = "restored"
+	// Групповые/одиночные изменения привязок пишут отдельные action с деталями
+	// «было -> стало» (added/removed, для ответственных ещё approval_changed).
+	// Разбор записи, заведённой из заявки (#1437), зеркально организациям.
+	CompanyActionApproved = "moderation_approved"
+	CompanyActionMerged   = "moderation_merged"
+
+	CompanyActionResponsiblesChanged = "responsibles_changed"
+	CompanyActionUnloadPlacesChanged = "unload_places_changed"
+	CompanyActionTablesChanged       = "tables_changed"
 )
 
 // CompanyHistoryItem - запись истории с именем актора для API (LEFT JOIN users).

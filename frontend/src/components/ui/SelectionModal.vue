@@ -192,8 +192,8 @@ export default {
 
 .selection-modal__tab {
   padding: 6px 16px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
@@ -201,34 +201,34 @@ export default {
 }
 
 .selection-modal__tab:hover {
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .selection-modal__tab--active {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .selection-modal__count {
   font-size: 13px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .selection-modal__table {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .selection-modal__header {
   display: flex;
-  background: #f8f8f8;
+  background: var(--surface-2);
   padding: 10px;
   font-weight: 600;
   font-size: 13px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .selection-modal__body {
@@ -239,7 +239,7 @@ export default {
 .selection-modal__row {
   display: flex;
   padding: 10px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -249,11 +249,11 @@ export default {
 }
 
 .selection-modal__row:hover {
-  background: #f8f8ff;
+  background: var(--accent-tint);
 }
 
 .selection-modal__row--selected {
-  background: #f0f1ff;
+  background: var(--accent-tint);
 }
 
 .selection-modal__row--disabled {
@@ -276,14 +276,14 @@ export default {
 .selection-modal__empty {
   padding: 30px;
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .selection-modal__cancel {
   padding: 10px 20px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
@@ -291,13 +291,13 @@ export default {
 }
 
 .selection-modal__cancel:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .selection-modal__confirm {
   padding: 10px 20px;
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 8px;
   cursor: pointer;

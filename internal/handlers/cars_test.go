@@ -104,8 +104,6 @@ func TestCars_Unauthorized(t *testing.T) {
 		method string
 		path   string
 	}{
-		{"GET", "/cars/active-for-tables"},
-		{"GET", "/cars/fact-for-tables"},
 		{"GET", "/cars/unload-places"},
 		{"GET", "/cars/fact-unload-places"},
 		{"GET", "/cars/check-active?car_number=X&car_brand=Y"},
@@ -136,60 +134,142 @@ func TestCars_Unauthorized(t *testing.T) {
 	}
 }
 
-// --- GET /cars/active-for-tables ---
 
-func TestGetActiveCarsForTables_Empty(t *testing.T) {
+
+
+// --- GET /cars/active-for-table/:table_id (scoped «Проезд», #1036) ---
+
+func TestGetActiveCarsForTable_ScopedByTargetTable(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "caruser1", "pass123", 1, td.OrgID, td.CompanyID)
-
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	cars := testutil.ParseSlice(t, rec)
-	assert.Empty(t, cars)
-}
-
-func TestGetActiveCarsForTables_WithActiveCar(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "caractive1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID, _, _ := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
-
-	// Activate the car via take-to-work + update-items-status
+	token := testutil.RegisterAndLogin(t, e, "carscoped1", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
+	// Две cars-таблицы; машину привязываем «Проездом» только к первой.
+	dnA, dnB := "Проезд A", "Проезд B"
+	tblA := models.SystemTable{Name: "cars_a", DisplayName: &dnA, TableType: "cars", IsActive: true}
+	tblB := models.SystemTable{Name: "cars_b", DisplayName: &dnB, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tblA).Error)
+	require.NoError(t, db.Create(&tblB).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tblA.ID).Error)
 
-	cars := testutil.ParseSlice(t, rec)
-	require.GreaterOrEqual(t, len(cars), 1, "expected active car after activation")
-	assert.Equal(t, "B002BB799", cars[0]["car_number"])
+	// В привязанной таблице машина видна.
+	rec := testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblA.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	inA := testutil.ParseSlice(t, rec)
+	require.Len(t, inA, 1, "машина видна в привязанной таблице «Проезд»")
+	assert.Equal(t, "B002BB799", inA[0]["car_number"])
+
+	// В непривязанной таблице — не видна (доказывает scope, а не «во всех сразу»).
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblB.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	inB := testutil.ParseSlice(t, rec)
+	assert.Empty(t, inB, "машина не видна в непривязанной таблице")
 }
 
-// --- GET /cars/fact-for-tables ---
-
-func TestGetFactCarsForTables_Empty(t *testing.T) {
+// Подача заявки с выбранным «Проезд» пишет car_target_tables, и машина видна только
+// в выбранной таблице (#1036, срез B: end-to-end submit -> показ).
+func TestSubmitCar_PassageTablesWrittenAndScoped(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "carfact1", "pass123", 1, td.OrgID, td.CompanyID)
+	dnA, dnB := "Проезд A", "Проезд B"
+	tblA := models.SystemTable{Name: "cars_pa", DisplayName: &dnA, TableType: "cars", IsActive: true}
+	tblB := models.SystemTable{Name: "cars_pb", DisplayName: &dnB, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tblA).Error)
+	require.NoError(t, db.Create(&tblB).Error)
 
-	rec := testutil.GET(t, e, "/cars/fact-for-tables", testutil.AuthHeader(token))
+	token := testutil.RegisterAndLogin(t, e, "carpass1", "pass123", 1, td.OrgID, td.CompanyID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_pass_tmpl", "Cars Pass")
+
+	body := fmt.Sprintf(`{
+		"message":"passage test","organization":"Test Organization",
+		"responsible_person":"Test","contact_phone":"+79001234567","data_approval":true,
+		"attachments":[{"attachment_type":"cars","attachment_name":"cars_tmpl",
+			"attachment_display_name":"Cars Template","unique_attachment_id":%d,
+			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
+			"data":{"vehicles":[{"car_number":"C777CC177","car_brand":"Kia","passage_tables":[%d]}]}}]
+	}`, uaID, tblA.ID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Связь «Проезд» записана подачей.
+	var linkCount int64
+	require.NoError(t, db.Table("car_target_tables ctt").
+		Joins("JOIN cars c ON c.id = ctt.car_id").
+		Where("ctt.table_id = ? AND c.car_number = ?", tblA.ID, "C777CC177").
+		Count(&linkCount).Error)
+	assert.EqualValues(t, 1, linkCount, "submit должен записать car_target_tables для выбранного «Проезда»")
+
+	// Активируем машину и проверяем scoped-показ.
+	var appID int
+	require.NoError(t, db.Raw(`SELECT app.id FROM applications app
+		JOIN attachments a ON a.application_id = app.id
+		JOIN cars c ON c.attachment_id = a.id WHERE c.car_number = ?`, "C777CC177").Scan(&appID).Error)
+	activateCarViaApp(t, e, db, appID, td)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblA.ID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, testutil.ParseSlice(t, rec), 1, "машина видна в привязанной таблице «Проезд»")
 
-	cars := testutil.ParseSlice(t, rec)
-	// Fact cars have car_number "по факту" which is unlikely in test data
-	assert.Empty(t, cars)
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblB.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, testutil.ParseSlice(t, rec), "машина не видна в непривязанной таблице")
 }
+
+// GET /attachments/:id/cars отдаёт target_tables машины по образцу employee (#1036 срез E).
+func TestGetAttachmentCars_IncludesTargetTables(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	dn := "Проезд E"
+	tbl := models.SystemTable{Name: "cars_e_target", DisplayName: &dn, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	token := testutil.RegisterAndLogin(t, e, "cartarget1", "pass123", 1, td.OrgID, td.CompanyID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_target_tmpl", "Cars Target")
+
+	body := fmt.Sprintf(`{
+		"message":"target tables test","organization":"Test Organization",
+		"responsible_person":"Test","contact_phone":"+79001234567","data_approval":true,
+		"attachments":[{"attachment_type":"cars","attachment_name":"cars_tmpl",
+			"attachment_display_name":"Cars Template","unique_attachment_id":%d,
+			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
+			"data":{"vehicles":[{"car_number":"D555DD177","car_brand":"Volvo","passage_tables":[%d]}]}}]
+	}`, uaID, tbl.ID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", createResp.ApplicationID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	atts := testutil.ParseSlice(t, rec)
+	require.NotEmpty(t, atts)
+	attID := int(atts[0]["id"].(float64))
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	cars := testutil.ParseSlice(t, rec)
+	require.Len(t, cars, 1)
+
+	targetTables, ok := cars[0]["target_tables"].([]interface{})
+	require.True(t, ok, "target_tables должен присутствовать в ответе вложения-машины")
+	require.Len(t, targetTables, 1)
+	table := targetTables[0].(map[string]interface{})
+	assert.Equal(t, dn, table["display_name"])
+	assert.EqualValues(t, tbl.ID, table["id"])
+}
+
+
 
 // --- GET /cars/unload-places ---
 
@@ -371,8 +451,9 @@ func TestUpdateCarTerritoryStatus_Success(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carterr1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carterr1"), "cars")
 
-	body := `{"territory_status": 1}`
+	body := fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -488,8 +569,16 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carlc1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 
+	// Смотрим машину через адресный путь «Проезд» (#1036): выдача идёт по конкретной
+	// таблице, поэтому машину сначала к ней привязываем. Раньше тест ходил на
+	// /cars/active-for-tables - тот путь снят вместе с техдолгом (#1050).
+	lcTable := seedPassTableGrant(t, db, getUserID(t, db, "carlc1"), "cars")
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, lcTable).Error)
+	lcPath := fmt.Sprintf("/cars/active-for-table/%d", lcTable)
+
 	// 1. Car initially has status=0
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
+	rec := testutil.GET(t, e, lcPath, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	emptyCars := testutil.ParseSlice(t, rec)
 	assert.Empty(t, emptyCars, "no active cars before activation")
@@ -498,13 +587,14 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td)
 
 	// 3. Now car should be active
-	rec = testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
+	rec = testutil.GET(t, e, lcPath, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	activeCars := testutil.ParseSlice(t, rec)
 	require.GreaterOrEqual(t, len(activeCars), 1, "expected active car after activation")
 
 	// 4. Update territory status (car enters territory)
-	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), `{"territory_status": 1}`, testutil.AuthHeader(token))
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carlc1"), "cars")
+	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	// 5. Check current status

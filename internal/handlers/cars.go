@@ -19,30 +19,65 @@ func NewCarHandler(service services.CarService) *CarHandler {
 	return &CarHandler{service: service}
 }
 
-// GetActiveCarsForTables обрабатывает GET /cars/active-for-tables.
-// @Summary Получение активных машин для таблиц
+
+// GetActiveCarsForTable обрабатывает GET /cars/active-for-table/:table_id.
+// @Summary Получение активных машин конкретной таблицы «Проезд»
 // @Tags cars
 // @Security BearerAuth
 // @Produce json
+// @Param table_id path int true "ID таблицы"
 // @Success 200 {array} services.TableCarResponse
-// @Router /cars/active-for-tables [get]
-func (h *CarHandler) GetActiveCarsForTables(c echo.Context) error {
-	cars, err := h.service.GetActiveCarsForTables(c.Request().Context())
+// @Router /cars/active-for-table/{table_id} [get]
+func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
+	}
+	cars, err := h.service.GetActiveCarsForTable(c.Request().Context(), tableID)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, cars)
 }
 
-// GetFactCarsForTables обрабатывает GET /cars/fact-for-tables.
-// @Summary Получение машин «по факту» для таблиц
+// CreateManualCars обрабатывает POST /cars/manual.
+// @Summary Ручное добавление машин в таблицу без заявки (#1049)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.ManualCarRequest true "Машины, организация/компания и целевая таблица"
+// @Success 200 {object} services.ManualCarResponse
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/manual [post]
+func (h *CarHandler) CreateManualCars(c echo.Context) error {
+	var req services.ManualCarRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	resp, err := h.service.CreateManualCars(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
+
+// GetFactCarsForTable обрабатывает GET /cars/fact-for-table/:table_id.
+// @Summary Получение машин «по факту» конкретной таблицы «Проезд»
 // @Tags cars
 // @Security BearerAuth
 // @Produce json
+// @Param table_id path int true "ID таблицы"
 // @Success 200 {array} services.TableCarResponse
-// @Router /cars/fact-for-tables [get]
-func (h *CarHandler) GetFactCarsForTables(c echo.Context) error {
-	cars, err := h.service.GetFactCarsForTables(c.Request().Context())
+// @Router /cars/fact-for-table/{table_id} [get]
+func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
+	}
+	cars, err := h.service.GetFactCarsForTable(c.Request().Context(), tableID)
 	if err != nil {
 		return err
 	}
@@ -162,6 +197,26 @@ func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
+// GetCarsHistoryByTable обрабатывает GET /cars/history/table/:table_id.
+// @Summary Получение истории въездов/выездов таблицы проходной
+// @Tags cars
+// @Security BearerAuth
+// @Produce json
+// @Param table_id path int true "ID таблицы"
+// @Success 200 {array} services.AllCarsHistoryItem
+// @Router /cars/history/table/{table_id} [get]
+func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
+	tableID, err := ParseID(c, "table_id")
+	if err != nil {
+		return err
+	}
+	items, err := h.service.GetCarsHistoryByTable(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
 // GetCarsCurrentStatus обрабатывает GET /cars/history/current-status.
 // @Summary Получение текущего территориального статуса активных автомобилей
 // @Tags cars
@@ -184,7 +239,7 @@ func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Param body body services.UpdateTerritoryStatusRequest true "Новый территориальный статус"
+// @Param body body services.UpdateCarTerritoryStatusRequest true "Новый территориальный статус (+ опц. данные пропуска по факту)"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/territory-status [put]
 func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
@@ -192,7 +247,7 @@ func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
 	}
-	var req services.UpdateTerritoryStatusRequest
+	var req services.UpdateCarTerritoryStatusRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
@@ -275,6 +330,87 @@ func (h *CarHandler) RestoreCar(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Car restored successfully")
+}
+
+// BulkMoveTable обрабатывает POST /cars/bulk/move-table.
+// @Summary Групповой перенос машин между таблицами «Проезд» (#1194)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.BulkMoveCarsTableRequest true "ID машин, исходная и целевые таблицы"
+// @Success 200 {object} services.BulkOpResult
+// @Success 207 {object} services.BulkOpResult "Частичный успех"
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/bulk/move-table [post]
+func (h *CarHandler) BulkMoveTable(c echo.Context) error {
+	var req services.BulkMoveCarsTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны машины")
+	}
+	res, err := h.service.BulkMoveTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAddTable обрабатывает POST /cars/bulk/add-table.
+// @Summary Групповое добавление машин в таблицы «Проезд» (#1194)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.BulkAddCarsTableRequest true "ID машин и целевые таблицы"
+// @Success 200 {object} services.BulkOpResult
+// @Success 207 {object} services.BulkOpResult "Частичный успех"
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/bulk/add-table [post]
+func (h *CarHandler) BulkAddTable(c echo.Context) error {
+	var req services.BulkAddCarsTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны машины")
+	}
+	res, err := h.service.BulkAddTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkUnbindTable обрабатывает POST /cars/bulk/unbind-table.
+// @Summary Групповое снятие машин с таблицы «Проезд» (#1194)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.BulkUnbindCarsTableRequest true "ID машин и таблица"
+// @Success 200 {object} services.BulkOpResult
+// @Success 207 {object} services.BulkOpResult "Частичный успех"
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/bulk/unbind-table [post]
+func (h *CarHandler) BulkUnbindTable(c echo.Context) error {
+	var req services.BulkUnbindCarsTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны машины")
+	}
+	res, err := h.service.BulkUnbindTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
 }
 
 // GetUnifiedCarHistory обрабатывает GET /cars/history/unified.

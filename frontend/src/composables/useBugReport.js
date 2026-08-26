@@ -10,17 +10,23 @@ const SS_CTX_KEY = 'last_bug_ctx'
  * На страницу 500 отправляются ТОЛЬКО эти поля - без response body,
  * заголовков или чего-либо что может содержать внутренние данные.
  *
+ * uiRoute - адрес страницы приложения, на которой упал запрос. Он нужен только
+ * кнопке "Повторить" и остаётся в sessionStorage: в bug-report уходят route,
+ * status и message, хеш инцидента тоже считается без него.
+ *
  * @param {Object} params
  * @param {string} params.route - путь запроса (pathname, без query)
  * @param {number} params.httpStatus - HTTP-код (500-599)
  * @param {string} [params.message] - generic HTTP status text ("Internal Server Error")
+ * @param {string} [params.uiRoute] - маршрут SPA, с которого ушёл упавший запрос
  * @returns {Object} контекст
  */
-export function buildBugContext({ route, httpStatus, message = '' }) {
+export function buildBugContext({ route, httpStatus, message = '', uiRoute = '' }) {
   return {
     route: String(route || '').slice(0, 255),
     httpStatus: Number(httpStatus) || 500,
     message: String(message || '').slice(0, 500),
+    uiRoute: String(uiRoute || '').slice(0, 255),
     timestamp: new Date().toISOString(),
   }
 }
@@ -61,6 +67,19 @@ export function loadBugContext() {
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
+  }
+}
+
+/**
+ * Забыть контекст последнего инцидента. Вызывается когда юзер уходит со
+ * страницы /500: контекст одноразовый, иначе кнопкой "назад" можно вернуться
+ * к уже закрытому инциденту, хотя новой ошибки не было.
+ */
+export function clearBugContext() {
+  try {
+    sessionStorage.removeItem(SS_CTX_KEY)
+  } catch {
+    // sessionStorage недоступен - чистить нечего.
   }
 }
 

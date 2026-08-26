@@ -12,22 +12,35 @@
       >
         <div
           class="car-history-modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <h3>История автомобиля {{ carNumber }}</h3>
             <div class="header-actions">
               <button
                 class="export-btn"
                 :disabled="filteredHistory.length === 0 || isExporting"
+                aria-label="Экспорт в Excel"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
-                <span v-if="!isExporting">Экспорт</span>
+                />
+                <span
+                  v-if="!isExporting"
+                  class="export-label"
+                >Экспорт</span>
                 <div
                   v-else
                   class="export-loader"
@@ -63,11 +76,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -97,19 +110,17 @@
           
               <div class="date-filter">
                 <span class="filter-label">Период:</span>
-                <input 
-                  v-model="dateFrom" 
-                  type="date" 
-                  class="date-input"
-                  @change="applyFilters"
-                >
-                <span class="date-separator">—</span>
-                <input 
-                  v-model="dateTo" 
-                  type="date" 
-                  class="date-input"
-                  @change="applyFilters"
-                >
+                <DateFilter
+                  mode="range"
+                  :selected-date="filterSelectedDate"
+                  :date-range-start="filterRangeStart"
+                  :date-range-end="filterRangeEnd"
+                  @update:selected-date="filterSelectedDate = $event"
+                  @update:date-range-start="filterRangeStart = $event"
+                  @update:date-range-end="filterRangeEnd = $event"
+                  @apply="applyFilters"
+                  @clear="applyFilters"
+                />
               </div>
           
               <div class="sort-filter">
@@ -118,11 +129,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -237,12 +248,16 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import DateFilter from './DateFilter.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'CarHistoryModal',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, DateFilter, AppIcon },
   props: {
     carId: {
       type: Number,
@@ -290,7 +305,22 @@ export default {
     const requestClose = () => { visible.value = false; };
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
-    return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
+    // Bottom-sheet на мобилке: свайп вниз за ползунок/с прокрученного вверх контента
+    // закрывает окно (useSwipeDismiss, как в ApplicationHistory).
+    const scrollContainer = ref(null);
+    const swipe = useSwipeDismiss(requestClose, {
+      getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
+      scrollContainer,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
   },
   data() {
     return {
@@ -299,8 +329,9 @@ export default {
       sortOrder: 'desc',
       searchQuery: '',
       selectedUserId: null,
-      dateFrom: '',
-      dateTo: '',
+      filterSelectedDate: null,
+      filterRangeStart: null,
+      filterRangeEnd: null,
       userDropdownOpen: false,
       isExporting: false
     };
@@ -349,14 +380,17 @@ export default {
         filtered = filtered.filter(item => item.user_id === this.selectedUserId);
       }
       
-      if (this.dateFrom) {
-        const fromDate = new Date(this.dateFrom);
+      // DateFilter в режиме range: одиночный день эмитит selectedDate, период - start/end.
+      const fromSource = this.filterSelectedDate || this.filterRangeStart;
+      if (fromSource) {
+        const fromDate = new Date(fromSource);
         fromDate.setHours(0, 0, 0, 0);
         filtered = filtered.filter(item => new Date(item.created_at) >= fromDate);
       }
-      
-      if (this.dateTo) {
-        const toDate = new Date(this.dateTo);
+
+      const toSource = this.filterSelectedDate || this.filterRangeEnd;
+      if (toSource) {
+        const toDate = new Date(toSource);
         toDate.setHours(23, 59, 59, 999);
         filtered = filtered.filter(item => new Date(item.created_at) <= toDate);
       }
@@ -457,7 +491,6 @@ export default {
 
         if (response.ok) {
           this.history = await response.json();
-          console.log('Загружена объединённая история автомобиля:', this.history);
         } else {
           console.error('Ошибка загрузки истории:', response.status);
         }
@@ -480,7 +513,11 @@ export default {
         'blacklisted': 'dot-delete',
         'unblacklisted': 'dot-activate',
         'blacklist_override': 'dot-activate',
-        'blacklist_override_revoke': 'dot-deactivate'
+        'blacklist_override_revoke': 'dot-deactivate',
+        'added_to_table': 'dot-create',
+        // Групповые операции над таблицами проходной (#1194 S1/S6).
+        'moved_between_tables': 'dot-update',
+        'unbound_from_table': 'dot-deactivate'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -513,7 +550,10 @@ export default {
         'blacklisted': 'Добавлен в чёрный список',
         'unblacklisted': 'Снят с чёрного списка',
         'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
-        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)'
+        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)',
+        'added_to_table': 'Добавлен в таблицу проходной',
+        'moved_between_tables': 'Перенесён между таблицами',
+        'unbound_from_table': 'Снят с таблицы'
       };
 
       let text = texts[item.action_type] || item.action_type;
@@ -780,7 +820,7 @@ export default {
         
       } catch (error) {
         console.error('Error exporting to Excel:', error);
-        alert('Ошибка при экспорте в Excel');
+        useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
       }
@@ -797,16 +837,16 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
 .place-name {
   font-size: 11px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   margin-top: 2px;
   font-weight: 500;
 }
@@ -817,7 +857,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -859,14 +899,30 @@ export default {
 }
 
 .car-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
+}
+
+/* Ползунок bottom-sheet - виден только на мобилке (тянуть вниз для закрытия). */
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 10px auto 2px;
+  flex-shrink: 0;
+}
+
+@keyframes carHistorySlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .modal-header {
@@ -874,14 +930,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -895,20 +951,20 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  height: 32px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
-  height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -924,8 +980,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -934,7 +990,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -946,14 +1002,14 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
 }
 
 .filter-row {
@@ -974,13 +1030,18 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
+}
+
+/* DateFilter несёт свои 14px и в ряду фильтров выбивается из общих 12px. */
+.date-filter :deep(.field-input) {
+  font-size: 12px;
 }
 
 .search-input {
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
   width: 200px;
@@ -990,7 +1051,7 @@ export default {
 
 .search-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -1005,21 +1066,21 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .select-trigger:hover {
-  border-color: #4F5BDF;
-  background: #f5f5f5;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .selected-value {
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1052,10 +1113,10 @@ export default {
   right: 0;
   max-height: 300px;
   overflow-y: auto;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 1000;
 }
 
@@ -1066,10 +1127,10 @@ export default {
 .select-option {
   padding: 8px 12px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -1077,26 +1138,12 @@ export default {
 }
 
 .select-option:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .select-option.selected {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
   font-weight: 500;
-}
-
-.date-input {
-  padding: 6px 8px;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  font-size: 12px;
-  width: 120px;
-  height: 32px;
-}
-
-.date-separator {
-  color: #a2a2a2;
-  font-size: 12px;
 }
 
 .sort-btn {
@@ -1104,11 +1151,11 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
@@ -1116,11 +1163,12 @@ export default {
 }
 
 .sort-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;
@@ -1133,7 +1181,7 @@ export default {
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  max-height: calc(80vh - 180px);
+  max-height: calc(var(--app-vh, 1vh) * 80 - 180px);
   position: relative;
 }
 
@@ -1143,14 +1191,14 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1193,10 +1241,10 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-entry { background: #059669; }
 .dot-exit { background: #dc2626; }
 .dot-update { background: #f59e0b; }
@@ -1218,17 +1266,17 @@ export default {
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
@@ -1238,21 +1286,22 @@ export default {
 }
 
 .history-content--link .action-text {
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
 .history-content--link:hover .action-text {
   text-decoration: underline;
+  text-underline-position: under;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
 }
 
 .value-change {
@@ -1260,7 +1309,7 @@ export default {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  background: #f9f9f9;
+  background: var(--surface-2);
   padding: 3px 8px;
   border-radius: 16px;
   display: inline-flex;
@@ -1268,29 +1317,107 @@ export default {
 }
 
 .old-value {
-  color: #dc2626;
+  color: var(--danger-text);
   text-decoration: line-through;
   font-size: 11px;
 }
 
 .arrow {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 10px;
 }
 
 .new-value {
-  color: #059669;
+  color: var(--success-text);
   font-weight: 500;
   font-size: 11px;
 }
 
 .field-name {
   font-size: 11px;
-  color: #8b5cf6;
+  color: var(--accent-text);
   margin-top: 2px;
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: окно выезжает снизу во всю ширину, свайп вниз за ползунок закрывает
+     (как ApplicationHistory/детали Т/С, #1097 R4-9). */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+    top: 0;
+    height: 100dvh;
+    bottom: auto;
+  }
+
+  .car-history-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    transition: transform 0.3s ease;
+  }
+
+  .car-history-modal.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
+  /* Компактная шапка на узком экране. */
+  .modal-header {
+    padding: 6px 16px;
+  }
+
+  .modal-header h3 {
+    font-size: 16px;
+  }
+
+  .close-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* На узкой шапке подпись не помещается рядом с названием - остаётся круглая иконка
+     (#1239), на десктопе кнопка подписана как в остальных историях. */
+  .export-btn {
+    width: 32px;
+    padding: 0;
+    gap: 0;
+    border-radius: 50%;
+  }
+
+  .export-label {
+    display: none;
+  }
+
+  /* Одиночной иконке без подписи нужен вес. */
+  .export-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Выезд снизу (гасим desktop-scale), закрытие крестиком/overlay - слайд вниз; при
+     свайпе inline transform=offset перебивает leave-to (второго слайда нет). */
+  .modal-fade-enter-active .car-history-modal {
+    animation: carHistorySlideUp 0.3s ease-out;
+  }
+
+  .modal-fade-leave-active .car-history-modal {
+    animation: none;
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .modal-fade-leave-to .car-history-modal {
+    transform: translateY(100%);
+  }
+
+  .modal-fade-leave-active {
+    transition: opacity 0.3s ease;
+  }
+
   .filter-row {
     flex-direction: column;
     align-items: flex-start;
@@ -1305,13 +1432,8 @@ export default {
   
   .custom-select,
   .search-input,
-  .date-input,
   .sort-btn {
     width: 100%;
-  }
-  
-  .date-input {
-    width: calc(50% - 20px);
   }
 }
 </style>

@@ -3,8 +3,11 @@ package models
 // --- Requests ---
 
 type RegisterRequest struct {
-	Username       string  `json:"username" validate:"required,min=3,max=100"`
-	Password       string  `json:"password" validate:"required,min=6,max=255"`
+	Username string `json:"username" validate:"required,min=3,max=100"`
+	// Password пустой означает «пароль придумает система и вышлет письмом».
+	// Обязательность зависит от того, указан ли Email, поэтому её проверяет
+	// сервис: тегом такое условие не выразить.
+	Password       string  `json:"password" validate:"omitempty,min=6,max=255"`
 	OrganizationID int     `json:"organization_id"`
 	CompanyID      int     `json:"company_id"`
 	TypeID         int     `json:"type_id"`

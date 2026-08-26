@@ -1,17 +1,15 @@
 package handlers
 
 import (
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -191,6 +189,173 @@ func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
 	return RespondMessage(c, "Место разгрузки восстановлено")
 }
 
+// GetUsage возвращает организации и компании, привязанные к месту разгрузки.
+// @Summary      Привязки места разгрузки
+// @Description  Организации и компании, к которым привязано место разгрузки (те же, что блокируют удаление)
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {object} services.UnloadPlaceUsage
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/usage [get]
+func (h *UnloadPlaceHandler) GetUsage(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	usage, err := h.service.GetUsage(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, usage)
+}
+
+// DetachAll снимает привязки места разгрузки ко всем организациям и компаниям.
+// @Summary      Отвязать место разгрузки от всех организаций и компаний
+// @Description  Разом снимает все привязки места к организациям/компаниям (с записью в историю каждой). После этого место можно архивировать
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {object} services.UnloadPlaceDetachResult
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/detach-all [post]
+func (h *UnloadPlaceHandler) DetachAll(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.DetachAll(c.Request().Context(), userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
+// DetachOrganization снимает привязку места разгрузки к одной организации.
+// @Summary      Отвязать место разгрузки от организации
+// @Description  Снимает привязку места к конкретной организации (с записью в её историю). Идемпотентно
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Param        org_id path int true "ID организации"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/organizations/{org_id} [delete]
+func (h *UnloadPlaceHandler) DetachOrganization(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	orgID, err := strconv.Atoi(c.Param("org_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid organization id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachOrganization(c.Request().Context(), userID, id, orgID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
+// DetachCompany снимает привязку места разгрузки к одной компании.
+// @Summary      Отвязать место разгрузки от компании
+// @Description  Снимает привязку места к конкретной компании (с записью в её историю). Идемпотентно
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Param        company_id path int true "ID компании"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/companies/{company_id} [delete]
+func (h *UnloadPlaceHandler) DetachCompany(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	companyID, err := strconv.Atoi(c.Param("company_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid company id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachCompany(c.Request().Context(), userID, id, companyID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
+// BulkArchive godoc
+// @Summary      Групповая архивация мест разгрузки
+// @Description  Архивирует набор мест разгрузки. Привязанные к организациям/компаниям попадают в Errors (частичный успех)
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID мест разгрузки"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /unload-places/bulk/archive [post]
+func (h *UnloadPlaceHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны места разгрузки")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление мест разгрузки
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID мест разгрузки"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /unload-places/bulk/restore [post]
+func (h *UnloadPlaceHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны места разгрузки")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
 // GetHistory возвращает историю изменений места разгрузки. Без отдельного
 // admin-гейта - намеренно, как и весь CRUD мест разгрузки (в отличие от
 // org/company, где история под buropropuskov): доступ управляется группой protected.
@@ -338,6 +503,128 @@ func (h *UnloadPlaceHandler) DeleteTimeSlot(c echo.Context) error {
 	return RespondMessage(c, "Временной слот успешно удален")
 }
 
+// --- Предупреждения по временным окнам (#1183) ---
+
+// GetWarningWindows возвращает предупреждения по временным окнам места разгрузки.
+// @Summary      Получение предупреждений по окнам
+// @Description  Возвращает все предупреждения по временным окнам для места разгрузки
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {array} models.UnloadPlaceWarningWindow
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/warning-windows [get]
+func (h *UnloadPlaceHandler) GetWarningWindows(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	windows, err := h.service.GetWarningWindows(c.Request().Context(), placeID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, windows)
+}
+
+// AddWarningWindow добавляет предупреждение по временному окну к месту разгрузки.
+// @Summary      Добавление предупреждения по окну
+// @Description  Создаёт новое предупреждение по временному окну для места разгрузки
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {object} map[string]interface{} "id и message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/warning-windows [post]
+func (h *UnloadPlaceHandler) AddWarningWindow(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	id, err := h.service.AddWarningWindow(c.Request().Context(), placeID, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]interface{}{
+		"id":      id,
+		"message": "Предупреждение по окну успешно добавлено",
+	})
+}
+
+// UpdateWarningWindow обновляет предупреждение по временному окну.
+// @Summary      Обновление предупреждения по окну
+// @Description  Перезаписывает предупреждение по временному окну целиком
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        place_id path int true "ID места разгрузки"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {string} string "Предупреждение по окну успешно обновлено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{place_id}/warning-windows/{window_id} [put]
+func (h *UnloadPlaceHandler) UpdateWarningWindow(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("place_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateWarningWindow(c.Request().Context(), placeID, windowID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно обновлено")
+}
+
+// DeleteWarningWindow удаляет предупреждение по временному окну.
+// @Summary      Удаление предупреждения по окну
+// @Description  Удаляет предупреждение по временному окну из места разгрузки
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        place_id path int true "ID места разгрузки"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Success      200 {string} string "Предупреждение по окну успешно удалено"
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{place_id}/warning-windows/{window_id} [delete]
+func (h *UnloadPlaceHandler) DeleteWarningWindow(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("place_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	if err := h.service.DeleteWarningWindow(c.Request().Context(), placeID, windowID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно удалено")
+}
+
 // --- Фотографии ---
 
 // UploadPhoto загружает фотографию для места разгрузки.
@@ -362,65 +649,22 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 
-	// Создаём директорию для загрузок
-	if err := os.MkdirAll(h.uploadDir, 0o755); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create upload directory")
-	}
-
-	form, err := c.MultipartForm()
+	saved, err := upload.SaveMultipart(c, "photos", upload.Options{
+		Dir:          h.uploadDir,
+		URLPrefix:    "/api/uploads/unload_places",
+		MaxFileSize:  h.maxFileSize,
+		AllowedTypes: allowedImageTypes,
+		NameSuffix:   strconv.Itoa(placeID),
+	})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Error reading multipart")
+		return err
 	}
 
-	var insertedIDs []int
-
-	files := form.File["file"]
-	for _, fh := range files {
-		if fh.Size > h.maxFileSize {
-			return echo.NewHTTPError(http.StatusBadRequest, "File too large. Max 10MB")
-		}
-
-		src, err := fh.Open()
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Error reading file")
-		}
-		defer src.Close()
-
-		// Валидация типа файла по magic bytes
-		detectedType, err := upload.ValidateFileType(src, allowedImageTypes)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid file type. Allowed: JPEG, PNG, GIF, WebP")
-		}
-		// Перематываем файл после чтения заголовка
-		if seeker, ok := src.(io.Seeker); ok {
-			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process file")
-			}
-		}
-
-		ext := upload.MimeToExt(detectedType)
-		uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), placeID, ext)
-		dstPath := filepath.Join(h.uploadDir, uniqueName)
-		fileURL := fmt.Sprintf("/uploads/unload_places/%s", uniqueName)
-
-		dst, err := os.Create(dstPath)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to write file")
-		}
-		defer dst.Close()
-
-		if _, err := io.Copy(dst, src); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to write file")
-		}
-
-		mimeType := fh.Header.Get("Content-Type")
-		if mimeType == "" {
-			mimeType = "application/octet-stream"
-		}
-
+	insertedIDs := make([]int, 0, len(saved))
+	for _, f := range saved {
 		id, err := h.service.UploadPhoto(
 			c.Request().Context(), placeID, username,
-			fileURL, fh.Filename, mimeType, fh.Size,
+			f.URL, f.FileName, f.MimeType, f.Size,
 		)
 		if err != nil {
 			return err
@@ -462,8 +706,8 @@ func (h *UnloadPlaceHandler) DeletePhoto(c echo.Context) error {
 		return err
 	}
 
-	// Удаляем файл с диска
-	filePath := fmt.Sprintf("./%s", photoURL)
+	// Удаляем файл с диска по реальному пути (не по публичному URL).
+	filePath := filepath.Join(h.uploadDir, filepath.Base(photoURL))
 	if _, statErr := os.Stat(filePath); statErr == nil {
 		_ = os.Remove(filePath)
 	}

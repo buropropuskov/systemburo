@@ -8,9 +8,9 @@
 .lk-select {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   color: var(--color-text);
   font-size: 14px;
   font-family: inherit;
@@ -23,15 +23,15 @@
 .lk-input:focus,
 .lk-textarea:focus,
 .lk-select:focus {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-focus);
 }
 
 .lk-input:disabled,
 .lk-textarea:disabled,
 .lk-select:disabled {
-  background: var(--color-bg-secondary);
-  color: var(--color-text-muted);
+  background: var(--surface-2);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
@@ -45,11 +45,14 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  /* Высоту здесь НЕ задавать: десятки кнопок объявляют свою, меньшую (25-34px), и
+     минимум на базовом правиле сильнее их height - раздувает всё разом. Тач-таргет
+     добирается там, где он нужен, а не общим правилом. */
   padding: 8px 18px;
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
-  background: #fff;
-  color: var(--color-text);
+  background: var(--surface);
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
@@ -69,54 +72,63 @@
 }
 
 .lk-button--primary {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .lk-button--primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .lk-button--secondary {
-  background: #fff;
-  color: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--surface);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .lk-button--secondary:hover:not(:disabled) {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .lk-button--ghost {
   background: transparent;
-  color: var(--color-text);
-  border-color: var(--color-border);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .lk-button--ghost:hover:not(:disabled) {
-  background: var(--color-bg);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .lk-button--danger {
-  background: #fff;
-  color: var(--color-danger);
-  border-color: #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  /* Бледная рамка выводится из цвета темы: литерал #fecaca в тёмной теме
+     давал бы розовую обводку на тёмной кнопке. */
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .lk-button--danger:hover:not(:disabled) {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--fill-text);
+}
+
+/* Компактный модификатор для inline-контекстов (retry у sentinel подгрузки #1173,
+   кнопка вопроса #345). Компоненты с собственным scoped-размером (0,2,0) переопределяют. */
+.lk-button--sm {
+  padding: 4px 12px;
+  font-size: 12px;
 }
 
 .lk-card {
-  background: #fff;
-  border: 1px solid var(--color-border);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 16px;
@@ -124,4 +136,16 @@
 
 .lk-card--flat {
   box-shadow: none;
+}
+
+/*
+ * Подсказка в полях экрана входа. Браузеры красят ::placeholder по-своему
+ * (Chrome #757575, Firefox - цвет текста с прозрачностью), из-за чего значок
+ * поля, подогнанный под один браузер, в другом расходился с подсказкой.
+ * Правило живёт здесь, а не в LoginComponent: его блок стилей за порогом
+ * lint:size, расти ему нельзя.
+ */
+.login__input .input::placeholder {
+  color: var(--text-placeholder);
+  opacity: 1;
 }

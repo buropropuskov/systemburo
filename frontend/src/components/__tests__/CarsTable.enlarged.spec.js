@@ -6,6 +6,16 @@ const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
   apiRequest: (...args) => apiRequest(...args),
 }));
+// mounted() поднимает real-time подписку (#840); без мока реальный eventStream
+// ушёл бы в fetchTicket -> reconnect с фоновым таймером на весь прогон.
+vi.mock('@/services/eventStream', () => ({
+  default: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+    onStatus: vi.fn(() => vi.fn()),
+  },
+}));
 
 import CarsTable from '../CarsTable.vue';
 
@@ -37,7 +47,7 @@ describe('CarsTable - Увеличенный режим', () => {
     apiRequest.mockImplementation((url) => {
       if (url.startsWith('/unload-places')) return okResponse([]);
       if (url.startsWith('/license-plate-formats')) return okResponse([]);
-      if (url.startsWith('/cars/active-for-tables')) return okResponse([]);
+      if (url.startsWith('/cars/active-for-table/')) return okResponse([]);
       if (url.startsWith('/cars/unload-places')) return okResponse([]);
       if (url.startsWith('/cars/history/current-status')) return okResponse([]);
       if (url.startsWith('/organizations')) return okResponse([]);

@@ -1,0 +1,22 @@
+# Отпечатки известных срабатываний gitleaks. Каждая строка - разобранная вручную
+# находка, а не общее исключение: маской по *_test.go отключать нельзя, секрет,
+# положенный в тест, остаётся секретом.
+#
+# Все перечисленные - тестовые фикстуры: пароли, которые тест сам придумывает и
+# сам же проверяет, и заведомо игрушечный ключ шифрования из проверки конфигурации.
+
+# Пароль, который тест задаёт и ждёт обратно при проверке запрета повторов.
+bc3a4636d28468aec05b451195c82e2dcf30205c:internal/handlers/used_passwords_test.go:generic-api-key:247
+8a06ca5ae10250c91d17e2852f38944e8a6049bf:internal/handlers/used_passwords_test.go:generic-api-key:247
+
+# Пароли учётной записи, заводимой сценарием проверки гейта согласия.
+99882811fd2371fd0d58550e6618bc18064d26cf:frontend/e2e/tests/pd-consent-gate.spec.cjs:generic-api-key:29
+a9a6ec83cdae901156f00e8899e982cd8b00a673:frontend/e2e/tests/pd-consent-gate.spec.cjs:generic-api-key:29
+ee82a235212f51c65f76b9f70ec87ab251a4e19f:frontend/e2e/tests/pd-consent-gate.spec.cjs:generic-api-key:23
+
+# Пароль в проверке полей срока действия пароля.
+c951ece87d00f253b03c2d32ff1638768b1f181c:internal/handlers/password_expiry_fields_test.go:generic-api-key:37
+bb1b2a98cc676e7db9cedb6ffe81d99f734d2454:internal/handlers/password_expiry_fields_test.go:generic-api-key:37
+
+# Шестнадцать нулей и цифр вместо ключа шифрования - проверка длины в config_test.go.
+fdae44cba886012f4add7d937eab225e768e39fd:internal/config/config_test.go:generic-api-key:168

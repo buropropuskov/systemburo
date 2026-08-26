@@ -20,11 +20,11 @@
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -70,11 +70,11 @@
               class="hf-sort"
               @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
             >
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="hf-sort-icon"
                 :class="{ 'hf-sort-icon--asc': sortOrder === 'asc' }"
-              >
+              />
               <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
             </button>
           </div>
@@ -164,9 +164,11 @@
 <script>
 import ExcelJS from 'exceljs';
 import { getTrashHistory } from '@/api/trash';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TrashHistoryModal',
+  components: { AppIcon },
   props: {
     tableId: { type: Number, required: true },
     tableDisplayName: { type: String, default: '' },
@@ -373,17 +375,17 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -397,14 +399,14 @@ export default {
 }
 
 .trash-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 620px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   font-family: 'Montserrat', sans-serif;
   animation: slideUp 0.2s ease-out;
 }
@@ -419,14 +421,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -441,20 +443,20 @@ export default {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -470,8 +472,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -480,7 +482,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -492,8 +494,8 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
@@ -502,14 +504,14 @@ export default {
   gap: 10px;
   flex-wrap: wrap;
   padding: 12px 25px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .hf-input {
   flex: 1 1 220px;
   height: 32px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 0 12px;
   font-family: 'Montserrat', sans-serif;
@@ -518,17 +520,17 @@ export default {
 }
 
 .hf-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .hf-select {
   height: 32px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 0 10px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   outline: none;
 }
@@ -539,21 +541,22 @@ export default {
   gap: 6px;
   height: 32px;
   padding: 0 14px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .hf-sort:hover {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .hf-sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: transform 0.2s ease;
@@ -566,8 +569,10 @@ export default {
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  /* Фиксированная высота списка - модалка не меняет размер при поиске/фильтрации. */
-  height: 55vh;
+  /* Фиксированная высота списка - модалка не меняет размер при поиске/фильтрации.
+     --app-vh (не голый vh): на >1440 корень зумлен, голый 55vh считался от
+     незумленной высоты и распирал список в zoom раз (#1359). */
+  height: calc(var(--app-vh, 1vh) * 55);
 }
 
 .history-empty {
@@ -575,14 +580,14 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -623,7 +628,7 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
 .dot-restore { background: #059669; }
@@ -644,18 +649,18 @@ export default {
 .action-title {
   font-size: 14px;
   font-weight: 500;
-  color: #000;
+  color: var(--text);
 }
 
 .action-time {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .action-user {
   font-size: 13px;
-  color: #555;
+  color: var(--text);
 }
 
 .detail-toggle,
@@ -667,7 +672,7 @@ export default {
   font-family: 'Montserrat', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  color: #4F5BDF;
+  color: var(--accent-text);
   cursor: pointer;
 }
 
@@ -680,8 +685,8 @@ export default {
   list-style: none;
   margin: 6px 0 0;
   padding: 8px 12px;
-  background: #f7f8ff;
-  border: 1px solid #e6e6e6;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -690,7 +695,7 @@ export default {
 
 .detail-list li {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
 }
 
 .trash-modal-fade-enter-active,

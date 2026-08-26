@@ -3,29 +3,38 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
+	"systemburo/internal/upload"
 
 	"github.com/labstack/echo/v4"
 )
 
 // SystemTableHandler -- HTTP-обработчики системных таблиц.
 type SystemTableHandler struct {
-	service services.SystemTableService
-	history services.SystemTableHistoryService
+	service     services.SystemTableService
+	recorder    services.AuditRecorder
+	maxFileSize int64
+	uploadDir   string
 }
 
 // NewSystemTableHandler создаёт новый экземпляр обработчика системных таблиц.
-// history может быть nil - тогда логирование действий отключено.
-func NewSystemTableHandler(service services.SystemTableService, history services.SystemTableHistoryService) *SystemTableHandler {
-	return &SystemTableHandler{service: service, history: history}
+// recorder может быть nil - тогда логирование действий отключено.
+func NewSystemTableHandler(service services.SystemTableService, recorder services.AuditRecorder, maxFileSize int64, uploadDir string) *SystemTableHandler {
+	return &SystemTableHandler{
+		service:     service,
+		recorder:    recorder,
+		maxFileSize: maxFileSize,
+		uploadDir:   filepath.Join(uploadDir, "system_tables"),
+	}
 }
 
-// logAction пишет запись в историю если сервис подключён. Безопасно вызывать с nil-историей.
+// logAction пишет запись аудита. Безопасно вызывать с nil-recorder.
 func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tableID int, actionType string, details interface{}) {
-	if h.history == nil {
+	if h.recorder == nil {
 		return
 	}
 	var userID *int
@@ -34,7 +43,7 @@ func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tabl
 			userID = &id
 		}
 	}
-	_ = h.history.Log(ctx, tableID, userID, actionType, details)
+	h.recorder.Log(ctx, nil, models.AuditEntitySystemTable, &tableID, actionType, userID, details)
 }
 
 // GetAll godoc
@@ -88,13 +97,15 @@ func (h *SystemTableHandler) GetByID(c echo.Context) error {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        name path string true "Имя таблицы"
+// @Param        allow_archived query bool false "Искать и среди архивных тоже (для страницы версий)"
 // @Success      200 {object} models.SystemTableWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/name/{name} [get]
 func (h *SystemTableHandler) GetByName(c echo.Context) error {
 	name := c.Param("name")
-	table, err := h.service.GetByName(c.Request().Context(), name)
+	allowArchived := c.QueryParam("allow_archived") == "1" || c.QueryParam("allow_archived") == "true"
+	table, err := h.service.GetByName(c.Request().Context(), name, allowArchived)
 	if err != nil {
 		return err
 	}
@@ -201,6 +212,9 @@ func buildUpdateDetails(req models.UpdateSystemTableRequest) map[string]interfac
 	if req.LocationDescription != nil {
 		out["location_description"] = *req.LocationDescription
 	}
+	if req.Warning != nil {
+		out["warning"] = *req.Warning
+	}
 	if req.FontSize != nil {
 		out["font_size"] = *req.FontSize
 	}
@@ -264,6 +278,198 @@ func (h *SystemTableHandler) Restore(c echo.Context) error {
 	return RespondMessage(c, "Системная таблица восстановлена")
 }
 
+// GetUsage возвращает организации и компании, привязанные к таблице.
+// @Summary      Привязки системной таблицы
+// @Description  Организации и компании, к которым привязана таблица (те же, что блокируют удаление)
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {object} services.SystemTableUsage
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/usage [get]
+func (h *SystemTableHandler) GetUsage(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	usage, err := h.service.GetUsage(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, usage)
+}
+
+// DetachAll снимает привязки таблицы ко всем организациям и компаниям.
+// @Summary      Отвязать таблицу от всех организаций и компаний
+// @Description  Разом снимает все привязки таблицы к организациям/компаниям (с записью в историю каждой). После этого таблицу можно архивировать
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {object} services.SystemTableDetachResult
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/detach-all [post]
+func (h *SystemTableHandler) DetachAll(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.DetachAll(c.Request().Context(), userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
+// DetachOrganization снимает привязку таблицы к одной организации.
+// @Summary      Отвязать таблицу от организации
+// @Description  Снимает привязку таблицы к конкретной организации (с записью в её историю). Идемпотентно
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        org_id path int true "ID организации"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/organizations/{org_id} [delete]
+func (h *SystemTableHandler) DetachOrganization(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	orgID, err := strconv.Atoi(c.Param("org_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid organization id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachOrganization(c.Request().Context(), userID, id, orgID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
+// DetachCompany снимает привязку таблицы к одной компании.
+// @Summary      Отвязать таблицу от компании
+// @Description  Снимает привязку таблицы к конкретной компании (с записью в её историю). Идемпотентно
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        company_id path int true "ID компании"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/companies/{company_id} [delete]
+func (h *SystemTableHandler) DetachCompany(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	companyID, err := strconv.Atoi(c.Param("company_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid company id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachCompany(c.Request().Context(), userID, id, companyID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
+// logBulkResult пишет запись аудита для каждого id из запроса, для которого
+// групповая операция реально прошла успешно (нет в res.Errors). Аудит для
+// системных таблиц живёт в handler-слое (см. logAction), а не в сервисе (как
+// у марок) - BulkOpResult сервиса не возвращает список успешных id, поэтому
+// дедуп запроса и вычитание провалившихся делаем здесь же.
+func (h *SystemTableHandler) logBulkResult(c echo.Context, ids []int, res *services.BulkOpResult, actionType string) {
+	if h.recorder == nil {
+		return
+	}
+	failed := make(map[int]struct{}, len(res.Errors))
+	for _, e := range res.Errors {
+		failed[e.ID] = struct{}{}
+	}
+	logged := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := logged[id]; ok {
+			continue
+		}
+		logged[id] = struct{}{}
+		if _, bad := failed[id]; bad {
+			continue
+		}
+		h.logAction(c.Request().Context(), c, id, actionType, nil)
+	}
+}
+
+// BulkArchive godoc
+// @Summary      Групповая архивация системных таблиц
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID таблиц"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /system-tables/bulk/archive [post]
+func (h *SystemTableHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны таблицы")
+	}
+	res, err := h.service.BulkArchive(c.Request().Context(), req.IDs)
+	if err != nil {
+		return err
+	}
+	h.logBulkResult(c, req.IDs, res, models.SystemTableActionArchived)
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление системных таблиц
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID таблиц"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /system-tables/bulk/restore [post]
+func (h *SystemTableHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны таблицы")
+	}
+	res, err := h.service.BulkRestore(c.Request().Context(), req.IDs)
+	if err != nil {
+		return err
+	}
+	h.logBulkResult(c, req.IDs, res, models.SystemTableActionRestored)
+	return respondBulk(c, res)
+}
+
 // GetHistory godoc
 // @Summary      История изменений системной таблицы
 // @Description  Возвращает все CRUD-действия над таблицей (created/updated/archived/restored/columns/appearance)
@@ -281,10 +487,7 @@ func (h *SystemTableHandler) GetHistory(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if h.history == nil {
-		return RespondSuccess(c, []models.SystemTableHistoryItem{})
-	}
-	items, err := h.history.GetHistory(c.Request().Context(), id)
+	items, err := h.service.GetHistory(c.Request().Context(), id)
 	if err != nil {
 		return err
 	}
@@ -478,6 +681,127 @@ func (h *SystemTableHandler) DeleteTimeSlot(c echo.Context) error {
 	return RespondMessage(c, "Временной слот успешно удален")
 }
 
+// --- Предупреждения по временным окнам (#1183) ---
+
+// GetWarningWindows godoc
+// @Summary      Получение предупреждений по окнам таблицы
+// @Description  Возвращает все предупреждения по временным окнам для системной таблицы
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {array} models.SystemTableWarningWindow
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/warning-windows [get]
+func (h *SystemTableHandler) GetWarningWindows(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	windows, err := h.service.GetWarningWindows(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, windows)
+}
+
+// AddWarningWindow godoc
+// @Summary      Добавление предупреждения по окну
+// @Description  Создаёт новое предупреждение по временному окну для системной таблицы
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {object} map[string]interface{} "id, message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{id}/warning-windows [post]
+func (h *SystemTableHandler) AddWarningWindow(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	id, err := h.service.AddWarningWindow(c.Request().Context(), tableID, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]interface{}{
+		"id":      id,
+		"message": "Предупреждение по окну успешно добавлено",
+	})
+}
+
+// UpdateWarningWindow godoc
+// @Summary      Обновление предупреждения по окну
+// @Description  Перезаписывает предупреждение по временному окну целиком
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        table_id path int true "ID таблицы"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {string} string "Предупреждение по окну успешно обновлено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{table_id}/warning-windows/{window_id} [put]
+func (h *SystemTableHandler) UpdateWarningWindow(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateWarningWindow(c.Request().Context(), tableID, windowID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно обновлено")
+}
+
+// DeleteWarningWindow godoc
+// @Summary      Удаление предупреждения по окну
+// @Description  Удаляет предупреждение по временному окну из системной таблицы
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        table_id path int true "ID таблицы"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Success      200 {string} string "Предупреждение по окну успешно удалено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{table_id}/warning-windows/{window_id} [delete]
+func (h *SystemTableHandler) DeleteWarningWindow(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	if err := h.service.DeleteWarningWindow(c.Request().Context(), tableID, windowID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно удалено")
+}
+
 // --- Фотографии ---
 
 // UploadPhoto godoc
@@ -501,19 +825,20 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 
-	form, err := c.MultipartForm()
+	saved, err := upload.SaveMultipart(c, "photos", upload.Options{
+		Dir:          h.uploadDir,
+		URLPrefix:    "/api/uploads/system_tables",
+		MaxFileSize:  h.maxFileSize,
+		AllowedTypes: allowedImageTypes,
+		NameSuffix:   strconv.Itoa(tableID),
+	})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Error reading multipart")
+		return err
 	}
 
-	files := form.File["file"]
-	if len(files) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "No files provided")
-	}
-
-	var photoIDs []int
-	for _, file := range files {
-		id, err := h.service.UploadPhoto(c.Request().Context(), tableID, username, file)
+	photoIDs := make([]int, 0, len(saved))
+	for _, f := range saved {
+		id, err := h.service.UploadPhoto(c.Request().Context(), tableID, username, f.URL, f.FileName, f.MimeType, f.Size)
 		if err != nil {
 			return err
 		}

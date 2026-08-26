@@ -111,14 +111,16 @@ const baseSelectSQL = `
 		e.middle_name AS employee_middle_name,
 		COALESCE(org.name, '') AS organization,
 		COALESCE(comp.name, '') AS company
-	FROM employees_history eh
+	FROM ` + employeesHistoryUnion + ` eh
 	LEFT JOIN users u ON eh.user_id = u.id
 	LEFT JOIN system_tables st ON eh.table_id = st.id
 	JOIN employees e ON eh.employee_id = e.id
 	LEFT JOIN attachments a ON e.attachment_id = a.id
 	LEFT JOIN applications app ON a.application_id = app.id
-	LEFT JOIN organizations org ON app.organization_id = org.id
-	LEFT JOIN companies comp ON app.company_id = comp.id`
+	-- Ручные сотрудники (#1049) висят на вложении-сироте без заявки (app.* NULL, метка
+	-- application_id пустой), поэтому org/company берём через COALESCE с самого вложения.
+	LEFT JOIN organizations org ON org.id = COALESCE(app.organization_id, a.organization_id)
+	LEFT JOIN companies comp ON comp.id = COALESCE(app.company_id, a.company_id)`
 
 func (s *employeesHistoryService) GetByEmployee(ctx context.Context, employeeID int) ([]EmployeeHistoryItem, error) {
 	rows := make([]employeeHistoryRow, 0)
@@ -185,9 +187,9 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]Emplo
 			e.territory_entry_time,
 			(
 				SELECT created_at
-				FROM employees_history
-				WHERE employee_id = e.id AND action_type = 'exit'
-				ORDER BY created_at DESC
+				FROM ` + employeesHistoryUnion + ` eh
+				WHERE eh.employee_id = e.id AND eh.action_type = 'exit'
+				ORDER BY eh.created_at DESC
 				LIMIT 1
 			) AS last_exit_time
 		FROM employees e
@@ -222,8 +224,11 @@ func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int) (
 	rows := make([]employeeHistoryRow, 0)
 	err := s.db.WithContext(ctx).Raw(baseSelectSQL+`
 		WHERE eh.table_id = ?
-		   OR eh.employee_id IN (
-		     SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
+		   OR (
+		     eh.table_id IS NULL
+		     AND eh.employee_id IN (
+		       SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
+		     )
 		   )
 		ORDER BY eh.created_at DESC
 	`, tableID, tableID).Scan(&rows).Error

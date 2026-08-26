@@ -42,20 +42,30 @@ const (
 
 // Entity-level CRUD keys.
 const (
-	KeyEntityCarsRead       = "entity.cars.read"
-	KeyEntityCarsWrite      = "entity.cars.write"
-	KeyEntityCarsDelete     = "entity.cars.delete"
-	KeyEntityEmployeesRead  = "entity.employees.read"
-	KeyEntityEmployeesWrite = "entity.employees.write"
-	KeyEntityEmployeesDel   = "entity.employees.delete"
+	KeyEntityCarsRead           = "entity.cars.read"
+	KeyEntityCarsWrite          = "entity.cars.write"
+	KeyEntityCarsDelete         = "entity.cars.delete"
+	KeyEntityCarsManualAdd      = "entity.cars.manual_add"
+	KeyEntityEmployeesRead      = "entity.employees.read"
+	KeyEntityEmployeesWrite     = "entity.employees.write"
+	KeyEntityEmployeesDel       = "entity.employees.delete"
+	KeyEntityEmployeesManualAdd = "entity.employees.manual_add"
 )
 
 // Action-level keys (отдельные действия, не входящие в стандартный CRUD).
 const (
 	KeyActionExportApplications = "action.export.applications"
+	// KeyActionImportList - массовый ввод участников/машин из заполненного Excel-бланка
+	// (blank-import). Не super-only: администраторы получают его через adminAll, обычным
+	// пользователям выдаётся точечно - импорт обходит форму подачи целиком, поэтому
+	// закрыт правом по умолчанию.
+	KeyActionImportList         = "action.import.list"
 	KeyActionApproveApplication = "action.approve.application"
 	KeyActionForwardApplication = "action.forward.application"
-	KeyActionBanUser            = "action.ban.user"
+	// KeyActionSupplementApplication - дополнить уже поданную заявку (#1685). Право не
+	// единственный гейт: сервис всё равно требует, чтобы дополняющий был автором заявки.
+	KeyActionSupplementApplication = "action.supplement.application"
+	KeyActionBanUser               = "action.ban.user"
 )
 
 // Audit-level keys (просмотр и управление журналами).
@@ -83,12 +93,15 @@ func AllStaticKeys() []string {
 		KeyEntityCarsRead,
 		KeyEntityCarsWrite,
 		KeyEntityCarsDelete,
+		KeyEntityCarsManualAdd,
 		KeyEntityEmployeesRead,
 		KeyEntityEmployeesWrite,
 		KeyEntityEmployeesDel,
+		KeyEntityEmployeesManualAdd,
 		KeyActionExportApplications,
 		KeyActionApproveApplication,
 		KeyActionForwardApplication,
+		KeyActionSupplementApplication,
 		KeyActionBanUser,
 		KeyAuditRead,
 		KeyAuditManage,

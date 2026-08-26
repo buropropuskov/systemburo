@@ -32,48 +32,55 @@ describe('v-permission directive', () => {
     localStorage.clear()
   })
 
-  it('hides element when permission is denied', () => {
+  it('скрывает элемент когда право deny', () => {
     const store = usePermissionsStore()
-    store.permissions = { 'passes.create': 'deny' }
+    store.mode = 'normal'
+    store.effective = { 'passes.create': { value: 'deny', source: 'base' } }
 
     const wrapper = mountWithPermission('passes.create', pinia)
 
     expect(wrapper.find('div').element.style.display).toBe('none')
   })
 
-  it('hides element when permission is missing', () => {
+  it('скрывает элемент когда ключ отсутствует', () => {
     const store = usePermissionsStore()
-    store.permissions = {}
+    store.mode = 'normal'
+    store.effective = {}
 
     const wrapper = mountWithPermission('passes.create', pinia)
 
     expect(wrapper.find('div').element.style.display).toBe('none')
   })
 
-  it('shows element when permission is allowed', () => {
+  it('показывает элемент когда право allow', () => {
     const store = usePermissionsStore()
-    store.permissions = { 'passes.create': 'allow' }
+    store.mode = 'normal'
+    store.effective = { 'passes.create': { value: 'allow', source: 'role' } }
 
     const wrapper = mountWithPermission('passes.create', pinia)
 
     expect(wrapper.find('div').element.style.display).not.toBe('none')
   })
 
-  it('shows element for admin regardless of permission', () => {
+  it('показывает элемент для super независимо от effective', () => {
     const authStore = useAuthStore()
     authStore.setTokens(createMockJWT({ type_id: 6, is_super_admin: true }))
 
     const store = usePermissionsStore()
-    store.permissions = { 'passes.create': 'deny' }
+    store.mode = 'super'
+    store.effective = { 'passes.create': { value: 'deny', source: 'base' } }
 
     const wrapper = mountWithPermission('passes.create', pinia)
 
     expect(wrapper.find('div').element.style.display).not.toBe('none')
   })
 
-  it('shows element for admin even when permission is missing', () => {
+  it('показывает элемент для super при пустом effective', () => {
     const authStore = useAuthStore()
     authStore.setTokens(createMockJWT({ type_id: 6, is_super_admin: true }))
+
+    const store = usePermissionsStore()
+    store.mode = 'super'
 
     const wrapper = mountWithPermission('passes.create', pinia)
 

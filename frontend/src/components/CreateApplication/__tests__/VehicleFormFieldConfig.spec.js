@@ -18,9 +18,6 @@ vi.mock('@/stores/auth', () => ({
 vi.mock('@/api/marks', () => ({
     listMarks: vi.fn().mockResolvedValue([]),
 }));
-vi.mock('@/composables/useToast', () => ({
-    useToast: vi.fn(() => ({ success: vi.fn(), error: vi.fn() })),
-}));
 
 const mountForm = (fieldConfig = {}) =>
     mount(VehicleForm, {

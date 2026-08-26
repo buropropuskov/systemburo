@@ -8,14 +8,27 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
+    "lint:size": "node build/check-file-sizes.js",
+    "lint:bundle": "node build/check-bundle-size.js",
     "test": "vitest",
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@tiptap/extension-heading": "^2.27.2",
+    "@tiptap/extension-image": "^2.27.2",
+    "@tiptap/extension-placeholder": "^2.27.2",
+    "@tiptap/extension-underline": "^2.27.2",
+    "@tiptap/pm": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
+    "@tiptap/vue-3": "^2.27.2",
+    "chart.js": "^4.5.1",
     "dompurify": "^3.4.1",
+    "driver.js": "^1.4.0",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
     "mitt": "^3.0.1",
+    "pdfjs-dist": "^4.10.38",
+    "pdfmake": "^0.3.11",
     "pinia": "^3.0.4",
     "vue": "^3.5.33",
     "vue-router": "^5.0.6",
@@ -38,5 +51,10 @@
     "last 2 versions",
     "not dead",
     "not ie 11"
-  ]
+  ],
+  "overrides": {
+    "archiver": "^8.0.0",
+    "unzipper": "^0.12.3",
+    "brace-expansion": "^5.0.9"
+  }
 }

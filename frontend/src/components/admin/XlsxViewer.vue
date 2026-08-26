@@ -33,7 +33,14 @@
           {{ sheet.name }}
         </button>
       </div>
-      <div class="xv-table-wrap">
+      <!-- data-theme="light" - светлый островок на область листа: цвета шрифта,
+           заливок и рамок приходят из самого xlsx литералами (чёрные рамки,
+           тёмный текст), они рассчитаны на белую бумагу. Рамка вьюера и
+           закладки листов остаются в выбранной теме. -->
+      <div
+        class="xv-table-wrap"
+        data-theme="light"
+      >
         <table
           class="xv-table"
           :style="{ tableLayout: 'fixed', width: currentSheet.tableWidth + 'px' }"
@@ -72,7 +79,7 @@
                 v-show="!cell.hidden"
                 :key="cell.ref"
                 :data-cell-ref="cell.ref"
-                :data-tooltip="cell.ref"
+                :data-tooltip="cellTooltip(cell.ref)"
                 class="xv-cell"
                 :class="{
                   selected: selectedCell === cell.ref,
@@ -97,8 +104,18 @@
                 <span
                   v-if="mappedCells.has(cell.ref)"
                   class="xv-mapped-badge"
+                  :class="{ 'xv-mapped-badge--multi': mappedCells.get(cell.ref).length > 1 }"
                 >
-                  {{ mappedCells.get(cell.ref) }}
+                  <span
+                    v-for="(label, i) in mappedCells.get(cell.ref)"
+                    :key="i"
+                    class="xv-mapped-part"
+                  >
+                    <span
+                      v-if="mappedCells.get(cell.ref).length > 1"
+                      class="xv-mapped-order"
+                    >{{ i + 1 }}</span>{{ label }}
+                  </span>
                 </span>
               </td>
             </tr>
@@ -131,6 +148,8 @@ export default {
     mappings: { type: Array, default: () => [] },
     selectedCell: { type: String, default: '' },
     cellColors: { type: Map, default: () => new Map() },
+    // Разделитель совмещённых полей: подсказка показывает, как склеится ячейка.
+    concatSeparator: { type: String, default: ', ' },
   },
   emits: ['cell-click', 'cell-hover'],
   data() {
@@ -145,13 +164,17 @@ export default {
     currentSheet() {
       return this.sheets[this.activeSheet] || { cols: [], rows: [], colWidths: [], tableWidth: 0 };
     },
+    // Ячейка -> подписи ВСЕХ привязанных к ней полей в том порядке, в котором бланк
+    // их склеит. Раньше в Map лежала одна подпись, и у совмещённой ячейки было видно
+    // только последнее поле - сколько их и в каком порядке, из превью не читалось.
     mappedCells() {
       const map = new Map();
       for (const m of this.mappings) {
-        if (m.cell_ref) {
-          const label = m.fieldLabel || m.field_path || '';
-          map.set(m.cell_ref.toUpperCase(), label);
-        }
+        if (!m.cell_ref) continue;
+        const ref = m.cell_ref.toUpperCase();
+        const label = m.fieldLabel || m.field_path || '';
+        if (!map.has(ref)) map.set(ref, []);
+        map.get(ref).push(label);
       }
       return map;
     },
@@ -166,6 +189,13 @@ export default {
     },
   },
   methods: {
+    // Тултип ячейки: адрес, а у совмещённой - сколько полей и как они склеятся.
+    // Переиспользуем существующий тултип, свой пузырёк на бейдже обрезала бы ячейка.
+    cellTooltip(ref) {
+      const labels = this.mappedCells.get(ref) || [];
+      if (labels.length < 2) return ref;
+      return `${ref}: полей ${labels.length}, склеятся так - ${labels.join(this.concatSeparator)}`;
+    },
     async parseWorkbook(buffer) {
       this.loading = true;
       this.error = '';
@@ -413,7 +443,7 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   min-height: 200px;
   display: flex;
   flex-direction: column;
@@ -430,12 +460,12 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: #888;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .xv-error {
-  color: #d73a3a;
+  color: var(--danger-text);
 }
 
 .xv-content {
@@ -449,7 +479,7 @@ export default {
   display: flex;
   gap: 2px;
   padding: 4px 8px 0;
-  background: #f5f5f5;
+  background: var(--surface-2);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -458,20 +488,23 @@ export default {
   border: 1px solid var(--color-border);
   border-bottom: none;
   border-radius: 4px 4px 0 0;
-  background: #fff;
+  background: var(--surface);
   font-size: 12px;
   cursor: pointer;
 }
 
 .xv-tab.active {
   background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .xv-table-wrap {
   overflow: auto;
   flex: 1;
+  /* Бумага под ячейками: без своей заливки островок не виден - ячейки
+     прозрачны, и сквозь них смотрел бы тёмный фон вьюера. */
+  background: var(--surface);
 }
 
 .xv-col-num {
@@ -484,33 +517,33 @@ export default {
 
 .xv-table th,
 .xv-table td {
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--border);
   padding: 2px 4px;
 }
 
 .xv-corner {
   width: 32px;
   min-width: 32px;
-  background: #f0f0f0;
+  background: var(--border);
 }
 
 .xv-col-header {
-  background: #f0f0f0;
+  background: var(--border);
   text-align: center;
   font-weight: 600;
   font-size: 10px;
-  color: #666;
+  color: var(--text-muted);
   position: sticky;
   top: 0;
   z-index: 2;
 }
 
 .xv-row-header {
-  background: #f0f0f0;
+  background: var(--border);
   text-align: center;
   font-weight: 600;
   font-size: 10px;
-  color: #666;
+  color: var(--text-muted);
   position: sticky;
   left: 0;
   z-index: 1;
@@ -530,8 +563,8 @@ export default {
   bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%) scale(0.9);
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 3px 7px;
   border-radius: 4px;
   font-size: 10px;
@@ -551,23 +584,23 @@ export default {
 }
 
 .xv-cell:hover {
-  background-color: #e8f4fd !important;
+  background-color: var(--accent-tint) !important;
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
 
 .xv-cell.selected {
-  background-color: #d0e8ff !important;
+  background-color: var(--accent-tint) !important;
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
 
 .xv-cell.mapped {
-  background-color: #e8f8e8 !important;
+  background-color: var(--success-bg) !important;
 }
 
 .xv-cell.mapped:hover {
-  background-color: #d0f0d0 !important;
+  background-color: var(--success-bg) !important;
 }
 
 .xv-cell-text {
@@ -587,14 +620,37 @@ export default {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 8px;
   padding: 1px 3px;
   border-radius: 0 0 0 4px;
   max-width: 60px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.xv-mapped-part {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Номер = порядок склейки в ячейке: первым в бланк пойдёт поле с единицей. */
+.xv-mapped-order {
+  display: inline-block;
+  min-width: 8px;
+  margin-right: 2px;
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--accent-contrast);
+  color: var(--color-primary);
+  font-weight: 700;
+  text-align: center;
+}
+
 </style>

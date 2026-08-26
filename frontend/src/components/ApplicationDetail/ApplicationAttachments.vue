@@ -200,14 +200,14 @@ export default {
 
 .attachments-header h4 {
     font-size: 16px;
-    color: #333;
+    color: var(--text);
     margin: 0;
     font-weight: 600;
 }
 
 .no-attachments {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     font-size: 14px;
     flex: 1;
@@ -233,7 +233,7 @@ export default {
 
 .group-title {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     margin: 0;
     font-weight: 600;
     text-transform: uppercase;
@@ -247,21 +247,21 @@ export default {
 
 .attachment-item {
     padding: 9px 15px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 15px;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .attachment-item:hover {
-    border-color: #4F5BDF;
-    background: #f8f9ff;
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 .attachment-item.selected {
-    border-color: #4F5BDF;
-    background: rgba(79, 91, 223, 0.1);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .attachment-header {
@@ -274,22 +274,22 @@ export default {
 .attachment-type {
     font-size: 11px;
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
     text-transform: uppercase;
-    background: rgba(79, 91, 223, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
     padding: 2px 6px;
     border-radius: 4px;
 }
 
 .attachment-number {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .attachment-name {
     font-size: 13px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     margin-bottom: 3px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -298,6 +298,6 @@ export default {
 
 .attachment-dates {
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
 }
 </style>

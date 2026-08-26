@@ -4,7 +4,7 @@
     :title="title"
     width="480px"
     :z-index="zIndex"
-    content-class="bl-edit-modal"
+    radius="30px"
     @close="close"
   >
     <div class="atb">
@@ -244,32 +244,24 @@ export default {
   flex-direction: column;
   gap: 2px;
   padding: 10px 14px;
-  background: var(--color-bg, #f8f9ff);
+  background: var(--color-bg, var(--accent-tint));
   border-radius: var(--radius-md, 15px);
 }
 
 .atb-entity-label {
   font-size: 12px;
-  color: var(--color-text-muted, #999);
+  color: var(--color-text-muted, var(--text-muted));
 }
 
 .atb-entity-value {
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-text, #333);
+  color: var(--color-text, var(--text));
   word-break: break-word;
 }
 
 .atb-error {
-  color: var(--color-danger, #dc3545);
+  color: var(--color-danger, var(--danger-text));
   font-size: 13px;
-}
-</style>
-
-<!-- не scoped: контент BaseModal телепортится в body с его data-v, радиус задаём глобально
-     двойным классом (бьёт scoped .base-modal). Эталон модалок - 30px. -->
-<style>
-.base-modal.bl-edit-modal {
-  border-radius: 30px;
 }
 </style>

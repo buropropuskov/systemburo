@@ -12,11 +12,11 @@
         >
           <div class="button__content">
             <span class="button__text">{{ selectedFormatText }}</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <AppIcon
+              name="arrow"
               class="button__arrow"
               :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-            >
+            />
           </div>
         </button>
         <transition name="dropdown">
@@ -76,6 +76,7 @@
 <script>
 import { apiRequest } from '@/api/client';
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 /**
  * Поячеечный ввод номера Т/С по выбранному формату (формат-дропдаун + ячейки). Markup и стили
@@ -85,6 +86,9 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
  */
 export default {
   name: 'VehicleNumberFormatInput',
+  components: {
+    AppIcon,
+  },
   props: {
     modelValue: { type: String, default: '' },
   },
@@ -190,11 +194,11 @@ export default {
 
 .input__label {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .required {
-  color: #ff4444;
+  color: var(--danger-text);
 }
 
 .completion__format {
@@ -213,7 +217,7 @@ export default {
 
 .format__label {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .format__dropdown {
@@ -223,8 +227,8 @@ export default {
 .dropdown__button {
   width: 100%;
   height: 40px;
-  border: 1px solid #e6e6e6;
-  background-color: #fff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   border-radius: 15px;
   outline: none;
   cursor: pointer;
@@ -233,7 +237,7 @@ export default {
 }
 
 .dropdown__button:hover {
-  border-color: #4f5bdf;
+  border-color: var(--accent);
 }
 
 .button__content {
@@ -246,7 +250,7 @@ export default {
 
 .button__text {
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   font-weight: 500;
   display: block;
 }
@@ -268,11 +272,11 @@ export default {
   top: 100%;
   left: 0;
   width: 100%;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-top: 5px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
@@ -288,7 +292,7 @@ export default {
 }
 
 .dropdown__item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -301,7 +305,7 @@ export default {
 
 .item__text {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -323,10 +327,10 @@ export default {
   min-width: 202px;
   height: 40px;
   display: flex;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .number__input {
@@ -342,27 +346,27 @@ export default {
 }
 
 .number__input:not(:last-child) {
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .number__input::placeholder {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: none;
 }
 
 .number__input:focus {
-  background-color: #f8f8f8;
+  background-color: var(--surface-2);
 }
 
 .no-format-message {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
   padding: 10px;
-  background: #f8f8f8;
+  background: var(--surface-2);
   border-radius: 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .dropdown-enter-active,

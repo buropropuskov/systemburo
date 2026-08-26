@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -26,14 +28,60 @@ type DocumentService interface {
 }
 
 type documentService struct {
-	db       *gorm.DB
-	fileSvc  DocumentFileService
-	settings SettingsService
+	db                  *gorm.DB
+	fileSvc             DocumentFileService
+	settings            SettingsService
+	notificationService NotificationService
+}
+
+// DocumentServiceOption конфигурирует documentService при создании.
+type DocumentServiceOption func(*documentService)
+
+// WithDocumentNotifications включает персональные уведомления document_published
+// (#1748) при загрузке документа. Опционально: без неё уведомления не шлются
+// (тесты, offline).
+func WithDocumentNotifications(ns NotificationService) DocumentServiceOption {
+	return func(s *documentService) { s.notificationService = ns }
 }
 
 // NewDocumentService создаёт реализацию DocumentService.
-func NewDocumentService(db *gorm.DB, fileSvc DocumentFileService, settings SettingsService) DocumentService {
-	return &documentService{db: db, fileSvc: fileSvc, settings: settings}
+func NewDocumentService(db *gorm.DB, fileSvc DocumentFileService, settings SettingsService, opts ...DocumentServiceOption) DocumentService {
+	s := &documentService{db: db, fileSvc: fileSvc, settings: settings}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// notifyDocumentPublished шлёт NotificationTypeDocumentPublished активным
+// пользователям при загрузке документа (#1748). Документ становится видимым
+// сразу (Upload всегда создаёт с IsVisible: true), а публичный список
+// (/public/documents) отдаётся любому авторизованному без гейта прав - группы
+// документов в этом проекте только категоризация, отдельной видимости у них нет
+// (проверено по document_service.go/document_group_service.go: ни один из
+// сервисов не фильтрует по правам, кроме requireAdmin на управление). Поэтому
+// аудитория = все активные аккаунты, как и у публикации новости. Загрузившему
+// не шлём - он и так знает, что опубликовал.
+func (s *documentService) notifyDocumentPublished(ctx context.Context, docID int, authorID int, title string) {
+	if s.notificationService == nil {
+		return
+	}
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("документ опубликован: не удалось собрать аудиторию уведомления", "document_id", docID, "err", err)
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{"document_id": docID, "title": title})
+	payloadStr := string(payload)
+	notifTitle := "Опубликован документ"
+	for _, uid := range ids {
+		if uid == authorID {
+			continue
+		}
+		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeDocumentPublished, notifTitle, title, &payloadStr); err != nil {
+			slog.Warn("не удалось уведомить о публикации документа", "document_id", docID, "user_id", uid, "error", err)
+		}
+	}
 }
 
 func (s *documentService) selectQuery(db *gorm.DB) *gorm.DB {
@@ -124,6 +172,7 @@ func (s *documentService) Upload(ctx context.Context, userID int, req models.Upl
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка сохранения документа")
 	}
 
+	s.notifyDocumentPublished(ctx, doc.ID, userID, title)
 	return s.getItem(ctx, doc.ID)
 }
 
@@ -227,14 +276,17 @@ func (s *documentService) Delete(ctx context.Context, id int) error {
 
 	storedName := doc.StoredName
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&models.Document{}, id).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка удаления документа")
 		}
-		// Удаляем файл с диска после успешного удаления из БД
-		s.fileSvc.Delete(storedName)
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// Удаляем файл с диска только после успешного коммита транзакции
+	s.fileSvc.Delete(storedName)
+	return nil
 }
 
 func (s *documentService) Reorder(ctx context.Context, req models.ReorderDocumentsRequest) error {
@@ -357,6 +409,9 @@ func (s *documentService) getItem(ctx context.Context, id int) (*models.Document
 	var item models.DocumentListItem
 	if err := s.selectQuery(s.db.WithContext(ctx)).Where("d.id = ?", id).Scan(&item).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения документа")
+	}
+	if item.ID == 0 {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Документ не найден")
 	}
 	return &item, nil
 }
