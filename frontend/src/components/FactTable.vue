@@ -792,13 +792,12 @@ export default {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
         await this.fetchOrganizations();
-        if (this.tableType === 'cars') {
-          await this.fetchCarsData(seq);
-          await this.fetchFactCarUnloadPlaces(seq);
-          await this.fetchCarHistoryStatus(seq);
-        } else {
-          await this.fetchPeopleData();
-        }
+        // Только машины: строка "по факту" рождается тумблером в форме транспорта,
+        // у сотрудников такого тумблера нет, поэтому и блока "по факту" у таблиц людей
+        // не бывает - см. showFactTable в TablesComponent (#2019).
+        await this.fetchCarsData(seq);
+        await this.fetchFactCarUnloadPlaces(seq);
+        await this.fetchCarHistoryStatus(seq);
       } catch (error) {
         console.error(`Ошибка при загрузке данных по факту (${this.tableType}):`, error);
       } finally {
@@ -958,10 +957,6 @@ export default {
         console.error("Ошибка при загрузке связей факт-машин с местами разгрузки:", error);
         if (seq === undefined || seq === this.refreshSeq) this.factCarUnloadPlacesMap = {};
       }
-    },
-
-    async fetchPeopleData() {
-      this.factData = [];
     },
 
     formatUnloadPlaces(item) {
