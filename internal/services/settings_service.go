@@ -56,11 +56,6 @@ type SettingsService interface {
 
 var knownKeys = map[string]string{
 	"upload.max_file_size":           "int",
-	"upload.allowed_image_types":     "json",
-	"upload.allowed_doc_types":       "json",
-	"pagination.max_per_page":        "int",
-	"notifications.enabled":          "bool",
-	"notifications.poll_interval":    "int",
 	"notifications.delete_duration":  "int",
 	"notifications.restore_duration": "int",
 	"password.min_length":            "int",
@@ -93,11 +88,6 @@ type settingsService struct {
 func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 	defaults := map[string]models.SystemSetting{
 		"upload.max_file_size":                 {Key: "upload.max_file_size", Value: strconv.FormatInt(cfg.UploadMaxFileSize, 10), Type: "int"},
-		"upload.allowed_image_types":           {Key: "upload.allowed_image_types", Value: mustJSON(cfg.UploadAllowedImageTypes), Type: "json"},
-		"upload.allowed_doc_types":             {Key: "upload.allowed_doc_types", Value: mustJSON(cfg.UploadAllowedDocTypes), Type: "json"},
-		"pagination.max_per_page":              {Key: "pagination.max_per_page", Value: strconv.Itoa(cfg.PaginationMaxLimit), Type: "int"},
-		"notifications.enabled":                {Key: "notifications.enabled", Value: "true", Type: "bool"},
-		"notifications.poll_interval":          {Key: "notifications.poll_interval", Value: "30", Type: "int"},
 		"notifications.delete_duration":        {Key: "notifications.delete_duration", Value: "10", Type: "int"},
 		"notifications.restore_duration":       {Key: "notifications.restore_duration", Value: "5", Type: "int"},
 		"password.min_length":                  {Key: "password.min_length", Value: "8", Type: "int"},
@@ -122,11 +112,6 @@ func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 	s := &settingsService{db: db, defaults: defaults, cache: make(map[string]models.SystemSetting)}
 	s.loadCache()
 	return s
-}
-
-func mustJSON(v interface{}) string {
-	b, _ := json.Marshal(v)
-	return string(b)
 }
 
 func (s *settingsService) loadCache() {
@@ -196,16 +181,13 @@ func (s *settingsService) GetUploadSettings(ctx context.Context) (map[string]int
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// Только предельный размер: перечни типов задавались настройкой, но ни на что не
+	// влияли - формат проверяется по сигнатуре файла в upload/pipeline.go, и это
+	// надёжнее списка расширений, который можно обойти переименованием (#2000).
 	maxSize, _ := strconv.ParseInt(s.cache["upload.max_file_size"].Value, 10, 64)
 
-	var imageTypes, docTypes []string
-	json.Unmarshal([]byte(s.cache["upload.allowed_image_types"].Value), &imageTypes)
-	json.Unmarshal([]byte(s.cache["upload.allowed_doc_types"].Value), &docTypes)
-
 	return map[string]interface{}{
-		"max_file_size":       maxSize,
-		"allowed_image_types": imageTypes,
-		"allowed_doc_types":   docTypes,
+		"max_file_size": maxSize,
 	}, nil
 }
 
@@ -477,24 +459,10 @@ func validateSettingValue(key, value string) error {
 		if err != nil || v < 1048576 || v > 52428800 {
 			return fmt.Errorf("upload.max_file_size: 1MB-50MB (получено %s)", value)
 		}
-	case "pagination.max_per_page":
-		v, err := strconv.Atoi(value)
-		if err != nil || v < 10 || v > 500 {
-			return fmt.Errorf("pagination.max_per_page: 10-500 (получено %s)", value)
-		}
-	case "notifications.poll_interval":
-		v, err := strconv.Atoi(value)
-		if err != nil || v < 10 || v > 120 {
-			return fmt.Errorf("notifications.poll_interval: 10-120 сек (получено %s)", value)
-		}
 	case "notifications.delete_duration", "notifications.restore_duration":
 		v, err := strconv.Atoi(value)
 		if err != nil || v < 3 || v > 60 {
 			return fmt.Errorf("%s: 3-60 сек (получено %s)", key, value)
-		}
-	case "notifications.enabled":
-		if value != "true" && value != "false" {
-			return fmt.Errorf("notifications.enabled: true/false (получено %s)", value)
 		}
 	case "password.rotation_enabled", "password.force_change_on_next_login":
 		if value != "true" && value != "false" {
@@ -531,11 +499,6 @@ func validateSettingValue(key, value string) error {
 	case "contacts.bureau_phone":
 		if l := len([]rune(value)); l < 5 || l > 30 {
 			return fmt.Errorf("contacts.bureau_phone: 5-30 символов (получено %s)", value)
-		}
-	case "upload.allowed_image_types", "upload.allowed_doc_types":
-		var arr []string
-		if err := json.Unmarshal([]byte(value), &arr); err != nil {
-			return fmt.Errorf("%s: должен быть JSON массив строк", key)
 		}
 	case "approval.reminder_enabled":
 		if value != "true" && value != "false" {

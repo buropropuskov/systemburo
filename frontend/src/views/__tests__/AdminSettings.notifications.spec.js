@@ -20,9 +20,8 @@ async function mountView() {
   return wrapper;
 }
 
-function setNotif(vm, { del = 10, res = 5, poll = 30 } = {}) {
+function setNotif(vm, { del = 10, res = 5 } = {}) {
   vm.settings.notifications_enabled = true;
-  vm.settings.notifications_poll_interval = poll;
   vm.settings.notifications_delete_duration = del;
   vm.settings.notifications_restore_duration = res;
 }
@@ -39,7 +38,7 @@ describe('AdminSettings - уведомления', () => {
     const store = useDeletionsStore();
     const spy = vi.spyOn(store, 'setDurations');
 
-    setNotif(wrapper.vm, { del: 15, res: 3, poll: 30 });
+    setNotif(wrapper.vm, { del: 15, res: 3 });
     await wrapper.vm.saveNotificationSettings();
 
     expect(updateSetting).toHaveBeenCalledWith('notifications.delete_duration', '15');
@@ -53,7 +52,7 @@ describe('AdminSettings - уведомления', () => {
     const spy = vi.spyOn(store, 'setDurations');
     const notifySpy = vi.spyOn(store, 'notify');
 
-    setNotif(wrapper.vm, { del: 2, res: 5, poll: 30 });
+    setNotif(wrapper.vm, { del: 2, res: 5 });
     await wrapper.vm.saveNotificationSettings();
 
     expect(updateSetting).not.toHaveBeenCalled();
@@ -61,17 +60,4 @@ describe('AdminSettings - уведомления', () => {
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
   });
 
-  it('интервал опроса вне 10-120 блокирует сохранение', async () => {
-    const wrapper = await mountView();
-    const store = useDeletionsStore();
-    const spy = vi.spyOn(store, 'setDurations');
-    const notifySpy = vi.spyOn(store, 'notify');
-
-    setNotif(wrapper.vm, { del: 10, res: 5, poll: 5 });
-    await wrapper.vm.saveNotificationSettings();
-
-    expect(updateSetting).not.toHaveBeenCalled();
-    expect(spy).not.toHaveBeenCalled();
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
-  });
 });
