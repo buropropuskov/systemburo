@@ -480,7 +480,8 @@
                 <div class="settings-section">
                   <label class="section-label">Настройки отображения:</label>
 
-                  <div class="checkbox-group">
+                  <!-- Только машины: у сотрудников тумблера "по факту" нет (#2019). -->
+                  <div v-if="selectedTable.table.table_type === 'cars'" class="checkbox-group">
                     <label class="checkbox-label">
                       <input
                         v-model="selectedTable.table.show_fact_table"
@@ -492,8 +493,7 @@
                     </label>
                     <p class="field-hint">
                       На странице с основной таблицей отображается таблица
-                      "по факту". В ней отображаются люди/машины, данные которых
-                      заранее не известны.
+                      "по факту" - машины, номер которых заранее не известен.
                     </p>
                   </div>
 

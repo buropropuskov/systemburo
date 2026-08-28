@@ -112,84 +112,10 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <span class="form-label">Разрешённые типы изображений</span>
-              <div class="checkbox-group">
-                <label
-                  v-for="imgType in availableImageTypes"
-                  :key="imgType"
-                  class="checkbox-label"
-                >
-                  <input
-                    type="checkbox"
-                    :value="imgType"
-                    :checked="selectedImageTypes.includes(imgType)"
-                    @change="toggleImageType(imgType)"
-                  >
-                  <span class="checkbox-text">{{ imgType }}</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <span class="form-label">Разрешённые типы документов</span>
-              <div class="checkbox-group">
-                <label
-                  v-for="docType in availableDocTypes"
-                  :key="docType"
-                  class="checkbox-label"
-                >
-                  <input
-                    type="checkbox"
-                    :value="docType"
-                    :checked="selectedDocTypes.includes(docType)"
-                    @change="toggleDocType(docType)"
-                  >
-                  <span class="checkbox-text">{{ docType }}</span>
-                </label>
-              </div>
-            </div>
-
             <button
               class="btn btn--primary"
               :disabled="saving"
               @click="saveUploadSettings"
-            >
-              {{ saving ? 'Сохранение...' : 'Сохранить' }}
-            </button>
-          </div>
-
-          <!-- Пагинация -->
-          <div
-            v-else-if="activeSection === 'pagination'"
-            class="settings-section"
-          >
-            <h3 class="section-title">
-              Пагинация
-            </h3>
-
-            <div class="form-group">
-              <label
-                class="form-label"
-                for="max-per-page"
-              >
-                Записей на странице
-              </label>
-              <input
-                id="max-per-page"
-                v-model.number="settings.max_per_page"
-                type="number"
-                class="form-input"
-                :min="10"
-                :max="500"
-              >
-              <span class="form-hint">От 10 до 500</span>
-            </div>
-
-            <button
-              class="btn btn--primary"
-              :disabled="saving"
-              @click="savePaginationSettings"
             >
               {{ saving ? 'Сохранение...' : 'Сохранить' }}
             </button>
@@ -276,43 +202,6 @@
             <h3 class="section-title">
               Уведомления
             </h3>
-
-            <div class="form-group">
-              <label class="switch-label">
-                <span class="switch-text">Уведомления включены</span>
-                <span
-                  class="switch"
-                  :class="{ 'switch--on': settings.notifications_enabled }"
-                  role="switch"
-                  :aria-checked="String(settings.notifications_enabled)"
-                  tabindex="0"
-                  @click="settings.notifications_enabled = !settings.notifications_enabled"
-                  @keydown.enter="settings.notifications_enabled = !settings.notifications_enabled"
-                  @keydown.space.prevent="settings.notifications_enabled = !settings.notifications_enabled"
-                >
-                  <span class="switch__thumb" />
-                </span>
-              </label>
-            </div>
-
-            <div class="form-group">
-              <label
-                class="form-label"
-                for="poll-interval"
-              >
-                Интервал опроса (секунды)
-              </label>
-              <input
-                id="poll-interval"
-                v-model.number="settings.notifications_poll_interval"
-                type="number"
-                class="form-input"
-                :min="10"
-                :max="120"
-                :disabled="!settings.notifications_enabled"
-              >
-              <span class="form-hint">От 10 до 120 секунд</span>
-            </div>
 
             <div class="form-group">
               <label
@@ -699,7 +588,6 @@ export default {
       activeSection: 'upload',
       sections: [
         { value: 'upload', label: 'Загрузка файлов' },
-        { value: 'pagination', label: 'Пагинация' },
         { value: 'notifications', label: 'Уведомления' },
         { value: 'security', label: 'Безопасность' },
         { value: 'contacts', label: 'Информация Бюро' },
@@ -726,11 +614,6 @@ export default {
       loadError: null,
       settings: {
         max_file_size: 10 * 1024 * 1024,
-        allowed_image_types: '',
-        allowed_doc_types: '',
-        max_per_page: 50,
-        notifications_enabled: false,
-        notifications_poll_interval: 30,
         notifications_delete_duration: 10,
         notifications_restore_duration: 5,
         password_min_length: 8,
@@ -749,8 +632,6 @@ export default {
         approval_reminder_first_days: 3,
         approval_reminder_repeat_days: 3,
       },
-      availableImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
-      availableDocTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
       passwordToggles: [
         { key: 'password_require_letter', label: 'Требовать букву' },
         { key: 'password_require_uppercase', label: 'Требовать заглавную букву' },
@@ -777,24 +658,6 @@ export default {
     },
     fileSizeMB() {
       return Math.round(this.settings.max_file_size / (1024 * 1024));
-    },
-    selectedImageTypes() {
-      if (!this.settings.allowed_image_types) return [];
-      try {
-        const parsed = JSON.parse(this.settings.allowed_image_types);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return this.settings.allowed_image_types.split(',').map(t => t.trim()).filter(Boolean);
-      }
-    },
-    selectedDocTypes() {
-      if (!this.settings.allowed_doc_types) return [];
-      try {
-        const parsed = JSON.parse(this.settings.allowed_doc_types);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
-      }
     },
   },
   watch: {
@@ -934,21 +797,6 @@ export default {
           case 'upload.max_file_size':
             this.settings.max_file_size = Number(item.value) || 10 * 1024 * 1024;
             break;
-          case 'upload.allowed_image_types':
-            this.settings.allowed_image_types = item.value || '';
-            break;
-          case 'upload.allowed_doc_types':
-            this.settings.allowed_doc_types = item.value || '';
-            break;
-          case 'pagination.max_per_page':
-            this.settings.max_per_page = Number(item.value) || 50;
-            break;
-          case 'notifications.enabled':
-            this.settings.notifications_enabled = item.value === 'true';
-            break;
-          case 'notifications.poll_interval':
-            this.settings.notifications_poll_interval = Number(item.value) || 30;
-            break;
           case 'notifications.delete_duration':
             this.settings.notifications_delete_duration = Number(item.value) || 10;
             break;
@@ -1004,34 +852,12 @@ export default {
       }
     },
 
-    toggleImageType(type) {
-      const types = this.selectedImageTypes.slice();
-      const idx = types.indexOf(type);
-      if (idx >= 0) {
-        types.splice(idx, 1);
-      } else {
-        types.push(type);
-      }
-      this.settings.allowed_image_types = JSON.stringify(types);
-    },
 
-    toggleDocType(type) {
-      const types = this.selectedDocTypes.slice();
-      const idx = types.indexOf(type);
-      if (idx >= 0) {
-        types.splice(idx, 1);
-      } else {
-        types.push(type);
-      }
-      this.settings.allowed_doc_types = JSON.stringify(types);
-    },
 
     async saveUploadSettings() {
       this.saving = true;
       try {
         await updateSetting('upload.max_file_size', String(this.settings.max_file_size));
-        await updateSetting('upload.allowed_image_types', JSON.stringify(this.selectedImageTypes));
-        await updateSetting('upload.allowed_doc_types', JSON.stringify(this.selectedDocTypes));
         useDeletionsStore().notify({ prefix: 'Настройки загрузки сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -1093,30 +919,8 @@ export default {
       }
     },
 
-    async savePaginationSettings() {
-      const value = this.settings.max_per_page;
-      if (value < 10 || value > 500) {
-        useDeletionsStore().notify({ prefix: 'Значение должно быть от 10 до 500', type: 'error' });
-        return;
-      }
-      this.saving = true;
-      try {
-        await updateSetting('pagination.max_per_page', String(value));
-        useDeletionsStore().notify({ prefix: 'Настройки пагинации сохранены' });
-      } catch (error) {
-        console.error('Ошибка сохранения:', error);
-        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
-      } finally {
-        this.saving = false;
-      }
-    },
 
     async saveNotificationSettings() {
-      const interval = this.settings.notifications_poll_interval;
-      if (interval < 10 || interval > 120) {
-        useDeletionsStore().notify({ prefix: 'Интервал должен быть от 10 до 120 секунд', type: 'error' });
-        return;
-      }
       const del = this.settings.notifications_delete_duration;
       const res = this.settings.notifications_restore_duration;
       if (del < 3 || del > 60 || res < 3 || res > 60) {
@@ -1125,8 +929,6 @@ export default {
       }
       this.saving = true;
       try {
-        await updateSetting('notifications.enabled', String(this.settings.notifications_enabled));
-        await updateSetting('notifications.poll_interval', String(interval));
         await updateSetting('notifications.delete_duration', String(del));
         await updateSetting('notifications.restore_duration', String(res));
         // Сразу применяем к стору уведомлений, иначе новые длительности

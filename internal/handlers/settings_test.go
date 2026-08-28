@@ -219,7 +219,10 @@ func TestSettings_GetUploadSettings_AuthUser(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	resp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, resp["max_file_size"])
-	assert.NotNil(t, resp["allowed_image_types"])
+	// Перечни типов из ответа убраны (#2000): настройкой они не задаются, формат
+	// проверяется по сигнатуре файла. Замок держит и это, иначе поле вернётся молча.
+	assert.NotContains(t, resp, "allowed_image_types")
+	assert.NotContains(t, resp, "allowed_doc_types")
 }
 
 func TestGetPasswordPolicy(t *testing.T) {
