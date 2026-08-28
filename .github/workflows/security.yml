@@ -18,7 +18,7 @@ jobs:
     steps:
       # Полная история: сканируем не только текущее состояние, но и коммиты -
       # удалённый из дерева ключ остаётся в открытом репозитории навсегда.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Официальный action берёт лицензию с организаций, поэтому контейнер.
@@ -45,7 +45,7 @@ jobs:
     name: Go Vulnerability Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -56,7 +56,7 @@ jobs:
     name: npm Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-frontend
       - name: npm audit (production deps, high+)
         working-directory: frontend
@@ -69,7 +69,7 @@ jobs:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - name: Build backend image (cached)
         uses: docker/build-push-action@v7
