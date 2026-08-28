@@ -26,7 +26,7 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       workflows: ${{ steps.filter.outputs.workflows }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Validate commit messages
@@ -80,7 +80,7 @@ jobs:
     needs: paths
     if: needs.paths.outputs.backend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
       - run: go vet ./...
 
@@ -109,7 +109,7 @@ jobs:
       JWT_SECRET: ci-test-jwt-secret-that-is-at-least-32-chars!!
       JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
       - name: Run tests
         # 1000s: пакет handlers под -race подходил к прежним 500s вплотную и валил
@@ -125,7 +125,7 @@ jobs:
     steps:
       # Полная история нужна проверке размеров: она сравнивает файлы с общим
       # предком ветки и dev, а не с зафиксированным снимком.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-frontend
@@ -143,7 +143,7 @@ jobs:
     needs: [paths, frontend-lint]
     if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-frontend
       - working-directory: frontend
         run: npm run test:run
@@ -154,7 +154,7 @@ jobs:
     needs: [paths, frontend-lint]
     if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-frontend
       # Считаем цену открытия страницы логина: точка входа, modulepreload и
       # стили из dist/index.html. Ленивые чанки роутов в бюджет не входят.
@@ -172,7 +172,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       # Логинимся в ghcr.io только когда пушим (push в dev/main).
       # Для PR/manual builds логин пропускаем - в этих случаях push: false.
@@ -246,7 +246,7 @@ jobs:
       contents: write
       packages: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: dev
           fetch-depth: 0
