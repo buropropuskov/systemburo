@@ -71,6 +71,8 @@ func main() {
 			os.Exit(runFake(os.Args[2:]))
 		case "vapid":
 			os.Exit(runVAPID(os.Args[2:]))
+		case "reencrypt":
+			os.Exit(runReencrypt(os.Args[2:]))
 		}
 	}
 
@@ -164,6 +166,14 @@ func main() {
 	// AutoMigrate all tables (like Laravel Schema::create)
 	if err := database.AutoMigrate(db); err != nil {
 		slog.Error("AutoMigrate failed", "error", err)
+		os.Exit(1)
+	}
+
+	// Сверка ключа идёт до сидов и до приёма трафика: расшифровка чужим ключом
+	// молча отдаёт шифротекст, и первое же сохранение записи зашифрует его
+	// повторно, после чего не поможет и прежний ключ.
+	if err := database.EnsureEncryptionKeyMatches(db, encKey); err != nil {
+		slog.Error("запуск остановлен, данные не изменены", "причина", err)
 		os.Exit(1)
 	}
 
