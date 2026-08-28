@@ -427,7 +427,6 @@
          выше липнет к верху. Таблица «по факту» и основная таблица идут одним
          списком - не два раздельных скролла по компоненту. -->
     <div class="tables__content">
-      <!-- Таблица по факту с подсказкой -->
       <div
         v-if="showFactTable"
         class="fact-section"
@@ -735,9 +734,8 @@ export default {
             // не влезают в одну строку (measureHeader). Десктоп всегда с текстом.
             instructionCompact: false,
 
-            // Мобилка (#1097 S6): развёрнута ли подсказка таблицы «по факту».
-            // По умолчанию развёрнута - до первого сворачивания экран выглядит
-            // как раньше; дальше состояние своё у каждой таблицы.
+            // Мобилка (#1097 S6): развёрнута ли подсказка таблицы «по факту». По
+            // умолчанию да - до первого сворачивания экран выглядит как раньше.
             hintExpanded: true,
         };
     },
@@ -754,8 +752,9 @@ export default {
             return this.tableData?.table?.table_type || '';
         },
         
+        // Только машины: у сотрудников тумблера "по факту" нет (#2019).
         showFactTable() {
-            return this.tableData?.table?.show_fact_table || false;
+            return this.tableData?.table?.table_type === 'cars' && !!this.tableData?.table?.show_fact_table;
         },
         
         tableFactHint() {
