@@ -8,7 +8,7 @@ DECLARE
   org_id INTEGER;
   company_id INTEGER;
   -- Argon2id хеш для 'LoadTest123456789012345678901234'
-  -- Сгенерировать актуальный хеш через: go run ./cmd/seed-password/
+  -- Сгенерировать актуальный хеш: go run ./cmd/genhash 'LoadTest123456789012345678901234'
   pass_hash TEXT := '$argon2id$v=19$m=19456,t=2,p=1$PLACEHOLDER_GENERATE_WITH_GO$PLACEHOLDER';
 BEGIN
   INSERT INTO organizations (name, created_at, updated_at)
