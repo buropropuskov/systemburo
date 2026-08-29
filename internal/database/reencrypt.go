@@ -46,8 +46,10 @@ func passportColumns() []encryptedColumn {
 	}
 }
 
-// ErrReencryptSourceKey - старый ключ не подходит к данным этой базы.
-var ErrReencryptSourceKey = errors.New("указанный прежний ключ не подходит к данным этой базы")
+// ErrReencryptSourceKey - прежний ключ не подходит к данным. Обёртка нейтральна
+// по тексту: одно и то же несовпадение всплывает и до начала работы, и посреди
+// прогона, а конкретику добавляет место вызова.
+var ErrReencryptSourceKey = errors.New("перевод не выполнен")
 
 // ReencryptOptions - что и куда переводить.
 type ReencryptOptions struct {
@@ -78,7 +80,7 @@ type ReencryptResult struct {
 func reencryptValue(stored string, oldKey, newKey []byte) (value string, hmac string, err error) {
 	plain, err := crypto.Decrypt(stored, oldKey)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: значение не расшифровано", ErrReencryptSourceKey)
+		return "", "", fmt.Errorf("%w: значение не расшифровано прежним ключом", ErrReencryptSourceKey)
 	}
 
 	value, err = crypto.Encrypt(plain, newKey)
@@ -151,8 +153,15 @@ func verifyReencryptSourceKey(ctx context.Context, db *gorm.DB, oldKey []byte) e
 		return nil
 	}
 
+	// Текст ошибки от decideCanary сюда не годится: он написан для запуска системы
+	// и говорит про DATA_ENCRYPTION_KEY, тогда как здесь неверен переданный
+	// -old-key. На стенде это выглядело как "DATA_ENCRYPTION_KEY не задан" при
+	// заданном ключе - сообщение уводило от настоящей причины.
 	if _, err := decideCanary(stored, true, oldKey); err != nil {
-		return fmt.Errorf("%w: %s", ErrReencryptSourceKey, err)
+		if oldKey == nil {
+			return fmt.Errorf("%w: данные зашифрованы, укажите прежний ключ флагом -old-key", ErrReencryptSourceKey)
+		}
+		return fmt.Errorf("%w: значение -old-key не совпадает с ключом, которым зашифрованы данные этой базы", ErrReencryptSourceKey)
 	}
 	return nil
 }
