@@ -2,8 +2,10 @@ package handlers_test
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // buildEmployeesJSON строит n объектов employees с уникальными ФИО/паспортом для тела
@@ -102,8 +105,11 @@ func TestSubmitCompleteApplication_EmployeesCapBoundary(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "Слишком много")
 		assert.Contains(t, rec.Body.String(), fmt.Sprintf("%d", handlers.MaxSubmitRowsPerList))
 
+		// Считаются сотрудники ЭТОГО подтеста, а не вся таблица: база общая для
+		// пакетов при -p 4, и чужая запись давала бы ложное падение (#2252).
 		var count int64
-		require.NoError(t, db.Model(&models.Employee{}).Count(&count).Error)
+		require.NoError(t, db.Model(&models.Employee{}).
+			Where("last_name LIKE 'Фамилия%'").Count(&count).Error)
 		assert.Zero(t, count, "заявка с превышением потолка не должна создавать ни одного сотрудника")
 	})
 
@@ -119,7 +125,8 @@ func TestSubmitCompleteApplication_EmployeesCapBoundary(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "Слишком много")
 
 		var count int64
-		require.NoError(t, db.Model(&models.Employee{}).Count(&count).Error)
+		require.NoError(t, db.Model(&models.Employee{}).
+			Where("last_name LIKE 'Фамилия%'").Count(&count).Error)
 		assert.Zero(t, count, "потолок считается по всей заявке, а не по каждому вложению отдельно")
 	})
 
@@ -196,8 +203,22 @@ func TestSubmitCompleteApplication_BatchEmployeesEncryptedAndBound(t *testing.T)
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
+	// Дальше проверяется область СВОЕЙ заявки, а не таблица целиком. Пакеты идут с
+	// -p 4 на общей базе, и чужой CleanDB между вставкой и проверкой обнулял счёт:
+	// тест падал через раз, а перезапуск того же коммита проходил (#2252).
+	appID := submittedApplicationID(t, rec)
+
+	// Запись-помеха: та же фамилия, но вне этой заявки. Прежние проверки считали по
+	// всей таблице через LIKE 'Шифр%' и на ней бы упали - именно так их ломал сосед
+	// по общей базе. Держится здесь замком, чтобы выборка не вернулась к таблице.
+	noise := "Шифр999"
+	noisePassport := "9999 999999"
+	require.NoError(t, db.Create(&models.Employee{LastName: &noise, PassportSeriesNumber: &noisePassport}).Error)
+	ownEmployees := db.Where("attachment_id IN (?)",
+		db.Model(&models.Attachment{}).Select("id").Where("application_id = ?", appID))
+
 	var employees []models.Employee
-	require.NoError(t, db.Where("last_name LIKE 'Шифр%'").Order("id asc").Find(&employees).Error)
+	require.NoError(t, ownEmployees.Session(&gorm.Session{}).Order("id asc").Find(&employees).Error)
 	require.Len(t, employees, n, "CreateInBatches должен создать всех сотрудников пачки")
 
 	for i, emp := range employees {
@@ -211,21 +232,40 @@ func TestSubmitCompleteApplication_BatchEmployeesEncryptedAndBound(t *testing.T)
 	// CreateInBatches, а это и есть риск, ради которого сотрудники остались на GORM.
 	var plaintextCount int64
 	require.NoError(t, db.Raw(
-		`SELECT COUNT(*) FROM employees WHERE last_name LIKE 'Шифр%' AND passport_series_number LIKE '12%'`,
+		`SELECT COUNT(*) FROM employees
+		  WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)
+		    AND passport_series_number LIKE '12%'`, appID,
 	).Scan(&plaintextCount).Error)
 	assert.Zero(t, plaintextCount, "паспорт в столбце БД должен быть шифротекстом, не читаемой строкой")
 
 	var hmacCount int64
 	require.NoError(t, db.Raw(
-		`SELECT COUNT(*) FROM employees WHERE last_name LIKE 'Шифр%' AND passport_series_number_hmac IS NOT NULL AND patent_number_hmac IS NOT NULL`,
+		`SELECT COUNT(*) FROM employees
+		  WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)
+		    AND passport_series_number_hmac IS NOT NULL AND patent_number_hmac IS NOT NULL`, appID,
 	).Scan(&hmacCount).Error)
 	assert.EqualValues(t, n, hmacCount, "у каждого сотрудника пачки должен быть проставлен HMAC (BeforeSave отработал построчно внутри батча)")
 
 	var bindingCount int64
 	require.NoError(t, db.Model(&models.EmployeeTargetTable{}).
-		Where("employee_id IN (?)", db.Model(&models.Employee{}).Select("id").Where("last_name LIKE 'Шифр%'")).
+		Where("employee_id IN (?)", ownEmployees.Session(&gorm.Session{}).Model(&models.Employee{}).Select("id")).
 		Count(&bindingCount).Error)
 	assert.EqualValues(t, n, bindingCount, "привязка к таблице проходной должна быть создана для КАЖДОГО сотрудника пачки")
+}
+
+// submittedApplicationID достаёт идентификатор созданной заявки из ответа подачи.
+// Проверки, привязанные к нему, переживают чужой CleanDB на общей тестовой базе,
+// тогда как выборка по фамилии считает всю таблицу и зависит от соседних пакетов.
+func submittedApplicationID(t *testing.T, rec *httptest.ResponseRecorder) int {
+	t.Helper()
+	var resp struct {
+		Data struct {
+			ApplicationID int `json:"application_id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp), "тело ответа: %s", rec.Body.String())
+	require.NotZero(t, resp.Data.ApplicationID, "подача обязана вернуть идентификатор заявки: %s", rec.Body.String())
+	return resp.Data.ApplicationID
 }
 
 // TestSubmitCompleteApplication_AuditHasSummaryAndPerEmployeeRecords - регресс сводной
