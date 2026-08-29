@@ -116,7 +116,12 @@ func DecryptOptional(val *string) *string {
 	}
 	dec, err := Decrypt(*val, globalKey)
 	if err != nil {
-		return val // graceful: return as-is if decrypt fails
+		// Значение возвращается как есть, иначе один сбойный столбец ронял бы
+		// выдачу целиком. Но неудача попадает в счётчик и в журнал: молчание тут
+		// и приводило к тому, что оператор видел набор символов вместо паспорта,
+		// а причину никто не знал.
+		noteDecryptFailure()
+		return val
 	}
 	return &dec
 }
