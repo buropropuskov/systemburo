@@ -902,6 +902,8 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/directory-management.css';
+
 .citizenship-container {
   position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
   background: var(--surface);
@@ -928,12 +930,14 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
 }
+
 .bulk-count {
   font-size: 14px;
   font-weight: 600;
   color: var(--accent-text);
   white-space: nowrap;
 }
+
 .bulk-actions {
   display: flex;
   align-items: center;
@@ -941,10 +945,12 @@ export default {
   flex-wrap: nowrap;
   margin-left: auto;
 }
+
 .bulk-actions .pill {
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -959,37 +965,46 @@ export default {
   white-space: nowrap;
   transition: background 0.2s, border-color 0.2s;
 }
+
 .pill-ghost {
   background: var(--surface);
   color: var(--accent-text);
   border: 1px solid var(--accent);
 }
+
 .pill-ghost:hover {
   background: var(--accent-tint);
 }
+
 .bulk-clear {
   color: var(--text-muted);
   border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
+
 .bulk-clear:hover {
   background: var(--surface-2);
 }
+
 .pill-danger {
   background: var(--surface);
   color: var(--danger-text);
   border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
+
 .pill-danger:hover {
   background: var(--danger-bg);
   border-color: var(--danger);
 }
+
 .pill-restore {
   background: var(--success);
   color: var(--fill-text);
 }
+
 .pill-restore:hover {
   background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
+
 .check-col {
   width: 8%;
   min-width: 34px;
@@ -999,6 +1014,7 @@ export default {
   padding: 0 8px;
   cursor: default;
 }
+
 .bulk-check {
   width: 15px;
   height: 15px;
@@ -1017,21 +1033,10 @@ export default {
   gap: 12px;
 }
 
-.management-title {
-  margin: 0;
-  font-size: 1.2em;
-  font-weight: 600;
-  color: var(--text);
-}
-
 .header-controls {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-
-.archive-dropdown {
-  min-width: 130px;
 }
 
 /* Master-detail layout (эталон TableConstructor) */
@@ -1048,23 +1053,6 @@ export default {
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
-}
-
-.table-container {
-  background: var(--surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.table-header {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  height: 43px;
-  align-items: center;
 }
 
 .header-col {
@@ -1085,32 +1073,11 @@ export default {
   margin: 0;
 }
 
-.header-col:hover {
-  color: var(--text);
-}
-
-.header-col:hover .sort-icon {
-  color: var(--text);
-}
-
 .sort-icon {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
-}
-
-.sort-icon.sorted {
-  color: var(--text);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
-}
-
-.active-sort {
-  color: var(--text) !important;
-  font-weight: 600 !important;
 }
 
 .id-col {
@@ -1129,58 +1096,8 @@ export default {
   overflow-y: auto;
 }
 
-.table-row {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  height: 42px;
-  font-size: 14px;
-}
-
-.table-row:hover {
-  background-color: var(--surface-2);
-}
-
-.table-row.selected {
-  background-color: var(--accent-tint);
-}
-
-.table-row.inactive {
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-col {
-  padding: 0 8px;
-}
-
-.cell-content {
-  display: block;
-  padding: 4px 0;
-}
-
-.id-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
 .table-row.inactive .id-value {
   color: var(--text-muted);
-}
-
-.truncate-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  display: block;
 }
 
 .default-badge {
@@ -1192,13 +1109,6 @@ export default {
   margin-left: 6px;
   font-weight: 500;
   vertical-align: middle;
-}
-
-.inactive-badge {
-  margin-left: 6px;
-  font-size: 0.75em;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 .no-results {
@@ -1220,12 +1130,6 @@ export default {
   border-top: 1px solid var(--border);
   text-align: right;
   background: var(--accent-tint);
-}
-
-.items-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 /* Details */
@@ -1278,16 +1182,6 @@ export default {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-}
-
-.archive-badge {
-  background: var(--text-muted);
-  color: var(--surface);
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75em;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 .action-btn {
@@ -1412,25 +1306,6 @@ export default {
   font-size: 14px;
 }
 
-.add-header-button {
-  padding: 8px 16px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.add-header-button:hover {
-  background: var(--accent-hover);
-}
-
 /* Модалка создания */
 .modal-overlay {
   position: fixed;
@@ -1457,42 +1332,6 @@ export default {
   overflow: hidden;
 }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-close {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  line-height: 1;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
 .modal-body {
   padding: 22px 24px;
   display: flex;
@@ -1500,40 +1339,9 @@ export default {
   gap: 16px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 0.85em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.25s ease;
-}
-
 .modal-fade-enter-active .citizenship-modal,
 .modal-fade-leave-active .citizenship-modal {
   transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  background: transparent;
 }
 
 .modal-fade-enter-from .citizenship-modal,

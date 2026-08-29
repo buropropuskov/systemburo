@@ -998,6 +998,8 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/directory-management.css';
+
 .attachments-management-container {
   background: var(--surface);
   border-radius: 16px;
@@ -1015,21 +1017,10 @@ export default {
   gap: 12px;
 }
 
-.management-title {
-  margin: 0;
-  font-size: 1.2em;
-  font-weight: 600;
-  color: var(--text);
-}
-
 .header-controls {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-
-.archive-dropdown {
-  min-width: 130px;
 }
 
 /* Master-detail layout (эталон TableConstructor) */
@@ -1046,23 +1037,6 @@ export default {
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
-}
-
-.table-container {
-  background: var(--surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.table-header {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  height: 43px;
-  align-items: center;
 }
 
 .header-col {
@@ -1083,32 +1057,11 @@ export default {
   margin: 0;
 }
 
-.header-col:hover {
-  color: var(--text);
-}
-
-.header-col:hover .sort-icon {
-  color: var(--text);
-}
-
 .sort-icon {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
-}
-
-.sort-icon.sorted {
-  color: var(--text);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
-}
-
-.active-sort {
-  color: var(--text) !important;
-  font-weight: 600 !important;
 }
 
 .id-col {
@@ -1127,58 +1080,8 @@ export default {
   overflow-y: auto;
 }
 
-.table-row {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  height: 42px;
-  font-size: 14px;
-}
-
-.table-row:hover {
-  background-color: var(--surface-2);
-}
-
-.table-row.selected {
-  background-color: var(--accent-tint);
-}
-
-.table-row.inactive {
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-col {
-  padding: 0 8px;
-}
-
-.cell-content {
-  display: block;
-  padding: 4px 0;
-}
-
-.id-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
 .table-row.inactive .id-value {
   color: var(--text-muted);
-}
-
-.truncate-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  display: block;
 }
 
 /* Бейдж типа вложения (tonal pill) */
@@ -1230,13 +1133,6 @@ export default {
   color: var(--warning-text);
 }
 
-.inactive-badge {
-  margin-left: 6px;
-  font-size: 0.75em;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
 .no-results {
   text-align: center;
   padding: 40px 20px;
@@ -1256,12 +1152,6 @@ export default {
   border-top: 1px solid var(--border);
   text-align: right;
   background: var(--accent-tint);
-}
-
-.items-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 /* Details */
@@ -1315,16 +1205,6 @@ export default {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-}
-
-.archive-badge {
-  background: var(--text-muted);
-  color: var(--surface);
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75em;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 .action-btn {
@@ -1460,25 +1340,6 @@ export default {
   font-size: 14px;
 }
 
-.add-header-button {
-  padding: 8px 16px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.add-header-button:hover {
-  background: var(--accent-hover);
-}
-
 /* Модалка создания */
 .modal-overlay {
   position: fixed;
@@ -1505,42 +1366,6 @@ export default {
   overflow: hidden;
 }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-close {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  line-height: 1;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
 .modal-body {
   padding: 22px 24px;
   display: flex;
@@ -1548,18 +1373,6 @@ export default {
   gap: 16px;
   max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 0.85em;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 .duplicate-hint {
@@ -1574,28 +1387,9 @@ export default {
   color: var(--danger-text);
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.25s ease;
-}
-
 .modal-fade-enter-active .attachment-modal,
 .modal-fade-leave-active .attachment-modal {
   transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  background: transparent;
 }
 
 .modal-fade-enter-from .attachment-modal,
