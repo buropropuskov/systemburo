@@ -69,8 +69,14 @@ MAP = [
      "13 защита информации; 6.3 ограничения"),
     (r"^internal/auth/|^internal/services/auth_service\.go$", "Техописание",
      "13.1 проверка подлинности"),
-    (r"^internal/crypto/", "Техописание",
-     "13.5 защита персональных данных при хранении"),
+    # Сверка ключа при запуске и перевод данных на новый ключ обещаны в двух местах
+    # сразу: техописание отвечает за то, что подмена ключа останавливает запуск,
+    # руководство - за порядок хранения и саму смену. Без этой строки новые файлы
+    # шли в «вне карты» и требовали разбираться заново на каждой сверке.
+    (r"^internal/crypto/|^internal/database/(encryption_guard|reencrypt)|"
+     r"^cmd/server/reencrypt\.go$", "Оба",
+     "техописание 13.6 защита персональных данных при хранении; "
+     "руководство 9.12 ключ шифрования и 13.5 сообщения при запуске"),
     (r"^internal/models/pd|^internal/middleware/pd_|^internal/services/pd_|"
      r"^internal/handlers/(consent|settings_pd)|_mask|^internal/services/"
      r"(approver_mask|audit_reader)|^frontend/src/utils/formatName\.js$|"
