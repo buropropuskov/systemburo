@@ -360,7 +360,7 @@ export async function createQuestion(id, data) {
   });
   const body = await res.json();
   if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось отправить вопрос');
+    throw new Error(body?.error || 'Не удалось начать обсуждение');
   }
   return body.data;
 }

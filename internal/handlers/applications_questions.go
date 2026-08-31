@@ -10,8 +10,8 @@ import (
 )
 
 // GetApplicationQuestions godoc
-// @Summary      Вопросы к заявке
-// @Description  Возвращает вопросы к заявке (#973) с вложенными ответами и вложениями. Видно всем, у кого есть доступ к заявке (включая инициатора).
+// @Summary      Обсуждение заявки
+// @Description  Возвращает темы обсуждения заявки (#973) с вложенными ответами и вложениями. Видно всем, у кого есть доступ к заявке (включая инициатора).
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
@@ -44,14 +44,14 @@ func (h *ApplicationHandler) GetApplicationQuestions(c echo.Context) error {
 }
 
 // CreateApplicationQuestion godoc
-// @Summary      Задать вопрос к заявке
-// @Description  Создаёт вопрос-топик (#973). Доступно любому с доступом к заявке, включая инициатора. Пишется в историю, инициатору уходит уведомление (если он не автор).
+// @Summary      Начать обсуждение заявки
+// @Description  Создаёт тему обсуждения (#973). Доступно любому с доступом к заявке, включая инициатора. Пишется в историю, инициатору уходит уведомление (если он не автор).
 // @Tags         applications
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID заявки"
-// @Param        body body services.CreateQuestionRequest true "Вопрос"
+// @Param        body body services.CreateQuestionRequest true "Тема обсуждения"
 // @Success      201 {object} services.QuestionWithAnswers
 // @Failure      400 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -77,8 +77,8 @@ func (h *ApplicationHandler) CreateApplicationQuestion(c echo.Context) error {
 }
 
 // CreateApplicationAnswer godoc
-// @Summary      Ответить на вопрос к заявке
-// @Description  Добавляет ответ в тред вопроса (#973). Доступно любому с доступом к заявке. Участникам обсуждения уходит уведомление.
+// @Summary      Ответить в обсуждении заявки
+// @Description  Добавляет ответ в тред темы (#973). Доступно любому с доступом к заявке. Участникам обсуждения уходит уведомление.
 // @Tags         applications
 // @Accept       json
 // @Produce      json
@@ -116,8 +116,8 @@ func (h *ApplicationHandler) CreateApplicationAnswer(c echo.Context) error {
 }
 
 // MarkQuestionsSeen godoc
-// @Summary      Отметить вопросы заявки просмотренными
-// @Description  Обновляет last-seen пользователя по Q&A заявки (#973), гасит маркер "новые вопросы/ответы".
+// @Summary      Отметить обсуждение заявки просмотренным
+// @Description  Обновляет last-seen пользователя по обсуждению заявки (#973), гасит маркер "новые сообщения".
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
@@ -142,8 +142,8 @@ func (h *ApplicationHandler) MarkQuestionsSeen(c echo.Context) error {
 }
 
 // MarkQuestionRead godoc
-// @Summary      Отметить вопрос-топик прочитанным
-// @Description  Помечает конкретный вопрос-топик прочитанным (#973): гасит его новизну для пользователя. Недочитанные топики остаются новыми.
+// @Summary      Отметить тему обсуждения прочитанной
+// @Description  Помечает конкретную тему обсуждения прочитанной (#973): гасит её новизну для пользователя. Недочитанные темы остаются новыми.
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
