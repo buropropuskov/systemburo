@@ -185,7 +185,7 @@
       },
       "highlight": [
         {
-          "selector": ".gsp__input",
+          "selector": ".gsp__head",
           "badge": 1,
           "badgeInside": true
         },

@@ -82,6 +82,28 @@ export async function drawOutlines(page, targets) {
         }
 
         const style = getComputedStyle(element);
+
+        /*
+         * Поле ввода часто прозрачно и без скругления: заливка и радиус лежат на
+         * обёртке со значком и отступами. Линия по самому input выходит
+         * прямоугольником поперёк круглого поля и режет значок - замечание
+         * владельца по странице входа (31.08.2026). Разово это не лечится:
+         * кандидаты рассыпаны по всем манифестам, поэтому предупреждаем на съёмке.
+         */
+        const parent = element.parentElement;
+        if (parent) {
+            const parentStyle = getComputedStyle(parent);
+            const invisible = (cs) =>
+              (cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent') &&
+              parseFloat(cs.borderTopLeftRadius) === 0;
+            if (invisible(style) && !invisible(parentStyle)) {
+              warnings.push(
+                `${target.selector}: обводится элемент без заливки и скругления, ` +
+                'а они есть у его обёртки - линия ляжет не по видимому полю',
+              );
+            }
+        }
+
         const corners = [
           'borderTopLeftRadius',
           'borderTopRightRadius',
