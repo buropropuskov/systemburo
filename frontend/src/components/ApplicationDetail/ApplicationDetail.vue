@@ -188,6 +188,16 @@
               <span class="participants-btn__text">Получатели</span>
             </button>
           </div>
+
+          <!-- Заметка бюро в шапке, а не в теле: она про работу с заявкой, а не про
+               её содержание. Гейт для удобства - текст бэк отдаёт только принимающему. -->
+          <ApplicationBureauNote
+            v-if="isApprover"
+            :application-id="Number(applicationData.id)"
+            :note="applicationData.bureau_note || null"
+            @update="onBureauNoteUpdate"
+          />
+
         </div>
         <div class="detail-header-right">
           <!-- Бейдж и action-bar в своей обёртке: у неё свой flex-wrap, поэтому
@@ -366,16 +376,6 @@
             :message="applicationData.message || ''"
             :application-number="applicationData.application_number"
             @close="showMessageModal = false"
-          />
-
-          <!-- Заметка бюро: рабочий стикер принимающих о том, почему заявка не
-               сделана. Гейт здесь для удобства - текст заметки бэк отдаёт в детали
-               заявки только принимающему, у остальных его в applicationData нет. -->
-          <ApplicationBureauNote
-            v-if="isApprover"
-            :application-id="Number(applicationData.id)"
-            :note="applicationData.bureau_note || null"
-            @update="onBureauNoteUpdate"
           />
 
           <!-- Сообщения при пересылке (#967), видны всем получателям -->

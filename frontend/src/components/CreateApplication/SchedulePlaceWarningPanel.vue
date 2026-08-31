@@ -9,6 +9,7 @@
  * данные приходят готовым реактивным `groups` из формы.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { pinLeavingElement } from '@/utils/listTransition';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useUiStore } from '@/stores/ui';
 
@@ -310,6 +311,7 @@ const shown = computed(
               tag="div"
               name="warn-group"
               class="warn-panel__body"
+              @before-leave="pinLeavingElement"
             >
               <section
                 v-for="group in visibleGroups"

@@ -4,7 +4,10 @@
     role="status"
     aria-live="polite"
   >
-    <transition-group name="del">
+    <transition-group
+      name="del"
+      @before-leave="pinLeavingElement"
+    >
       <div
         v-for="item in store.items"
         :key="item.id"
@@ -45,6 +48,7 @@
 <script setup>
 import { watch } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { pinLeavingElement } from '@/utils/listTransition';
 import { useAuthStore } from '@/stores/auth';
 
 const store = useDeletionsStore();
