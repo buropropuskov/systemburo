@@ -863,7 +863,14 @@ export default {
       const displayName = this.addForm.display_name.trim();
       const name = this.addForm.name.trim();
       const title = this.addForm.title.trim().toUpperCase();
-      if (!this.addValid || this.isAdding) return;
+      if (this.isAdding) return;
+      // Молча выходить нельзя: кроме кнопки (она заблокирована на неполной форме)
+      // сюда приходит «Сохранить все изменения» из диалога несохранённого, и
+      // тихий выход там читается как «нажал, и ничего не произошло».
+      if (!this.addValid) {
+        this.addError = 'Заполните тип, наименование, системное имя и заголовок - без них вложение не создать.';
+        return;
+      }
       this.isAdding = true;
       this.addError = '';
       try {

@@ -1298,7 +1298,17 @@ export default {
     async submitAdd() {
       const name = this.addForm.name.trim();
       const type = this.addForm.type;
-      if (!name || !type || this.isAdding) return;
+      if (this.isAdding) return;
+      // Молча выходить нельзя: сюда приходит не только кнопка (она заблокирована
+      // при пустых полях), но и «Сохранить все изменения» из диалога несохранённого.
+      // Оттуда тихий выход выглядел как «нажал и ничего не произошло»: форма
+      // оставалась грязной, и диалог считал сохранение неудавшимся.
+      if (!name || !type) {
+        this.addError = !name
+          ? 'Укажите название - без него компанию не создать.'
+          : 'Выберите тип - без него компанию не создать.';
+        return;
+      }
       this.isAdding = true;
       this.addError = '';
 
