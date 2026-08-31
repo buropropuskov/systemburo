@@ -98,3 +98,35 @@ describe('ApplicationActionBar - бейдж "Доп. №N" в ряду реше�
     expect(beforeMobile).not.toMatch(/\.detail-header-actions :deep\(\.action-bar-root\)/);
   });
 });
+
+// Владелец (задача #4): "Согласовать и принять" и "Отказать" на телефоне не влезают в
+// строку. Мобильное правило для этих кнопок в файле было, но не действовало: медиа-запрос
+// специфичности не добавляет, а базовое .confirm-btn/.reject-btn/.accept-btn стояло НИЖЕ
+// по файлу и возвращало padding 6px 24px. Замер в браузере: пара занимала 348px при 330
+// доступных на 360, пилюля "Отказать" уезжала за край экрана. После переноса @media в
+// конец блока стилей и снятия min-width пара занимает 305px.
+describe('ApplicationActionBar - мобильные правила кнопок решения действуют (#4)', () => {
+  const styleStart = ACTION_BAR_SFC.indexOf('<style');
+  const mobileBlockIndex = ACTION_BAR_SFC.indexOf('@media (max-width: 768px)', styleStart);
+  const baseButtonRuleIndex = ACTION_BAR_SFC.indexOf(
+    '.confirm-btn, .reject-btn, .accept-btn {',
+    styleStart
+  );
+
+  it('мобильный @media объявлен ПОСЛЕ базового правила кнопок - иначе компактный padding проигрывает', () => {
+    expect(baseButtonRuleIndex).toBeGreaterThan(-1);
+    expect(mobileBlockIndex).toBeGreaterThan(baseButtonRuleIndex);
+  });
+
+  it('на мобилке кнопки решения идут по содержимому: компактный padding и снятая min-width', () => {
+    const mobile = ACTION_BAR_SFC.slice(mobileBlockIndex);
+    const body = rule(mobile, '.confirm-btn,\n    .reject-btn,\n    .accept-btn');
+    expect(body).toMatch(/padding:\s*8px\s+14px/);
+    expect(body).toMatch(/min-width:\s*auto/);
+    expect(body).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('фикс сделан каскадом, а не !important', () => {
+    expect(ACTION_BAR_SFC.slice(styleStart)).not.toMatch(/!important/);
+  });
+});
