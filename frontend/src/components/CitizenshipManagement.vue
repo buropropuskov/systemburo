@@ -880,6 +880,7 @@ export default {
 
 <style scoped>
 @import '@/assets/directory-management.css';
+@import '@/assets/directory-bulk-bar.css';
 
 .citizenship-container {
   position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
@@ -908,26 +909,6 @@ export default {
   overflow-y: hidden;
 }
 
-.bulk-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent-text);
-  white-space: nowrap;
-}
-
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  margin-left: auto;
-}
-
-.bulk-actions .pill {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
 .pill {
   display: inline-flex;
   align-items: center;
@@ -943,45 +924,6 @@ export default {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.pill-ghost {
-  background: var(--surface);
-  color: var(--accent-text);
-  border: 1px solid var(--accent);
-}
-
-.pill-ghost:hover {
-  background: var(--accent-tint);
-}
-
-.bulk-clear {
-  color: var(--text-muted);
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-}
-
-.bulk-clear:hover {
-  background: var(--surface-2);
-}
-
-.pill-danger {
-  background: var(--surface);
-  color: var(--danger-text);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-}
-
-.pill-danger:hover {
-  background: var(--danger-bg);
-  border-color: var(--danger);
-}
-
-.pill-restore {
-  background: var(--success);
-  color: var(--fill-text);
-}
-
-.pill-restore:hover {
-  background: color-mix(in srgb, var(--success) 85%, var(--text));
-}
-
 .check-col {
   width: 8%;
   min-width: 34px;
@@ -990,14 +932,6 @@ export default {
   justify-content: center;
   padding: 0 8px;
   cursor: default;
-}
-
-.bulk-check {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: var(--accent-text);
-  margin: 0;
 }
 
 .management-header {
