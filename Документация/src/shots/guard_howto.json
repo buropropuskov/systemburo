@@ -12,12 +12,12 @@
       },
       "highlight": [
         {
-          "selector": "[data-testid=\"login-form\"] .login__input",
+          "selector": "[data-testid=\"login-form\"] input",
           "nth": 0,
           "badge": 1
         },
         {
-          "selector": "[data-testid=\"login-form\"] .login__input",
+          "selector": "[data-testid=\"login-form\"] input",
           "nth": 1,
           "badge": 2
         }
@@ -403,20 +403,21 @@
         }
       ],
       "clip": {
-        "selector": ".details-section",
-        "nth": 0,
-        "pad": {
-          "x": 40,
-          "y": 130
-        }
-      }
+        "selector": ".modal-content.main-modal",
+        "pad": 40
+      },
+      "viewport": {
+        "width": 1100,
+        "height": 1500
+      },
+      "style": ".modal-content.main-modal{max-height:none !important;height:auto !important;}.modal-content.main-modal .modal-body{max-height:none !important;height:auto !important;flex:none !important;overflow:visible !important;}"
     },
     {
       "id": "accessible",
       "goto": "/accessible-attachments",
       "waitFor": "[data-testid=\"aa-filters\"]",
       "viewport": {
-        "width": 1700
+        "width": 1360
       },
       "clip": {
         "selector": "[data-testid=\"aa-filters\"]",
@@ -437,18 +438,40 @@
       "goto": "/accessible-attachments",
       "waitFor": "[data-testid=\"aa-list\"]",
       "viewport": {
-        "width": 1700
+        "width": 1360
       },
       "clip": {
         "full": true
       }
     },
     {
+      "id": "aa-card",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-card\"]",
+      "viewport": {
+        "width": 1360
+      },
+      "clip": {
+        "selector": "[data-testid=\"aa-card\"]",
+        "nth": 2,
+        "pad": {
+          "x": 40,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"aa-card\"]",
+          "nth": 2
+        }
+      ]
+    },
+    {
       "id": "accessible-detail",
       "goto": "/accessible-attachments",
       "waitFor": "[data-testid=\"aa-card\"]",
       "viewport": {
-        "width": 1700
+        "width": 1360
       },
       "prepare": [
         {
@@ -471,11 +494,62 @@
       ]
     },
     {
+      "id": "aa-elements",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-card\"]",
+      "viewport": {
+        "width": 1360
+      },
+      "prepare": [
+        {
+          "click": "[data-testid=\"aa-card\"]",
+          "nth": 2
+        },
+        {
+          "wait": "[data-testid=\"attachment-elements\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"attachment-elements\"]",
+        "pad": 30
+      }
+    },
+    {
+      "id": "aa-blank-btn",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-card\"]",
+      "viewport": {
+        "width": 1360
+      },
+      "prepare": [
+        {
+          "click": "[data-testid=\"aa-card\"]",
+          "nth": 2
+        },
+        {
+          "wait": "[data-testid=\"aa-preview-blank\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"aa-preview-blank\"]",
+        "pad": {
+          "x": 150,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"aa-preview-blank\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
       "id": "blank",
       "goto": "/accessible-attachments",
       "waitFor": "[data-testid=\"aa-card\"]",
       "viewport": {
-        "width": 1700
+        "width": 1360
       },
       "prepare": [
         {
@@ -499,13 +573,13 @@
     },
     {
       "id": "report-btn",
-      "goto": "/table/checkpoint-main",
+      "goto": "/table/kpp-cargo",
       "waitFor": "[data-testid=\"pass-report-button\"]",
       "clip": {
         "selector": "[data-testid=\"pass-report-button\"]",
         "pad": {
-          "x": 190,
-          "y": 60
+          "x": 620,
+          "y": 90
         }
       },
       "highlight": [
@@ -520,9 +594,18 @@
     },
     {
       "id": "report",
-      "goto": "/table/checkpoint-main",
+      "goto": "/table/kpp-cargo",
       "waitFor": "[data-testid=\"pass-report-button\"]",
       "prepare": [
+        {
+          "click": "[data-testid=\"cars-table\"] .entry-btn:not([disabled])"
+        },
+        {
+          "click": "[data-testid=\"cars-table\"] .entry-btn:not([disabled])"
+        },
+        {
+          "click": "[data-testid=\"cars-table\"] .exit-btn:not([disabled])"
+        },
         {
           "click": "[data-testid=\"pass-report-button\"]"
         },
@@ -573,6 +656,24 @@
         "selector": "[data-testid=\"ob-notifications-panel\"]",
         "pad": 30
       }
+    },
+    {
+      "id": "training-btn",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-start-button\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-start-button\"]",
+        "pad": {
+          "x": 260,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-start-button\"]",
+          "badge": 1
+        }
+      ]
     },
     {
       "id": "search-panel",

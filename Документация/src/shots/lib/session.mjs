@@ -215,4 +215,27 @@ export async function calmPage(page) {
       .forEach((node) => node.remove());
   });
   await page.keyboard.press('Escape');
+  await freezeAnimations(page);
+}
+
+/**
+ * Останавливает анимации и переходы на странице.
+ *
+ * Обводка рисуется по координатам, снятым до съёмки, а снимок делается с
+ * `animations: 'disabled'` - браузер в этот момент перематывает бесконечную
+ * анимацию на её начало. Элемент, который качается декоративной анимацией
+ * (страница входа), успевает сместиться, и линия остаётся висеть выше поля.
+ * Заморозка до измерения убирает расхождение целиком.
+ */
+export async function freezeAnimations(page) {
+  await page.addStyleTag({
+    content: `*, *::before, *::after {
+      animation-play-state: paused !important;
+      animation-delay: -1ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      transition-delay: 0s !important;
+    }`,
+  });
 }

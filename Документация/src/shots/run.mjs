@@ -193,6 +193,22 @@ async function main() {
           });
         }
         await page.goto(`${baseUrl}${shot.goto ?? '/'}`);
+        /*
+         * Уменьшение страницы для кадров, где окно приложения выше экрана и
+         * прокручивается внутри себя: снимок такого окна показывает половину
+         * содержимого, а читателю обещана карточка целиком.
+         */
+        /*
+         * Правка стилей для кадра: окно приложения с внутренней прокруткой
+         * показывает половину содержимого, и снимок обещает читателю не то, что
+         * в нём есть. Раскрываем такое окно на всю высоту содержимого.
+         */
+        if (shot.style) await page.addStyleTag({ content: shot.style });
+        if (shot.zoom) {
+          await page.evaluate((value) => {
+            document.documentElement.style.zoom = String(value);
+          }, shot.zoom);
+        }
         shotWarnings = await shoot(page, shot, outDir);
       } catch (error) {
         shotWarnings = [`${shot.id}: не снялся - ${error.message.split('\n')[0]}`];
