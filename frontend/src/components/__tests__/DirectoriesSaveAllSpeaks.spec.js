@@ -57,6 +57,20 @@ describe('справочники: неполная форма объясняет
     }
   });
 
+  it.each(DIRECTORIES)('%s: сообщение видно поверх диалога несохранённого', (name) => {
+    const source = readFileSync(join(componentsDir, `${name}.vue`), 'utf8');
+    const head = submitAddHead(source);
+
+    // Диалог несохранённого лежит на z-index 21000, окно создания - на 1000,
+    // поэтому текст ошибки внутри формы им перекрывается: проверено на стенде,
+    // elementFromPoint в центре ошибки возвращал кнопку диалога. Единственный
+    // слой выше - тост системы (29000), поэтому сообщение обязано уходить и туда.
+    expect(
+      /\.notify\(/.test(head),
+      `${name}: сообщение остаётся под диалогом сохранения - его не увидят`,
+    ).toBe(true);
+  });
+
   it.each(DIRECTORIES)('%s: Escape не обрабатывается в обход BaseModal', (name) => {
     const source = readFileSync(join(componentsDir, `${name}.vue`), 'utf8');
     expect(
