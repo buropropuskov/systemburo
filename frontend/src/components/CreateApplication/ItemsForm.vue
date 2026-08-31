@@ -540,7 +540,9 @@ export default {
 .add-button {
     background: var(--accent);
     color: var(--accent-contrast);
-    border: none;
+    /* Рамка держит место всегда: без неё соседняя «Отменить» с рамкой выше
+       на 2px и строка кнопок прыгает при входе в режим редактирования. */
+    border: 1px solid transparent;
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
