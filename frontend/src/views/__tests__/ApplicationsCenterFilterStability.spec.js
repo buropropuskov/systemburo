@@ -191,6 +191,20 @@ describe('Центр заявок: смена фильтра не дёргает
     ).toBe(false);
   });
 
+  it('правила перехода ведут от контейнера, иначе их перебивает базовая строка', () => {
+    const selectors = (transitions.match(/^[^\s@/*].*\{\s*$/gm) || []).map((l) => l.trim());
+    expect(selectors.length, 'правила не разобрались - изменился формат файла').toBeGreaterThan(5);
+
+    expect(
+      selectors.filter((sel) => !sel.startsWith('.applications-list ')),
+      'правило без контейнера имеет ту же специфичность, что базовое '
+        + '.application-item { transition: background-color .2s } в самом вью. При равном '
+        + 'счёте побеждает последний по порядку склейки, и строка получает '
+        + 'transition-property: background-color - анимация пропадает целиком, класс при '
+        + 'этом стоит на месте (замер на стенде: left менялся с 71 на 31 за один кадр)',
+    ).toEqual([]);
+  });
+
   it('composable возвращает живой набор переходов после замены', () => {
     const composable = readFileSync(
       resolve(__dirname, '..', '..', 'composables', 'useRowTransition.js'),
