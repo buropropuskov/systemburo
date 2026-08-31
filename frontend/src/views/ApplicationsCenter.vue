@@ -1306,7 +1306,7 @@ export default {
             // набора не сыграл звук, ДО refetch (#1158).
             this._pollKnownIds = null;
             this.pollPrimed = false;
-            this.fetchApplications();
+            this.applyFilters();
         },
         '$route.query.archive'(val) {
             this.archiveMode = val === 'true' && this.canViewArchive ? 'archive' : 'active';
@@ -1589,18 +1589,16 @@ export default {
         },
         
         onSearchInput() {
-            this.isInitialLoad = false;
             clearTimeout(this.searchDebounceTimer);
             this.searchDebounceTimer = setTimeout(() => {
-                this.fetchApplications();
+                this.applyFilters();
             }, 300);
         },
 
         // Фильтры
         toggleActiveToday() {
             this.activeToday = !this.activeToday;
-            this.isInitialLoad = false;
-            this.fetchApplications();
+            this.applyFilters();
         },
 
         // «Новые» ведут тот же псевдо-статус, что и дропдаун «Статус», поэтому идут через
@@ -1620,8 +1618,7 @@ export default {
                 this.selectedApplicationStatuses = this.selectedApplicationStatuses
                     .filter(s => s !== UNREAD_STATUS);
             }
-            this.isInitialLoad = false;
-            this.fetchApplications();
+            this.applyFilters();
         },
 
         resetFilters() {
@@ -1655,11 +1652,10 @@ export default {
                 this.$refs.filterModal.clearDateFilter();
             }
 
-            this.isInitialLoad = false;
-            // fetchApplications() вместо applyFilters() — часть фильтров (organization_id,
-            // date, archive) применяется на бэке через URL params. Без fetch applications
-            // остаётся подмножеством, и после сброса таблица продолжает показывать только его.
-            this.fetchApplications();
+            // Полный запрос обязателен: часть фильтров (organization_id, date, archive)
+            // применяется на бэке через URL params, без него applications остались бы
+            // подмножеством. applyFilters его и делает, но общим входом.
+            this.applyFilters();
         },
         
         // Организация/подтверждение/статус/дата - все читаются бэком в buildApplicationsPage
@@ -1683,11 +1679,12 @@ export default {
                 this.sortDirection = 'desc';
             }
             this.isInitialLoad = false;
-            // Сортировка по колонке клиентская - должна идти по всему набору (как на dev).
-            // При входе в full-load, если ещё не всё загружено, догружаем остаток (#1158).
-            if (this.isFullLoad && this.hasMoreApplications) {
-                this.fetchApplications();
-            }
+            // Перестановка строк идёт тем же рисунком, что и смена фильтра, даже когда
+            // догрузка не нужна: иначе один и тот же клик по колонке анимировался бы
+            // по-разному. Сортировка клиентская и должна идти по всему набору (как на
+            // dev), поэтому в full-load догружаем остаток (#1158).
+            this.rowTransition.whileReplacing(() => this.isFullLoad
+                && this.hasMoreApplications && this.fetchApplications(true));
         },
 
         resetSort() {

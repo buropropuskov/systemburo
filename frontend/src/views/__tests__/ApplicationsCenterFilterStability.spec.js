@@ -22,6 +22,12 @@ import { resolve } from 'node:path';
  *    Теперь у замены набора свой рисунок: отсеянные уезжают влево, оставшиеся
  *    подтягиваются на их места, пришедшие проявляются без сдвига.
  *
+ * 3. Обход общего входа. Рисунок из пункта 2 включает applyFilters, а половина
+ *    фильтров звала загрузку сама: кнопка «Обновления», «на сегодня», поиск,
+ *    сброс, вкладка архива, сортировка. Правка пункта 2 их не касалась, и
+ *    владелец второй раз сообщил «анимации вообще нет». Замер на стенде после
+ *    выката: на строках стоял app-row-leave-active, координата left не менялась.
+ *
  * Замок текстовый: поднимать вью целиком ради двух связей дороже, чем сверить,
  * что источник счётчиков серверный, а имя перехода гасится на время замены.
  */
@@ -36,6 +42,64 @@ const transitions = readFileSync(
   resolve(__dirname, '..', '..', 'assets', 'application-row-transitions.css'),
   'utf8',
 );
+
+const lines = source.split('\n');
+
+// Заголовок метода, вотчера или хука: ровно 4-8 пробелов отступа, дальше имя и скобки.
+// Ключевые слова отсеиваются - `if (...) {` формально подходит под ту же форму.
+const MEMBER_HEADER = /^ {4,8}(?:async\s+)?([^\s(){}=;]+)\s*\([^)]*\)\s*\{\s*$/;
+const CONTROL_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'function']);
+
+/** Имя члена компонента, внутри которого стоит строка. */
+function enclosingMember(index) {
+  for (let i = index; i >= 0; i -= 1) {
+    const match = lines[i].match(MEMBER_HEADER);
+    if (match && !CONTROL_KEYWORDS.has(match[1])) return match[1];
+  }
+  return null;
+}
+
+/** Тело члена компонента по имени - от заголовка до закрывающей скобки того же уровня. */
+function memberBody(name) {
+  const header = new RegExp(`^ {4,8}(?:async\\s+)?'?${name}'?\\s*\\(`);
+  const start = lines.findIndex((line) => header.test(line));
+  if (start < 0) return null;
+  const indent = lines[start].match(/^ */)[0].length;
+  const closing = new RegExp(`^ {${indent}}\\}`);
+  const end = lines.findIndex((line, i) => i > start && closing.test(line));
+  return lines.slice(start, end < 0 ? lines.length : end).join('\n');
+}
+
+/**
+ * Кому позволено звать загрузку списка напрямую и почему.
+ *
+ * Всё остальное идёт через applyFilters: он один переключает набор переходов и
+ * грузит тихо. Мимо него строка получает живой набор классов (уезжает вверх, а
+ * не влево), а non-silent запрос накрывает список оверлеем «Обновление…».
+ */
+const DIRECT_FETCH_ALLOWED = {
+  mounted: 'первая загрузка - анимировать нечего, набора ещё нет',
+  applyFilters: 'сам общий вход',
+  sortBy: 'перестановка своим рисунком, догрузка обёрнута в whileReplacing',
+  refreshFromRealtime: 'приход по сигналу сервера - живая вставка, а не замена набора',
+  handleConfirmationUpdate: 'дотягивание состояния после правки в карточке',
+  handleApplicationUpdate: 'дотягивание состояния после правки в карточке',
+  handleApplicationChanged: 'дотягивание состояния после правки в карточке',
+};
+
+/** Фильтры экрана: каждый обязан менять набор через общий вход. */
+const FILTER_MEMBERS = [
+  'archiveMode',
+  'setMultiFilter',
+  'onSearchInput',
+  'clearMobileSearch',
+  'toggleActiveToday',
+  'toggleUnreadOnly',
+  'toggleStatusUpdated',
+  'resetFilters',
+  'applyDateFilters',
+  'clearDateRange',
+];
 
 /** Тело вычисляемого свойства по имени. */
 function computedBody(name) {
@@ -147,6 +211,51 @@ describe('Центр заявок: смена фильтра не дёргает
     expect(
       /finally\s*\{\s*await nextTick\(\)/.test(composable),
       'перед снятием флага нет ожидания отрисовки - фильтрационный набор переходов не успеет примениться',
+    ).toBe(true);
+  });
+
+  it('загрузку списка зовут только те, кому положено', () => {
+    const callers = [...new Set(
+      lines
+        .map((line, i) => (line.includes('this.fetchApplications(') ? enclosingMember(i) : null))
+        .filter(Boolean),
+    )];
+
+    expect(
+      callers.filter((name) => !(name in DIRECT_FETCH_ALLOWED)),
+      'смена набора мимо applyFilters: строки получат живой набор классов и уедут вверх, '
+        + 'а не влево, non-silent запрос вдобавок накроет список оверлеем «Обновление…». '
+        + 'Фильтру - applyFilters; если вызов правда не фильтрационный, впишите его в '
+        + 'DIRECT_FETCH_ALLOWED с причиной',
+    ).toEqual([]);
+
+    expect(
+      Object.keys(DIRECT_FETCH_ALLOWED).filter((name) => !callers.includes(name)),
+      'разрешение выдано члену, который больше не грузит список - уберите строку, '
+        + 'иначе она молча укроет будущий обход под тем же именем',
+    ).toEqual([]);
+  });
+
+  it.each(FILTER_MEMBERS)('%s меняет набор через общий вход', (name) => {
+    const body = memberBody(name);
+    expect(body, `${name} не найден - переименовали? поправьте FILTER_MEMBERS`).toBeTruthy();
+
+    expect(
+      /this\.(applyFilters|setMultiFilter|onSearchInput)\(/.test(body),
+      `${name} меняет фильтр, но не запрашивает набор через applyFilters - список останется прежним`,
+    ).toBe(true);
+  });
+
+  it('перестановка по колонке идёт фильтрационным набором', () => {
+    const body = memberBody('sortBy');
+    expect(
+      /rowTransition\.whileReplacing\(/.test(body),
+      'клик по колонке двигает строки живым набором (0.3s ease) - один и тот же жест '
+        + 'анимировался бы по-разному в зависимости от того, понадобилась ли догрузка',
+    ).toBe(true);
+    expect(
+      /fetchApplications\(true\)/.test(body),
+      'догрузка при сортировке не тихая - оверлей «Обновление…» скроет перестановку',
     ).toBe(true);
   });
 });
