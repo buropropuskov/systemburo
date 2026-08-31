@@ -1,24 +1,36 @@
-/* Точечная анимация списка Центра при real-time добавлении (#840): новая заявка
-   плавно проявляется и въезжает на свою позицию (с учётом сортировки), соседи
-   едут на новое место (FLIP move). Только transform/opacity. Пачка новых за раз
-   отрабатывается штатно - каждая enter + все сдвиги move одновременно. */
-.app-row-enter-active {
+/* Переходы строк списка Центра заявок.
+
+   Селекторы намеренно ведут от контейнера. В самом вью у строки есть базовое
+   правило `.application-item { transition: background-color .2s }`, специфичность
+   у него ровно та же, и при равном счёте побеждает последний по порядку - а
+   порядок склейки задаёт сборщик, не автор файла. Строка получала
+   `transition-property: background-color`, и анимация смены фильтра пропадала
+   целиком: класс `app-row-filter-leave-active` на строке стоял, transform менялся,
+   но за один кадр - замер на стенде 31.08 показал скачок left с 71 сразу на 31.
+   Разделители периодов при этом ехали плавно: они не `.application-item`, и
+   перебивать их правило было нечему. Лишний уровень специфичности снимает
+   зависимость от порядка. */
+
+/* Живая вставка (#840): новая заявка плавно проявляется и въезжает на свою
+   позицию (с учётом сортировки), соседи едут на новое место (FLIP move). Пачка
+   новых за раз отрабатывается штатно - каждая enter и все сдвиги move разом. */
+.applications-list .app-row-enter-active {
     transition: opacity 0.3s ease-out, transform 0.3s ease-out;
 }
-.app-row-enter-from {
+.applications-list .app-row-enter-from {
     opacity: 0;
     transform: translateY(-20px);
 }
-.app-row-move {
+.applications-list .app-row-move {
     transition: transform 0.3s ease;
 }
-.app-row-leave-active {
+.applications-list .app-row-leave-active {
     transition: opacity 0.25s ease, transform 0.25s ease;
     /* Выводим из потока, чтобы соседи плавно сомкнулись при выпадении заявки. */
     position: absolute;
     width: 100%;
 }
-.app-row-leave-to {
+.applications-list .app-row-leave-to {
     opacity: 0;
     transform: translateY(-10px);
 }
@@ -33,28 +45,28 @@
    а не как «сначала исчезло, потом сдвинулось».
 
    Только transform и opacity - раскладку не трогаем. */
-.app-row-filter-leave-active {
+.applications-list .app-row-filter-leave-active {
     transition: opacity 0.22s ease-in, transform 0.28s cubic-bezier(0.4, 0, 0.6, 1);
     position: absolute;
     width: 100%;
     z-index: 0;
 }
 
-.app-row-filter-leave-to {
+.applications-list .app-row-filter-leave-to {
     opacity: 0;
     transform: translateX(-40px);
 }
 
-.app-row-filter-move {
+.applications-list .app-row-filter-move {
     transition: transform 0.32s cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 /* Появление без сдвига: пришедшие в выборку проявляются на своём месте, пока
    соседи едут. Сдвиг здесь наложился бы на move и читался бы как дрожание. */
-.app-row-filter-enter-active {
+.applications-list .app-row-filter-enter-active {
     transition: opacity 0.24s ease-out 0.06s;
 }
 
-.app-row-filter-enter-from {
+.applications-list .app-row-filter-enter-from {
     opacity: 0;
 }
