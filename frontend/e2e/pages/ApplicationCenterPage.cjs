@@ -10,7 +10,10 @@ class ApplicationCenterPage {
     this.filterButton = page.getByTestId('center-button-filter');
     this.filterModal = page.locator('.filter-modal');
     this.resetFiltersButton = page.getByTestId('center-button-reset-filters');
-    this.unreadBadge = page.getByTestId('center-badge-unread');
+    // «Новые» и «Обновления» - переключатели в шапке, не пассивные бейджи: кликаются
+    // и включают свои фильтры. Раньше «Новые» были бейджем center-badge-unread.
+    this.unreadToggle = page.getByTestId('center-button-unread');
+    this.updatesToggle = page.getByTestId('center-button-updates');
   }
 
   async goto() {
