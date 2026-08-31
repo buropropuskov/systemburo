@@ -198,25 +198,6 @@
       "highlight": []
     },
     {
-      "id": "guard-export",
-      "goto": "/table/kpp-cargo",
-      "waitFor": "[data-testid=\"cars-table\"]",
-      "prepare": [
-        {
-          "click": ".options__export",
-          "nth": 0
-        },
-        {
-          "wait": ".modal-overlay .modal, .base-modal"
-        }
-      ],
-      "clip": {
-        "selector": ".modal-overlay .modal, .base-modal",
-        "pad": 40
-      },
-      "highlight": []
-    },
-    {
       "id": "guard-consent",
       "role": "first-login",
       "waitFor": "[data-testid=\"pdc-accept\"]",
@@ -237,23 +218,6 @@
         {
           "selector": "[data-testid=\"pdc-accept\"]",
           "badge": 3
-        }
-      ]
-    },
-    {
-      "id": "guard-row-actions",
-      "goto": "/table/kpp-cargo",
-      "waitFor": "[data-testid=\"ob-pass-row\"] .delete-btn",
-      "clip": {
-        "pad": {
-          "x": 260,
-          "y": 14
-        }
-      },
-      "highlight": [
-        {
-          "selector": "[data-testid=\"ob-pass-row\"] .delete-btn",
-          "badge": 1
         }
       ]
     },

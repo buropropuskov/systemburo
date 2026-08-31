@@ -183,8 +183,14 @@ async function main() {
          * не попадал в кадр, а выноскам не хватало места. Ширина не меняется:
          * от неё зависит раскладка, и узкое окно перевело бы её в мобильную.
          */
-        if (shot.viewport?.height) {
-          await page.setViewportSize({ width: VIEWPORT.width, height: shot.viewport.height });
+        // Ширина окна тоже задаётся кадром: ряд фильтров, не поместившийся в
+        // стандартные 1300, переносит последнюю кнопку на вторую строку, и
+        // кадр показывает раскладку, которой на мониторе поста не бывает.
+        if (shot.viewport?.height || shot.viewport?.width) {
+          await page.setViewportSize({
+            width: shot.viewport.width ?? VIEWPORT.width,
+            height: shot.viewport.height ?? VIEWPORT.height,
+          });
         }
         await page.goto(`${baseUrl}${shot.goto ?? '/'}`);
         shotWarnings = await shoot(page, shot, outDir);

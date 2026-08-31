@@ -29,10 +29,45 @@ const requireFromFrontend = createRequire(path.join(REPO_ROOT, 'frontend', 'pack
 
 /**
  * Права, которые получает охранник на каждую таблицу поста. Полный набор
- * глаголов шире (история, версии, корзина, удаление), но эти четыре - работа
- * администратора, а не поста, и в руководстве охранника не описываются.
+ * глаголов шире (история, версии, корзина, удаление), но это работа
+ * администратора, а не поста, и в руководстве охранника не описывается.
+ *
+ * Выгрузки в наборе нет намеренно: на постах заказчика её не выдают, а кадр с
+ * кнопкой «Экспорт» обещал бы работнику возможность, которой у него не будет.
  */
-const GUARD_TABLE_VERBS = ['view', 'entry', 'exit', 'detail', 'report', 'export'];
+const GUARD_TABLE_VERBS = ['view', 'entry', 'exit', 'detail', 'report'];
+
+/**
+ * Остальные глаголы прав таблицы. Они не просто не выдаются, а гасятся явным
+ * запретом: обновление прав меняет только присланные ключи, и разрешение,
+ * выданное прошлым прогоном, иначе остаётся навсегда - так на кадрах ещё долго
+ * висела кнопка «Экспорт» после того, как её убрали из набора.
+ */
+const GUARD_TABLE_VERBS_DENIED = ['history', 'versions', 'export', 'trash', 'delete'];
+
+/**
+ * Права, которые у охранника снимаются персонально поверх базовой роли.
+ * Паспорт и патент посту не показывают: карточка человека открывает их по
+ * detail.documents, и на стенде это право приходит из базовой роли
+ * «Пользователь». Без запрета кадр карточки показывал бы раздел «Документы».
+ */
+const GUARD_DENIED_PERMISSIONS = ['detail.documents'];
+
+/**
+ * Посты стенда: системное имя таблицы наливки -> название на экране. Наливка
+ * заводит четыре таблицы с описательными названиями («Центральный КПП»), а на
+ * проходной посты называют коротко и номером - именно так они выглядят у
+ * заказчика, и именно так их читает работник в списке.
+ */
+const POST_NAMES = {
+  'kpp-cargo': 'КПП №4',
+  'kpp-central': 'ПОСТ №72',
+  'checkpoint-main': 'ПОСТ СЕВЕР',
+  'checkpoint-service': 'ПОСТ №27',
+};
+
+/** Пятый пост: в наливке таблиц людей две, а в списке их должно быть три. */
+const EXTRA_POST = { name: 'post-21', display_name: 'ПОСТ №21', table_type: 'people' };
 
 const POST_INSTRUCTION =
   'Пропуск по действующей заявке. Сверьте государственный регистрационный знак ' +
@@ -201,11 +236,13 @@ async function main() {
    * общей обёртки ответа. Без разворота имя таблицы читается как undefined, и
    * ключи прав собираются вида table.undefined.view.
    */
-  const tables = unwrap(await api(apiBase, token, 'GET', '/system-tables')).map(
+  let tables = unwrap(await api(apiBase, token, 'GET', '/system-tables')).map(
     (item) => item.table ?? item,
   );
+  if (tables.length === 0) throw new Error('на стенде нет ни одной таблицы поста');
+
+  tables = await renamePosts(apiBase, token, tables);
   const active = tables.filter((table) => table.is_active !== false);
-  if (active.length === 0) throw new Error('на стенде нет ни одной таблицы поста');
 
   // Охранник: персональные разрешения на таблицы постов.
   const users = unwrap(await api(apiBase, token, 'GET', '/users/all'));
@@ -219,13 +256,27 @@ async function main() {
       permissions.push({ key: `table.${table.name}.${verb}`, value: 'allow' });
     }
   }
+  for (const table of active) {
+    for (const verb of GUARD_TABLE_VERBS_DENIED) {
+      permissions.push({ key: `table.${table.name}.${verb}`, value: 'deny' });
+    }
+  }
+  for (const key of GUARD_DENIED_PERMISSIONS) {
+    permissions.push({ key, value: 'deny' });
+  }
   await api(apiBase, token, 'PUT', `/permissions/user/${guard.id}`, { permissions });
   console.log(
     `Охраннику ${guard.username} выдано разрешений: ${permissions.length} (таблиц: ${active.length})`,
   );
 
   // Таблица «по факту» и инструкция поста - на первой таблице машин.
-  const carsTable = active.find((table) => table.table_type === 'cars') ?? active[0];
+  // Список «по факту» и инструкция - на «КПП №4»: кадры манифеста сняты именно с
+  // него (/table/kpp-cargo), и «первая попавшаяся таблица машин» после
+  // переименования могла бы оказаться другой.
+  const carsTable =
+    active.find((table) => table.name === 'kpp-cargo') ??
+    active.find((table) => table.table_type === 'cars') ??
+    active[0];
   await api(apiBase, token, 'PUT', `/system-tables/${carsTable.id}`, {
     show_fact_table: true,
     instruction: POST_INSTRUCTION,
@@ -394,6 +445,42 @@ async function tidyAttachmentKinds(apiBase, token) {
   console.log(
     `Виды вложений: оставлено ${byType.size}, скрыто дублей ${extra.length}`,
   );
+}
+
+/**
+ * Приводит названия постов к тому виду, в котором их читает работник, и
+ * дозаводит недостающий пост людей.
+ *
+ * Названия правятся по системному имени таблицы, а не по порядку в ответе:
+ * порядок наливка не гарантирует, и переименование вслепую перевесило бы
+ * названия между постами машин и людей.
+ *
+ * @returns {Promise<Array<object>>} список таблиц после правок
+ */
+async function renamePosts(apiBase, token, tables) {
+  let renamed = 0;
+  for (const table of tables) {
+    const wanted = POST_NAMES[table.name];
+    if (!wanted || table.display_name === wanted) continue;
+    await api(apiBase, token, 'PUT', `/system-tables/${table.id}`, { display_name: wanted });
+    table.display_name = wanted;
+    renamed += 1;
+  }
+
+  let extra = tables.find((table) => table.name === EXTRA_POST.name);
+  if (!extra) {
+    await api(apiBase, token, 'POST', '/system-tables', EXTRA_POST);
+    const fresh = unwrap(await api(apiBase, token, 'GET', '/system-tables')).map(
+      (item) => item.table ?? item,
+    );
+    extra = fresh.find((table) => table.name === EXTRA_POST.name);
+    if (!extra) throw new Error(`пост ${EXTRA_POST.name} не создался`);
+    tables = fresh;
+    console.log(`Заведён пост «${EXTRA_POST.display_name}»`);
+  }
+
+  console.log(`Постов переименовано: ${renamed}, всего постов: ${tables.length}`);
+  return tables;
 }
 
 /**

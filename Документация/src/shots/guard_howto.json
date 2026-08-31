@@ -1,0 +1,624 @@
+{
+  "comment": "Кадры инструкции охранника. Почти на каждый шаг свой снимок: работник поста сверяет экран с картинкой, а не восстанавливает его по описанию. Роль - работник поста, тип security, права на пять постов стенда без выгрузки и без паспортных данных, см. setup-stand.mjs.",
+  "role": "guard",
+  "shots": [
+    {
+      "id": "login",
+      "anon": true,
+      "waitFor": "[data-testid=\"login-form\"]",
+      "clip": {
+        "selector": "[data-testid=\"login-form\"]",
+        "pad": 60
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"login-form\"] .login__input",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"login-form\"] .login__input",
+          "nth": 1,
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "consent",
+      "role": "first-login",
+      "waitFor": "[data-testid=\"pdc-accept\"]",
+      "clip": {
+        "selector": ".pdc-modal",
+        "pad": 90
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"pdc-accept\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "menu-tables",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-nav-rail\"]",
+      "prepare": [
+        {
+          "hover": "[data-testid=\"ob-nav-rail\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-link-tables\"]"
+        },
+        {
+          "click": "[data-testid=\"nav-link-tables\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-tables-list\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-nav-rail\"]",
+        "pad": {
+          "x": 520,
+          "y": 20
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"nav-tables-list\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "nav-accessible",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-nav-rail\"]",
+      "prepare": [
+        {
+          "hover": "[data-testid=\"ob-nav-rail\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-link-accessible-attachments\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"nav-link-accessible-attachments\"]",
+        "pad": {
+          "x": 60,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"nav-link-accessible-attachments\"]"
+        }
+      ]
+    },
+    {
+      "id": "table",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"]",
+      "clip": {
+        "full": true
+      }
+    },
+    {
+      "id": "counter",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-on-territory\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-on-territory\"]",
+        "pad": {
+          "x": 90,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-on-territory\"]"
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "view-toggles",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"enlarged-toggle\"]",
+      "clip": {
+        "selector": "[data-testid=\"enlarged-toggle\"]",
+        "pad": {
+          "x": 190,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"enlarged-toggle\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"grid-toggle\"]",
+          "badge": 2
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "refresh",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"] .refresh-btn",
+      "clip": {
+        "selector": "[data-testid=\"cars-table\"] .refresh-btn",
+        "pad": {
+          "x": 170,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"cars-table\"] .refresh-btn",
+          "badge": 1
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "instruction-btn",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-table-instruction\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-table-instruction\"]",
+        "pad": {
+          "x": 190,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-table-instruction\"]",
+          "badge": 1
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "instruction",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-table-instruction\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-table-instruction\"]"
+        },
+        {
+          "wait": ".instruction-modal-large"
+        }
+      ],
+      "clip": {
+        "selector": ".instruction-modal-large",
+        "pad": 40
+      }
+    },
+    {
+      "id": "search-field",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"]",
+      "clip": {
+        "selector": ".field.search",
+        "nth": 0,
+        "pad": {
+          "x": 150,
+          "y": 55
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".field.search",
+          "nth": 0
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "filters",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"]",
+      "clip": {
+        "selector": "[data-testid=\"table-sheet-org\"]",
+        "pad": {
+          "x": 220,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"table-sheet-org\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "entry-button",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-pass-row\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-pass-row\"]",
+        "pad": {
+          "x": 90,
+          "y": 80
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-pass-entry\"]",
+          "badge": 1
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "entry-done",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"] .entry-btn.active",
+      "clip": {
+        "selector": "[data-testid=\"cars-table\"] .item-row:has(.entry-btn.active)",
+        "pad": {
+          "x": 90,
+          "y": 80
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"cars-table\"] .entry-btn.active"
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      },
+      "prepare": [
+        {
+          "scrollTo": "[data-testid=\"cars-table\"] .entry-btn.active"
+        }
+      ]
+    },
+    {
+      "id": "exit-done",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"] .exit-btn:not([disabled])",
+      "clip": {
+        "selector": "[data-testid=\"cars-table\"] .item-row:has(.exit-btn.active)",
+        "pad": {
+          "x": 20,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"cars-table\"] .exit-btn.active"
+        }
+      ],
+      "prepare": [
+        {
+          "click": "[data-testid=\"cars-table\"] .exit-btn:not([disabled])"
+        },
+        {
+          "wait": "[data-testid=\"cars-table\"] .exit-btn.active"
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "people-row",
+      "goto": "/table/checkpoint-main",
+      "waitFor": "[data-testid=\"people-table\"] .item-row",
+      "clip": {
+        "selector": "[data-testid=\"people-table\"] .item-row",
+        "pad": {
+          "x": 90,
+          "y": 80
+        },
+        "nth": 0
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"people-table\"] .entry-btn",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"people-table\"] .exit-btn",
+          "nth": 0
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "fact-list",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"fact-table\"]",
+      "clip": {
+        "selector": "[data-testid=\"fact-table\"]",
+        "pad": {
+          "x": 40,
+          "y": 30
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-fact-entry\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "fact-pass",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-fact-entry\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-fact-entry\"]"
+        },
+        {
+          "wait": ".base-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".base-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"fact-pass-confirm\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "card",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-pass-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-pass-row\"] .item-data > div",
+          "nth": 3
+        },
+        {
+          "wait": ".main-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".details-section",
+        "nth": 0,
+        "pad": {
+          "x": 40,
+          "y": 130
+        }
+      }
+    },
+    {
+      "id": "accessible",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-filters\"]",
+      "viewport": {
+        "width": 1700
+      },
+      "clip": {
+        "selector": "[data-testid=\"aa-filters\"]",
+        "pad": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"aa-filter-reset\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "accessible-list",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-list\"]",
+      "viewport": {
+        "width": 1700
+      },
+      "clip": {
+        "full": true
+      }
+    },
+    {
+      "id": "accessible-detail",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-card\"]",
+      "viewport": {
+        "width": 1700
+      },
+      "prepare": [
+        {
+          "click": "[data-testid=\"aa-card\"]",
+          "nth": 2
+        },
+        {
+          "wait": "[data-testid=\"aa-detail\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"aa-detail\"]",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"aa-preview-blank\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "blank",
+      "goto": "/accessible-attachments",
+      "waitFor": "[data-testid=\"aa-card\"]",
+      "viewport": {
+        "width": 1700
+      },
+      "prepare": [
+        {
+          "click": "[data-testid=\"aa-card\"]",
+          "nth": 2
+        },
+        {
+          "wait": "[data-testid=\"aa-preview-blank\"]"
+        },
+        {
+          "click": "[data-testid=\"aa-preview-blank\"]"
+        },
+        {
+          "wait": "[data-testid=\"aa-preview-viewer\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"aa-preview-viewer\"]",
+        "pad": 30
+      }
+    },
+    {
+      "id": "report-btn",
+      "goto": "/table/checkpoint-main",
+      "waitFor": "[data-testid=\"pass-report-button\"]",
+      "clip": {
+        "selector": "[data-testid=\"pass-report-button\"]",
+        "pad": {
+          "x": 190,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"pass-report-button\"]",
+          "badge": 1
+        }
+      ],
+      "viewport": {
+        "width": 1000
+      }
+    },
+    {
+      "id": "report",
+      "goto": "/table/checkpoint-main",
+      "waitFor": "[data-testid=\"pass-report-button\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"pass-report-button\"]"
+        },
+        {
+          "wait": ".pass-report-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".pass-report-modal",
+        "pad": 40
+      }
+    },
+    {
+      "id": "header",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-header-notifications\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-header-notifications\"]",
+        "pad": {
+          "x": 620,
+          "y": 120
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-header-notifications\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"header-button-search\"]",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "notifications",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-header-notifications\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-header-notifications\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-notifications-panel\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-notifications-panel\"]",
+        "pad": 30
+      }
+    },
+    {
+      "id": "search-panel",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"header-button-search\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"header-button-search\"]"
+        },
+        {
+          "wait": "[data-testid=\"global-search-panel\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"global-search-panel\"]",
+        "pad": {
+          "x": 420,
+          "y": 30
+        }
+      }
+    },
+    {
+      "id": "logout",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-nav-rail\"]",
+      "prepare": [
+        {
+          "hover": "[data-testid=\"ob-nav-rail\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-button-logout\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"nav-button-logout\"]",
+        "pad": {
+          "x": 60,
+          "y": 55
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"nav-button-logout\"]",
+          "badge": 1
+        }
+      ]
+    }
+  ]
+}
