@@ -356,134 +356,116 @@
     </div>
 
     <!-- Модалка создания -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="attachment-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="attachment-modal"
-            @mousedown.stop
-          >
-            <div class="modal-header">
-              <h3>Новое вложение</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="attachment-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Тип вложения</label>
-                <BaseDropdown
-                  :model-value="addForm.attachment_type"
-                  :options="typeOptions"
-                  label-key="label"
-                  value-key="value"
-                  @update:model-value="addForm.attachment_type = $event"
-                />
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Наименование вложения</label>
-                <input
-                  v-model="addForm.display_name"
-                  type="text"
-                  class="lk-input"
-                  maxlength="255"
-                  placeholder="Автозаявка"
-                  data-testid="attachment-input-display-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Системное имя</label>
-                <input
-                  v-model="addForm.name"
-                  type="text"
-                  class="lk-input"
-                  :class="{ 'input-error': !!nameError }"
-                  maxlength="255"
-                  placeholder="avtozayavka"
-                  data-testid="attachment-input-name"
-                  @input="onNameInput"
-                >
-                <span class="field-hint">Латинские буквы, цифры и подчёркивания</span>
-                <span
-                  v-if="nameError"
-                  class="form-error"
-                >{{ nameError }}</span>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Заголовок</label>
-                <input
-                  v-model="addForm.title"
-                  type="text"
-                  class="lk-input"
-                  maxlength="255"
-                  placeholder="АВТОЗАЯВКИ"
-                  data-testid="attachment-input-title"
-                  @input="addForm.title = addForm.title.toUpperCase()"
-                  @keyup.enter="submitAdd"
-                >
-                <span class="field-hint">Отображается в заголовке категории (в верхнем регистре)</span>
-              </div>
-
-              <div
-                v-if="archivedDuplicate"
-                class="duplicate-hint"
-                data-testid="attachment-duplicate-hint"
-              >
-                <span>В архиве уже есть вложение <b>{{ archivedDuplicate.display_name }}</b> с такими данными.</span>
-                <button
-                  class="lk-button lk-button--secondary"
-                  :disabled="isAdding"
-                  @click="restoreDuplicate(archivedDuplicate)"
-                >
-                  Восстановить из архива
-                </button>
-              </div>
-
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="attachment-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addValid || isAdding"
-                data-testid="attachment-modal-save"
-                @click="submitAdd"
-              >
-                Создать
-              </button>
-            </div>
-          </div>
+    <BaseModal
+      :show="showAddModal"
+      title="Новое вложение"
+      width="480px"
+      radius="30px"
+      content-testid="attachment-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="attachment-modal-body">
+        <div class="form-group">
+          <label class="form-label">Тип вложения</label>
+          <BaseDropdown
+            teleport
+            :menu-z-index="1100"
+            :model-value="addForm.attachment_type"
+            :options="typeOptions"
+            label-key="label"
+            value-key="value"
+            @update:model-value="addForm.attachment_type = $event"
+          />
         </div>
-      </transition>
-    </Teleport>
+
+        <div class="form-group">
+          <label class="form-label">Наименование вложения</label>
+          <input
+            v-model="addForm.display_name"
+            type="text"
+            class="lk-input"
+            maxlength="255"
+            placeholder="Автозаявка"
+            data-testid="attachment-input-display-name"
+            @keyup.enter="submitAdd"
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Системное имя</label>
+          <input
+            v-model="addForm.name"
+            type="text"
+            class="lk-input"
+            :class="{ 'input-error': !!nameError }"
+            maxlength="255"
+            placeholder="avtozayavka"
+            data-testid="attachment-input-name"
+            @input="onNameInput"
+          >
+          <span class="field-hint">Латинские буквы, цифры и подчёркивания</span>
+          <span
+            v-if="nameError"
+            class="form-error"
+          >{{ nameError }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Заголовок</label>
+          <input
+            v-model="addForm.title"
+            type="text"
+            class="lk-input"
+            maxlength="255"
+            placeholder="АВТОЗАЯВКИ"
+            data-testid="attachment-input-title"
+            @input="addForm.title = addForm.title.toUpperCase()"
+            @keyup.enter="submitAdd"
+          >
+          <span class="field-hint">Отображается в заголовке категории (в верхнем регистре)</span>
+        </div>
+
+        <div
+          v-if="archivedDuplicate"
+          class="duplicate-hint"
+          data-testid="attachment-duplicate-hint"
+        >
+          <span>В архиве уже есть вложение <b>{{ archivedDuplicate.display_name }}</b> с такими данными.</span>
+          <button
+            class="lk-button lk-button--secondary"
+            :disabled="isAdding"
+            @click="restoreDuplicate(archivedDuplicate)"
+          >
+            Восстановить из архива
+          </button>
+        </div>
+
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="attachment-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addValid || isAdding"
+          data-testid="attachment-modal-save"
+          @click="submitAdd"
+        >
+          Создать
+        </button>
+      </template>
+    </BaseModal>
 
     <ConfirmationModal
       :show="!!archiveConfirm"
@@ -519,6 +501,7 @@ import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import AttachmentFieldsModal from './admin/AttachmentFieldsModal.vue';
@@ -526,7 +509,6 @@ import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import {
   listAllAttachments,
@@ -554,7 +536,7 @@ export default {
     RefreshButton,
     ConfirmationModal,
     TextConstructor,
-    BaseDropdown,
+    BaseDropdown, BaseModal,
     LoaderSpinner,
     ToggleSwitch,
     AttachmentFieldsModal,
@@ -563,10 +545,7 @@ export default {
     AppIcon,
   },
   setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay, deletions: useDeletionsStore() };
+    return { deletions: useDeletionsStore() };
   },
   data() {
     return {
@@ -678,7 +657,6 @@ export default {
     },
   },
   created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
     this._templateStatusSeq = 0;
   },
   mounted() {
@@ -717,16 +695,11 @@ export default {
         if (this.isDetailsDirty) await this.saveSelected();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
     typeLabel(type) {
       const o = this.typeOptions.find(t => t.value === type);
       return o ? o.label : type;
@@ -1341,61 +1314,13 @@ export default {
 }
 
 /* Модалка создания */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.attachment-modal {
-  width: 100%;
-  max-width: 480px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  overflow: hidden;
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.attachment-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(var(--app-vh, 1vh) * 70);
-  overflow-y: auto;
-}
-
-.duplicate-hint {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--warning-bg);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
-  border-radius: 15px;
-  font-size: 0.85em;
-  color: var(--danger-text);
-}
-
-.modal-fade-enter-active .attachment-modal,
-.modal-fade-leave-active .attachment-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from .attachment-modal,
-.modal-fade-leave-to .attachment-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 767.98px) {

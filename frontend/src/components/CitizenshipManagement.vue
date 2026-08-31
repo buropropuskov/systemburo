@@ -323,96 +323,76 @@
     </div>
 
     <!-- Модалка создания -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="citizenship-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="citizenship-modal"
-            @mousedown.stop
+    <BaseModal
+      :show="showAddModal"
+      title="Новое гражданство"
+      width="440px"
+      radius="30px"
+      content-testid="citizenship-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="citizenship-modal-body">
+        <div class="form-group">
+          <label class="form-label">Название гражданства</label>
+          <input
+            v-model.trim="addForm.name"
+            type="text"
+            placeholder="Например, Российская Федерация"
+            maxlength="100"
+            class="lk-input"
+            data-testid="citizenship-input-name"
+            @keyup.enter="submitAdd"
           >
-            <div class="modal-header">
-              <h3>Новое гражданство</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="citizenship-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Название гражданства</label>
-                <input
-                  v-model.trim="addForm.name"
-                  type="text"
-                  placeholder="Например, Российская Федерация"
-                  maxlength="100"
-                  class="lk-input"
-                  data-testid="citizenship-input-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input
-                    v-model="addForm.is_default"
-                    type="checkbox"
-                    class="checkbox"
-                  >
-                  <span class="checkbox-text">Гражданство по умолчанию</span>
-                </label>
-              </div>
-
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input
-                    v-model="addForm.patent_required"
-                    type="checkbox"
-                    class="checkbox"
-                  >
-                  <span class="checkbox-text">Требуется патент</span>
-                </label>
-              </div>
-
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="citizenship-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addForm.name || isAdding"
-                data-testid="citizenship-modal-save"
-                @click="submitAdd"
-              >
-                Добавить
-              </button>
-            </div>
-          </div>
         </div>
-      </transition>
-    </Teleport>
+
+        <div class="checkbox-section">
+          <label class="checkbox-label">
+            <input
+              v-model="addForm.is_default"
+              type="checkbox"
+              class="checkbox"
+            >
+            <span class="checkbox-text">Гражданство по умолчанию</span>
+          </label>
+        </div>
+
+        <div class="checkbox-section">
+          <label class="checkbox-label">
+            <input
+              v-model="addForm.patent_required"
+              type="checkbox"
+              class="checkbox"
+            >
+            <span class="checkbox-text">Требуется патент</span>
+          </label>
+        </div>
+
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="citizenship-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addForm.name || isAdding"
+          data-testid="citizenship-modal-save"
+          @click="submitAdd"
+        >
+          Добавить
+        </button>
+      </template>
+    </BaseModal>
 
     <ConfirmationModal
       :show="!!archiveConfirm"
@@ -451,11 +431,11 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import CitizenshipHistoryModal from './CitizenshipHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import {
   listCitizenships,
@@ -472,14 +452,8 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'CitizenshipManagement',
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, BaseModal, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
   mixins: [openFromSearchLink((vm) => vm.items, 'selectCitizenship')],
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
-  setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay };
-  },
   data() {
     return {
       items: [],
@@ -580,9 +554,6 @@ export default {
       this.pruneSelection();
     },
   },
-  created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
-  },
   mounted() {
     this.refresh();
     this.fetchCurrentUser();
@@ -611,17 +582,12 @@ export default {
         if (this.isDetailsDirty) await this.saveSelected();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
 
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
     sortList(list) {
       const arr = [...list];
       if (!this.sortField) {
@@ -1307,47 +1273,13 @@ export default {
 }
 
 /* Модалка создания */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.citizenship-modal {
-  width: 100%;
-  max-width: 440px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  overflow: hidden;
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.citizenship-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.modal-fade-enter-active .citizenship-modal,
-.modal-fade-leave-active .citizenship-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from .citizenship-modal,
-.modal-fade-leave-to .citizenship-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 767.98px) {

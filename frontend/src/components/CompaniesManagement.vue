@@ -544,86 +544,68 @@
     </div>
 
     <!-- Модальное окно добавления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="companies-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="companies-modal"
-            @mousedown.stop
+    <BaseModal
+      :show="showAddModal"
+      title="Новая компания"
+      width="440px"
+      radius="30px"
+      content-testid="companies-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="companies-modal-body">
+        <div class="form-group">
+          <label class="form-label">Название компании</label>
+          <input
+            ref="nameInput"
+            v-model.trim="addForm.name"
+            type="text"
+            placeholder="Введите название компании"
+            maxlength="100"
+            class="lk-input"
+            data-testid="companies-input-name"
+            @keyup.enter="submitAdd"
           >
-            <div class="modal-header">
-              <h3>Новая компания</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="companies-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Название компании</label>
-                <input
-                  ref="nameInput"
-                  v-model.trim="addForm.name"
-                  type="text"
-                  placeholder="Введите название компании"
-                  maxlength="100"
-                  class="lk-input"
-                  data-testid="companies-input-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Тип</label>
-                <BaseDropdown
-                  data-testid="companies-input-type"
-                  :model-value="addForm.type"
-                  :options="typeCreateOptions"
-                  label-key="label"
-                  value-key="value"
-                  placeholder="Выберите тип"
-                  @update:model-value="addForm.type = $event"
-                />
-              </div>
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="companies-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addForm.name || !addForm.type || isAdding"
-                data-testid="companies-modal-save"
-                @click="submitAdd"
-              >
-                Создать
-              </button>
-            </div>
-          </div>
         </div>
-      </transition>
-    </Teleport>
+        <div class="form-group">
+          <label class="form-label">Тип</label>
+          <BaseDropdown
+            data-testid="companies-input-type"
+            teleport
+            :menu-z-index="1100"
+            :model-value="addForm.type"
+            :options="typeCreateOptions"
+            label-key="label"
+            value-key="value"
+            placeholder="Выберите тип"
+            @update:model-value="addForm.type = $event"
+          />
+        </div>
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="companies-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addForm.name || !addForm.type || isAdding"
+          data-testid="companies-modal-save"
+          @click="submitAdd"
+        >
+          Создать
+        </button>
+      </template>
+    </BaseModal>
 
     <!-- Модальное окно подтверждения архивации -->
     <ConfirmationModal
@@ -751,7 +733,6 @@ import { useCompaniesStore } from '@/stores/companies';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
@@ -770,7 +751,6 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink';
 
 export default {
   name: 'CompaniesManagement',
-  mixins: [openFromSearchLink((vm) => vm.companiesWithUsers, 'selectCompany')],
   components: {
     DirectoryModeration,
     SearchComponent,
@@ -779,19 +759,13 @@ export default {
     SelectUnloadPlaces,
     SelectTables,
     ConfirmationModal,
-    BaseDropdown,
-    BaseModal,
+    BaseDropdown, BaseModal,
     LoaderSpinner,
     CompanyHistoryModal,
     BulkOperationsModal,
     AppIcon,
   },
-  setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay };
-  },
+  mixins: [openFromSearchLink((vm) => vm.companiesWithUsers, 'selectCompany')],
   data() {
     return {
       searchQuery: '',
@@ -1029,9 +1003,6 @@ export default {
       if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
     },
   },
-  created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
-  },
   mounted() {
     this.refreshData();
     this.fetchCurrentUser();
@@ -1061,11 +1032,9 @@ export default {
         if (this.responsiblesDirty) await this.$refs.responsibles?.saveResponsibleUsers();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
     ...mapActions(useCompaniesStore, [
@@ -1077,9 +1046,6 @@ export default {
       'fetchCompaniesWithUsers',
     ]),
 
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
 
     async refreshData() {
       // Тянем и архивные тоже - переключение режима фильтрует на клиенте без рефетча.
@@ -2139,47 +2105,13 @@ export default {
 }
 
 /* Модалка создания (эталон: radius 30px, lk-* классы) */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.companies-modal {
-  width: 100%;
-  max-width: 440px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  /* без overflow:hidden - иначе выпадающее меню дропдауна «Тип» обрезается краем модалки */
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.companies-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.modal-fade-enter-active .companies-modal,
-.modal-fade-leave-active .companies-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from .companies-modal,
-.modal-fade-leave-to .companies-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 968px) {
