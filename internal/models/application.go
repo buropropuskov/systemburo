@@ -44,6 +44,18 @@ type Application struct {
 	ContactPhone  *string `gorm:"size:50" json:"contact_phone"`
 	CompanyID          *int         `gorm:"index" json:"company_id"`
 	Company            *Company     `json:"-"`
+
+	// BureauNote - рабочая заметка бюро по заявке: почему она не сделана и что осталось.
+	// Одна на заявку, общая для всех принимающих; заявителю, согласующим и получателям
+	// пересылки не отдаётся нигде. json:"-" на всех трёх полях - не украшение, а барьер:
+	// Application целиком наружу сейчас не сериализуется, но стоит кому-нибудь вернуть её
+	// из хендлера напрямую, и заметка уедет заявителю молча, без единой правки этого файла.
+	BureauNote *string `gorm:"type:text" json:"-"`
+	// BureauNoteAuthorID и BureauNoteUpdatedAt - кто менял заметку последним и когда.
+	// Отдельной истории у заметки нет: audit_log[application] читает лента заявки, открытая
+	// заявителю, поэтому текст туда писать нельзя, и эти два поля - весь её след.
+	BureauNoteAuthorID  *int       `json:"-"`
+	BureauNoteUpdatedAt *time.Time `json:"-"`
 }
 
 type ApplicationStatusHistory struct {
