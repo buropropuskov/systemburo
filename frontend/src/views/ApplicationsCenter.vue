@@ -581,7 +581,7 @@
           <TransitionGroup
             v-if="filteredApplications.length > 0"
             tag="div"
-            name="app-row"
+            :name="rowTransitionName"
             class="applications-list"
             data-testid="ob-center-list"
           >
@@ -827,6 +827,8 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { getApplicationsPaginated, getApplicationById, downloadApplicationsRegistry } from '@/api/applications'
+import { useHeaderCounters } from '@/composables/useHeaderCounters'
+import { useRowTransition } from '@/composables/useRowTransition'
 import eventStream from '@/services/eventStream'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
@@ -890,7 +892,12 @@ export default {
         // applications - алиас infiniteList.items: pre-existing спеки читают/пишут
         // wrapper.vm.applications напрямую, переименование сломало бы их без пользы.
         const infiniteList = useInfiniteList({ perPage: APPLICATIONS_PER_PAGE })
+        const headerCounters = useHeaderCounters()
+        const rowTransition = useRowTransition('app-row')
         return {
+            headerCounters,
+            rowTransitionName: rowTransition.transitionName,
+            whileReplacingRows: rowTransition.whileReplacing,
             soundStore,
             permissionsStore,
             applications: infiniteList.items,
@@ -1251,14 +1258,8 @@ export default {
                    this.selectedPassageTableIds.length > 0;
         },
 
-        // Известное ограничение (#1158 срез 1): applications - только загруженные
-        // порции, не весь набор по текущим фильтрам, значит счётчик может занижать
-        // реальное число непрочитанных, если их больше, чем в загруженных порциях.
-        // На практике непрочитанные - обычно самые свежие (sending_datetime DESC),
-        // поэтому почти всегда попадают в первую порцию; точный счётчик независимо
-        // от пагинации - отдельный срез (напр. через getUnreadCount с текущими фильтрами).
         unreadCount() {
-            return this.applications.filter(app => !app.is_read).length;
+            return this.headerCounters.unread.value;
         },
 
         // Состояние переключателя «Новые» - производное от выбора в дропдауне «Статус»,
@@ -1269,13 +1270,9 @@ export default {
             return this.selectedApplicationStatuses.includes(UNREAD_STATUS);
         },
 
-        // Число заявок с обновлённым статусом среди загруженных (#1349). То же
-        // ограничение пагинации, что и unreadCount (счётчик по загруженным порциям):
-        // при активном чипе фильтр возвращает ровно flagged-заявки и счётчик точен.
-        // Гейт is_read зеркалит визуальную точку (Центр показывает флаг лишь у
-        // прочитанных - у непрочитанных своя жёлтая подсветка).
+        // Число заявок с обновлённым статусом (#1349). Гейт is_read держит сервер.
         statusUpdateCount() {
-            return this.applications.filter(app => app.has_status_update && app.is_read).length;
+            return this.headerCounters.statusUpdates.value;
         },
 
         // Теги фильтруются клиентски (бэк их не знает), сортировка по колонкам - тоже
@@ -1676,7 +1673,7 @@ export default {
         // подмножестве без шанса догрузить больше подходящих через скролл.
         applyFilters() {
             this.isInitialLoad = false;
-            this.fetchApplications();
+            this.whileReplacingRows(() => this.fetchApplications());
         },
         
         // Сортировка
@@ -2037,6 +2034,7 @@ export default {
                 }
                 // После первого полного fetch включаем инкрементальный polling со звуком.
                 this.pollPrimed = true;
+                this.headerCounters.refresh();
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
