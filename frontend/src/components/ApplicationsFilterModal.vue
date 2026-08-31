@@ -54,6 +54,9 @@
         <div class="filter-section__header">
           <span class="filter-label">Заявки</span>
         </div>
+        <!-- «Обновления» здесь больше нет: переключатель переехал в шапку Центра, где
+             он виден и на мобилке. Оставлять копию значило держать два контрола на один
+             флаг в одном вьюпорте и два узла с data-testid="center-button-updates". -->
         <div class="status-buttons">
           <button
             class="status-btn"
@@ -62,14 +65,6 @@
             @click="$emit('toggle-today')"
           >
             Заявки на сегодня
-          </button>
-          <button
-            class="status-btn status-btn--updates"
-            :class="{ 'status-btn--active': statusUpdatedOnly }"
-            data-testid="center-button-updates"
-            @click="$emit('toggle-status-updated')"
-          >
-            Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
           </button>
         </div>
       </div>
@@ -188,14 +183,6 @@ export default {
       type: Boolean,
       default: false,
     },
-    statusUpdatedOnly: {
-      type: Boolean,
-      default: false,
-    },
-    statusUpdateCount: {
-      type: Number,
-      default: 0,
-    },
     sortField: {
       type: String,
       default: null,
@@ -218,7 +205,6 @@ export default {
     'apply-date',
     'clear-date',
     'toggle-today',
-    'toggle-status-updated',
     'sort-by',
     'reset-sort',
     'reset-filters',

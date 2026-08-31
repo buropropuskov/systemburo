@@ -411,7 +411,7 @@
                             variant="primary"
                             size="sm"
                             class="rt-tag rt-tag--questions tag-hint"
-                            data-hint="Есть новые вопросы или ответы"
+                            data-hint="Есть новые сообщения в обсуждении"
                             :data-testid="`user-questions-badge-${application.id}`"
                           >
                             <svg
@@ -425,7 +425,7 @@
                               stroke-linecap="round"
                               stroke-linejoin="round"
                             ><path d="M4 5.5h16a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H9.5L5.5 20v-3.5H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z" /></svg>
-                            <span class="rt-tag__text">Вопросы</span>
+                            <span class="rt-tag__text">Обсуждение</span>
                             <span
                               class="rt-tag__q-dot"
                               aria-hidden="true"
@@ -1109,7 +1109,7 @@ export default {
         this.statusUpdateCount = Math.max(0, this.statusUpdateCount - 1);
       }
 
-      // Маркер вопросов гасит ПРОЧТЕНИЕ топиков в детали (клик), не факт открытия (#973):
+      // Маркер обсуждений гасит ПРОЧТЕНИЕ тем в детали (клик), не факт открытия (#973):
       // иконка обновится при следующей загрузке списка. Оптимистично не снимаем.
       this.selectedApplication = application;
       await this.fetchResponsibleUsers(application.id);
@@ -1119,7 +1119,7 @@ export default {
       setBodyScrollLock(this, true);
     },
 
-    // Все вопросы заявки прочитаны в детали -> гасим маркер в списке оптимистично (#973).
+    // Всё обсуждение заявки прочитано в детали -> гасим маркер в списке оптимистично (#973).
     onQuestionsRead(applicationId) {
       const app = this.applications.find(a => a.id === applicationId);
       if (app) {
@@ -1616,7 +1616,7 @@ export default {
   flex-shrink: 0;
 }
 
-/* Маркер вопросов (#973): чат-иконка (всегда видна) + красная точка-индикатор. */
+/* Маркер обсуждения (#973): чат-иконка (всегда видна) + красная точка-индикатор. */
 .rt-tag__q-svg {
   flex-shrink: 0;
 }
