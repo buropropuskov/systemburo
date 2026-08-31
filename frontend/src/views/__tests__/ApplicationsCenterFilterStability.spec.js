@@ -205,6 +205,22 @@ describe('Центр заявок: смена фильтра не дёргает
     ).toEqual([]);
   });
 
+  it.each(['app-row', 'app-row-filter'])('%s: move объявлен выше leave', (set) => {
+    const move = transitions.indexOf(`.${set}-move`);
+    const leave = transitions.indexOf(`.${set}-leave-active`);
+    expect(move, `${set}-move не найден`).toBeGreaterThan(-1);
+    expect(leave, `${set}-leave-active не найден`).toBeGreaterThan(-1);
+
+    expect(
+      move < leave,
+      `при массовом уходе Vue вешает на строку оба класса сразу: она сместилась `
+        + `относительно прошлого кадра, значит попала в movedChildren. transition - `
+        + `шорткат, и тот, что ниже, вытесняет свойства верхнего целиком. С move ниже `
+        + `leave у уходящей остаётся только transform: строка едет влево, но гаснет `
+        + `скачком (замер на стенде: opacity приняла 2 значения вместо 15)`,
+    ).toBe(true);
+  });
+
   it('composable возвращает живой набор переходов после замены', () => {
     const composable = readFileSync(
       resolve(__dirname, '..', '..', 'composables', 'useRowTransition.js'),

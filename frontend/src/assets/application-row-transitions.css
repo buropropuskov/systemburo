@@ -45,6 +45,17 @@
    а не как «сначала исчезло, потом сдвинулось».
 
    Только transform и opacity - раскладку не трогаем. */
+.applications-list .app-row-filter-move {
+    transition: transform 0.32s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* Уходящая строка обязана стоять НИЖЕ move: при массовом уходе Vue вешает на неё
+   оба класса сразу (она сместилась относительно прошлого кадра, значит попала в
+   movedChildren), а `transition` - шорткат, и тот, что ниже, вытесняет свойства
+   верхнего целиком. С обратным порядком у уходящей оставался только transform:
+   строка ехала влево, но гасла скачком - opacity принимала два значения вместо
+   пятнадцати (замер на стенде 31.08). Разделители периодов гасли плавно, потому
+   что move им не достаётся - они не двигаются, когда уходят соседи. */
 .applications-list .app-row-filter-leave-active {
     transition: opacity 0.22s ease-in, transform 0.28s cubic-bezier(0.4, 0, 0.6, 1);
     position: absolute;
@@ -55,10 +66,6 @@
 .applications-list .app-row-filter-leave-to {
     opacity: 0;
     transform: translateX(-40px);
-}
-
-.applications-list .app-row-filter-move {
-    transition: transform 0.32s cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 /* Появление без сдвига: пришедшие в выборку проявляются на своём месте, пока
