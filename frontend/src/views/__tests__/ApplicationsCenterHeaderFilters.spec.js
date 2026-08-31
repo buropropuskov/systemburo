@@ -89,17 +89,31 @@ describe('ApplicationsCenter — переключатели «Новые» и «
     expect(updatesBtn(wrapper).text()).toBe('Обновления');
   });
 
-  it('счётчики дописываются к подписям', async () => {
+  // Числа приходят с сервера (getUnreadCount), а не считаются по загруженным
+  // строкам: иначе включённый фильтр обнулял соседний счётчик, подпись кнопки
+  // укорачивалась и ряд разъезжался. Правило «обновление считается только у
+  // прочитанных» живёт на бэкенде и покрыто там (requireRead-гейт Центра).
+  it('счётчики дописываются к подписям из ответа сервера', async () => {
     wrapper = mountCenter();
-    wrapper.vm.applications = [
-      app({ id: 1, is_read: false }),
-      app({ id: 2, is_read: false }),
-      app({ id: 3, is_read: true, has_status_update: true }),
-    ];
+    wrapper.vm.headerCounters.unread.value = 2;
+    wrapper.vm.headerCounters.statusUpdates.value = 1;
     await wrapper.vm.$nextTick();
 
     expect(unreadBtn(wrapper).text()).toBe('Новые: 2');
     expect(updatesBtn(wrapper).text()).toBe('Обновления: 1');
+  });
+
+  it('счётчики не зависят от того, что лежит в загруженных строках', async () => {
+    wrapper = mountCenter();
+    wrapper.vm.headerCounters.unread.value = 5;
+    wrapper.vm.headerCounters.statusUpdates.value = 3;
+    // Выборка отфильтрована и непрочитанных в ней нет - подписи обязаны остаться
+    // прежними, иначе кнопка меняет ширину и соседняя съезжает.
+    wrapper.vm.applications = [app({ id: 9, is_read: true, has_status_update: false })];
+    await wrapper.vm.$nextTick();
+
+    expect(unreadBtn(wrapper).text()).toBe('Новые: 5');
+    expect(updatesBtn(wrapper).text()).toBe('Обновления: 3');
   });
 
   it('«Новые» с включёнными «Обновлениями» не пропадают, хотя непрочитанных в выборке нет', async () => {
@@ -218,11 +232,11 @@ describe('ApplicationsCenter — переключатели «Новые» и «
 
   it('неактивные кнопки подсвечены цветом своей строки, только когда есть что смотреть', async () => {
     wrapper = mountCenter();
-    wrapper.vm.applications = [app({ id: 1, is_read: false })];
+    wrapper.vm.headerCounters.unread.value = 1;
     await wrapper.vm.$nextTick();
     expect(unreadBtn(wrapper).classes()).toContain('status-btn--unread');
 
-    wrapper.vm.applications = [app({ id: 2, is_read: true })];
+    wrapper.vm.headerCounters.unread.value = 0;
     await wrapper.vm.$nextTick();
     expect(unreadBtn(wrapper).classes()).not.toContain('status-btn--unread');
   });
