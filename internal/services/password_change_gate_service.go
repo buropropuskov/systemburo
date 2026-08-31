@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"systemburo/internal/models"
-
 	"gorm.io/gorm"
 )
 
@@ -50,8 +48,21 @@ func (s *PasswordChangeGateService) Required(ctx context.Context, userID int) (b
 		}
 	}
 
-	var user models.User
-	if err := s.db.WithContext(ctx).Select("id, must_change_password").First(&user, userID).Error; err != nil {
+	// Тип учётной записи читается тем же запросом: работник поста своим паролем
+	// не распоряжается (#2280), и поднятый флаг запер бы его в форме, которую
+	// сервер ему всё равно не даст пройти. Флаг при этом не гасим - он останется
+	// на записи и снова заработает, если тип сменят.
+	var row struct {
+		MustChangePassword bool
+		TypeCode           string
+	}
+	err := s.db.WithContext(ctx).
+		Table("users").
+		Select("users.must_change_password, user_types.code AS type_code").
+		Joins("LEFT JOIN user_types ON user_types.id = users.type_id").
+		Where("users.id = ?", userID).
+		Scan(&row).Error
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Несуществующий пользователь - не забота этого гейта: маркер на
 			// удалённую запись режет проверка блокировки. Требование сменить пароль
@@ -61,10 +72,11 @@ func (s *PasswordChangeGateService) Required(ctx context.Context, userID int) (b
 		return false, err
 	}
 
-	if !user.MustChangePassword {
+	required := row.MustChangePassword && row.TypeCode != securityUserTypeCode
+	if !required {
 		s.cache.Store(userID, time.Now().Add(s.ttl))
 	}
-	return user.MustChangePassword, nil
+	return required, nil
 }
 
 // Invalidate сбрасывает отрицательную запись кэша. Нужен там, где флаг ПОДНИМАЮТ и

@@ -308,6 +308,15 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 	// Отсчёт срока действия пароля начинается с момента заведения учётной записи
 	// (#1907): иначе новый работник попадал бы под первую же плановую смену.
 	passwordSetAt := time.Now()
+
+	// Работнику поста свой пароль задавать нечем: смену ему закрывает бюро
+	// пропусков, и поднятый флаг запер бы его в окне, которого он не пройдёт.
+	securityAccount, err := isSecurityUserType(ctx, s.db, req.TypeID)
+	if err != nil {
+		slog.Error("не удалось определить тип учётной записи", "type_id", req.TypeID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating user")
+	}
+
 	user := models.User{
 		Username:          req.Username,
 		Password:          hashPassword(req.Password),
@@ -324,8 +333,9 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		// Свой пароль работник задаёт при первом входе независимо от того, кто
 		// придумал текущий: и придуманный системой, и заданный администратором
 		// прошёл через чужие руки, а высланный письмом ещё и лежит открытым
-		// текстом в почтовом ящике.
-		MustChangePassword: true,
+		// текстом в почтовом ящике. Работник поста - исключение: его пароль
+		// целиком ведёт бюро пропусков (#2280).
+		MustChangePassword: !securityAccount,
 	}
 	if err := s.createWithWelcomeLetter(ctx, &user, req.Password, sendLetter); err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
@@ -598,6 +608,17 @@ func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUs
 // аудит и уведомление там уже написаны и должны работать одинаково независимо
 // от того, кто менял пароль.
 func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta, keepRefreshToken string) error {
+	// Пароль работника поста ведёт бюро пропусков (#2280): форму смены ему не
+	// показывают, а запрос мимо интерфейса отклоняется здесь.
+	securityAccount, err := isSecurityUser(ctx, s.db, userID)
+	if err != nil {
+		slog.Error("не удалось определить тип учётной записи", "user_id", userID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сменить пароль")
+	}
+	if securityAccount {
+		return echo.NewHTTPError(http.StatusForbidden, "Пароль работника поста меняет бюро пропусков")
+	}
+
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
