@@ -12,12 +12,12 @@
       },
       "highlight": [
         {
-          "selector": "[data-testid=\"login-form\"] input",
+          "selector": "[data-testid=\"login-form\"] .login__input",
           "nth": 0,
           "badge": 1
         },
         {
-          "selector": "[data-testid=\"login-form\"] input",
+          "selector": "[data-testid=\"login-form\"] .login__input",
           "nth": 1,
           "badge": 2
         }
@@ -641,6 +641,72 @@
       ]
     },
     {
+      "id": "header-full",
+      "goto": "/news",
+      "waitFor": ".header",
+      "calm": false,
+      "clip": {
+        "selector": ".header",
+        "pad": {
+          "x": 10,
+          "y": 14
+        }
+      }
+    },
+    {
+      "id": "header-time",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"header-time\"]",
+      "clip": {
+        "selector": "[data-testid=\"header-time\"]",
+        "pad": {
+          "x": 330,
+          "y": 45
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"header-time\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "header-broadcast",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-header-broadcast\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-header-broadcast\"]",
+        "pad": {
+          "x": 210,
+          "y": 55
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-header-broadcast\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "announcement",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-header-broadcast\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-header-broadcast\"]"
+        },
+        {
+          "wait": ".announcement-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".announcement-modal",
+        "pad": 35
+      }
+    },
+    {
       "id": "notifications",
       "goto": "/news",
       "waitFor": "[data-testid=\"ob-header-notifications\"]",
@@ -693,7 +759,13 @@
           "x": 420,
           "y": 30
         }
-      }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"global-search-panel\"]",
+          "inset": true
+        }
+      ]
     },
     {
       "id": "logout",

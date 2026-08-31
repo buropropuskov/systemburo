@@ -228,14 +228,16 @@ export async function calmPage(page) {
  * Заморозка до измерения убирает расхождение целиком.
  */
 export async function freezeAnimations(page) {
+  /*
+   * Переходы снимаются целиком, а не ускоряются: часы кадра зафиксированы
+   * (page.clock), и заданная длительность в 1 мс никогда не истекает - переход
+   * застревает на полпути, элемент рисуется смещённым, а обводка ложится по
+   * его конечным координатам. Так линия у полей входа висела над полем.
+   */
   await page.addStyleTag({
     content: `*, *::before, *::after {
-      animation-play-state: paused !important;
-      animation-delay: -1ms !important;
-      animation-duration: 1ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 1ms !important;
-      transition-delay: 0s !important;
+      animation: none !important;
+      transition: none !important;
     }`,
   });
 }
