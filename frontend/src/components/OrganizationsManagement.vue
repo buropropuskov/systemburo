@@ -544,86 +544,68 @@
     </div>
 
     <!-- Модальное окно добавления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="orgs-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="orgs-modal"
-            @mousedown.stop
+    <BaseModal
+      :show="showAddModal"
+      title="Новая организация"
+      width="440px"
+      radius="30px"
+      content-testid="orgs-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="orgs-modal-body">
+        <div class="form-group">
+          <label class="form-label">Название организации</label>
+          <input
+            ref="nameInput"
+            v-model.trim="addForm.name"
+            type="text"
+            placeholder="Введите название организации"
+            maxlength="100"
+            class="lk-input"
+            data-testid="orgs-input-name"
+            @keyup.enter="submitAdd"
           >
-            <div class="modal-header">
-              <h3>Новая организация</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="orgs-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Название организации</label>
-                <input
-                  ref="nameInput"
-                  v-model.trim="addForm.name"
-                  type="text"
-                  placeholder="Введите название организации"
-                  maxlength="100"
-                  class="lk-input"
-                  data-testid="orgs-input-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Тип</label>
-                <BaseDropdown
-                  data-testid="orgs-input-type"
-                  :model-value="addForm.type"
-                  :options="typeCreateOptions"
-                  label-key="label"
-                  value-key="value"
-                  placeholder="Выберите тип"
-                  @update:model-value="addForm.type = $event"
-                />
-              </div>
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="orgs-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addForm.name || !addForm.type || isAdding"
-                data-testid="orgs-modal-save"
-                @click="submitAdd"
-              >
-                Создать
-              </button>
-            </div>
-          </div>
         </div>
-      </transition>
-    </Teleport>
+        <div class="form-group">
+          <label class="form-label">Тип</label>
+          <BaseDropdown
+            data-testid="orgs-input-type"
+            teleport
+            :menu-z-index="1100"
+            :model-value="addForm.type"
+            :options="typeCreateOptions"
+            label-key="label"
+            value-key="value"
+            placeholder="Выберите тип"
+            @update:model-value="addForm.type = $event"
+          />
+        </div>
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="orgs-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addForm.name || !addForm.type || isAdding"
+          data-testid="orgs-modal-save"
+          @click="submitAdd"
+        >
+          Создать
+        </button>
+      </template>
+    </BaseModal>
 
     <!-- Модальное окно подтверждения архивации -->
     <ConfirmationModal
@@ -751,7 +733,6 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
@@ -770,7 +751,6 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink';
 
 export default {
   name: 'OrganizationsManagement',
-  mixins: [openFromSearchLink((vm) => vm.organizationsWithUsers, 'selectOrganization')],
   components: {
     DirectoryModeration,
     SearchComponent,
@@ -779,19 +759,13 @@ export default {
     SelectUnloadPlaces,
     SelectTables,
     ConfirmationModal,
-    BaseDropdown,
-    BaseModal,
+    BaseDropdown, BaseModal,
     LoaderSpinner,
     OrgHistoryModal,
     BulkOperationsModal,
     AppIcon,
   },
-  setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay };
-  },
+  mixins: [openFromSearchLink((vm) => vm.organizationsWithUsers, 'selectOrganization')],
   data() {
     return {
       searchQuery: '',
@@ -1029,9 +1003,6 @@ export default {
       if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
     },
   },
-  created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
-  },
   mounted() {
     this.refreshData();
     this.fetchCurrentUser();
@@ -1061,11 +1032,9 @@ export default {
         if (this.responsiblesDirty) await this.$refs.responsibles?.saveResponsibleUsers();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
     ...mapActions(useOrganizationsStore, [
@@ -1077,9 +1046,6 @@ export default {
       'fetchOrganizationsWithUsers',
     ]),
 
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
 
     async refreshData() {
       // Тянем и архивные тоже - переключение режима фильтрует на клиенте без рефетча.
@@ -1332,7 +1298,21 @@ export default {
     async submitAdd() {
       const name = this.addForm.name.trim();
       const type = this.addForm.type;
-      if (!name || !type || this.isAdding) return;
+      if (this.isAdding) return;
+      // Молча выходить нельзя: сюда приходит не только кнопка (она заблокирована
+      // при пустых полях), но и «Сохранить все изменения» из диалога несохранённого.
+      // Оттуда тихий выход выглядел как «нажал и ничего не произошло»: форма
+      // оставалась грязной, и диалог считал сохранение неудавшимся.
+      if (!name || !type) {
+        this.addError = !name
+          ? 'Укажите название - без него организацию не создать.'
+          : 'Выберите тип - без него организацию не создать.';
+        // Ошибку в форме не видно, когда сохранение пришло из диалога
+        // несохранённого: он лежит выше окна и перекрывает её. Тост -
+        // единственный слой поверх диалога.
+        useDeletionsStore().notify({ prefix: this.addError, type: 'error' });
+        return;
+      }
       this.isAdding = true;
       this.addError = '';
 
@@ -1584,6 +1564,9 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/directory-management.css';
+@import '@/assets/directory-bulk-bar.css';
+
 .organizations-management {
   position: relative;
   background: var(--surface);
@@ -1601,40 +1584,10 @@ export default {
   height: 50px;
 }
 
-.management-title {
-  font-size: 1.2em;
-  margin: 0;
-  font-weight: 600;
-  color: var(--text);
-}
-
 .header-controls {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.archive-dropdown {
-  min-width: 130px;
-}
-
-.add-header-button {
-  padding: 8px 16px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.add-header-button:hover {
-  background: var(--accent-hover);
 }
 
 /* Панель групповых операций - оверлей поверх шапки, не двигает контент (reflow).
@@ -1656,35 +1609,6 @@ export default {
      карточке (expanded-nav ~800-965px). Держим одну строку, узко - горизонтальный скролл. */
   overflow-x: auto;
   overflow-y: hidden;
-}
-
-.bulk-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent-text);
-  white-space: nowrap;
-}
-
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  margin-left: auto;
-}
-
-.bulk-actions .pill {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.bulk-clear {
-  color: var(--text-muted);
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-}
-
-.bulk-clear:hover {
-  background: var(--surface-2);
 }
 
 .bulk-slide-enter-active,
@@ -1711,23 +1635,6 @@ export default {
   border-right: 1px solid var(--border);
 }
 
-.table-container {
-  background: var(--surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.table-header {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  height: 43px;
-  align-items: center;
-}
-
 .header-col {
   padding: 0 8px;
   font-size: 14px;
@@ -1742,32 +1649,11 @@ export default {
   user-select: none;
 }
 
-.header-col:hover {
-  color: var(--text);
-}
-
-.header-col:hover .sort-icon {
-  color: var(--text);
-}
-
 .sort-icon {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
-}
-
-.sort-icon.sorted {
-  color: var(--text);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
-}
-
-.active-sort {
-  color: var(--text) !important;
-  font-weight: 600 !important;
 }
 
 .check-col {
@@ -1782,14 +1668,6 @@ export default {
 
 .header-col.check-col:hover {
   color: var(--text-muted);
-}
-
-.bulk-check {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: var(--accent-text);
-  margin: 0;
 }
 
 .id-col {
@@ -1839,51 +1717,9 @@ export default {
   overflow-y: auto;
 }
 
-.table-row {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  height: 42px;
-  font-size: 14px;
-}
-
-.table-row:hover {
-  background-color: var(--surface-2);
-}
-
-.table-row.selected {
-  background-color: var(--accent-tint);
-}
-
-.table-row.inactive {
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-
 .table-row.inactive .id-value,
 .table-row.inactive .count-value {
   color: var(--text-muted);
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-col {
-  padding: 0 8px;
-}
-
-.cell-content {
-  display: block;
-  padding: 4px 0;
-}
-
-.id-value {
-  font-weight: 600;
-  color: var(--text);
 }
 
 .user-count {
@@ -1895,21 +1731,6 @@ export default {
 .count-value {
   font-weight: 600;
   color: var(--text);
-}
-
-.truncate-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  display: block;
-}
-
-.inactive-badge {
-  margin-left: 6px;
-  font-size: 0.75em;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* Бейдж записи «на проверке» (#1437) - тот же вид, что у плашки разбора в детали
@@ -1945,12 +1766,6 @@ export default {
   border-top: 1px solid var(--border);
   text-align: end;
   background: var(--surface-2);
-}
-
-.items-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 /* ===== Детали: рабочая область (вариант 1) ===== */
@@ -2012,16 +1827,6 @@ export default {
   font-size: 0.82em;
 }
 
-.archive-badge {
-  background: var(--text-muted);
-  color: var(--surface);
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75em;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 /* pill-кнопки (эталон мокапа) */
 .pill {
   display: inline-flex;
@@ -2042,36 +1847,6 @@ export default {
   background: var(--surface-2);
   color: var(--accent-text);
   cursor: default;
-}
-
-.pill-ghost {
-  background: var(--surface);
-  color: var(--accent-text);
-  border: 1px solid var(--accent);
-}
-
-.pill-ghost:hover {
-  background: var(--accent-tint);
-}
-
-.pill-danger {
-  background: var(--surface);
-  color: var(--danger-text);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-}
-
-.pill-danger:hover {
-  background: var(--danger-bg);
-  border-color: var(--danger);
-}
-
-.pill-restore {
-  background: var(--success);
-  color: var(--fill-text);
-}
-
-.pill-restore:hover {
-  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 /* карточка-секция */
@@ -2278,114 +2053,13 @@ export default {
 }
 
 /* Модалка создания (эталон: radius 30px, lk-* классы) */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.orgs-modal {
-  width: 100%;
-  max-width: 440px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  /* без overflow:hidden - иначе выпадающее меню дропдауна «Тип» обрезается краем модалки */
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-close {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  line-height: 1;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.orgs-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 0.85em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-active .orgs-modal,
-.modal-fade-leave-active .orgs-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  background: transparent;
-}
-
-.modal-fade-enter-from .orgs-modal,
-.modal-fade-leave-to .orgs-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 968px) {

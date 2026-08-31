@@ -96,12 +96,18 @@ describe('ApplicationsCenter — флаг обновления статуса (#
     expect(wrapper.find('[data-testid="center-status-dot-4"]').exists()).toBe(false);
   });
 
-  it('statusUpdateCount считает только прочитанные с флагом', () => {
+  // Счёт переехал на сервер: он считает по всему скоупу доступа и не зависит от
+  // фильтров экрана, иначе включённый фильтр обнулял соседний счётчик и кнопка
+  // меняла ширину. Правило «в счёт идут только прочитанные с флагом» проверяется
+  // там же, где теперь и живёт - handlers/application_status_updates_test.go
+  // (requireRead-гейт Центра).
+  it('statusUpdateCount берётся из ответа сервера, а не из загруженных строк', () => {
     wrapper = mountCenter();
+    wrapper.vm.headerCounters.statusUpdates.value = 1;
+    // В выборке лежит заявка с флагом, но счётчик её не считает - источник другой.
     wrapper.vm.applications = [
       fullApp({ id: 1, is_read: true, has_status_update: true }),
-      fullApp({ id: 2, is_read: true, has_status_update: false }),
-      fullApp({ id: 3, is_read: false, has_status_update: true }), // непрочитана — не в счёте
+      fullApp({ id: 2, is_read: true, has_status_update: true }),
     ];
     expect(wrapper.vm.statusUpdateCount).toBe(1);
   });

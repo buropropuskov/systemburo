@@ -36,7 +36,7 @@ describe('ApplicationQuestions (#973)', () => {
     localStorage.clear();
   });
 
-  it('свёрнут по умолчанию и показывает вопросы', async () => {
+  it('свёрнут по умолчанию и показывает темы обсуждения', async () => {
     getQuestions.mockResolvedValue(QUESTIONS);
     const wrapper = mountQ();
     await flushPromises();
@@ -47,7 +47,7 @@ describe('ApplicationQuestions (#973)', () => {
     expect(wrapper.text()).toContain('Тема1');
   });
 
-  it('пустой список: empty-state и кнопка «Задать вопрос» при canAsk', async () => {
+  it('пустой список: empty-state и кнопка «Начать обсуждение» при canAsk', async () => {
     getQuestions.mockResolvedValue([]);
     const wrapper = mountQ();
     await flushPromises();
@@ -56,7 +56,7 @@ describe('ApplicationQuestions (#973)', () => {
     expect(wrapper.find('[data-testid="question-ask-button"]').exists()).toBe(true);
   });
 
-  it('canAsk=false прячет кнопку «Задать вопрос»', async () => {
+  it('canAsk=false прячет кнопку «Начать обсуждение»', async () => {
     getQuestions.mockResolvedValue([]);
     const wrapper = mountQ({ canAsk: false });
     await flushPromises();
@@ -93,7 +93,7 @@ describe('ApplicationQuestions (#973)', () => {
     expect(wrapper.find('[data-testid="application-questions"]').classes()).not.toContain('collapsed');
   });
 
-  it('load() перезагружает вопросы', async () => {
+  it('load() перезагружает обсуждение', async () => {
     getQuestions.mockResolvedValue([]);
     const wrapper = mountQ();
     await flushPromises();

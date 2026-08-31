@@ -155,20 +155,15 @@ describe('ApplicationsFilterModal', () => {
     expect(td(w, 'center-button-today').classes()).toContain('status-btn--active');
   });
 
-  it('чип "Обновления" эмитит toggle-status-updated и показывает счётчик (#1349)', async () => {
-    const w = mountModal({ statusUpdatedOnly: true, statusUpdateCount: 4 });
-    const btn = td(w, 'center-button-updates');
-    expect(btn.exists()).toBe(true);
-    expect(btn.classes()).toContain('status-btn--active');
-    expect(btn.text()).toContain('Обновления: 4');
-    await btn.trigger('click');
-    expect(w.emitted('toggle-status-updated')).toBeTruthy();
-  });
-
-  it('чип "Обновления" без счётчика показывает только подпись', () => {
-    const btn = td(mountModal({ statusUpdateCount: 0 }), 'center-button-updates');
-    expect(btn.text()).toBe('Обновления');
-    expect(btn.classes()).not.toContain('status-btn--active');
+  // Чип «Обновления» жил здесь с #1349, а теперь переключатель стоит в шапке Центра и
+  // виден на мобилке тоже. Замок держит его отсюда убранным: копия дала бы два контрола
+  // на один флаг в одном вьюпорте и два узла с одинаковым data-testid, по которому
+  // ищут и тесты, и туры. Поведение самой кнопки проверяет
+  // views/__tests__/ApplicationsCenterHeaderFilters.spec.js.
+  it('чипа "Обновления" в модалке нет - переключатель живёт в шапке Центра', () => {
+    const w = mountModal();
+    expect(td(w, 'center-button-updates').exists()).toBe(false);
+    expect(w.emitted('toggle-status-updated')).toBeFalsy();
   });
 
   it('reset-filters: disabled без активных фильтров, enabled с активными', () => {

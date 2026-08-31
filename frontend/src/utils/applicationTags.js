@@ -60,8 +60,8 @@ const TAG_DEFS = {
     iconInText: false,
     testid: (app) => `center-questions-badge-${app.id}`,
     match: (app) => !!app.has_unseen_questions,
-    text: () => 'Вопросы',
-    hint: () => 'Есть новые вопросы или ответы',
+    text: () => 'Обсуждение',
+    hint: () => 'Есть новые сообщения в обсуждении',
   },
   supplement: {
     variant: 'info',

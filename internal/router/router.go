@@ -906,6 +906,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.DELETE("/:id/blacklist-overrides", app.DeleteBlacklistOverride) // #481 - отмена подтверждения (срез C)
 	apg.GET("/:id/check-approval-status", app.CheckApprovalStatus)
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
+	// Заметка бюро по заявке. Права нет, проверяет сервис: вести её вправе только
+	// принимающий, а принимающий - роль из справочника, а не разрешение.
+	apg.PUT("/:id/bureau-note", app.SetBureauNote)
 	// #1393 - принимающий доназначает посты и места элементам заявки
 	apg.PUT("/:id/elements/tables", app.AssignElementTables)
 	// Принимающий убирает человека или машину из поданной заявки: решение для случая,

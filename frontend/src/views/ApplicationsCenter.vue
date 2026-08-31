@@ -22,13 +22,42 @@
           />
         </div>
 
-        <div
-          v-if="unreadCount > 0"
-          class="unread-badge"
-          data-testid="center-badge-unread"
-          :class="{ 'shake-animation': shouldShake }"
-        >
-          Новые: {{ unreadCount }}
+        <!-- «Новые» и «Обновления» - пара фильтров-переключателей в первом ряду шапки.
+             «Новые» не заводит своего параметра, а переключает псевдо-статус
+             «Непрочитано» дропдауна «Статус» (см. unreadOnly): один источник состояния,
+             поэтому кнопка и дропдаун не разъезжаются. Кнопки видны всегда, даже при
+             нулевом счётчике: пассивный бейдж прятался по v-if, и при включении
+             «Обновлений» (там весь список прочитан) соседи прыгали на его место. -->
+        <div class="header-top__toggles">
+          <button
+            type="button"
+            class="status-btn"
+            :class="{
+              'status-btn--active': unreadOnly,
+              'status-btn--unread': !unreadOnly && unreadCount > 0,
+              'shake-animation': shouldShake,
+            }"
+            :aria-pressed="unreadOnly ? 'true' : 'false'"
+            title="Показать только непрочитанные заявки"
+            data-testid="center-button-unread"
+            @click="toggleUnreadOnly"
+          >
+            Новые<template v-if="unreadCount > 0">: {{ unreadCount }}</template>
+          </button>
+          <button
+            type="button"
+            class="status-btn"
+            :class="{
+              'status-btn--active': statusUpdatedOnly,
+              'status-btn--updates': !statusUpdatedOnly && statusUpdateCount > 0,
+            }"
+            :aria-pressed="statusUpdatedOnly ? 'true' : 'false'"
+            title="Показать только заявки, у которых после вашего просмотра менялся статус"
+            data-testid="center-button-updates"
+            @click="toggleStatusUpdated"
+          >
+            Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
+          </button>
         </div>
 
         <div class="header-top__actions">
@@ -280,14 +309,6 @@
             >
               Заявки на сегодня
             </button>
-            <button
-              class="status-btn status-btn--updates"
-              :class="{ 'status-btn--active': statusUpdatedOnly }"
-              data-testid="center-button-updates"
-              @click="toggleStatusUpdated"
-            >
-              Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
-            </button>
 
             <!-- Кнопка появляется только при активной сортировке: постоянно висящая
                  disabled-кнопка занимала 167px и выдавливала ряд на вторую строку
@@ -412,8 +433,6 @@
       :date-range-start="dateRangeStart"
       :date-range-end="dateRangeEnd"
       :active-today="activeToday"
-      :status-updated-only="statusUpdatedOnly"
-      :status-update-count="statusUpdateCount"
       :sort-field="sortField"
       :sort-direction="sortDirection"
       :has-active-filters="hasActiveFilters"
@@ -425,7 +444,6 @@
       @apply-date="applyDateFilters"
       @clear-date="clearDateRange"
       @toggle-today="toggleActiveToday"
-      @toggle-status-updated="toggleStatusUpdated"
       @sort-by="sortBy"
       @reset-sort="resetSort"
       @reset-filters="resetFilters"
@@ -563,7 +581,7 @@
           <TransitionGroup
             v-if="filteredApplications.length > 0"
             tag="div"
-            name="app-row"
+            :name="rowTransitionName"
             class="applications-list"
             data-testid="ob-center-list"
           >
@@ -809,6 +827,8 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { getApplicationsPaginated, getApplicationById, downloadApplicationsRegistry } from '@/api/applications'
+import { useHeaderCounters } from '@/composables/useHeaderCounters'
+import { useRowTransition } from '@/composables/useRowTransition'
 import eventStream from '@/services/eventStream'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
@@ -839,6 +859,12 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 // в AccessibleAttachmentsView/TableVersionsView.
 const APPLICATIONS_PER_PAGE = 30;
 
+// Псевдо-статус: значение колонки a.status такого нет, непрочитанность живёт только
+// в application_reads. Вынесен в константу, потому что на него смотрят три места
+// (дропдаун «Статус», переключатель «Новые», сборка query-параметров) - разъезд
+// строкового литерала тихо отключил бы фильтр.
+const UNREAD_STATUS = 'Непрочитано';
+
 export default {
     name: 'ApplicationsCenter',
     components: {
@@ -866,7 +892,12 @@ export default {
         // applications - алиас infiniteList.items: pre-existing спеки читают/пишут
         // wrapper.vm.applications напрямую, переименование сломало бы их без пользы.
         const infiniteList = useInfiniteList({ perPage: APPLICATIONS_PER_PAGE })
+        const headerCounters = useHeaderCounters()
+        const rowTransition = useRowTransition('app-row', 'app-row-filter')
         return {
+            headerCounters,
+            rowTransitionName: rowTransition.transitionName,
+            whileReplacingRows: rowTransition.whileReplacing,
             soundStore,
             permissionsStore,
             applications: infiniteList.items,
@@ -948,7 +979,7 @@ export default {
                 { value: 'Согласование', label: 'На согласовании' }
             ],
             applicationStatuses: [
-                { value: 'Непрочитано', label: 'Непрочитано' },
+                { value: UNREAD_STATUS, label: 'Непрочитано' },
                 { value: 'В обработке', label: 'В обработке' },
                 { value: 'В работе', label: 'В работе' },
                 { value: 'Завершено', label: 'Завершено' },
@@ -1092,7 +1123,7 @@ export default {
             // Фильтр по статусу заявки. "Непрочитано" срабатывает и на статусе заявки
             // "Непрочитано", и на заявках, не прочитанных пользователем (!is_read).
             if (this.selectedApplicationStatuses.length > 0) {
-                const includeUnread = this.selectedApplicationStatuses.includes('Непрочитано');
+                const includeUnread = this.unreadOnly;
                 filtered = filtered.filter(app =>
                     this.selectedApplicationStatuses.includes(app.status) ||
                     (includeUnread && !app.is_read)
@@ -1205,13 +1236,15 @@ export default {
         },
         
         hasActiveFilters() {
-            return !!this.searchQuery.trim() || this.hasModalFilters;
+            return !!this.searchQuery.trim() || this.statusUpdatedOnly || this.hasModalFilters;
         },
 
         // Только фильтры ВНУТРИ модалки «Фильтр» - для точки-индикатора на кнопке
         // (кнопка мобильная, поэтому набор = что в модалке на мобилке). Организация тоже
         // в модалке на мобилке -> входит в индикатор. Поиск НЕ входит: он в шапке отдельно
         // (иконка -> раскрывающееся поле), иначе точка горела бы при пустой модалке.
+        // «Обновления» тоже не входят - переключатель переехал в шапку и виден там сам,
+        // а «Новые» входят: это псевдо-статус дропдауна «Статус», который в модалке остался.
         hasModalFilters() {
             return this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
@@ -1219,30 +1252,27 @@ export default {
                    !!this.selectedDate ||
                    !!(this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday ||
-                   this.statusUpdatedOnly ||
                    this.selectedOrganizationIds.length > 0 ||
                    this.selectedCompanyIds.length > 0 ||
                    this.selectedUnloadPlaceIds.length > 0 ||
                    this.selectedPassageTableIds.length > 0;
         },
 
-        // Известное ограничение (#1158 срез 1): applications - только загруженные
-        // порции, не весь набор по текущим фильтрам, значит счётчик может занижать
-        // реальное число непрочитанных, если их больше, чем в загруженных порциях.
-        // На практике непрочитанные - обычно самые свежие (sending_datetime DESC),
-        // поэтому почти всегда попадают в первую порцию; точный счётчик независимо
-        // от пагинации - отдельный срез (напр. через getUnreadCount с текущими фильтрами).
         unreadCount() {
-            return this.applications.filter(app => !app.is_read).length;
+            return this.headerCounters.unread.value;
         },
 
-        // Число заявок с обновлённым статусом среди загруженных (#1349). То же
-        // ограничение пагинации, что и unreadCount (счётчик по загруженным порциям):
-        // при активном чипе фильтр возвращает ровно flagged-заявки и счётчик точен.
-        // Гейт is_read зеркалит визуальную точку (Центр показывает флаг лишь у
-        // прочитанных - у непрочитанных своя жёлтая подсветка).
+        // Состояние переключателя «Новые» - производное от выбора в дропдауне «Статус»,
+        // а не собственный флаг: своё поле пришлось бы синхронизировать в обе стороны,
+        // и любой третий путь смены статусов (сброс, восстановление из URL) его бы
+        // рассинхронизировал.
+        unreadOnly() {
+            return this.selectedApplicationStatuses.includes(UNREAD_STATUS);
+        },
+
+        // Число заявок с обновлённым статусом (#1349). Гейт is_read держит сервер.
         statusUpdateCount() {
-            return this.applications.filter(app => app.has_status_update && app.is_read).length;
+            return this.headerCounters.statusUpdates.value;
         },
 
         // Теги фильтруются клиентски (бэк их не знает), сортировка по колонкам - тоже
@@ -1519,6 +1549,14 @@ export default {
         // состояния ряда 2 меняются одинаково - записать массив и перезапросить список.
         setMultiFilter(field, values) {
             this[field] = Array.isArray(values) ? values : [];
+            // «Непрочитано» и «Обновления» противоречат друг другу на бэке: первый требует
+            // ОТСУТСТВИЯ записи в application_reads, второй (requireRead в Центре) - её
+            // наличия. Вместе они дают гарантированно пустой список, поэтому выбор
+            // непрочитанных гасит «Обновления». Гашение стоит здесь, а не в watch:
+            // fetchApplications уходит синхронно следом и прочитал бы старый флаг.
+            if (field === 'selectedApplicationStatuses' && this.unreadOnly) {
+                this.statusUpdatedOnly = false;
+            }
             this.applyFilters();
         },
 
@@ -1567,8 +1605,23 @@ export default {
             this.fetchApplications();
         },
 
+        // «Новые» ведут тот же псевдо-статус, что и дропдаун «Статус», поэтому идут через
+        // общий setMultiFilter - отдельного параметра запроса у кнопки нет.
+        toggleUnreadOnly() {
+            const statuses = this.unreadOnly
+                ? this.selectedApplicationStatuses.filter(s => s !== UNREAD_STATUS)
+                : [...this.selectedApplicationStatuses, UNREAD_STATUS];
+            this.setMultiFilter('selectedApplicationStatuses', statuses);
+        },
+
         toggleStatusUpdated() {
             this.statusUpdatedOnly = !this.statusUpdatedOnly;
+            // Обратная сторона взаимоисключения из setMultiFilter: включённые вместе,
+            // unread и status_updated дают пустой список.
+            if (this.statusUpdatedOnly) {
+                this.selectedApplicationStatuses = this.selectedApplicationStatuses
+                    .filter(s => s !== UNREAD_STATUS);
+            }
             this.isInitialLoad = false;
             this.fetchApplications();
         },
@@ -1620,7 +1673,7 @@ export default {
         // подмножестве без шанса догрузить больше подходящих через скролл.
         applyFilters() {
             this.isInitialLoad = false;
-            this.fetchApplications();
+            this.whileReplacingRows(() => this.fetchApplications(true));
         },
         
         // Сортировка
@@ -1894,11 +1947,11 @@ export default {
                 // а НЕ значение колонки a.status (мигрирован в "В обработке"). Шлём его
                 // отдельным флагом unread, иначе бэк искал бы a.status='Непрочитано' и
                 // возвращал пусто ("нет заявок"). Остальные статусы - как есть.
-                const statuses = this.selectedApplicationStatuses.filter(s => s !== 'Непрочитано');
+                const statuses = this.selectedApplicationStatuses.filter(s => s !== UNREAD_STATUS);
                 if (statuses.length > 0) {
                     params.status = statuses.join(',');
                 }
-                if (this.selectedApplicationStatuses.includes('Непрочитано')) {
+                if (this.unreadOnly) {
                     params.unread = 'true';
                 }
             }
@@ -1953,8 +2006,8 @@ export default {
             // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
             // Собственный seq-guard записи items/total уже даёт useInfiniteList - этот
             // токен управляет loading/refreshing/pendingRefreshCount (другой side-effect).
-            // silent (real-time push): без оверлея refreshing - список обновляется тихо,
-            // а TransitionGroup анимирует только дельту (новые заявки въезжают, соседи едут).
+            // silent (real-time push и смена фильтра): без оверлея, TransitionGroup сам
+            // показывает дельту - новые въезжают, отсеянные уезжают, соседи смыкаются.
             const seq = ++this.fetchSeq;
             if (!silent) {
                 this.pendingRefreshCount += 1;
@@ -1981,6 +2034,7 @@ export default {
                 }
                 // После первого полного fetch включаем инкрементальный polling со звуком.
                 this.pollPrimed = true;
+                this.headerCounters.refresh();
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
@@ -2289,6 +2343,8 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/application-row-transitions.css';
+
 .center {
     padding: 20px;
     position: relative;
@@ -2354,7 +2410,9 @@ export default {
 .center__search-overlay {
     position: absolute;
     top: 0;
-    bottom: 0;
+    /* Высоту задаёт само поле, а не весь .header-top: с парой переключателей ряд стал
+       двухстрочным, и растянутый до низа оверлей закрывал бы их своим фоном. */
+    bottom: auto;
     left: 0;
     right: 44px;
     z-index: 1;
@@ -2646,14 +2704,28 @@ export default {
     margin: 0;
 }
 
-.unread-badge {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    transition: transform 0.3s ease;
+/* Пара переключателей «Новые»/«Обновления». Оформление берём у .status-btn ряда
+   фильтров: это теперь такие же фильтры, и активное состояние обязано читаться так же,
+   как у «Заявок на сегодня». */
+.header-top__toggles {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Неактивная кнопка с непустым счётчиком подсвечена цветом своей строки в списке
+   (жёлтая непрочитанная, фиолетовая обновлённая) - иначе, став обычной пилюлей,
+   «Новые» потеряли бы сигнал «есть что посмотреть», который давал прежний бейдж.
+   Классы вешаются только при неактивном фильтре, поэтому с --active не спорят. */
+.status-btn--unread {
+    background: var(--unread-bg);
+    border-color: var(--unread-accent);
+}
+
+.status-btn--updates {
+    background: var(--updated-bg);
+    border-color: var(--updated-accent);
 }
 
 .shake-animation {
@@ -3151,31 +3223,6 @@ export default {
         opacity: 1;
         transform: translateY(0);
     }
-}
-
-/* Точечная анимация списка Центра при real-time добавлении (#840): новая заявка
-   плавно проявляется и въезжает на свою позицию (с учётом сортировки), соседи
-   едут на новое место (FLIP move). Только transform/opacity. Пачка новых за раз
-   отрабатывается штатно - каждая enter + все сдвиги move одновременно. */
-.app-row-enter-active {
-    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
-}
-.app-row-enter-from {
-    opacity: 0;
-    transform: translateY(-20px);
-}
-.app-row-move {
-    transition: transform 0.3s ease;
-}
-.app-row-leave-active {
-    transition: opacity 0.25s ease, transform 0.25s ease;
-    /* Выводим из потока, чтобы соседи плавно сомкнулись при выпадении заявки. */
-    position: absolute;
-    width: 100%;
-}
-.app-row-leave-to {
-    opacity: 0;
-    transform: translateY(-10px);
 }
 
 .application-item:hover:not(.download-btn:hover) {
@@ -3796,6 +3843,26 @@ export default {
 
     .center__tabs {
         gap: 6px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    /* Пара переключателей уходит на свою строку. Сама она туда и так не помещается
+       (заголовок 133 + кнопки 216 + иконки 78 против 340-370 доступных), но перенос
+       по flex-wrap раскладывался по длине счётчика: при коротких числах вниз уезжали
+       иконки звука и поиска, при трёхзначных - сами кнопки. flex-basis фиксирует
+       строку, order отправляет её ПОД первый ряд, иначе на отдельную строку уехали
+       бы ещё и иконки. */
+    .header-top__toggles {
+        order: 1;
+        flex-basis: 100%;
+    }
+
+    /* Между строками ряда - тот же зазор 8px, что между рядами шапки: дефолтные 12
+       шли на горизонтальный gap и лишними четырьмя пикселями растили закреплённую
+       шапку. Горизонтальный gap не трогаем - он разводит заголовок и иконки. */
+    .header-top {
+        row-gap: 8px;
     }
 }
 

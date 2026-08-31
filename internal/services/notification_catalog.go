@@ -166,14 +166,14 @@ var notificationCatalog = map[string]NotificationMeta{
 	},
 	NotificationTypeApplicationQuestion: {
 		Code: NotificationTypeApplicationQuestion, Category: NotificationCategoryApplication,
-		Label:       "Новый вопрос по заявке",
-		Description: "Согласующий задал вопрос по вашей заявке.",
+		Label:       "Новое обсуждение по заявке",
+		Description: "По вашей заявке начали обсуждение.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 40,
 	},
 	NotificationTypeApplicationAnswer: {
 		Code: NotificationTypeApplicationAnswer, Category: NotificationCategoryApplication,
-		Label:       "Новый ответ на вопрос",
-		Description: "На вопрос по заявке, в котором вы участвуете, пришёл ответ.",
+		Label:       "Новый ответ в обсуждении",
+		Description: "В обсуждении по заявке, в котором вы участвуете, пришёл ответ.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 50,
 	},
 	NotificationTypeApplicationSupplementReady: {

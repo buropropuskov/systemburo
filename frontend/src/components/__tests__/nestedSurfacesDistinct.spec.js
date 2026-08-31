@@ -103,9 +103,34 @@ function backgroundOf(source, selector) {
   return null;
 }
 
+/**
+ * Разворачивает @import в тексте стилей: правило, вынесенное в общий файл,
+ * применяется к компоненту точно так же, как написанное внутри него, и проверка
+ * обязана видеть оба. Без этого вынос общего оформления справочников (#871)
+ * ослеплял замок - фон находился, пока правило лежало в самом .vue, и переставал
+ * находиться после переезда, хотя на экране не менялось ничего.
+ */
+const inlineImports = (source) => {
+  const imports = [...source.matchAll(/@import\s+['"]([^'"]+)['"]\s*;/g)];
+  if (!imports.length) return source;
+  const imported = imports
+    .map(([, spec]) => {
+      const rel = spec.startsWith('@/') ? spec.slice(2) : spec;
+      try {
+        return readFileSync(join(srcDir, rel), 'utf8');
+      } catch {
+        // Импорт из node_modules и прочее, чего в src нет: для проверки фона
+        // такие не нужны, а падать на них замок не должен.
+        return '';
+      }
+    })
+    .join('\n');
+  return `${source}\n${imported}`;
+};
+
 const sources = new Map();
 const sourceOf = (file) => {
-  if (!sources.has(file)) sources.set(file, readFileSync(join(srcDir, file), 'utf8'));
+  if (!sources.has(file)) sources.set(file, inlineImports(readFileSync(join(srcDir, file), 'utf8')));
   return sources.get(file);
 };
 

@@ -356,134 +356,116 @@
     </div>
 
     <!-- Модалка создания -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="attachment-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="attachment-modal"
-            @mousedown.stop
-          >
-            <div class="modal-header">
-              <h3>Новое вложение</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="attachment-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Тип вложения</label>
-                <BaseDropdown
-                  :model-value="addForm.attachment_type"
-                  :options="typeOptions"
-                  label-key="label"
-                  value-key="value"
-                  @update:model-value="addForm.attachment_type = $event"
-                />
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Наименование вложения</label>
-                <input
-                  v-model="addForm.display_name"
-                  type="text"
-                  class="lk-input"
-                  maxlength="255"
-                  placeholder="Автозаявка"
-                  data-testid="attachment-input-display-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Системное имя</label>
-                <input
-                  v-model="addForm.name"
-                  type="text"
-                  class="lk-input"
-                  :class="{ 'input-error': !!nameError }"
-                  maxlength="255"
-                  placeholder="avtozayavka"
-                  data-testid="attachment-input-name"
-                  @input="onNameInput"
-                >
-                <span class="field-hint">Латинские буквы, цифры и подчёркивания</span>
-                <span
-                  v-if="nameError"
-                  class="form-error"
-                >{{ nameError }}</span>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Заголовок</label>
-                <input
-                  v-model="addForm.title"
-                  type="text"
-                  class="lk-input"
-                  maxlength="255"
-                  placeholder="АВТОЗАЯВКИ"
-                  data-testid="attachment-input-title"
-                  @input="addForm.title = addForm.title.toUpperCase()"
-                  @keyup.enter="submitAdd"
-                >
-                <span class="field-hint">Отображается в заголовке категории (в верхнем регистре)</span>
-              </div>
-
-              <div
-                v-if="archivedDuplicate"
-                class="duplicate-hint"
-                data-testid="attachment-duplicate-hint"
-              >
-                <span>В архиве уже есть вложение <b>{{ archivedDuplicate.display_name }}</b> с такими данными.</span>
-                <button
-                  class="lk-button lk-button--secondary"
-                  :disabled="isAdding"
-                  @click="restoreDuplicate(archivedDuplicate)"
-                >
-                  Восстановить из архива
-                </button>
-              </div>
-
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="attachment-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addValid || isAdding"
-                data-testid="attachment-modal-save"
-                @click="submitAdd"
-              >
-                Создать
-              </button>
-            </div>
-          </div>
+    <BaseModal
+      :show="showAddModal"
+      title="Новое вложение"
+      width="480px"
+      radius="30px"
+      content-testid="attachment-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="attachment-modal-body">
+        <div class="form-group">
+          <label class="form-label">Тип вложения</label>
+          <BaseDropdown
+            teleport
+            :menu-z-index="1100"
+            :model-value="addForm.attachment_type"
+            :options="typeOptions"
+            label-key="label"
+            value-key="value"
+            @update:model-value="addForm.attachment_type = $event"
+          />
         </div>
-      </transition>
-    </Teleport>
+
+        <div class="form-group">
+          <label class="form-label">Наименование вложения</label>
+          <input
+            v-model="addForm.display_name"
+            type="text"
+            class="lk-input"
+            maxlength="255"
+            placeholder="Автозаявка"
+            data-testid="attachment-input-display-name"
+            @keyup.enter="submitAdd"
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Системное имя</label>
+          <input
+            v-model="addForm.name"
+            type="text"
+            class="lk-input"
+            :class="{ 'input-error': !!nameError }"
+            maxlength="255"
+            placeholder="avtozayavka"
+            data-testid="attachment-input-name"
+            @input="onNameInput"
+          >
+          <span class="field-hint">Латинские буквы, цифры и подчёркивания</span>
+          <span
+            v-if="nameError"
+            class="form-error"
+          >{{ nameError }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Заголовок</label>
+          <input
+            v-model="addForm.title"
+            type="text"
+            class="lk-input"
+            maxlength="255"
+            placeholder="АВТОЗАЯВКИ"
+            data-testid="attachment-input-title"
+            @input="addForm.title = addForm.title.toUpperCase()"
+            @keyup.enter="submitAdd"
+          >
+          <span class="field-hint">Отображается в заголовке категории (в верхнем регистре)</span>
+        </div>
+
+        <div
+          v-if="archivedDuplicate"
+          class="duplicate-hint"
+          data-testid="attachment-duplicate-hint"
+        >
+          <span>В архиве уже есть вложение <b>{{ archivedDuplicate.display_name }}</b> с такими данными.</span>
+          <button
+            class="lk-button lk-button--secondary"
+            :disabled="isAdding"
+            @click="restoreDuplicate(archivedDuplicate)"
+          >
+            Восстановить из архива
+          </button>
+        </div>
+
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="attachment-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addValid || isAdding"
+          data-testid="attachment-modal-save"
+          @click="submitAdd"
+        >
+          Создать
+        </button>
+      </template>
+    </BaseModal>
 
     <ConfirmationModal
       :show="!!archiveConfirm"
@@ -519,6 +501,7 @@ import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import AttachmentFieldsModal from './admin/AttachmentFieldsModal.vue';
@@ -526,7 +509,6 @@ import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import {
   listAllAttachments,
@@ -554,7 +536,7 @@ export default {
     RefreshButton,
     ConfirmationModal,
     TextConstructor,
-    BaseDropdown,
+    BaseDropdown, BaseModal,
     LoaderSpinner,
     ToggleSwitch,
     AttachmentFieldsModal,
@@ -563,10 +545,7 @@ export default {
     AppIcon,
   },
   setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay, deletions: useDeletionsStore() };
+    return { deletions: useDeletionsStore() };
   },
   data() {
     return {
@@ -678,7 +657,6 @@ export default {
     },
   },
   created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
     this._templateStatusSeq = 0;
   },
   mounted() {
@@ -717,16 +695,11 @@ export default {
         if (this.isDetailsDirty) await this.saveSelected();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
     typeLabel(type) {
       const o = this.typeOptions.find(t => t.value === type);
       return o ? o.label : type;
@@ -890,7 +863,18 @@ export default {
       const displayName = this.addForm.display_name.trim();
       const name = this.addForm.name.trim();
       const title = this.addForm.title.trim().toUpperCase();
-      if (!this.addValid || this.isAdding) return;
+      if (this.isAdding) return;
+      // Молча выходить нельзя: кроме кнопки (она заблокирована на неполной форме)
+      // сюда приходит «Сохранить все изменения» из диалога несохранённого, и
+      // тихий выход там читается как «нажал, и ничего не произошло».
+      if (!this.addValid) {
+        this.addError = 'Заполните тип, наименование, системное имя и заголовок - без них вложение не создать.';
+        // Ошибку в форме не видно, когда сохранение пришло из диалога
+        // несохранённого: он лежит выше окна и перекрывает её. Тост -
+        // единственный слой поверх диалога.
+        this.deletions.notify({ prefix: this.addError, type: 'error' });
+        return;
+      }
       this.isAdding = true;
       this.addError = '';
       try {
@@ -998,6 +982,8 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/directory-management.css';
+
 .attachments-management-container {
   background: var(--surface);
   border-radius: 16px;
@@ -1015,21 +1001,10 @@ export default {
   gap: 12px;
 }
 
-.management-title {
-  margin: 0;
-  font-size: 1.2em;
-  font-weight: 600;
-  color: var(--text);
-}
-
 .header-controls {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-
-.archive-dropdown {
-  min-width: 130px;
 }
 
 /* Master-detail layout (эталон TableConstructor) */
@@ -1046,23 +1021,6 @@ export default {
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
-}
-
-.table-container {
-  background: var(--surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.table-header {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  height: 43px;
-  align-items: center;
 }
 
 .header-col {
@@ -1083,32 +1041,11 @@ export default {
   margin: 0;
 }
 
-.header-col:hover {
-  color: var(--text);
-}
-
-.header-col:hover .sort-icon {
-  color: var(--text);
-}
-
 .sort-icon {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
-}
-
-.sort-icon.sorted {
-  color: var(--text);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
-}
-
-.active-sort {
-  color: var(--text) !important;
-  font-weight: 600 !important;
 }
 
 .id-col {
@@ -1127,58 +1064,8 @@ export default {
   overflow-y: auto;
 }
 
-.table-row {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  height: 42px;
-  font-size: 14px;
-}
-
-.table-row:hover {
-  background-color: var(--surface-2);
-}
-
-.table-row.selected {
-  background-color: var(--accent-tint);
-}
-
-.table-row.inactive {
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-col {
-  padding: 0 8px;
-}
-
-.cell-content {
-  display: block;
-  padding: 4px 0;
-}
-
-.id-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
 .table-row.inactive .id-value {
   color: var(--text-muted);
-}
-
-.truncate-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  display: block;
 }
 
 /* Бейдж типа вложения (tonal pill) */
@@ -1230,13 +1117,6 @@ export default {
   color: var(--warning-text);
 }
 
-.inactive-badge {
-  margin-left: 6px;
-  font-size: 0.75em;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
 .no-results {
   text-align: center;
   padding: 40px 20px;
@@ -1256,12 +1136,6 @@ export default {
   border-top: 1px solid var(--border);
   text-align: right;
   background: var(--accent-tint);
-}
-
-.items-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 /* Details */
@@ -1315,16 +1189,6 @@ export default {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-}
-
-.archive-badge {
-  background: var(--text-muted);
-  color: var(--surface);
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75em;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 .action-btn {
@@ -1460,148 +1324,14 @@ export default {
   font-size: 14px;
 }
 
-.add-header-button {
-  padding: 8px 16px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.add-header-button:hover {
-  background: var(--accent-hover);
-}
-
 /* Модалка создания */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.attachment-modal {
-  width: 100%;
-  max-width: 480px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-close {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  line-height: 1;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.attachment-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(var(--app-vh, 1vh) * 70);
-  overflow-y: auto;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 0.85em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.duplicate-hint {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--warning-bg);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
-  border-radius: 15px;
-  font-size: 0.85em;
-  color: var(--danger-text);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-active .attachment-modal,
-.modal-fade-leave-active .attachment-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  background: transparent;
-}
-
-.modal-fade-enter-from .attachment-modal,
-.modal-fade-leave-to .attachment-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 767.98px) {

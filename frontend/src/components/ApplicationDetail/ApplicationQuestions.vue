@@ -1,7 +1,7 @@
 <!-- ApplicationQuestions.vue -->
-<!-- Блок "Вопросы к заявке" (#973): список вопросов-топиков + тред ответов (YouTube-стиль).
-     Сворачивается по заголовку (свёрнут по умолчанию), "Задать вопрос" - в шапке. Виден всем
-     с доступом к заявке. Задать вопрос может любой с доступом, включая инициатора. -->
+<!-- Блок "Обсуждение заявки" (#973): список тем + тред ответов (YouTube-стиль).
+     Сворачивается по заголовку (свёрнут по умолчанию), "Начать обсуждение" - в шапке. Виден
+     всем с доступом к заявке. Начать обсуждение может любой с доступом, включая инициатора. -->
 <template>
   <section
     class="questions-section"
@@ -21,7 +21,7 @@
           class="q-chevron"
           aria-hidden="true"
         >▾</span>
-        <h4>Вопросы к заявке</h4>
+        <h4>Обсуждение заявки</h4>
         <span
           v-if="questions.length > 0"
           class="q-count"
@@ -30,7 +30,7 @@
           v-if="hasUnreadInSession"
           class="q-new-dot"
           data-testid="questions-new-indicator"
-          aria-label="Есть непрочитанные вопросы или ответы"
+          aria-label="Есть непрочитанные сообщения в обсуждении"
         >Новое</span>
       </button>
       <button
@@ -61,7 +61,7 @@
           x2="12.01"
           y2="17"
         /></svg>
-        Задать вопрос
+        Начать обсуждение
       </button>
     </div>
 
@@ -76,7 +76,7 @@
             class="questions-empty"
             data-testid="questions-empty"
           >
-            Пока нет вопросов к заявке.
+            Обсуждение заявки ещё не начиналось.
           </p>
           <ul
             v-else
@@ -190,7 +190,7 @@ export default {
     methods: {
         // Помечаем топик прочитанным по клику (#973): его бейдж и (когда прочитаны все) индикатор
         // заголовка гаснут сразу. Когда в сеансе не осталось непрочитанного - сообщаем наверх,
-        // чтобы маркер вопросов в списке заявок тоже погас, не дожидаясь перезагрузки списка.
+        // чтобы маркер обсуждений в списке заявок тоже погас, не дожидаясь перезагрузки списка.
         onTopicRead(questionId) {
             if (this.readIds.includes(questionId)) return;
             this.readIds.push(questionId);
@@ -231,7 +231,7 @@ export default {
                 if (seq !== this.loadSeq) return;
                 this.questions = Array.isArray(data) ? data : [];
                 // Снимок берём один раз за сеанс просмотра заявки: повторные load (после
-                // отправки вопроса/ответа) не пересобирают его, иначе бейджи мигали бы.
+                // отправки темы/ответа) не пересобирают его, иначе бейджи мигали бы.
                 if (!this.snapshotTaken) {
                     this.snapshotNewIds = this.questions.filter(q => q.is_new).map(q => q.id);
                     this.snapshotTaken = true;
@@ -246,11 +246,11 @@ export default {
             this.submitting = true;
             try {
                 await createQuestion(this.applicationId, payload);
-                useDeletionsStore().notify({ bold: 'Вопрос отправлен', type: 'success' });
+                useDeletionsStore().notify({ bold: 'Обсуждение начато', type: 'success' });
                 this.showAskModal = false;
                 await this.load();
             } catch (err) {
-                useDeletionsStore().notify({ prefix: 'Не удалось отправить вопрос: ', bold: err.message, type: 'error' });
+                useDeletionsStore().notify({ prefix: 'Не удалось начать обсуждение: ', bold: err.message, type: 'error' });
             } finally {
                 this.submitting = false;
             }

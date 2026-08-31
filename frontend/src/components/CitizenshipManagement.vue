@@ -323,96 +323,76 @@
     </div>
 
     <!-- Модалка создания -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="citizenship-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="citizenship-modal"
-            @mousedown.stop
+    <BaseModal
+      :show="showAddModal"
+      title="Новое гражданство"
+      width="440px"
+      radius="30px"
+      content-testid="citizenship-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="citizenship-modal-body">
+        <div class="form-group">
+          <label class="form-label">Название гражданства</label>
+          <input
+            v-model.trim="addForm.name"
+            type="text"
+            placeholder="Например, Российская Федерация"
+            maxlength="100"
+            class="lk-input"
+            data-testid="citizenship-input-name"
+            @keyup.enter="submitAdd"
           >
-            <div class="modal-header">
-              <h3>Новое гражданство</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="citizenship-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Название гражданства</label>
-                <input
-                  v-model.trim="addForm.name"
-                  type="text"
-                  placeholder="Например, Российская Федерация"
-                  maxlength="100"
-                  class="lk-input"
-                  data-testid="citizenship-input-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input
-                    v-model="addForm.is_default"
-                    type="checkbox"
-                    class="checkbox"
-                  >
-                  <span class="checkbox-text">Гражданство по умолчанию</span>
-                </label>
-              </div>
-
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input
-                    v-model="addForm.patent_required"
-                    type="checkbox"
-                    class="checkbox"
-                  >
-                  <span class="checkbox-text">Требуется патент</span>
-                </label>
-              </div>
-
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="citizenship-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addForm.name || isAdding"
-                data-testid="citizenship-modal-save"
-                @click="submitAdd"
-              >
-                Добавить
-              </button>
-            </div>
-          </div>
         </div>
-      </transition>
-    </Teleport>
+
+        <div class="checkbox-section">
+          <label class="checkbox-label">
+            <input
+              v-model="addForm.is_default"
+              type="checkbox"
+              class="checkbox"
+            >
+            <span class="checkbox-text">Гражданство по умолчанию</span>
+          </label>
+        </div>
+
+        <div class="checkbox-section">
+          <label class="checkbox-label">
+            <input
+              v-model="addForm.patent_required"
+              type="checkbox"
+              class="checkbox"
+            >
+            <span class="checkbox-text">Требуется патент</span>
+          </label>
+        </div>
+
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="citizenship-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addForm.name || isAdding"
+          data-testid="citizenship-modal-save"
+          @click="submitAdd"
+        >
+          Добавить
+        </button>
+      </template>
+    </BaseModal>
 
     <ConfirmationModal
       :show="!!archiveConfirm"
@@ -451,11 +431,11 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import CitizenshipHistoryModal from './CitizenshipHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import {
   listCitizenships,
@@ -472,14 +452,8 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'CitizenshipManagement',
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, BaseModal, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
   mixins: [openFromSearchLink((vm) => vm.items, 'selectCitizenship')],
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
-  setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay };
-  },
   data() {
     return {
       items: [],
@@ -580,9 +554,6 @@ export default {
       this.pruneSelection();
     },
   },
-  created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
-  },
   mounted() {
     this.refresh();
     this.fetchCurrentUser();
@@ -611,17 +582,12 @@ export default {
         if (this.isDetailsDirty) await this.saveSelected();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
 
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
     sortList(list) {
       const arr = [...list];
       if (!this.sortField) {
@@ -735,7 +701,18 @@ export default {
     },
     async submitAdd() {
       const name = this.addForm.name.trim();
-      if (!name || this.isAdding) return;
+      if (this.isAdding) return;
+      // Молча выходить нельзя: кроме кнопки (она заблокирована при пустом поле)
+      // сюда приходит «Сохранить все изменения» из диалога несохранённого, и
+      // тихий выход там читается как «нажал, и ничего не произошло».
+      if (!name) {
+        this.addError = 'Укажите название - без него гражданство не создать.';
+        // Ошибку в форме не видно, когда сохранение пришло из диалога
+        // несохранённого: он лежит выше окна и перекрывает её. Тост -
+        // единственный слой поверх диалога.
+        useDeletionsStore().notify({ prefix: this.addError, type: 'error' });
+        return;
+      }
       this.isAdding = true;
       this.addError = '';
       try {
@@ -902,6 +879,9 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/directory-management.css';
+@import '@/assets/directory-bulk-bar.css';
+
 .citizenship-container {
   position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
   background: var(--surface);
@@ -928,23 +908,7 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
 }
-.bulk-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent-text);
-  white-space: nowrap;
-}
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  margin-left: auto;
-}
-.bulk-actions .pill {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -959,37 +923,7 @@ export default {
   white-space: nowrap;
   transition: background 0.2s, border-color 0.2s;
 }
-.pill-ghost {
-  background: var(--surface);
-  color: var(--accent-text);
-  border: 1px solid var(--accent);
-}
-.pill-ghost:hover {
-  background: var(--accent-tint);
-}
-.bulk-clear {
-  color: var(--text-muted);
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-}
-.bulk-clear:hover {
-  background: var(--surface-2);
-}
-.pill-danger {
-  background: var(--surface);
-  color: var(--danger-text);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-}
-.pill-danger:hover {
-  background: var(--danger-bg);
-  border-color: var(--danger);
-}
-.pill-restore {
-  background: var(--success);
-  color: var(--fill-text);
-}
-.pill-restore:hover {
-  background: color-mix(in srgb, var(--success) 85%, var(--text));
-}
+
 .check-col {
   width: 8%;
   min-width: 34px;
@@ -998,13 +932,6 @@ export default {
   justify-content: center;
   padding: 0 8px;
   cursor: default;
-}
-.bulk-check {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: var(--accent-text);
-  margin: 0;
 }
 
 .management-header {
@@ -1017,21 +944,10 @@ export default {
   gap: 12px;
 }
 
-.management-title {
-  margin: 0;
-  font-size: 1.2em;
-  font-weight: 600;
-  color: var(--text);
-}
-
 .header-controls {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-
-.archive-dropdown {
-  min-width: 130px;
 }
 
 /* Master-detail layout (эталон TableConstructor) */
@@ -1048,23 +964,6 @@ export default {
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
-}
-
-.table-container {
-  background: var(--surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.table-header {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  height: 43px;
-  align-items: center;
 }
 
 .header-col {
@@ -1085,32 +984,11 @@ export default {
   margin: 0;
 }
 
-.header-col:hover {
-  color: var(--text);
-}
-
-.header-col:hover .sort-icon {
-  color: var(--text);
-}
-
 .sort-icon {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
-}
-
-.sort-icon.sorted {
-  color: var(--text);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
-}
-
-.active-sort {
-  color: var(--text) !important;
-  font-weight: 600 !important;
 }
 
 .id-col {
@@ -1129,58 +1007,8 @@ export default {
   overflow-y: auto;
 }
 
-.table-row {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  height: 42px;
-  font-size: 14px;
-}
-
-.table-row:hover {
-  background-color: var(--surface-2);
-}
-
-.table-row.selected {
-  background-color: var(--accent-tint);
-}
-
-.table-row.inactive {
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-col {
-  padding: 0 8px;
-}
-
-.cell-content {
-  display: block;
-  padding: 4px 0;
-}
-
-.id-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
 .table-row.inactive .id-value {
   color: var(--text-muted);
-}
-
-.truncate-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  display: block;
 }
 
 .default-badge {
@@ -1192,13 +1020,6 @@ export default {
   margin-left: 6px;
   font-weight: 500;
   vertical-align: middle;
-}
-
-.inactive-badge {
-  margin-left: 6px;
-  font-size: 0.75em;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 .no-results {
@@ -1220,12 +1041,6 @@ export default {
   border-top: 1px solid var(--border);
   text-align: right;
   background: var(--accent-tint);
-}
-
-.items-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 /* Details */
@@ -1278,16 +1093,6 @@ export default {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-}
-
-.archive-badge {
-  background: var(--text-muted);
-  color: var(--surface);
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75em;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 .action-btn {
@@ -1412,134 +1217,14 @@ export default {
   font-size: 14px;
 }
 
-.add-header-button {
-  padding: 8px 16px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.add-header-button:hover {
-  background: var(--accent-hover);
-}
-
 /* Модалка создания */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.citizenship-modal {
-  width: 100%;
-  max-width: 440px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-close {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  line-height: 1;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.citizenship-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 0.85em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-active .citizenship-modal,
-.modal-fade-leave-active .citizenship-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  background: transparent;
-}
-
-.modal-fade-enter-from .citizenship-modal,
-.modal-fade-leave-to .citizenship-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 767.98px) {

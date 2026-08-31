@@ -133,8 +133,14 @@ type ApplicationService interface {
 	// GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
 	GetApplicationByID(ctx context.Context, username string, applicationID int) (map[string]interface{}, error)
 
-	// GetApplicationDetails возвращает расширенную информацию о заявке.
-	GetApplicationDetails(ctx context.Context, applicationID int) (map[string]interface{}, error)
+	// GetApplicationDetails возвращает расширенную информацию о заявке. username -
+	// смотрящий: от него зависит, попадёт ли в ответ заметка бюро (только принимающему,
+	// см. application_bureau_note.go).
+	GetApplicationDetails(ctx context.Context, username string, applicationID int) (map[string]interface{}, error)
+
+	// SetBureauNote сохраняет заметку бюро по заявке; пустой текст снимает её.
+	// Доступно только принимающим.
+	SetBureauNote(ctx context.Context, username string, applicationID int, req SetBureauNoteRequest) (*BureauNoteView, error)
 
 	// CreateApplication создаёт новую заявку. canOverrideOrganization - результат проверки
 	// права KeyApplicationOrganizationOverride, см. SubmitCompleteApplication.
@@ -1347,7 +1353,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 }
 
 // GetApplicationDetails возвращает расширенную информацию о заявке.
-func (s *applicationService) GetApplicationDetails(ctx context.Context, applicationID int) (map[string]interface{}, error) {
+func (s *applicationService) GetApplicationDetails(ctx context.Context, username string, applicationID int) (map[string]interface{}, error) {
 	var row struct {
 		models.Application
 		OrganizationName *string `gorm:"column:organization_name"`
@@ -1391,6 +1397,24 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 	}
 
 	responsibles, _ := s.fetchResponsibleUsers(ctx, s.db.WithContext(ctx), applicationID)
+
+	// Заметка бюро едет в ответ только принимающему. Роль глобальная, поэтому смотрящего
+	// резолвим здесь, а не полагаемся на CanAccessApplication в хендлере: тот пускает к
+	// заявке ещё и заявителя, согласующих и получателей пересылки.
+	viewer, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	viewerIsApprover, err := s.isApprover(ctx, viewer.ID)
+	if err != nil {
+		return nil, err
+	}
+	var bureauNote *BureauNoteView
+	if viewerIsApprover {
+		if bureauNote, err = s.loadBureauNote(ctx, applicationID); err != nil {
+			return nil, err
+		}
+	}
 
 	// Зеркало гейта согласования (#481): пока есть помеченные элементы без override,
 	// фронт держит кнопку "Согласовать" заблокированной. Источник правды - тот же
@@ -1472,6 +1496,8 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"open_supplement":   openSupplement,
 		"supplements_count": supplementsCount,
 	}
+
+	applyBureauNoteVisibility(response, bureauNote, viewerIsApprover)
 
 	return response, nil
 }

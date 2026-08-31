@@ -1,10 +1,10 @@
 <!-- AskQuestionModal.vue -->
-<!-- Модалка создания вопроса к заявке (#973): тема + текст + необязательный выбор вложений
+<!-- Модалка начала обсуждения по заявке (#973): тема + текст + необязательный выбор вложений
      тумблерами. Эталон - ForwardModal (пикер вложений). -->
 <template>
   <BaseModal
     :show="show"
-    title="Задать вопрос"
+    title="Начать обсуждение"
     width="600px"
     :z-index="20000"
     content-class="ask-question-modal"
@@ -12,7 +12,7 @@
   >
     <div class="ask-body">
       <FormField
-        label="Тема вопроса"
+        label="Тема обсуждения"
         class="ask-field"
       >
         <input
@@ -27,7 +27,7 @@
       </FormField>
 
       <FormField
-        label="Вопрос"
+        label="Сообщение"
         class="ask-field"
       >
         <div class="ask-text-wrapper">
@@ -37,7 +37,7 @@
             data-testid="ask-modal-text"
             :maxlength="textMaxLength"
             rows="4"
-            placeholder="Опишите вопрос по заявке"
+            placeholder="Опишите, что нужно обсудить"
           />
           <div
             class="ask-text-counter"
@@ -54,7 +54,7 @@
         data-testid="ask-modal-attachments"
       >
         <div class="ask-attachments-header">
-          <h4>Вложения, по которым вопрос <span class="ask-optional">(необязательно)</span></h4>
+          <h4>Вложения для обсуждения <span class="ask-optional">(необязательно)</span></h4>
           <label class="ask-toggle">
             <input
               type="checkbox"

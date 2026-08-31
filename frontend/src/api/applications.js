@@ -167,6 +167,27 @@ export async function getApplicationDetails(id) {
   return res.json();
 }
 
+/**
+ * Сохранить заметку бюро по заявке; пустая строка снимает заметку.
+ * Доступно только принимающим, остальным бэк отвечает 403.
+ * @param {number} id ID заявки
+ * @param {string} note Текст заметки
+ * @returns {Promise<{text: string, author_id: number|null, author_name: string, updated_at: string|null}|null>}
+ */
+export async function setBureauNote(id, note) {
+  const res = await apiRequest(`/applications/${id}/bureau-note`, {
+    method: 'PUT',
+    body: JSON.stringify({ note }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const error = new Error(body?.message || 'Не удалось сохранить заметку');
+    error.status = res.status;
+    throw error;
+  }
+  return body;
+}
+
 export async function getApplicationAttachments(id) {
   const res = await apiRequest(`/applications/${id}/attachments`);
   return res.json();
@@ -360,7 +381,7 @@ export async function createQuestion(id, data) {
   });
   const body = await res.json();
   if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось отправить вопрос');
+    throw new Error(body?.error || 'Не удалось начать обсуждение');
   }
   return body.data;
 }

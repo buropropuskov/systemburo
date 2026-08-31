@@ -368,6 +368,16 @@
             @close="showMessageModal = false"
           />
 
+          <!-- Заметка бюро: рабочий стикер принимающих о том, почему заявка не
+               сделана. Гейт здесь для удобства - текст заметки бэк отдаёт в детали
+               заявки только принимающему, у остальных его в applicationData нет. -->
+          <ApplicationBureauNote
+            v-if="isApprover"
+            :application-id="Number(applicationData.id)"
+            :note="applicationData.bureau_note || null"
+            @update="onBureauNoteUpdate"
+          />
+
           <!-- Сообщения при пересылке (#967), видны всем получателям -->
           <div class="detail-order-forward">
             <ForwardMessages
@@ -376,7 +386,7 @@
             />
           </div>
 
-          <!-- Вопросы к заявке (#973): вопрос-топик + тред ответов -->
+          <!-- Обсуждение заявки (#973): тема + тред ответов -->
           <div class="detail-order-questions">
             <ApplicationQuestions
               ref="questionsComponent"
@@ -735,6 +745,7 @@ import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
 import ForwardMessages from './ForwardMessages.vue'
+import ApplicationBureauNote from './ApplicationBureauNote.vue'
 import ApplicationQuestions from './ApplicationQuestions.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
 import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
@@ -779,6 +790,7 @@ export default {
     components: {
         ApplicationAttachments,
         ApplicationFiles,
+        ApplicationBureauNote,
         ApplicationConfirmation,
         ApplicationHistory,
         ForwardModal,
@@ -1024,8 +1036,8 @@ export default {
         },
 
         canAskQuestion() {
-            // Задать вопрос может любой с доступом к заявке, ВКЛЮЧАЯ инициатора (#973
-            // followup): инициатор задаёт вопросы к своей же заявке. Реальный гейт - на бэке.
+            // Начать обсуждение может любой с доступом к заявке, ВКЛЮЧАЯ инициатора (#973
+            // followup): инициатор обсуждает свою же заявку. Реальный гейт - на бэке.
             const a = this.applicationData;
             if (!a) return false;
             return this.isResponsibleUser || this.isApprover || this.isViewer ||
@@ -1524,6 +1536,13 @@ export default {
             if (this.storageKey) {
                 localStorage.removeItem(this.storageKey);
             }
+        },
+
+        // Заметка сохранена или снята: кладём ответ метода в карточку, не перечитывая
+        // деталь. Полный рефетч сбросил бы выбранное вложение и мигнул кнопками ради
+        // одного поля, которое сервер только что вернул.
+        onBureauNoteUpdate(note) {
+            this.applicationData = { ...this.applicationData, bureau_note: note };
         },
 
         async loadApplicationDetails(application, { preserveSelection = false } = {}) {
