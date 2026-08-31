@@ -44,14 +44,14 @@ function mountCenter() {
 
 let wrapper;
 
-describe('ApplicationsCenter — маркер вопросов (#973)', () => {
+describe('ApplicationsCenter — маркер обсуждения (#973)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     seedPerms();
   });
   afterEach(() => wrapper?.unmount());
 
-  it('openApplication НЕ гасит маркер вопросов при открытии (#973: гасит прочтение топиков)', async () => {
+  it('openApplication НЕ гасит маркер обсуждения при открытии (#973: гасит прочтение тем)', async () => {
     wrapper = mountCenter();
     const app = { id: 1, is_read: true, has_unseen_questions: true, application_number: 'A-1', organization_name: 'Орг' };
     wrapper.vm.applications = [app];
@@ -61,7 +61,7 @@ describe('ApplicationsCenter — маркер вопросов (#973)', () => {
     expect(app.has_unseen_questions).toBe(true);
   });
 
-  it('onQuestionsRead гасит маркер заявки в списке (все вопросы прочитаны в детали)', async () => {
+  it('onQuestionsRead гасит маркер заявки в списке (всё обсуждение прочитано в детали)', async () => {
     wrapper = mountCenter();
     const app = { id: 7, is_read: true, has_unseen_questions: true, application_number: 'A-7', organization_name: 'Орг' };
     wrapper.vm.applications = [app];
@@ -69,7 +69,7 @@ describe('ApplicationsCenter — маркер вопросов (#973)', () => {
     expect(app.has_unseen_questions).toBe(false);
   });
 
-  it('маркер вопросов рендерится, даже если у заявки нет других тегов', async () => {
+  it('маркер обсуждения рендерится, даже если у заявки нет других тегов', async () => {
     wrapper = mountCenter();
     wrapper.vm.loading = false;
     wrapper.vm.applications = [{
@@ -86,14 +86,17 @@ describe('ApplicationsCenter — маркер вопросов (#973)', () => {
   // Тег, не учтённый в раскладке колонки, не даёт соседям свернуться и вылезает
   // поверх колонки действий (#1315 S2). Раскладку считает layoutApplicationTags по
   // реальной ширине колонки, поэтому проверяем участие тега в ней.
-  it('маркер вопросов участвует в раскладке колонки и сворачивается вместе с соседями', () => {
+  it('маркер обсуждения участвует в раскладке колонки и сворачивается вместе с соседями', () => {
     const tags = buildApplicationTags({ has_unseen_questions: true, sender_is_important: true });
     expect(tags.map(t => t.key)).toContain('questions');
 
     const narrow = layoutApplicationTags(tags, 90);
     expect(narrow.visible.every(e => e.mode !== 'text')).toBe(true);
 
-    const alone = layoutApplicationTags(buildApplicationTags({ has_unseen_questions: true }), 90);
+    // Одинокий тег возвращает подпись, когда колонке есть где развернуться. Ширину
+    // берём с широкого края диапазона колонки (90-170px): подпись «Обсуждение» стоит
+    // 93px и в самую узкую колонку не влезает - там же остаётся иконочным и «Дополнение».
+    const alone = layoutApplicationTags(buildApplicationTags({ has_unseen_questions: true }), 170);
     expect(alone.visible[0].mode).toBe('text');
   });
 

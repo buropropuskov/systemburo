@@ -89,7 +89,7 @@ describe('service worker: показ push-уведомления', () => {
       title: 'Требуется согласование', type: 'application_approval_required', application_id: 124,
     }));
     sw.listeners.push(pushEvent({
-      title: 'Новый вопрос по заявке', type: 'application_question', application_id: 124,
+      title: 'Новое обсуждение по заявке', type: 'application_question', application_id: 124,
     }));
 
     const [, first] = sw.showNotification.mock.calls[0];

@@ -376,7 +376,7 @@
             />
           </div>
 
-          <!-- Вопросы к заявке (#973): вопрос-топик + тред ответов -->
+          <!-- Обсуждение заявки (#973): тема + тред ответов -->
           <div class="detail-order-questions">
             <ApplicationQuestions
               ref="questionsComponent"
@@ -1024,8 +1024,8 @@ export default {
         },
 
         canAskQuestion() {
-            // Задать вопрос может любой с доступом к заявке, ВКЛЮЧАЯ инициатора (#973
-            // followup): инициатор задаёт вопросы к своей же заявке. Реальный гейт - на бэке.
+            // Начать обсуждение может любой с доступом к заявке, ВКЛЮЧАЯ инициатора (#973
+            // followup): инициатор обсуждает свою же заявку. Реальный гейт - на бэке.
             const a = this.applicationData;
             if (!a) return false;
             return this.isResponsibleUser || this.isApprover || this.isViewer ||

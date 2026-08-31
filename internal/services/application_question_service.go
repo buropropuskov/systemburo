@@ -239,13 +239,13 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Application not found")
 	}
 
-	// Задать вопрос может любой с доступом к заявке, включая инициатора (#973):
+	// Начать обсуждение может любой с доступом к заявке, включая инициатора (#973):
 	// гейт доступа делает handler через CanAccessApplication.
 
 	subject := strings.TrimSpace(req.Subject)
 	text := strings.TrimSpace(req.Text)
 	if subject == "" || text == "" {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Тема и текст вопроса обязательны")
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Тема и сообщение обязательны")
 	}
 
 	// Только вложения самой заявки - чужие ID отбрасываем (как в forward).
@@ -324,20 +324,20 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		slog.Error("Ошибка коммита вопроса", "application_id", applicationID, "error", err)
+		slog.Error("Ошибка коммита обсуждения", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	// Уведомление инициатору о новом вопросе (best-effort).
+	// Уведомление инициатору о новом обсуждении (best-effort).
 	if s.notificationService != nil && app.SenderUserID != 0 && app.SenderUserID != user.ID {
 		appNum := applicationNumberOrFallback(app.ApplicationNumber, applicationID)
 		authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 		payloadStr := questionNotificationPayload(applicationID, appNum, question.ID)
 		if err := s.notificationService.CreateForUser(ctx, app.SenderUserID, NotificationTypeApplicationQuestion,
-			"Новый вопрос по заявке",
-			fmt.Sprintf("%s задал(-а) вопрос по заявке %s: %s", authorName, appNum, subject),
+			"Новое обсуждение по заявке",
+			fmt.Sprintf("%s начал(-а) обсуждение по заявке %s: %s", authorName, appNum, subject),
 			&payloadStr); err != nil {
-			slog.Warn("не удалось создать уведомление о вопросе", "user_id", app.SenderUserID, "error", err)
+			slog.Warn("не удалось создать уведомление об обсуждении", "user_id", app.SenderUserID, "error", err)
 		}
 	}
 
@@ -453,8 +453,8 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 			payloadStr := questionNotificationPayload(applicationID, appNum, questionID)
 			for _, rid := range recipientIDs {
 				if err := s.notificationService.CreateForUser(ctx, rid, NotificationTypeApplicationAnswer,
-					"Новый ответ на вопрос",
-					fmt.Sprintf("%s ответил(-а) на вопрос «%s» по заявке %s", authorName, q.Subject, appNum),
+					"Новый ответ в обсуждении",
+					fmt.Sprintf("%s ответил(-а) в обсуждении «%s» по заявке %s", authorName, q.Subject, appNum),
 					&payloadStr); err != nil {
 					slog.Warn("не удалось создать уведомление об ответе", "user_id", rid, "error", err)
 				}

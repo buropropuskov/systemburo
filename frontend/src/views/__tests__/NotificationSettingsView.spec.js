@@ -22,7 +22,7 @@ function fixture() {
     },
     {
       type_code: 'application_question', category: 'application',
-      label: 'Новый вопрос по заявке', description: 'Согласующий задал вопрос по заявке.',
+      label: 'Новое обсуждение по заявке', description: 'По вашей заявке начали обсуждение.',
       mandatory: false, default_enabled: true, enabled: true,
     },
     {
