@@ -74,7 +74,7 @@ describe('Центр заявок: смена фильтра не дёргает
 
   it('имя перехода строк вычисляемое, а не зашитое в разметку', () => {
     expect(
-      source.includes(':name="rowTransitionName"'),
+      source.includes(':name="rowTransition.transitionName.value"'),
       'TransitionGroup с постоянным именем прогоняет каскад появления и при смене фильтра',
     ).toBe(true);
     expect(source).not.toMatch(/<TransitionGroup[\s\S]{0,200}?\n\s+name="app-row"/);
@@ -85,7 +85,7 @@ describe('Центр заявок: смена фильтра не дёргает
     const applyBody = apply.slice(0, apply.indexOf('\n        },'));
 
     expect(
-      /whileReplacingRows\(/.test(applyBody),
+      /rowTransition\.whileReplacing\(/.test(applyBody),
       'applyFilters не переключает набор переходов - список снова будет мигать целиком',
     ).toBe(true);
     expect(

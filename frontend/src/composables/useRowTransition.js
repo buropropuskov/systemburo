@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue';
+import { pinLeavingElement } from '@/utils/listTransition';
 
 /**
  * Имя перехода для списка, который живёт в двух режимах.
@@ -36,5 +37,8 @@ export function useRowTransition(liveName, replaceName) {
   return {
     transitionName: computed(() => (replacing.value ? replaceName : liveName)),
     whileReplacing,
+    // Закрепление уходящих отдаётся отсюда же: у списка с двумя режимами перехода
+    // оно нужно всегда, и отдельный импорт в каждом компоненте только множил бы связи.
+    onBeforeLeave: pinLeavingElement,
   };
 }

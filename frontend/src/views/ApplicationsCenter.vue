@@ -22,12 +22,10 @@
           />
         </div>
 
-        <!-- «Новые» и «Обновления» - пара фильтров-переключателей в первом ряду шапки.
-             «Новые» не заводит своего параметра, а переключает псевдо-статус
-             «Непрочитано» дропдауна «Статус» (см. unreadOnly): один источник состояния,
-             поэтому кнопка и дропдаун не разъезжаются. Кнопки видны всегда, даже при
-             нулевом счётчике: пассивный бейдж прятался по v-if, и при включении
-             «Обновлений» (там весь список прочитан) соседи прыгали на его место. -->
+        <!-- Пара фильтров-переключателей. «Новые» не заводит своего параметра, а
+             переключает псевдо-статус «Непрочитано» дропдауна «Статус» (unreadOnly):
+             один источник состояния. Видны всегда, даже при нулевом счётчике - иначе
+             соседняя кнопка прыгает на место спрятанной. -->
         <div class="header-top__toggles">
           <button
             type="button"
@@ -581,9 +579,10 @@
           <TransitionGroup
             v-if="filteredApplications.length > 0"
             tag="div"
-            :name="rowTransitionName"
+            :name="rowTransition.transitionName.value"
             class="applications-list"
             data-testid="ob-center-list"
+            @before-leave="rowTransition.onBeforeLeave"
           >
             <template
               v-for="group in applicationGroups"
@@ -896,8 +895,7 @@ export default {
         const rowTransition = useRowTransition('app-row', 'app-row-filter')
         return {
             headerCounters,
-            rowTransitionName: rowTransition.transitionName,
-            whileReplacingRows: rowTransition.whileReplacing,
+            rowTransition,
             soundStore,
             permissionsStore,
             applications: infiniteList.items,
@@ -1673,7 +1671,7 @@ export default {
         // подмножестве без шанса догрузить больше подходящих через скролл.
         applyFilters() {
             this.isInitialLoad = false;
-            this.whileReplacingRows(() => this.fetchApplications(true));
+            this.rowTransition.whileReplacing(() => this.fetchApplications(true));
         },
         
         // Сортировка
@@ -2006,8 +2004,8 @@ export default {
             // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
             // Собственный seq-guard записи items/total уже даёт useInfiniteList - этот
             // токен управляет loading/refreshing/pendingRefreshCount (другой side-effect).
-            // silent (real-time push и смена фильтра): без оверлея, TransitionGroup сам
-            // показывает дельту - новые въезжают, отсеянные уезжают, соседи смыкаются.
+            // silent (real-time push и смена фильтра): без оверлея, дельту показывает
+            // сам TransitionGroup.
             const seq = ++this.fetchSeq;
             if (!silent) {
                 this.pendingRefreshCount += 1;
