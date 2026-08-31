@@ -1,0 +1,60 @@
+/* Точечная анимация списка Центра при real-time добавлении (#840): новая заявка
+   плавно проявляется и въезжает на свою позицию (с учётом сортировки), соседи
+   едут на новое место (FLIP move). Только transform/opacity. Пачка новых за раз
+   отрабатывается штатно - каждая enter + все сдвиги move одновременно. */
+.app-row-enter-active {
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+.app-row-enter-from {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+.app-row-move {
+    transition: transform 0.3s ease;
+}
+.app-row-leave-active {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    /* Выводим из потока, чтобы соседи плавно сомкнулись при выпадении заявки. */
+    position: absolute;
+    width: 100%;
+}
+.app-row-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+/* Смена фильтра. Другой рисунок, чем у живой вставки: отсеянные заявки уезжают
+   ВЛЕВО и гаснут, оставшиеся подтягиваются на освободившиеся места (FLIP move),
+   а попавшие в выборку появляются без каскада - иначе при замене набора через
+   прозрачность прогонялся бы весь список разом и он мигал.
+
+   Уходящие выводятся из потока (position: absolute), поэтому соседи начинают
+   смыкаться сразу, не дожидаясь конца их анимации: движение читается как одно,
+   а не как «сначала исчезло, потом сдвинулось».
+
+   Только transform и opacity - раскладку не трогаем. */
+.app-row-filter-leave-active {
+    transition: opacity 0.22s ease-in, transform 0.28s cubic-bezier(0.4, 0, 0.6, 1);
+    position: absolute;
+    width: 100%;
+    z-index: 0;
+}
+
+.app-row-filter-leave-to {
+    opacity: 0;
+    transform: translateX(-40px);
+}
+
+.app-row-filter-move {
+    transition: transform 0.32s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* Появление без сдвига: пришедшие в выборку проявляются на своём месте, пока
+   соседи едут. Сдвиг здесь наложился бы на move и читался бы как дрожание. */
+.app-row-filter-enter-active {
+    transition: opacity 0.24s ease-out 0.06s;
+}
+
+.app-row-filter-enter-from {
+    opacity: 0;
+}

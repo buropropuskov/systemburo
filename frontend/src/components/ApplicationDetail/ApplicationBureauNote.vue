@@ -3,100 +3,95 @@
      заявка не сделана и что по ней осталось. Одна заметка на заявку, общая для всех
      принимающих.
 
+     Намеренно не отдельный блок с заголовком, а строка в потоке карточки: заметка
+     здесь не раздел, а пометка на полях. Пустая - это одна ссылка «Заметка бюро»,
+     заполненная - строка с текстом; поле ввода появляется только на время правки.
+
      Блок рисуется только принимающему, и решает это родитель (v-if="isApprover").
      Гейт здесь - удобство, а не защита: текст заметки бэк отдаёт в детали заявки тоже
      только принимающему, поэтому у остальных его в applicationData просто нет. -->
 <template>
-  <section
-    class="bureau-note-section"
+  <div
+    class="bureau-note"
+    :class="{ 'bureau-note--editing': editing }"
     data-testid="bureau-note"
   >
-    <div class="bureau-note-header">
-      <h4>Заметка бюро</h4>
-      <span class="bureau-note-hint">видна только принимающим</span>
-    </div>
-
-    <div class="bureau-note-body">
-      <template v-if="editing">
-        <textarea
-          ref="input"
-          v-model="draft"
-          class="lk-textarea bureau-note-input"
-          rows="3"
-          :maxlength="maxLength"
-          :disabled="saving"
-          placeholder="Почему заявка не сделана, что по ней осталось"
-          data-testid="bureau-note-input"
-        />
-        <div class="bureau-note-actions">
-          <button
-            type="button"
-            class="lk-button lk-button--primary"
-            :disabled="saving || !changed"
-            data-testid="bureau-note-save"
-            @click="save"
-          >
-            Сохранить
-          </button>
-          <button
-            type="button"
-            class="lk-button lk-button--secondary"
-            :disabled="saving"
-            @click="cancel"
-          >
-            Отмена
-          </button>
-          <span class="bureau-note-counter">{{ draft.length }} / {{ maxLength }}</span>
-        </div>
-      </template>
-
-      <template v-else-if="hasNote">
-        <p
-          class="bureau-note-text"
-          data-testid="bureau-note-text"
-        >
-          {{ note.text }}
-        </p>
-        <div class="bureau-note-meta">
-          <span v-if="note.author_name">{{ note.author_name }}</span>
-          <span v-if="formattedDate">{{ formattedDate }}</span>
-        </div>
-        <div class="bureau-note-actions">
-          <button
-            type="button"
-            class="lk-button lk-button--secondary"
-            data-testid="bureau-note-edit"
-            @click="startEditing"
-          >
-            Изменить
-          </button>
-          <button
-            type="button"
-            class="lk-button lk-button--ghost"
-            :disabled="saving"
-            data-testid="bureau-note-clear"
-            @click="clear"
-          >
-            Очистить
-          </button>
-        </div>
-      </template>
-
-      <template v-else>
-        <p class="bureau-note-empty">
-          Заметки нет
-        </p>
+    <template v-if="editing">
+      <textarea
+        ref="input"
+        v-model="draft"
+        class="lk-textarea bureau-note__input"
+        rows="2"
+        :maxlength="maxLength"
+        :disabled="saving"
+        placeholder="Почему заявка не сделана, что по ней осталось"
+        data-testid="bureau-note-input"
+        @keydown.esc="cancel"
+      />
+      <div class="bureau-note__row">
         <button
           type="button"
-          class="lk-button lk-button--secondary"
-          data-testid="bureau-note-add"
-          @click="startEditing"
+          class="bureau-note__action bureau-note__action--primary"
+          :disabled="saving || !changed"
+          data-testid="bureau-note-save"
+          @click="save"
         >
-          Добавить заметку
+          Сохранить
         </button>
-      </template>
+        <button
+          type="button"
+          class="bureau-note__action"
+          :disabled="saving"
+          @click="cancel"
+        >
+          Отмена
+        </button>
+        <span class="bureau-note__counter">{{ draft.length }} / {{ maxLength }}</span>
+      </div>
+    </template>
+
+    <div
+      v-else-if="hasNote"
+      class="bureau-note__row"
+    >
+      <span
+        class="bureau-note__label"
+        :title="noteTitle"
+      >Заметка бюро:</span>
+      <span
+        class="bureau-note__text"
+        :title="noteTitle"
+        data-testid="bureau-note-text"
+      >{{ note.text }}</span>
+      <button
+        type="button"
+        class="bureau-note__action"
+        data-testid="bureau-note-edit"
+        @click="startEditing"
+      >
+        Изменить
+      </button>
+      <button
+        type="button"
+        class="bureau-note__action"
+        :disabled="saving"
+        data-testid="bureau-note-clear"
+        @click="clear"
+      >
+        Очистить
+      </button>
     </div>
-  </section>
+
+    <button
+      v-else
+      type="button"
+      class="bureau-note__add"
+      data-testid="bureau-note-add"
+      @click="startEditing"
+    >
+      Заметка бюро
+    </button>
+  </div>
 </template>
 
 <script>
@@ -140,6 +135,16 @@ export default {
 
         savedText() {
             return this.hasNote ? this.note.text : '';
+        },
+
+        // Автор и время - в подсказке строки: в самой строке им места нет, а знать,
+        // кто и когда оставил заметку, по-прежнему нужно.
+        noteTitle() {
+            if (!this.hasNote) return '';
+            const parts = [this.note.text];
+            const signature = [this.note.author_name, this.formattedDate].filter(Boolean).join(', ');
+            if (signature) parts.push(signature);
+            return parts.join('\n\n');
         },
 
         formattedDate() {
@@ -211,77 +216,98 @@ export default {
 </script>
 
 <style scoped>
-.bureau-note-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md, 15px);
-    margin-bottom: 15px;
+/* Строка, а не карточка: ни рамки, ни фона, ни заголовка - заметка живёт в потоке
+   карточки заявки как пометка на полях. Собственных отступов минимум, чтобы при
+   пустой заметке ряд занимал одну строку. */
+.bureau-note {
+    margin: 0 0 10px;
 }
 
-.bureau-note-header {
+.bureau-note__row {
     display: flex;
     align-items: baseline;
-    gap: 10px;
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    min-width: 0;
 }
 
-.bureau-note-header h4 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
+.bureau-note__label {
     color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
 }
 
-.bureau-note-hint {
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.bureau-note-body {
-    padding: 15px;
-}
-
-.bureau-note-text {
-    margin: 0 0 8px;
-    font-size: 14px;
-    line-height: 150%;
+/* Длинная заметка не растит карточку: одна строка с многоточием, целиком - в
+   подсказке (там же автор и время). */
+.bureau-note__text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
     color: var(--text);
-    white-space: pre-wrap;
-    word-break: break-word;
 }
 
-.bureau-note-empty {
-    margin: 0 0 10px;
-    font-size: 14px;
-    color: var(--text-muted);
-}
-
-.bureau-note-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 10px;
+/* Действия - текстовые ссылки, а не пилюли: три кнопки рядом с текстом в строке
+   перевесили бы саму заметку. */
+.bureau-note__action {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
     font-size: 12px;
     color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s ease;
 }
 
-.bureau-note-input {
+.bureau-note__action:hover:not(:disabled) {
+    color: var(--accent);
+}
+
+.bureau-note__action:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.bureau-note__action--primary {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.bureau-note__add {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    transition: color 0.15s ease;
+}
+
+.bureau-note__add:hover {
+    color: var(--accent);
+}
+
+.bureau-note--editing {
+    margin-bottom: 14px;
+}
+
+.bureau-note__input {
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     resize: vertical;
+    font-size: 13px;
 }
 
-.bureau-note-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-}
-
-.bureau-note-counter {
+.bureau-note__counter {
     margin-left: auto;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted);
+    white-space: nowrap;
 }
 </style>
