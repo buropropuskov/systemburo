@@ -358,8 +358,15 @@ describe('ApplicationActionBar - ширина отзыва решения на �
     expect(rule[1]).toContain('min-width: auto');
   });
 
-  it('селектор из двух классов - .subtle-btn объявлен ниже и перебил бы одиночный', () => {
-    expect(src.indexOf('.subtle-btn {')).toBeGreaterThan(src.indexOf('@media (max-width: 768px)'));
+  // Раньше здесь проверялся порядок объявлений (.subtle-btn ниже по файлу). Порядок
+  // перестал быть опорой, когда мобильный @media переехал в конец блока стилей (#4), а
+  // защита осталась прежней: min-width: 140px приходит от .subtle-btn, и снять его на
+  // мобилке можно только правилом с большей специфичностью. Одиночный
+  // .revoke-approval-btn её не даёт - он равен .subtle-btn и выигрывает лишь пока стоит
+  // ниже, то есть ровно то, на что уже наступали.
+  it('селектор из двух классов - одиночный .revoke-approval-btn не перебил бы min-width', () => {
+    expect(mobile).toMatch(/\.subtle-btn\.revoke-approval-btn\s*\{/);
+    expect(mobile).not.toMatch(/(?<![\w.-])\.revoke-approval-btn\s*\{/);
   });
 });
 
