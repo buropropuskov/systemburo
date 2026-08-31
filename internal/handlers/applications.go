@@ -254,11 +254,49 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 		slog.Warn("Не удалось отметить просмотр статуса заявки", "application_id", id, "error", err)
 	}
 
-	details, err := h.service.GetApplicationDetails(c.Request().Context(), id)
+	details, err := h.service.GetApplicationDetails(c.Request().Context(), username, id)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, details)
+}
+
+// SetBureauNote godoc
+// @Summary      Заметка бюро по заявке
+// @Description  Сохраняет рабочую заметку принимающих по заявке; пустой текст снимает её.
+// @Description  Доступно только принимающим, остальным 403. В ответ детали заявки заметка
+// @Description  попадает тоже только принимающему.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                          true "ID заявки"
+// @Param        request body services.SetBureauNoteRequest true "Текст заметки"
+// @Success      200 {object} services.BureauNoteView
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/bureau-note [put]
+func (h *ApplicationHandler) SetBureauNote(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.SetBureauNoteRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	// Доступ к заявке отдельно не проверяем: гейт сервиса (роль принимающего) строго
+	// уже - принимающий видит все заявки (CanAccessApplication пускает его без условий).
+	note, err := h.service.SetBureauNote(c.Request().Context(), c.Get("username").(string), id, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, note)
 }
 
 // CreateApplication godoc
