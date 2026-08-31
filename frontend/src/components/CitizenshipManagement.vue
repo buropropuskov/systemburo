@@ -701,7 +701,14 @@ export default {
     },
     async submitAdd() {
       const name = this.addForm.name.trim();
-      if (!name || this.isAdding) return;
+      if (this.isAdding) return;
+      // Молча выходить нельзя: кроме кнопки (она заблокирована при пустом поле)
+      // сюда приходит «Сохранить все изменения» из диалога несохранённого, и
+      // тихий выход там читается как «нажал, и ничего не произошло».
+      if (!name) {
+        this.addError = 'Укажите название - без него гражданство не создать.';
+        return;
+      }
       this.isAdding = true;
       this.addError = '';
       try {
