@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { pinLeavingElement } from '@/utils/listTransition';
 
 /**
@@ -21,15 +21,17 @@ import { pinLeavingElement } from '@/utils/listTransition';
 export function useRowTransition(liveName, replaceName) {
   const replacing = ref(false);
 
-  // Имя читается в момент вставки узлов, поэтому флаг снимается тиком позже -
-  // иначе Vue возьмёт живой набор классов на строках, которые едут по фильтру.
+  // Имя читается в момент вставки узлов, поэтому флаг снимается только после того,
+  // как Vue обновил DOM: микротика мало - он успевает пройти раньше отрисовки, и на
+  // строках оказывается живой набор классов вместо фильтрационного (проверено на
+  // стенде: уходящие получали app-row-leave-active и уезжали вверх, а не влево).
   // finally обязателен: на ошибке запроса режим остался бы включённым навсегда.
   async function whileReplacing(work) {
     replacing.value = true;
     try {
       return await work();
     } finally {
-      await Promise.resolve();
+      await nextTick();
       replacing.value = false;
     }
   }
