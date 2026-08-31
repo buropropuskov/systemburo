@@ -277,73 +277,53 @@
     </div>
 
     <!-- Модалка создания -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAddModal"
-          class="modal-overlay"
-          data-testid="marks-modal"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="marks-modal"
-            @mousedown.stop
+    <BaseModal
+      :show="showAddModal"
+      title="Новая марка"
+      width="440px"
+      radius="30px"
+      content-testid="marks-modal"
+      @close="requestCloseAdd"
+    >
+      <div class="marks-modal-body">
+        <div class="form-group">
+          <label class="form-label">Название марки</label>
+          <input
+            v-model.trim="addForm.name"
+            type="text"
+            placeholder="Например, Toyota"
+            maxlength="100"
+            class="lk-input"
+            data-testid="marks-input-name"
+            @keyup.enter="submitAdd"
           >
-            <div class="modal-header">
-              <h3>Новая марка</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                data-testid="marks-modal-close"
-                @click="requestCloseAdd"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Название марки</label>
-                <input
-                  v-model.trim="addForm.name"
-                  type="text"
-                  placeholder="Например, Toyota"
-                  maxlength="100"
-                  class="lk-input"
-                  data-testid="marks-input-name"
-                  @keyup.enter="submitAdd"
-                >
-              </div>
-              <div
-                v-if="addError"
-                class="form-error"
-              >
-                {{ addError }}
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                data-testid="marks-modal-cancel"
-                @click="requestCloseAdd"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!addForm.name || isAdding"
-                data-testid="marks-modal-save"
-                @click="submitAdd"
-              >
-                Добавить
-              </button>
-            </div>
-          </div>
         </div>
-      </transition>
-    </Teleport>
+        <div
+          v-if="addError"
+          class="form-error"
+        >
+          {{ addError }}
+        </div>
+      </div>
+
+      <template #actions>
+        <button
+          class="lk-button lk-button--ghost"
+          data-testid="marks-modal-cancel"
+          @click="requestCloseAdd"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          :disabled="!addForm.name || isAdding"
+          data-testid="marks-modal-save"
+          @click="submitAdd"
+        >
+          Добавить
+        </button>
+      </template>
+    </BaseModal>
 
     <MarkHistoryModal
       v-if="historyForMark"
@@ -384,10 +364,10 @@ import RefreshButton from './RefreshButton.vue';
 import MarkHistoryModal from './MarkHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import {
   listMarks,
@@ -403,14 +383,8 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'MarksManagement',
+  components: { SearchComponent, RefreshButton, MarkHistoryModal, ConfirmationModal, BaseDropdown, BaseModal, LoaderSpinner, AppIcon },
   mixins: [openFromSearchLink((vm) => vm.marks, 'selectMark')],
-  components: { SearchComponent, RefreshButton, MarkHistoryModal, ConfirmationModal, BaseDropdown, LoaderSpinner, AppIcon },
-  setup() {
-    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
-    const overlay = { close: () => {} };
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
-    return { onOverlayMousedown, onOverlayMouseup, overlay };
-  },
   data() {
     return {
       marks: [],
@@ -499,9 +473,6 @@ export default {
       this.pruneSelection();
     },
   },
-  created() {
-    this.overlay.close = () => { this.requestCloseAdd(); };
-  },
   mounted() {
     this.refresh();
     this.fetchCurrentUser();
@@ -519,17 +490,12 @@ export default {
         if (this.isDetailsDirty) await this.saveSelectedName();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
 
-    onKeydown(e) {
-      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
-    },
     sortList(list) {
       const arr = [...list];
       if (!this.sortField) {
@@ -1145,47 +1111,13 @@ export default {
 }
 
 /* Модалка создания */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
-}
-
-.marks-modal {
-  width: 100%;
-  max-width: 440px;
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 10px 30px var(--shadow-drop);
-  overflow: hidden;
-}
-
-.modal-body {
+/* Окно, затемнение, анимация и закрытие живут в BaseModal. Здесь остаются только
+   отступы содержимого: base-modal__body идёт без padding, их несёт содержимое. */
+.marks-modal-body {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.modal-fade-enter-active .marks-modal,
-.modal-fade-leave-active .marks-modal {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from .marks-modal,
-.modal-fade-leave-to .marks-modal {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 @media (max-width: 767.98px) {
