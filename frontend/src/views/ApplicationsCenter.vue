@@ -893,7 +893,7 @@ export default {
         // wrapper.vm.applications напрямую, переименование сломало бы их без пользы.
         const infiniteList = useInfiniteList({ perPage: APPLICATIONS_PER_PAGE })
         const headerCounters = useHeaderCounters()
-        const rowTransition = useRowTransition('app-row')
+        const rowTransition = useRowTransition('app-row', 'app-row-filter')
         return {
             headerCounters,
             rowTransitionName: rowTransition.transitionName,
@@ -1673,7 +1673,7 @@ export default {
         // подмножестве без шанса догрузить больше подходящих через скролл.
         applyFilters() {
             this.isInitialLoad = false;
-            this.whileReplacingRows(() => this.fetchApplications());
+            this.whileReplacingRows(() => this.fetchApplications(true));
         },
         
         // Сортировка
@@ -2006,8 +2006,8 @@ export default {
             // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
             // Собственный seq-guard записи items/total уже даёт useInfiniteList - этот
             // токен управляет loading/refreshing/pendingRefreshCount (другой side-effect).
-            // silent (real-time push): без оверлея refreshing - список обновляется тихо,
-            // а TransitionGroup анимирует только дельту (новые заявки въезжают, соседи едут).
+            // silent (real-time push и смена фильтра): без оверлея, TransitionGroup сам
+            // показывает дельту - новые въезжают, отсеянные уезжают, соседи смыкаются.
             const seq = ++this.fetchSeq;
             if (!silent) {
                 this.pendingRefreshCount += 1;
@@ -2343,6 +2343,8 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/application-row-transitions.css';
+
 .center {
     padding: 20px;
     position: relative;
@@ -3221,31 +3223,6 @@ export default {
         opacity: 1;
         transform: translateY(0);
     }
-}
-
-/* Точечная анимация списка Центра при real-time добавлении (#840): новая заявка
-   плавно проявляется и въезжает на свою позицию (с учётом сортировки), соседи
-   едут на новое место (FLIP move). Только transform/opacity. Пачка новых за раз
-   отрабатывается штатно - каждая enter + все сдвиги move одновременно. */
-.app-row-enter-active {
-    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
-}
-.app-row-enter-from {
-    opacity: 0;
-    transform: translateY(-20px);
-}
-.app-row-move {
-    transition: transform 0.3s ease;
-}
-.app-row-leave-active {
-    transition: opacity 0.25s ease, transform 0.25s ease;
-    /* Выводим из потока, чтобы соседи плавно сомкнулись при выпадении заявки. */
-    position: absolute;
-    width: 100%;
-}
-.app-row-leave-to {
-    opacity: 0;
-    transform: translateY(-10px);
 }
 
 .application-item:hover:not(.download-btn:hover) {

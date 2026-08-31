@@ -27,11 +27,26 @@ describe('ApplicationBureauNote', () => {
     expect(wrapper.find('[data-testid="bureau-note-text"]').exists()).toBe(false);
   });
 
-  it('показывает текст заметки, автора и время', () => {
+  // Заметка живёт строкой в потоке карточки, а не отдельным блоком: автору и
+  // времени в строке места нет, они ушли в подсказку. Информация не потеряна -
+  // проверяем её там, где она теперь показывается.
+  it('показывает текст заметки, а автора и время держит в подсказке', () => {
     const wrapper = mountNote(NOTE);
-    expect(wrapper.find('[data-testid="bureau-note-text"]').text()).toBe(NOTE.text);
-    expect(wrapper.text()).toContain('Иванов Иван');
-    expect(wrapper.text()).toContain('25.08.2026');
+    const text = wrapper.find('[data-testid="bureau-note-text"]');
+
+    expect(text.text()).toBe(NOTE.text);
+
+    const title = text.attributes('title');
+    expect(title).toContain(NOTE.text);
+    expect(title).toContain('Иванов Иван');
+    expect(title).toContain('25.08.2026');
+  });
+
+  // Длинная заметка не должна растить карточку заявки.
+  it('текст заметки сжимается в одну строку', () => {
+    const wrapper = mountNote(NOTE);
+    const classes = wrapper.find('[data-testid="bureau-note-text"]').classes();
+    expect(classes).toContain('bureau-note__text');
   });
 
   it('сохранение шлёт новый текст и отдаёт ответ наверх', async () => {

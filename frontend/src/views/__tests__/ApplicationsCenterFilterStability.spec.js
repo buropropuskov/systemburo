@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 /**
  * Смена фильтра не должна двигать шапку и мигать списком.
@@ -18,6 +18,9 @@ import { join, resolve } from 'node:path';
  *    заявок (#840). При смене фильтра меняется весь набор, и тот же каскад
  *    прогонял через прозрачность все тридцать строк разом - список мигал
  *    целиком. Замер на стенде: opacity первой строки 0 -> 0.56 -> 0.92 -> 1.
+ *    Плюс список накрывал оверлей «Обновление…» - вторая причина моргания.
+ *    Теперь у замены набора свой рисунок: отсеянные уезжают влево, оставшиеся
+ *    подтягиваются на их места, пришедшие проявляются без сдвига.
  *
  * Замок текстовый: поднимать вью целиком ради двух связей дороже, чем сверить,
  * что источник счётчиков серверный, а имя перехода гасится на время замены.
@@ -25,6 +28,14 @@ import { join, resolve } from 'node:path';
 
 const viewPath = resolve(__dirname, '..', 'ApplicationsCenter.vue');
 const source = readFileSync(viewPath, 'utf8');
+
+// Переходы строк вынесены из вью отдельным файлом (гейт размеров: ApplicationsCenter.vue
+// и так сверх порога). Правила подключаются @import-ом внутрь scoped-блока, поэтому
+// остаются изолированными компонентом - меняется только место хранения.
+const transitions = readFileSync(
+  resolve(__dirname, '..', '..', 'assets', 'application-row-transitions.css'),
+  'utf8',
+);
 
 /** Тело вычисляемого свойства по имени. */
 function computedBody(name) {
@@ -69,27 +80,65 @@ describe('Центр заявок: смена фильтра не дёргает
     expect(source).not.toMatch(/<TransitionGroup[\s\S]{0,200}?\n\s+name="app-row"/);
   });
 
-  it('каскад гасится на время замены набора', () => {
+  it('смена фильтра идёт своим набором переходов и без оверлея', () => {
     const apply = source.slice(source.indexOf('        applyFilters() {'));
     const applyBody = apply.slice(0, apply.indexOf('\n        },'));
+
     expect(
       /whileReplacingRows\(/.test(applyBody),
-      'applyFilters не гасит каскад - смена фильтра снова будет мигать всем списком',
+      'applyFilters не переключает набор переходов - список снова будет мигать целиком',
+    ).toBe(true);
+    expect(
+      /fetchApplications\(true\)/.test(applyBody),
+      'загрузка не тихая - оверлей «Обновление…» накроет список и даст моргание',
     ).toBe(true);
   });
 
-  it('composable перехода возвращает каскад после замены', () => {
+  it('вью подключает вынесенные переходы', () => {
+    expect(
+      source.includes("@import '@/assets/application-row-transitions.css';"),
+      'файл переходов не подключён - список останется вовсе без анимации',
+    ).toBe(true);
+  });
+
+  it('отсеянные заявки уезжают влево, оставшиеся подтягиваются', () => {
+    const leaveTo = transitions.slice(transitions.indexOf('.app-row-filter-leave-to'));
+    expect(
+      /translateX\(-\d+px\)/.test(leaveTo.slice(0, 160)),
+      'уходящие строки обязаны уезжать влево (translateX), а не вверх',
+    ).toBe(true);
+
+    expect(
+      transitions.includes('.app-row-filter-move'),
+      'без move соседи перескочат на новые места рывком, а не подтянутся',
+    ).toBe(true);
+
+    const leaveActive = transitions.slice(transitions.indexOf('.app-row-filter-leave-active'));
+    expect(
+      /position:\s*absolute/.test(leaveActive.slice(0, 220)),
+      'уходящая строка обязана выходить из потока - иначе соседи ждут конца её анимации',
+    ).toBe(true);
+
+    // Появление без вертикального сдвига: он наложился бы на move соседей.
+    const enterFrom = transitions.slice(transitions.indexOf('.app-row-filter-enter-from'));
+    expect(
+      /translateY/.test(enterFrom.slice(0, 120)),
+      'у появления при фильтрации не должно быть сдвига - он читается как дрожание поверх move',
+    ).toBe(false);
+  });
+
+  it('composable возвращает живой набор переходов после замены', () => {
     const composable = readFileSync(
       resolve(__dirname, '..', '..', 'composables', 'useRowTransition.js'),
       'utf8',
     );
     expect(
-      /replacing\.value\s*\?\s*''/.test(composable),
-      'при замене набора имя перехода обязано быть пустым',
+      /replacing\.value\s*\?\s*replaceName\s*:\s*liveName/.test(composable),
+      'режимы перепутаны или схлопнуты в один',
     ).toBe(true);
     expect(
       /finally\s*\{[\s\S]*?replacing\.value = false/.test(composable),
-      'флаг снимается не в finally - при ошибке запроса каскад останется выключенным навсегда',
+      'флаг снимается не в finally - при ошибке запроса режим останется включённым навсегда',
     ).toBe(true);
   });
 });
