@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 
-import { pinLeavingElement } from '../listTransition';
+import { pinLeavingElement, holdParentHeight } from '../listTransition';
 
 /**
  * Уходящие элементы списка обязаны закрепляться на своих местах.
@@ -45,6 +45,55 @@ function hasAbsoluteLeave(source) {
   const rules = source.match(/\.[\w-]*leave-active\s*\{[^}]*\}/g) || [];
   return rules.some((rule) => /position:\s*absolute/.test(rule));
 }
+
+describe('удержание высоты контейнера на время ухода', () => {
+  /**
+   * Уходящая строка выходит из потока сразу, и контейнер укорачивается тем же
+   * кадром: при отсеве двух заявок из четырёх высота падала с 225 до 112 за
+   * кадр, а подпись «Показано N» под списком прыгала вверх ровно тогда, когда
+   * строки только начинали уезжать. Владелец описал это как «резко пропадают».
+   */
+  function parentWithHeight(height) {
+    return {
+      style: {},
+      dataset: {},
+      getBoundingClientRect: () => ({ height }),
+    };
+  }
+
+  it('держит высоту заданное время и снимает после', () => {
+    vi.useFakeTimers();
+    const parent = parentWithHeight(225);
+
+    holdParentHeight({ parentElement: parent }, 300);
+    expect(parent.style.minHeight).toBe('225px');
+
+    vi.advanceTimersByTime(299);
+    expect(parent.style.minHeight, 'сняли раньше срока - подпись прыгнет посреди ухода').toBe('225px');
+
+    vi.advanceTimersByTime(1);
+    expect(parent.style.minHeight, 'высота осталась запертой - список не сомкнётся').toBe('');
+    vi.useRealTimers();
+  });
+
+  it('ставится один раз на пачку уходящих', () => {
+    vi.useFakeTimers();
+    const parent = parentWithHeight(225);
+
+    holdParentHeight({ parentElement: parent }, 300);
+    // Второй уходящий приходит, когда первый уже вынут из потока: высота к этому
+    // моменту меньше, и переустановка заперла бы список на укороченном значении.
+    parent.getBoundingClientRect = () => ({ height: 112 });
+    holdParentHeight({ parentElement: parent }, 300);
+
+    expect(parent.style.minHeight).toBe('225px');
+    vi.useRealTimers();
+  });
+
+  it('не падает на элементе без родителя', () => {
+    expect(() => holdParentHeight({ parentElement: null }, 300)).not.toThrow();
+  });
+});
 
 describe('закрепление уходящих элементов списка', () => {
   it('ставит координаты, размеры и снимает внешние отступы', () => {
