@@ -40,7 +40,7 @@
             data-testid="center-button-unread"
             @click="toggleUnreadOnly"
           >
-            Новые<template v-if="unreadCount > 0">: {{ unreadCount }}</template>
+            Новые<span v-if="unreadCount > 0" class="status-btn__count">: {{ unreadCount }}</span>
           </button>
           <button
             type="button"
@@ -54,7 +54,7 @@
             data-testid="center-button-updates"
             @click="toggleStatusUpdated"
           >
-            Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
+            Обновления<span v-if="statusUpdateCount > 0" class="status-btn__count">: {{ statusUpdateCount }}</span>
           </button>
         </div>
 
@@ -2709,19 +2709,19 @@ export default {
     flex-wrap: wrap;
 }
 
-/* Неактивная кнопка с непустым счётчиком подсвечена цветом своей строки в списке
-   (жёлтая непрочитанная, фиолетовая обновлённая) - иначе, став обычной пилюлей,
-   «Новые» потеряли бы сигнал «есть что посмотреть», который давал прежний бейдж.
-   Классы вешаются только при неактивном фильтре, поэтому с --active не спорят. */
+/* Сигнал «есть что посмотреть» несут рамка и число, а не заливка: с пастельной
+   подложкой пара кнопок сливалась с остальной страницей (претензия владельца). */
 .status-btn--unread {
-    background: var(--unread-bg);
     border-color: var(--unread-accent);
 }
 
 .status-btn--updates {
-    background: var(--updated-bg);
     border-color: var(--updated-accent);
 }
+
+/* Классы вешаются только при неактивном фильтре, поэтому с --active не спорят. */
+.status-btn--unread .status-btn__count { color: var(--unread-ink); }
+.status-btn--updates .status-btn__count { color: var(--updated-ink); }
 
 .shake-animation {
     animation: shake 0.6s ease-in-out;
