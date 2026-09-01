@@ -73,6 +73,21 @@ describe('ApplicationDetail - заметка бюро видна только п
     expect(wrapper.findComponent(ApplicationBureauNote).props('note')).toEqual(saved);
   });
 
+  it('заметка стоит своей полосой, а не внутри шапки', async () => {
+    // В шапке она растила её высоту и растаскивала кнопки правки по чужому
+    // flex-контексту: владелец увидел «Изменить» и «Очистить» в другом месте.
+    const wrapper = await mountDetail({ isApproverSelf: true });
+    const note = wrapper.findComponent(ApplicationBureauNote);
+    const header = wrapper.find('[data-testid="ob-detail-header"]');
+
+    expect(note.exists(), 'заметка пропала из карточки совсем').toBe(true);
+    expect(header.exists(), 'шапка не найдена - изменилась разметка карточки').toBe(true);
+    expect(
+      header.element.contains(note.element),
+      'заметка снова внутри шапки: её высота поедет, а кнопки правки разъедутся',
+    ).toBe(false);
+  });
+
   it('снятая заметка приходит в блок как null', async () => {
     const wrapper = await mountDetail({ isApproverSelf: true });
 

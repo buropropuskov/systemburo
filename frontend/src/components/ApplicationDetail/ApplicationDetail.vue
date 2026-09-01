@@ -189,15 +189,6 @@
             </button>
           </div>
 
-          <!-- Заметка бюро в шапке, а не в теле: она про работу с заявкой, а не про
-               её содержание. Гейт для удобства - текст бэк отдаёт только принимающему. -->
-          <ApplicationBureauNote
-            v-if="isApprover"
-            :application-id="Number(applicationData.id)"
-            :note="applicationData.bureau_note || null"
-            @update="onBureauNoteUpdate"
-          />
-
         </div>
         <div class="detail-header-right">
           <!-- Бейдж и action-bar в своей обёртке: у неё свой flex-wrap, поэтому
@@ -287,6 +278,14 @@
         </div>
       </div>
 
+      <!-- Своей полосой между шапкой и телом: в шапке заметка растила её высоту и
+           растаскивала кнопки правки по чужому flex-контексту. -->
+      <ApplicationBureauNote
+        v-if="isApprover"
+        :application-id="Number(applicationData.id)"
+        :note="applicationData.bureau_note || null"
+        @update="onBureauNoteUpdate"
+      />
       <div
         ref="sheetScroll"
         class="detail-content"
