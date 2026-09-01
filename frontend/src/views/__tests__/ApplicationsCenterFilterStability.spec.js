@@ -287,6 +287,42 @@ describe('Центр заявок: смена фильтра не дёргает
     ).toBe(true);
   });
 
+  it('режим замены держится весь цикл, а не до ближайшей отрисовки', () => {
+    const composable = readFileSync(
+      resolve(__dirname, '..', '..', 'composables', 'useRowTransition.js'),
+      'utf8',
+    );
+
+    // Смена имени перехода - это ещё один рендер группы, а её onUpdated пересчитывает
+    // FLIP и переписывает класс движения на текущий. Снятое сразу после патча имя
+    // отбирало у строк фильтрационный класс вместе с его задержкой: на стенде они
+    // трогались на 590мс с app-row-move, а разделители периодов не получали класса
+    // вовсе и прыгали на 879мс, отставая от строк.
+    expect(
+      /setTimeout\(\s*\(\)\s*=>\s*\{[^}]*replacing\.value = false/.test(composable),
+      'режим снимается сразу после отрисовки - класс движения перепишется на живой',
+    ).toBe(true);
+    expect(
+      /clearTimeout\(release\)/.test(composable),
+      'предыдущее снятие не отменяется - вторая смена фильтра погасит режим досрочно',
+    ).toBe(true);
+
+    const leaveMs = parseInt((composable.match(/LEAVE_MS = (\d+)/) || [])[1], 10);
+    const leaveRule = cssRule('.applications-list .app-row-filter-leave-active');
+    const leaveTransform = leaveRule.slice(leaveRule.indexOf('transform'));
+    const leaveSeconds = parseFloat((leaveTransform.match(/(\d*\.?\d+)s/) || [])[1]);
+
+    expect(
+      leaveMs,
+      'LEAVE_MS разошёлся с временем ухода в CSS: удержание высоты снимется не в такт',
+    ).toBe(Math.round(leaveSeconds * 1000));
+
+    expect(
+      /REPLACE_MS = LEAVE_MS \* 2/.test(composable),
+      'полный цикл считается не от времени ухода - при правке CSS числа разъедутся',
+    ).toBe(true);
+  });
+
   it('composable возвращает живой набор переходов после замены', () => {
     const composable = readFileSync(
       resolve(__dirname, '..', '..', 'composables', 'useRowTransition.js'),
