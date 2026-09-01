@@ -21,12 +21,11 @@ import (
 //
 //  1. Поля модели закрыты json:"-" (см. models.Application) - случайная сериализация
 //     заявки целиком заметку не вынесет.
-//  2. Текст не пишется в audit_log под entity_type='application': GetApplicationHistory
-//     отдаёт ленту заявки всем, кто проходит CanAccessApplication, включая ЗАЯВИТЕЛЯ.
-//     Заметка в ленте означала бы её показ тому, от кого её прячут. Отдельного типа
-//     сущности тоже не заводим: он положил бы копию текста во вторую таблицу, которую
-//     читают другие разделы, - лишняя поверхность утечки ради следа, который и так есть
-//     в bureau_note_author_id / bureau_note_updated_at.
+//  2. ТЕКСТ не пишется в audit_log никогда - ни старый, ни новый. Записи о правке
+//     заметки там есть (кто и когда завёл, переписал, снял), но GetApplicationHistory
+//     отдаёт ленту заявки всем, кто проходит CanAccessApplication, включая ЗАЯВИТЕЛЯ,
+//     поэтому сами эти записи выдаются только тому, кто видит и саму заметку. Отдельной
+//     таблицы истории не заводим: она положила бы копию текста во второе место.
 //  3. В деталь заявки заметка попадает только принимающему (GetApplicationDetails).
 //
 // Уведомлений по заметке нет: она не событие заявки, а рабочий стикер бюро.
@@ -150,18 +149,74 @@ func (s *applicationService) SetBureauNote(ctx context.Context, username string,
 		}
 	}
 
-	res := s.db.WithContext(ctx).Model(&models.Application{}).
+	// Транзакция ради журнала: заметка без записи о правке рассыпает историю, ради
+	// которой её и заводили. Провал записи откатывает сохранение.
+	tx := s.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	// Прежний текст нужен, чтобы отличить «завёл» от «переписал» и не писать запись,
+	// когда принимающий сохранил то же самое. FOR UPDATE: два принимающих правят одну
+	// заметку одновременно, и без блокировки оба прочитали бы одно и то же прежнее
+	// значение - в журнале появились бы два «завёл» вместо «завёл» и «переписал».
+	var previous *string
+	if err := tx.Raw("SELECT bureau_note FROM applications WHERE id = ? FOR UPDATE", applicationID).
+		Scan(&previous).Error; err != nil {
+		tx.Rollback()
+		slog.Error("Ошибка чтения заметки бюро", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	res := tx.Model(&models.Application{}).
 		Where("id = ?", applicationID).
 		Updates(updates)
 	if res.Error != nil {
+		tx.Rollback()
 		slog.Error("Ошибка сохранения заметки бюро", "application_id", applicationID, "error", res.Error)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 	if res.RowsAffected == 0 {
+		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Application not found")
 	}
 
+	if action := bureauNoteAction(previous, text); action != "" {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &applicationID, action, &user.ID,
+			applicationAuditDetails{}); err != nil {
+			tx.Rollback()
+			slog.Error("Ошибка записи истории заметки бюро", "application_id", applicationID, "error", err)
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to record history")
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		slog.Error("Ошибка коммита заметки бюро", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
 	return s.loadBureauNote(ctx, applicationID)
+}
+
+// bureauNoteAction сопоставляет прежний и новый текст с действием для журнала.
+// Пустая строка - писать нечего: заметку сохранили без изменений либо сняли ту,
+// которой и не было.
+//
+// Ни старый, ни новый текст в журнал не идёт: audit_log читают мониторинг и выгрузки,
+// а заметка - внутренняя пометка принимающих. В ленте остаётся сам факт правки.
+func bureauNoteAction(previous *string, next string) string {
+	had := previous != nil && strings.TrimSpace(*previous) != ""
+
+	switch {
+	case !had && next != "":
+		return models.AuditActionBureauNoteCreated
+	case had && next == "":
+		return models.AuditActionBureauNoteCleared
+	case had && next != "" && strings.TrimSpace(*previous) != next:
+		return models.AuditActionBureauNoteUpdated
+	default:
+		return ""
+	}
 }
 
 // applyBureauNoteVisibility кладёт заметку в ответ детали заявки, если смотрящий -

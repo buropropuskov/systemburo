@@ -169,6 +169,14 @@ const (
 	// Отдельно от AuditActionSupplementCancelled: там раунд снимает система при закрытии
 	// заявки (актор пустой, «Система»), здесь - человек своей волей.
 	AuditActionSupplementCancelledByAuthor = "supplement_cancelled_by_author"
+	// AuditActionBureauNote* - заметка бюро по заявке заведена, переписана или снята
+	// (#2287). В details НЕ кладётся ни старый, ни новый текст: audit_log читают
+	// мониторинг и выгрузки, а заметка - внутренняя пометка принимающих. В ленте заявки
+	// эти записи выдаются только тем, кто видит саму заметку (GetApplicationHistory),
+	// поэтому заявитель не узнаёт даже факта.
+	AuditActionBureauNoteCreated = "bureau_note_created"
+	AuditActionBureauNoteUpdated = "bureau_note_updated"
+	AuditActionBureauNoteCleared = "bureau_note_cleared"
 	// AuditActionImpersonateStart / AuditActionImpersonateStop - вход администратора в
 	// режим «войти как пользователь» и возврат в свою учётную запись (#1912). Пишутся на
 	// того, от чьего имени открыт сеанс (entity_type=user, entity_id - его id), актор -
