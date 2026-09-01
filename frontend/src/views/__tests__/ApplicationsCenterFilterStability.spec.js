@@ -101,6 +101,13 @@ const FILTER_MEMBERS = [
   'clearDateRange',
 ];
 
+/** Тело CSS-правила по селектору - от него до закрывающей скобки. */
+function cssRule(selector) {
+  const start = transitions.indexOf(selector);
+  if (start < 0) return '';
+  return transitions.slice(start, transitions.indexOf('}', start));
+}
+
 /** Тело вычисляемого свойства по имени. */
 function computedBody(name) {
   const start = source.indexOf(`        ${name}() {`);
@@ -177,9 +184,8 @@ describe('Центр заявок: смена фильтра не дёргает
       'без move соседи перескочат на новые места рывком, а не подтянутся',
     ).toBe(true);
 
-    const leaveActive = transitions.slice(transitions.indexOf('.app-row-filter-leave-active'));
     expect(
-      /position:\s*absolute/.test(leaveActive.slice(0, 220)),
+      /position:\s*absolute/.test(cssRule('.app-row-filter-leave-active')),
       'уходящая строка обязана выходить из потока - иначе соседи ждут конца её анимации',
     ).toBe(true);
 
@@ -218,6 +224,37 @@ describe('Центр заявок: смена фильтра не дёргает
         + `шорткат, и тот, что ниже, вытесняет свойства верхнего целиком. С move ниже `
         + `leave у уходящей остаётся только transform: строка едет влево, но гаснет `
         + `скачком (замер на стенде: opacity приняла 2 значения вместо 15)`,
+    ).toBe(true);
+  });
+
+  it('оставшиеся едут только после того, как отсеянные уехали', () => {
+    // Владелец: «СНАЧАЛА уезжают заявки, потом другие двигаются на свои места».
+    // Без задержки обе фазы шли в один момент, и при коротком списке уход двух
+    // заявок читался как «просто пропали».
+    const moveDecl = cssRule('.applications-list .app-row-filter-move');
+    const moveTimes = (moveDecl.match(/(\d*\.?\d+)s/g) || []).map(parseFloat);
+    expect(moveTimes.length, 'у move нет задержки - фазы пойдут одновременно').toBe(2);
+
+    const leaveRule = cssRule('.applications-list .app-row-filter-leave-active');
+    const leaveTransform = leaveRule.slice(leaveRule.indexOf('transform'));
+    const leaveDuration = parseFloat((leaveTransform.match(/(\d*\.?\d+)s/) || [])[1]);
+
+    expect(
+      moveTimes[1] >= leaveDuration,
+      `задержка move (${moveTimes[1]}s) меньше времени ухода (${leaveDuration}s) - `
+        + 'оставшиеся тронутся, когда отсеянные ещё едут, и фазы снова сольются',
+    ).toBe(true);
+  });
+
+  it('уход заметен на коротком списке', () => {
+    const leaveTo = cssRule('.applications-list .app-row-filter-leave-to');
+    const shift = Math.abs(parseFloat((leaveTo.match(/translateX\((-?\d+)px\)/) || [])[1]));
+
+    expect(
+      shift >= 100,
+      `сдвиг ${shift}px: при четырёх заявках уход двух на сорок пикселей владелец `
+        + 'прочитал как «просто пропали» - движению нужна амплитуда, глазу не за что '
+        + 'зацепиться, когда соседи стоят',
     ).toBe(true);
   });
 

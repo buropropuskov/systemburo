@@ -1,5 +1,5 @@
 import { ref, computed, nextTick } from 'vue';
-import { pinLeavingElement } from '@/utils/listTransition';
+import { pinLeavingElement, holdParentHeight } from '@/utils/listTransition';
 
 /**
  * Имя перехода для списка, который живёт в двух режимах.
@@ -18,6 +18,11 @@ import { pinLeavingElement } from '@/utils/listTransition';
  * @param {string} liveName переход для живой вставки
  * @param {string} replaceName переход для замены набора
  */
+// Время ухода строки из application-row-transitions.css. Держим высоту контейнера
+// ровно столько же: дальше стартует подтягивание оставшихся, и сокращение высоты
+// читается как его часть.
+const LEAVE_MS = 300;
+
 export function useRowTransition(liveName, replaceName) {
   const replacing = ref(false);
 
@@ -41,6 +46,11 @@ export function useRowTransition(liveName, replaceName) {
     whileReplacing,
     // Закрепление уходящих отдаётся отсюда же: у списка с двумя режимами перехода
     // оно нужно всегда, и отдельный импорт в каждом компоненте только множил бы связи.
-    onBeforeLeave: pinLeavingElement,
+    // Вместе с ним держим высоту контейнера, иначе подпись под списком прыгает
+    // вверх в тот же кадр, когда строки только начинают уезжать.
+    onBeforeLeave: (el) => {
+      holdParentHeight(el, LEAVE_MS);
+      pinLeavingElement(el);
+    },
   };
 }
