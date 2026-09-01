@@ -214,8 +214,9 @@ type ApplicationService interface {
 	// ролями, контактами и состоянием голоса. Персональные данные маскируются.
 	GetApplicationParticipants(ctx context.Context, applicationID int) ([]ApplicationParticipant, error)
 
-	// GetApplicationHistory возвращает историю заявки.
-	GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error)
+	// GetApplicationHistory возвращает историю заявки. username - смотрящий: записи о
+	// заметке бюро выдаются только принимающему, остальным лента приходит без них.
+	GetApplicationHistory(ctx context.Context, applicationID int, username string) ([]ApplicationHistoryItem, error)
 
 	// GetForwardMessages возвращает ветку заявки (#967) - все пересылки с получателями
 	// и сопроводительным текстом (если был), хронологически (старые сверху).
