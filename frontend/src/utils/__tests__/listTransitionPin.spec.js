@@ -97,16 +97,17 @@ describe('удержание высоты контейнера на время �
 
 describe('закрепление уходящих элементов списка', () => {
   it('ставит координаты, размеры и снимает внешние отступы', () => {
-    const parent = {
-      scrollTop: 0,
-      scrollLeft: 0,
-      getBoundingClientRect: () => ({ top: 100, left: 50 }),
-    };
     const el = {
-      parentElement: parent,
       style: {},
       getBoundingClientRect: () => ({ top: 340, left: 50, width: 600, height: 72 }),
     };
+    const parent = {
+      scrollTop: 0,
+      scrollLeft: 0,
+      children: [el],
+      getBoundingClientRect: () => ({ top: 100, left: 50 }),
+    };
+    el.parentElement = parent;
 
     pinLeavingElement(el);
 
@@ -120,21 +121,46 @@ describe('закрепление уходящих элементов списк�
   });
 
   it('учитывает прокрутку контейнера', () => {
-    const parent = {
-      scrollTop: 200,
-      scrollLeft: 0,
-      getBoundingClientRect: () => ({ top: 100, left: 0 }),
-    };
     const el = {
-      parentElement: parent,
       style: {},
       getBoundingClientRect: () => ({ top: 150, left: 0, width: 300, height: 40 }),
     };
+    const parent = {
+      scrollTop: 200,
+      scrollLeft: 0,
+      children: [el],
+      getBoundingClientRect: () => ({ top: 100, left: 0 }),
+    };
+    el.parentElement = parent;
 
     pinLeavingElement(el);
 
     // Без учёта прокрутки строка закрепилась бы на 200px выше своего места.
     expect(el.style.top).toBe('250px');
+  });
+
+  it('вторая уходящая садится на своё место, а не на освободившееся от первой', () => {
+    // Хук before-leave зовут по одному, и к моменту второй первая уже вне потока.
+    // Замер по живой позиции сажал вторую выше её места, Vue видел разницу и
+    // добавлял перелёт по вертикали поверх ухода: строки уезжали по диагонали в
+    // левый верхний угол вместо ровного ухода влево.
+    const first = { style: {}, getBoundingClientRect: () => ({ top: 100, left: 0, width: 300, height: 40 }) };
+    let secondTop = 148;
+    const second = { style: {}, getBoundingClientRect: () => ({ top: secondTop, left: 0, width: 300, height: 40 }) };
+    const parent = {
+      scrollTop: 0,
+      scrollLeft: 0,
+      children: [first, second],
+      getBoundingClientRect: () => ({ top: 100, left: 0 }),
+    };
+    first.parentElement = parent;
+    second.parentElement = parent;
+
+    pinLeavingElement(first);
+    secondTop = 100; // первая вышла из потока, вторая поднялась на её место
+    pinLeavingElement(second);
+
+    expect(second.style.top, 'вторая села на место первой - поедет вверх поверх ухода').toBe('48px');
   });
 
   it('не падает на элементе без родителя', () => {
