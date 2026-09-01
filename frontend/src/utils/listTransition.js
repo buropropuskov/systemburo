@@ -27,12 +27,41 @@
  *
  * @param {HTMLElement} el уходящий элемент
  */
+/**
+ * Снимок раскладки контейнера на момент, когда из него начали уходить строки.
+ *
+ * Хук before-leave вызывается для каждой уходящей отдельно, и первая же покидает
+ * поток раньше, чем очередь дойдёт до второй. Мерить вторую в этот момент поздно:
+ * её место в потоке уже сместилось вверх, закрепление сажает её на новую позицию,
+ * Vue видит разницу со старой и добавляет перелёт по вертикали ПОВЕРХ ухода. Строки
+ * начинают уезжать по диагонали в левый верхний угол вместо ровного ухода влево -
+ * замер на стенде: top 498 -> 466 одновременно с left 71 -> 18.
+ *
+ * Снимок снимается один раз на пачку и живёт до конца кадра.
+ */
+const layoutSnapshots = new WeakMap();
+
+/** Прямоугольники контейнера и его детей до того, как кто-то вышел из потока. */
+function layoutSnapshot(parent) {
+  const cached = layoutSnapshots.get(parent);
+  if (cached) return cached;
+
+  const snapshot = { parent: parent.getBoundingClientRect(), children: new Map() };
+  for (const child of Array.from(parent.children || [])) {
+    snapshot.children.set(child, child.getBoundingClientRect());
+  }
+  layoutSnapshots.set(parent, snapshot);
+  requestAnimationFrame(() => layoutSnapshots.delete(parent));
+  return snapshot;
+}
+
 export function pinLeavingElement(el) {
   const parent = el.parentElement;
   if (!parent) return;
 
-  const rect = el.getBoundingClientRect();
-  const parentRect = parent.getBoundingClientRect();
+  const snapshot = layoutSnapshot(parent);
+  const rect = snapshot.children.get(el) || el.getBoundingClientRect();
+  const parentRect = snapshot.parent;
 
   // Прокрутка контейнера входит в координаты: без неё строки, уходящие из
   // прокрученного списка, закрепились бы выше своего места на величину скролла.
