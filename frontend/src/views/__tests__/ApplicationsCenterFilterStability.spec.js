@@ -246,6 +246,35 @@ describe('Центр заявок: смена фильтра не дёргает
     ).toBe(true);
   });
 
+  it('пришедшие проявляются после того, как отсеянные уехали', () => {
+    // При смене фильтра список перезапрашивается, и часть заявок приходит НОВЫМИ,
+    // а не сдвигается: move им не достаётся, задержка нужна своя. Иначе они
+    // проявляются на местах, ещё занятых уезжающими, и владелец видит, что
+    // «ненужные заявки едут поверх вставших на их места».
+    const enterDecl = cssRule('.applications-list .app-row-filter-enter-active');
+    const enterTimes = (enterDecl.match(/(\d*\.?\d+)s/g) || []).map(parseFloat);
+    expect(enterTimes.length, 'у появления нет задержки').toBe(2);
+
+    const leaveRule = cssRule('.applications-list .app-row-filter-leave-active');
+    const leaveTransform = leaveRule.slice(leaveRule.indexOf('transform'));
+    const leaveDuration = parseFloat((leaveTransform.match(/(\d*\.?\d+)s/) || [])[1]);
+
+    expect(
+      enterTimes[1] >= leaveDuration,
+      `задержка появления (${enterTimes[1]}s) меньше времени ухода (${leaveDuration}s)`,
+    ).toBe(true);
+  });
+
+  it('уходящая строка лежит под остальными', () => {
+    // position: absolute кладёт уходящую в слой выше статических соседей, и
+    // z-index: 0 на ней этого не отменяет. Слой задаётся остающимся.
+    const layer = cssRule('.applications-list > *');
+    expect(
+      /position:\s*relative/.test(layer) && /z-index:\s*[1-9]/.test(layer),
+      'строки списка не подняты слоем - уезжающая будет проходить поверх них',
+    ).toBe(true);
+  });
+
   it('уход заметен на коротком списке', () => {
     const leaveTo = cssRule('.applications-list .app-row-filter-leave-to');
     const shift = Math.abs(parseFloat((leaveTo.match(/translateX\((-?\d+)px\)/) || [])[1]));
