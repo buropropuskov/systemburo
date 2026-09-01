@@ -243,10 +243,11 @@ describe('ApplicationsCenter — переключатели «Новые» и «
     expect(unreadBtn(wrapper).classes()).not.toContain('status-btn--unread');
   });
 
-  it('подсветка идёт рамкой и числом, а не заливкой', () => {
+  it('подсветка идёт рамкой, а не заливкой', () => {
     // Владелец: «кнопки Новые и Обновления в таком же неоновом стиле, они
     // сливаются со всей страницей». Пастельная подложка отличалась от фона
-    // страницы едва заметно, и кнопка переставала читаться как кнопка.
+    // страницы едва заметно, и кнопка переставала читаться как кнопка. Красить
+    // заодно счётчик он забраковал отдельно: «зачем то ": N" покрашено».
     const source = readFileSync(resolve(__dirname, '..', 'ApplicationsCenter.vue'), 'utf8');
     const rule = (selector) => {
       const start = source.indexOf(`\n${selector} {`);
@@ -265,19 +266,17 @@ describe('ApplicationsCenter — переключатели «Новые» и «
     }
 
     expect(
-      source.includes('.status-btn--unread .status-btn__count')
-        && source.includes('.status-btn--updates .status-btn__count'),
-      'число на кнопке не покрашено - без заливки сигнал держится только на рамке',
-    ).toBe(true);
+      // Не просто /color/: у правила есть border-color, и он бы совпал.
+      /(^|[^-])color\s*:/.test(rule('.status-btn--unread')) || source.includes('.status-btn__count'),
+      'счётчик снова красится - владелец забраковал крашеное «: N»',
+    ).toBe(false);
   });
 
-  it('число вынесено в отдельный элемент, иначе его не покрасить', async () => {
+  it('счётчик показывается подписью кнопки', async () => {
     wrapper = mountCenter();
     wrapper.vm.headerCounters.unread.value = 3;
     await wrapper.vm.$nextTick();
 
-    const count = unreadBtn(wrapper).find('.status-btn__count');
-    expect(count.exists(), 'счётчик слит с подписью - цвет ушёл бы и на слово «Новые»').toBe(true);
-    expect(count.text()).toContain('3');
+    expect(unreadBtn(wrapper).text()).toContain('Новые: 3');
   });
 });

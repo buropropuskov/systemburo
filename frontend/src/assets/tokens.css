@@ -100,12 +100,8 @@
 
   --unread-bg: #fff5e0;
   --unread-accent: #f59e0b;
-  /* Цвет числа на кнопке-фильтре: она стоит на обычном фоне, без своей подложки,
-     поэтому акцент подложки здесь дал бы мало контраста. */
-  --unread-ink: #92400e;
   --updated-bg: #f3e8ff;
   --updated-accent: #9333ea;
-  --updated-ink: #7e22ce;
   --row-hover: #f5f6ff;
 
   --tag-chs-bg: #ffebee;       --tag-chs-text: #c62828;
@@ -183,13 +179,9 @@
      --text даёт на них 7.4 и 7.8. */
   --unread-bg: #3D3524;
   --unread-accent: #866326;
-  /* Акцент тёмной темы (#866326) рассчитан на свою подложку; на фоне кнопки он
-     сливается, поэтому число берёт светлый янтарь. */
-  --unread-ink: #D9B87C;
   /* Маркер «обновлено» виден: было #8E7BB5 - всего 3.82 на карточке. */
   --updated-bg: #383152;
   --updated-accent: #B49CE8;
-  --updated-ink: #B49CE8;
   --row-hover: #2e323b;
 
   --tag-chs-bg: #383038;       --tag-chs-text: #E3A2A7;

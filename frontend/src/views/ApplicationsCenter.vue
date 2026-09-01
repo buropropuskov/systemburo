@@ -40,7 +40,7 @@
             data-testid="center-button-unread"
             @click="toggleUnreadOnly"
           >
-            Новые<span v-if="unreadCount > 0" class="status-btn__count">: {{ unreadCount }}</span>
+            Новые<template v-if="unreadCount > 0">: {{ unreadCount }}</template>
           </button>
           <button
             type="button"
@@ -54,7 +54,7 @@
             data-testid="center-button-updates"
             @click="toggleStatusUpdated"
           >
-            Обновления<span v-if="statusUpdateCount > 0" class="status-btn__count">: {{ statusUpdateCount }}</span>
+            Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
           </button>
         </div>
 
@@ -2709,8 +2709,9 @@ export default {
     flex-wrap: wrap;
 }
 
-/* Сигнал «есть что посмотреть» несут рамка и число, а не заливка: с пастельной
-   подложкой пара кнопок сливалась с остальной страницей (претензия владельца). */
+/* Сигнал «есть что посмотреть» несёт рамка, а не заливка: с пастельной подложкой
+   пара кнопок сливалась с остальной страницей. Счётчик оставлен цветом подписи -
+   крашеное «: N» владелец забраковал отдельно. */
 .status-btn--unread {
     border-color: var(--unread-accent);
 }
@@ -2719,9 +2720,6 @@ export default {
     border-color: var(--updated-accent);
 }
 
-/* Классы вешаются только при неактивном фильтре, поэтому с --active не спорят. */
-.status-btn--unread .status-btn__count { color: var(--unread-ink); }
-.status-btn--updates .status-btn__count { color: var(--updated-ink); }
 
 .shake-animation {
     animation: shake 0.6s ease-in-out;
