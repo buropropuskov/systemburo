@@ -229,291 +229,253 @@
     </div>
 
     <!-- Модалка: Загрузить документы -->
-    <Teleport to="body">
-      <transition name="modal-fade">
+    <BaseModal
+      :show="showUploadModal"
+      title="Загрузить документы"
+      width="720px"
+      radius="30px"
+      content-testid="documents-upload-modal"
+      @close="closeUploadModal"
+    >
+        <!-- Dropzone -->
         <div
-          v-if="showUploadModal"
-          class="modal-overlay"
-          @mousedown="onUploadOverlayMousedown"
-          @mouseup="onUploadOverlayMouseup"
+          class="dropzone"
+          :class="{ 'dropzone--over': isDragOver }"
+          @click="$refs.uploadInput.click()"
+          @dragover.prevent="isDragOver = true"
+          @dragleave="isDragOver = false"
+          @drop.prevent="onDropFiles"
         >
-          <div
-            class="docs-modal"
-            @mousedown.stop
+          <div class="dropzone-text">
+            Перетащите файлы сюда или <strong>выберите на устройстве</strong>
+          </div>
+          <div class="dropzone-hint">
+            doc, docx, pdf, xlsx, pptx &middot; до {{ maxFileSizeMb }} МБ &middot; можно несколько
+          </div>
+          <input
+            ref="uploadInput"
+            type="file"
+            multiple
+            accept=".doc,.docx,.pdf,.xlsx,.pptx"
+            style="display: none"
+            @change="onSelectFiles"
           >
-            <div class="modal-header">
-              <h3>Загрузить документы</h3>
+        </div>
+
+        <!-- Общая группа / по своим -->
+        <div
+          v-if="uploadQueue.length"
+          class="upload-queue-header"
+        >
+          <label class="form-label" style="margin: 0">
+            Очередь загрузки ({{ uploadQueue.length }}) — порядок задаёт позицию в группе
+          </label>
+          <select
+            v-model="uploadCommonGroupId"
+            class="lk-select"
+            style="max-width: 220px"
+          >
+            <option value="__each__">у каждого своя группа</option>
+            <option :value="null">— без группы (Прочее) —</option>
+            <option
+              v-for="g in groups"
+              :key="g.id"
+              :value="g.id"
+            >
+              {{ g.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Элементы очереди -->
+        <div
+          v-for="(item, idx) in uploadQueue"
+          :key="item._key"
+          class="uq-row"
+          draggable="true"
+          @dragstart="onQueueDragStart(idx)"
+          @dragover.prevent="onQueueDragOver(idx)"
+          @dragend="onQueueDragEnd"
+        >
+          <span class="uq-drag">&#8942;&#8942;</span>
+          <span class="uq-ord">{{ idx + 1 }}</span>
+          <FileTypeIcon
+            :ext="item.ext"
+            :size="28"
+          />
+          <div class="uq-fields">
+            <div class="uq-filename">
+              {{ item.file.name }}
+              <span class="uq-size">&middot; {{ formatBytes(item.file.size) }}</span>
+            </div>
+            <input
+              v-model="item.title"
+              type="text"
+              class="lk-input"
+              placeholder="Наименование на сайте"
+            >
+            <input
+              v-model="item.description"
+              type="text"
+              class="lk-input"
+              placeholder="Описание (необязательно)"
+            >
+            <select
+              v-if="uploadCommonGroupId === '__each__'"
+              v-model="item.group_id"
+              class="lk-select"
+            >
+              <option :value="null">— без группы (Прочее) —</option>
+              <option
+                v-for="g in groups"
+                :key="g.id"
+                :value="g.id"
+              >
+                {{ g.name }}
+              </option>
+            </select>
+          </div>
+          <button
+            class="uq-remove"
+            title="Убрать из очереди"
+            @click="removeFromQueue(idx)"
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          v-if="uploadError"
+          class="form-error"
+        >
+          {{ uploadError }}
+        </div>
+      <template #actions>
+          <button
+            class="lk-button lk-button--ghost"
+            @click="closeUploadModal"
+          >
+            Отмена
+          </button>
+          <button
+            class="lk-button lk-button--primary"
+            :disabled="!uploadQueue.length || isUploading"
+            @click="submitUpload"
+          >
+            {{ isUploading ? 'Загрузка...' : `Загрузить ${uploadQueue.length > 0 ? uploadQueue.length + ' ' + fileWord(uploadQueue.length) : ''}` }}
+          </button>
+      </template>
+    </BaseModal>
+
+    <!-- Модалка: Управление группами -->
+    <BaseModal
+      :show="showGroupsModal"
+      title="Группы документов"
+      width="720px"
+      radius="30px"
+      content-testid="documents-groups-modal"
+      @close="closeGroupsModal"
+    >
+        <div
+          v-for="(grp, idx) in editableGroups"
+          :key="grp.id"
+          class="grp-row"
+          draggable="true"
+          @dragstart="onGroupDragStart(idx)"
+          @dragover.prevent="onGroupDragOver(idx)"
+          @dragend="onGroupDragEnd"
+        >
+          <span class="grp-drag">&#8942;&#8942;</span>
+          <div class="grp-row-info">
+            <div
+              v-if="grp._editMode"
+              class="grp-edit-row"
+            >
+              <input
+                v-model="grp._editName"
+                type="text"
+                maxlength="255"
+                class="lk-input"
+                @keyup.enter="saveGroupRename(grp)"
+              >
               <button
-                class="modal-close"
-                aria-label="Закрыть"
-                @click="closeUploadModal"
+                class="lk-button lk-button--primary"
+                style="padding: 0 12px; height: 34px"
+                @click="saveGroupRename(grp)"
               >
-                ×
+                OK
               </button>
-            </div>
-            <div class="modal-body">
-              <!-- Dropzone -->
-              <div
-                class="dropzone"
-                :class="{ 'dropzone--over': isDragOver }"
-                @click="$refs.uploadInput.click()"
-                @dragover.prevent="isDragOver = true"
-                @dragleave="isDragOver = false"
-                @drop.prevent="onDropFiles"
-              >
-                <div class="dropzone-text">
-                  Перетащите файлы сюда или <strong>выберите на устройстве</strong>
-                </div>
-                <div class="dropzone-hint">
-                  doc, docx, pdf, xlsx, pptx &middot; до {{ maxFileSizeMb }} МБ &middot; можно несколько
-                </div>
-                <input
-                  ref="uploadInput"
-                  type="file"
-                  multiple
-                  accept=".doc,.docx,.pdf,.xlsx,.pptx"
-                  style="display: none"
-                  @change="onSelectFiles"
-                >
-              </div>
-
-              <!-- Общая группа / по своим -->
-              <div
-                v-if="uploadQueue.length"
-                class="upload-queue-header"
-              >
-                <label class="form-label" style="margin: 0">
-                  Очередь загрузки ({{ uploadQueue.length }}) — порядок задаёт позицию в группе
-                </label>
-                <select
-                  v-model="uploadCommonGroupId"
-                  class="lk-select"
-                  style="max-width: 220px"
-                >
-                  <option value="__each__">у каждого своя группа</option>
-                  <option :value="null">— без группы (Прочее) —</option>
-                  <option
-                    v-for="g in groups"
-                    :key="g.id"
-                    :value="g.id"
-                  >
-                    {{ g.name }}
-                  </option>
-                </select>
-              </div>
-
-              <!-- Элементы очереди -->
-              <div
-                v-for="(item, idx) in uploadQueue"
-                :key="item._key"
-                class="uq-row"
-                draggable="true"
-                @dragstart="onQueueDragStart(idx)"
-                @dragover.prevent="onQueueDragOver(idx)"
-                @dragend="onQueueDragEnd"
-              >
-                <span class="uq-drag">&#8942;&#8942;</span>
-                <span class="uq-ord">{{ idx + 1 }}</span>
-                <FileTypeIcon
-                  :ext="item.ext"
-                  :size="28"
-                />
-                <div class="uq-fields">
-                  <div class="uq-filename">
-                    {{ item.file.name }}
-                    <span class="uq-size">&middot; {{ formatBytes(item.file.size) }}</span>
-                  </div>
-                  <input
-                    v-model="item.title"
-                    type="text"
-                    class="lk-input"
-                    placeholder="Наименование на сайте"
-                  >
-                  <input
-                    v-model="item.description"
-                    type="text"
-                    class="lk-input"
-                    placeholder="Описание (необязательно)"
-                  >
-                  <select
-                    v-if="uploadCommonGroupId === '__each__'"
-                    v-model="item.group_id"
-                    class="lk-select"
-                  >
-                    <option :value="null">— без группы (Прочее) —</option>
-                    <option
-                      v-for="g in groups"
-                      :key="g.id"
-                      :value="g.id"
-                    >
-                      {{ g.name }}
-                    </option>
-                  </select>
-                </div>
-                <button
-                  class="uq-remove"
-                  title="Убрать из очереди"
-                  @click="removeFromQueue(idx)"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div
-                v-if="uploadError"
-                class="form-error"
-              >
-                {{ uploadError }}
-              </div>
-            </div>
-            <div class="modal-footer">
               <button
                 class="lk-button lk-button--ghost"
-                @click="closeUploadModal"
+                style="padding: 0 12px; height: 34px"
+                @click="grp._editMode = false"
               >
                 Отмена
               </button>
-              <button
-                class="lk-button lk-button--primary"
-                :disabled="!uploadQueue.length || isUploading"
-                @click="submitUpload"
-              >
-                {{ isUploading ? 'Загрузка...' : `Загрузить ${uploadQueue.length > 0 ? uploadQueue.length + ' ' + fileWord(uploadQueue.length) : ''}` }}
-              </button>
             </div>
+            <template v-else>
+              <div class="grp-name">{{ grp.name }}</div>
+              <div class="grp-cnt">{{ grp.count ?? 0 }} документов</div>
+            </template>
           </div>
-        </div>
-      </transition>
-    </Teleport>
-
-    <!-- Модалка: Управление группами -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showGroupsModal"
-          class="modal-overlay"
-          @mousedown="onGroupsOverlayMousedown"
-          @mouseup="onGroupsOverlayMouseup"
-        >
           <div
-            class="docs-modal"
-            @mousedown.stop
+            v-if="!grp._editMode"
+            class="grp-actions"
           >
-            <div class="modal-header">
-              <h3>Группы документов</h3>
-              <button
-                class="modal-close"
-                aria-label="Закрыть"
-                @click="closeGroupsModal"
-              >
-                ×
-              </button>
-            </div>
-            <div class="modal-body">
-              <div
-                v-for="(grp, idx) in editableGroups"
-                :key="grp.id"
-                class="grp-row"
-                draggable="true"
-                @dragstart="onGroupDragStart(idx)"
-                @dragover.prevent="onGroupDragOver(idx)"
-                @dragend="onGroupDragEnd"
-              >
-                <span class="grp-drag">&#8942;&#8942;</span>
-                <div class="grp-row-info">
-                  <div
-                    v-if="grp._editMode"
-                    class="grp-edit-row"
-                  >
-                    <input
-                      v-model="grp._editName"
-                      type="text"
-                      maxlength="255"
-                      class="lk-input"
-                      @keyup.enter="saveGroupRename(grp)"
-                    >
-                    <button
-                      class="lk-button lk-button--primary"
-                      style="padding: 0 12px; height: 34px"
-                      @click="saveGroupRename(grp)"
-                    >
-                      OK
-                    </button>
-                    <button
-                      class="lk-button lk-button--ghost"
-                      style="padding: 0 12px; height: 34px"
-                      @click="grp._editMode = false"
-                    >
-                      Отмена
-                    </button>
-                  </div>
-                  <template v-else>
-                    <div class="grp-name">{{ grp.name }}</div>
-                    <div class="grp-cnt">{{ grp.count ?? 0 }} документов</div>
-                  </template>
-                </div>
-                <div
-                  v-if="!grp._editMode"
-                  class="grp-actions"
-                >
-                  <button
-                    class="lk-button lk-button--ghost"
-                    style="padding: 0 10px; height: 28px; font-size: 12px"
-                    @click="startGroupRename(grp)"
-                  >
-                    Переименовать
-                  </button>
-                  <button
-                    class="lk-button lk-button--danger"
-                    style="padding: 0 10px; height: 28px; font-size: 12px"
-                    @click="deleteGroup(grp)"
-                  >
-                    Удалить
-                  </button>
-                </div>
-              </div>
-
-              <!-- Виртуальная группа «Прочее» — не редактируется -->
-              <div class="grp-row grp-row--misc">
-                <div class="grp-row-info">
-                  <div class="grp-name" style="color: #8a8a9a">Прочее <em style="font-style: normal; font-size: 11px">(виртуальная)</em></div>
-                  <div class="grp-cnt">документы без группы</div>
-                </div>
-              </div>
-
-              <div class="form-group" style="margin-top: 16px">
-                <label class="form-label">Новая группа</label>
-                <div class="new-group-row">
-                  <input
-                    v-model="newGroupName"
-                    type="text"
-                    maxlength="255"
-                    class="lk-input"
-                    placeholder="Название группы"
-                    @keyup.enter="createGroup"
-                  >
-                  <button
-                    class="lk-button lk-button--primary"
-                    :disabled="!newGroupName.trim() || isCreatingGroup"
-                    @click="createGroup"
-                  >
-                    Создать
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--ghost"
-                @click="closeGroupsModal"
-              >
-                Закрыть
-              </button>
-            </div>
+            <button
+              class="lk-button lk-button--ghost"
+              style="padding: 0 10px; height: 28px; font-size: 12px"
+              @click="startGroupRename(grp)"
+            >
+              Переименовать
+            </button>
+            <button
+              class="lk-button lk-button--danger"
+              style="padding: 0 10px; height: 28px; font-size: 12px"
+              @click="deleteGroup(grp)"
+            >
+              Удалить
+            </button>
           </div>
         </div>
-      </transition>
-    </Teleport>
+
+        <!-- Виртуальная группа «Прочее» — не редактируется -->
+        <div class="grp-row grp-row--misc">
+          <div class="grp-row-info">
+            <div class="grp-name" style="color: #8a8a9a">Прочее <em style="font-style: normal; font-size: 11px">(виртуальная)</em></div>
+            <div class="grp-cnt">документы без группы</div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px">
+          <label class="form-label">Новая группа</label>
+          <div class="new-group-row">
+            <input
+              v-model="newGroupName"
+              type="text"
+              maxlength="255"
+              class="lk-input"
+              placeholder="Название группы"
+              @keyup.enter="createGroup"
+            >
+            <button
+              class="lk-button lk-button--primary"
+              :disabled="!newGroupName.trim() || isCreatingGroup"
+              @click="createGroup"
+            >
+              Создать
+            </button>
+          </div>
+        </div>
+      <template #actions>
+          <button
+            class="lk-button lk-button--ghost"
+            @click="closeGroupsModal"
+          >
+            Закрыть
+          </button>
+      </template>
+    </BaseModal>
 
     <!-- Confirm-диалог удаления -->
     <ConfirmationModal
@@ -530,13 +492,13 @@
 </template>
 
 <script>
+import BaseModal from './ui/BaseModal.vue';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import FileTypeIcon from './ui/FileTypeIcon.vue';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 import { formatBytes } from '@/utils/download';
 import {
   listDocumentGroups,
@@ -564,26 +526,7 @@ function makeKey() {
 
 export default {
   name: 'DocumentsManagement',
-  components: { RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, FileTypeIcon },
-  setup() {
-    // Три оверлея — три пары хендлеров
-    const uploadOverlay = { close: () => {} };
-    const { onOverlayMousedown: onUploadOverlayMousedown, onOverlayMouseup: onUploadOverlayMouseup } =
-      useOverlayClose(() => uploadOverlay.close());
-
-    const groupsOverlay = { close: () => {} };
-    const { onOverlayMousedown: onGroupsOverlayMousedown, onOverlayMouseup: onGroupsOverlayMouseup } =
-      useOverlayClose(() => groupsOverlay.close());
-
-    return {
-      onUploadOverlayMousedown,
-      onUploadOverlayMouseup,
-      uploadOverlay,
-      onGroupsOverlayMousedown,
-      onGroupsOverlayMouseup,
-      groupsOverlay,
-    };
-  },
+  components: { BaseModal, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, FileTypeIcon },
   data() {
     return {
       documents: [],
@@ -641,8 +584,6 @@ export default {
     },
   },
   created() {
-    this.uploadOverlay.close = this.closeUploadModal;
-    this.groupsOverlay.close = this.closeGroupsModal;
     this.loadAll();
   },
   methods: {
@@ -1290,68 +1231,6 @@ export default {
 }
 
 /* --- Модалка --- */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-}
-
-.docs-modal {
-  width: 560px;
-  max-width: 95vw;
-  max-height: calc(var(--app-vh, 1vh) * 90);
-  background: var(--surface);
-  border-radius: 30px;
-  box-shadow: 0 20px 60px rgba(20, 22, 60, 0.18);
-  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px 0;
-  flex-shrink: 0;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.modal-body {
-  padding: 18px 24px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 24px 22px;
-  flex-shrink: 0;
-}
-
 /* --- Dropzone --- */
 .dropzone {
   border: 2px dashed color-mix(in srgb, var(--accent) 25%, var(--surface));
@@ -1519,27 +1398,6 @@ export default {
 }
 
 /* --- Анимация модалки --- */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-active .docs-modal,
-.modal-fade-leave-active .docs-modal {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.modal-fade-enter-from .docs-modal,
-.modal-fade-leave-to .docs-modal {
-  opacity: 0;
-  transform: translateY(-12px) scale(0.97);
-}
-
 /* --- BaseDropdown для фильтра групп --- */
 .group-filter-dropdown {
   min-width: 140px;
