@@ -227,165 +227,112 @@
       </div>
     </div>
 
-    <!-- Модалка создания/редактирования новости -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showNewsModal"
-          class="modal-overlay"
-          @click.self="closeNewsModal"
+    <BaseModal
+      :show="showNewsModal"
+      :title="editingItem ? 'Редактировать новость' : 'Создать новость'"
+      width="640px"
+      radius="30px"
+      content-testid="news-modal"
+      @close="closeNewsModal"
+    >
+      <div class="form-group">
+        <label class="form-label">Заголовок</label>
+        <input
+          v-model="newsForm.title"
+          type="text"
+          class="lk-input"
+          placeholder="Введите заголовок"
         >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ editingItem ? 'Редактировать новость' : 'Создать новость' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeNewsModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Заголовок</label>
-                <input
-                  v-model="newsForm.title"
-                  type="text"
-                  class="lk-input"
-                  placeholder="Введите заголовок"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Краткое описание</label>
-                <textarea
-                  v-model="newsForm.description"
-                  class="lk-textarea"
-                  placeholder="Введите краткое описание"
-                  rows="3"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Полный текст</label>
-                <TextConstructor v-model="newsForm.fullText" />
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--secondary"
-                @click="closeNewsModal"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                @click="submitNews"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Краткое описание</label>
+        <textarea
+          v-model="newsForm.description"
+          class="lk-textarea"
+          placeholder="Введите краткое описание"
+          rows="3"
+        />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Полный текст</label>
+        <TextConstructor v-model="newsForm.fullText" />
+      </div>
+      <template #actions>
+        <button
+          class="lk-button lk-button--secondary"
+          @click="closeNewsModal"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          @click="submitNews"
+        >
+          Сохранить
+        </button>
+      </template>
+    </BaseModal>
 
-    <!-- Модалка создания/редактирования объявления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAnnouncementModal"
-          class="modal-overlay"
-          @click.self="closeAnnouncementModal"
+    <BaseModal
+      :show="showAnnouncementModal"
+      :title="editingItem ? 'Редактировать объявление' : 'Создать объявление'"
+      width="640px"
+      radius="30px"
+      content-testid="announcement-modal"
+      @close="closeAnnouncementModal"
+    >
+      <div class="form-group">
+        <label class="form-label">Заголовок</label>
+        <input
+          v-model="announcementForm.title"
+          type="text"
+          class="lk-input"
+          placeholder="Введите заголовок"
         >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ editingItem ? 'Редактировать объявление' : 'Создать объявление' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeAnnouncementModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Заголовок</label>
-                <input
-                  v-model="announcementForm.title"
-                  type="text"
-                  class="lk-input"
-                  placeholder="Введите заголовок"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Краткое описание</label>
-                <textarea
-                  v-model="announcementForm.description"
-                  class="lk-textarea"
-                  placeholder="Введите краткое описание"
-                  rows="3"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Полный текст</label>
-                <TextConstructor v-model="announcementForm.fullText" />
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input
-                    v-model="announcementForm.isImportant"
-                    type="checkbox"
-                  >
-                  <span>Важное объявление</span>
-                </label>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="lk-button lk-button--secondary"
-                @click="closeAnnouncementModal"
-              >
-                Отмена
-              </button>
-              <button
-                class="lk-button lk-button--primary"
-                @click="submitAnnouncement"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Краткое описание</label>
+        <textarea
+          v-model="announcementForm.description"
+          class="lk-textarea"
+          placeholder="Введите краткое описание"
+          rows="3"
+        />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Полный текст</label>
+        <TextConstructor v-model="announcementForm.fullText" />
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input
+            v-model="announcementForm.isImportant"
+            type="checkbox"
+          >
+          <span>Важное объявление</span>
+        </label>
+      </div>
+      <template #actions>
+        <button
+          class="lk-button lk-button--secondary"
+          @click="closeAnnouncementModal"
+        >
+          Отмена
+        </button>
+        <button
+          class="lk-button lk-button--primary"
+          @click="submitAnnouncement"
+        >
+          Сохранить
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client';
+import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -396,7 +343,7 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
   name: 'NewsManagement',
-  components: { RefreshButton, TextConstructor, SearchComponent },
+  components: { BaseModal, RefreshButton, TextConstructor, SearchComponent },
   data() {
     return {
       loading: false,
@@ -1058,91 +1005,6 @@ export default {
 }
 
 /* Модалки */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  backdrop-filter: blur(0.1px);
-}
-
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.25s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-  opacity: 0;
-  transform: scale(0.92) translateY(-16px);
-}
-
-.modal-content {
-  background: var(--surface);
-  border-radius: 30px;
-  width: 560px;
-  max-width: 92vw;
-  max-height: calc(var(--app-vh, 1vh) * 82);
-  box-shadow: 0 20px 60px var(--shadow-drop);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 28px 0;
-  flex-shrink: 0;
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s ease;
-}
-
-.modal-close:hover {
-  background-color: var(--surface-2);
-}
-
-.modal-body {
-  padding: 20px 28px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.modal-footer {
-  padding: 14px 28px 22px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
 .form-group {
   margin-bottom: 18px;
 }
