@@ -731,6 +731,7 @@ import {
 } from '@/constants/orgTypes';
 import { useCompaniesStore } from '@/stores/companies';
 import { useDeletionsStore } from '@/stores/deletions';
+import { directoryBulkComputed, directoryBulkMethods } from '@/utils/directoryBulk';
 import { usePermissionsStore } from '@/stores/permissions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import RefreshButton from './RefreshButton.vue';
@@ -818,6 +819,8 @@ export default {
     };
   },
   computed: {
+    ...directoryBulkComputed({ sortedKey: 'sortedCompanies' }),
+
     // Гейты зеркалят BE: перенос пользователей и история компании закрыты тем же
     // page.admin.directories, что открывает экран (#1982). Ключ держим явно, а не
     // считаем кнопки всегда доступными: разойдётся право маршрута - разойдётся и здесь.
@@ -960,13 +963,6 @@ export default {
     },
     // Выбор всегда подмножество видимых строк (watch подрезает при фильтрации),
     // поэтому равенство длин = выбраны все видимые.
-    allSelected() {
-      return this.sortedCompanies.length > 0
-        && this.selectedIds.length === this.sortedCompanies.length;
-    },
-    someSelected() {
-      return this.selectedIds.length > 0 && !this.allSelected;
-    },
     bulkConfirmTitle() {
       return this.pendingBulkOp === 'restore' ? 'Восстановление компаний' : 'Архивация компаний';
     },
@@ -1037,6 +1033,8 @@ export default {
     this._stopGuard?.();
   },
   methods: {
+    ...directoryBulkMethods({ sortedKey: 'sortedCompanies' }),
+
     ...mapActions(useCompaniesStore, [
       'refresh',
       'createCompany',
@@ -1093,78 +1091,11 @@ export default {
       this.pendingBulkOp = null;
     },
 
-    isSelected(id) {
-      return this.selectedIds.includes(id);
-    },
-
-    toggleSelect(id) {
-      const i = this.selectedIds.indexOf(id);
-      if (i === -1) this.selectedIds.push(id);
-      else this.selectedIds.splice(i, 1);
-    },
-
     // onRowCheck обрабатывает клик по чекбоксу строки. Обычный клик - toggle.
     // Shift-клик - выделяет диапазон от якоря (последней кликнутой строки) до
     // текущей включительно, приводя его к состоянию, в которое переходит
     // shift-кликнутый чекбокс (снят -> выделить весь диапазон, и наоборот).
     // Якорь хранится по id и переиндексируется на лету - устойчив к пересортировке.
-    onRowCheck(comp, index, event) {
-      // shift-клик не должен выделять текст (селект начинается на mousedown, .prevent его не гасит) -
-      // гасим для любого shift-клика, включая fallback без валидного якоря.
-      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
-      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== comp.id) {
-        const anchor = this.sortedCompanies.findIndex(c => c.id === this.lastSelectedId);
-        if (anchor !== -1) {
-          const target = !this.isSelected(comp.id);
-          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
-          for (let i = from; i <= to; i += 1) {
-            const id = this.sortedCompanies[i].id;
-            const sel = this.isSelected(id);
-            if (target && !sel) this.selectedIds.push(id);
-            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
-          }
-          this.lastSelectedId = comp.id;
-          return;
-        }
-      }
-      this.toggleSelect(comp.id);
-      this.lastSelectedId = comp.id;
-    },
-
-    toggleSelectAll() {
-      this.selectedIds = this.allSelected
-        ? []
-        : this.sortedCompanies.map(c => c.id);
-      this.lastSelectedId = null; // "выбрать всё" не задаёт якорь для shift-диапазона
-    },
-
-    clearSelection() {
-      this.selectedIds = [];
-      this.lastSelectedId = null;
-      this.pendingBulkOp = null;
-    },
-
-    startBulkOperation(operation) {
-      this.pendingBulkOp = operation;
-      if (operation === 'archive' || operation === 'restore') {
-        this.bulkConfirmVisible = true;
-      } else {
-        this.bulkModalVisible = true;
-      }
-    },
-
-    closeBulkModal() {
-      if (this.bulkSubmitting) return;
-      this.bulkModalVisible = false;
-      this.pendingBulkOp = null;
-    },
-
-    cancelBulkConfirm() {
-      if (this.bulkSubmitting) return;
-      this.bulkConfirmVisible = false;
-      this.pendingBulkOp = null;
-    },
-
     // Применение операций type/places/tables/users из BulkOperationsModal.
     async applyBulk(payload) {
       const ids = [...this.selectedIds];
@@ -1242,31 +1173,6 @@ export default {
     // перечнем непрошедших. Возвращает true, если операция применилась (валидный
     // BulkOpResult) - тогда сбрасываем выбор и обновляем список; false при
     // ошибке-envelope (success:false -> {message}), чтобы можно было повторить.
-    handleBulkResult(op, result, total) {
-      if (!result || typeof result.success_count !== 'number') {
-        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
-        return false;
-      }
-      const label = {
-        type: 'Тип изменён',
-        'unload-places': 'Места разгрузки назначены',
-        tables: 'Целевые таблицы назначены',
-        users: 'Ответственные назначены',
-        archive: 'Архивировано',
-        restore: 'Восстановлено',
-      }[op] || 'Готово';
-
-      if (result.error_count > 0) {
-        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
-        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
-      } else {
-        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
-      }
-      this.clearSelection();
-      this.refreshData();
-      return true;
-    },
-
     // fix 5: сбрасываем поднятые dirty-флаги детей при смене/сбросе выбора -
     // при уходе с активной сущности дети размонтируются и больше не эмитят.
     resetChildDirty() {
