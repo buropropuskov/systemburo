@@ -327,6 +327,20 @@
               />
               <span class="nav-text">Аналитика</span>
             </div>
+            <div
+              v-show="can('page.statistics')"
+              class="nav-item"
+              :class="{ active: isReportsTab }"
+              data-testid="nav-link-reports"
+              @click="$router.push({ path: '/analytics', query: { tab: 'reports' } })"
+            >
+              <NavIcon
+                name="analytics"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Отчёты</span>
+            </div>
           </div>
 
           <!-- АДМИНИСТРИРОВАНИЕ: виден если есть хотя бы один доступный раздел
@@ -742,6 +756,10 @@ export default {
     };
   },
   computed: {
+    /** Отчёты живут вкладкой внутри аналитики, поэтому активность считается по параметру адреса. */
+    isReportsTab() {
+      return this.$route.path === '/analytics' && this.$route.query.tab === 'reports';
+    },
     /** Тумблер в меню: включён на тёмной теме (#1415). */
     isDarkTheme() {
       return this.themeStore.current === 'dark';
@@ -965,6 +983,8 @@ export default {
       // Только список таблиц /table и /table/:name, но НЕ /table-constructor.
       if (path === '/table') return current === '/table' || current.startsWith('/table/');
       if (path === '/admin') return current.startsWith('/admin');
+      // У отчётов свой пункт меню, поэтому «Аналитика» держит остальные её вкладки.
+      if (path === '/analytics') return current === path && !this.isReportsTab;
       return current === path;
     },
     // Текущая открытая таблица - для подсветки пункта в списке «Таблицы».

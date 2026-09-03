@@ -365,3 +365,24 @@ describe('GlobalSearchPanel - сколько нашлось и где остал
     expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
   });
 });
+
+describe('GlobalSearchPanel — раздел отчётов (#2297)', () => {
+  afterEach(() => { wrapper?.unmount(); });
+
+  it('находит «Отчёты» по слову «выгрузка», хотя в названии его нет', async () => {
+    wrapper = mountPanel('выгрузка');
+    await flushPromises();
+
+    const rows = wrapper.findAll('.gsp__row-title').map((r) => r.text());
+    expect(rows).toContain('Отчёты');
+  });
+
+  it('ведёт на собственный адрес вкладки', async () => {
+    wrapper = mountPanel('отчёты');
+    await flushPromises();
+
+    const row = wrapper.findAll('.gsp__row').find((r) => r.text().includes('Отчёты'));
+    await row.trigger('click');
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({ path: '/analytics', query: { tab: 'reports' } }));
+  });
+});

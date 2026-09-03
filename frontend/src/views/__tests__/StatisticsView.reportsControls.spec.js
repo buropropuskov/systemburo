@@ -1,5 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { reactive } from 'vue';
+
+// У отчётов свой адрес (#2297): вкладка читается из маршрута и пишется в него,
+// поэтому вью нужен роутер. Заглушка держит путь и переписывает его на push.
+const { routeStub, pushSpy } = vi.hoisted(() => {
+  const route = { path: '/analytics', params: {}, query: {} };
+  return { routeStub: route, pushSpy: null };
+});
+const route = reactive(routeStub);
+const push = vi.fn((to) => {
+  if (typeof to === 'string') { route.path = to; route.query = {}; return; }
+  route.path = to.path ?? route.path;
+  route.query = to.query ?? {};
+});
+vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ push }) }));
 
 // Вкладки монтируют тяжёлые панели с запросами — здесь они не нужны, проверяем шапку.
 vi.mock('@/components/statistics/StatisticsDashboard.vue', () => ({ default: { name: 'StatisticsDashboard', template: '<div />' } }));
@@ -9,6 +24,12 @@ vi.mock('@/components/statistics/ReportsTab.vue', () => ({ default: { name: 'Rep
 import StatisticsView from '../StatisticsView.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+
+beforeEach(() => {
+  route.path = '/analytics';
+  route.query = {};
+  push.mockClear();
+});
 
 function mountView() {
   return mount(StatisticsView, {
@@ -47,6 +68,17 @@ describe('StatisticsView — шапка на вкладке «Отчёты»', (
     expect(wrapper.find('.period-presets').isVisible()).toBe(false);
     expect(wrapper.findComponent(DateFilter).isVisible()).toBe(false);
     expect(wrapper.findComponent(RefreshButton).isVisible()).toBe(false);
+  });
+
+  it('переключение на отчёты меняет адрес, а прямая ссылка открывает вкладку сразу', async () => {
+    const wrapper = mountView();
+    await openReports(wrapper);
+    expect(push).toHaveBeenCalledWith({ path: '/analytics', query: { tab: 'reports' } });
+
+    route.query = { tab: 'reports' };
+    const direct = mountView();
+    await flushPromises();
+    expect(direct.find('.reports-stub').exists()).toBe(true);
   });
 
   it('при возврате на дашборд контролы появляются снова', async () => {
