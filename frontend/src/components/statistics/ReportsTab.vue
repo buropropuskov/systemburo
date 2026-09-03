@@ -421,6 +421,8 @@ async function scrollToResult() {
   position: sticky;
   top: 0;
   align-self: start;
+  /* Непрозрачный фон обязателен: под липкой колонкой проезжает конструктор. */
+  background: var(--surface);
 }
 
 .col-heading {

@@ -315,4 +315,26 @@ function toggle(key) {
   font-size: 11px;
   color: var(--color-text-muted);
 }
+
+/* Мобилка: колонка шага без левого отступа, карточки плотнее, на 480 - в один столбец. */
+@media (max-width: 768px) {
+  .rb__metrics,
+  .rb__group-title {
+    margin-left: 0;
+  }
+
+  .rb__metric {
+    padding: 13px 14px;
+  }
+
+  .rb__more {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .rb__metrics {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

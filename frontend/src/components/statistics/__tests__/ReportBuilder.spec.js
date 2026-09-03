@@ -543,7 +543,10 @@ describe('ReportBuilder', () => {
 describe('ReportBuilder — мобильная адаптивность (#1097 r3d)', () => {
   const src = readFileSync(resolve(__dirname, '../ReportBuilder.vue'), 'utf8');
   const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
-  const marginReset = mobile.slice(0, mobile.indexOf('@media (max-width: 480px)'));
+  const marginReset = mobile;
+  // Шаг «Что считаем» уехал в свой компонент (#2296), мобильные правила метрик - вместе с ним.
+  const pickerSrc = readFileSync(resolve(__dirname, '../ReportMetricPicker.vue'), 'utf8');
+  const pickerMobile = pickerSrc.slice(pickerSrc.indexOf('@media (max-width: 768px)'));
 
   it('канонический брейкпоинт мобилки 768 (эталон #1097), прежний 620 убран', () => {
     expect(src).toContain('@media (max-width: 768px)');
@@ -551,10 +554,14 @@ describe('ReportBuilder — мобильная адаптивность (#1097 r
   });
 
   it('на мобилке снят левый отступ под номер шага у всех сеток и блоков', () => {
-    for (const sel of ['.rb__metrics', '.rb__dims', '.rb__group-title', '.rb__gran', '.rb__filters', '.rb__period']) {
+    for (const sel of ['.rb__dims', '.rb__gran', '.rb__filters', '.rb__period']) {
       expect(marginReset).toContain(sel);
     }
+    for (const sel of ['.rb__metrics', '.rb__group-title']) {
+      expect(pickerMobile).toContain(sel);
+    }
     expect(marginReset).toMatch(/margin-left:\s*0/);
+    expect(pickerMobile).toMatch(/margin-left:\s*0/);
   });
 
   it('кнопка построения тянется на всю ширину под полем «Строк»', () => {
@@ -563,7 +570,7 @@ describe('ReportBuilder — мобильная адаптивность (#1097 r
   });
 
   it('на очень узких экранах (<=480) метрики в один столбец', () => {
-    const narrow = src.slice(src.indexOf('@media (max-width: 480px)'));
+    const narrow = pickerSrc.slice(pickerSrc.indexOf('@media (max-width: 480px)'));
     expect(narrow).toContain('.rb__metrics');
     expect(narrow).toMatch(/grid-template-columns:\s*1fr/);
   });

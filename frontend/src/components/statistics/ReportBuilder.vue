@@ -1093,9 +1093,7 @@ defineExpose({ expandPeriodToAll });
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .rb__metrics,
   .rb__dims,
-  .rb__group-title,
   .rb__gran,
   .rb__filters,
   .rb__period {
@@ -1110,10 +1108,6 @@ defineExpose({ expandPeriodToAll });
     padding: 12px;
   }
 
-  .rb__metric {
-    padding: 13px 14px;
-  }
-
   /* «Построить отчёт» на всю ширину под полем «Строк» — крупная зона нажатия. */
   .rb__footer {
     justify-content: flex-start;
@@ -1124,9 +1118,4 @@ defineExpose({ expandPeriodToAll });
   }
 }
 
-@media (max-width: 480px) {
-  .rb__metrics {
-    grid-template-columns: 1fr;
-  }
-}
 </style>
