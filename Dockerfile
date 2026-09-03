@@ -1,4 +1,4 @@
-FROM golang:1.26-bookworm AS dev
+FROM golang:1.27-bookworm AS dev
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN go mod tidy && swag init -g cmd/server/main.go -o docs && go build -o server
 CMD ["sh", "-c", "swag init -g cmd/server/main.go -o docs && go run ./cmd/server"]
 
 # --- Production ---
-FROM golang:1.26-bookworm AS builder
+FROM golang:1.27-bookworm AS builder
 
 WORKDIR /app
 
