@@ -44,7 +44,15 @@ function clockMoment() {
 /** Выполняет подготовительные действия перед кадром. */
 async function prepare(page, steps) {
   for (const step of steps ?? []) {
-    if (step.click) await page.locator(step.click).nth(step.nth ?? 0).click();
+    if (step.click) {
+      try {
+        await page.locator(step.click).nth(step.nth ?? 0).click();
+      } catch (error) {
+        // Имя селектора в сообщении: без него «click: Timeout» не говорит, на
+        // каком шаге подготовки встал кадр, и чинить приходится вслепую.
+        throw new Error(`шаг click ${step.click}: ${error.message.split('\n')[0]}`);
+      }
+    }
     else if (step.fill) await page.locator(step.fill[0]).fill(step.fill[1]);
     else if (step.select) await page.locator(step.select[0]).selectOption(step.select[1]);
     else if (step.press) await page.keyboard.press(step.press);
@@ -112,7 +120,7 @@ async function shoot(page, shot, outDir) {
   await page.screenshot({ path: file, animations: 'disabled' });
   await clearOutlines(page);
   await cropToClip(file, clip, SCALE);
-  await normalize(file);
+  await normalize(file, shot.dpi);
   const blankWarnings = await checkNotBlank(file);
 
   return [...outlineWarnings, ...clipWarnings, ...badgeWarnings, ...blankWarnings].map(

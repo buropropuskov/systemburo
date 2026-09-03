@@ -93,10 +93,25 @@ export async function drawOutlines(page, targets) {
         const parent = element.parentElement;
         if (parent) {
             const parentStyle = getComputedStyle(parent);
+            const parentRect = parent.getBoundingClientRect();
             const invisible = (cs) =>
               (cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent') &&
               parseFloat(cs.borderTopLeftRadius) === 0;
-            if (invisible(style) && !invisible(parentStyle)) {
+            /*
+             * Ругаемся только на обёртку, плотно облегающую цель: у поля ввода
+             * это рамка со значком, и разница площадей невелика. Прозрачная
+             * секция внутри большой карточки - обычное дело, её обводят
+             * намеренно, и предупреждение там только зашумляет прогон.
+             */
+            const area = rect.width * rect.height;
+            const parentArea = parentRect.width * parentRect.height;
+            const snug = parentArea > 0 && parentArea < area * 1.6;
+            // Правило про поля ввода: у секции или строки списка своя причина
+            // быть прозрачной, и предупреждение там только шумит.
+            // Только само поле ввода: блок с чекбоксом и пояснением обводят
+            // целиком намеренно, и линия по нему верна.
+            const isField = element.matches('input, textarea, select');
+            if (isField && snug && invisible(style) && !invisible(parentStyle)) {
               warnings.push(
                 `${target.selector}: обводится элемент без заливки и скругления, ` +
                 'а они есть у его обёртки - линия ляжет не по видимому полю',

@@ -254,9 +254,14 @@ export async function checkNotBlank(path) {
  * уменьшается: текст после уменьшения чище, чем при съёмке сразу в целевом
  * размере, а файл выходит вдвое легче.
  *
+ * Печатное разрешение задаётся кадром: узкий крупный план при 300 ppi выходит
+ * на листе шириной в ладонь, и подписи в нём мельче основного текста. Меньшее
+ * разрешение растягивает тот же кадр на большую ширину, ничего не переснимая.
+ *
  * @param {string} path путь к PNG, файл перезаписывается на месте
+ * @param {number} [dpi] печатное разрешение, по умолчанию 300
  */
-export async function normalize(path) {
+export async function normalize(path, dpi = PRINT_DPI) {
   /*
    * -strip здесь не годится: он выполняется при записи и сносит в том числе
    * запись о разрешении, из-за чего файл уходит с 72 ppi независимо от порядка
@@ -284,7 +289,7 @@ export async function normalize(path) {
     '-units',
     'PixelsPerInch',
     '-density',
-    `${PRINT_DPI}`,
+    `${dpi}`,
     '-define',
     'png:exclude-chunk=time',
     path,
