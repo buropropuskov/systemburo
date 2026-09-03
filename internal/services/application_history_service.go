@@ -66,7 +66,19 @@ func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context,
 // Порядок created_at DESC, id DESC - id-тайбрейкер делает
 // детерминированным порядок записей одного действия (recorder проставляет created_at
 // временем вставки - монотонно растущим, как и id).
-func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error) {
+func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int, username string) ([]ApplicationHistoryItem, error) {
+	// Записи о заметке бюро видит только тот, кто видит саму заметку. Иначе заявитель
+	// прочитал бы в ленте своей заявки, что бюро что-то про неё писало, - а заметку от
+	// него прячут целиком, включая сам факт (см. application_bureau_note.go).
+	viewer, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	viewerIsApprover, err := s.isApprover(ctx, viewer.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	const userName = `CONCAT(COALESCE(u.last_name, ''),
 		CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
 		CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
@@ -98,13 +110,16 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 				a.created_at
 			FROM audit_log a
 			WHERE a.entity_type = ? AND a.entity_id = ?
+				AND (? OR a.action NOT IN (?, ?, ?))
 		) m
 		LEFT JOIN users u ON m.user_id = u.id
 		ORDER BY m.created_at DESC, m.id DESC
 	`
 
 	items := make([]ApplicationHistoryItem, 0)
-	err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&items).Error
+	err = s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID, viewerIsApprover,
+		models.AuditActionBureauNoteCreated, models.AuditActionBureauNoteUpdated,
+		models.AuditActionBureauNoteCleared).Scan(&items).Error
 	if err != nil {
 		slog.Error("Ошибка получения истории заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")

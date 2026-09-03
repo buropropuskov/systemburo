@@ -204,7 +204,6 @@
             </div>
           </div>
           
-          <!-- Тело таблицы -->
           <div
             ref="applicationsBody"
             class="applications-body"
@@ -229,6 +228,7 @@
                   name="fade-list"
                   tag="div"
                   class="applications-transition-group"
+                  @before-leave="pinLeavingElement"
                 >
                   <template
                     v-for="group in applicationGroups"
@@ -560,6 +560,7 @@
 
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { pinLeavingElement } from '@/utils/listTransition';
 import { apiRequest } from '@/api/client'
 import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
@@ -821,15 +822,14 @@ export default {
         this._mobileMql.removeListener(this._onMobileChange);
       }
     }
-    // Восстанавливаем скролл при размонтировании компонента
     releaseBodyScrollLock(this);
   },
   methods: {
+    pinLeavingElement,
     /**
-     * Реактивно отслеживает мобильный брейкпоинт (тот же 767.98, что у card-правил
-     * responsive-tables.css): на нём поиск раскрывается по иконке. Порог держим
-     * равным CSS @media, иначе на ровно 768px (iPad-портрет) иконка появилась бы
-     * без своих стилей оверлея (урок S8 про рассинхрон 768/767.98).
+     * Мобильный брейкпоинт: тот же 767.98, что у card-правил responsive-tables.css.
+     * Порог держим равным CSS @media, иначе на ровно 768px (iPad-портрет) иконка
+     * появилась бы без своих стилей оверлея (урок S8 про рассинхрон 768/767.98).
      */
     initMobileWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;

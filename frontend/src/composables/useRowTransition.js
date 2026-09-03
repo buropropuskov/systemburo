@@ -1,4 +1,5 @@
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
+import { pinLeavingElement, holdParentHeight } from '@/utils/listTransition';
 
 /**
  * Имя перехода для списка, который живёт в двух режимах.
@@ -17,24 +18,55 @@ import { ref, computed } from 'vue';
  * @param {string} liveName переход для живой вставки
  * @param {string} replaceName переход для замены набора
  */
+// Время ухода строки из application-row-transitions.css. Держим высоту контейнера
+// ровно столько же: дальше стартует подтягивание оставшихся, и сокращение высоты
+// читается как его часть.
+const LEAVE_MS = 300;
+
+// Весь цикл замены: уход, затем подтягивание оставшихся (та же длительность, но с
+// задержкой на время ухода). Плюс запас на кадр отрисовки.
+const REPLACE_MS = LEAVE_MS * 2 + 100;
+
 export function useRowTransition(liveName, replaceName) {
   const replacing = ref(false);
 
-  // Имя читается в момент вставки узлов, поэтому флаг снимается тиком позже -
-  // иначе Vue возьмёт живой набор классов на строках, которые едут по фильтру.
+  let release = null;
+
+  // Режим держится весь цикл замены, а не до ближайшей отрисовки.
+  //
+  // Снимать его сразу после патча нельзя: смена имени перехода - это ещё один рендер
+  // группы, а её onUpdated при каждом рендере пересчитывает FLIP и переписывает класс
+  // движения на текущий. Строки доезжали, но уже ЖИВЫМ рисунком - вместе с классом
+  // терялась задержка, ради которой фазы и разводили. Замер на стенде: строки
+  // трогались на 590мс с классом app-row-move вместо app-row-filter-move, а
+  // разделители периодов не получали класса вовсе и прыгали на 879мс, отставая от
+  // строк (жалоба владельца).
+  //
   // finally обязателен: на ошибке запроса режим остался бы включённым навсегда.
   async function whileReplacing(work) {
+    if (release) clearTimeout(release);
     replacing.value = true;
     try {
       return await work();
     } finally {
-      await Promise.resolve();
-      replacing.value = false;
+      await nextTick();
+      release = setTimeout(() => {
+        release = null;
+        replacing.value = false;
+      }, REPLACE_MS);
     }
   }
 
   return {
     transitionName: computed(() => (replacing.value ? replaceName : liveName)),
     whileReplacing,
+    // Закрепление уходящих отдаётся отсюда же: у списка с двумя режимами перехода
+    // оно нужно всегда, и отдельный импорт в каждом компоненте только множил бы связи.
+    // Вместе с ним держим высоту контейнера, иначе подпись под списком прыгает
+    // вверх в тот же кадр, когда строки только начинают уезжать.
+    onBeforeLeave: (el) => {
+      holdParentHeight(el, LEAVE_MS);
+      pinLeavingElement(el);
+    },
   };
 }

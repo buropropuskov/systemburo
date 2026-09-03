@@ -22,12 +22,10 @@
           />
         </div>
 
-        <!-- «Новые» и «Обновления» - пара фильтров-переключателей в первом ряду шапки.
-             «Новые» не заводит своего параметра, а переключает псевдо-статус
-             «Непрочитано» дропдауна «Статус» (см. unreadOnly): один источник состояния,
-             поэтому кнопка и дропдаун не разъезжаются. Кнопки видны всегда, даже при
-             нулевом счётчике: пассивный бейдж прятался по v-if, и при включении
-             «Обновлений» (там весь список прочитан) соседи прыгали на его место. -->
+        <!-- Пара фильтров-переключателей. «Новые» не заводит своего параметра, а
+             переключает псевдо-статус «Непрочитано» дропдауна «Статус» (unreadOnly):
+             один источник состояния. Видны всегда, даже при нулевом счётчике - иначе
+             соседняя кнопка прыгает на место спрятанной. -->
         <div class="header-top__toggles">
           <button
             type="button"
@@ -581,9 +579,10 @@
           <TransitionGroup
             v-if="filteredApplications.length > 0"
             tag="div"
-            :name="rowTransitionName"
+            :name="rowTransition.transitionName.value"
             class="applications-list"
             data-testid="ob-center-list"
+            @before-leave="rowTransition.onBeforeLeave"
           >
             <template
               v-for="group in applicationGroups"
@@ -896,8 +895,7 @@ export default {
         const rowTransition = useRowTransition('app-row', 'app-row-filter')
         return {
             headerCounters,
-            rowTransitionName: rowTransition.transitionName,
-            whileReplacingRows: rowTransition.whileReplacing,
+            rowTransition,
             soundStore,
             permissionsStore,
             applications: infiniteList.items,
@@ -1308,7 +1306,7 @@ export default {
             // набора не сыграл звук, ДО refetch (#1158).
             this._pollKnownIds = null;
             this.pollPrimed = false;
-            this.fetchApplications();
+            this.applyFilters();
         },
         '$route.query.archive'(val) {
             this.archiveMode = val === 'true' && this.canViewArchive ? 'archive' : 'active';
@@ -1591,18 +1589,16 @@ export default {
         },
         
         onSearchInput() {
-            this.isInitialLoad = false;
             clearTimeout(this.searchDebounceTimer);
             this.searchDebounceTimer = setTimeout(() => {
-                this.fetchApplications();
+                this.applyFilters();
             }, 300);
         },
 
         // Фильтры
         toggleActiveToday() {
             this.activeToday = !this.activeToday;
-            this.isInitialLoad = false;
-            this.fetchApplications();
+            this.applyFilters();
         },
 
         // «Новые» ведут тот же псевдо-статус, что и дропдаун «Статус», поэтому идут через
@@ -1622,8 +1618,7 @@ export default {
                 this.selectedApplicationStatuses = this.selectedApplicationStatuses
                     .filter(s => s !== UNREAD_STATUS);
             }
-            this.isInitialLoad = false;
-            this.fetchApplications();
+            this.applyFilters();
         },
 
         resetFilters() {
@@ -1657,11 +1652,10 @@ export default {
                 this.$refs.filterModal.clearDateFilter();
             }
 
-            this.isInitialLoad = false;
-            // fetchApplications() вместо applyFilters() — часть фильтров (organization_id,
-            // date, archive) применяется на бэке через URL params. Без fetch applications
-            // остаётся подмножеством, и после сброса таблица продолжает показывать только его.
-            this.fetchApplications();
+            // Полный запрос обязателен: часть фильтров (organization_id, date, archive)
+            // применяется на бэке через URL params, без него applications остались бы
+            // подмножеством. applyFilters его и делает, но общим входом.
+            this.applyFilters();
         },
         
         // Организация/подтверждение/статус/дата - все читаются бэком в buildApplicationsPage
@@ -1673,7 +1667,7 @@ export default {
         // подмножестве без шанса догрузить больше подходящих через скролл.
         applyFilters() {
             this.isInitialLoad = false;
-            this.whileReplacingRows(() => this.fetchApplications(true));
+            this.rowTransition.whileReplacing(() => this.fetchApplications(true));
         },
         
         // Сортировка
@@ -1685,11 +1679,12 @@ export default {
                 this.sortDirection = 'desc';
             }
             this.isInitialLoad = false;
-            // Сортировка по колонке клиентская - должна идти по всему набору (как на dev).
-            // При входе в full-load, если ещё не всё загружено, догружаем остаток (#1158).
-            if (this.isFullLoad && this.hasMoreApplications) {
-                this.fetchApplications();
-            }
+            // Перестановка строк идёт тем же рисунком, что и смена фильтра, даже когда
+            // догрузка не нужна: иначе один и тот же клик по колонке анимировался бы
+            // по-разному. Сортировка клиентская и должна идти по всему набору (как на
+            // dev), поэтому в full-load догружаем остаток (#1158).
+            this.rowTransition.whileReplacing(() => this.isFullLoad
+                && this.hasMoreApplications && this.fetchApplications(true));
         },
 
         resetSort() {
@@ -2006,8 +2001,8 @@ export default {
             // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
             // Собственный seq-guard записи items/total уже даёт useInfiniteList - этот
             // токен управляет loading/refreshing/pendingRefreshCount (другой side-effect).
-            // silent (real-time push и смена фильтра): без оверлея, TransitionGroup сам
-            // показывает дельту - новые въезжают, отсеянные уезжают, соседи смыкаются.
+            // silent (real-time push и смена фильтра): без оверлея, дельту показывает
+            // сам TransitionGroup.
             const seq = ++this.fetchSeq;
             if (!silent) {
                 this.pendingRefreshCount += 1;
@@ -2714,19 +2709,17 @@ export default {
     flex-wrap: wrap;
 }
 
-/* Неактивная кнопка с непустым счётчиком подсвечена цветом своей строки в списке
-   (жёлтая непрочитанная, фиолетовая обновлённая) - иначе, став обычной пилюлей,
-   «Новые» потеряли бы сигнал «есть что посмотреть», который давал прежний бейдж.
-   Классы вешаются только при неактивном фильтре, поэтому с --active не спорят. */
+/* Сигнал «есть что посмотреть» несёт рамка, а не заливка: с пастельной подложкой
+   пара кнопок сливалась с остальной страницей. Счётчик оставлен цветом подписи -
+   крашеное «: N» владелец забраковал отдельно. */
 .status-btn--unread {
-    background: var(--unread-bg);
     border-color: var(--unread-accent);
 }
 
 .status-btn--updates {
-    background: var(--updated-bg);
     border-color: var(--updated-accent);
 }
+
 
 .shake-animation {
     animation: shake 0.6s ease-in-out;

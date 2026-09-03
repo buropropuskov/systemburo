@@ -246,6 +246,7 @@ import ExcelJS from 'exceljs';
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { ACTION_DOT_CLASS, ACTION_TEXT } from '@/utils/applicationHistoryActions';
 
 export default {
     name: 'ApplicationHistory',
@@ -698,38 +699,7 @@ export default {
         },
 
         getActionClass(actionType) {
-            const classes = {
-                'create': 'dot-create',
-                'read': 'dot-read',
-                'approve': 'dot-approve',
-                'reject': 'dot-reject',
-                'revoke_approval': 'dot-revoke',
-                'take_to_work': 'dot-success',
-                'revoke_from_work': 'dot-warning',
-                'restore_to_work': 'dot-info',
-                'completed': 'dot-success',
-                'employees_bulk_added': 'dot-create',
-                'supplement_created': 'dot-create',
-                'supplement_cancelled': 'dot-warning',
-                'supplement_approve': 'dot-approve',
-                'supplement_reject': 'dot-reject',
-                'supplement_revoke_approval': 'dot-revoke',
-                'supplement_confirmation_change': 'dot-system',
-                'supplement_accepted': 'dot-success',
-                'supplement_refused': 'dot-reject',
-                'supplement_cancelled_by_author': 'dot-warning',
-                'withdraw': 'dot-reject',
-                'assigned_responsible': 'dot-assign',
-                'assigned_viewer': 'dot-view',
-                'forwarded': 'dot-assign',
-                'confirmation_change': 'dot-system',
-                'status_change': 'dot-system',
-                'blacklist_override': 'dot-success',
-                'element_removed': 'dot-reject',
-                'blacklist_override_revoke': 'dot-warning',
-                'question_created': 'dot-info'
-            };
-            return classes[actionType] || 'dot-default';
+            return ACTION_DOT_CLASS[actionType] || 'dot-default';
         },
 
         getActionText(item) {
@@ -763,36 +733,7 @@ export default {
                 return subject ? `Начал(-а) обсуждение: ${subject}` : 'Начал(-а) обсуждение';
             }
 
-            const texts = {
-                'create': 'Создал(-а) заявку',
-                'read': 'Прочитал(-а) заявку',
-                'approve': 'Согласовал(-а) заявку',
-                'revoke_approval': 'Отозвал(-а) согласование',
-                'take_to_work': 'Принял(-а) в работу',
-                'revoke_from_work': 'Отозвал(-а) из работы',
-                'restore_to_work': 'Вернул(-а) в работу',
-                'completed': 'Заявка завершена: срок действия истёк',
-                'employees_bulk_added': 'Добавил(-а) сотрудников списком',
-                'supplement_created': 'Подал(-а) дополнение',
-                'supplement_cancelled': 'Дополнение снято: заявка закрыта',
-                'supplement_approve': 'Согласовал(-а) дополнение',
-                'supplement_reject': 'Не согласовал(-а) дополнение',
-                'supplement_revoke_approval': 'Отозвал(-а) согласование дополнения',
-                'supplement_confirmation_change': 'Статус согласования дополнения изменился',
-                'supplement_accepted': 'Принял(-а) дополнение',
-                'supplement_refused': 'Отклонил(-а) дополнение',
-                'supplement_cancelled_by_author': 'Снял(-а) своё дополнение',
-                'withdraw': 'Отозвал(-а) заявку',
-                'assigned_responsible': 'Назначен(-а) ответственным получателем',
-                'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
-                'confirmation_change': 'Статус согласования изменился',
-                'status_change': 'Статус заявки изменился',
-                'blacklist_override': 'Подтвердил(-а) пропуск (возможный обход ЧС)',
-                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска',
-                'element_removed': 'Убрал(-а) из заявки'
-            };
-            
-            let text = texts[item.action_type] || item.action_type;
+            let text = ACTION_TEXT[item.action_type] || item.action_type;
 
             // Номер раунда рядом с подписью (#1685): по одной заявке дополнений бывает
             // несколько, и без номера события разных раундов в ленте не различить.

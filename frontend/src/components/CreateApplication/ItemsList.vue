@@ -59,6 +59,7 @@
         <transition-group
           name="fade"
           tag="div"
+          @before-leave="pinLeavingElement"
         >
           <div 
             v-for="(item, index) in items" 
@@ -116,6 +117,7 @@
 
 <script>
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { pinLeavingElement } from '@/utils/listTransition';
 export default {
     name: 'ItemsList',
     components: { AppIcon },
@@ -126,6 +128,7 @@ export default {
     },
     emits: ['sort', 'edit-item', 'delete-item'],
     methods: {
+        pinLeavingElement,
         deleteItemWithAnimation(itemId) {
             // Создаем анимацию удаления
             const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);

@@ -94,7 +94,7 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	history, err := h.service.GetApplicationHistory(c.Request().Context(), id)
+	history, err := h.service.GetApplicationHistory(c.Request().Context(), id, username)
 	if err != nil {
 		return err
 	}

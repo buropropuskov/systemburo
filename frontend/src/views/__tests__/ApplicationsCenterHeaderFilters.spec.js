@@ -6,6 +6,8 @@ import ApplicationsCenter from '../ApplicationsCenter.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
 import { getApplicationsPaginated } from '@/api/applications';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * Пара переключателей «Новые»/«Обновления» в шапке Центра. Замок держит три вещи,
@@ -239,5 +241,42 @@ describe('ApplicationsCenter — переключатели «Новые» и «
     wrapper.vm.headerCounters.unread.value = 0;
     await wrapper.vm.$nextTick();
     expect(unreadBtn(wrapper).classes()).not.toContain('status-btn--unread');
+  });
+
+  it('подсветка идёт рамкой, а не заливкой', () => {
+    // Владелец: «кнопки Новые и Обновления в таком же неоновом стиле, они
+    // сливаются со всей страницей». Пастельная подложка отличалась от фона
+    // страницы едва заметно, и кнопка переставала читаться как кнопка. Красить
+    // заодно счётчик он забраковал отдельно: «зачем то ": N" покрашено».
+    const source = readFileSync(resolve(__dirname, '..', 'ApplicationsCenter.vue'), 'utf8');
+    const rule = (selector) => {
+      const start = source.indexOf(`\n${selector} {`);
+      return start < 0 ? '' : source.slice(start, source.indexOf('}', start));
+    };
+
+    for (const selector of ['.status-btn--unread', '.status-btn--updates']) {
+      expect(
+        /background/.test(rule(selector)),
+        `${selector}: заливка вернулась - кнопка снова сольётся с фоном страницы`,
+      ).toBe(false);
+      expect(
+        /border-color/.test(rule(selector)),
+        `${selector}: без рамки пропадает сигнал «есть что посмотреть»`,
+      ).toBe(true);
+    }
+
+    expect(
+      // Не просто /color/: у правила есть border-color, и он бы совпал.
+      /(^|[^-])color\s*:/.test(rule('.status-btn--unread')) || source.includes('.status-btn__count'),
+      'счётчик снова красится - владелец забраковал крашеное «: N»',
+    ).toBe(false);
+  });
+
+  it('счётчик показывается подписью кнопки', async () => {
+    wrapper = mountCenter();
+    wrapper.vm.headerCounters.unread.value = 3;
+    await wrapper.vm.$nextTick();
+
+    expect(unreadBtn(wrapper).text()).toContain('Новые: 3');
   });
 });

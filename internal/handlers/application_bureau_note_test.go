@@ -146,11 +146,12 @@ func TestBureauNote_SuperAdminWithoutRoleDoesNotSee(t *testing.T) {
 		"заведя себя принимающим, супер-админ заметку видит")
 }
 
-// TestBureauNote_NotInApplicationHistory: главная ловушка задачи. GetApplicationHistory
-// тянет все строки audit_log[application] без фильтра по смотрящему и отдаёт их любому,
-// кто проходит CanAccessApplication, включая ЗАЯВИТЕЛЯ. Запись заметки под этим типом
-// сущности показала бы её текст тому, от кого её прячут.
-func TestBureauNote_NotInApplicationHistory(t *testing.T) {
+// TestBureauNote_HistoryGatedToApprovers: главная ловушка задачи. Лента заявки
+// строится из audit_log[application] и отдаётся любому, кто проходит
+// CanAccessApplication, включая ЗАЯВИТЕЛЯ. Записи о заметке там теперь есть (владелец
+// просил историю правок), поэтому лента обязана фильтроваться по смотрящему: остальные
+// не должны узнать даже факта, что бюро что-то писало. Текст в журнал не пишется вовсе.
+func TestBureauNote_HistoryGatedToApprovers(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -159,16 +160,23 @@ func TestBureauNote_NotInApplicationHistory(t *testing.T) {
 
 	for name, token := range map[string]string{
 		"sender":   sc.senderToken,
-		"approver": sc.approverToken,
 		"approval": sc.approvalToken,
 		"viewer":   sc.viewerToken,
 	} {
 		t.Run(name, func(t *testing.T) {
-			rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", sc.appID), testutil.AuthHeader(token))
-			require.Equal(t, http.StatusOK, rec.Code, "history: %s", rec.Body.String())
-			assert.NotContains(t, rec.Body.String(), bureauNoteText, "заметка просочилась в ленту заявки")
+			body := applicationHistoryBody(t, e, sc.appID, token)
+			assert.NotContains(t, body, bureauNoteText, "заметка просочилась в ленту заявки")
+			assert.NotContains(t, body, models.AuditActionBureauNoteCreated,
+				"чужой видит в ленте, что бюро завело заметку")
 		})
 	}
+
+	t.Run("approver", func(t *testing.T) {
+		body := applicationHistoryBody(t, e, sc.appID, sc.approverToken)
+		assert.Contains(t, body, models.AuditActionBureauNoteCreated,
+			"принимающий не видит собственную правку заметки")
+		assert.NotContains(t, body, bureauNoteText, "текст заметки не место в ленте даже принимающему")
+	})
 
 	// Дубль проверки на уровне хранилища: лента строится из audit_log[application], и
 	// пустая строка там - причина, по которой её нет в ответе. Без этого замок краснел
@@ -179,12 +187,55 @@ func TestBureauNote_NotInApplicationHistory(t *testing.T) {
 		Count(&n).Error)
 	assert.Zero(t, n, "текст заметки записан в audit_log под entity_type=application")
 
-	// И нигде в журнале вообще: отдельный тип сущности мы тоже не заводили - след
-	// заметки живёт в bureau_note_author_id/bureau_note_updated_at самой заявки.
+	// И нигде в журнале вообще: записи о правке несут только факт, без текста - иначе
+	// копия заметки лежала бы во втором месте, которое читают мониторинг и выгрузки.
 	require.NoError(t, db.Model(&models.AuditLog{}).
 		Where("details::text LIKE ?", "%"+bureauNoteText+"%").
 		Count(&n).Error)
 	assert.Zero(t, n, "текст заметки попал в audit_log")
+}
+
+// applicationHistoryBody возвращает сырое тело ленты заявки. Сырое, а не разобранное:
+// утечь запись может любым ключом, в том числе новым, о котором тест не знает.
+func applicationHistoryBody(t *testing.T, e *echo.Echo, appID int, token string) string {
+	t.Helper()
+	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "history: %s", rec.Body.String())
+	return rec.Body.String()
+}
+
+// TestBureauNote_HistoryActions: заведение, правка и снятие различаются в ленте, а
+// сохранение того же текста записи не плодит - иначе журнал зарастал бы «изменил»
+// от каждого открытия формы правки.
+func TestBureauNote_HistoryActions(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	sc := setupBureauNoteScene(t, e, db, "bnha")
+	put := func(note string) {
+		t.Helper()
+		rec := testutil.PUT(t, e, fmt.Sprintf("/applications/%d/bureau-note", sc.appID),
+			fmt.Sprintf(`{"note":%q}`, note), testutil.AuthHeader(sc.approverToken))
+		require.Equal(t, http.StatusOK, rec.Code, "bureau-note: %s", rec.Body.String())
+	}
+
+	// Оснастка уже завела заметку - это created.
+	put(bureauNoteText) // тот же текст: записи быть не должно
+	put("Паспорт принесли, ждём машину")
+	put("") // снятие
+
+	var actions []string
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action LIKE ?",
+			models.AuditEntityApplication, sc.appID, "bureau_note%").
+		Order("id").Pluck("action", &actions).Error)
+
+	assert.Equal(t, []string{
+		models.AuditActionBureauNoteCreated,
+		models.AuditActionBureauNoteUpdated,
+		models.AuditActionBureauNoteCleared,
+	}, actions, "состав записей о заметке разошёлся с действиями принимающего")
 }
 
 // TestBureauNote_OnlyApproverCanSave: сохранение под тем же гейтом, что и чтение.

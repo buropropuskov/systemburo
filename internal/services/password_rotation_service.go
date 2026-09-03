@@ -276,11 +276,15 @@ func (s *PasswordRotationService) selectTargets(ctx context.Context) ([]models.U
 func (s *PasswordRotationService) expiredTargets(ctx context.Context, policy models.PasswordPolicy) ([]models.User, error) {
 	deadline := time.Now().AddDate(0, 0, -policy.RotationDays)
 	var users []models.User
+	// Работники поста в плановую смену не попадают (#2280): их пароль ведёт бюро
+	// пропусков, а поднятый флаг запер бы пост в форме смены посреди смены.
 	err := s.db.WithContext(ctx).
-		Where("is_active = ? AND is_banned = ?", true, false).
-		Where("must_change_password = ?", false).
-		Where("password_changed_at IS NOT NULL AND password_changed_at < ?", deadline).
-		Order("id").Find(&users).Error
+		Joins("LEFT JOIN user_types ON user_types.id = users.type_id").
+		Where("users.is_active = ? AND users.is_banned = ?", true, false).
+		Where("users.must_change_password = ?", false).
+		Where("user_types.code IS NULL OR user_types.code <> ?", securityUserTypeCode).
+		Where("users.password_changed_at IS NOT NULL AND users.password_changed_at < ?", deadline).
+		Order("users.id").Find(&users).Error
 	if err != nil {
 		return nil, fmt.Errorf("отбор работников с истёкшим паролем: %w", err)
 	}

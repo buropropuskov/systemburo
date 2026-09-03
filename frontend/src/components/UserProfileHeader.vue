@@ -194,6 +194,7 @@
         </div>
         <div class="user-detail">
           <button
+            v-if="canChangePassword"
             type="button"
             class="detail-badge password-badge clickable"
             title="Сменить пароль"
@@ -275,6 +276,13 @@ export default {
     };
   },
   computed: {
+    /**
+     * Пароль работника поста ведёт бюро пропусков (#2280): своей формы смены у
+     * него нет, и сервер такой запрос отклоняет.
+     */
+    canChangePassword() {
+      return this.userType !== 'security';
+    },
     userTypeDisplay() {
       const typeMap = {
         'user': 'Пользователь',
