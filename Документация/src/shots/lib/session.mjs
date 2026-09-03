@@ -215,29 +215,35 @@ export async function calmPage(page) {
       .forEach((node) => node.remove());
   });
   await page.keyboard.press('Escape');
-  await freezeAnimations(page);
+  await settleAnimations(page);
 }
 
 /**
- * Останавливает анимации и переходы на странице.
+ * Доигрывает анимации и переходы до конца.
  *
- * Обводка рисуется по координатам, снятым до съёмки, а снимок делается с
- * `animations: 'disabled'` - браузер в этот момент перематывает бесконечную
- * анимацию на её начало. Элемент, который качается декоративной анимацией
- * (страница входа), успевает сместиться, и линия остаётся висеть выше поля.
- * Заморозка до измерения убирает расхождение целиком.
+ * Именно доигрывает, а не выключает: списки и карточки появляются анимацией с
+ * начальным `opacity: 0`, и снятая анимация оставляла их в этом начальном
+ * состоянии - кадры выходили пустыми, хотя данные загружены (счётчик внизу
+ * списка показывал их число). Снимок сам дожимает анимации, поэтому до обводки
+ * страницу надо привести в то же конечное состояние, в каком её увидит камера.
  */
-export async function freezeAnimations(page) {
-  /*
-   * Переходы снимаются целиком, а не ускоряются: часы кадра зафиксированы
-   * (page.clock), и заданная длительность в 1 мс никогда не истекает - переход
-   * застревает на полпути, элемент рисуется смещённым, а обводка ложится по
-   * его конечным координатам. Так линия у полей входа висела над полем.
-   */
-  await page.addStyleTag({
-    content: `*, *::before, *::after {
-      animation: none !important;
-      transition: none !important;
-    }`,
-  });
+export async function settleAnimations(page) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const pending = await page.evaluate(() => {
+      const running = document.getAnimations();
+      for (const animation of running) {
+        try {
+          // Бесконечную не дожать - её снимок отменяет, нам довольно паузы.
+          if (animation.effect?.getComputedTiming?.().iterations === Infinity) animation.pause();
+          else animation.finish();
+        } catch {
+          /* анимация уже снята или не поддаётся - пропускаем */
+        }
+      }
+      return running.length;
+    });
+    if (pending === 0) return;
+    await page.waitForTimeout(120);
+  }
 }
+
