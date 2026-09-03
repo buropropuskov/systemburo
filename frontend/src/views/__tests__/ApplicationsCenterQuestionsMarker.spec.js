@@ -107,7 +107,11 @@ describe('ApplicationsCenter — маркер обсуждения (#973)', () =
     const app = { id: 5, is_read: true, application_number: 'A-5', organization_name: 'Орг' };
     wrapper.vm.applications = [app];
     wrapper.vm.openFromDeepLink();
-    expect(wrapper.vm.selectedApplication).toBe(app);
+    // Сравниваем с элементом списка, а не с исходным объектом: присваивание в
+    // реактивный массив оборачивает его в прокси, и с @vue/test-utils 2.5 тождество
+    // с сырым объектом больше не выполняется. Требование прежнее - открыт элемент
+    // списка, а не его копия, иначе правки в карточке не дойдут до строки.
+    expect(wrapper.vm.selectedApplication).toBe(wrapper.vm.applications[0]);
     expect(push.replace).toHaveBeenCalled();
   });
 });
