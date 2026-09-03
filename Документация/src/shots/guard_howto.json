@@ -598,15 +598,6 @@
       "waitFor": "[data-testid=\"pass-report-button\"]",
       "prepare": [
         {
-          "click": "[data-testid=\"cars-table\"] .entry-btn:not([disabled])"
-        },
-        {
-          "click": "[data-testid=\"cars-table\"] .entry-btn:not([disabled])"
-        },
-        {
-          "click": "[data-testid=\"cars-table\"] .exit-btn:not([disabled])"
-        },
-        {
           "click": "[data-testid=\"pass-report-button\"]"
         },
         {
@@ -619,24 +610,38 @@
       }
     },
     {
-      "id": "header",
+      "id": "header-search-btn",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-header-notifications\"]",
+      "clip": {
+        "selector": "[data-testid=\"header-button-search\"]",
+        "pad": {
+          "x": 260,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"header-button-search\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "header-bell",
       "goto": "/news",
       "waitFor": "[data-testid=\"ob-header-notifications\"]",
       "clip": {
         "selector": "[data-testid=\"ob-header-notifications\"]",
         "pad": {
-          "x": 620,
-          "y": 120
+          "x": 260,
+          "y": 90
         }
       },
       "highlight": [
         {
           "selector": "[data-testid=\"ob-header-notifications\"]",
           "badge": 1
-        },
-        {
-          "selector": "[data-testid=\"header-button-search\"]",
-          "badge": 2
         }
       ]
     },

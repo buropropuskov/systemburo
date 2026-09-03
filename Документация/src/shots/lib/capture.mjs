@@ -54,8 +54,56 @@ export const MAX_ASPECT = 1.5;
  * @param {import('playwright').Page} page
  * @param {string[]} selectors
  */
+/**
+ * Ждёт, пока цели проявятся: непрозрачны и без сдвига.
+ *
+ * Устойчивость координат этого не гарантирует. Появление экрана входа сделано на
+ * opacity и translateX по таймеру, а часы кадра зафиксированы (page.clock),
+ * поэтому до срабатывания таймера элемент неподвижен, невидим и сдвинут - для
+ * проверки устойчивости состояние «устоялось». Обводка ложилась по этим
+ * координатам, а снимок с animations: 'disabled' дожимал переход, и поле уезжало
+ * из-под линии на несколько точек вниз.
+ *
+ * @param {import('playwright').Page} page
+ * @param {string[]} selectors
+ */
+export async function waitForRevealed(page, selectors, { tries = 30, pause = 100 } = {}) {
+  /*
+   * Шрифты - раньше всего остального: пока подставлен запасной, метрики строк
+   * другие, и вся раскладка стоит на несколько точек выше. Снимок дожидается
+   * шрифтов сам, поэтому обводка, снятая до них, оказывалась выше поля.
+   */
+  await page.evaluate(() => document.fonts.ready);
+  if (selectors.length === 0) return;
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    const pending = await page.evaluate((list) => list.filter((selector) => {
+      const element = document.querySelector(selector);
+      if (!element) return false;
+      const cs = getComputedStyle(element);
+      if (parseFloat(cs.opacity) < 0.99) return true;
+      const matrix = cs.transform;
+      if (!matrix || matrix === 'none') return false;
+      const parts = matrix.match(/-?[\d.]+/g);
+      if (!parts) return false;
+      // Последние две величины матрицы - сдвиг по осям.
+      const dx = Math.abs(parseFloat(parts[parts.length - 2]));
+      const dy = Math.abs(parseFloat(parts[parts.length - 1]));
+      return dx > 0.5 || dy > 0.5;
+    }), selectors);
+    if (pending.length === 0) return;
+    await page.waitForTimeout(pause);
+  }
+}
+
 export async function waitForStableRects(page, selectors, { tries = 20, pause = 100 } = {}) {
   if (selectors.length === 0) return;
+  /*
+   * В снимок состояния входят прозрачность и сдвиг, а не только координаты.
+   * Появление формы входа сделано на opacity и translateX: до срабатывания
+   * таймера элемент стоит на месте (координаты «устойчивы»), но невидим и
+   * сдвинут, а к моменту съёмки прыгает в конечное положение. Обводка, снятая
+   * по такому «устойчивому» состоянию, оставалась висеть выше поля.
+   */
   const read = () =>
     page.evaluate(
       (list) =>
@@ -64,7 +112,11 @@ export async function waitForStableRects(page, selectors, { tries = 20, pause = 
             const element = document.querySelector(selector);
             if (!element) return 'нет';
             const r = element.getBoundingClientRect();
-            return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
+            const cs = getComputedStyle(element);
+            return [
+              Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height),
+              cs.opacity, cs.transform,
+            ].join(',');
           })
           .join('|'),
       selectors,

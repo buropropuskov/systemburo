@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { drawOutlines, drawBadges, clearOutlines } from './lib/highlight.mjs';
-import { computeClip, cropToClip, normalize, waitForStableRects } from './lib/capture.mjs';
+import { computeClip, cropToClip, normalize, waitForRevealed, waitForStableRects } from './lib/capture.mjs';
 import { openBrowser, newContext, signIn, calmPage, SCALE, VIEWPORT } from './lib/session.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -89,6 +89,10 @@ async function shoot(page, shot, outDir) {
   await prepare(page, shot.prepare);
 
   const targets = shot.highlight ?? [];
+  await waitForRevealed(
+    page,
+    [shot.clip?.selector, ...targets.map((target) => target.selector)].filter(Boolean),
+  );
   await waitForStableRects(
     page,
     [shot.clip?.selector, ...targets.map((target) => target.selector)].filter(Boolean),
