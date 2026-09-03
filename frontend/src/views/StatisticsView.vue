@@ -9,6 +9,7 @@
         </div>
         <div class="statistics__header-right">
           <div
+            v-show="!isReportsTab"
             ref="presetsEl"
             class="period-presets"
           >
@@ -51,6 +52,7 @@
             <span class="rt-btn-label">Инструкция</span>
           </button>
           <DateFilter
+            v-show="!isReportsTab"
             mode="range"
             :date-range-start="rangeStart"
             :date-range-end="rangeEnd"
@@ -59,6 +61,7 @@
             @apply="onPeriodApply"
           />
           <RefreshButton
+            v-show="!isReportsTab"
             :loading="false"
             @refresh="onRefresh"
           />
@@ -151,6 +154,12 @@ import { getViewportZoom } from '@/utils/viewportScale';
 
 // ---- вкладки ----
 const activeTab = ref('dashboard');
+
+// Отчёт ведёт свой период в шаге 4 конструктора и строится по кнопке, поэтому
+// шапочные период и «Обновить» на этой вкладке ни на что не влияли. Прячем через
+// v-show, а не v-if: ResizeObserver индикатора пресетов наблюдает живой узел и
+// пересчитывает геометрию при возврате на другие вкладки.
+const isReportsTab = computed(() => activeTab.value === 'reports');
 
 // ---- модалка инструкции ----
 const showInstruction = ref(false);

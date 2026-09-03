@@ -176,6 +176,68 @@ describe('ReportsTab', () => {
     await flushPromises();
     expect(wrapper.findComponent(ReportResult).props('limit')).toBe(0);
   });
+
+  // Первый заход новичка упирался ровно сюда: дефолтная неделя пуста, а кнопка
+  // «Весь период» лежит в четвёртом шаге конструктора (#2295).
+  it('пустой результат за ограниченный период предлагает расширить период, и клик шлёт запрос без date_range', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '2026-08-31', to: '2026-09-01' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    builder.vm.$emit('run', {
+      mode: 'aggregate',
+      metric: 'applications_count',
+      dimension: 'status',
+      filters: [{ key: 'date_range', from: '2026-08-31', to: '2026-09-01' }],
+    });
+    await nextTick();
+    state.deferred[0]({ mode: 'aggregate', rows: [], total: 0, unit: 'шт' });
+    await flushPromises();
+
+    const hint = wrapper.find('.reports__hint');
+    expect(hint.exists()).toBe(true);
+    expect(hint.text()).toContain('За 31.08.2026 - 01.09.2026 данных нет');
+
+    await hint.find('button').trigger('click');
+    await flushPromises();
+
+    expect(state.deferred).toHaveLength(2);
+    const [, second] = wrapper.findComponent(ReportBuilder).emitted('run');
+    expect((second[0].filters || []).some((f) => f.key === 'date_range')).toBe(false);
+  });
+
+  it('за весь период пустой результат подсказку не показывает — расширять уже некуда', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    wrapper.findComponent(ReportBuilder).vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'status', filters: [] });
+    await nextTick();
+    state.deferred[0]({ mode: 'aggregate', rows: [], total: 0, unit: 'шт' });
+    await flushPromises();
+
+    expect(wrapper.find('.reports__hint').exists()).toBe(false);
+  });
+
+  // Кнопка построения стоит над результатом: без прокрутки клик выглядит как «ничего не произошло».
+  it('после построения прокручивает страницу к блоку результата', async () => {
+    state.deferred.length = 0;
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    const wrapper = mount(ReportsTab, { props: { from: '2026-06-01', to: '2026-06-07' } });
+    await flushPromises();
+
+    wrapper.findComponent(ReportBuilder).vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'status', filters: [] });
+    await nextTick();
+    state.deferred[0]({ mode: 'aggregate', rows: [{ label: 'Завершено', value: 3 }], total: 3, unit: 'шт' });
+    await flushPromises();
+    await nextTick();
+
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'start' });
+  });
 });
 
 /*
