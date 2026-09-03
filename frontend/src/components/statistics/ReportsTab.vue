@@ -122,6 +122,7 @@
         <!-- Мастер -->
         <section class="wizard">
           <ReportBuilder
+            ref="builderRef"
             :catalog="catalog"
             :period="period"
             :loading="running"
@@ -132,10 +133,27 @@
         </section>
       </div>
 
+      <!-- Отчёт построился, но строк нет: даём выход вместо пустой таблицы —
+           чаще всего дело в узком периоде, а кнопка «Весь период» лежит в шаге 4. -->
+      <div
+        v-if="showExpandHint"
+        class="reports__hint"
+      >
+        <span>За {{ lastPeriodLabel }} данных нет.</span>
+        <button
+          type="button"
+          class="lk-button lk-button--secondary"
+          @click="expandPeriod"
+        >
+          Показать за весь период
+        </button>
+      </div>
+
       <!-- Результат (полная ширина под мастером). До первого построения не
            рендерим — пустой блок создавал бы лишнюю пустоту во вкладке. -->
       <ReportResult
         v-if="result || running || runError"
+        ref="resultRef"
         :result="result"
         :loading="running"
         :error="runError"
@@ -148,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import ReportBuilder from './ReportBuilder.vue';
 import ReportResult from './ReportResult.vue';
 import ReportGallery from './ReportGallery.vue';
@@ -157,6 +175,7 @@ import {
   getReportCatalog, runReport,
   getReportTemplates, saveReportTemplate, deleteReportTemplate,
 } from '@/api/statistics';
+import { formatDateRu } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
@@ -166,6 +185,9 @@ const props = defineProps({
 });
 
 const period = computed(() => ({ from: props.from, to: props.to }));
+
+const builderRef = ref(null);
+const resultRef = ref(null);
 
 const catalog = ref(null);
 const catalogLoading = ref(true);
@@ -308,8 +330,46 @@ async function onRun(request) {
     resultLimit.value = 0;
     runError.value = e?.message || 'Не удалось построить отчёт. Проверьте параметры.';
   } finally {
-    if (seq === runSeq) running.value = false;
+    if (seq === runSeq) {
+      running.value = false;
+      scrollToResult();
+    }
   }
+}
+
+// Результат пуст: у выгрузки строк это её собственные строки, у сводки — нормализованные
+// metric_rows (старые разрезы отдают плоский rows, отсюда двойная проверка).
+const resultIsEmpty = computed(() => {
+  const r = result.value;
+  if (!r) return false;
+  if (r.mode === 'list') return (r.rows?.length || 0) === 0;
+  return (r.metric_rows || r.rows || []).length === 0;
+});
+
+const lastPeriodLabel = computed(() => {
+  const { from = '', to = '' } = exportMeta.value.period || {};
+  if (!from || !to) return '';
+  return `${formatDateRu(from)} - ${formatDateRu(to)}`;
+});
+
+// Расширять период есть куда, только когда он вообще ограничен: у отчёта за весь
+// период пустой результат означает, что данных нет совсем, и подсказка бесполезна.
+const showExpandHint = computed(
+  () => !running.value && !runError.value && resultIsEmpty.value && Boolean(lastPeriodLabel.value),
+);
+
+function expandPeriod() {
+  builderRef.value?.expandPeriodToAll();
+}
+
+// Кнопка построения стоит над результатом, а таблица рендерится ниже сгиба: без
+// прокрутки клик выглядит так, будто ничего не произошло.
+async function scrollToResult() {
+  await nextTick();
+  const el = resultRef.value?.$el;
+  if (!el?.scrollIntoView) return;
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
 }
 </script>
 
@@ -332,6 +392,18 @@ async function onRun(request) {
 
 .reports__state--error {
   color: var(--danger-text);
+}
+
+.reports__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--color-text-muted);
 }
 
 .reports-layout {

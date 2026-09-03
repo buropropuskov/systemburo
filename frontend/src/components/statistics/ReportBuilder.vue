@@ -699,6 +699,15 @@ function run() {
   if (!canRun.value) return;
   emit('run', buildReportRequest(form, form.period, applicableFilters.value));
 }
+
+// Пустой результат предлагает расширить период до «весь». Отдаём наружу метод, а не
+// повторяем вычисление диапазона в ReportsTab: границы периода живут здесь.
+function expandPeriodToAll() {
+  applyPeriodPreset('all');
+  run();
+}
+
+defineExpose({ expandPeriodToAll });
 </script>
 
 <style scoped>
