@@ -7,6 +7,7 @@ import ReportBuilder from '../ReportBuilder.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateFilter from '@/components/DateFilter.vue';
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 
 const CATALOG = {
   metrics: [
@@ -59,6 +60,17 @@ function metricInputs(wrapper) {
   return wrapper.findAll('.rb__metric-input');
 }
 
+/**
+ * Чекбокс метрики по её подписи. Секции шага «Что считаем» («Основное» + группы
+ * каталога) переставляют карточки, поэтому обращение по индексу ломается при
+ * первой же перегруппировке.
+ */
+function metricByLabel(wrapper, label) {
+  const card = wrapper.findAll('.rb__metric').find((l) => l.text().includes(label));
+  if (!card) throw new Error(`карточка метрики «${label}» не найдена`);
+  return card.find('.rb__metric-input');
+}
+
 /** Радио-разрез по его подписи. */
 function dimRadioByLabel(wrapper, label) {
   return wrapper.findAll('.rb__dim').find((d) => d.text().includes(label)).find('.rb__dim-input');
@@ -72,12 +84,93 @@ function pivotPills(wrapper) {
 
 /** Выбрать только метрику «Количество заявок» и разрез «Период (дата)». */
 async function setupAppsPeriod(wrapper) {
-  await metricInputs(wrapper)[1].trigger('change'); // + applications_count
-  await metricInputs(wrapper)[0].trigger('change'); // - car_entries_count
+  await metricByLabel(wrapper, 'Количество заявок').trigger('change'); // + applications_count
+  await metricByLabel(wrapper, 'Въезды машин').trigger('change'); // - car_entries_count
   await nextTick();
   await dimRadioByLabel(wrapper, 'Период (дата)').setValue();
   await nextTick();
 }
+
+// Каталог с показателями обработки: в основном CATALOG обе метрики ходовые, и
+// раскрывашка шага «Что считаем» там не появляется (#2296).
+const CATALOG_WITH_PROCESSING = {
+  ...CATALOG,
+  metrics: [
+    ...CATALOG.metrics,
+    { key: 'p90_approval_time', label: '90-й перцентиль времени согласования', group: 'Обработка заявок', dimensions: ['period'], filters: ['date_range'] },
+    { key: 'refusal_rate', label: 'Доля отказов и несогласований', unit: '%', group: 'Обработка заявок', dimensions: ['period'], filters: ['date_range'] },
+  ],
+};
+
+function mountWide() {
+  return mount(ReportBuilder, { props: { catalog: CATALOG_WITH_PROCESSING, period: PERIOD } });
+}
+
+describe('ReportBuilder — разгрузка конструктора (#2296)', () => {
+  it('показывает только ходовые показатели, остальные прячет под раскрывашку', async () => {
+    const wrapper = mountWide();
+    await nextTick();
+
+    const shown = wrapper.findAll('.rb__metric').map((m) => m.text());
+    expect(shown.join(' ')).toContain('Количество заявок');
+    expect(shown.join(' ')).not.toContain('перцентиль');
+
+    const more = wrapper.find('.rb__more');
+    expect(more.text()).toContain('Показатели обработки');
+    expect(more.text()).toContain('2');
+
+    await more.trigger('click');
+    expect(wrapper.findAll('.rb__metric').map((m) => m.text()).join(' ')).toContain('перцентиль');
+  });
+
+  it('раскрывает блок сам, когда пресет включил показатель из скрытой части', async () => {
+    const wrapper = mountWide();
+    await nextTick();
+    expect(wrapper.findAll('.rb__metric').map((m) => m.text()).join(' ')).not.toContain('Доля отказов');
+
+    await wrapper.setProps({ preset: { mode: 'aggregate', metrics: ['refusal_rate'], dimension: 'period' } });
+    await nextTick();
+
+    expect(wrapper.findAll('.rb__metric').map((m) => m.text()).join(' ')).toContain('Доля отказов');
+  });
+
+  it('к перцентилям и долям даёт подсказку', async () => {
+    const wrapper = mountWide();
+    await nextTick();
+    await wrapper.find('.rb__more').trigger('click');
+
+    const p90 = wrapper.findAll('.rb__metric').find((m) => m.text().includes('перцентиль'));
+    expect(p90.findComponent(HintTooltip).props('text')).toContain('Девять заявок из десяти');
+
+    const rate = wrapper.findAll('.rb__metric').find((m) => m.text().includes('Доля отказов'));
+    expect(rate.findComponent(HintTooltip).props('text')).toContain('отказал принимающий');
+  });
+
+  it('фильтры и период свёрнуты, а их состояние видно в заголовке', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    expect(wrapper.find('.rb__filters').isVisible()).toBe(false);
+    expect(wrapper.find('.rb__period').isVisible()).toBe(false);
+
+    const heads = wrapper.findAll('.rb__step-head--toggle').map((h) => h.text());
+    expect(heads.join(' ')).toContain('не заданы');
+    expect(heads.join(' ')).toContain('01.06.2026 - 07.06.2026');
+  });
+
+  it('заголовок фильтров считает выбранные значения, а раскрытие показывает сам блок', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    const filtersHead = wrapper.findAll('.rb__step-head--toggle').find((h) => h.text().includes('Фильтры'));
+    await filtersHead.trigger('click');
+    expect(wrapper.find('.rb__filters').isVisible()).toBe(true);
+
+    await wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А').trigger('click');
+    await nextTick();
+    expect(filtersHead.text()).toContain('Организация: 1');
+  });
+});
 
 describe('ReportBuilder', () => {
   afterEach(() => {
@@ -101,7 +194,7 @@ describe('ReportBuilder', () => {
     const wrapper = mountBuilder();
     await nextTick();
     // Добавляем вторую метрику. Общий разрез car∩apps = только period (+ «без разреза»).
-    await metricInputs(wrapper)[1].trigger('change');
+    await metricByLabel(wrapper, 'Количество заявок').trigger('change');
     await nextTick();
 
     // unload_place больше не общий -> разрез автоматически переехал на period.
@@ -132,12 +225,12 @@ describe('ReportBuilder', () => {
     const wrapper = mountBuilder();
     await nextTick();
     // Добавили applications_count -> общий разрез только period, unload_place пропал.
-    await metricInputs(wrapper)[1].trigger('change');
+    await metricByLabel(wrapper, 'Количество заявок').trigger('change');
     await nextTick();
     expect(wrapper.findAll('.rb__dim').map((d) => d.text())).not.toContain('Место разгрузки');
 
     // Сняли её обратно -> разрезы car_entries_count снова доступны.
-    await metricInputs(wrapper)[1].trigger('change');
+    await metricByLabel(wrapper, 'Количество заявок').trigger('change');
     await nextTick();
     expect(wrapper.findAll('.rb__dim').map((d) => d.text())).toContain('Место разгрузки');
 
@@ -248,12 +341,12 @@ describe('ReportBuilder', () => {
     const wrapper = mountBuilder();
     await nextTick();
     // Добавили applications_count — единственную метрику, поддерживающую status.
-    await metricInputs(wrapper)[1].trigger('change'); // metrics = [car, apps]
+    await metricByLabel(wrapper, 'Количество заявок').trigger('change'); // metrics = [car, apps]
     await nextTick();
     const statusPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'Завершено');
     await statusPill.trigger('click');
     // Сняли applications_count -> status больше не применим -> значение чистится.
-    await metricInputs(wrapper)[1].trigger('change'); // metrics = [car]
+    await metricByLabel(wrapper, 'Количество заявок').trigger('change'); // metrics = [car]
     await nextTick();
     await clickBuild(wrapper);
 
@@ -266,7 +359,7 @@ describe('ReportBuilder', () => {
     // organization поддерживают обе метрики.
     const orgPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А');
     await orgPill.trigger('click');
-    await metricInputs(wrapper)[1].trigger('change'); // добавили applications_count
+    await metricByLabel(wrapper, 'Количество заявок').trigger('change'); // добавили applications_count
     await nextTick();
     await clickBuild(wrapper);
 
@@ -340,7 +433,7 @@ describe('ReportBuilder', () => {
     await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
 
     // Возвращаем car_entries_count: ось attachment_type его не поддерживает.
-    await metricInputs(wrapper)[0].trigger('change');
+    await metricByLabel(wrapper, 'Въезды машин').trigger('change');
     await nextTick();
     expect(pivotPills(wrapper)).toEqual([]);
 

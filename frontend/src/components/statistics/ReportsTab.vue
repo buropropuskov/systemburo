@@ -418,6 +418,9 @@ async function scrollToResult() {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  position: sticky;
+  top: 0;
+  align-self: start;
 }
 
 .col-heading {
@@ -551,6 +554,10 @@ async function scrollToResult() {
 }
 
 @media (max-width: 880px) {
+  .presets-col {
+    position: static;
+  }
+
   .reports-layout {
     grid-template-columns: 1fr;
   }

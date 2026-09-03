@@ -33,6 +33,33 @@ describe('ReportGallery', () => {
     expect(wrapper.findAll('.gallery__card')).toHaveLength(REPORT_PRESETS.length - listPresets);
   });
 
+  // В колонке мастера десять карточек занимали экран целиком (#2296).
+  it('в узкой колонке показывает пять наборов и раскрывает остальные по кнопке', async () => {
+    const wrapper = mount(ReportGallery, { props: { catalog: FULL_CATALOG, compact: true } });
+    expect(wrapper.findAll('.gallery__card')).toHaveLength(5);
+
+    const more = wrapper.find('.gallery__more');
+    expect(more.text()).toContain(String(REPORT_PRESETS.length));
+
+    await more.trigger('click');
+    expect(wrapper.findAll('.gallery__card')).toHaveLength(REPORT_PRESETS.length);
+    expect(wrapper.find('.gallery__more').text()).toBe('Свернуть список');
+  });
+
+  it('раскрывает список, когда активный набор лежит в скрытой части', () => {
+    const hidden = REPORT_PRESETS[REPORT_PRESETS.length - 1];
+    const wrapper = mount(ReportGallery, { props: { catalog: FULL_CATALOG, compact: true, activeId: hidden.id } });
+
+    expect(wrapper.findAll('.gallery__card').length).toBeGreaterThan(5);
+    expect(wrapper.find('.gallery__card--active').text()).toContain(hidden.title);
+  });
+
+  it('в полной галерее лимита нет', () => {
+    const wrapper = mount(ReportGallery, { props: { catalog: FULL_CATALOG } });
+    expect(wrapper.findAll('.gallery__card')).toHaveLength(REPORT_PRESETS.length);
+    expect(wrapper.find('.gallery__more').exists()).toBe(false);
+  });
+
   it('эмитит apply с пресетом по клику на карточку', async () => {
     const wrapper = mount(ReportGallery, { props: { catalog: FULL_CATALOG } });
     await wrapper.findAll('.gallery__card')[0].trigger('click');
