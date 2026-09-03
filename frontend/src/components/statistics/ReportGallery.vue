@@ -12,7 +12,7 @@
     </p>
     <div class="gallery__grid">
       <button
-        v-for="preset in availablePresets"
+        v-for="preset in visiblePresets"
         :key="preset.id"
         type="button"
         class="gallery__card"
@@ -24,11 +24,20 @@
         <span class="gallery__card-result">{{ preset.resultHint }}</span>
       </button>
     </div>
+
+    <button
+      v-if="hiddenCount || (compact && expanded)"
+      type="button"
+      class="gallery__more"
+      @click="expanded = !expanded"
+    >
+      {{ expanded ? 'Свернуть список' : `Показать все (${availablePresets.length})` }}
+    </button>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { REPORT_PRESETS, presetAvailable } from './reportPresets';
 
 const props = defineProps({
@@ -44,6 +53,23 @@ defineEmits(['apply']);
 const availablePresets = computed(() =>
   REPORT_PRESETS.filter((p) => presetAvailable(p, props.catalog)),
 );
+
+// В узкой колонке мастера десять карточек с описаниями занимали экран целиком и
+// отодвигали конструктор. Показываем ходовые, остальные - по кнопке.
+const COMPACT_VISIBLE = 5;
+const expanded = ref(false);
+
+const visiblePresets = computed(
+  () => (props.compact && !expanded.value ? availablePresets.value.slice(0, COMPACT_VISIBLE) : availablePresets.value),
+);
+
+const hiddenCount = computed(() => availablePresets.value.length - visiblePresets.value.length);
+
+// Шаблон или пресет из скрытой части: подсветка активной карточки должна быть видна.
+watch(() => props.activeId, (id) => {
+  if (!id || expanded.value) return;
+  if (!visiblePresets.value.some((p) => p.id === id)) expanded.value = true;
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -51,6 +77,22 @@ const availablePresets = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.gallery__more {
+  padding: 9px 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+.gallery__more:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
 }
 
 .gallery__lead {

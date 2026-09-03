@@ -19,46 +19,10 @@
           <span class="rb__step-num">1</span>
           <span class="rb__step-name">Что считаем</span>
         </div>
-        <template
-          v-for="grp in metricGroups"
-          :key="grp.group"
-        >
-          <div class="rb__group-title">
-            {{ grp.group }}
-          </div>
-          <div class="rb__metrics">
-            <label
-              v-for="m in grp.metrics"
-              :key="m.key"
-              class="rb__metric"
-              :class="{ 'rb__metric--on': isMetricOn(m.key) }"
-            >
-              <input
-                type="checkbox"
-                class="rb__metric-input"
-                :checked="isMetricOn(m.key)"
-                @change="toggleMetric(m.key)"
-              >
-              <span class="rb__metric-box">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                ><path d="M20 6 9 17l-5-5" /></svg>
-              </span>
-              <span class="rb__metric-text">
-                <span class="rb__metric-name">{{ m.label }}</span>
-                <span
-                  v-if="m.unit"
-                  class="rb__metric-unit"
-                >{{ m.unit }}</span>
-              </span>
-            </label>
-          </div>
-        </template>
+        <ReportMetricPicker
+          v-model="form.metrics"
+          :catalog="catalog"
+        />
       </div>
 
       <!-- Шаг 2: по чему разбиваем (радио-сетка, «без разреза» всегда доступен) -->
@@ -143,15 +107,29 @@
       v-if="filterFields.length"
       class="rb__step"
     >
-      <div class="rb__step-head">
+      <button
+        type="button"
+        class="rb__step-head rb__step-head--toggle"
+        :aria-expanded="String(filtersOpen)"
+        @click="filtersOpen = !filtersOpen"
+      >
         <span
           v-if="form.mode === 'aggregate'"
           class="rb__step-num"
         >3</span>
         <span class="rb__step-name">Фильтры</span>
         <span class="rb__step-opt">необязательно</span>
-      </div>
-      <div class="rb__filters">
+        <span class="rb__step-sum">{{ filtersSummary }}</span>
+        <span
+          class="rb__more-caret rb__step-caret"
+          :class="{ 'rb__more-caret--open': filtersOpen }"
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        v-show="filtersOpen"
+        class="rb__filters"
+      >
         <div
           v-for="f in filterFields"
           :key="f.key"
@@ -183,14 +161,28 @@
       v-if="periodApplicable"
       class="rb__step"
     >
-      <div class="rb__step-head">
+      <button
+        type="button"
+        class="rb__step-head rb__step-head--toggle"
+        :aria-expanded="String(periodOpen)"
+        @click="periodOpen = !periodOpen"
+      >
         <span
           v-if="form.mode === 'aggregate'"
           class="rb__step-num"
         >4</span>
         <span class="rb__step-name">Период</span>
-      </div>
-      <div class="rb__period">
+        <span class="rb__step-sum">{{ periodSummary }}</span>
+        <span
+          class="rb__more-caret rb__step-caret"
+          :class="{ 'rb__more-caret--open': periodOpen }"
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        v-show="periodOpen"
+        class="rb__period"
+      >
         <div class="rb__period-presets">
           <button
             v-for="p in periodPresets"
@@ -281,6 +273,7 @@
 import { reactive, ref, computed, watch, nextTick } from 'vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import ReportMetricPicker from './ReportMetricPicker.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import { buildReportRequest, defaultReportLimit, MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
 import { formatDateRu } from '@/utils/datetime';
@@ -333,20 +326,6 @@ const filterByKey = computed(() => {
 
 // Метрики, разложенные по группам каталога (group), порядок групп — по первому
 // появлению. Карточки шага «Что считаем» строятся отсюда, не из мокапа.
-const metricGroups = computed(() => {
-  const order = [];
-  const byGroup = {};
-  for (const m of props.catalog.metrics || []) {
-    const g = m.group || 'Прочее';
-    if (!byGroup[g]) {
-      byGroup[g] = [];
-      order.push(g);
-    }
-    byGroup[g].push(m);
-  }
-  return order.map((g) => ({ group: g, metrics: byGroup[g] }));
-});
-
 const selectedMetrics = computed(
   () => (props.catalog.metrics || []).filter((m) => form.metrics.includes(m.key)),
 );
@@ -405,6 +384,28 @@ const applicableFilters = computed(() => {
 });
 
 // Поля-чипсы шага 3: применимые фильтры без date_range (период — отдельный шаг).
+// Шаги «Фильтры» и «Период» свёрнуты по умолчанию: в раскрытом виде они занимали
+// больше двух экранов и отодвигали кнопку построения. Состояние выносится в
+// заголовок, чтобы свёрнутый шаг не прятал того, что уже задано.
+const filtersOpen = ref(false);
+const periodOpen = ref(false);
+
+const filtersSummary = computed(() => {
+  const parts = [];
+  for (const f of filterFields.value) {
+    const count = (form.filters[f.key] || []).filter((v) => v != null && String(v).trim() !== '').length;
+    if (count) parts.push(`${f.label}: ${count}`);
+  }
+  return parts.length ? parts.join(' · ') : 'не заданы';
+});
+
+const periodSummary = computed(() => {
+  const { from, to } = form.period;
+  if (!from && !to) return 'весь период';
+  if (from && to) return `${formatDateRu(from)} - ${formatDateRu(to)}`;
+  return from ? `с ${formatDateRu(from)}` : `по ${formatDateRu(to)}`;
+});
+
 const filterFields = computed(() =>
   applicableFilters.value
     .filter((k) => k !== 'date_range')
@@ -558,16 +559,6 @@ watch(() => props.preset, (p) => {
     nextTick(run);
   });
 });
-
-function isMetricOn(key) {
-  return form.metrics.includes(key);
-}
-
-function toggleMetric(key) {
-  const idx = form.metrics.indexOf(key);
-  if (idx >= 0) form.metrics.splice(idx, 1);
-  else form.metrics.push(key);
-}
 
 function isSelected(key, value) {
   return (form.filters[key] || []).includes(value);
@@ -775,99 +766,39 @@ defineExpose({ expandPeriodToAll });
   color: var(--color-text-muted);
 }
 
-.rb__group-title {
-  margin: 14px 0 9px 36px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
-.rb__group-title:first-of-type {
-  margin-top: 2px;
-}
-
-.rb__metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-left: 36px;
-}
-
-.rb__metric {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+/* Заголовок-переключатель шага: обычная строка заголовка, но кликабельная целиком. */
+.rb__step-head--toggle {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease;
 }
-
-.rb__metric:hover {
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-  background: var(--accent-tint);
-}
-
-.rb__metric--on {
-  border-color: var(--accent);
-  background: var(--color-primary-tint);
-}
-
-.rb__metric-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.rb__metric-box {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  border: 2px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--surface);
-  display: grid;
-  place-items: center;
-  color: var(--accent-contrast);
-  transition: background 0.18s ease, border-color 0.18s ease;
-}
-
-.rb__metric-box svg {
-  width: 13px;
-  height: 13px;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-}
-
-.rb__metric--on .rb__metric-box {
-  background: var(--color-primary);
-  border-color: var(--accent);
-}
-
-.rb__metric--on .rb__metric-box svg {
-  opacity: 1;
-}
-
-.rb__metric-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.rb__metric-name {
+.rb__step-sum {
+  margin-left: auto;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.rb__metric-unit {
-  font-size: 11px;
   color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rb__step-caret {
+  flex: none;
+  margin-left: 4px;
+}
+.rb__more-caret {
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.18s ease;
+}
+.rb__more-caret--open {
+  transform: rotate(90deg);
 }
 
 /* Разрезы */
@@ -1162,9 +1093,7 @@ defineExpose({ expandPeriodToAll });
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .rb__metrics,
   .rb__dims,
-  .rb__group-title,
   .rb__gran,
   .rb__filters,
   .rb__period {
@@ -1179,10 +1108,6 @@ defineExpose({ expandPeriodToAll });
     padding: 12px;
   }
 
-  .rb__metric {
-    padding: 13px 14px;
-  }
-
   /* «Построить отчёт» на всю ширину под полем «Строк» — крупная зона нажатия. */
   .rb__footer {
     justify-content: flex-start;
@@ -1193,9 +1118,4 @@ defineExpose({ expandPeriodToAll });
   }
 }
 
-@media (max-width: 480px) {
-  .rb__metrics {
-    grid-template-columns: 1fr;
-  }
-}
 </style>
