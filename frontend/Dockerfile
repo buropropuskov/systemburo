@@ -3,7 +3,7 @@
 # mount работает в no-op режиме и не ускоряет сборку.
 
 # Dev stage
-FROM node:20-alpine AS dev
+FROM node:22-alpine AS dev
 WORKDIR /app
 # Возвращаемся на registry.npmjs.org (оригинал). npmmirror.com (Alibaba/Китай)
 # работал из РФ, но через РФ→Китай latency высокая - npm ci на слабом VPS Jino
@@ -29,7 +29,7 @@ EXPOSE 8081
 CMD ["npm", "run", "dev", "--", "--host"]
 
 # Builder stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com \
     NPM_CONFIG_FETCH_RETRIES=10 \
