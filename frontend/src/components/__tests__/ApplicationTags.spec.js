@@ -84,6 +84,26 @@ describe('ApplicationTags', () => {
   });
 });
 
+describe('ApplicationTags — исключение тегов разделом', () => {
+  it('исключённый тег не показывается и не занимает места', () => {
+    // Личный кабинет прячет «Важный»: отправитель там - сам читающий, и тег висел
+    // бы на каждой его строке, ничего не сообщая.
+    wrapper = mount(ApplicationTags, {
+      props: { application: application(ALL_FLAGS), availableWidth: 0, exclude: ['important'] },
+      attachTo: document.body,
+    });
+
+    const text = wrapper.text();
+    expect(text).not.toContain('Важный');
+    expect(text, 'исключение одного тега не должно убирать остальные').toContain('Крыша');
+  });
+
+  it('без исключений состав прежний', () => {
+    wrapper = mountTags(ALL_FLAGS);
+    expect(wrapper.text()).toContain('Важный');
+  });
+});
+
 describe('ApplicationTags — список скрытых тегов', () => {
   it('счётчик закрыт по умолчанию и раскрывается по клику', async () => {
     wrapper = mountTags(ALL_FLAGS, 90);

@@ -1,5 +1,9 @@
 /**
- * Теги строки заявки в Центре: состав, приоритет и укладка в колонку.
+ * Теги строки заявки: состав, приоритет и укладка в колонку.
+ *
+ * Одинаково работают в Центре и в личном кабинете (#2319) - в кабинете теги
+ * раньше были свёрстаны руками и всегда шли полным текстом, из-за чего на узкой
+ * строке переносились.
  *
  * Колонка тегов узкая (около 90-170px в зависимости от простора и того, закреплено
  * ли нав-меню), а тегов у заявки бывает до восьми. Поэтому тег умеет показываться
@@ -110,26 +114,34 @@ const TAG_DEFS = {
 
 /**
  * Теги заявки в порядке приоритета.
+ *
+ * exclude нужен разделам, где тег теряет смысл: в личном кабинете отправитель -
+ * сам читающий, и «Важный» висел бы у него постоянно, ничего не сообщая.
+ *
  * @param {object} application строка списка заявок
+ * @param {{exclude?: string[]}} [options] ключи тегов, которые разделу не нужны
  * @returns {Array<{key: string, variant: string, text: string, countText: ?string,
  *   hint: string, testid: ?string, minMode: string, iconInText: boolean}>}
  */
-export function buildApplicationTags(application) {
+export function buildApplicationTags(application, options = {}) {
   if (!application) return [];
-  return TAG_ORDER.filter((key) => TAG_DEFS[key].match(application)).map((key) => {
-    const def = TAG_DEFS[key];
-    return {
-      key,
-      variant: def.variant,
-      text: def.text(application),
-      countText: def.count ? def.count(application) : null,
-      hint: def.hint(application),
-      testid: def.testid ? def.testid(application) : null,
-      minMode: def.minMode,
-      iconInText: !!def.iconInText,
-      textless: !!def.textless,
-    };
-  });
+  const exclude = new Set(options.exclude || []);
+  return TAG_ORDER
+    .filter((key) => !exclude.has(key) && TAG_DEFS[key].match(application))
+    .map((key) => {
+      const def = TAG_DEFS[key];
+      return {
+        key,
+        variant: def.variant,
+        text: def.text(application),
+        countText: def.count ? def.count(application) : null,
+        hint: def.hint(application),
+        testid: def.testid ? def.testid(application) : null,
+        minMode: def.minMode,
+        iconInText: !!def.iconInText,
+        textless: !!def.textless,
+      };
+    });
 }
 
 const widthCache = new Map();
