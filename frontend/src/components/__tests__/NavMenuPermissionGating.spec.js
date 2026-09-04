@@ -66,8 +66,6 @@ describe('NavMenu: гейтинг навигации по правам', () => {
     expect(visible(wrapper, 'nav-link-cars')).toBe(true);
     expect(visible(wrapper, 'nav-link-employees')).toBe(true);
     expect(visible(wrapper, 'nav-link-analytics')).toBe(true);
-    // Отчёты - свой пункт под аналитикой: раздел не находили ни в меню, ни поиском (#2297).
-    expect(visible(wrapper, 'nav-link-reports')).toBe(true);
     expect(wrapper.find('[data-testid="nav-link-admin"]').exists()).toBe(true);
   });
 

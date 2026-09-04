@@ -4,10 +4,9 @@ import { reactive } from 'vue';
 
 // У отчётов свой адрес (#2297): вкладка читается из маршрута и пишется в него,
 // поэтому вью нужен роутер. Заглушка держит путь и переписывает его на push.
-const { routeStub, pushSpy } = vi.hoisted(() => {
-  const route = { path: '/analytics', params: {}, query: {} };
-  return { routeStub: route, pushSpy: null };
-});
+const { routeStub } = vi.hoisted(() => ({
+  routeStub: { path: '/analytics', params: {}, query: {} },
+}));
 const route = reactive(routeStub);
 const push = vi.fn((to) => {
   if (typeof to === 'string') { route.path = to; route.query = {}; return; }
