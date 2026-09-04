@@ -41,7 +41,7 @@
 | `@jridgewell/sourcemap-codec` | 1.5.5 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@jridgewell/trace-mapping` | 0.3.31 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@kurkle/color` | 0.3.4 | MIT | Copyright (c) 2018-2024 Jukka Kurkela |
-| `@napi-rs/canvas` | 0.1.100 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
+| `@napi-rs/canvas` | 1.0.8 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
 | `@noble/ciphers` | 1.3.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com); Copyright (c) 2016 Thomas Pornin <pornin@bolet.org> |
 | `@noble/hashes` | 1.8.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com) |
 | `@oxc-project/types` | 0.148.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
@@ -190,7 +190,7 @@
 | `pako` | 0.2.9 | MIT | Copyright (C) 2014-2016 by Vitaly Puzrin |
 | `pako` | 1.0.11 | (MIT AND Zlib) | Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn |
 | `pathe` | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors; Copyright (c) 2023-present Fabio Spampinato |
-| `pdfjs-dist` | 4.10.38 | Apache-2.0 | не указан в поставке пакета |
+| `pdfjs-dist` | 6.2.108 | Apache-2.0 | не указан в поставке пакета |
 | `pdfkit` | 0.19.1 | MIT | Copyright (c) 2014 Devon Govett |
 | `pdfmake` | 0.3.11 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
@@ -275,17 +275,17 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `@napi-rs/canvas-android-arm64` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-darwin-arm64` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-darwin-x64` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm-gnueabihf` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm64-gnu` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm64-musl` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-riscv64-gnu` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-x64-gnu` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-x64-musl` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-win32-arm64-msvc` | 0.1.100 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-win32-x64-msvc` | 0.1.100 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-android-arm64` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-darwin-arm64` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-darwin-x64` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm-gnueabihf` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm64-gnu` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm64-musl` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-riscv64-gnu` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-x64-gnu` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-x64-musl` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-win32-arm64-msvc` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-win32-x64-msvc` | 1.0.8 | MIT | не указан в поставке пакета |
 
 ## 5. Компоненты серверной части
 
@@ -1548,7 +1548,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.35. MIT
 
-Компоненты: `@napi-rs/canvas` 0.1.100
+Компоненты: `@napi-rs/canvas` 1.0.8
 
 ```text
 MIT License
@@ -7665,7 +7665,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### 7.143. Apache-2.0
 
-Компоненты: `pdfjs-dist` 4.10.38
+Компоненты: `pdfjs-dist` 6.2.108
 
 ```text
 Apache License
