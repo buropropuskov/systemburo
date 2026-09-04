@@ -2135,6 +2135,40 @@
         }
       },
       "dpi": 200
+    },
+    {
+      "id": "discussion",
+      "goto": "/personal-cabinet",
+      "waitFor": "[data-testid=\"ob-application-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-application-row\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-detail-card\"]"
+        },
+        {
+          "scrollTo": "[data-testid=\"application-questions\"]"
+        },
+        {
+          "click": "[data-testid=\"questions-toggle\"]"
+        },
+        {
+          "wait": "[data-testid=\"question-item\"]"
+        },
+        {
+          "click": "[data-testid=\"question-item\"]"
+        },
+        {
+          "wait": "[data-testid=\"answer-input\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"application-questions\"]",
+        "pad": 30
+      },
+      "highlight": [],
+      "dpi": 200
     }
   ]
 }
