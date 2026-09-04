@@ -136,7 +136,38 @@
           class="rb__filter"
         >
           <span class="rb__field-label">{{ f.label }}</span>
-          <div class="rb__pills">
+          <template v-if="isDictFilter(f.key)">
+            <BaseDropdown
+              :model-value="form.filters[f.key] || []"
+              :options="f.options"
+              label-key="label"
+              value-key="value"
+              :placeholder="dictPlaceholder(f.key)"
+              :summary-label="f.label"
+              multiple
+              searchable
+              @update:model-value="(values) => setFilter(f.key, values)"
+            />
+            <div
+              v-if="chosenOptions(f).length"
+              class="rb__chosen"
+            >
+              <button
+                v-for="opt in chosenOptions(f)"
+                :key="opt.value"
+                type="button"
+                class="rb__chosen-chip"
+                :title="`Убрать ${opt.label}`"
+                @click="toggleFilter(f.key, opt.value)"
+              >
+                {{ opt.label }}<span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </template>
+          <div
+            v-else
+            class="rb__pills"
+          >
             <button
               v-for="opt in f.options"
               :key="opt.value"
@@ -405,6 +436,31 @@ const periodSummary = computed(() => {
   if (from && to) return `${formatDateRu(from)} - ${formatDateRu(to)}`;
   return from ? `с ${formatDateRu(from)}` : `по ${formatDateRu(to)}`;
 });
+
+// Справочники растут вместе с базой: на стенде 17 организаций и 13 компаний, на бою
+// их будут сотни, и россыпь чипов там перестанет работать. Короткие фиксированные
+// перечни (статусы, типы вложений, места разгрузки) остаются чипами.
+const DICT_FILTERS = {
+  organization: 'Все организации',
+  company: 'Все компании',
+};
+
+function isDictFilter(key) {
+  return Object.hasOwn(DICT_FILTERS, key);
+}
+
+function dictPlaceholder(key) {
+  return DICT_FILTERS[key] || 'Не выбрано';
+}
+
+function chosenOptions(field) {
+  const chosen = form.filters[field.key] || [];
+  return (field.options || []).filter((o) => chosen.includes(o.value));
+}
+
+function setFilter(key, values) {
+  form.filters = { ...form.filters, [key]: [...values] };
+}
 
 const filterFields = computed(() =>
   applicableFilters.value
@@ -920,6 +976,36 @@ defineExpose({ expandPeriodToAll });
   background: var(--color-primary);
   color: var(--accent-contrast);
   border-color: var(--accent);
+}
+
+.rb__chosen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Выбранное видно и снимается, не открывая список. */
+.rb__chosen-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rb__chosen-chip:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.rb__chosen-chip span {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .rb__pills-empty {
