@@ -100,3 +100,24 @@ export function formatMoscowDateTime(date = serverNow()) {
 export function moscowHour(date = serverNow()) {
   return moscowParts(date).hour;
 }
+
+/**
+ * Подключает сверку часов к сетевому слою.
+ *
+ * Обёртка над `fetch`, а не строка в клиенте API: `client.js` стоит ровно на пороге
+ * размера, и гейт не пускает туда даже двух строк - это его способ сказать, что файл
+ * пора разгружать, а не дописывать. Заодно сверка ловит ответы всех запросов, включая
+ * те, что идут мимо клиента.
+ *
+ * Читается только заголовок, ответ отдаётся вызывающему коду нетронутым.
+ */
+export function installClockSync() {
+  const original = globalThis.fetch;
+  if (typeof original !== 'function') return;
+
+  globalThis.fetch = async (...args) => {
+    const response = await original(...args);
+    syncServerTime(response);
+    return response;
+  };
+}

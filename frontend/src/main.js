@@ -17,6 +17,11 @@ import './assets/hints.css'
 import './assets/onboarding.css'
 import './assets/responsive-tables.css'
 import './assets/analytics-panels.css'
+import { installClockSync } from '@/utils/serverTime'
+
+// Часы интерфейса сверяются с сервером по заголовку Date (#2298): на посту по ним
+// смотрят срок пропуска, и часы машины тут доверия не заслуживают.
+installClockSync()
 
 const app = createApp(App)
 app.config.globalProperties.$bus = bus
