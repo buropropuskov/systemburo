@@ -8,6 +8,7 @@ import (
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	"systemburo/internal/reportpresets"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -364,71 +365,61 @@ func createSearchIndexes(db *gorm.DB) error {
 	return nil
 }
 
-// SeedReportTemplates идемпотентно создаёт системные пресеты конструктора отчётов
-// (#632). Config зеркалит состояние гида и непрозрачен для бэка — его применяет
-// фронт. Создаём только отсутствующие по (name, is_system), существующие не трогаем.
-// Идемпотентность через Count, а не уникальный индекс: личные шаблоны разных
-// пользователей могут совпадать по имени, поэтому DB-level unique на name не ставим.
+// renamedSystemTemplates — прежние имена системных наборов и их нынешние названия.
+// Записи заведены до того, как галерея переехала из базы во фронт (#632): без
+// переименования они остались бы в базе дублями рядом с актуальными (#2315).
+var renamedSystemTemplates = map[string]string{
+	"Сводка за неделю":       "Сводка по заявкам",
+	"Самые популярные места": "Популярные места",
+}
+
+// SeedReportTemplates приводит системные шаблоны отчётов к общему источнику -
+// frontend/src/components/statistics/reportPresets.json, копия которого лежит в
+// пакете reportpresets. Набор в базе и набор в галерее обязаны совпадать, поэтому
+// существующие системные записи обновляются, а не пропускаются: разошедшиеся
+// описания и есть та ловушка, из-за которой правку набора искали не в том месте.
+// Пользовательские шаблоны (is_system = false) не трогаем.
 func SeedReportTemplates(db *gorm.DB) error {
-	presets := []models.ReportTemplate{
-		{
-			Name:        "Сводка за неделю",
-			Description: "Поданные заявки по дням за последнюю неделю.",
-			Config:      json.RawMessage(`{"mode":"aggregate","metrics":["applications_count"],"dimension":"period","granularity":"day","period_preset":"week"}`),
-		},
-		{
-			Name:        "Проведение работ",
-			Description: "Заявки на работы с деталями: организация, наименование, ответственный, период.",
-			Config:      json.RawMessage(`{"mode":"list","entity":"work_applications"}`),
-		},
-		{
-			Name:        "Машины по местам",
-			Description: "Список машин с организацией, маркой и местом разгрузки.",
-			Config:      json.RawMessage(`{"mode":"list","entity":"cars"}`),
-		},
-		{
-			Name:        "Самые популярные места",
-			Description: "Места разгрузки по числу въездов машин - самые загруженные сверху.",
-			Config:      json.RawMessage(`{"mode":"aggregate","metrics":["car_entries_count"],"dimension":"unload_place"}`),
-		},
-		{
-			Name:        "Проходы людей",
-			Description: "Входы людей по дням за последнюю неделю.",
-			Config:      json.RawMessage(`{"mode":"aggregate","metrics":["people_entries_count"],"dimension":"period","granularity":"day","period_preset":"week"}`),
-		},
+	presets, err := reportpresets.All()
+	if err != nil {
+		return err
 	}
 
-	for i := range presets {
-		presets[i].IsSystem = true
-		var count int64
+	for oldName, newName := range renamedSystemTemplates {
 		if err := db.Model(&models.ReportTemplate{}).
-			Where("name = ? AND is_system = ?", presets[i].Name, true).
-			Count(&count).Error; err != nil {
-			return fmt.Errorf("check system report template %q: %w", presets[i].Name, err)
+			Where("name = ? AND is_system = ?", oldName, true).
+			Update("name", newName).Error; err != nil {
+			return fmt.Errorf("rename system report template %q: %w", oldName, err)
 		}
-		if count > 0 {
-			continue
+	}
+
+	for _, preset := range presets {
+		record := models.ReportTemplate{
+			Name:        preset.Title,
+			Description: preset.Description,
+			Config:      json.RawMessage(preset.Form),
+			IsSystem:    true,
 		}
-		if err := db.Create(&presets[i]).Error; err != nil {
-			return fmt.Errorf("seed system report template %q: %w", presets[i].Name, err)
+		var existing models.ReportTemplate
+		err := db.Where("name = ? AND is_system = ?", record.Name, true).First(&existing).Error
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			if err := db.Create(&record).Error; err != nil {
+				return fmt.Errorf("create system report template %q: %w", record.Name, err)
+			}
+		case err != nil:
+			return fmt.Errorf("check system report template %q: %w", record.Name, err)
+		default:
+			if err := db.Model(&models.ReportTemplate{}).
+				Where("id = ?", existing.ID).
+				Updates(map[string]any{"description": record.Description, "config": record.Config}).Error; err != nil {
+				return fmt.Errorf("update system report template %q: %w", record.Name, err)
+			}
 		}
 	}
 	return nil
 }
 
-// EnforceSingleSuperAdmin поддерживает инвариант "ровно один супер-админ".
-// Канонический супер-админ выбирается так (приоритет сверху): аккаунт с
-// username='buropropuskov' (системный администратор), иначе самый ранний из уже
-// существующих супер-админов, иначе первый зарегистрированный пользователь.
-// Канонику флаг гарантируется, у всех остальных снимается -- но снятые супера
-// становятся обычными администраторами (is_admin), чтобы не потерять доступ
-// (admin = всё кроме super-only ключей и личных deny). Имя системного аккаунта
-// нормализуется в "Системный Администратор" только если оно пустое (реальное ФИО
-// не затирается). Идемпотентна.
-//
-// Заменяет прежний backfillSuperAdmin, который ошибочно делал супером ВСЕХ
-// пользователей типа buropropuskov: при двух+ buro-аккаунтах получалось несколько
-// супер-админов, что ломало модель "единственный неудаляемый владелец".
 func EnforceSingleSuperAdmin(db *gorm.DB) error {
 	var canonicalID int
 	if err := db.Raw(`

@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build package init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore health-check staging-health-check deploy-health-check
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build package init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore health-check staging-health-check deploy-health-check sync-presets
 
 # Подтверждение перед разрушающими целями рабочего сервера.
 #
@@ -40,6 +40,12 @@ restart:
 
 lint:
 	docker compose exec go-backend go vet ./...
+
+# Наборы отчётов правятся в одном файле - frontend/src/components/statistics/reportPresets.json.
+# Бэкенд заводит по ним системные шаблоны, поэтому копию кладём рядом с его кодом;
+# расхождение ловит Go-тест TestReportPresets_FrontAndBackInSync.
+sync-presets:
+	cp frontend/src/components/statistics/reportPresets.json internal/reportpresets/presets.json
 
 swagger:
 	docker compose exec go-backend swag init -g cmd/server/main.go -o docs
