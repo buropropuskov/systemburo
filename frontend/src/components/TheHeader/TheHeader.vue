@@ -38,8 +38,11 @@
 
     <div class="header__info">
       <!-- Дата и время - только на десктопе (мобильную шапку не грузим). -->
+      <!-- Подсказка снизу: сверху её обрезала бы граница окна - шапка прижата к верху.
+           Она же объясняет расхождение с часами компьютера, если те сбиты (#2298). -->
       <span
-        class="header__time"
+        class="header__time hint-anchor hint-anchor--below"
+        data-hint="Московское время, сверяется с сервером"
         data-testid="header-time"
       >{{ currentDateTime }}</span>
 
@@ -475,6 +478,9 @@ h3 {
   font-size: 16px;
   color: var(--text-muted);
   text-align: center;
+  /* Якорь подсказки делает элемент inline-flex, а в нём text-align не работает:
+     текст становится анонимным flex-элементом и прижимается влево (#2298). */
+  justify-content: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
