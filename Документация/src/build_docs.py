@@ -1833,8 +1833,9 @@ def section_prefix(title):
     return num.group(1) if num else None
 
 
-def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
+def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None, break_before_first=False):
     counters = {"table": 0, "figure": 0, "listing": 0}
+    first_heading = break_before_first
     prefix = "1"
     splitmap = splitmap or {}
 
@@ -1857,6 +1858,11 @@ def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
                     counters = {"table": 0, "figure": 0, "listing": 0}
             para = doc.add_heading(level=min(level, 4))
             para.paragraph_format.first_line_indent = Mm(0)
+            # Тело начинается с новой страницы: разрыв висит на самом заголовке,
+            # а не отдельным параграфом после оглавления.
+            if first_heading:
+                para.paragraph_format.page_break_before = True
+                first_heading = False
             set_font(para.add_run(text), size=HEADING_SIZE[min(level, 4)], bold=True)
             if level <= 2:
                 toc_titles.append((level, text))
@@ -1941,7 +1947,9 @@ def render_toc(doc, entries, pagemap):
         set_font(para.add_run(title), size=13, bold=(level == 1))
         page = pagemap.get(title, "") if pagemap else ""
         set_font(para.add_run("\t" + str(page)), size=13)
-    doc.add_page_break()
+    # Разрыва отдельным параграфом здесь нет намеренно: на плотно набранном
+    # оглавлении он сам не помещается и оставляет пустой лист (та же причина, что
+    # у разрыва перед «СОДЕРЖАНИЕМ»). Первый заголовок тела начинает страницу сам.
 
 
 def doc_dir(cfg):
@@ -2017,7 +2025,7 @@ def build(cfg, pagemap=None, splitmap=None):
     cover(doc, cfg)
     render_toc(doc, toc_titles, pagemap)
     tables_meta = []
-    render(doc, blocks, [], splitmap, tables_meta)
+    render(doc, blocks, [], splitmap, tables_meta, break_before_first=True)
     if WITH_CHANGELOG:
         change_log(doc, cfg)
     doc.save(doc_path(cfg, ".docx"))

@@ -518,15 +518,16 @@ async function bindGuardPlaces(apiBase, token, username, tables) {
  */
 async function fillBureauSchedule(apiBase, token) {
   const existing = unwrap(await api(apiBase, token, 'GET', '/bureau/time-slots')) ?? [];
-  if (existing.length > 0) {
-    console.log(`Расписание бюро: уже задано, промежутков ${existing.length}`);
-    return;
+  // Часы приёма правятся и на уже настроенном стенде: их называет владелец, и
+  // прежние значения попали в кадр руководства как настоящие.
+  for (const slot of existing) {
+    await api(apiBase, token, 'DELETE', `/bureau/time-slots/${slot.id}`);
   }
-  // 0 - понедельник, 6 - воскресенье. Будни целиком, суббота короче,
-  // воскресенье не заводим - в окне оно и будет выходным.
+  // 0 - понедельник, 6 - воскресенье. Часы приёма заявок у заказчика:
+  // будни до десяти вечера, выходные до восьми.
   const slots = [
-    ...[0, 1, 2, 3, 4].map((day) => ({ day_of_week: day, open_time: '08:00', close_time: '18:00' })),
-    { day_of_week: 5, open_time: '09:00', close_time: '14:00' },
+    ...[0, 1, 2, 3, 4].map((day) => ({ day_of_week: day, open_time: '08:00', close_time: '22:00' })),
+    ...[5, 6].map((day) => ({ day_of_week: day, open_time: '08:00', close_time: '20:00' })),
   ];
   for (const slot of slots) {
     await api(apiBase, token, 'POST', '/bureau/time-slots', { ...slot, is_active: true });

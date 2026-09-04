@@ -278,19 +278,12 @@
       "goto": "/new-application",
       "clearDraft": true,
       "waitFor": ".recipients-row",
-      "prepare": [
-        {
-          "click": ".recipients-add__btn"
-        },
-        {
-          "wait": ".recipients-popover--add"
-        }
-      ],
+      "prepare": [],
       "clip": {
         "selector": ".recipients-row",
         "pad": {
           "x": 60,
-          "y": 50
+          "y": 60
         }
       },
       "highlight": [
@@ -301,15 +294,33 @@
         {
           "selector": ".recipients-add__btn",
           "badge": 2
-        },
-        {
-          "selector": ".recipients-search",
-          "badge": 3
-        },
-        {
-          "selector": ".recipients-add-list"
         }
       ]
+    },
+    {
+      "id": "app-recipients-list",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": ".recipients-row",
+      "prepare": [
+        {
+          "click": ".recipients-add__btn"
+        },
+        {
+          "wait": ".recipients-popover--add"
+        }
+      ],
+      "clip": {
+        "selector": ".recipients-popover--add",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".recipients-search",
+          "badge": 1
+        }
+      ],
+      "dpi": 200
     },
     {
       "id": "app-blanks",
@@ -700,18 +711,11 @@
       "highlight": [
         {
           "selector": ".form__message-tc .editor-content",
-          "badge": 1,
-          "badgeInside": true
+          "badge": 1
         },
         {
-          "selector": ".form__message-tc .editor-toolbar",
-          "badge": 2,
-          "badgeInside": true
-        },
-        {
-          "selector": "[data-testid=\"app-files-add\"]",
-          "badge": 3,
-          "badgeInside": true
+          "selector": ".form__message-tc .attach-btn, .form__message-tc [class*='attach']",
+          "badge": 2
         }
       ]
     },
@@ -926,10 +930,10 @@
         }
       ],
       "clip": {
-        "selector": ".completion__fields",
+        "selector": ".data__completion",
         "pad": {
-          "x": 60,
-          "y": 45
+          "x": 40,
+          "y": 40
         }
       },
       "highlight": [
@@ -1751,7 +1755,10 @@
           "badgeInside": true,
           "inset": true
         }
-      ]
+      ],
+      "viewport": {
+        "width": 1500
+      }
     },
     {
       "id": "cabinet-list",
@@ -1930,7 +1937,7 @@
         {
           "fill": [
             ".gsp__input",
-            "Регионэкспресс"
+            "Кабан"
           ]
         },
         {
@@ -1994,6 +2001,140 @@
         "full": true
       },
       "highlight": []
+    },
+    {
+      "id": "duplicate",
+      "goto": "/personal-cabinet",
+      "waitFor": "[data-testid=\"ob-application-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-application-row\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-detail-card\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-detail-duplicate\"]",
+        "pad": {
+          "x": 220,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-detail-duplicate\"]",
+          "badge": 1
+        }
+      ],
+      "dpi": 200
+    },
+    {
+      "id": "app-car-list",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"АВТОМОБИЛИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=0",
+            "А"
+          ]
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=1",
+            "482"
+          ]
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=2",
+            "ВК"
+          ]
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=3",
+            "77"
+          ]
+        },
+        {
+          "click": ".mark__dropdown-button"
+        },
+        {
+          "fill": [
+            ".mark__search-input",
+            "Volk"
+          ]
+        },
+        {
+          "click": ".mark__dropdown-item >> nth=0"
+        },
+        {
+          "click": ".unloading__item >> nth=0"
+        },
+        {
+          "click": ".completion__passage .passage__item >> nth=0"
+        },
+        {
+          "click": ".data__completion .add-button"
+        },
+        {
+          "wait": ".data__list"
+        }
+      ],
+      "clip": {
+        "selector": ".data__list",
+        "pad": {
+          "x": 30,
+          "y": 60
+        }
+      },
+      "viewport": {
+        "height": 1100
+      },
+      "dpi": 200
+    },
+    {
+      "id": "app-items-list",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"ЦЕННОСТИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "fill": [
+            ".items-table .table-body .table-row >> nth=0 >> input[type=\"text\"]",
+            "Стеллаж"
+          ]
+        },
+        {
+          "fill": [
+            ".items-table .table-body .table-row >> nth=0 >> input[type=\"number\"]",
+            "3"
+          ]
+        }
+      ],
+      "clip": {
+        "selector": ".items-table",
+        "pad": {
+          "x": 30,
+          "y": 60
+        }
+      },
+      "dpi": 200
     }
   ]
 }
