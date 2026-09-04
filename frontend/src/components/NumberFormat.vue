@@ -764,6 +764,7 @@ import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/lice
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
+import { formatMomentDate } from '@/utils/datetime';
 
 function defaultCell() {
   return {
@@ -948,10 +949,7 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-    formatDate(s) {
-      if (!s) return '';
-      return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    },
+    formatDate: formatMomentDate,
     // Поля, нерелевантные текущему типу клетки, обнуляются перед сравнением,
     // чтобы скрытые значения не давали ложного dirty.
     detailSnapshot(item) {

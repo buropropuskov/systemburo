@@ -100,6 +100,7 @@
 import { apiRequest } from '@/api/client';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import { formatDateTime } from '@/utils/datetime';
 
 const ACTION_LABELS = {
   create: 'Создание',
@@ -236,14 +237,7 @@ export default {
       }
       return item.comment || ACTION_LABELS[item.action_type] || item.action_type;
     },
-    formatMoment(value) {
-      if (!value) return '';
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return '';
-      return date.toLocaleString('ru-RU', {
-        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-      });
-    },
+    formatMoment: formatDateTime,
   },
 };
 </script>

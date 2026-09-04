@@ -197,6 +197,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { downloadGuideFile } from '@/api/guide';
 import { formatBytes } from '@/utils/download';
 import { useDeletionsStore } from '@/stores/deletions';
+import { formatMomentDate } from '@/utils/datetime';
 
 let uid = 0;
 
@@ -284,7 +285,7 @@ export default {
       if (!iso) return '';
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return formatMomentDate(d);
     },
     async download(section) {
       if (!section.file || this.downloadingRole === section.role) return;

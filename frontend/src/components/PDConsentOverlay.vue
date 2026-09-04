@@ -155,6 +155,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { sanitizeHtml } from '@/utils/sanitize';
 import { downloadDataProcessingDoc } from '@/api/dataProcessing';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { formatMomentDate } from '@/utils/datetime';
 
 /**
  * Неснимаемое окно согласия на обработку персональных данных (#1567). Написано
@@ -204,7 +205,7 @@ const version = computed(() => store.version);
 const versionLabel = computed(() => {
   const at = store.versionAt ? new Date(store.versionAt) : null;
   if (!at || Number.isNaN(at.getTime())) return `Редакция ${store.version}`;
-  return `Редакция ${store.version} от ${at.toLocaleDateString('ru-RU')}`;
+  return `Редакция ${store.version} от ${formatMomentDate(at)}`;
 });
 const hasText = computed(() => Boolean(store.html));
 const hasDocument = computed(() => Boolean(store.docMeta?.stored_name));

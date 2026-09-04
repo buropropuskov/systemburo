@@ -122,7 +122,7 @@ func registryRow(a services.ApplicationWithDetails, ex services.ApplicationRegis
 	}
 	return []string{
 		a.ApplicationNumber,
-		a.SendingDatetime.Format("02.01.2006 15:04"),
+		formatMoscowTime(a.SendingDatetime),
 		a.OrganizationName,
 		a.CompanyName,
 		personName(a.SenderFullName, a.SenderName),
@@ -154,7 +154,14 @@ func formatOptionalTime(t *time.Time) string {
 	if t == nil || t.IsZero() {
 		return ""
 	}
-	return t.Format("02.01.2006 15:04")
+	return formatMoscowTime(*t)
+}
+
+// formatMoscowTime показывает момент в московской зоне (#2298). Соединение с базой
+// открыто с TimeZone=UTC (issue #184), поэтому у времени из неё зона UTC, и печать
+// «как есть» давала в выгрузке час на три меньше того, что человек видел на экране.
+func formatMoscowTime(t time.Time) string {
+	return t.In(services.MoscowLocation()).Format("02.01.2006 15:04")
 }
 
 // formatISODate переводит хранимую строку YYYY-MM-DD в привычный вид. Значение,

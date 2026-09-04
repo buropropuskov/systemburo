@@ -1,5 +1,18 @@
+import { moscowParts, serverNow } from '@/utils/serverTime';
+
+const WEEKDAY_NAMES_RU = [
+  'Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота',
+];
+
 /**
- * Форматирует ISO-дату в "дд.ММ.гггг ЧЧ:мм". Пустое/невалидное возвращает как есть.
+ * Форматирует ISO-момент в "дд.ММ.гггг ЧЧ:мм" ПО МОСКВЕ. Пустое/невалидное
+ * возвращает как есть.
+ *
+ * Зона московская, а не машины (#2298): система живёт в одном поясе, её бэкенд
+ * считает в нём сроки и границу отчётных суток, и работник поста в другом поясе
+ * должен видеть то же время, что все остальные. Раньше здесь стоял getHours(),
+ * и время отметки на экране расходилось с временем, по которому её записал сервер.
+ *
  * @param {string|Date|null|undefined} value
  * @returns {string}
  */
@@ -7,13 +20,37 @@ export function formatDateTime(value) {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
+  const m = moscowParts(d);
   const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${p(m.day)}.${p(m.month)}.${m.year} ${p(m.hour)}:${p(m.minute)}`;
 }
 
 /**
- * Название дня недели по дате. Индексация от воскресенья - как у Date.getDay(),
- * а не как в расписаниях, где неделя начинается с понедельника.
+ * Дата момента по Москве в виде дд.ММ.гггг - без времени.
+ *
+ * Отдельно от formatDateRu: тот разбирает строку 'YYYY-MM-DD' (день без времени и
+ * без зоны), а здесь на входе момент, и день у него зависит от зоны показа. Ночная
+ * загрузка файла на машине восточнее Москвы иначе датируется следующим днём.
+ *
+ * @param {string|Date|null|undefined} value
+ * @returns {string}
+ */
+export function formatMomentDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const m = moscowParts(d);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(m.day)}.${p(m.month)}.${m.year}`;
+}
+
+/**
+ * Название дня недели по московской дате момента. Индексация от воскресенья -
+ * как у Date.getDay(), а не как в расписаниях, где неделя начинается с понедельника.
+ *
+ * День берётся из московских частей, а не у Date напрямую: заявка, отправленная в
+ * понедельник в 00:30 МСК, на машине западнее показала бы воскресенье.
+ *
  * @param {string|Date|null|undefined} value
  * @returns {string} 'Среда' или '' для пустого/невалидного значения
  */
@@ -21,7 +58,8 @@ export function weekdayName(value) {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
-  return ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'][d.getDay()];
+  const m = moscowParts(d);
+  return WEEKDAY_NAMES_RU[new Date(Date.UTC(m.year, m.month - 1, m.day)).getUTCDay()];
 }
 
 /**
@@ -55,6 +93,10 @@ export function localInputToIso(value) {
  * Относительное «N назад» от now до момента value. Для last_seen онлайна и лент.
  * Будущие/нулевые значения -> 'только что'. Считается в абсолютных интервалах
  * (UTC-инстант), таймзона не влияет на «сколько прошло».
+ *
+ * Точка отсчёта - серверные часы, а не машины (#2298): у пользователя со
+ * спешащими часами свежая отметка получала бы возраст в часы, и «кто сейчас
+ * онлайн» показывало бы давно ушедших.
  * @param {string|Date|null|undefined} value
  * @returns {string}
  */
@@ -62,7 +104,7 @@ export function formatTimeAgo(value) {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
-  const diffMs = Date.now() - d.getTime();
+  const diffMs = serverNow().getTime() - d.getTime();
   if (diffMs < 60000) return 'только что';
   const mins = Math.floor(diffMs / 60000);
   if (mins < 60) return `${mins} мин назад`;

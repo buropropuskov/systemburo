@@ -340,6 +340,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { sanitizeHtml } from '@/utils/sanitize.js';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { formatDateTime } from '@/utils/datetime';
 
 export default {
   name: 'NewsManagement',
@@ -395,18 +396,7 @@ export default {
   },
   methods: {
     sanitizeHtml,
-    formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const mskDate = new Date(date.getTime() + 3 * 60 * 60 * 1000);
-      return mskDate.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).replace(',', '');
-    },
+    formatDate: formatDateTime,
 
     switchTab(tab) {
       this.activeTab = tab;

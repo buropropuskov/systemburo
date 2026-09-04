@@ -96,6 +96,21 @@ export function formatMoscowDateTime(date = serverNow()) {
   return `${pad(p.day)}.${pad(p.month)}.${p.year} ${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
 }
 
+/**
+ * Произвольный формат даты по Москве - для мест, где нужны не части, а строка
+ * локали (день словами в группировке истории, месяц с годом в шапке периода).
+ *
+ * Смысл обёртки в том, что `timeZone` нельзя забыть: без неё `toLocaleString`
+ * молча берёт зону машины, и на компьютере в Москве ошибка незаметна.
+ *
+ * @param {Date} date момент
+ * @param {Intl.DateTimeFormatOptions} options части даты и их вид
+ * @returns {string}
+ */
+export function formatMoscow(date, options) {
+  return new Intl.DateTimeFormat('ru-RU', { timeZone: MSK, ...options }).format(date);
+}
+
 /** Московский час текущего момента - для приветствия и суточных границ. */
 export function moscowHour(date = serverNow()) {
   return moscowParts(date).hour;

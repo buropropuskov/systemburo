@@ -38,6 +38,7 @@
 
 <script>
 import { cssVariable, watchTheme, withAlpha } from '@/utils/chartColors';
+import { formatMoscow } from '@/utils/serverTime';
 
 export default {
   name: 'RealTimeChart',
@@ -259,20 +260,12 @@ export default {
     },
 
     formatLabel(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      return formatMoscow(new Date(timestamp), { hour: '2-digit', minute: '2-digit' });
     },
 
     formatTooltipTime(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
+      return formatMoscow(new Date(timestamp), {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
       }).replace(',', '');
     },
 

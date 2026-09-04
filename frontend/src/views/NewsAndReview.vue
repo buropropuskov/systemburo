@@ -280,6 +280,7 @@ import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
+import { formatDateTime } from '@/utils/datetime';
 
 export default {
   name: 'LatestNews',
@@ -384,19 +385,7 @@ export default {
     handleEscKey(e) {
       if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
     },
-    formatDate(dateString) {
-      if (!dateString) return ''
-      const date = new Date(dateString)
-      // Добавляем 3 часа для UTC+3 (Москва)
-      const mskDate = new Date(date.getTime() + 3 * 60 * 60 * 1000)
-      return mskDate.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).replace(',', '')
-    },
+    formatDate: formatDateTime,
 
     async fetchNews() {
       this.loadingNews = true

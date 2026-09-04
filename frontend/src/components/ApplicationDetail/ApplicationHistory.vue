@@ -247,6 +247,7 @@ import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { ACTION_DOT_CLASS, ACTION_TEXT } from '@/utils/applicationHistoryActions';
+import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'ApplicationHistory',
@@ -371,9 +372,7 @@ export default {
             const groups = [];
             const seen = new Map();
             this.filteredHistory.forEach((item) => {
-                const date = new Date(item.created_at).toLocaleDateString('ru-RU', {
-                    day: 'numeric', month: 'long', year: 'numeric',
-                });
+                const date = formatMoscow(new Date(item.created_at), { day: 'numeric', month: 'long', year: 'numeric' });
                 if (!seen.has(date)) {
                     const group = { date, items: [] };
                     groups.push(group);
@@ -400,15 +399,7 @@ export default {
 
         // Форматированная дата для подписи
         formattedCurrentDateTime() {
-            const now = new Date();
-            return now.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            }).replace(',', '');
+            return formatMoscowDateTime();
         },
 
         // Имя текущего пользователя для подписи (фильтруем null/undefined значения)
@@ -769,15 +760,7 @@ export default {
 
         formatTime(dateTimeString) {
             if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            }).replace(',', '');
+            return formatMoscowDateTime(new Date(dateTimeString));
         },
 
         handleClickOutside(event) {

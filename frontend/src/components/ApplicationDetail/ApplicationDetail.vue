@@ -756,7 +756,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import CopyableNumber from '@/components/ui/CopyableNumber.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { weekdayName } from '@/utils/datetime'
+import { weekdayName, formatDateTime } from '@/utils/datetime'
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
@@ -2005,17 +2005,7 @@ export default {
             }
         },
 
-        formatDateTime(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        },
+        formatDateTime,
 
         weekdayName,
 

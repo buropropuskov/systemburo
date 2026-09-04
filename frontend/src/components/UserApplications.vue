@@ -582,6 +582,7 @@ import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
 import { sortApplications } from '@/utils/applicationSort';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatDateTime } from '@/utils/datetime';
 
 // Размер порции бесшовной подгрузки ЛК (#1158 срез 4) - как в Центре заявок.
 const USER_APPLICATIONS_PER_PAGE = 30;
@@ -1040,17 +1041,7 @@ export default {
       }
     },
 
-    formatDateTime(dateTimeString) {
-      if (!dateTimeString) return '';
-      const date = new Date(dateTimeString);
-      return date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    },
+    formatDateTime,
 
     // Сообщение заявки - rich-HTML из TextConstructor. В компактной карточке (мобилка)
     // показываем плоский текст одной строкой с обрезкой (без тегов).

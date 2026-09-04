@@ -165,6 +165,7 @@
 import ExcelJS from 'exceljs';
 import { getTrashHistory } from '@/api/trash';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'TrashHistoryModal',
@@ -216,9 +217,7 @@ export default {
       const groups = [];
       const dateMap = new Map();
       for (const item of this.filteredHistory) {
-        const dateKey = new Date(item.created_at).toLocaleDateString('ru-RU', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        });
+        const dateKey = formatMoscow(new Date(item.created_at), { day: 'numeric', month: 'long', year: 'numeric' });
         if (!dateMap.has(dateKey)) {
           dateMap.set(dateKey, []);
           groups.push({ date: dateKey, items: dateMap.get(dateKey) });
@@ -228,10 +227,7 @@ export default {
       return groups;
     },
     formattedCurrentDateTime() {
-      return new Date().toLocaleString('ru-RU', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }).replace(',', '');
+      return formatMoscowDateTime();
     },
     currentUserDisplayName() {
       if (!this.currentUserName) return 'Пользователь';

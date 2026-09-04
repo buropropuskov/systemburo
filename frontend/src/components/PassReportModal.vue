@@ -220,6 +220,8 @@ import DateFilter from '@/components/DateFilter.vue';
 import { getPassReportLive, listPassReports } from '@/api/pass-reports';
 import { useDeletionsStore } from '@/stores/deletions';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { moscowParts, serverNow } from '@/utils/serverTime';
+import { formatDateTime } from '@/utils/datetime';
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
@@ -278,11 +280,17 @@ export default {
         : this.tableType === 'people' ? 'проходам' : 'проездам и проходам';
       return `Отчёт по ${kind} — ${this.tableDisplayName}`;
     },
+    /**
+     * Дата берётся московская, а не по часам машины (#2298): отчётные сутки
+     * закрываются в 21:30 МСК и на машине восточнее «сегодня» окна уже назвалось бы
+     * завтрашним числом - охранник читал бы свою смену как чужую.
+     */
     liveTitle() {
       if (!this.live) return 'Сегодня';
       const d = new Date(this.live.period_end);
       if (Number.isNaN(d.getTime())) return 'Сегодня';
-      return `Сегодня, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+      const m = moscowParts(d);
+      return `Сегодня, ${m.day} ${MONTHS[m.month - 1]}`;
     },
     // Текущие отчётные сутки пусты по всем активным секциям - основание показать
     // подсказку про границу в 21:30 (кейс «открыл сразу после 21:30»).
@@ -407,9 +415,9 @@ export default {
         });
 
         worksheet.addRow([]);
-        const stamp = new Date().toLocaleString('ru-RU', {
-          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-        }).replace(',', '');
+        // Штамп выгрузки - московский и по серверным часам: файл уходит из бюро
+        // наружу, и время в нём должно совпадать с временем отметок внутри отчёта.
+        const stamp = formatDateTime(serverNow());
         const infoRow1 = worksheet.addRow(['Отчёт сформировал:', (this.currentUserName || '').trim() || 'Пользователь']);
         const infoRow2 = worksheet.addRow(['Дата формирования:', stamp]);
         [infoRow1, infoRow2].forEach((row) => {

@@ -243,6 +243,7 @@ import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
 import ChangePasswordModal from './ChangePasswordModal.vue';
 import NavIcon from './icons/NavIcon.vue';
+import { formatMomentDate } from '@/utils/datetime';
 
 /** Вид согласия, которое спрашивают при первом входе. */
 const PD_PROCESSING = 'pd_processing';
@@ -326,7 +327,7 @@ export default {
 
     consentTitle() {
       const at = this.consentGrantedAt ? new Date(this.consentGrantedAt) : null;
-      const when = at && !Number.isNaN(at.getTime()) ? ` ${at.toLocaleDateString('ru-RU')}` : '';
+      const when = at && !Number.isNaN(at.getTime()) ? ` ${formatMomentDate(at)}` : '';
       return `Согласие дано${when}. Нажмите, чтобы отозвать`;
     },
     formattedPhone() {

@@ -552,8 +552,13 @@ func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest,
 }
 
 // CheckActiveCar проверяет наличие активного автомобиля по номеру, марке и организации.
+//
+// "Сейчас" берётся в московской зоне: entry_date_to и entry_time_to -- это дата и
+// час из заявки, записанные по московским часам бюро. Сравнение с UTC давало машине
+// лишние три часа действия пропуска, а между 21:00 и 24:00 МСК UTC-дата отставала
+// на сутки, и вчерашняя заявка считалась активной (та же природа, что у #868).
 func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarRequest) (*CheckActiveCarResponse, error) {
-	now := time.Now().UTC()
+	now := time.Now().In(moscowWorkModeLoc)
 	today := now.Format("2006-01-02")
 	currentTime := now.Format("15:04:05")
 

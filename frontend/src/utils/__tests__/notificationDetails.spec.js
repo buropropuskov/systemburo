@@ -94,9 +94,11 @@ describe('notificationDetailFields', () => {
       .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '5 дней', action: null }]);
   });
 
-  it('changed_at форматируется в ДД.ММ.ГГГГ ЧЧ:ММ', () => {
-    const fields = notificationDetailFields({ data: JSON.stringify({ changed_at: '2026-08-06T14:32:00' }) });
-    expect(fields).toEqual([{ key: 'changed_at', label: 'Когда', value: '06.08.2026 14:32', action: null }]);
+  it('changed_at форматируется в ДД.ММ.ГГГГ ЧЧ:ММ по Москве', () => {
+    // Момент приходит с бэкенда в UTC, показывается по московским часам (#2298):
+    // уведомление о смене статуса читают в бюро, а не в поясе читателя.
+    const fields = notificationDetailFields({ data: JSON.stringify({ changed_at: '2026-08-06T14:32:00Z' }) });
+    expect(fields).toEqual([{ key: 'changed_at', label: 'Когда', value: '06.08.2026 17:32', action: null }]);
   });
 
   it('битый JSON в data не роняет сборку полей - пустой список', () => {

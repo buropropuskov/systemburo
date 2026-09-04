@@ -371,6 +371,7 @@ import TextConstructor from '@/components/TextConstructor.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { formatMomentDate } from '@/utils/datetime';
 
 /**
  * Раздел «Обработка данных» отдельной страницей (/admin/data-processing): документ
@@ -433,7 +434,7 @@ export default {
       if (!this.dpMeta?.uploaded_at) return '';
       const d = new Date(this.dpMeta.uploaded_at);
       if (Number.isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('ru-RU');
+      return formatMomentDate(d);
     },
 
     pdcRequiredHint() {

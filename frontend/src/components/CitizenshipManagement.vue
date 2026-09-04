@@ -448,6 +448,7 @@ import {
 } from '@/api/citizenships';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { formatMomentDate } from '@/utils/datetime';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
@@ -609,10 +610,7 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-    formatDate(s) {
-      if (!s) return '';
-      return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    },
+    formatDate: formatMomentDate,
     syncSelectedFrom(fresh) {
       this.selectedCitizenship = { ...fresh };
       this.original = {

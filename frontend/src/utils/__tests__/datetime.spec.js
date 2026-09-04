@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu, weekdayName } from '../datetime';
+import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu, weekdayName, formatDateTime } from '../datetime';
+import { syncServerTime } from '../serverTime';
 
 describe('formatMonthRu', () => {
   it('YYYY-MM -> Месяц ГГГГ', () => {
@@ -175,13 +176,66 @@ describe('formatTimeAgo', () => {
     expect(formatTimeAgo(null)).toBe('');
     expect(formatTimeAgo('не дата')).toBe('');
   });
+
+  it('возраст считается от серверных часов, а не от сбитых часов машины', () => {
+    // Часы машины убежали на два часа вперёд. По ним свежая отметка выглядела бы
+    // двухчасовой давности - и «кто сейчас онлайн» показывало бы ушедших.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW.getTime() + 2 * HOUR));
+    syncServerTime({ headers: { get: (n) => (n === 'date' ? NOW.toUTCString() : null) } });
+
+    expect(formatTimeAgo(ago(3 * MIN))).toBe('3 мин назад');
+
+    // Смещение живёт в модуле - возвращаем его к нулю, иначе поедут соседние тесты.
+    syncServerTime({ headers: { get: () => new Date().toUTCString() } });
+  });
+});
+
+/**
+ * Общий показ момента времени: московский и по серверным часам (#2298).
+ *
+ * Через formatDateTime проходит время во всём интерфейсе - история входов, срок
+ * пропуска, отметки поста. Раньше он звал getHours() и показывал зону машины:
+ * работник поста в другом поясе видел не то время, по которому система приняла
+ * решение, а сбитые часы на рабочем месте делали то же самое незаметно.
+ *
+ * Зона проверяется явно: на компьютере в Москве потеря `timeZone` ничего не
+ * ломает, поэтому берём моменты, у которых московская дата отличается от UTC.
+ */
+describe('formatDateTime - московское время', () => {
+  it('показывает московский час, а не UTC', () => {
+    expect(formatDateTime('2026-09-04T12:00:00Z')).toBe('04.09.2026 15:00');
+  });
+
+  it('после 21:00 UTC дата уже московская, следующая', () => {
+    // Ночная отметка: в UTC ещё 4-е, в Москве уже 5-е. Ошибка здесь уводит
+    // отметку в соседние отчётные сутки.
+    expect(formatDateTime('2026-09-04T21:30:00Z')).toBe('05.09.2026 00:30');
+  });
+
+  it('момент со своим смещением приводится к Москве, а не показывается как есть', () => {
+    // Бэкенд отдаёт UTC, но границы отчётных суток приходят со смещением +03:00.
+    expect(formatDateTime('2026-09-04T23:30:00+03:00')).toBe('04.09.2026 23:30');
+    expect(formatDateTime('2026-09-04T10:00:00-05:00')).toBe('04.09.2026 18:00');
+  });
+
+  it('пустое и невалидное ведут себя как раньше', () => {
+    expect(formatDateTime('')).toBe('');
+    expect(formatDateTime(null)).toBe('');
+    expect(formatDateTime('не дата')).toBe('не дата');
+  });
 });
 
 describe('weekdayName', () => {
   it('называет день недели по дате', () => {
     // 24.08.2026 - понедельник.
-    expect(weekdayName('2026-08-24T10:00:00')).toBe('Понедельник');
-    expect(weekdayName('2026-08-23T10:00:00')).toBe('Воскресенье');
+    expect(weekdayName('2026-08-24T10:00:00Z')).toBe('Понедельник');
+    expect(weekdayName('2026-08-23T10:00:00Z')).toBe('Воскресенье');
+  });
+
+  it('день берётся по московской дате момента', () => {
+    // Заявка отправлена в понедельник 00:30 МСК: в UTC это ещё воскресенье.
+    expect(weekdayName('2026-08-23T21:30:00Z')).toBe('Понедельник');
   });
 
   it('пустое и невалидное значение не превращает в "Воскресенье"', () => {

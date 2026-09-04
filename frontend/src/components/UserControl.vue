@@ -1142,6 +1142,7 @@ import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
 import { TOURS } from '@/components/onboarding/tours';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMomentDate } from '@/utils/datetime';
 
 // Тик подписей присутствия: раз в секунду, потому что младшая единица подписи -
 // секунды, и на более редком тике «12 с» висело бы неверным до полминуты. Пересчёт
@@ -1994,10 +1995,8 @@ export default {
      */
     consentStateLabel(user) {
       if (user?.consent_granted) {
-        const at = user.consent_at ? new Date(user.consent_at) : null;
-        return at && !Number.isNaN(at.getTime())
-          ? `Дано ${at.toLocaleDateString('ru-RU')}`
-          : 'Дано';
+        const when = formatMomentDate(user.consent_at);
+        return when ? `Дано ${when}` : 'Дано';
       }
       return user?.consent_required ? 'Не дано' : 'Не дано (согласие сейчас не запрашивается)';
     },

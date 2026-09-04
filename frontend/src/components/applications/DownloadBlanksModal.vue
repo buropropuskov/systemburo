@@ -137,6 +137,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import { formatMomentDate } from '@/utils/datetime';
 
 const TYPE_LABELS = {
   cars: 'Автомобили',
@@ -290,7 +291,9 @@ export default {
       const content = await zip.generateAsync({ type: 'blob' });
       const info = this.applicationInfo;
       const num = info?.application_number || this.applicationId;
-      const date = info?.sending_datetime ? new Date(info.sending_datetime).toLocaleDateString('ru-RU') : '';
+      const date = info?.sending_datetime
+        ? formatMomentDate(new Date(info.sending_datetime))
+        : '';
       const org = info?.organization_name || '';
       const parts = [num, date, org].filter(Boolean).join('_').replace(/[/\\:*?"<>|]/g, '_');
       saveBlobAs(content, `${parts}.zip`);

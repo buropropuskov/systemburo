@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
 import { isDurationColumn, metricValue } from '@/utils/reportColumns';
+import { formatMoscowDateTime } from '@/utils/serverTime';
 
 // Значение колонки строки/итогов по общему контракту колонок (тому же, что у таблицы
 // на экране). Длительность выгружаем в читаемом виде («2 ч 15 мин»), иначе в файле
@@ -121,7 +122,7 @@ function periodLabel(opts) {
 }
 
 function exportStamp() {
-  return new Date().toLocaleString('ru-RU').replace(/[.:,\s]/g, '-');
+  return formatMoscowDateTime().replace(/[.: ]/g, '-');
 }
 
 function downloadFileName(opts, ext) {
@@ -190,7 +191,7 @@ async function exportExcel(table, opts) {
     worksheet.addRow(['Период:', periodLabel(opts)]),
     worksheet.addRow(['Сформировал:', opts.author || 'Пользователь']),
     worksheet.addRow(['Строк:', table.rows.length]),
-    worksheet.addRow(['Дата формирования:', new Date().toLocaleString('ru-RU')]),
+    worksheet.addRow(['Дата формирования:', formatMoscowDateTime()]),
   ];
   infoRows.forEach((row) => {
     row.eachCell((cell) => {
@@ -285,7 +286,7 @@ async function exportPdf(table, opts) {
         },
       },
       {
-        text: `Сформировал: ${opts.author || 'Пользователь'} · ${new Date().toLocaleString('ru-RU')} · строк: ${table.rows.length}`,
+        text: `Сформировал: ${opts.author || 'Пользователь'} · ${formatMoscowDateTime()} · строк: ${table.rows.length}`,
         fontSize: 8, color: '#999999', margin: [0, 10, 0, 0],
       },
     ],
