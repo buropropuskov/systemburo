@@ -66,6 +66,17 @@ function metricByLabel(wrapper, label) {
   return card.find('.rb__metric-input');
 }
 
+/**
+ * Выбрать значение справочного фильтра (организация, компания). После #2308 они
+ * живут в BaseDropdown с поиском, а не чипами: справочники растут вместе с базой.
+ */
+async function pickDictFilter(wrapper, label, values) {
+  const field = wrapper.findAll('.rb__filter').find((f) => f.text().includes(label));
+  if (!field) throw new Error(`фильтр «${label}» не найден`);
+  field.findComponent(BaseDropdown).vm.$emit('update:modelValue', values);
+  await nextTick();
+}
+
 /** Радио-разрез по его подписи. */
 function dimRadioByLabel(wrapper, label) {
   return wrapper.findAll('.rb__dim').find((d) => d.text().includes(label)).find('.rb__dim-input');
@@ -161,8 +172,7 @@ describe('ReportBuilder — разгрузка конструктора (#2296)'
     await filtersHead.trigger('click');
     expect(wrapper.find('.rb__filters').isVisible()).toBe(true);
 
-    await wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А').trigger('click');
-    await nextTick();
+    await pickDictFilter(wrapper, 'Организация', ['ООО А']);
     expect(filtersHead.text()).toContain('Организация: 1');
   });
 });
@@ -238,11 +248,11 @@ describe('ReportBuilder', () => {
     wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
     await nextTick();
 
-    const pills = wrapper.find('.rb__filters').findAll('.rb__pill');
-    expect(pills.length).toBe(2); // организация + статус, date_range = период (шаг 4)
+    // организация ушла в дропдаун, статус остался чипом; date_range = период (шаг 4)
+    expect(wrapper.findAll('.rb__filter')).toHaveLength(2);
+    expect(wrapper.find('.rb__filters').findAll('.rb__pill')).toHaveLength(1);
 
-    const orgPill = pills.find((p) => p.text() === 'ООО А');
-    await orgPill.trigger('click');
+    await pickDictFilter(wrapper, 'Организация', ['ООО А']);
     await clickBuild(wrapper);
 
     const req = lastRun(wrapper);
@@ -257,8 +267,7 @@ describe('ReportBuilder', () => {
     wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
     await nextTick();
 
-    const orgPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А');
-    await orgPill.trigger('click');
+    await pickDictFilter(wrapper, 'Организация', ['ООО А']);
 
     const entityDropdown = wrapper.findAllComponents(BaseDropdown)[0];
     entityDropdown.vm.$emit('update:modelValue', 'cars');
@@ -323,10 +332,8 @@ describe('ReportBuilder', () => {
     const wrapper = mountBuilder();
     await nextTick();
     // car_entries_count -> применимый фильтр organization (date_range вынесен в период).
-    const filterPills = wrapper.find('.rb__filters').findAll('.rb__pill');
-    const orgPill = filterPills.find((p) => p.text() === 'ООО А');
-    expect(orgPill).toBeTruthy();
-    await orgPill.trigger('click');
+    expect(wrapper.findAll('.rb__filter').some((f) => f.text().includes('Организация'))).toBe(true);
+    await pickDictFilter(wrapper, 'Организация', ['ООО А']);
     await clickBuild(wrapper);
 
     expect(lastRun(wrapper).filters).toContainEqual({ key: 'organization', values: ['ООО А'] });
@@ -352,8 +359,7 @@ describe('ReportBuilder', () => {
     const wrapper = mountBuilder();
     await nextTick();
     // organization поддерживают обе метрики.
-    const orgPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А');
-    await orgPill.trigger('click');
+    await pickDictFilter(wrapper, 'Организация', ['ООО А']);
     await metricByLabel(wrapper, 'Количество заявок').trigger('change'); // добавили applications_count
     await nextTick();
     await clickBuild(wrapper);
@@ -540,6 +546,42 @@ describe('ReportBuilder', () => {
  * (#1097 r3d) сверяем по объявлениям в SFC. Замок против «уборки» медиа-блоков,
  * которая тихо вернула бы отступы под номер шага и зажатую кнопку на телефоне.
  */
+describe('ReportBuilder — справочники в дропдауне (#2308)', () => {
+  it('организацию отдаёт дропдауну с поиском, короткий перечень статусов оставляет чипами', async () => {
+    const wrapper = mountBuilder();
+    wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
+    await nextTick();
+
+    const org = wrapper.findAll('.rb__filter').find((f) => f.text().includes('Организация'));
+    const dropdown = org.findComponent(BaseDropdown);
+    expect(dropdown.exists()).toBe(true);
+    expect(dropdown.props('searchable')).toBe(true);
+    expect(dropdown.props('multiple')).toBe(true);
+    expect(org.findAll('.rb__pill')).toHaveLength(0);
+
+    const status = wrapper.findAll('.rb__filter').find((f) => f.text().includes('Статус'));
+    expect(status.findComponent(BaseDropdown).exists()).toBe(false);
+    expect(status.findAll('.rb__pill').length).toBeGreaterThan(0);
+  });
+
+  it('выбранное показывает чипами под полем, и клик по чипу снимает значение', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await pickDictFilter(wrapper, 'Организация', ['ООО А']);
+
+    const chips = wrapper.findAll('.rb__chosen-chip');
+    expect(chips).toHaveLength(1);
+    expect(chips[0].text()).toContain('ООО А');
+
+    await chips[0].trigger('click');
+    await nextTick();
+    expect(wrapper.findAll('.rb__chosen-chip')).toHaveLength(0);
+
+    await clickBuild(wrapper);
+    expect(lastRun(wrapper).filters.find((f) => f.key === 'organization')).toBeUndefined();
+  });
+});
+
 describe('ReportBuilder — мобильная адаптивность (#1097 r3d)', () => {
   const src = readFileSync(resolve(__dirname, '../ReportBuilder.vue'), 'utf8');
   const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
