@@ -20,103 +20,137 @@
       <div class="reports-layout">
         <!-- Сайдбар: готовые наборы + мои шаблоны -->
         <aside class="presets-col">
-          <h3 class="col-heading">
+          <component
+            :is="isNarrow ? 'button' : 'h3'"
+            class="col-heading"
+            :class="{ 'col-heading--toggle': isNarrow }"
+            :type="isNarrow ? 'button' : null"
+            :aria-expanded="isNarrow ? String(presetsOpen) : null"
+            @click="togglePresets"
+          >
             Готовые наборы
-          </h3>
+            <span
+              v-if="isNarrow && activePresetTitle"
+              class="col-heading__sum"
+            >{{ activePresetTitle }}</span>
+            <span
+              v-if="isNarrow"
+              class="col-heading__caret"
+              :class="{ 'col-heading__caret--open': presetsOpen }"
+              aria-hidden="true"
+            />
+          </component>
           <ReportGallery
+            v-show="presetsOpen"
             :catalog="catalog"
             :active-id="activePresetId"
             compact
             @apply="onApplyPreset"
           />
 
-          <h3 class="col-heading col-heading--mt">
+          <component
+            :is="isNarrow ? 'button' : 'h3'"
+            class="col-heading col-heading--mt"
+            :class="{ 'col-heading--toggle': isNarrow }"
+            :type="isNarrow ? 'button' : null"
+            :aria-expanded="isNarrow ? String(templatesOpen) : null"
+            @click="toggleTemplates"
+          >
             Мои шаблоны
-          </h3>
+            <span
+              v-if="isNarrow"
+              class="col-heading__caret"
+              :class="{ 'col-heading__caret--open': templatesOpen }"
+              aria-hidden="true"
+            />
+          </component>
 
-          <!-- Сохранить текущий набор как шаблон -->
-          <div
-            v-if="savingMode"
-            class="tpl-save-form"
-          >
-            <input
-              v-model="newTemplateName"
-              class="lk-input"
-              placeholder="Название шаблона"
-              maxlength="200"
-              @keyup.enter="confirmSaveTemplate"
+          <div v-show="templatesOpen">
+            <!-- Сохранить текущий набор как шаблон -->
+            <div
+              v-if="savingMode"
+              class="tpl-save-form"
             >
-            <div class="tpl-save-actions">
-              <button
-                type="button"
-                class="lk-button lk-button--primary"
-                :disabled="!newTemplateName.trim() || savingTemplate"
-                @click="confirmSaveTemplate"
+              <input
+                v-model="newTemplateName"
+                class="lk-input"
+                placeholder="Название шаблона"
+                maxlength="200"
+                @keyup.enter="confirmSaveTemplate"
               >
-                {{ savingTemplate ? 'Сохраняем…' : 'Сохранить' }}
-              </button>
-              <button
-                type="button"
-                class="lk-button lk-button--ghost"
-                @click="savingMode = false"
-              >
-                Отмена
-              </button>
+              <div class="tpl-save-actions">
+                <button
+                  type="button"
+                  class="lk-button lk-button--primary"
+                  :disabled="!newTemplateName.trim() || savingTemplate"
+                  @click="confirmSaveTemplate"
+                >
+                  {{ savingTemplate ? 'Сохраняем…' : 'Сохранить' }}
+                </button>
+                <button
+                  type="button"
+                  class="lk-button lk-button--ghost"
+                  @click="savingMode = false"
+                >
+                  Отмена
+                </button>
+              </div>
             </div>
-          </div>
-          <button
-            v-else
-            type="button"
-            class="lk-button lk-button--ghost tpl-save-btn"
-            :disabled="!canSaveTemplate"
-            @click="startSaveTemplate"
-          >
-            + Сохранить текущий
-          </button>
-
-          <div
-            v-if="templatesLoading"
-            class="template-placeholder"
-          >
-            Загрузка шаблонов…
-          </div>
-          <div
-            v-else-if="!myTemplates.length"
-            class="template-placeholder"
-          >
-            Сохранённых наборов пока нет. Соберите отчёт в мастере и нажмите «Сохранить текущий».
-          </div>
-          <ul
-            v-else
-            class="tpl-list"
-          >
-            <li
-              v-for="tpl in myTemplates"
-              :key="tpl.id"
-              class="tpl-item"
+            <button
+              v-else
+              type="button"
+              class="lk-button lk-button--ghost tpl-save-btn"
+              :disabled="!canSaveTemplate"
+              @click="startSaveTemplate"
             >
-              <button
-                type="button"
-                class="tpl-apply"
-                @click="applyTemplate(tpl)"
+              + Сохранить текущий
+            </button>
+
+            <div
+              v-if="templatesLoading"
+              class="template-placeholder"
+            >
+              Загрузка шаблонов…
+            </div>
+            <div
+              v-else-if="!myTemplates.length"
+              class="template-placeholder"
+            >
+              Сохранённых наборов пока нет. Соберите отчёт в мастере и нажмите «Сохранить текущий».
+            </div>
+            <ul
+              v-else
+              class="tpl-list"
+            >
+              <li
+                v-for="tpl in myTemplates"
+                :key="tpl.id"
+                class="tpl-item"
               >
-                <span class="tpl-name">{{ tpl.name }}</span>
-                <span
-                  v-if="tpl.description"
-                  class="tpl-desc"
-                >{{ tpl.description }}</span>
-              </button>
-              <button
-                type="button"
-                class="tpl-del"
-                :title="`Удалить шаблон ${tpl.name}`"
-                :aria-label="`Удалить шаблон ${tpl.name}`"
-                @click="removeTemplate(tpl)"
-              >
-                ×
-              </button>
-            </li>
-          </ul>
+                <button
+                  type="button"
+                  class="tpl-apply"
+                  @click="applyTemplate(tpl)"
+                >
+                  <span class="tpl-name">{{ tpl.name }}</span>
+                  <span
+                    v-if="tpl.description"
+                    class="tpl-desc"
+                  >{{ tpl.description }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="tpl-del"
+                  :title="`Удалить шаблон ${tpl.name}`"
+                  :aria-label="`Удалить шаблон ${tpl.name}`"
+                  @click="removeTemplate(tpl)"
+                >
+                  ×
+                </button>
+              </li>
+            </ul>
+          </div>
+
         </aside>
 
         <!-- Мастер -->
@@ -166,7 +200,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import ReportBuilder from './ReportBuilder.vue';
 import ReportResult from './ReportResult.vue';
 import ReportGallery from './ReportGallery.vue';
@@ -175,6 +209,7 @@ import {
   getReportCatalog, runReport,
   getReportTemplates, saveReportTemplate, deleteReportTemplate,
 } from '@/api/statistics';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { getMe } from '@/api/auth';
 import { REPORT_PRESETS } from './reportPresets';
 import { formatDateRu } from '@/utils/datetime';
@@ -187,6 +222,30 @@ const props = defineProps({
 });
 
 const period = computed(() => ({ from: props.from, to: props.to }));
+
+// На телефоне колонка наборов встаёт НАД конструктором и занимает больше экрана:
+// до «Тип отчёта» приходилось прокручивать весь каталог и блок шаблонов (#2314).
+const { isNarrow } = useNarrowScreen();
+const presetsOpen = ref(true);
+const templatesOpen = ref(true);
+
+watch(isNarrow, (narrow) => {
+  presetsOpen.value = !narrow;
+  templatesOpen.value = !narrow;
+}, { immediate: true });
+
+// Свернуть можно только на телефоне: на десктопе колонка стоит сбоку и не мешает.
+function togglePresets() {
+  if (isNarrow.value) presetsOpen.value = !presetsOpen.value;
+}
+
+function toggleTemplates() {
+  if (isNarrow.value) templatesOpen.value = !templatesOpen.value;
+}
+
+const activePresetTitle = computed(
+  () => REPORT_PRESETS.find((p) => p.id === activePresetId.value)?.title || '',
+);
 
 const builderRef = ref(null);
 const resultRef = ref(null);
@@ -461,6 +520,47 @@ async function scrollToResult() {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
+}
+
+/* На телефоне заголовок колонки - кнопка-раскрывашка: каталог и шаблоны свёрнуты,
+   чтобы первым на вкладке был конструктор, а не список наборов. */
+.col-heading--toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.col-heading__sum {
+  margin-left: auto;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.col-heading__caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.18s ease;
+}
+.col-heading__caret--open {
+  transform: rotate(90deg);
+}
+.col-heading--toggle:not(:has(.col-heading__sum)) .col-heading__caret {
+  margin-left: auto;
 }
 
 .col-heading--mt {
