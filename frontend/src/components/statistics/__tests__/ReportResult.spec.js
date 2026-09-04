@@ -150,48 +150,57 @@ describe('ReportResult — переключатель Таблица/Графи�
     expect(cells[2]).toBe('Ремонт 2026-06-15'); // дата в тексте не тронута
   });
 
-  it('list-режим: числовые колонки получают rr__num (right), текст/идентификаторы — нет', () => {
+  it('list-режим: колонки с коротким содержимым сжимаются (rr__tight), длинный текст — нет (#2332)', () => {
     const w = mountResult({
       mode: 'list',
       columns: [
-        { key: 'number', label: 'Номер заявки' }, // строка-идентификатор -> текст
-        { key: 'status', label: 'Статус' }, // текст
-        { key: 'attachments_count', label: 'Вложений' }, // число -> right
-        { key: 'people_count', label: 'Кол-во людей' }, // число (включая 0) -> right
+        { key: 'number', label: 'Номер заявки' }, // короткий идентификатор -> сжать
+        { key: 'name', label: 'Наименование работ' }, // длинный текст -> перенос
+        { key: 'period', label: 'Период работ', type: 'date' }, // «дд.мм.гггг - дд.мм.гггг» -> сжать
+        { key: 'people_count', label: 'Кол-во людей' }, // одна цифра -> сжать
       ],
       rows: [
-        { number: '2026-001', status: 'Завершено', attachments_count: 3, people_count: 12 },
-        { number: '2026-002', status: 'В работе', attachments_count: 0, people_count: 5 },
+        {
+          number: '№ 20260815/001',
+          name: 'Монтаж приточной вентиляции в помещении склада',
+          period: '2026-08-15 - 2026-08-31',
+          people_count: 12,
+        },
+        {
+          number: '№ 20260812/003', name: 'Чистка обуви', period: '2026-08-13 - 2026-08-15', people_count: 0,
+        },
       ],
       total: 2,
     });
     const headers = w.findAll('.rr__table thead th');
-    expect(headers[0].classes()).not.toContain('rr__num'); // Номер заявки — строка
-    expect(headers[1].classes()).not.toContain('rr__num'); // Статус
-    expect(headers[2].classes()).toContain('rr__num'); // Вложений (включая 0 во 2-й строке)
-    expect(headers[3].classes()).toContain('rr__num'); // Кол-во людей
+    expect(headers[0].classes()).toContain('rr__tight');
+    expect(headers[1].classes()).not.toContain('rr__tight'); // наименование работ длиннее планки
+    expect(headers[2].classes()).toContain('rr__tight');
+    expect(headers[3].classes()).toContain('rr__tight');
 
-    expect(w.findAll('.rr__table tbody tr')[0].findAll('td')[0].classes()).not.toContain('rr__num');
-    // Ячейка со значением 0 (2-я строка, Вложений) тоже выровнена — 0 не считается пустым.
-    expect(w.findAll('.rr__table tbody tr')[1].findAll('td')[2].classes()).toContain('rr__num');
+    // Выравнивание list сплошное левое: одинокая числовая колонка справа выглядела
+    // случайной рядом с шестью текстовыми (замечание владельца в #2332).
+    const cells = w.findAll('.rr__table tbody tr')[0].findAll('td');
+    expect(cells.every((td) => !td.classes().includes('rr__num'))).toBe(true);
+    expect(cells[3].classes()).toContain('rr__tight');
   });
 
-  it('list-режим: колонка целиком из пустых значений не считается числовой', () => {
+  it('list-режим: когда коротки все колонки, ничего не сжимаем — таблица иначе съедет влево', () => {
     const w = mountResult({
       mode: 'list',
       columns: [
-        { key: 'count', label: 'Вложений' }, // все значения null/пусто -> не числовая
+        { key: 'count', label: 'Вложений' },
         { key: 'name', label: 'Наименование' },
       ],
       rows: [
         { count: null, name: 'Ремонт' },
-        { count: '', name: 'Уборка' },
+        { count: 3, name: 'Уборка' },
       ],
       total: 2,
     });
     const headers = w.findAll('.rr__table thead th');
-    expect(headers[0].classes()).not.toContain('rr__num');
-    expect(headers[1].classes()).not.toContain('rr__num');
+    expect(headers[0].classes()).not.toContain('rr__tight');
+    expect(headers[1].classes()).not.toContain('rr__tight');
   });
 
   it('aggregate: переключатель есть, по умолчанию таблица', () => {

@@ -42,3 +42,23 @@ export function metricValue(bucket, floatBucket, col) {
   if (raw != null) return Number(raw);
   return isDerivedColumn(col) ? null : 0;
 }
+
+/**
+ * Длина значения, после которой колонка считается «широкой» и получает перенос.
+ * Планка снята с самой длинной короткой ячейки отчётов: «15.08.2026 - 31.08.2026».
+ */
+export const TIGHT_COLUMN_MAX_LEN = 24;
+
+/**
+ * Узкая ли колонка — все её значения короче планки. Такую колонку и на экране, и в
+ * PDF прижимаем к содержимому, а перенос отдаём длинным текстовым: иначе автораскладка
+ * делит ширину между всеми поровну, номер заявки и период работ ломаются на две
+ * строки, а столбец счётчика занимает место под свой заголовок (#2332).
+ *
+ * @param {Array<string|number|null|undefined>} values значения колонки (как их видит читатель)
+ * @param {number} [maxLen] планка длины
+ * @returns {boolean}
+ */
+export function isTightColumnValues(values, maxLen = TIGHT_COLUMN_MAX_LEN) {
+  return values.every((v) => String(v ?? '').length <= maxLen);
+}
