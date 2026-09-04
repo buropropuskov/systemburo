@@ -175,6 +175,8 @@ import {
   getReportCatalog, runReport,
   getReportTemplates, saveReportTemplate, deleteReportTemplate,
 } from '@/api/statistics';
+import { getMe } from '@/api/auth';
+import { REPORT_PRESETS } from './reportPresets';
 import { formatDateRu } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
@@ -196,8 +198,10 @@ const catalogError = ref('');
 const result = ref(null);
 const running = ref(false);
 const runError = ref('');
-// Подпись для выгрузки в Excel: период берём из последнего построенного запроса.
+// Подпись выгрузки: период последнего запроса, имя набора и кто выгрузил. Без них
+// PDF уходил заказчику озаглавленным «Отчёт по аналитике» и без следов происхождения.
 const exportMeta = ref({});
+const author = ref('');
 // Лимит последнего запроса — по нему результат понимает, что упёрся в потолок.
 const resultLimit = ref(0);
 
@@ -299,6 +303,11 @@ function onApplyPreset(preset) {
 
 onMounted(async () => {
   loadTemplates();
+  // Подпись «Сформировал» в выгрузке. Молчаливый провал допустим: без имени шапка
+  // просто скажет «Пользователь», ронять из-за этого построение отчёта незачем.
+  getMe()
+    .then((me) => { author.value = [me?.last_name, me?.first_name].filter(Boolean).join(' ') || me?.username || ''; })
+    .catch(() => { author.value = ''; });
   try {
     catalog.value = await getReportCatalog();
   } catch (e) {
@@ -312,6 +321,22 @@ onMounted(async () => {
 // токен последовательности гарантирует, что результат покажет только последний
 // запрос (иначе медленный ответ предыдущего пресета затёр бы актуальный).
 let runSeq = 0;
+// Имя набора для шапки выгрузки: у готового набора берём его название, у собранного
+// вручную - краткое описание разреза из каталога.
+function buildExportTitle(request) {
+  const preset = REPORT_PRESETS.find((p) => p.id === activePresetId.value);
+  if (preset) return preset.title;
+  if (request.mode === 'list') {
+    const entity = (catalog.value?.list_entities || []).find((e) => e.key === request.entity);
+    return entity ? `Выгрузка: ${entity.label}` : '';
+  }
+  const metrics = (catalog.value?.metrics || []).filter((m) => (request.metrics || []).includes(m.key));
+  if (!metrics.length) return '';
+  const dimension = (catalog.value?.dimensions || []).find((d) => d.key === request.dimension);
+  const names = metrics.map((m) => m.label).join(', ');
+  return dimension && dimension.key !== 'none' ? `${names} по разрезу «${dimension.label}»` : names;
+}
+
 async function onRun(request) {
   const seq = ++runSeq;
   running.value = true;
@@ -323,7 +348,11 @@ async function onRun(request) {
     resultLimit.value = Number(request.limit) || 0;
     const dr = (request.filters || []).find((f) => f.key === 'date_range');
     const { from = '', to = '' } = dr || {};
-    exportMeta.value = dr ? { period: { from, to } } : {};
+    exportMeta.value = {
+      title: buildExportTitle(request),
+      author: author.value,
+      ...(dr ? { period: { from, to } } : {}),
+    };
   } catch (e) {
     if (seq !== runSeq) return;
     result.value = null;

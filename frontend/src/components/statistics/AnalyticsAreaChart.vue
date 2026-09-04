@@ -50,6 +50,15 @@ const props = defineProps({
     type: Number,
     default: 300,
   },
+  /**
+   * Сглаживание кривой. 0.4 - привычный вид дашборда, который был у прежнего движка.
+   * Отчёты передают 0: на дневном ряде с нулями сглаженная линия выгибается между
+   * точками и показывает значения там, где ничего не происходило (#2309).
+   */
+  tension: {
+    type: Number,
+    default: 0.4,
+  },
   color: {
     type: String,
     default: '#4F5BDF',
@@ -161,8 +170,7 @@ const config = computed(() => ({
         // Мягкий вертикальный градиент в палитре проекта — аналитический стиль без неона.
         backgroundColor: verticalGradient(props.color),
         fill: true,
-        // Сглаживание кривой; 0.4 - привычный вид, который был у прежнего движка.
-        tension: 0.4,
+        tension: props.tension,
         pointRadius: 0,
         ...hoverPointStyle(props.color),
         // Разрыв на null не затягиваем: соединив соседей прямой, график
