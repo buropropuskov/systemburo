@@ -2,7 +2,11 @@
  * Показ записей журнала обращений: длительности, даты, классы метода и статуса.
  * Вынесено из RequestsView.vue - к состоянию компонента ничего из этого
  * отношения не имеет.
+ *
+ * Время московское (#2298): выгрузка того же журнала печатается по Москве, и
+ * расхождение экрана с файлом читалось бы как потерянные записи.
  */
+import { formatMoscow } from '@/utils/serverTime';
 
 const METHOD_CLASSES = {
   GET: 'method-get',
@@ -62,10 +66,10 @@ export function formatNum(n) {
  */
 export function formatTime(timestamp) {
   if (!timestamp) return '';
-  return new Date(timestamp).toLocaleTimeString('ru-RU', {
+  return formatMoscow(new Date(timestamp), {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
   });
 }
 
@@ -81,7 +85,7 @@ export function formatStamp(timestamp) {
   if (!timestamp) return '';
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
-  const day = date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  const day = formatMoscow(date, { day: '2-digit', month: '2-digit' });
   return `${day} ${formatTime(timestamp)}`;
 }
 
@@ -91,7 +95,7 @@ export function formatStamp(timestamp) {
  */
 export function formatFullDate(timestamp) {
   if (!timestamp) return '';
-  return new Date(timestamp).toLocaleString('ru-RU', {
+  return formatMoscow(new Date(timestamp), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
