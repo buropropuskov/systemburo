@@ -127,6 +127,7 @@
 import FileTypeIcon from '@/components/ui/FileTypeIcon.vue';
 import { listPublicDocuments, downloadDocument } from '@/api/documents';
 import { useDeletionsStore } from '@/stores/deletions';
+import { formatMomentDate } from '@/utils/datetime';
 
 // Фиксированный порядок групп из backend (sort_order), хвост — в «Ещё».
 // Сколько влезает в строку: 2 группы + «Все» фиксировано, остальное в дропдаун.
@@ -205,7 +206,7 @@ export default {
     },
     formatDate(dt) {
       if (!dt) return '';
-      return new Date(dt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return formatMomentDate(new Date(dt));
     },
     onDocClick(e) {
       // Закрыть дропдаун «Ещё» при клике вне него

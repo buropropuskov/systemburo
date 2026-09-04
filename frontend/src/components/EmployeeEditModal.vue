@@ -305,6 +305,7 @@
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import { formatMomentDate } from '@/utils/datetime';
 
 export default {
     components: {
@@ -602,7 +603,7 @@ export default {
             if (!value) return '';
             const date = new Date(value);
             if (Number.isNaN(date.getTime())) return '';
-            return date.toLocaleDateString('ru-RU');
+            return formatMomentDate(date);
         },
 
         truncateText(text, maxLength) {

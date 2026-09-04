@@ -64,6 +64,7 @@
 import { ref } from 'vue'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { formatDateTime } from '@/utils/datetime';
 
 export default {
   name: 'AnnouncementModal',
@@ -100,17 +101,7 @@ export default {
   },
   methods: {
     sanitizeHtml,
-    formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).replace(',', '');
-    }
+    formatDate: formatDateTime,
   },
   mounted() {
     this.escHandler = (e) => {

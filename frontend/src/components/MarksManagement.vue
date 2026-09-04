@@ -380,6 +380,7 @@ import {
 } from '@/api/marks';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
+import { formatMomentDate } from '@/utils/datetime';
 
 export default {
   name: 'MarksManagement',
@@ -517,10 +518,7 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-    formatDate(s) {
-      if (!s) return '';
-      return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    },
+    formatDate: formatMomentDate,
     async refresh() {
       this.isLoading = true;
       try {

@@ -520,6 +520,7 @@ import {
 import { getTemplate } from '@/api/attachment-templates';
 import { getArchiveSettings } from '@/api/fileArchive';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMomentDate } from '@/utils/datetime';
 
 const SYSTEM_NAME_RE = /^[a-z0-9_]*$/;
 
@@ -725,10 +726,7 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-    formatDate(s) {
-      if (!s) return '';
-      return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    },
+    formatDate: formatMomentDate,
     syncSelectedFrom(fresh) {
       this.selectedAttachment = { ...fresh };
       const vals = {

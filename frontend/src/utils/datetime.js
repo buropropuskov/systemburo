@@ -26,6 +26,25 @@ export function formatDateTime(value) {
 }
 
 /**
+ * Дата момента по Москве в виде дд.ММ.гггг - без времени.
+ *
+ * Отдельно от formatDateRu: тот разбирает строку 'YYYY-MM-DD' (день без времени и
+ * без зоны), а здесь на входе момент, и день у него зависит от зоны показа. Ночная
+ * загрузка файла на машине восточнее Москвы иначе датируется следующим днём.
+ *
+ * @param {string|Date|null|undefined} value
+ * @returns {string}
+ */
+export function formatMomentDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const m = moscowParts(d);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(m.day)}.${p(m.month)}.${m.year}`;
+}
+
+/**
  * Название дня недели по московской дате момента. Индексация от воскресенья -
  * как у Date.getDay(), а не как в расписаниях, где неделя начинается с понедельника.
  *

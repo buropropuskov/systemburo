@@ -514,6 +514,7 @@ import {
   reorderDocuments,
   downloadDocument,
 } from '@/api/documents';
+import { formatMomentDate } from '@/utils/datetime';
 
 function extFromName(name) {
   const m = name.match(/\.([^.]+)$/);
@@ -920,7 +921,7 @@ export default {
     // --- Утилиты ---
     formatDate(dt) {
       if (!dt) return '';
-      return new Date(dt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return formatMomentDate(new Date(dt));
     },
     formatBytes,
     fileWord(n) {

@@ -286,6 +286,7 @@ import {
   deleteGuideFile,
   downloadGuideFile,
 } from '@/api/guide';
+import { formatMomentDate } from '@/utils/datetime';
 
 const sections = ref([]);
 const selectedRole = ref(null);
@@ -447,7 +448,7 @@ function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatMomentDate(d);
 }
 
 let unregisterDirty = null;
