@@ -167,22 +167,6 @@
         </section>
       </div>
 
-      <!-- Отчёт построился, но строк нет: даём выход вместо пустой таблицы —
-           чаще всего дело в узком периоде, а кнопка «Весь период» лежит в шаге 4. -->
-      <div
-        v-if="showExpandHint"
-        class="reports__hint"
-      >
-        <span>За {{ lastPeriodLabel }} данных нет.</span>
-        <button
-          type="button"
-          class="lk-button lk-button--secondary"
-          @click="expandPeriod"
-        >
-          Показать за весь период
-        </button>
-      </div>
-
       <!-- Результат (полная ширина под мастером). До первого построения не
            рендерим — пустой блок создавал бы лишнюю пустоту во вкладке. -->
       <ReportResult
@@ -193,7 +177,9 @@
         :error="runError"
         :meta="exportMeta"
         :limit="resultLimit"
+        :empty-period-label="showExpandHint ? lastPeriodLabel : ''"
         @export-error="onExportError"
+        @expand-period="expandPeriod"
       />
     </template>
   </div>
@@ -482,17 +468,6 @@ async function scrollToResult() {
   color: var(--danger-text);
 }
 
-.reports__hint {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--color-text-muted);
-}
 
 .reports-layout {
   display: grid;

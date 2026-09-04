@@ -126,7 +126,15 @@ function exportStamp() {
 }
 
 function downloadFileName(opts, ext) {
-  return `Отчёт_${(opts.title || 'аналитика').replace(/\s+/g, '_')}_${exportStamp()}.${ext}`;
+  // Имя уезжает в почту, архиваторы и на чужие файловые системы, поэтому оставляем
+  // только буквы, цифры, дефис и подчёркивание: кавычки-ёлочки из названия разреза
+  // переживают не всякую из них (#2324).
+  const safe = (opts.title || 'аналитика')
+    .replace(/\s+/g, '_')
+    .replace(/[^\p{L}\p{N}_-]+/gu, '')
+    .replace(/_{2,}/g, '_')
+    .replace(/^_|_$/g, '');
+  return `Отчёт_${safe || 'аналитика'}_${exportStamp()}.${ext}`;
 }
 
 function downloadBlob(blob, filename) {

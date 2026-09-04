@@ -199,11 +199,13 @@ describe('ReportsTab', () => {
     state.deferred[0]({ mode: 'aggregate', rows: [], total: 0, unit: 'шт' });
     await flushPromises();
 
-    const hint = wrapper.find('.reports__hint');
-    expect(hint.exists()).toBe(true);
-    expect(hint.text()).toContain('За 31.08.2026 - 01.09.2026 данных нет');
+    // Подсказка живёт внутри пустого результата: три сообщения об одном свели к одному (#2324).
+    const empty = wrapper.find('.rr__norows');
+    expect(empty.exists()).toBe(true);
+    expect(empty.text()).toContain('За 31.08.2026 - 01.09.2026 данных нет');
+    expect(wrapper.find('.reports__hint').exists()).toBe(false);
 
-    await hint.find('button').trigger('click');
+    await empty.find('button').trigger('click');
     await flushPromises();
 
     expect(state.deferred).toHaveLength(2);
@@ -221,7 +223,10 @@ describe('ReportsTab', () => {
     state.deferred[0]({ mode: 'aggregate', rows: [], total: 0, unit: 'шт' });
     await flushPromises();
 
-    expect(wrapper.find('.reports__hint').exists()).toBe(false);
+    const empty = wrapper.find('.rr__norows');
+    expect(empty.exists()).toBe(true);
+    expect(empty.text()).toContain('Нет данных за выбранный период');
+    expect(empty.find('button').exists()).toBe(false);
   });
 
   // Кнопка построения стоит над результатом: без прокрутки клик выглядит как «ничего не произошло».
