@@ -225,7 +225,7 @@ func (s *trashService) CanRestoreCar(ctx context.Context, id int) (bool, string)
 		Where("c.id = ?", id).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status NOT IN ?", []string{models.StatusCompleted, models.StatusRefused}).
-		Where("(a.entry_date_to IS NULL OR a.entry_date_to::date >= CURRENT_DATE)").
+		Where(passValidNowSQL("a")).
 		Count(&cnt).Error
 	if err != nil || cnt == 0 {
 		return false, "Нет активной согласованной заявки - восстановление невозможно"
@@ -242,7 +242,7 @@ func (s *trashService) CanRestoreEmployee(ctx context.Context, id int) (bool, st
 		Where("e.id = ?", id).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status NOT IN ?", []string{models.StatusCompleted, models.StatusRefused}).
-		Where("(a.entry_date_to IS NULL OR a.entry_date_to::date >= CURRENT_DATE)").
+		Where(passValidNowSQL("a")).
 		Count(&cnt).Error
 	if err != nil || cnt == 0 {
 		return false, "Нет активной согласованной заявки - восстановление невозможно"

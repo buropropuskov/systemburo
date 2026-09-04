@@ -293,12 +293,18 @@ func userIsSystemAdmin(ctx context.Context, db *gorm.DB, userID int) bool {
 	return row.IsAdmin
 }
 
-// carsListSelect -- список колонок для реестра машин (GetAll/GetAllPaginated).
+// carsListSelectTemplate -- список колонок для реестра машин (GetAll/GetAllPaginated).
+//
+// Маркер {{pass_valid}} разворачивается в условие «пропуск ещё действует»
+// (moscow_sql.go): срок кончается в крайнее время пребывания последнего дня и
+// считается по московским часам, а не по UTC-дате сессии (#2327). Через маркер,
+// потому что условие стоит в восьми подзапросах - вписанное руками, оно
+// разойдётся в одном из них.
 // Вынесен в константу, т.к. переиспользуется обоими методами (#1158, срез 2) -
 // раньше был только внутри GetAll. Активная заявка ищется по LOWER(TRIM(uc.number))
 // без учёта марки (как исторически было) - при полном совпадении номера у разных
 // машин с разными марками возможна редкая коллизия, вне объёма этого среза.
-const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id,
+const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id,
 	uc.format_id, uc.user_id, uc.created_at,
 	o.name as organization_name, c.name as company_name,
 	lpf.name as format_name,
@@ -311,7 +317,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1
 		AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		LIMIT 1
 	), false) as status,
 	(SELECT a.entry_date_to FROM cars cr
@@ -319,7 +325,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_entry_date_to,
 	(SELECT a.entry_time_from FROM cars cr
@@ -327,7 +333,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_entry_time_from,
 	(SELECT a.entry_time_to FROM cars cr
@@ -335,7 +341,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_entry_time_to,
 	(SELECT ao.name FROM cars cr
@@ -344,7 +350,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		LEFT JOIN organizations ao ON app.organization_id = ao.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_app_org_name,
 	(SELECT ac.name FROM cars cr
@@ -353,7 +359,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		LEFT JOIN companies ac ON app.company_id = ac.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_app_company_name,
 	(SELECT cr.id FROM cars cr
@@ -361,7 +367,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_car_id,
 	(SELECT app.id FROM cars cr
@@ -369,7 +375,7 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_application_id,
 	-- Флаг ЧС считает сервер (нормализация 1:1 с vehicleBlacklistService.CheckByName),
@@ -380,6 +386,9 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		AND LOWER(TRIM(vbl.car_number)) = LOWER(TRIM(uc.number))
 		AND LOWER(TRIM(COALESCE(vbl.mark_name, ''))) = LOWER(TRIM(COALESCE(uc.mark, '')))
 	) as is_blacklisted`
+
+// carsListSelect -- шаблон с развёрнутым условием действующего пропуска.
+var carsListSelect = strings.ReplaceAll(carsListSelectTemplate, "{{pass_valid}}", passValidNowSQL("a"))
 
 // buildCarsQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
 // БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных

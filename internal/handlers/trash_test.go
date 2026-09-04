@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -116,6 +117,51 @@ func TestTrash_RestoreBlockedWithoutApprovedApplication(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, float64(0), resp["restored"], "без согласованной заявки восстановление невозможно")
+}
+
+// Срок пропуска кончается в крайнее время пребывания последнего дня, и считается
+// он по московским часам (#2327).
+//
+// Раньше сравнивалась только дата, и притом с CURRENT_DATE - датой по UTC. Машину
+// с пропуском «до сегодня, до 18:00» можно было вернуть из корзины и в 19:00, и
+// ночью по вчерашней заявке: до 03:00 МСК UTC-дата показывает вчерашний день.
+//
+// Момент окончания ставим на минуту назад по Москве - он всегда позади «сейчас»,
+// поэтому тест различает старое и новое поведение в любой час суток.
+func TestTrash_RestoreBlockedAfterPassHoursEnded(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "trashcarmsk", "pass123", 1, td.OrgID, td.CompanyID)
+	var u models.User
+	require.NoError(t, db.Where("username = ?", "trashcarmsk").First(&u).Error)
+
+	dn := "Корзина срок"
+	tbl := models.SystemTable{Name: "trash_cars_expired", DisplayName: &dn, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, u.ID, tbl.Name, "trash")
+
+	appID, attID, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	msk := time.Now().In(time.FixedZone("MSK", 3*60*60)).Add(-time.Minute)
+	require.NoError(t, db.Exec(
+		`UPDATE attachments SET entry_date_to = ?, entry_time_to = ? WHERE id = ?`,
+		msk.Format("2006-01-02"), msk.Format("15:04:05"), attID,
+	).Error)
+
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
+		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/trash/restore", tbl.ID),
+		fmt.Sprintf(`{"ids":[%d]}`, carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	resp := testutil.ParseMap(t, rec)
+	assert.Equal(t, float64(0), resp["restored"],
+		"время пребывания кончилось минуту назад по Москве, но машину всё ещё возвращают из корзины")
 }
 
 func TestTrash_PurgeOneRemovesFromTrash(t *testing.T) {

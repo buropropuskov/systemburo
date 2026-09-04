@@ -1534,12 +1534,7 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 	}
 
 	now := time.Now().UTC()
-	datePart := now.Format("20060102")
-
-	var count int64
-	s.db.WithContext(ctx).Raw("SELECT COUNT(*) FROM applications WHERE DATE(sending_datetime AT TIME ZONE 'UTC') = ?", now.Format("2006-01-02")).Scan(&count)
-
-	applicationNumber := fmt.Sprintf("№ %s/%03d", datePart, count+1)
+	applicationNumber := nextApplicationNumber(s.db.WithContext(ctx))
 
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -2151,11 +2146,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}()
 
 	baseTime := time.Now().UTC()
-	datePart := baseTime.Format("20060102")
-
-	var count int64
-	tx.Raw("SELECT COUNT(*) FROM applications WHERE DATE(sending_datetime AT TIME ZONE 'UTC') = ?", baseTime.Format("2006-01-02")).Scan(&count)
-	applicationNumber := fmt.Sprintf("№ %s/%03d", datePart, count+1)
+	applicationNumber := nextApplicationNumber(tx)
 
 	// Организация и компания заявки: выбранная по id либо найденная по ключу
 	// дедупликации наименования, а незнакомое наименование заводит запись «на

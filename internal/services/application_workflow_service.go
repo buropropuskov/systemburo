@@ -447,7 +447,7 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	tx.Raw(`
 		SELECT id, application_id FROM attachments
 		WHERE status = 1 AND (
-			(entry_date_to IS NOT NULL AND CAST(entry_date_to AS DATE) < CURRENT_DATE)
+			(entry_date_to IS NOT NULL AND CAST(entry_date_to AS DATE) < `+moscowTodaySQL+`)
 			OR (entry_date_to IS NOT NULL AND entry_time_to IS NOT NULL
 			    AND (CAST(entry_date_to AS DATE) + CAST(entry_time_to AS TIME)) AT TIME ZONE 'Europe/Moscow' < CURRENT_TIMESTAMP)
 		)

@@ -294,11 +294,16 @@ func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, first
 	return &rows[0], nil
 }
 
-// employeesListSelect -- список колонок для реестра сотрудников (GetAll/GetAllPaginated).
+// employeesListSelectTemplate -- список колонок для реестра сотрудников
+// (GetAll/GetAllPaginated).
+//
+// Маркер {{pass_valid}} разворачивается в условие «пропуск ещё действует»
+// (moscow_sql.go): срок кончается в крайнее время пребывания последнего дня и
+// считается по московским часам, а не по UTC-дате сессии (#2327).
 // Вынесен в константу, т.к. переиспользуется обоими методами (#1158, срез 3) - раньше
 // был только внутри GetAll. Активная заявка ищется по passport_series_number_hmac (тот
 // же ключ, что связывает реестр с заявочными employees), как исторически было.
-const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
+const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 	ue.organization_id, ue.company_id, ue.citizenship_id, ue.user_id,
 	ue."position", ue.passport_series_number, ue.patent_number,
 	ue.other_permission, ue.created_at,
@@ -313,7 +318,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1
 		AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		LIMIT 1
 	), false) as status,
 	(SELECT a.entry_date_to FROM employees e
@@ -321,7 +326,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		JOIN applications app ON a.application_id = app.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_entry_date_to,
 	(SELECT CONCAT(a.entry_time_from, ' - ', a.entry_time_to) FROM employees e
@@ -329,7 +334,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		JOIN applications app ON a.application_id = app.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_pass_time,
 	(SELECT ao.name FROM employees e
@@ -338,7 +343,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		LEFT JOIN organizations ao ON app.organization_id = ao.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_app_org_name,
 	(SELECT ac.name FROM employees e
@@ -347,7 +352,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		LEFT JOIN companies ac ON app.company_id = ac.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_app_company_name,
 	(SELECT e.id FROM employees e
@@ -355,7 +360,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		JOIN applications app ON a.application_id = app.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_employee_id,
 	(SELECT app.id FROM employees e
@@ -363,7 +368,7 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		JOIN applications app ON a.application_id = app.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-		AND CURRENT_DATE <= a.entry_date_to::date
+		AND {{pass_valid}}
 		ORDER BY a.entry_date_to DESC LIMIT 1
 	) as active_application_id,
 	-- Флаг ЧС считает сервер (нормализация 1:1 с personBlacklistService.Check), чтобы
@@ -376,6 +381,9 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		AND LOWER(TRIM(pbl.first_name)) = LOWER(TRIM(ue.first_name))
 		AND LOWER(TRIM(COALESCE(pbl.middle_name, ''))) = LOWER(TRIM(COALESCE(ue.middle_name, '')))
 	) as is_blacklisted`
+
+// employeesListSelect -- шаблон с развёрнутым условием действующего пропуска.
+var employeesListSelect = strings.ReplaceAll(employeesListSelectTemplate, "{{pass_valid}}", passValidNowSQL("a"))
 
 // buildEmployeesQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
 // БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных (тот же

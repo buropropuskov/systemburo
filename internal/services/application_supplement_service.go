@@ -374,7 +374,7 @@ func (s *applicationService) resolveSupplementTargets(ctx context.Context, appli
 				unique_attachment_id,
 				status,
 				application_id,
-				COALESCE(NULLIF(entry_date_to::text, '')::date < CURRENT_DATE, false) AS expired
+				COALESCE(NULLIF(entry_date_to::text, '')::date < `+moscowTodaySQL+`, false) AS expired
 			FROM attachments
 			WHERE id = ?
 		`, addition.AttachmentID).Scan(&att)

@@ -86,14 +86,14 @@ func (s *expiryNotifyService) selectExpiringSoon(ctx context.Context) ([]expirin
 			COALESCE(a.application_number, '') AS application_number,
 			a.sender_user_id AS sender_user_id,
 			MAX(CAST(att.entry_date_to AS DATE)) AS entry_date_to,
-			MAX(CAST(att.entry_date_to AS DATE)) - CURRENT_DATE AS days_left
+			MAX(CAST(att.entry_date_to AS DATE)) - `+moscowTodaySQL+` AS days_left
 		FROM applications a
 		JOIN attachments att ON att.application_id = a.id
 		WHERE att.status = 1
 		  AND att.entry_date_to IS NOT NULL
 		  AND COALESCE(a.status, '') NOT IN ?
 		GROUP BY a.id, a.application_number, a.sender_user_id
-		HAVING MAX(CAST(att.entry_date_to AS DATE)) - CURRENT_DATE IN ?
+		HAVING MAX(CAST(att.entry_date_to AS DATE)) - `+moscowTodaySQL+` IN ?
 		ORDER BY a.id
 	`, models.ArchivableStatuses, expiryNotifyDaysAhead).Scan(&apps).Error
 	if err != nil {
