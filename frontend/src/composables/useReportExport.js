@@ -189,6 +189,7 @@ async function exportExcel(table, opts) {
     worksheet.addRow(['Отчёт:', opts.title || 'Отчёт по аналитике']),
     worksheet.addRow(['Период:', periodLabel(opts)]),
     worksheet.addRow(['Сформировал:', opts.author || 'Пользователь']),
+    worksheet.addRow(['Строк:', table.rows.length]),
     worksheet.addRow(['Дата формирования:', new Date().toLocaleString('ru-RU')]),
   ];
   infoRows.forEach((row) => {
@@ -284,7 +285,7 @@ async function exportPdf(table, opts) {
         },
       },
       {
-        text: `Сформировал: ${opts.author || 'Пользователь'} · ${new Date().toLocaleString('ru-RU')}`,
+        text: `Сформировал: ${opts.author || 'Пользователь'} · ${new Date().toLocaleString('ru-RU')} · строк: ${table.rows.length}`,
         fontSize: 8, color: '#999999', margin: [0, 10, 0, 0],
       },
     ],
@@ -292,6 +293,31 @@ async function exportPdf(table, opts) {
 
   const blob = await pdfDocToBlob(pdfMake.createPdf(docDefinition));
   downloadBlob(blob, downloadFileName(opts, 'pdf'));
+}
+
+/**
+ * Сохранение графика картинкой. Графики рисуются на canvas, поэтому кадр берётся
+ * прямо из него - пересчитывать данные в свою отрисовку незачем.
+ *
+ * @param {HTMLCanvasElement} canvasEl холст графика
+ * @param {{ title?: string }} [opts] подпись для имени файла
+ * @returns {Promise<void>}
+ */
+export function exportChartPng(canvasEl, opts = {}) {
+  return new Promise((resolve, reject) => {
+    if (!canvasEl?.toBlob) {
+      reject(new Error('График не найден'));
+      return;
+    }
+    canvasEl.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Не удалось сохранить график'));
+        return;
+      }
+      downloadBlob(blob, downloadFileName(opts, 'png'));
+      resolve();
+    }, 'image/png');
+  });
 }
 
 /**

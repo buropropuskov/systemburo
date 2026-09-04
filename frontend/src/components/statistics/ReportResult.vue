@@ -110,6 +110,7 @@
           class="rr__export"
           :disabled="!canExport"
           :exporting="exporting"
+          :with-image="view === 'chart' && hasRows"
           @export="onExport"
         />
       </div>
@@ -123,12 +124,14 @@
       >
         <div
           :key="chartType"
+          ref="chartBox"
           class="rr__slot"
         >
           <AnalyticsAreaChart
             v-if="chartType === 'area'"
             :data="chartAreaData"
             :height="chartHeight"
+            :tension="0"
             :series-name="chartSeriesName"
             :unit-forms="chartUnitForms"
             :is-float="chartIsFloat"
@@ -162,19 +165,27 @@
             <table class="rr__table">
           <thead>
             <tr>
-              <th>{{ dimensionHeader }}</th>
+              <th
+                class="rr__th--sortable"
+                :aria-sort="ariaSort(LABEL_KEY)"
+                @click="toggleSort(LABEL_KEY)"
+              >
+                {{ dimensionHeader }}<span class="rr__sort">{{ sortMark(LABEL_KEY) }}</span>
+              </th>
               <th
                 v-for="col in aggColumns"
                 :key="col.key"
-                class="rr__num"
+                class="rr__num rr__th--sortable"
+                :aria-sort="ariaSort(col.key)"
+                @click="toggleSort(col.key)"
               >
-                {{ col.label }}{{ col.unit ? `, ${col.unit}` : '' }}
+                {{ col.label }}{{ col.unit ? `, ${col.unit}` : '' }}<span class="rr__sort">{{ sortMark(col.key) }}</span>
               </th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="(row, i) in aggRows"
+              v-for="(row, i) in sortedAggRows"
               :key="i"
             >
               <td>{{ rowLabel(row.label) }}</td>
@@ -238,15 +249,18 @@
               <th
                 v-for="col in (result.columns || [])"
                 :key="col.key"
+                class="rr__th--sortable"
                 :class="{ 'rr__num': isNumCol(col) }"
+                :aria-sort="ariaSort(col.key)"
+                @click="toggleSort(col.key)"
               >
-                {{ col.label }}
+                {{ col.label }}<span class="rr__sort">{{ sortMark(col.key) }}</span>
               </th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="(row, i) in result.rows"
+              v-for="(row, i) in sortedListRows"
               :key="i"
             >
               <td
@@ -288,7 +302,7 @@ import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
 import AnalyticsDonutChart from './AnalyticsDonutChart.vue';
 import ReportExportButton from './ReportExportButton.vue';
-import { useReportExport } from '@/composables/useReportExport';
+import { useReportExport, exportChartPng } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
 import { isDurationColumn, metricValue } from '@/utils/reportColumns';
 
@@ -338,6 +352,55 @@ const aggTotals = computed(() => {
 const aggFloatTotals = computed(() => props.result?.float_totals || {});
 
 const hasRows = computed(() => aggRows.value.length > 0);
+
+/*
+ * Сортировка по клику на заголовок. Отчёт на полсотни строк иначе разбирали глазами
+ * или выгружали в Excel ради одного упорядочивания (#2309). Сортируем то, что уже
+ * пришло с сервера: движок отдаёт результат целиком, второй запрос не нужен.
+ */
+const LABEL_KEY = '__label';
+const sort = ref({ key: '', dir: 1 });
+
+function toggleSort(key) {
+  sort.value = sort.value.key === key ? { key, dir: -sort.value.dir } : { key, dir: 1 };
+}
+
+function sortMark(key) {
+  if (sort.value.key !== key) return '';
+  return sort.value.dir > 0 ? ' ↑' : ' ↓';
+}
+
+function ariaSort(key) {
+  if (sort.value.key !== key) return 'none';
+  return sort.value.dir > 0 ? 'ascending' : 'descending';
+}
+
+// Пустые значения всегда внизу: «нет данных» - не самое маленькое число, а отсутствие.
+function compareValues(a, b, dir) {
+  const aEmpty = a === null || a === undefined || a === '';
+  const bEmpty = b === null || b === undefined || b === '';
+  if (aEmpty || bEmpty) return aEmpty && bEmpty ? 0 : (aEmpty ? 1 : -1);
+  if (typeof a === 'number' && typeof b === 'number') return (a - b) * dir;
+  return String(a).localeCompare(String(b), 'ru', { numeric: true }) * dir;
+}
+
+// Новый результат приходит со своим порядком (движок уже отсортировал) - сбрасываем.
+watch(() => props.result, () => { sort.value = { key: '', dir: 1 }; });
+
+const sortedAggRows = computed(() => {
+  const { key, dir } = sort.value;
+  if (!key) return aggRows.value;
+  const col = aggColumns.value.find((c) => c.key === key);
+  const valueOf = (row) => (key === LABEL_KEY ? rowLabel(row.label) : cellValue(row, col));
+  return [...aggRows.value].sort((a, b) => compareValues(valueOf(a), valueOf(b), dir));
+});
+
+const sortedListRows = computed(() => {
+  const { key, dir } = sort.value;
+  const rows = props.result?.rows || [];
+  if (!key) return rows;
+  return [...rows].sort((a, b) => compareValues(a[key], b[key], dir));
+});
 
 // Строк ровно столько, сколько разрешал лимит -> движок почти наверняка отрезал
 // хвост (точного признака в ответе нет). Ложное срабатывание «данных ровно
@@ -447,6 +510,9 @@ watch(() => props.result, (r) => {
 
 const { exporting, exportReport } = useReportExport();
 
+// Холст текущего графика: с него снимается картинка при выгрузке в png.
+const chartBox = ref(null);
+
 // list считаем по его собственным строкам, aggregate — по нормализованным.
 const canExport = computed(() => {
   const r = props.result;
@@ -456,6 +522,10 @@ const canExport = computed(() => {
 
 async function onExport(format) {
   try {
+    if (format === 'png') {
+      await exportChartPng(chartBox.value?.querySelector('canvas'), props.meta);
+      return;
+    }
     await exportReport(props.result, props.meta, format);
   } catch (e) {
     emit('export-error', e?.message || 'Не удалось выгрузить отчёт');
@@ -680,6 +750,18 @@ function formatCell(value, type) {
 .rr__num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.rr__th--sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.rr__th--sortable:hover {
+  color: var(--color-primary);
+}
+.rr__sort {
+  font-size: 11px;
+  opacity: 0.8;
 }
 
 .rr__norows {

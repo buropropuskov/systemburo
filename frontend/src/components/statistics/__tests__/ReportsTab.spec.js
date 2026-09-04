@@ -28,6 +28,8 @@ vi.mock('@/api/statistics', () => ({
 // Стор уведомлений мокаем: ошибку экспорта показывают тостом, а не подменой :error.
 const { notifySpy, confirmSpy } = vi.hoisted(() => ({ notifySpy: vi.fn(), confirmSpy: vi.fn(() => Promise.resolve(true)) }));
 vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: notifySpy }) }));
+// Подпись «Сформировал» в выгрузке (#2309): вкладка спрашивает профиль один раз.
+vi.mock('@/api/auth', () => ({ getMe: () => Promise.resolve({ last_name: 'Системный', first_name: 'администратор' }) }));
 vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmSpy }) }));
 
 import ReportsTab from '../ReportsTab.vue';
@@ -253,5 +255,32 @@ describe('ReportsTab — мобильная адаптивность (#1097 r3d)
     expect(src).toContain('@media (max-width: 768px)');
     expect(mobile).toContain('.wizard');
     expect(mobile).toMatch(/padding:\s*16px 14px/);
+  });
+});
+
+/*
+ * Выгрузка уходила заказчику озаглавленной «Отчёт по аналитике» и без следов
+ * происхождения: механизм шапки был, данные в него не передавали (#2309).
+ */
+describe('ReportsTab — подпись выгрузки (#2309)', () => {
+  it('кладёт в meta имя разреза, автора и период последнего запроса', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '2026-06-01', to: '2026-06-07' } });
+    await flushPromises();
+
+    wrapper.findComponent(ReportBuilder).vm.$emit('run', {
+      mode: 'aggregate',
+      metrics: ['applications_count'],
+      dimension: 'status',
+      filters: [{ key: 'date_range', from: '2026-06-01', to: '2026-06-07' }],
+    });
+    await nextTick();
+    state.deferred[0]({ mode: 'aggregate', rows: [{ label: 'Завершено', value: 1 }], total: 1, unit: 'шт' });
+    await flushPromises();
+
+    const meta = wrapper.findComponent(ReportResult).props('meta');
+    expect(meta.title).toBe('Заявки по разрезу «Статус заявки»');
+    expect(meta.author).toBe('Системный администратор');
+    expect(meta.period).toEqual({ from: '2026-06-01', to: '2026-06-07' });
   });
 });

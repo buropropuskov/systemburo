@@ -55,6 +55,16 @@
         >
           PDF (.pdf)
         </button>
+        <button
+          v-if="withImage"
+          type="button"
+          class="reb__item"
+          role="menuitem"
+          data-testid="rr-export-png"
+          @click="choose('png')"
+        >
+          Картинка (.png)
+        </button>
       </div>
     </transition>
   </div>
@@ -66,6 +76,8 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 defineProps({
   disabled: { type: Boolean, default: false },
   exporting: { type: Boolean, default: false },
+  // Картинку предлагаем только когда на экране график: у таблицы сохранять нечего.
+  withImage: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['export']);

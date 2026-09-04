@@ -7,17 +7,20 @@ import ReportResult from '../ReportResult.vue';
 
 // Экспорт в Excel тянет ExcelJS и пишет файл — в юнит-тесте подменяем composable
 // и проверяем, что клик «Excel» зовёт exportReport с результатом и meta.
-const { exportSpy } = vi.hoisted(() => ({ exportSpy: vi.fn() }));
+const { exportSpy, pngSpy } = vi.hoisted(() => ({ exportSpy: vi.fn(), pngSpy: vi.fn() }));
 vi.mock('@/composables/useReportExport', async () => {
   const { ref } = await import('vue');
-  return { useReportExport: () => ({ exporting: ref(false), exportReport: exportSpy }) };
+  return {
+    useReportExport: () => ({ exporting: ref(false), exportReport: exportSpy }),
+    exportChartPng: pngSpy,
+  };
 });
 
 // Графики требуют настоящего холста или SVG с измерениями — в юнит-тесте
 // переключателя они не нужны, подменяем стабами и читаем переданные props.
 const areaStub = {
   name: 'AnalyticsAreaChart',
-  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat', 'valueType'],
+  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat', 'valueType', 'tension'],
   template: '<div class="area-stub" />',
 };
 const barStub = {
@@ -591,5 +594,85 @@ describe('ReportResult — мобильный адаптив (guard)', () => {
     // th и td получают компактный padding в мобильном блоке.
     expect(media).toMatch(/\.rr__table thead th\s*\{[^}]*padding:\s*8px 10px/);
     expect(media).toMatch(/\.rr__table tbody td[\s\S]*?padding:\s*8px 10px/);
+  });
+});
+
+/*
+ * Разбор результата на экране: полсотни строк иначе упорядочивали выгрузкой в Excel,
+ * график сохраняли скриншотом (#2309).
+ */
+describe('ReportResult — разбор результата (#2309)', () => {
+  const aggMany = {
+    mode: 'aggregate',
+    dimension: 'status',
+    unit: 'шт',
+    rows: [
+      { label: 'Завершено', value: 3 },
+      { label: 'Отказано', value: 11 },
+      { label: 'В работе', value: 7 },
+    ],
+    total: 21,
+  };
+
+  const listRows = {
+    mode: 'list',
+    columns: [{ key: 'number', label: 'Номер' }, { key: 'mark', label: 'Марка' }],
+    rows: [{ number: 'В 002', mark: 'Kia' }, { number: 'А 001', mark: 'BMW' }],
+    total: 2,
+  };
+
+  function labels(wrapper) {
+    return wrapper.findAll('tbody tr').map((r) => r.findAll('td')[0].text());
+  }
+
+  it('клик по заголовку сортирует сводку и переворачивает порядок повторным кликом', async () => {
+    const wrapper = mountResult(aggMany);
+    const valueHead = wrapper.findAll('th')[1];
+
+    await valueHead.trigger('click');
+    expect(labels(wrapper)).toEqual(['Завершено', 'В работе', 'Отказано']);
+    expect(valueHead.attributes('aria-sort')).toBe('ascending');
+
+    await valueHead.trigger('click');
+    expect(labels(wrapper)).toEqual(['Отказано', 'В работе', 'Завершено']);
+    expect(valueHead.attributes('aria-sort')).toBe('descending');
+  });
+
+  it('сортирует и выгрузку строк, по значениям колонки', async () => {
+    const wrapper = mountResult(listRows);
+    await wrapper.findAll('th')[0].trigger('click');
+    expect(labels(wrapper)).toEqual(['А 001', 'В 002']);
+  });
+
+  it('новый результат сбрасывает сортировку - движок отдаёт свой порядок', async () => {
+    const wrapper = mountResult(aggMany);
+    await wrapper.findAll('th')[1].trigger('click');
+    expect(labels(wrapper)[0]).toBe('Завершено');
+
+    await wrapper.setProps({ result: { ...aggMany } });
+    await nextTick();
+    expect(labels(wrapper)).toEqual(['Завершено', 'Отказано', 'В работе']);
+  });
+
+  it('картинку предлагает только на графике и зовёт выгрузку холста', async () => {
+    const wrapper = mountResult(aggPeriod);
+    expect(wrapper.find('[data-testid="rr-export-png"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    await wrapper.find('[data-testid="rr-export"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="rr-export-png"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="rr-export-png"]').trigger('click');
+    expect(pngSpy).toHaveBeenCalled();
+    expect(exportSpy).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 'png');
+  });
+
+  it('линию отчёта не сглаживает: на дневном ряде с нулями кривая рисовала несуществующее', async () => {
+    const wrapper = mountResult(aggPeriod);
+    await wrapper.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    expect(wrapper.findComponent(areaStub).props('tension')).toBe(0);
   });
 });
