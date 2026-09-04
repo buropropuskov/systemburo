@@ -290,14 +290,17 @@ export default {
       const all = [...MAIN_SECTIONS, ...ADMIN_GROUPS.flatMap((g) => g.items)];
       return all
         .filter((s) => (!s.permission || this.can(s.permission))
-          && matchesSearch(s.label, variants))
+          && (matchesSearch(s.label, variants)
+            || (s.keywords || []).some((k) => matchesSearch(k, variants))))
         .slice(0, SECTIONS_LIMIT)
         .map((s) => ({
-          key: s.path,
+          // Вкладка внутри страницы делит путь с родителем, поэтому ключ строки
+          // собирается вместе с параметрами - иначе два пункта дали бы один key.
+          key: s.query ? `${s.path}?${new URLSearchParams(s.query)}` : s.path,
           title: s.label,
           subtitle: '',
           icon: s.icon,
-          to: { path: s.path },
+          to: s.query ? { path: s.path, query: s.query } : { path: s.path },
         }));
     },
     /**

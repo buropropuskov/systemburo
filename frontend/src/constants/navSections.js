@@ -6,6 +6,9 @@
  * молча отсутствовал в поиске, а именно за ответом «где это искать» в поиск и приходят.
  *
  * `permission` -- ключ права; пункт показывается, если оно есть у пользователя.
+ * `keywords` -- слова, по которым раздел ищется помимо названия: за отчётами приходят
+ * со словом «выгрузка», а раздел называется иначе.
+ * `query` -- параметры адреса для разделов, которые живут вкладкой внутри страницы.
  */
 export const ADMIN_GROUPS = [
   {
@@ -66,6 +69,16 @@ export const MAIN_SECTIONS = [
   { label: 'Сотрудники', icon: 'employees', path: '/employeesview', permission: 'page.employees' },
   { label: 'Автомобили', icon: 'cars', path: '/carsview', permission: 'page.cars' },
   { label: 'Аналитика', icon: 'statistics', path: '/analytics', permission: 'page.statistics' },
+  {
+    // Пока раздел живёт только в поиске: своего пункта в рельсе у него нет, NavMenu
+    // упёрся в порог размера файла и не может вырасти (см. issue про его разгрузку).
+    label: 'Отчёты',
+    icon: 'analytics',
+    path: '/analytics',
+    query: { tab: 'reports' },
+    permission: 'page.statistics',
+    keywords: ['отчёт', 'отчёты', 'выгрузка', 'экспорт', 'excel', 'сводка'],
+  },
   { label: 'Обзор и новости', icon: 'news', path: '/news', permission: 'page.news' },
   { label: 'Личный кабинет', icon: 'personal-cabinet', path: '/personal-cabinet', permission: 'page.personal_cabinet' },
 ];

@@ -143,6 +143,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -153,7 +154,26 @@ import AnalyticsInstructionModal from '@/components/statistics/AnalyticsInstruct
 import { getViewportZoom } from '@/utils/viewportScale';
 
 // ---- вкладки ----
-const activeTab = ref('dashboard');
+// Вкладка живёт в адресе: на отчёты ведут пункт меню и сквозной поиск, а ссылкой на
+// вкладку можно поделиться. Дашборд - вкладка по умолчанию и адрес без параметра.
+const TABS = ['dashboard', 'processing', 'reports'];
+const route = useRoute();
+const router = useRouter();
+
+const activeTab = ref(TABS.includes(route.query.tab) ? route.query.tab : 'dashboard');
+
+// Вкладка в адресе: на отчёты ведут пункт меню и сквозной поиск, а ссылкой на
+// собранный разрез можно поделиться. Дашборд - адрес без параметра.
+watch(activeTab, (tab) => {
+  const query = tab === 'dashboard' ? {} : { tab };
+  if ((route.query.tab || '') !== (query.tab || '')) router.push({ path: '/analytics', query });
+});
+
+// «Назад» и внешняя ссылка меняют адрес мимо клика по вкладке.
+watch(() => route.query.tab, (tab) => {
+  const next = TABS.includes(tab) ? tab : 'dashboard';
+  if (next !== activeTab.value) activeTab.value = next;
+});
 
 // Отчёт ведёт свой период в шаге 4 конструктора и строится по кнопке, поэтому
 // шапочные период и «Обновить» на этой вкладке ни на что не влияли. Прячем через
