@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
@@ -35,6 +35,8 @@ vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmSpy }) }));
 import ReportsTab from '../ReportsTab.vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import ReportResult from '../ReportResult.vue';
+import ReportGallery from '../ReportGallery.vue';
+import { REPORT_PRESETS } from '../reportPresets';
 
 describe('ReportsTab', () => {
   it('при двух параллельных запусках показывает результат последнего, медленный предыдущий игнорирует', async () => {
@@ -282,5 +284,64 @@ describe('ReportsTab — подпись выгрузки (#2309)', () => {
     expect(meta.title).toBe('Заявки по разрезу «Статус заявки»');
     expect(meta.author).toBe('Системный администратор');
     expect(meta.period).toEqual({ from: '2026-06-01', to: '2026-06-07' });
+  });
+});
+
+/*
+ * На телефоне колонка наборов встаёт над конструктором: до «Тип отчёта» приходилось
+ * прокручивать каталог и блок шаблонов целиком (#2314).
+ */
+/**
+ * v-show прячет через inline display:none - его и проверяем: isVisible() в jsdom
+ * считает скрытым любой элемент вне документа, включая раскрытый блок.
+ */
+function hiddenByVShow(comp) {
+  return comp.element.style.display === 'none';
+}
+
+describe('ReportsTab — каталог на узком экране (#2314)', () => {
+  function mockNarrow(matches) {
+    window.matchMedia = (query) => ({
+      matches, media: query, onchange: null,
+      addEventListener() {}, removeEventListener() {},
+      addListener() {}, removeListener() {}, dispatchEvent: () => false,
+    });
+  }
+
+  afterEach(() => { delete window.matchMedia; });
+
+  it('на узком экране каталог и шаблоны свёрнуты, заголовки кликабельны', async () => {
+    mockNarrow(true);
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const heads = wrapper.findAll('.col-heading--toggle');
+    expect(heads).toHaveLength(2);
+    expect(hiddenByVShow(wrapper.findComponent(ReportGallery))).toBe(true);
+
+    await heads[0].trigger('click');
+    await nextTick();
+    expect(hiddenByVShow(wrapper.findComponent(ReportGallery))).toBe(false);
+  });
+
+  it('на широком экране заголовки остаются обычными, ничего не сворачивается', async () => {
+    mockNarrow(false);
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    expect(wrapper.findAll('.col-heading--toggle')).toHaveLength(0);
+    expect(hiddenByVShow(wrapper.findComponent(ReportGallery))).toBe(false);
+  });
+
+  it('свёрнутый заголовок показывает выбранный набор', async () => {
+    mockNarrow(true);
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const preset = REPORT_PRESETS[0];
+    wrapper.findComponent(ReportGallery).vm.$emit('apply', preset);
+    await nextTick();
+
+    expect(wrapper.findAll('.col-heading--toggle')[0].text()).toContain(preset.title);
   });
 });
