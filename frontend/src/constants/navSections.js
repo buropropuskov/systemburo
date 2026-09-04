@@ -70,8 +70,8 @@ export const MAIN_SECTIONS = [
   { label: 'Автомобили', icon: 'cars', path: '/carsview', permission: 'page.cars' },
   { label: 'Аналитика', icon: 'statistics', path: '/analytics', permission: 'page.statistics' },
   {
-    // Пока раздел живёт только в поиске: своего пункта в рельсе у него нет, NavMenu
-    // упёрся в порог размера файла и не может вырасти (см. issue про его разгрузку).
+    // Раздел живёт в поиске и открывается прямой ссылкой; пункта в рельсе у него нет
+    // намеренно (#2305): доступность обеспечена, а место в меню того не стоило.
     label: 'Отчёты',
     icon: 'analytics',
     path: '/analytics',
