@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -340,6 +341,41 @@ func TestCheckActiveCar_Found(t *testing.T) {
 	if resp["car_number"] != nil {
 		assert.Equal(t, "B002BB799", resp["car_number"])
 	}
+}
+
+// Срок действия пропуска сверяется по московским часам, а не по UTC (#2298).
+//
+// entry_date_to и entry_time_to - дата и час из заявки, записанные по московскому
+// времени бюро. Пока "сейчас" бралось в UTC, машина числилась активной ещё три часа
+// после конца разрешённого окна, и пост пропускал её по истёкшей заявке.
+//
+// Момент окончания ставим на минуту назад по Москве: он всегда лежит впереди
+// текущего времени UTC, поэтому старая сверка отвечала "активна" в любой час суток.
+func TestCheckActiveCar_ExpiredByMoscowClock(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carchkmsk", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	msk := time.Now().In(time.FixedZone("MSK", 3*60*60)).Add(-time.Minute)
+	require.NoError(t, db.Exec(
+		`UPDATE cars SET entry_date_to = ?, entry_time_to = ? WHERE id = ?`,
+		msk.Format("2006-01-02"), msk.Format("15:04:05"), carID,
+	).Error)
+
+	rec := testutil.GET(t, e, fmt.Sprintf(
+		"/cars/check-active?car_number=B002BB799&car_brand=Kamaz&organization_id=%d", td.OrgID),
+		testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	resp := testutil.ParseMap(t, rec)
+	assert.Equal(t, false, resp["active"],
+		"пропуск закончился минуту назад по Москве, но машина всё ещё числится активной: "+
+			"сверка идёт по UTC и даёт лишние три часа действия")
 }
 
 // stringPtr is a test helper to safely dereference interface{} to string pointer.

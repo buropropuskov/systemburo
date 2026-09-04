@@ -141,6 +141,13 @@ func buildBureauWorkMode(slots []models.BureauTimeSlot) WorkModeEntity {
 // рабочее время по Москве показывало "Закрыто", т.к. в контейнере UTC).
 var moscowWorkModeLoc = time.FixedZone("MSK", 3*60*60)
 
+// MoscowLocation отдаёт ту же зону наружу пакета: показ времени человеку -
+// выгрузки, письма, отметки - идёт по московским часам, а не по зоне сервера
+// или машины (#2298).
+func MoscowLocation() *time.Location {
+	return moscowWorkModeLoc
+}
+
 // computeWorkModeStatus вычисляет текущий статус (open/closed) по слотам единой
 // формы. Зеркалит canonical computeUnloadPlaceStatus/computeCurrentStatus
 // (круглосуточный слот 00:00-23:59, переход через полночь is_next_day), но без

@@ -9,6 +9,7 @@ import (
 	"systemburo/internal/export"
 	"systemburo/internal/logmask"
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -119,7 +120,7 @@ func requestLogRow(l models.RequestLogs) []string {
 	}
 
 	return []string{
-		l.CreatedAt.Format("02.01.2006 15:04:05"),
+		l.CreatedAt.In(services.MoscowLocation()).Format("02.01.2006 15:04:05"),
 		optionalString(l.Method),
 		logmask.RawURL(optionalString(l.URL)),
 		status,
