@@ -506,7 +506,12 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			-- гейт видимости берёт на себя принадлежность целевой таблице (employee_target_tables)
 			-- + security-видимость (S6). Показываются, пока активны (e.status = 1), как ручные машины.
 			AND (a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))
-			AND (a.is_manual OR CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date)
+			-- Окно дней считается по московскому календарю (#2327), но КРАЙНЕЕ ВРЕМЯ
+			-- пребывания здесь намеренно не учитывается: иначе сотрудник, вошедший в
+			-- 17:50 по пропуску до 18:00, исчезнет со стола поста ровно в 18:00, и
+			-- отметить его выход будет некому. Видимость на посту и право прохода -
+			-- разные вещи; признака «пропуск на сегодня истёк» в таблице пока нет.
+			AND (a.is_manual OR `+moscowTodaySQL+` BETWEEN a.entry_date_from::date AND a.entry_date_to::date)
 			GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
 					 o.name, co.name, c.name, e.position,
 					 a.entry_date_to, a.entry_time_from,

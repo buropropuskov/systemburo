@@ -513,7 +513,7 @@ func (s *personBlacklistService) reactivateMatchingEmployees(ctx context.Context
 		Where("emp.is_purged = ?", false).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
-		Where("(NULLIF(TRIM(a.entry_date_to), '') IS NULL OR (NULLIF(TRIM(a.entry_date_to), ''))::date >= CURRENT_DATE)").
+		Where(passValidNowSQL("a")).
 		Pluck("emp.id", &ids).Error; err != nil {
 		return 0, err
 	}

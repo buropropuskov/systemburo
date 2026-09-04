@@ -559,7 +559,7 @@ func (s *vehicleBlacklistService) reactivateMatchingCars(ctx context.Context, tx
 		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
 		// "дата актуальна" из ТЗ: не возрождаем просроченный пропуск. NULLIF защищает
 		// от пустой строки в entry_date_to (иначе ''::date упадёт).
-		Where("(NULLIF(TRIM(c.entry_date_to), '') IS NULL OR (NULLIF(TRIM(c.entry_date_to), ''))::date >= CURRENT_DATE)").
+		Where(passValidNowSQL("c")).
 		Pluck("c.id", &ids).Error; err != nil {
 		return 0, err
 	}

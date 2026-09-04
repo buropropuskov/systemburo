@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -129,6 +130,46 @@ func TestUniqueCars_ActiveCarIDForActiveApplication(t *testing.T) {
 	assert.Equal(t, false, idle["status"], "без активной заявки status=false")
 	assert.Nil(t, idle["active_car_id"], "без активной заявки active_car_id пустой")
 	assert.Nil(t, idle["active_application_id"], "без активной заявки active_application_id пустой")
+}
+
+// Реестр гасит признак действующей заявки, когда прошло крайнее время пребывания
+// последнего дня, и считает этот момент по Москве (#2327).
+//
+// Признак читают на вкладке «Автомобили», по нему же берут active_car_id для
+// статуса и мест. Сравнение только по дате держало машину «действующей» до конца
+// суток, а из-за UTC-даты сессии - ещё три часа сверху.
+func TestUniqueCars_StatusOffAfterPassHoursEnded(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	appID, attID, _ := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+	testutil.POST(t, e, "/unique-cars", `{"number":"B002BB799","mark":"Kamaz"}`, h)
+
+	msk := time.Now().In(time.FixedZone("MSK", 3*60*60)).Add(-time.Minute)
+	require.NoError(t, db.Exec(
+		`UPDATE attachments SET entry_date_to = ?, entry_time_to = ? WHERE id = ?`,
+		msk.Format("2006-01-02"), msk.Format("15:04:05"), attID,
+	).Error)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var found map[string]interface{}
+	for _, r := range testutil.ParseSlice(t, rec) {
+		if n, _ := r["number"].(string); n == "B002BB799" {
+			found = r
+			break
+		}
+	}
+	require.NotNil(t, found, "машина должна остаться в реестре")
+	assert.Equal(t, false, found["status"],
+		"время пребывания кончилось минуту назад по Москве, но заявка всё ещё числится действующей")
+	assert.Nil(t, found["active_car_id"], "у недействующей заявки active_car_id не заполняется")
 }
 
 func TestUniqueCars_DuplicateCreate(t *testing.T) {

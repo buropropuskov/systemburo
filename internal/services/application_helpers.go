@@ -886,7 +886,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 				WHERE att.application_id = a.id
 				AND att.entry_date_from IS NOT NULL
 				AND att.entry_date_to IS NOT NULL
-				AND CURRENT_DATE BETWEEN CAST(att.entry_date_from AS DATE) AND CAST(att.entry_date_to AS DATE)
+				AND `+moscowTodaySQL+` BETWEEN CAST(att.entry_date_from AS DATE) AND CAST(att.entry_date_to AS DATE)
 			)
 		`)
 	}
