@@ -7,6 +7,7 @@ import { usePasswordChangeStore } from '@/stores/passwordChange'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 import { interceptRead } from './readInterceptor'
+import { syncServerTime } from '@/utils/serverTime'
 
 // API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
 // но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
@@ -227,6 +228,18 @@ export function createExtendedTimeoutSignal(ms) {
   return AbortSignal.timeout(ms)
 }
 
+/**
+ * Обычный fetch, попутно сверяющий часы интерфейса с сервером (#2298).
+ *
+ * Заголовок Date приходит с любым ответом, поэтому синхронизация идёт на обычном
+ * трафике: отдельный метод «который час» не нужен, и публичных роутов не прибавляется.
+ */
+async function fetchAndSyncClock(url, init) {
+  const response = await fetch(url, init);
+  syncServerTime(response);
+  return response;
+}
+
 async function doFetch(path, options, token) {
   // Свой сигнал (options.signal) - таймаут целиком на совести вызывающего кода,
   // внутренний контроллер заводить незачем: он всё равно не будет использован.
@@ -237,7 +250,7 @@ async function doFetch(path, options, token) {
   const isFormData = options.body instanceof FormData
   const baseHeaders = isFormData ? {} : { 'Content-Type': 'application/json' }
   try {
-    return await fetch(`${API_BASE_URL}${path}`, {
+    return await fetchAndSyncClock(`${API_BASE_URL}${path}`, {
       ...options,
       credentials: 'include',
       signal: options.signal || controller.signal,
