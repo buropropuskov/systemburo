@@ -150,6 +150,7 @@ import UserNotifications from '@/components/UserNotifications.vue';
 import { SkeletonLine } from '@/components/ui';
 import NavIcon from '@/components/icons/NavIcon.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { serverNow, moscowHour, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'TheHeader',
@@ -187,7 +188,7 @@ export default {
       // что открыли сами (тот же приём, что у панели поиска в App.vue).
       notificationsOpenedByTour: false,
       unreadCount: 0,
-      currentHour: new Date().getHours(),
+      currentHour: moscowHour(),
       // Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ:СС) в шапке - только на десктопе, как было
       // до правки волны 3 (на мобилке шапка тесная).
       currentDateTime: '',
@@ -350,19 +351,17 @@ export default {
     },
     // Дата и время в шапке (ДД.ММ.ГГГГ ЧЧ:ММ:СС, только десктоп) + текущий час для
     // приветствия («Доброе утро/день/вечер») - секундный таймер, как было до W3.
+    //
+    // Время московское и сверенное с сервером (#2298), а не с машиной: по этим часам
+    // на посту сверяют срок пропуска и разрешённые часы въезда, и сбитые локальные
+    // часы дали бы неверное решение, выглядя при этом правдоподобно.
     updateDateTime() {
-      const now = new Date();
-      const h = now.getHours();
+      const now = serverNow();
+      const h = moscowHour(now);
       if (h !== this.currentHour) {
         this.currentHour = h;
       }
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = now.getFullYear();
-      const hours = String(h).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      this.currentDateTime = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+      this.currentDateTime = formatMoscowDateTime(now);
     },
     startDateTimeTimer() {
       this.updateDateTime();
