@@ -61,7 +61,11 @@ export function buildReportRequest(state, period = {}, applicableFilters = []) {
   const limit = normalizeLimit(state.limit, defaultReportLimit(state));
 
   if (state.mode === 'list') {
-    return { mode: 'list', entity: state.entity || '', filters, limit };
+    const req = { mode: 'list', entity: state.entity || '', filters, limit };
+    // Пустой список движок понимает как «все столбцы» - так и шлём, когда выбраны все.
+    const columns = (state.columns || []).filter(Boolean);
+    if (columns.length) req.columns = columns;
+    return req;
   }
 
   // Мультивыбор метрик: каждая метрика -> своя колонка результата (движок отдаёт

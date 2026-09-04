@@ -222,3 +222,66 @@ func TestBuildListPlan_MaskedResponsibleColumn(t *testing.T) {
 		t.Error("у работника без согласия ожидается логин вместо ФИО и телефона")
 	}
 }
+
+// Выбор столбцов (#2313): выгрузка отдавала жёстко зашитый набор, и лишнее удаляли
+// уже в Excel. Порядок держим каталожный - иначе колонки переставлялись бы от
+// запроса к запросу, а вслед за ними и столбцы выгрузки.
+func TestListPlan_ColumnsSubset(t *testing.T) {
+	full, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars"}, false)
+	if err != nil {
+		t.Fatalf("неожиданная ошибка: %v", err)
+	}
+
+	req := models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{"mark", "car_number"}}
+	plan, err := buildListPlan(req, false)
+	if err != nil {
+		t.Fatalf("неожиданная ошибка: %v", err)
+	}
+	if len(plan.columns) != 2 {
+		t.Fatalf("ожидались две колонки, got %d (%+v)", len(plan.columns), plan.columns)
+	}
+
+	// Порядок - как в каталоге, а не как в запросе (там марка шла первой).
+	var wantOrder []string
+	for _, c := range reportListEntityRegistry["cars"].columns {
+		if c.key == "mark" || c.key == "car_number" {
+			wantOrder = append(wantOrder, c.key)
+		}
+	}
+	for i, c := range plan.columns {
+		if c.Key != wantOrder[i] {
+			t.Errorf("колонка %d: ожидался %q, got %q", i, wantOrder[i], c.Key)
+		}
+	}
+
+	// Невыбранные столбцы не попадают ни в SELECT, ни в описание результата.
+	for _, c := range full.columns {
+		if c.Key == "mark" || c.Key == "car_number" {
+			continue
+		}
+		if strings.Contains(plan.selectStr, " AS "+c.Key) {
+			t.Errorf("невыбранный столбец %q попал в select %q", c.Key, plan.selectStr)
+		}
+	}
+}
+
+func TestListPlan_UnknownColumnRejected(t *testing.T) {
+	req := models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{"car_number", "нет-такого"}}
+	if _, err := buildListPlan(req, false); err == nil {
+		t.Fatal("ожидалась ошибка на неизвестный столбец")
+	}
+}
+
+func TestListPlan_EmptyColumnsKeepsAll(t *testing.T) {
+	full, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars"}, false)
+	if err != nil {
+		t.Fatalf("неожиданная ошибка: %v", err)
+	}
+	empty, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{}}, false)
+	if err != nil {
+		t.Fatalf("неожиданная ошибка: %v", err)
+	}
+	if len(empty.columns) != len(full.columns) {
+		t.Errorf("пустой выбор должен давать все столбцы: %d против %d", len(empty.columns), len(full.columns))
+	}
+}

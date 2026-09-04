@@ -208,9 +208,30 @@ func buildListPlan(req models.ReportRequest, maskPD bool) (*listPlan, error) {
 		joins: append([]string{}, exec.joins...),
 	}
 
+	// Выбор столбцов (#2313): пустой список — все столбцы сущности. Порядок держим
+	// каталожный, иначе выгрузка меняла бы расположение колонок от запроса к запросу.
+	wanted := make(map[string]bool, len(req.Columns))
+	for _, key := range req.Columns {
+		wanted[key] = true
+	}
+	if len(wanted) > 0 {
+		known := make(map[string]bool, len(catalog.columns))
+		for _, c := range catalog.columns {
+			known[c.key] = true
+		}
+		for key := range wanted {
+			if !known[key] {
+				return nil, errInvalidReport("column")
+			}
+		}
+	}
+
 	selects := make([]string, 0, len(catalog.columns))
 	cols := make([]models.ReportColumnInfo, 0, len(catalog.columns))
 	for _, c := range catalog.columns {
+		if len(wanted) > 0 && !wanted[c.key] {
+			continue
+		}
 		def, ok := exec.colExpr[c.key]
 		if !ok {
 			// Каталог объявил столбец, для которого нет SQL-выражения — баг конфигурации.

@@ -546,6 +546,78 @@ describe('ReportBuilder', () => {
  * (#1097 r3d) сверяем по объявлениям в SFC. Замок против «уборки» медиа-блоков,
  * которая тихо вернула бы отступы под номер шага и зажатую кнопку на телефоне.
  */
+describe('ReportBuilder — выбор столбцов выгрузки (#2313)', () => {
+  async function openList(wrapper) {
+    wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
+    await nextTick();
+  }
+
+  function columnChips(wrapper) {
+    return wrapper.findAll('.rb__col');
+  }
+
+  it('по умолчанию берёт все столбцы сущности и не шлёт их списком', async () => {
+    const wrapper = mountBuilder();
+    await openList(wrapper);
+
+    const entity = CATALOG.list_entities[0];
+    expect(columnChips(wrapper)).toHaveLength(entity.columns.length);
+    expect(columnChips(wrapper).every((c) => c.classes('rb__pill--on'))).toBe(true);
+
+    await clickBuild(wrapper);
+    expect(lastRun(wrapper).columns).toBeUndefined();
+  });
+
+  it('снятый столбец уходит из запроса', async () => {
+    const wrapper = mountBuilder();
+    await openList(wrapper);
+
+    // У сущности с одним столбцом снимать нечего - берём ту, где их больше.
+    const dropdown = wrapper.findAllComponents(BaseDropdown)[0];
+    dropdown.vm.$emit('update:modelValue', 'work_applications');
+    await nextTick();
+
+    const chips = columnChips(wrapper);
+    if (chips.length < 2) return; // каталог теста не даёт выбора - проверять нечего
+    await chips[0].find('input').trigger('change');
+    await nextTick();
+    await clickBuild(wrapper);
+
+    const sent = lastRun(wrapper).columns;
+    expect(sent).toBeDefined();
+    expect(sent).toHaveLength(chips.length - 1);
+  });
+
+  it('последний столбец снять нельзя - выгрузка без колонок бессмысленна', async () => {
+    const wrapper = mountBuilder();
+    await openList(wrapper);
+
+    const chips = columnChips(wrapper);
+    for (const chip of chips) {
+      await chip.find('input').trigger('change');
+      await nextTick();
+    }
+    expect(columnChips(wrapper).filter((c) => c.classes('rb__pill--on'))).toHaveLength(1);
+  });
+
+  it('смена сущности возвращает её полный набор столбцов', async () => {
+    const wrapper = mountBuilder();
+    await openList(wrapper);
+    const first = columnChips(wrapper);
+    if (first.length > 1) {
+      await first[0].find('input').trigger('change');
+      await nextTick();
+    }
+
+    const dropdown = wrapper.findAllComponents(BaseDropdown)[0];
+    dropdown.vm.$emit('update:modelValue', 'cars');
+    await nextTick();
+
+    const carsColumns = CATALOG.list_entities.find((e) => e.key === 'cars').columns;
+    expect(columnChips(wrapper).filter((c) => c.classes('rb__pill--on'))).toHaveLength(carsColumns.length);
+  });
+});
+
 describe('ReportBuilder — справочники в дропдауне (#2308)', () => {
   it('организацию отдаёт дропдауну с поиском, короткий перечень статусов оставляет чипами', async () => {
     const wrapper = mountBuilder();

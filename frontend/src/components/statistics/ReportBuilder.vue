@@ -100,6 +100,28 @@
           value-key="key"
         />
       </label>
+      <div
+        v-if="entityColumns.length"
+        class="rb__cols"
+      >
+        <span class="rb__field-label">Столбцы</span>
+        <div class="rb__cols-list">
+          <label
+            v-for="col in entityColumns"
+            :key="col.key"
+            class="rb__pill rb__col"
+            :class="{ 'rb__pill--on': isColumnOn(col.key) }"
+          >
+            <input
+              type="checkbox"
+              class="rb__col-input"
+              :checked="isColumnOn(col.key)"
+              @change="toggleColumn(col.key)"
+            >
+            {{ col.label }}
+          </label>
+        </div>
+      </div>
     </div>
 
     <!-- Шаг 3: фильтры (чипсы, применимые к выбранным метрикам/сущности) -->
@@ -336,6 +358,8 @@ const form = reactive({
   // Применима лишь при dimension='period' и метрике из pivot.metrics (см. availablePivots).
   pivot: '',
   entity: props.catalog.list_entities?.[0]?.key || '',
+  // Столбцы выгрузки строк: пусто = все (движок понимает пустой список так же).
+  columns: [],
   filters: {},
   period: { from: props.period?.from || '', to: props.period?.to || '' },
   limit: '',
@@ -469,6 +493,33 @@ const filterFields = computed(() =>
     .filter(Boolean)
     .map((f) => ({ ...f, options: f.options || [] })));
 
+const entityColumns = computed(
+  () => (props.catalog.list_entities || []).find((e) => e.key === form.entity)?.columns || [],
+);
+
+// Полный набор шлём пустым списком: «все столбцы» должно значить «все, что есть
+// сейчас», иначе новый столбец сущности не появился бы у тех, кто его не выбирал.
+const columnsForRequest = computed(
+  () => (form.columns.length === entityColumns.value.length ? [] : form.columns),
+);
+
+function isColumnOn(key) {
+  return form.columns.includes(key);
+}
+
+function toggleColumn(key) {
+  const idx = form.columns.indexOf(key);
+  // Последний столбец не снимаем: выгрузка без колонок бессмысленна.
+  if (idx >= 0 && form.columns.length <= 1) return;
+  if (idx >= 0) form.columns.splice(idx, 1);
+  else form.columns.push(key);
+}
+
+// Столбцы у сущностей свои, поэтому смена сущности возвращает её полный набор.
+watch(entityColumns, (cols) => {
+  form.columns = cols.map((c) => c.key);
+}, { immediate: true });
+
 const periodApplicable = computed(() => applicableFilters.value.includes('date_range'));
 
 const granularityTabs = computed(
@@ -589,6 +640,11 @@ watch(() => props.preset, (p) => {
   form.mode = p.mode || 'aggregate';
   if (p.mode === 'list') {
     form.entity = p.entity || form.entity;
+    // Столбцы из шаблона применяем после watch entityColumns, иначе он затрёт их
+    // полным набором сущности.
+    if (Array.isArray(p.columns) && p.columns.length) {
+      nextTick(() => { form.columns = [...p.columns]; });
+    }
   } else {
     form.metrics = p.metrics ? [...p.metrics] : (p.metric ? [p.metric] : []);
     form.dimension = p.dimension || '';
@@ -720,6 +776,7 @@ const reportConfig = computed(() => ({
   granularity: form.granularity,
   pivot: form.pivot,
   entity: form.entity,
+  columns: [...form.columns],
   filters: { ...form.filters },
   period: { from: form.period.from, to: form.period.to },
   period_preset: activePeriodPreset.value,
@@ -744,7 +801,7 @@ function run() {
   // Защита инварианта: run() зовётся не только кнопкой (ещё из watch пресета),
   // поэтому проверяем canRun здесь, а не полагаемся на :disabled кнопки.
   if (!canRun.value) return;
-  emit('run', buildReportRequest(form, form.period, applicableFilters.value));
+  emit('run', buildReportRequest({ ...form, columns: columnsForRequest.value }, form.period, applicableFilters.value));
 }
 
 // Пустой результат предлагает расширить период до «весь». Отдаём наружу метод, а не
@@ -1006,6 +1063,31 @@ defineExpose({ expandPeriodToAll });
 .rb__chosen-chip span {
   font-size: 14px;
   line-height: 1;
+}
+
+.rb__cols {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.rb__cols-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Столбец выгрузки - тот же чип, что и у фильтров, но с чекбоксом внутри. */
+.rb__col {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.rb__col-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
 .rb__pills-empty {
