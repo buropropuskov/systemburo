@@ -542,6 +542,9 @@ import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
 import PushAdoptionSummary from '@/components/statistics/PushAdoptionSummary.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
+import { moscowParts } from '@/utils/serverTime';
+
+const pad2 = (n) => String(n).padStart(2, '0');
 
 const props = defineProps({
   from: {
@@ -771,20 +774,22 @@ function toggleExpand(metric) {
   expandedMetric.value = expandedMetric.value === metric ? null : metric;
 }
 
+/** Час и минута отметки по Москве - как их видит бюро и записал сервер. */
 function formatTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  // Смещение UTC+3
-  const utc3 = new Date(d.getTime() + 3 * 60 * 60 * 1000);
-  return utc3.toISOString().substring(11, 16);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = moscowParts(d);
+  return `${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
+/** Дата отметки по Москве: у ночных отметок в другом поясе съезжает день. */
 function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  // Смещение UTC+3: дату ленты считаем по МСК, иначе у ночных отметок съезжает день.
-  const s = new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString();
-  return `${s.substring(8, 10)}.${s.substring(5, 7)}.${s.substring(0, 4)}`;
+  if (Number.isNaN(d.getTime())) return '';
+  const p = moscowParts(d);
+  return `${pad2(p.day)}.${pad2(p.month)}.${p.year}`;
 }
 
 // Место (place) прохода: бэк может вернуть пусто или плейсхолдер «—». Показываем

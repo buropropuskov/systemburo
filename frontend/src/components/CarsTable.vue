@@ -643,6 +643,7 @@ import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMoscowDateTime } from '@/utils/serverTime';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
 
@@ -1912,11 +1913,9 @@ export default {
       }
 
       worksheet.addRow([]);
-      const now = new Date();
-      const dateStr = now.toLocaleString('ru-RU', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }).replace(',', '');
+      // Штамп выгрузки московский и по серверным часам (#2298): файл уходит
+      // наружу, время в нём должно совпадать с временем отметок в таблице.
+      const dateStr = formatMoscowDateTime();
       const userDisplay = (this.currentUserName || '').trim() || 'Пользователь';
       [
         worksheet.addRow(['Отчёт сформировал:', userDisplay]),

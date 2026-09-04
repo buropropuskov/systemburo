@@ -853,6 +853,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { copyText } from '@/utils/clipboard';
 import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatDateTime } from '@/utils/datetime';
 
 // Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
 // в AccessibleAttachmentsView/TableVersionsView.
@@ -1693,17 +1694,7 @@ export default {
         },
         
         // Дата
-        formatDateTime(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        },
+        formatDateTime,
 
         // Сообщение заявки - rich-HTML из TextConstructor. В компактной карточке
         // показываем плоский текст одной строкой с обрезкой (без тегов).

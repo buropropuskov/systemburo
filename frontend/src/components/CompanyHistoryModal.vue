@@ -204,6 +204,7 @@ import { ORG_TYPE_UNSPECIFIED_LABEL } from '@/constants/orgTypes';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
+import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 const ACTION_TEXTS = {
   created: 'Компания создана',
@@ -327,9 +328,7 @@ export default {
       const groups = [];
       const dateMap = new Map();
       for (const item of this.filteredHistory) {
-        const dateKey = new Date(item.created_at).toLocaleDateString('ru-RU', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        });
+        const dateKey = formatMoscow(new Date(item.created_at), { day: 'numeric', month: 'long', year: 'numeric' });
         if (!dateMap.has(dateKey)) {
           dateMap.set(dateKey, []);
           groups.push({ date: dateKey, items: dateMap.get(dateKey) });
@@ -340,15 +339,7 @@ export default {
     },
 
     formattedCurrentDateTime() {
-      const now = new Date();
-      return now.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(',', '');
+      return formatMoscowDateTime();
     },
 
     currentUserDisplayName() {
@@ -503,15 +494,7 @@ export default {
 
     formatDateTime(s) {
       if (!s) return '';
-      const d = new Date(s);
-      return d.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(',', '');
+      return formatMoscowDateTime(new Date(s));
     },
 
     toggleSortOrder() {

@@ -398,6 +398,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
 import ExcelJS from 'exceljs';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'CarDetailsModal',
@@ -513,15 +514,7 @@ export default {
 
     formatDateTime(dateTimeString) {
       if (!dateTimeString) return '';
-      const date = new Date(dateTimeString);
-      return date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
+      return formatMoscowDateTime(new Date(dateTimeString));
     },
 
     getActionClass(actionType) {
@@ -954,7 +947,7 @@ export default {
         worksheet.addRow([]);
         
         const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserName || 'Пользователь']);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', new Date().toLocaleString('ru-RU')]);
+        const infoRow2 = worksheet.addRow(['Дата формирования:', formatMoscowDateTime()]);
         
         [infoRow1, infoRow2].forEach(row => {
           row.eachCell((cell) => {
@@ -981,7 +974,7 @@ export default {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         
-        a.download = `История_автомобиля_${this.car.car_number}_${new Date().toLocaleString().replace(/[.:,]/g, '-')}.xlsx`;
+        a.download = `История_автомобиля_${this.car.car_number}_${formatMoscowDateTime().replace(/[.: ]/g, '-')}.xlsx`;
         a.href = url;
         a.click();
         window.URL.revokeObjectURL(url);

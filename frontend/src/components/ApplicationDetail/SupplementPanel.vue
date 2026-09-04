@@ -189,6 +189,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { useApprovalStatus } from '@/composables/useApprovalStatus'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { supplementStatusText, supplementStatusClass, supplementCountsLabel } from '@/utils/supplementStatuses'
+import { formatDateTime } from '@/utils/datetime';
 
 export default {
     name: 'SupplementPanel',
@@ -252,17 +253,7 @@ export default {
             return approval.approval_status || 'pending';
         },
 
-        formatDateTime(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
+        formatDateTime
     }
 }
 </script>

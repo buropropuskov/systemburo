@@ -527,6 +527,8 @@ import { getModalActionPermission } from '@/constants/detailModalActions';
 import { checkPersonBlacklist, createPersonBlacklist } from '@/api/blacklist';
 import ExcelJS from 'exceljs';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatDateTime } from '@/utils/datetime';
+import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'EmployeeDetailsModal',
@@ -939,14 +941,7 @@ export default {
             } catch { return ''; }
         },
 
-        formatDateTime(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            }).replace(',', '');
-        },
+        formatDateTime,
 
         getActionClass(item) {
             if (!item.user_id) return 'dot-system';
@@ -1099,7 +1094,7 @@ export default {
 
                 worksheet.addRow([]);
                 const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserName || 'Пользователь']);
-                const infoRow2 = worksheet.addRow(['Дата формирования:', new Date().toLocaleString('ru-RU')]);
+                const infoRow2 = worksheet.addRow(['Дата формирования:', formatMoscowDateTime()]);
                 [infoRow1, infoRow2].forEach(row => {
                     row.eachCell((cell) => {
                         cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };

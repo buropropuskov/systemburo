@@ -114,6 +114,7 @@
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { isAwaitingApproval, approverSilenceDays, approverSilenceLabel } from '@/utils/pendingApproval'
 import { useApprovalStatus } from '@/composables/useApprovalStatus'
+import { formatDateTime } from '@/utils/datetime';
 
 export default {
     name: 'ApplicationConfirmation',
@@ -186,17 +187,7 @@ export default {
             return names.length > 0 ? names.join(' ') : user.username;
         },
         
-        formatDateTime(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        },
+        formatDateTime,
 
         // Метка "не отвечает N дней, напомнили K раз" для молчащего согласующего
         // (#1315 S3). Показываем только тому, чей голос ещё нужен - зеркало предиката

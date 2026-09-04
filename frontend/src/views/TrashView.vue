@@ -374,6 +374,7 @@ import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'TrashView',
@@ -465,10 +466,7 @@ export default {
       return parts.length > 0 ? parts.join(' ') : 'Пользователь';
     },
     formattedExportDateTime() {
-      return new Date().toLocaleString('ru-RU', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }).replace(',', '');
+      return formatMoscowDateTime();
     },
     bodyStyle() {
       return this.isLoading ? { minHeight: `${this.lastHeight || 200}px` } : {};

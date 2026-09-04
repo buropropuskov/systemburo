@@ -538,6 +538,7 @@ import { checkVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'VehicleDetailsModal',
@@ -1058,15 +1059,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
 
         formatDateTime(dateTimeString) {
             if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            return date.toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            }).replace(',', '');
+            return formatMoscowDateTime(new Date(dateTimeString));
         },
 
         getActionClass(item) {
@@ -1274,7 +1267,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
                 worksheet.addRow([]);
                 
                 const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserName || 'Пользователь']);
-                const infoRow2 = worksheet.addRow(['Дата формирования:', new Date().toLocaleString('ru-RU')]);
+                const infoRow2 = worksheet.addRow(['Дата формирования:', formatMoscowDateTime()]);
                 
                 [infoRow1, infoRow2].forEach(row => {
                     row.eachCell((cell) => {
@@ -1303,7 +1296,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
                 const a = document.createElement('a');
                 
                 const carNumberSafe = (this.vehicle?.plateNumber || this.vehicle?.car_number || 'auto').replace(/[^a-zA-Z0-9]/g, '_');
-                a.download = `Istoriya_viezdov_${carNumberSafe}_${new Date().toLocaleString().replace(/[.:,]/g, '-')}.xlsx`;
+                a.download = `Istoriya_viezdov_${carNumberSafe}_${formatMoscowDateTime().replace(/[.: ]/g, '-')}.xlsx`;
                 a.href = url;
                 a.click();
                 window.URL.revokeObjectURL(url);
