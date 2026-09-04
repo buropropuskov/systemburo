@@ -359,6 +359,18 @@ export async function drawBadges(page, boxes, clip) {
           ];
         }
 
+        /*
+         * Принудительная посадка (выше) может поставить кружок вплотную к уже
+         * расставленным: на кадре тогда видно «три цифры под одной обводкой»,
+         * и читатель не понимает, к чему какая. Проверяем расстояние явно.
+         */
+        for (const [px, py] of placedBadges) {
+          if (Math.abs(px - placed[0]) < BADGE_SIZE + gap && Math.abs(py - placed[1]) < BADGE_SIZE + gap) {
+            warnings.push(`выноска ${box.badge}: села вплотную к соседней - номера сольются`);
+            break;
+          }
+        }
+
         placedBadges.push(placed);
         const [cx, cy] = placed;
         const badge = document.createElement('div');
