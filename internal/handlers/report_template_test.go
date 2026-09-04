@@ -7,6 +7,7 @@ import (
 
 	"systemburo/internal/database"
 	"systemburo/internal/models"
+	"systemburo/internal/reportpresets"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
@@ -52,17 +53,21 @@ func TestReportTemplates_Scoping(t *testing.T) {
 	listA, err := svc.ListReportTemplates(ctx, userA.ID)
 	require.NoError(t, err)
 	systemCount := 0
-	hasWeekly := false
+	presets, err := reportpresets.All()
+	require.NoError(t, err)
+	firstPresetName := presets[0].Title
+
+	hasFirstPreset := false
 	for _, tpl := range listA {
 		if tpl.IsSystem {
 			systemCount++
-			if tpl.Name == "Сводка за неделю" {
-				hasWeekly = true
+			if tpl.Name == firstPresetName {
+				hasFirstPreset = true
 			}
 		}
 	}
-	assert.GreaterOrEqual(t, systemCount, 5, "не менее 5 системных пресетов засеяно")
-	assert.True(t, hasWeekly, "сидирован пресет 'Сводка за неделю'")
+	assert.GreaterOrEqual(t, systemCount, len(presets), "системные пресеты засеяны по общему источнику")
+	assert.True(t, hasFirstPreset, "сидирован пресет %q", firstPresetName)
 	assert.Equal(t, 1, ownedByUser(listA, userA.ID))
 
 	// B не видит приватный A.
@@ -142,13 +147,60 @@ func TestSeedReportTemplates_Idempotent(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 
+	presets, err := reportpresets.All()
+	require.NoError(t, err)
+	want := int64(len(presets))
+
 	require.NoError(t, database.SeedReportTemplates(db))
 	var first int64
 	require.NoError(t, db.Model(&models.ReportTemplate{}).Where("is_system = ?", true).Count(&first).Error)
-	assert.Equal(t, int64(5), first, "5 системных пресетов после первого сида")
+	assert.Equal(t, want, first, "системных пресетов столько же, сколько наборов в источнике")
 
 	require.NoError(t, database.SeedReportTemplates(db))
 	var second int64
 	require.NoError(t, db.Model(&models.ReportTemplate{}).Where("is_system = ?", true).Count(&second).Error)
-	assert.Equal(t, int64(5), second, "повторный сид не дублирует")
+	assert.Equal(t, want, second, "повторный сид не дублирует")
+}
+
+// TestSeedReportTemplates_RenamesLegacy: у заказчика в базе лежат наборы под старыми
+// именами (#632). Сид переименовывает их, а не создаёт рядом дубль - иначе список,
+// ради сведения которого всё и делалось, снова разъехался бы (#2315).
+func TestSeedReportTemplates_RenamesLegacy(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	legacy := models.ReportTemplate{
+		Name:        "Сводка за неделю",
+		Description: "Поданные заявки по дням за последнюю неделю.",
+		Config:      json.RawMessage(`{"mode":"aggregate","metrics":["applications_count"]}`),
+		IsSystem:    true,
+	}
+	require.NoError(t, db.Create(&legacy).Error)
+
+	require.NoError(t, database.SeedReportTemplates(db))
+
+	var stale int64
+	require.NoError(t, db.Model(&models.ReportTemplate{}).
+		Where("name = ? AND is_system = ?", "Сводка за неделю", true).Count(&stale).Error)
+	assert.Equal(t, int64(0), stale, "прежнее имя не осталось в базе")
+
+	var renamed models.ReportTemplate
+	require.NoError(t, db.Where("id = ?", legacy.ID).First(&renamed).Error)
+	assert.Equal(t, "Сводка по заявкам", renamed.Name, "запись переименована, а не пересоздана")
+
+	presets, err := reportpresets.All()
+	require.NoError(t, err)
+	var total int64
+	require.NoError(t, db.Model(&models.ReportTemplate{}).Where("is_system = ?", true).Count(&total).Error)
+	assert.Equal(t, int64(len(presets)), total, "дубля рядом с переименованным не появилось")
+
+	// Описание подтянулось из общего источника, а не осталось прежним.
+	var want string
+	for _, p := range presets {
+		if p.Title == "Сводка по заявкам" {
+			want = p.Description
+		}
+	}
+	assert.Equal(t, want, renamed.Description, "описание обновлено по источнику")
 }
