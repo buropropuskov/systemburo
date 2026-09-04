@@ -42,7 +42,7 @@
            Она же объясняет расхождение с часами компьютера, если те сбиты (#2298). -->
       <span
         class="header__time hint-anchor hint-anchor--below"
-        data-hint="Московское время, сверяется с сервером"
+        data-hint="Московское время"
         data-testid="header-time"
       >{{ currentDateTime }}</span>
 
