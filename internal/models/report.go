@@ -18,16 +18,20 @@ type ReportFilterValue struct {
 // (например "attachment_type") разворачивается в отдельную колонку-счётчик рядом с
 // метриками. Пустой Pivot -> обычный отчёт. Mode=list: выгрузка строк сущности (Entity).
 type ReportRequest struct {
-	Mode        string              `json:"mode"`
-	Metric      string              `json:"metric"`
-	Metrics     []string            `json:"metrics,omitempty"`
-	Dimension   string              `json:"dimension"`
-	Granularity string              `json:"granularity"`
-	Pivot       string              `json:"pivot,omitempty"`
-	Entity      string              `json:"entity"`
-	Filters     []ReportFilterValue `json:"filters"`
-	Sort        string              `json:"sort"`
-	Limit       int                 `json:"limit"`
+	Mode        string   `json:"mode"`
+	Metric      string   `json:"metric"`
+	Metrics     []string `json:"metrics,omitempty"`
+	Dimension   string   `json:"dimension"`
+	Granularity string   `json:"granularity"`
+	Pivot       string   `json:"pivot,omitempty"`
+	Entity      string   `json:"entity"`
+	// Columns (опц., только Mode=list) — какие столбцы сущности отдавать. Пусто —
+	// все столбцы каталога. Порядок берётся из каталога, а не из запроса: он же
+	// определяет порядок колонок в выгрузке.
+	Columns []string            `json:"columns,omitempty"`
+	Filters []ReportFilterValue `json:"filters"`
+	Sort    string              `json:"sort"`
+	Limit   int                 `json:"limit"`
 }
 
 // ReportAggregateRow — строка агрегатного отчёта: бакет разреза + значение метрики.

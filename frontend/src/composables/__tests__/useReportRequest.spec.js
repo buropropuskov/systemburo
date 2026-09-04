@@ -6,6 +6,17 @@ import {
 const PERIOD = { from: '2026-06-01', to: '2026-06-07' };
 
 describe('buildReportRequest', () => {
+  // Выгрузка отдавала жёстко зашитый набор столбцов (#2313).
+  it('в list-режиме шлёт выбранные столбцы, а полный набор оставляет пустым', () => {
+    const withSubset = buildReportRequest(
+      { mode: 'list', entity: 'cars', columns: ['car_number', 'mark'], filters: {} }, {}, [],
+    );
+    expect(withSubset.columns).toEqual(['car_number', 'mark']);
+
+    const withAll = buildReportRequest({ mode: 'list', entity: 'cars', columns: [], filters: {} }, {}, []);
+    expect(withAll.columns).toBeUndefined();
+  });
+
   describe('aggregate', () => {
     it('собирает метрику+разрез и период фильтром date_range', () => {
       const req = buildReportRequest(
