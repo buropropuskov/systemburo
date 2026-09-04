@@ -204,3 +204,27 @@ describe('useReportExport — PDF-экспорт', () => {
     expect(pdfMake.createPdf).not.toHaveBeenCalled();
   });
 });
+
+describe('useReportExport — имя файла (#2324)', () => {
+  it('вычищает кавычки и лишние символы из названия отчёта', async () => {
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    let downloadedAs = '';
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click() {
+      downloadedAs = this.download;
+    });
+
+    const { exportReport } = useReportExport();
+    await exportReport(
+      { mode: 'aggregate', dimension: 'status', unit: 'шт', rows: [{ label: 'Завершено', value: 1 }], total: 1 },
+      { title: 'Количество заявок по разрезу «Организация»' },
+      'pdf',
+    );
+
+    expect(downloadedAs).toContain('Количество_заявок_по_разрезу_Организация');
+    expect(downloadedAs).not.toContain('«');
+    expect(downloadedAs).toMatch(/^[\p{L}\p{N}_.-]+$/u);
+
+    clickSpy.mockRestore();
+  });
+});

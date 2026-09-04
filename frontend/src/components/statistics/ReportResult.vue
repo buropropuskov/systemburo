@@ -202,7 +202,19 @@
                 :colspan="aggColumns.length + 1"
                 class="rr__norows"
               >
-                Нет данных за выбранный период
+                <template v-if="emptyPeriodLabel">
+                  За {{ emptyPeriodLabel }} данных нет.
+                  <button
+                    type="button"
+                    class="lk-button lk-button--secondary rr__expand"
+                    @click="$emit('expand-period')"
+                  >
+                    Показать за весь период
+                  </button>
+                </template>
+                <template v-else>
+                  Нет данных за выбранный период
+                </template>
               </td>
             </tr>
           </tbody>
@@ -222,7 +234,10 @@
           </div>
         </div>
       </Transition>
-      <div class="rr__footer">
+      <div
+        v-if="hasRows"
+        class="rr__footer"
+      >
         строк: {{ aggRows.length }}
         <span
           v-if="truncated"
@@ -276,13 +291,28 @@
                 :colspan="(result.columns || []).length || 1"
                 class="rr__norows"
               >
-                Нет данных за выбранный период
+                <template v-if="emptyPeriodLabel">
+                  За {{ emptyPeriodLabel }} данных нет.
+                  <button
+                    type="button"
+                    class="lk-button lk-button--secondary rr__expand"
+                    @click="$emit('expand-period')"
+                  >
+                    Показать за весь период
+                  </button>
+                </template>
+                <template v-else>
+                  Нет данных за выбранный период
+                </template>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div class="rr__footer">
+      <div
+        v-if="result.rows.length"
+        class="rr__footer"
+      >
         Всего: <b>{{ result.total }}</b>
         <span class="rr__footer-sep">·</span> показано строк: {{ result.rows.length }}
         <span
@@ -316,9 +346,12 @@ const props = defineProps({
   // «данных ровно столько» от «результат упёрся в лимит»: движок признака
   // обрезки не отдаёт, а для разреза «период» обрезка съедает его хвост.
   limit: { type: Number, default: 0 },
+  // Период последнего запроса, когда его есть куда расширить. Непусто - пустой
+  // результат сам предлагает выход, вместо трёх сообщений об одном (#2324).
+  emptyPeriodLabel: { type: String, default: '' },
 });
 
-const emit = defineEmits(['export-error']);
+const emit = defineEmits(['export-error', 'expand-period']);
 
 const view = ref('table'); // 'table' | 'chart'
 const chartKind = ref('bar'); // 'bar' | 'donut' — тип категориального графика
@@ -750,6 +783,11 @@ function formatCell(value, type) {
 .rr__num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.rr__expand {
+  margin-left: 10px;
+  vertical-align: middle;
 }
 
 .rr__th--sortable {
