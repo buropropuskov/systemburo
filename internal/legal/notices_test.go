@@ -69,7 +69,10 @@ func listedModules(t *testing.T, notices string) map[string]string {
 func linkedModules(t *testing.T, root string) map[string]string {
 	t.Helper()
 
-	cmd := exec.Command("go", "list", "-deps",
+	// -buildvcs=false: при docker-first прогоне /app принадлежит разработчику, а
+	// контейнер работает от root, и git отвечает «dubious ownership». Go снимает
+	// VCS-статус даже для list и падает; лицензии зависимостей от него не зависят.
+	cmd := exec.Command("go", "list", "-deps", "-buildvcs=false",
 		"-f", "{{if .Module}}{{.Module.Path}}\t{{.Module.Version}}{{end}}", "./cmd/...")
 	cmd.Dir = root
 	// go.mod требует более свежий тулчейн, чем бывает установлен на машине
