@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isByFactVehicle, hasByFactVehicle } from '../byFactVehicle';
+import { isByFactVehicle, hasByFactVehicle, isOneDayPeriod } from '../byFactVehicle';
 
 /**
  * Форма зеркалит правило бэкенда про машину «По факту» (#2320), чтобы человек
@@ -63,5 +63,22 @@ describe('hasByFactVehicle', () => {
   it('но вторая такая же блокирует и при редактировании первой', () => {
     const другая = { car_number: 'по факту' };
     expect(hasByFactVehicle({ 'бланк-1': [поФакту, другая] }, поФакту)).toBe(true);
+  });
+});
+
+describe('isOneDayPeriod', () => {
+  it('один день - когда даты совпадают', () => {
+    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-05' })).toBe(true);
+  });
+
+  it('период длиннее дня не проходит', () => {
+    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-10-05' })).toBe(false);
+    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-06' })).toBe(false);
+  });
+
+  it('пустой период недопустим - бэкенд отклоняет его так же', () => {
+    expect(isOneDayPeriod({ date_from: '', date_to: '' })).toBe(false);
+    expect(isOneDayPeriod({ date_from: '2026-09-05' })).toBe(false);
+    expect(isOneDayPeriod(null)).toBe(false);
   });
 });

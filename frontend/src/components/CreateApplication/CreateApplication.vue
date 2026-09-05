@@ -290,7 +290,7 @@
               :existing-vehicles="vehicles"
               :application-unload-places="applicationUnloadPlaces"
               :entry-period="currentEntryPeriod"
-              @notices-change="placeNotices = $event"
+              @notices-change="placeNotices = $event" @by-fact-change="byFactPending = $event"
               @vehicle-added="handleVehicleAdded"
               @vehicles-added="handleVehiclesAdded"
               @vehicle-updated="handleVehicleUpdated"
@@ -785,7 +785,7 @@ export default {
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
-            if (!data?.isOneDay && hasByFactVehicle(this.vehicles)) return { ...(data?.errors || {}), endDate: BY_FACT_ONE_DAY_HINT };
+            if (!data?.isOneDay && (this.byFactPending || hasByFactVehicle(this.vehicles))) return { ...(data?.errors || {}), endDate: BY_FACT_ONE_DAY_HINT, startDate: BY_FACT_ONE_DAY_HINT };
             return data?.errors || {};
         },
         submitValidation() {
