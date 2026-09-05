@@ -122,7 +122,7 @@ const FIELD_LABELS = {
   organization_id: 'организация',
   company_id: 'компания',
   user_id: 'владелец записи',
-  pd_consent_at: 'согласие на обработку персональных данных',
+  pd_consent_at: 'отметка об уведомлении работника',
   number: 'номер',
   mark: 'марка',
   format_id: 'формат номера',
@@ -226,7 +226,7 @@ export default {
       if (item.action_type === 'data_changed' && item.field_name) {
         const field = FIELD_LABELS[item.field_name] || item.field_name;
         if (item.field_name === 'pd_consent_at') {
-          return item.new_value ? 'Подтверждено согласие на обработку персональных данных' : `Изменено: ${field}`;
+          return item.new_value ? 'Отмечено, что работник уведомлён об обработке персональных данных' : `Изменено: ${field}`;
         }
         if (REFERENCE_FIELDS.has(item.field_name)) {
           return `Изменено: ${field}`;

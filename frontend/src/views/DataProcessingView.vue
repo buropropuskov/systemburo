@@ -2,7 +2,7 @@
   <section class="data-processing">
     <header class="dp-header">
       <h1 class="dp-title">
-        Согласие на обработку персональных данных
+        Обработка персональных данных
       </h1>
       <button
         v-if="meta"
