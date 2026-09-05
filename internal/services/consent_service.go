@@ -21,6 +21,7 @@ type ConsentService interface {
 	List(ctx context.Context, userID int) ([]models.PDConsent, error)
 	HasActive(ctx context.Context, userID int, consentType string) (bool, error)
 	ActiveVersion(ctx context.Context, userID int, consentType string) (int, error)
+	IsRevoked(ctx context.Context, userID int) (bool, error)
 }
 
 type consentService struct {
@@ -124,4 +125,40 @@ func (s *consentService) HasActive(ctx context.Context, userID int, consentType 
 		return false, err
 	}
 	return count > 0, nil
+}
+
+
+// IsRevoked сообщает, отозвал ли работник согласие на обработку своих данных.
+//
+// Отзыв и отсутствие согласия - разные состояния, и различать их обязательно.
+// Новый работник согласия ещё не давал: его карточку заводят и правят обычным
+// порядком. Отозвавший согласие - другое дело: обработка по прежним целям
+// прекращена, и данные с этого момента только хранятся. По закону это называется
+// блокированием, и правка данных в таком состоянии недопустима (#2361).
+//
+// Новое согласие снимает блокирование само: появляется действующая запись, и
+// функция возвращает false, ничего дополнительно отменять не требуется.
+func consentRevoked(ctx context.Context, db *gorm.DB, userID int) (bool, error) {
+	var active int64
+	if err := db.WithContext(ctx).Model(&models.PDConsent{}).
+		Where("user_id = ? AND granted = ? AND revoked_at IS NULL", userID, true).
+		Count(&active).Error; err != nil {
+		return false, err
+	}
+	if active > 0 {
+		return false, nil
+	}
+
+	var revoked int64
+	if err := db.WithContext(ctx).Model(&models.PDConsent{}).
+		Where("user_id = ? AND revoked_at IS NOT NULL", userID).
+		Count(&revoked).Error; err != nil {
+		return false, err
+	}
+	return revoked > 0, nil
+}
+
+// IsRevoked - тот же вопрос через сервис, для вызывающих за пределами пакета.
+func (s *consentService) IsRevoked(ctx context.Context, userID int) (bool, error) {
+	return consentRevoked(ctx, s.db, userID)
 }
