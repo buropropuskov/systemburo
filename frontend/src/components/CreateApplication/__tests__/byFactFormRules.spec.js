@@ -54,16 +54,15 @@ describe('форма подачи: правила машины «По факту
     ).toBe(true);
   });
 
-  it('период длиннее дня подсвечивается ошибкой у поля дат', () => {
+  it('предупреждение о периоде идёт в общую панель формы', () => {
     const src = читать('CreateApplication.vue');
 
     expect(
-      /currentAttachmentErrors\(\)[\s\S]{0,400}byFactPending \|\| hasByFactVehicle\(this\.vehicles\)/.test(src),
-      'ошибка периода должна учитывать и включённый тумблер, и уже добавленные машины',
+      /warningGroups\(\)[\s\S]{0,300}byFactPending \|\| hasByFactVehicle\(this\.vehicles\)/.test(src),
+      'правило должно учитывать и включённый тумблер, и уже добавленные машины',
     ).toBe(true);
-    // Красными становятся оба поля периода: ошибка только у «по» читалась как
-    // претензия к одной дате, хотя не годится сам диапазон.
-    expect(/endDate: BY_FACT_ONE_DAY_HINT, startDate: BY_FACT_ONE_DAY_HINT/.test(src)).toBe(true);
+    expect(src, 'панель должна получать группы из warningGroups').toContain(':groups="warningGroups"');
+    expect(src, 'предупреждение собирается общей функцией').toContain('byFactWarningGroup()');
   });
 
   it('тексты правил не пустые и объясняют, а не просто запрещают', () => {
