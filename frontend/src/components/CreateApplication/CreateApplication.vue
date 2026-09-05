@@ -528,6 +528,7 @@ export default {
     },
     data() {
         return {
+            byFactPending: false,
             message: '',
             // Файлы, приложенные к заявке (#1721). Наверх приходят id уже
             // загруженных черновиков: подача привязывает их к заявке.
@@ -547,7 +548,6 @@ export default {
             // с /data-processing (там <embed> PDF на мобилке не рендерится).
             showConsentModal: false,
             applicationNumber: 1,
-
             allUnloadingPlaces: [],
 
             // Места разгрузки на уровне заявки (#706): единый выбор, синхронизируется
