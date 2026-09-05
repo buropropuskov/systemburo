@@ -68,7 +68,7 @@ var listExecRegistry = map[string]listExecSchema{
 				args: []any{workNameFieldPattern},
 			},
 			"responsible": {expr: "COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ru.last_name, ru.first_name, ru.middle_name)), ''), '') " +
-				"|| CASE WHEN COALESCE(ru.phone, '') <> '' THEN ', тел. ' || ru.phone ELSE '' END"},
+				"|| CASE WHEN COALESCE(ru.phone, '') <> '' THEN ', ' || ru.phone ELSE '' END"},
 			"work_period": {expr: "CASE WHEN COALESCE(att.entry_date_from, att.entry_date_to, '') = '' THEN '' " +
 				"ELSE COALESCE(att.entry_date_from, '') || ' - ' || COALESCE(att.entry_date_to, '') END"},
 			"work_time": {expr: "CASE WHEN COALESCE(att.entry_time_from, att.entry_time_to, '') = '' THEN '' " +
@@ -189,7 +189,7 @@ const responsibleMaskedExpr = `CASE
 		WHERE c.user_id = ru.id AND c.consent_type = 'pd_processing'
 		  AND c.granted = true AND c.revoked_at IS NULL
 	) THEN COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ru.last_name, ru.first_name, ru.middle_name)), ''), '')
-		|| CASE WHEN COALESCE(ru.phone, '') <> '' THEN ', тел. ' || ru.phone ELSE '' END
+		|| CASE WHEN COALESCE(ru.phone, '') <> '' THEN ', ' || ru.phone ELSE '' END
 	ELSE '@' || COALESCE(ru.username, '')
 END`
 

@@ -1,3 +1,5 @@
+import { formatRussianPhoneForDisplay } from '@/composables/useRussianPhoneMask';
+
 /**
  * Контракт колонок агрегатного отчёта (движок отчётов, #1240) в одном месте:
  * таблица на экране и выгрузка Excel/PDF читают значения одинаково и не разъедутся.
@@ -43,6 +45,12 @@ export function metricValue(bucket, floatBucket, col) {
   return isDerivedColumn(col) ? null : 0;
 }
 
+
+// Кусок текста, похожий на номер: цифры с разделителями подряд, не меньше десяти
+// символов. Точка в разделители намеренно не входит - иначе «15.08.2026 - 31.08.2026»
+// читалось бы как один номер; всё лишнее, что сюда попадёт, отсеет проверка маски.
+const PHONE_CHUNK = /[+\d][\d\s()-]{8,}\d/g;
+
 /**
  * Длина значения, после которой колонка считается «широкой» и получает перенос.
  * Планка снята с самой длинной короткой ячейки отчётов: «15.08.2026 - 31.08.2026».
@@ -61,4 +69,20 @@ export const TIGHT_COLUMN_MAX_LEN = 24;
  */
 export function isTightColumnValues(values, maxLen = TIGHT_COLUMN_MAX_LEN) {
   return values.every((v) => String(v ?? '').length <= maxLen);
+}
+
+/**
+ * Телефон внутри текстовой ячейки — в общую маску сайта. Движок склеивает
+ * ответственного как «Фамилия Имя, 89100530055», формата номера он не знает, а на
+ * экране и в выгрузке номер должен выглядеть так же, как в карточке заявки (#2336).
+ * Не номер (короткий, добавочный, иностранный) `formatRussianPhoneForDisplay`
+ * возвращает как есть.
+ *
+ * @param {string|number|null|undefined} value значение ячейки
+ * @returns {string} текст с отформатированными номерами
+ */
+export function formatPhonesInText(value) {
+  const text = String(value ?? '');
+  if (!text) return text;
+  return text.replace(PHONE_CHUNK, (chunk) => formatRussianPhoneForDisplay(chunk) || chunk);
 }

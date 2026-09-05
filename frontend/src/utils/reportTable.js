@@ -3,7 +3,7 @@
  * периода. Общая часть Excel- и PDF-выгрузок: обе печатают одни и те же данные.
  */
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
-import { isDurationColumn, metricValue } from '@/utils/reportColumns';
+import { isDurationColumn, metricValue, formatPhonesInText } from '@/utils/reportColumns';
 
 // Значение колонки строки/итогов по общему контракту колонок (тому же, что у таблицы
 // на экране). Длительность выгружаем в читаемом виде («2 ч 15 мин»), иначе в файле
@@ -87,7 +87,7 @@ export function reportToTable(result) {
 function cellValue(value, type) {
   if (value === null || value === undefined || value === '') return '';
   if (typeof value === 'number') return value;
-  return formatReportCell(value, type);
+  return formatPhonesInText(formatReportCell(value, type));
 }
 
 // Даты, реально попавшие в выгрузку строк: движок отдаёт их ISO-строками, причём
