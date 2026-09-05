@@ -47,6 +47,7 @@ type StatisticsService interface {
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
 	RunReport(ctx context.Context, req models.ReportRequest) (*models.ReportResponse, error)
 	RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error)
+	ReportDataPeriod(ctx context.Context, req models.ReportRequest) (*models.ReportDataPeriod, error)
 
 	GetInsights(ctx context.Context, from, to string) (*models.InsightsResponse, error)
 

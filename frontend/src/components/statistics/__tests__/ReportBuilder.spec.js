@@ -3,6 +3,10 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
+// Границы дат «Весь период» мастер спрашивает у бэкенда (#2341).
+const { getReportDataPeriod } = vi.hoisted(() => ({ getReportDataPeriod: vi.fn(() => Promise.resolve({ from: '', to: '' })) }));
+vi.mock('@/api/statistics', () => ({ getReportDataPeriod }));
+
 import ReportBuilder from '../ReportBuilder.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
@@ -687,5 +691,46 @@ describe('ReportBuilder — мобильная адаптивность (#1097 r
     const narrow = pickerSrc.slice(pickerSrc.indexOf('@media (max-width: 480px)'));
     expect(narrow).toContain('.rb__metrics');
     expect(narrow).toMatch(/grid-template-columns:\s*1fr/);
+  });
+});
+
+describe('ReportBuilder — «Весь период» подставляет даты (#2341)', () => {
+  const openPeriodStep = async (w) => {
+    const step = w.findAll('.rb__step').find((s) => /Период/.test(s.text()));
+    const head = step.find('.rb__step-head');
+    if (head.exists()) await head.trigger('click');
+    return w;
+  };
+
+  const clickWholePeriod = async (w) => {
+    const pill = w.findAll('.rb__period-presets .rb__pill').find((b) => b.text().includes('Весь период'));
+    await pill.trigger('click');
+    await flushPromises();
+    await nextTick();
+  };
+
+  it('границы приходят с бэкенда и попадают в поля периода', async () => {
+    getReportDataPeriod.mockImplementation(() => Promise.resolve({ from: '2026-04-09', to: '2026-09-05' }));
+    const w = mount(ReportBuilder, { props: { catalog: CATALOG, period: { from: '', to: '' } } });
+    await nextTick();
+    await openPeriodStep(w);
+    await clickWholePeriod(w);
+
+    expect(getReportDataPeriod).toHaveBeenCalledWith({ mode: 'aggregate', metric: 'car_entries_count' });
+    const dateFilter = w.findComponent(DateFilter);
+    expect(dateFilter.props('dateRangeStart')).toEqual(new Date(2026, 3, 9));
+    expect(dateFilter.props('dateRangeEnd')).toEqual(new Date(2026, 8, 5));
+  });
+
+  it('данных нет — поля остаются пустыми, отчёт строится без ограничения по датам', async () => {
+    getReportDataPeriod.mockImplementation(() => Promise.resolve({ from: '', to: '' }));
+    const w = mount(ReportBuilder, { props: { catalog: CATALOG, period: { from: '2026-08-31', to: '2026-09-05' } } });
+    await nextTick();
+    await openPeriodStep(w);
+    await clickWholePeriod(w);
+
+    const dateFilter = w.findComponent(DateFilter);
+    expect(dateFilter.props('dateRangeStart')).toBeNull();
+    expect(dateFilter.props('dateRangeEnd')).toBeNull();
   });
 });

@@ -259,6 +259,25 @@ export async function runReport(request) {
 }
 
 /**
+ * Границы дат, доступные отчёту: самая ранняя и самая поздняя дата по его оси
+ * времени - той же, по которой сужает фильтр периода. Пустые строки - данных нет
+ * или у отчёта нет оси (например, список машин).
+ *
+ * @param {{mode?: 'aggregate'|'list', metric?: string, entity?: string}} params
+ * @returns {Promise<{from: string, to: string}>}
+ */
+export async function getReportDataPeriod(params = {}) {
+  const query = new URLSearchParams();
+  for (const key of ['mode', 'metric', 'entity']) {
+    if (params[key]) query.set(key, params[key]);
+  }
+  const res = await apiRequest(`/statistics/report/period?${query.toString()}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Не удалось определить границы дат');
+  return data;
+}
+
+/**
  * @typedef {object} ReportTemplate
  * @property {number} id
  * @property {string} name

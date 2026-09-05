@@ -332,6 +332,40 @@ func (h *StatisticsHandler) RunReport(c echo.Context) error {
 	}
 }
 
+// ReportDataPeriod godoc
+// @Summary      Границы дат отчёта
+// @Description  Самая ранняя и самая поздняя дата по оси времени отчёта - той же, по которой сужает фильтр периода. Пустые границы: данных нет или у отчёта нет оси времени.
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        mode query string false "aggregate (по умолчанию) или list"
+// @Param        metric query string false "Ключ метрики (mode=aggregate)"
+// @Param        entity query string false "Ключ сущности (mode=list)"
+// @Success      200 {object} Response
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/report/period [get]
+func (h *StatisticsHandler) ReportDataPeriod(c echo.Context) error {
+	req := models.ReportRequest{
+		Mode:   c.QueryParam("mode"),
+		Metric: c.QueryParam("metric"),
+		Entity: c.QueryParam("entity"),
+	}
+	if req.Mode == "" {
+		req.Mode = "aggregate"
+	}
+	if req.Mode != "aggregate" && req.Mode != "list" {
+		return echo.NewHTTPError(http.StatusBadRequest, "unsupported report mode")
+	}
+
+	res, err := h.service.ReportDataPeriod(c.Request().Context(), req)
+	if err != nil {
+		return mapReportError(err)
+	}
+	return RespondSuccess(c, res)
+}
+
 // mapReportError маппит ошибку движка отчётов в HTTP. Невалидный запрос (неизвестная
 // метрика/разрез/сущность/фильтр) -> generic 400 без эха пользовательского ввода.
 func mapReportError(err error) error {

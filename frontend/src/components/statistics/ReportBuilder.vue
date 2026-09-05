@@ -330,6 +330,7 @@ import ReportMetricPicker from './ReportMetricPicker.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import { buildReportRequest, defaultReportLimit, MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
 import { formatDateRu } from '@/utils/datetime';
+import { computePeriodRange, dateToIso, isoToDate, fetchReportPeriodBounds } from '@/utils/reportPeriod';
 
 const props = defineProps({
   catalog: { type: Object, required: true },
@@ -372,6 +373,9 @@ const periodPresets = [
   { key: 'all', label: 'Весь период' },
 ];
 const activePeriodPreset = ref('');
+// Пока запрос границ летит, пользователь может выбрать другой период - отбрасываем
+// ответ устаревшего запроса по номеру.
+let wholePeriodSeq = 0;
 
 const filterByKey = computed(() => {
   const map = {};
@@ -684,44 +688,25 @@ function toggleFilter(key, value) {
   form.filters = { ...form.filters, [key]: current };
 }
 
-/**
- * Диапазон дат для пресета периода. «all» -> пустой диапазон (весь период).
- * @param {'week'|'month'|'year'|'all'} kind
- * @returns {{from: string, to: string}}
- */
-function computePeriod(kind) {
-  if (kind === 'all') return { from: '', to: '' };
-  const now = new Date();
-  const to = dateToIso(now);
-  if (kind === 'week') {
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Пн = начало недели
-    return { from: dateToIso(monday), to };
-  }
-  if (kind === 'month') return { from: dateToIso(new Date(now.getFullYear(), now.getMonth(), 1)), to };
-  if (kind === 'year') return { from: dateToIso(new Date(now.getFullYear(), 0, 1)), to };
-  return { from: '', to: '' };
-}
-
 function applyPeriodPreset(kind) {
-  const range = computePeriod(kind);
+  const range = computePeriodRange(kind);
   form.period.from = range.from;
   form.period.to = range.to;
   activePeriodPreset.value = kind;
-}
-
-// Период хранится в form как ISO YYYY-MM-DD (формат бэка), а DateFilter работает с
-// Date-объектами в локальной зоне. Разбираем/собираем по календарным частям, не через
-// toISOString, чтобы не словить сдвиг даты на границе суток.
-function dateToIso(dt) {
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-}
-
-function isoToDate(iso) {
-  if (!iso) return null;
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
+  // «Весь период» показываем датами: пустой календарь читался как «фильтр не
+  // применился» (#2341). Границы знает только бэкенд, подсветку пресета не трогаем -
+  // изменилось лишь представление выбора, а не сам выбор.
+  if (kind !== 'all') return;
+  const seq = ++wholePeriodSeq;
+  const params = form.mode === 'list'
+    ? { mode: 'list', entity: form.entity }
+    : { mode: 'aggregate', metric: form.metrics[0] || '' };
+  fetchReportPeriodBounds(params)
+    .then((bounds) => {
+      if (!bounds || seq !== wholePeriodSeq || activePeriodPreset.value !== 'all') return;
+      form.period.from = bounds.from;
+      form.period.to = bounds.to;
+    });
 }
 
 const periodStartDate = computed(() => isoToDate(form.period.from));
