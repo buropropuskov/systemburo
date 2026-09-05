@@ -132,9 +132,10 @@ export function isWithinByFactDeadline(isoDate, now = serverNow()) {
  * @param {{date_from?: string, date_to?: string}|null} period срок вложения
  * @param {Array} vehicles машины вложения
  * @param {boolean} pending включён ли тумблер «по факту» в форме
+ * @param {Date} [now] момент отсчёта - без него проверка зависела бы от дня прогона
  * @returns {boolean}
  */
-export function byFactPeriodBroken(period, vehicles, pending) {
+export function byFactPeriodBroken(period, vehicles, pending, now = serverNow()) {
   if (!pending && !hasByFactVehicle(vehicles)) return false;
-  return !isOneDayPeriod(period);
+  return !isOneDayPeriod(period, now);
 }

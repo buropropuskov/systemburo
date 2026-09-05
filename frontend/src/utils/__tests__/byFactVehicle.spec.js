@@ -104,18 +104,18 @@ describe('byFactPeriodBroken', () => {
   const близко = { date_from: '2026-09-05', date_to: '2026-09-06' };
 
   it('без машины «По факту» и выключенного тумблера правило молчит', () => {
-    expect(byFactPeriodBroken(далеко, [{ plateNumber: 'A123AA777' }], false)).toBe(false);
+    expect(byFactPeriodBroken(далеко, [{ plateNumber: 'A123AA777' }], false, вечер)).toBe(false);
   });
 
   it('включённый тумблер поднимает правило ещё до добавления машины', () => {
-    expect(byFactPeriodBroken(далеко, [], true)).toBe(true);
+    expect(byFactPeriodBroken(далеко, [], true, вечер)).toBe(true);
   });
 
   it('уже добавленная машина поднимает правило и без тумблера', () => {
-    expect(byFactPeriodBroken(далеко, [{ plateNumber: 'По факту' }], false)).toBe(true);
+    expect(byFactPeriodBroken(далеко, [{ plateNumber: 'По факту' }], false, вечер)).toBe(true);
   });
 
   it('срок в пределах крайней даты правило не нарушает', () => {
-    expect(byFactPeriodBroken(близко, [{ plateNumber: 'По факту' }], true)).toBe(false);
+    expect(byFactPeriodBroken(близко, [{ plateNumber: 'По факту' }], true, вечер)).toBe(false);
   });
 });
