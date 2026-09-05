@@ -685,3 +685,38 @@ describe('ReportResult — разбор результата (#2309)', () => {
     expect(wrapper.findComponent(areaStub).props('tension')).toBe(0);
   });
 });
+
+describe('ReportResult — шапка и сортировка как в Центре заявок (#2336)', () => {
+  const listResult = {
+    mode: 'list',
+    columns: [
+      { key: 'number', label: 'Номер заявки' },
+      { key: 'responsible', label: 'Ответственный' },
+    ],
+    rows: [
+      { number: '2026-001', responsible: 'Мякотных Сергей Михайлович, 89997773443' },
+      { number: '2026-002', responsible: '' },
+    ],
+    total: 2,
+  };
+
+  it('активный столбец подсвечен, значок сортировки разворачивается при обратном порядке', async () => {
+    const w = mountResult(listResult);
+    const head = w.findAll('.rr__table thead th')[0];
+    expect(w.find('.rr__sort-icon--on').exists()).toBe(false);
+
+    await head.trigger('click');
+    expect(head.find('.rr__th-active').exists()).toBe(true);
+    expect(head.find('.rr__sort-icon--on').exists()).toBe(true);
+    expect(head.find('.rr__sort-icon--desc').exists()).toBe(false);
+
+    await head.trigger('click');
+    expect(head.find('.rr__sort-icon--desc').exists()).toBe(true);
+  });
+
+  it('телефон ответственного показывается в общей маске сайта', () => {
+    const w = mountResult(listResult);
+    const cells = w.findAll('.rr__table tbody tr')[0].findAll('td');
+    expect(cells[1].text()).toBe('Мякотных Сергей Михайлович, +7 (999) 777 34-43');
+  });
+});

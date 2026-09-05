@@ -170,7 +170,14 @@
                 :aria-sort="ariaSort(LABEL_KEY)"
                 @click="toggleSort(LABEL_KEY)"
               >
-                {{ dimensionHeader }}<span class="rr__sort">{{ sortMark(LABEL_KEY) }}</span>
+                <span class="rr__th-inner">
+                  <span :class="{ 'rr__th-active': isSorted(LABEL_KEY) }">{{ dimensionHeader }}</span>
+                  <AppIcon
+                    name="sort"
+                    class="rr__sort-icon"
+                    :class="sortIconClass(LABEL_KEY)"
+                  />
+                </span>
               </th>
               <th
                 v-for="col in aggColumns"
@@ -179,7 +186,14 @@
                 :aria-sort="ariaSort(col.key)"
                 @click="toggleSort(col.key)"
               >
-                {{ col.label }}{{ col.unit ? `, ${col.unit}` : '' }}<span class="rr__sort">{{ sortMark(col.key) }}</span>
+                <span class="rr__th-inner">
+                  <span :class="{ 'rr__th-active': isSorted(col.key) }">{{ col.label }}{{ col.unit ? `, ${col.unit}` : '' }}</span>
+                  <AppIcon
+                    name="sort"
+                    class="rr__sort-icon"
+                    :class="sortIconClass(col.key)"
+                  />
+                </span>
               </th>
             </tr>
           </thead>
@@ -265,11 +279,18 @@
                 v-for="col in (result.columns || [])"
                 :key="col.key"
                 class="rr__th--sortable"
-                :class="{ 'rr__tight': isTightCol(col) }"
+                :class="{ 'rr__tight': isTightCol(col), 'rr__th-wrap': isWrapHeader(col) }"
                 :aria-sort="ariaSort(col.key)"
                 @click="toggleSort(col.key)"
               >
-                {{ listHeader(col) }}<span class="rr__sort">{{ sortMark(col.key) }}</span>
+                <span class="rr__th-inner">
+                  <span :class="{ 'rr__th-active': isSorted(col.key) }">{{ listHeader(col) }}</span>
+                  <AppIcon
+                    name="sort"
+                    class="rr__sort-icon"
+                    :class="sortIconClass(col.key)"
+                  />
+                </span>
               </th>
             </tr>
           </thead>
@@ -328,13 +349,14 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
 import AnalyticsDonutChart from './AnalyticsDonutChart.vue';
 import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport, exportChartPng } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
-import { isDurationColumn, metricValue, isTightColumnValues } from '@/utils/reportColumns';
+import { isDurationColumn, metricValue, isTightColumnValues, formatPhonesInText } from '@/utils/reportColumns';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -398,9 +420,17 @@ function toggleSort(key) {
   sort.value = sort.value.key === key ? { key, dir: -sort.value.dir } : { key, dir: 1 };
 }
 
-function sortMark(key) {
-  if (sort.value.key !== key) return '';
-  return sort.value.dir > 0 ? ' ↑' : ' ↓';
+function isSorted(key) {
+  return sort.value.key === key;
+}
+
+// Значок сортировки такой же, как в Центре заявок: активный столбец подсвечен,
+// обратный порядок - тот же значок, повёрнутый на 180 градусов.
+function sortIconClass(key) {
+  return {
+    'rr__sort-icon--on': isSorted(key),
+    'rr__sort-icon--desc': isSorted(key) && sort.value.dir < 0,
+  };
 }
 
 function ariaSort(key) {
@@ -496,12 +526,34 @@ function isTightCol(col) {
   return tightListColumns.value.has(col.key);
 }
 
-// Заголовок узкой колонки переносится только по пробелам: «Кол-во людей» рвался и
-// после дефиса, вставая в три строки в колонке шириной с одну цифру. U+2060 -
-// невидимый запрет разрыва, глифа в шрифте не требует.
-function listHeader(col) {
-  return isTightCol(col) ? String(col.label ?? '').replace(/-/g, '-\u2060') : col.label;
+/*
+ * Заголовок узкой колонки переносим, только когда он сам длиннее её значений: «Кол-во
+ * людей» над столбцом с одной цифрой иначе требует 140px, а «Номер заявки» над
+ * «№ 20260815/001» от переноса лишь встаёт в два этажа - в Центре заявок шапка идёт
+ * одной строкой, и здесь она должна выглядеть так же (#2336).
+ */
+const wrapHeaderColumns = computed(() => {
+  const r = props.result;
+  const set = new Set();
+  if (r?.mode === 'aggregate' || !Array.isArray(r?.rows) || !r.rows.length) return set;
+  for (const col of (r.columns || [])) {
+    if (!tightListColumns.value.has(col.key)) continue;
+    const valueLen = r.rows.reduce((max, row) => Math.max(max, formatCell(row[col.key], col.type).length), 0);
+    if (String(col.label ?? '').length > valueLen) set.add(col.key);
+  }
+  return set;
+});
+
+function isWrapHeader(col) {
+  return wrapHeaderColumns.value.has(col.key);
 }
+
+// Переносимый заголовок рвётся только по пробелам: «Кол-во людей» иначе разваливается
+// после дефиса на три этажа. U+2060 невидим и глифа в шрифте не требует.
+function listHeader(col) {
+  return isWrapHeader(col) ? String(col.label ?? '').replace(/-/g, '-\u2060') : col.label;
+}
+
 
 // График рисует одну серию — берём выбранную метрику-колонку.
 const chartColumn = computed(
@@ -604,7 +656,7 @@ function formatNumber(value, float) {
 
 function formatCell(value, type) {
   if (value === null || value === undefined || value === '') return '—';
-  return formatReportCell(value, type);
+  return formatPhonesInText(formatReportCell(value, type));
 }
 </script>
 
@@ -740,18 +792,52 @@ function formatCell(value, type) {
   font-size: 13px;
 }
 
+/* Шапка - как в Центре заявок: обычный вес, приглушённый цвет, подсветка активного
+   столбца и значок сортировки рядом с подписью (#2336). Размер на пункт меньше
+   центрового: тело таблицы отчёта тоже 13px. */
 .rr__table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
   background: var(--color-bg);
   text-align: left;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--color-text-muted);
   padding: 10px 14px;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
+  transition: color 0.2s ease;
+}
+
+.rr__th-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rr__table thead th.rr__num .rr__th-inner {
+  justify-content: flex-end;
+}
+
+.rr__th-active {
+  color: var(--color-text);
+}
+
+.rr__sort-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.rr__sort-icon--on {
+  color: var(--color-text);
+}
+
+.rr__sort-icon--desc {
+  transform: rotate(180deg);
 }
 
 /* Числовой заголовок выравниваем вправо вслед за ячейками: у `.rr__table thead th`
@@ -761,10 +847,14 @@ function formatCell(value, type) {
   text-align: right;
 }
 
-/* Узкая колонка: width:1% + nowrap = ширина по содержимому. Заголовку, наоборот,
-   разрешаем перенос — «Кол-во людей» в одну строку диктовал колонке лишние 40px. */
+/* Узкая колонка: width:1% + nowrap = ширина по содержимому. Шапка по умолчанию идёт
+   одной строкой, как в Центре заявок; перенос получает только заголовок, который сам
+   шире своих значений (#2336). */
 .rr__table th.rr__tight {
   width: 1%;
+}
+
+.rr__table th.rr__th-wrap {
   white-space: normal;
 }
 
@@ -812,12 +902,10 @@ function formatCell(value, type) {
   cursor: pointer;
   user-select: none;
 }
-.rr__th--sortable:hover {
-  color: var(--color-primary);
-}
-.rr__sort {
-  font-size: 11px;
-  opacity: 0.8;
+
+.rr__th--sortable:hover,
+.rr__th--sortable:hover .rr__sort-icon {
+  color: var(--color-text);
 }
 
 .rr__norows {

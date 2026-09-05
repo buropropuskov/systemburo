@@ -355,4 +355,14 @@ describe('useReportExport — выгрузка строк и период (#2332
     expect(body[2][1].text).toBe('2\u00A0ч\u00A030\u00A0мин'); // строка итогов
     clickSpy.mockRestore();
   });
+
+  it('телефон в выгрузке идёт в той же маске, что и на экране (#2336)', () => {
+    const t = reportToTable({
+      mode: 'list',
+      columns: [{ key: 'responsible', label: 'Ответственный' }],
+      rows: [{ responsible: 'Системный администратор, 89100530055' }],
+      total: 1,
+    });
+    expect(t.rows[0][0]).toBe('Системный администратор, +7 (910) 053 00-55');
+  });
 });
