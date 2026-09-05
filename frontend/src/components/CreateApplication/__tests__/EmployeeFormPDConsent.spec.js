@@ -44,7 +44,7 @@ describe('EmployeeForm - согласие субъекта на обработк
     const w = await mountForm();
 
     expect(w.vm.canAddEmployee).toBe(false);
-    expect(w.vm.getTooltipMessage).toContain('согласие');
+    expect(w.vm.getTooltipMessage).toContain('уведомлён об обработке персональных данных');
 
     await w.find('[data-testid="employee-pd-consent"]').setValue(true);
     expect(w.vm.canAddEmployee).toBe(true);

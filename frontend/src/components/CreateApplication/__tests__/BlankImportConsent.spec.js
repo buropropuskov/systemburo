@@ -77,7 +77,7 @@ describe('BlankImportResult - согласие субъекта на весь с
 
     expect(submitDisabled(w)).toBe(true);
     expect(w.find('[data-testid="bim-submit-hint"]').attributes('data-hint'))
-      .toContain('Отметьте согласие');
+      .toContain('уведомлены об обработке персональных данных');
   });
 
   it('отметка включает кнопку и уходит к строкам общим патчем', async () => {

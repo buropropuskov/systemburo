@@ -44,7 +44,7 @@ describe('EmployeeEditModal - согласие субъекта на обраб�
     await fill(wrapper);
 
     expect(wrapper.vm.canSaveEmployee).toBe(false);
-    expect(wrapper.vm.saveEmployeeHint).toContain('согласие');
+    expect(wrapper.vm.saveEmployeeHint).toContain('уведомлён об обработке персональных данных');
 
     await wrapper.find('[data-testid="employee-registry-pd-consent"]').setValue(true);
     expect(wrapper.vm.canSaveEmployee).toBe(true);
