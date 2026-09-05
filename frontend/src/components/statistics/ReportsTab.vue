@@ -473,19 +473,17 @@ async function scrollToResult() {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 16px;
-  align-items: start;
 }
 
+/* Колонка наборов прокручивается вместе со страницей. Липкой она была в #2296 и
+   вела себя рвано: список выше окна, поэтому залипал уже прокрученным - его верх
+   было не достать, а мастер рядом продолжал ехать (#2332). */
 .presets-col {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  position: sticky;
-  top: 0;
   align-self: start;
-  /* Непрозрачный фон обязателен: под липкой колонкой проезжает конструктор. */
-  background: var(--surface);
 }
 
 .col-heading {
@@ -660,10 +658,6 @@ async function scrollToResult() {
 }
 
 @media (max-width: 880px) {
-  .presets-col {
-    position: static;
-  }
-
   .reports-layout {
     grid-template-columns: 1fr;
   }

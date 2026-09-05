@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { reportToTable, computeColumnWidths, useReportExport } from '../useReportExport';
+import { useReportExport } from '../useReportExport';
+import { reportToTable, computeColumnWidths } from '@/utils/reportTable';
 
 // PDF-ветку тестируем с мок-pdfmake: проверяем, что формат 'pdf' строит документ
 // через pdfmake (vfs + createPdf) и инициирует скачивание - без реального браузера.
@@ -164,6 +165,16 @@ describe('computeColumnWidths', () => {
   });
 });
 
+// Узкая таблица центрируется распорками, поэтому нода таблицы лежит внутри columns.
+function findTableNode(nodes) {
+  for (const node of nodes || []) {
+    if (node?.table) return node;
+    const nested = findTableNode(node?.columns);
+    if (nested) return nested;
+  }
+  return null;
+}
+
 describe('useReportExport — PDF-экспорт', () => {
   it('формат pdf строит документ через pdfmake и скачивает файл', async () => {
     const pdfMake = (await import('pdfmake/build/pdfmake')).default;
@@ -184,7 +195,7 @@ describe('useReportExport — PDF-экспорт', () => {
     expect(pdfMake.addVirtualFileSystem).toHaveBeenCalledTimes(1);
     expect(pdfMake.createPdf).toHaveBeenCalledTimes(1);
     const doc = pdfMake.createPdf.mock.calls[0][0];
-    const tableNode = doc.content.find((n) => n.table);
+    const tableNode = findTableNode(doc.content);
     expect(tableNode).toBeTruthy();
     // шапка таблицы и строка данных попали в документ
     expect(tableNode.table.body[0].map((c) => c.text)).toEqual(['Значение разреза', 'Количество, шт']);
@@ -225,6 +236,123 @@ describe('useReportExport — имя файла (#2324)', () => {
     expect(downloadedAs).not.toContain('«');
     expect(downloadedAs).toMatch(/^[\p{L}\p{N}_.-]+$/u);
 
+    clickSpy.mockRestore();
+  });
+});
+
+describe('useReportExport — выгрузка строк и период (#2332)', () => {
+  it('list: числа остаются числами, текст форматируется', () => {
+    const t = reportToTable({
+      mode: 'list',
+      columns: [
+        { key: 'number', label: 'Номер' },
+        { key: 'period', label: 'Период работ', type: 'date' },
+        { key: 'people_count', label: 'Кол-во людей' },
+      ],
+      rows: [{ number: 'A-1', period: '2026-06-20 - 2026-06-21', people_count: 12 }],
+      total: 1,
+    });
+    // число числом: строкой Excel ругается «число сохранено как текст»
+    expect(t.rows[0][2]).toBe(12);
+    expect(t.rows[0][1]).toBe('20.06.2026 - 21.06.2026');
+  });
+
+  it('период не задан фильтром -> шапка называет даты, попавшие в отчёт', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exportReport } = useReportExport();
+    await exportReport({
+      mode: 'list',
+      columns: [{ key: 'period', label: 'Период работ', type: 'date' }],
+      rows: [{ period: '2026-06-20 - 2026-06-21' }, { period: '2026-04-02 - 2026-04-03' }],
+      total: 2,
+    }, { title: 'Проведение работ' }, 'pdf');
+
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    expect(doc.content[1].text).toBe('Период: 02.04.2026 - 21.06.2026');
+    clickSpy.mockRestore();
+  });
+
+  it('дат в отчёте нет -> остаётся «весь период»', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exportReport } = useReportExport();
+    await exportReport({
+      mode: 'list',
+      columns: [{ key: 'car_number', label: 'Гос. номер' }],
+      rows: [{ car_number: 'А123ВС' }],
+      total: 1,
+    }, { title: 'Машины по местам' }, 'pdf');
+
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    expect(doc.content[1].text).toBe('Период: весь период');
+    clickSpy.mockRestore();
+  });
+
+  it('pdf: узкие колонки получают ширину под содержимое, длинный текст — долю остатка', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exportReport } = useReportExport();
+    await exportReport({
+      mode: 'list',
+      columns: [
+        { key: 'number', label: 'Номер заявки' },
+        { key: 'name', label: 'Наименование работ' },
+        { key: 'people_count', label: 'Кол-во людей' },
+      ],
+      rows: [
+        { number: '№ 20260815/001', name: 'Монтаж приточной вентиляции в помещении склада', people_count: 12 },
+      ],
+      total: 1,
+    }, { title: 'Проведение работ' }, 'pdf');
+
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    const { widths, body } = findTableNode(doc.content).table;
+    expect(typeof widths[0]).toBe('number');
+    expect(widths[1]).toBe('*');
+    expect(typeof widths[2]).toBe('number');
+    // Выгрузка строк выравнивается сплошным левым — как таблица на экране.
+    expect(body[1].map((c) => c.alignment)).toEqual(['left', 'left', 'left']);
+    // Значение узкой колонки не рвётся по пробелу.
+    expect(body[1][0].text).toBe('№\u00A020260815/001');
+    clickSpy.mockRestore();
+  });
+
+  it('pdf: строка итогов узкой колонки не рвётся по пробелу наравне со строками', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exportReport } = useReportExport();
+    await exportReport({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [{ key: 'p50_processing', label: 'Медиана обработки', type: 'duration' }],
+      metric_rows: [
+        { label: 'ООО «Очень длинное название организации-подрядчика»', values: { p50_processing: 8100 } },
+      ],
+      totals: { p50_processing: 9000 },
+    }, { title: 'Сроки обработки' }, 'pdf');
+
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    const { widths, body } = findTableNode(doc.content).table;
+    expect(typeof widths[1]).toBe('number'); // длительность — узкая колонка
+    expect(body[1][1].text).toBe('2\u00A0ч\u00A015\u00A0мин');
+    expect(body[2][1].text).toBe('2\u00A0ч\u00A030\u00A0мин'); // строка итогов
     clickSpy.mockRestore();
   });
 });

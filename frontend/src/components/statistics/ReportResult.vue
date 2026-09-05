@@ -265,11 +265,11 @@
                 v-for="col in (result.columns || [])"
                 :key="col.key"
                 class="rr__th--sortable"
-                :class="{ 'rr__num': isNumCol(col) }"
+                :class="{ 'rr__tight': isTightCol(col) }"
                 :aria-sort="ariaSort(col.key)"
                 @click="toggleSort(col.key)"
               >
-                {{ col.label }}<span class="rr__sort">{{ sortMark(col.key) }}</span>
+                {{ listHeader(col) }}<span class="rr__sort">{{ sortMark(col.key) }}</span>
               </th>
             </tr>
           </thead>
@@ -281,7 +281,7 @@
               <td
                 v-for="col in (result.columns || [])"
                 :key="col.key"
-                :class="{ 'rr__num': isNumCol(col) }"
+                :class="{ 'rr__tight': isTightCol(col) }"
               >
                 {{ formatCell(row[col.key], col.type) }}
               </td>
@@ -334,7 +334,7 @@ import AnalyticsDonutChart from './AnalyticsDonutChart.vue';
 import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport, exportChartPng } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
-import { isDurationColumn, metricValue } from '@/utils/reportColumns';
+import { isDurationColumn, metricValue, isTightColumnValues } from '@/utils/reportColumns';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -470,31 +470,37 @@ const chartType = computed(() => {
 
 const dimensionHeader = computed(() => (props.result?.dimension === 'none' ? 'Итог' : 'Значение разреза'));
 
-// Числовые колонки list-таблицы выравниваем вправо (tabular-nums). Тип берём от
-// JSON-значения API (number), а не из col.type (бэк типизирует только date/time)
-// и не из содержимого regex'ом: счётчики (attachments_count, people_count) приходят
-// числами, идентификаторы (номер заявки) — строками и остаются слева. Выравнивание
-// не трансформирует значение, поэтому проверка по typeof здесь безопасна.
-const numericListColumns = computed(() => {
+/*
+ * Колонки list-таблицы с коротким содержимым (номер заявки, даты, время, счётчики)
+ * сжимаем до ширины содержимого и запрещаем в них перенос. Автораскладка иначе делит
+ * ширину между всеми колонками поровну-по-содержимому: «15.08.2026 - 31.08.2026»
+ * ломалось на две строки, а столбец счётчика с одной цифрой занимал 120px под свой
+ * заголовок (#2332). Меряем по тому же тексту, что видит пользователь (formatCell),
+ * а не по сырому значению: дата приходит ISO-строкой, а показывается короче.
+ * Выравнивание list оставляем сплошным левым - строки реестра читаются списком,
+ * одинокая числовая колонка справа выглядела случайной.
+ */
+const tightListColumns = computed(() => {
   const r = props.result;
   if (r?.mode === 'aggregate' || !Array.isArray(r?.rows) || !r.rows.length) return new Set();
+  const columns = r.columns || [];
   const set = new Set();
-  for (const col of (r.columns || [])) {
-    let sawValue = false;
-    let allNumeric = true;
-    for (const row of r.rows) {
-      const v = row[col.key];
-      if (v === null || v === undefined || v === '') continue;
-      sawValue = true;
-      if (typeof v !== 'number') { allNumeric = false; break; }
-    }
-    if (sawValue && allNumeric) set.add(col.key);
+  for (const col of columns) {
+    if (isTightColumnValues(r.rows.map((row) => formatCell(row[col.key], col.type)))) set.add(col.key);
   }
-  return set;
+  // Узкие все — сжимать не от чего: таблица просто съедет влево, оставив пустое поле.
+  return set.size === columns.length ? new Set() : set;
 });
 
-function isNumCol(col) {
-  return numericListColumns.value.has(col.key);
+function isTightCol(col) {
+  return tightListColumns.value.has(col.key);
+}
+
+// Заголовок узкой колонки переносится только по пробелам: «Кол-во людей» рвался и
+// после дефиса, вставая в три строки в колонке шириной с одну цифру. U+2060 -
+// невидимый запрет разрыва, глифа в шрифте не требует.
+function listHeader(col) {
+  return isTightCol(col) ? String(col.label ?? '').replace(/-/g, '-\u2060') : col.label;
 }
 
 // График рисует одну серию — берём выбранную метрику-колонку.
@@ -731,7 +737,7 @@ function formatCell(value, type) {
 .rr__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .rr__table thead th {
@@ -753,6 +759,18 @@ function formatCell(value, type) {
    оставался слева, а числа справа (рассогласование). */
 .rr__table thead th.rr__num {
   text-align: right;
+}
+
+/* Узкая колонка: width:1% + nowrap = ширина по содержимому. Заголовку, наоборот,
+   разрешаем перенос — «Кол-во людей» в одну строку диктовал колонке лишние 40px. */
+.rr__table th.rr__tight {
+  width: 1%;
+  white-space: normal;
+}
+
+.rr__table td.rr__tight {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .rr__table tbody td {
