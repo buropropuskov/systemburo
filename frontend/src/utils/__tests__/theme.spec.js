@@ -274,7 +274,12 @@ describe('оформление: кнопки и теги', () => {
   it('рамка тега цвета текста включается только в тёмной теме', () => {
     // В тёмной приглушённая color-mix-рамка Badge сливалась с подложкой, в светлой
     // она к месту - там вид остаётся прежним.
-    for (const file of ['../../components/ApplicationTag.vue', '../../components/UserApplications.vue']) {
+    //
+    // Файл один: с #2319 теги рисует ApplicationTag и в Центре, и в кабинете. Копия
+    // правила в UserApplications.vue после переезда стала мёртвой - scoped-стиль
+    // родителя достаёт до КОРНЯ дочернего компонента (.application-tags), но не до
+    // .rt-tag внутри него.
+    for (const file of ['../../components/ApplicationTag.vue']) {
       const css = read(file)
       const darkRule = css.match(/\[data-theme="dark"\]\s+\.rt-tag\s*\{([^}]*)\}/)
       expect(darkRule, `${file}: нет правила рамки для тёмной темы`).not.toBeNull()

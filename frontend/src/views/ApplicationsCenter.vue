@@ -846,6 +846,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
 import ApplicationTags from '@/components/ApplicationTags.vue';
+import { observeTagsColumnWidth } from '@/utils/tagsColumnWidth';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
@@ -1413,18 +1414,10 @@ export default {
             this._headerObs.observe(header);
         }
 
-        // Ширина колонки тегов - вход для их свёртки (ApplicationTags). Замеряем
-        // ячейку ШАПКИ: она одна на таблицу и живёт весь срок компонента, а ширину
-        // имеет ту же, что ячейки строк - у шапки и ряда общие padding и gap. Меняется
-        // она и от вьюпорта, и от закрепления нав-меню, поэтому нужен наблюдатель, а
-        // не разовый замер. В карточном режиме шапка скрыта -> ширина 0 -> теги идут
-        // полным текстом, как и задумано для мобилки.
-        if (this.$refs.tagsHeaderCol && typeof ResizeObserver !== 'undefined') {
-            this._tagsColObs = new ResizeObserver(([entry]) => {
-                this.tagsColumnWidth = Math.round(entry.contentRect.width);
-            });
-            this._tagsColObs.observe(this.$refs.tagsHeaderCol);
-        }
+        this._tagsColObs = observeTagsColumnWidth(
+            this.$refs.tagsHeaderCol,
+            (width) => { this.tagsColumnWidth = width; },
+        );
     },
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
@@ -1434,10 +1427,7 @@ export default {
             this._headerObs.disconnect();
             this._headerObs = null;
         }
-        if (this._tagsColObs) {
-            this._tagsColObs.disconnect();
-            this._tagsColObs = null;
-        }
+        this._tagsColObs?.disconnect();
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
         }

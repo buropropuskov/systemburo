@@ -197,7 +197,10 @@
                   }"
                 />
               </div>
-              <div class="header-col tags-col">
+              <div
+                ref="tagsHeaderCol"
+                class="header-col tags-col"
+              >
                 <p>Теги</p>
               </div>
               <div class="header-col actions-col" />
@@ -328,110 +331,11 @@
                         class="application-col tags-col"
                         data-label="Теги"
                       >
-                        <div
-                          v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.has_unseen_questions || pendingApprovalDays(application) !== null"
-                          class="application-tags"
-                          :class="{
-                            'application-tags--both': application.has_roof_access && application.has_free_parking,
-                            'application-tags--chs': blacklistFlagCount(application) > 0
-                          }"
-                        >
-                          <Badge
-                            v-if="pendingApprovalDays(application) !== null"
-                            variant="warning"
-                            size="sm"
-                            class="rt-tag rt-tag--awaiting tag-hint"
-                            :data-hint="pendingApprovalLabel(pendingApprovalDays(application))"
-                          >
-                            <svg
-                              class="rt-tag__icon rt-tag__icon--fixed"
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            ><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                            <span class="rt-tag__text">{{ pendingApprovalShort(pendingApprovalDays(application)) }}</span>
-                          </Badge>
-                          <Badge
-                            v-if="blacklistFlagCount(application) > 0"
-                            variant="danger"
-                            size="sm"
-                            dot
-                            class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
-                            :data-hint="blacklistFlagTitle()"
-                          >
-                            <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
-                          </Badge>
-                          <Badge
-                            v-if="application.has_roof_access"
-                            variant="primary"
-                            size="sm"
-                            class="rt-tag rt-tag--roof tag-hint"
-                            data-hint="Доступ на крышу"
-                          >
-                            <svg
-                              class="rt-tag__icon"
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            ><path d="M3 11l9-7 9 7" /><path d="M5 10v9h14v-9" /></svg>
-                            <span class="rt-tag__text">Крыша</span>
-                          </Badge>
-                          <Badge
-                            v-if="application.has_free_parking"
-                            variant="warning"
-                            size="sm"
-                            class="rt-tag rt-tag--parking tag-hint"
-                            data-hint="Бесплатная парковка"
-                          >
-                            <svg
-                              class="rt-tag__icon"
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2.2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
-                            <span class="rt-tag__text">Парковка</span>
-                          </Badge>
-                          <Badge
-                            v-if="application.has_unseen_questions"
-                            variant="primary"
-                            size="sm"
-                            class="rt-tag rt-tag--questions tag-hint"
-                            data-hint="Есть новые сообщения в обсуждении"
-                            :data-testid="`user-questions-badge-${application.id}`"
-                          >
-                            <svg
-                              class="rt-tag__q-svg"
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            ><path d="M4 5.5h16a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H9.5L5.5 20v-3.5H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z" /></svg>
-                            <span class="rt-tag__text">Обсуждение</span>
-                            <span
-                              class="rt-tag__q-dot"
-                              aria-hidden="true"
-                            />
-                          </Badge>
-                        </div>
+                        <ApplicationTags
+                          :application="application"
+                          :available-width="tagsColumnWidth"
+                          :exclude="['important']"
+                        />
                       </div>
                       <div class="application-col actions-col">
                         <button
@@ -561,6 +465,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { pinLeavingElement } from '@/utils/listTransition';
+import { observeTagsColumnWidth } from '@/utils/tagsColumnWidth';
 import { apiRequest } from '@/api/client'
 import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
@@ -574,10 +479,8 @@ import DateFilter from './DateFilter.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
-import Badge from './ui/Badge.vue';
+import ApplicationTags from './ApplicationTags.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
-import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
-import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
 import { sortApplications } from '@/utils/applicationSort';
@@ -595,7 +498,7 @@ export default {
     ApplicationDetail,
     DownloadBlanksModal,
     LoaderSpinner,
-    Badge,
+    ApplicationTags,
     BaseDropdown,
     AppIcon,
   },
@@ -641,6 +544,7 @@ export default {
   },
   data() {
     return {
+      tagsColumnWidth: 0,
       selectedApplication: null,
       showDetailModal: false,
       responsibleUsers: [],
@@ -811,8 +715,10 @@ export default {
     this.fetchStatusUpdateCount();
     this.getCurrentUser();
     this.initMobileWatcher();
+    this._tagsColObs = observeTagsColumnWidth(this.$refs.tagsHeaderCol, (w) => { this.tagsColumnWidth = w; });
   },
   beforeUnmount() {
+    this._tagsColObs?.disconnect();
     this.disconnectApplicationsSentinel();
     this._tourReveal?.stop();
     clearTimeout(this.searchDebounceTimer);
@@ -1069,16 +975,6 @@ export default {
       };
       return statusClasses[status] || 'status-default';
     },
-
-    blacklistFlagCount,
-    blacklistFlagLabel,
-    blacklistFlagTitle() {
-      return BLACKLIST_FLAG_TITLE;
-    },
-
-    pendingApprovalDays,
-    pendingApprovalLabel,
-    pendingApprovalShort,
 
     getNoDataHint() {
       switch (this.currentFilter) {
@@ -1506,7 +1402,6 @@ export default {
 .tags-col {
   flex: 1.5;
   min-width: 150px;
-  container-type: inline-size;
 }
 
 .application-col.tags-col {
@@ -1522,13 +1417,6 @@ export default {
   color: var(--text-muted);
 }
 
-.tags-col .application-tags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
 /* текст с многоточием в flex-ячейке */
 .ellip {
   display: block;
@@ -1539,131 +1427,6 @@ export default {
   white-space: nowrap;
 }
 
-/* hover-подсказка #333 под тегом */
-.tag-hint {
-  position: relative;
-}
-
-.tag-hint::after {
-  content: attr(data-hint);
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 200px;
-  background: var(--hint-bg);
-  color: var(--hint-text);
-  padding: 5px 9px;
-  border-radius: 6px;
-  font-size: 11px;
-  line-height: 1.3;
-  text-align: center;
-  white-space: normal;
-  z-index: 1000;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-  box-shadow: 0 2px 8px var(--shadow-drop);
-}
-
-.tag-hint::before {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-bottom-color: var(--hint-bg);
-  z-index: 1001;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.tag-hint:hover::after,
-.tag-hint:hover::before {
-  opacity: 1;
-}
-
-/* Рамка тега цвета текста - ТОЛЬКО в тёмной теме: там приглушённая color-mix-рамка
-   Badge сливалась с подложкой. В светлой она остаётся прежней, как была до правки
-   (#1415). */
-[data-theme="dark"] .rt-tag {
-  border-color: currentColor;
-}
-
-.tags-col .rt-tag__icon {
-  display: none;
-}
-
-/* Иконка часов у бейджа "ждёт согласования" видима (прочие теги в кабинете - текстом). */
-.tags-col .rt-tag__icon--fixed {
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  opacity: 1;
-  margin-right: 3px;
-  flex-shrink: 0;
-}
-
-/* Маркер обсуждения (#973): чат-иконка (всегда видна) + красная точка-индикатор. */
-.rt-tag__q-svg {
-  flex-shrink: 0;
-}
-
-.rt-tag--questions {
-  position: relative;
-}
-
-.rt-tag__q-dot {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-danger);
-  border: 1.5px solid var(--surface);
-  pointer-events: none;
-}
-
-/* ЧС не сворачивается. Крыша/Парковка -> иконки только когда ОБА (--both) и тесно.
-   Условия --both/--chs считаются во Vue (надёжнее :has() в scoped-стилях). */
-@container (max-width: 232px) {
-  .tags-col .application-tags--both .rt-tag--roof .rt-tag__text,
-  .tags-col .application-tags--both .rt-tag--parking .rt-tag__text {
-    display: none;
-  }
-
-  .tags-col .application-tags--both .rt-tag--roof .rt-tag__icon,
-  .tags-col .application-tags--both .rt-tag--parking .rt-tag__icon {
-    display: block;
-  }
-
-  .tags-col .application-tags--both .rt-tag--roof.badge--sm,
-  .tags-col .application-tags--both .rt-tag--parking.badge--sm {
-    padding: 4px;
-  }
-}
-
-/* без ЧС крыша+парковка держим текстом, пока колонка не станет узкой */
-@container (min-width: 125px) {
-  .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__text,
-  .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__text {
-    display: inline;
-  }
-
-  .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__icon,
-  .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__icon {
-    display: none;
-  }
-
-  .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--roof.badge--sm,
-  .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--parking.badge--sm {
-    padding: 3px 8px;
-  }
-}
 
 .actions-col {
   flex: 0 0 100px;

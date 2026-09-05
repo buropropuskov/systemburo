@@ -81,13 +81,18 @@ export default {
      * ещё не сделан) - теги показываются полным текстом с переносом.
      */
     availableWidth: { type: Number, default: 0 },
+    /**
+     * Ключи тегов, которые разделу не нужны. В личном кабинете это «Важный»:
+     * отправитель там - сам читающий, и тег висел бы у него на каждой строке.
+     */
+    exclude: { type: Array, default: () => [] },
   },
   data() {
     return { moreOpen: false, popoverStyle: {} };
   },
   computed: {
     tags() {
-      return buildApplicationTags(this.application);
+      return buildApplicationTags(this.application, { exclude: this.exclude });
     },
     layout() {
       return layoutApplicationTags(this.tags, this.availableWidth);
