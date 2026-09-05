@@ -516,12 +516,18 @@ const shown = computed(
   background: color-mix(in srgb, var(--warning) 14%, var(--surface));
 }
 
+/* Полосу прокрутки не показываем: панель узкая, и полоса съедала её ширину,
+   поджимая текст предупреждений. Прокрутка колесом и жестом остаётся. */
 .warn-panel__body {
   position: relative;
   min-height: 0;
   padding: 8px 16px 14px;
   overflow-y: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.warn-panel__body::-webkit-scrollbar {
+  display: none;
 }
 
 .warn-group {

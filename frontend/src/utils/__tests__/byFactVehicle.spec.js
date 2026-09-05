@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isByFactVehicle, hasByFactVehicle, isOneDayPeriod } from '../byFactVehicle';
+import { isByFactVehicle, hasByFactVehicle, isOneDayPeriod, byFactDeadline, byFactPeriodBroken } from '../byFactVehicle';
 
 /**
  * Форма зеркалит правило бэкенда про машину «По факту» (#2320), чтобы человек
@@ -66,19 +66,56 @@ describe('hasByFactVehicle', () => {
   });
 });
 
-describe('isOneDayPeriod', () => {
-  it('один день - когда даты совпадают', () => {
-    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-05' })).toBe(true);
+describe('крайний срок «По факту»', () => {
+  // Конец суток, в которые попадает «сейчас плюс 24 часа»: в 17:38 пятого числа
+  // это шестое. Округление вверх и есть запас, без которого предел сползал бы
+  // каждую минуту - оформленная в 17:31 заявка через минуту стала бы просроченной.
+  const вечер = new Date('2026-09-05T14:38:00Z'); // 17:38 МСК
+
+  it('крайняя дата - завтрашний день по Москве', () => {
+    expect(byFactDeadline(вечер)).toBe('06.09.2026');
   });
 
-  it('период длиннее дня не проходит', () => {
-    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-10-05' })).toBe(false);
-    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-06' })).toBe(false);
+  it('минутой позже предел тот же', () => {
+    expect(byFactDeadline(new Date('2026-09-05T14:39:00Z'))).toBe('06.09.2026');
   });
 
-  it('пустой период недопустим - бэкенд отклоняет его так же', () => {
-    expect(isOneDayPeriod({ date_from: '', date_to: '' })).toBe(false);
-    expect(isOneDayPeriod({ date_from: '2026-09-05' })).toBe(false);
-    expect(isOneDayPeriod(null)).toBe(false);
+  it('под конец московских суток предел не убегает вперёд', () => {
+    // 23:50 МСК: сутки попадают на шестое, значит крайняя дата - шестое.
+    expect(byFactDeadline(new Date('2026-09-05T20:50:00Z'))).toBe('06.09.2026');
+  });
+
+  it('срок до крайней даты проходит, дальше - нет', () => {
+    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-05' }, вечер)).toBe(true);
+    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-06' }, вечер)).toBe(true);
+    expect(isOneDayPeriod({ date_from: '2026-09-05', date_to: '2026-09-07' }, вечер)).toBe(false);
+  });
+
+  it('пустой срок недопустим - бэкенд отклоняет его так же', () => {
+    expect(isOneDayPeriod({ date_from: '', date_to: '' }, вечер)).toBe(false);
+    expect(isOneDayPeriod({ date_from: '2026-09-05' }, вечер)).toBe(false);
+    expect(isOneDayPeriod(null, вечер)).toBe(false);
+  });
+});
+
+describe('byFactPeriodBroken', () => {
+  const вечер = new Date('2026-09-05T14:38:00Z');
+  const далеко = { date_from: '2026-09-05', date_to: '2026-10-05' };
+  const близко = { date_from: '2026-09-05', date_to: '2026-09-06' };
+
+  it('без машины «По факту» и выключенного тумблера правило молчит', () => {
+    expect(byFactPeriodBroken(далеко, [{ plateNumber: 'A123AA777' }], false)).toBe(false);
+  });
+
+  it('включённый тумблер поднимает правило ещё до добавления машины', () => {
+    expect(byFactPeriodBroken(далеко, [], true)).toBe(true);
+  });
+
+  it('уже добавленная машина поднимает правило и без тумблера', () => {
+    expect(byFactPeriodBroken(далеко, [{ plateNumber: 'По факту' }], false)).toBe(true);
+  });
+
+  it('срок в пределах крайней даты правило не нарушает', () => {
+    expect(byFactPeriodBroken(близко, [{ plateNumber: 'По факту' }], true)).toBe(false);
   });
 });
