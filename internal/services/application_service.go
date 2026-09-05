@@ -2131,7 +2131,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}
 
 	// Один человек или одна машина не могут попасть во вложение дважды.
-	if err := validateByFactVehicles(req); err != nil {
+	if err := validateByFactVehicles(req, time.Now()); err != nil {
 		return nil, err
 	}
 

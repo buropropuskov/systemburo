@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,10 @@ import (
 // понятную ошибку на форме, а не общее «не удалось отправить».
 
 // byFactBody собирает тело подачи с одной машиной «По факту» на заданный срок.
+//
+// Окно пребывания - до конца суток. Фиксированное «до 18:00» делало тесты
+// непроходимыми после шести вечера по Москве: первая заявка успевала истечь, место
+// освобождалось, и «вторая заявка отклоняется» падало на вечернем прогоне CI.
 func byFactBody(uaID int, dateFrom, dateTo string) string {
 	return fmt.Sprintf(`{
 		"message": "по факту",
@@ -37,8 +42,8 @@ func byFactBody(uaID int, dateFrom, dateTo string) string {
 			"unique_attachment_id": %d,
 			"entry_date_from": "%s",
 			"entry_date_to": "%s",
-			"entry_time_from": "08:00",
-			"entry_time_to": "18:00",
+			"entry_time_from": "00:01",
+			"entry_time_to": "23:59",
 			"data": { "vehicles": [{ "car_number": "По факту", "car_brand": "Kamaz" }] }
 		}]
 	}`, uaID, dateFrom, dateTo)
@@ -114,6 +119,48 @@ func TestSubmitByFact_ClosedApplicationDoesNotBlock(t *testing.T) {
 		"закрытая заявка не должна блокировать новую: %s", rec.Body.String())
 }
 
+// Крайняя дата - конец суток, в которые попадает «сейчас плюс 24 часа»: в 17:38
+// пятого числа заявку можно оформить по шестое включительно. Округление вверх и
+// есть тот запас, без которого предел сползал бы каждую минуту.
+func TestByFactMaxDate_RoundsUpToEndOfDay(t *testing.T) {
+	msk := time.FixedZone("MSK", 3*60*60)
+
+	// Вечер: сутки попадают на следующий день, значит крайняя дата - он.
+	assert.Equal(t, "2026-09-06",
+		services.ByFactMaxDate(time.Date(2026, 9, 5, 17, 38, 0, 0, msk)))
+
+	// Минутой позже предел тот же - за это и держались.
+	assert.Equal(t, "2026-09-06",
+		services.ByFactMaxDate(time.Date(2026, 9, 5, 17, 39, 0, 0, msk)))
+
+	// Ранним утром сутки всё ещё уводят в следующий день.
+	assert.Equal(t, "2026-09-06",
+		services.ByFactMaxDate(time.Date(2026, 9, 5, 0, 30, 0, 0, msk)))
+
+	// Момент задан в UTC - предел считается по московскому календарю.
+	assert.Equal(t, "2026-09-06",
+		services.ByFactMaxDate(time.Date(2026, 9, 4, 22, 0, 0, 0, time.UTC)))
+}
+
+func TestSubmitByFact_TomorrowAllowed(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "byfacttomorrow", "pass123", 1, td.OrgID, td.CompanyID)
+	uaID := seedUniqueAttachment(t, db, "cars", "fact_tmpl_"+t.Name(), "Fact Template")
+
+	msk := time.Now().In(time.FixedZone("MSK", 3*60*60))
+	today := msk.Format("2006-01-02")
+	tomorrow := msk.AddDate(0, 0, 1).Format("2006-01-02")
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application",
+		byFactBody(uaID, today, tomorrow), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code,
+		"срок до конца завтрашнего дня укладывается в сутки с запасом: %s", rec.Body.String())
+}
+
 func TestSubmitByFact_MultiDayPeriodRejected(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -125,14 +172,14 @@ func TestSubmitByFact_MultiDayPeriodRejected(t *testing.T) {
 
 	msk := time.Now().In(time.FixedZone("MSK", 3*60*60))
 	today := msk.Format("2006-01-02")
-	tomorrow := msk.AddDate(0, 0, 1).Format("2006-01-02")
+	afterTomorrow := msk.AddDate(0, 0, 2).Format("2006-01-02")
 
 	rec := testutil.POST(t, e, "/applications/submit-complete-application",
-		byFactBody(uaID, today, tomorrow), testutil.AuthHeader(token))
+		byFactBody(uaID, today, afterTomorrow), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code,
-		"срок «По факту» ограничен одним днём: %s", rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "один день",
-		"отказ обязан называть правило, а не только запрещать")
+		"срок «По факту» дальше суток с запасом не пускаем: %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "не позже",
+		"отказ обязан называть крайнюю дату, а не только запрещать")
 }
 
 func TestSubmitByFact_SecondVehicleInSameApplicationRejected(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -22,20 +23,46 @@ import (
 //
 //  1. в заявке не больше одной машины «По факту» - иначе ограничение на число
 //     заявок обходится строками внутри одной;
-//  2. срок такой заявки - один календарный день (до 23:59 этого дня);
+//  2. срок такой заявки не уходит дальше суток от подачи, округлённых вверх
+//     до конца дня (ByFactMaxDate);
 //  3. у организации не может быть двух незавершённых заявок «По факту» с живым
 //     сроком одновременно.
 //
 // Ограничение общее: обхода для администратора или сотрудника бюро нет. Нужна
 // вторая машина - закрывают первую заявку или подают обычную, с номером.
 
-// byFactDayHint - что писать заявителю про срок. Держим рядом с проверкой: текст
-// уходит прямо в форму подачи, и он должен объяснять правило, а не только запрещать.
-const byFactDayHint = "Заявка на машину «По факту» действует один день: дата начала и дата окончания должны совпадать."
+// ByFactMaxDate - крайняя дата окончания заявки «По факту» на момент now.
+//
+// Считаем как конец суток, в которые попадает «сейчас плюс 24 часа»: в 17:38
+// пятого числа это шестое, и предел не сползает поминутно. Округление вверх до
+// конца дня и есть тот запас, без которого заявка, поданная в 17:31, через минуту
+// оказывалась бы за пределом.
+//
+// Дата московская: срок в заявке пишут по часам бюро (см. moscow_sql.go).
+func ByFactMaxDate(now time.Time) string {
+	return now.In(moscowWorkModeLoc).Add(24 * time.Hour).Format("2006-01-02")
+}
+
+// byFactDeadlineHint - что писать заявителю про срок. Держим рядом с проверкой:
+// текст уходит прямо в форму подачи и должен объяснять правило, а не только
+// запрещать.
+func byFactDeadlineHint(now time.Time) string {
+	return fmt.Sprintf("Заявка на машину «По факту» оформляется на срок до суток: "+
+		"сейчас дата окончания может быть не позже %s.", formatRuDate(ByFactMaxDate(now)))
+}
+
+// formatRuDate переводит ГГГГ-ММ-ДД в привычное ДД.ММ.ГГГГ; непонятное отдаёт как есть.
+func formatRuDate(iso string) string {
+	t, err := time.Parse("2006-01-02", iso)
+	if err != nil {
+		return iso
+	}
+	return t.Format("02.01.2006")
+}
 
 // validateByFactVehicles проверяет правила, для которых не нужна база: число машин
 // «По факту» в заявке и срок каждого такого вложения.
-func validateByFactVehicles(req CompleteApplicationRequest) error {
+func validateByFactVehicles(req CompleteApplicationRequest, now time.Time) error {
 	count := 0
 	for _, att := range req.Attachments {
 		if att.Data.Vehicles == nil {
@@ -51,7 +78,7 @@ func validateByFactVehicles(req CompleteApplicationRequest) error {
 					"В заявке может быть только одна машина «По факту». "+
 						"Для остальных укажите номера или подайте отдельную заявку позже.")
 			}
-			if err := validateByFactPeriod(att); err != nil {
+			if err := validateByFactPeriod(att, now); err != nil {
 				return err
 			}
 		}
@@ -59,19 +86,20 @@ func validateByFactVehicles(req CompleteApplicationRequest) error {
 	return nil
 }
 
-// validateByFactPeriod требует у вложения с машиной «По факту» срок в один день.
-func validateByFactPeriod(att AttachmentData) error {
+// validateByFactPeriod требует, чтобы срок вложения с машиной «По факту»
+// заканчивался не позже крайней даты (ByFactMaxDate).
+func validateByFactPeriod(att AttachmentData, now time.Time) error {
 	from := trimPtr(att.EntryDateFrom)
 	to := trimPtr(att.EntryDateTo)
 
 	// Пустой срок опаснее длинного: вложение без даты окончания живёт бессрочно.
 	if from == "" || to == "" {
 		return echo.NewHTTPError(http.StatusBadRequest,
-			"Укажите даты начала и окончания. "+byFactDayHint)
+			"Укажите даты начала и окончания. "+byFactDeadlineHint(now))
 	}
-	if from != to {
+	if to > ByFactMaxDate(now) {
 		return echo.NewHTTPError(http.StatusBadRequest,
-			fmt.Sprintf("Указан срок с %s по %s. %s", from, to, byFactDayHint))
+			fmt.Sprintf("Указана дата окончания %s. %s", formatRuDate(to), byFactDeadlineHint(now)))
 	}
 	return nil
 }

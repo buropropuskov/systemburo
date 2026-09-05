@@ -467,7 +467,7 @@ import {
     vehicleLabel,
 } from '@/utils/applicationDuplicates';
 import { notifyApiError } from '@/utils/apiError';
-import { hasByFactVehicle, byFactWarningGroup } from '@/utils/byFactVehicle';
+import { byFactWarningGroup, byFactPeriodBroken } from '@/utils/byFactVehicle';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -782,12 +782,12 @@ export default {
             };
         },
         warningGroups() {
-            const надо = this.currentAttachmentData && !this.currentAttachmentData.isOneDay && (this.byFactPending || hasByFactVehicle(this.vehicles));
-            return надо ? [...this.placeNotices, byFactWarningGroup()] : this.placeNotices;
+            return byFactPeriodBroken(this.currentEntryPeriod, this.vehicles, this.byFactPending) ? [...this.placeNotices, byFactWarningGroup()] : this.placeNotices;
         },
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
+            if (byFactPeriodBroken(this.currentEntryPeriod, this.vehicles, this.byFactPending)) return { ...(data?.errors || {}), periodInvalid: true };
             return data?.errors || {};
         },
         submitValidation() {
