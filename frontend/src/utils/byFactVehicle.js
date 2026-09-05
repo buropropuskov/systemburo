@@ -69,3 +69,16 @@ export function isOneDayPeriod(period) {
   const to = String(period?.date_to || '').trim();
   return Boolean(from) && from === to;
 }
+
+/**
+ * Предупреждение для общей панели формы: срок заявки с машиной «По факту»
+ * ограничен одним днём.
+ *
+ * Форма показывает его там же, где предупреждения по расписанию мест, - панель
+ * одна, и отдельное сообщение под полями дат только дробило бы внимание.
+ *
+ * @returns {{name: string, free: string}} группа в формате SchedulePlaceWarningPanel
+ */
+export function byFactWarningGroup() {
+  return { name: 'Машина «По факту»', free: BY_FACT_ONE_DAY_HINT };
+}
