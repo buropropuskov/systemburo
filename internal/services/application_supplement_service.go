@@ -192,6 +192,9 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		if err := s.validateNotAlreadyInAttachment(ctx, t); err != nil {
 			return nil, err
 		}
+		if err := s.ensureSupplementByFactAllowed(s.db.WithContext(ctx), applicationID, t.addition.Vehicles); err != nil {
+			return nil, err
+		}
 	}
 
 	comment := trimmedSupplementComment(req.Comment)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -45,6 +46,32 @@ func submitFC(t *testing.T, e *echo.Echo, token, org, attType string, uaID int, 
 			"data": %s
 		}]
 	}`, org, attType, uaID, dataJSON)
+	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+}
+
+// submitByFactOneDay - подача с машиной «По факту»: срок такой заявки ограничен
+// одним днём (#2320), поэтому общий хелпер с периодом до 2099 года ей не подходит.
+func submitByFactOneDay(t *testing.T, e *echo.Echo, token, org string, uaID int, dataJSON string) *httptest.ResponseRecorder {
+	t.Helper()
+	day := time.Now().In(time.FixedZone("MSK", 3*60*60)).Format("2006-01-02")
+	body := fmt.Sprintf(`{
+		"message": "h9",
+		"organization": "%s",
+		"responsible_person": "Test",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "h9_tmpl",
+			"attachment_display_name": "H9 Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "%s",
+			"entry_date_to": "%s",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": %s
+		}]
+	}`, org, uaID, day, day, dataJSON)
 	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 }
 
@@ -110,7 +137,9 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		seedFieldConfig(t, db, uaID, "number", true, true)
 		seedFieldConfig(t, db, uaID, "mark", true, true)
 		data := `{"vehicles": [{"car_number": "По факту", "car_brand": "По факту", "mark_id": null}]}`
-		rec := submitFC(t, e, token, orgName, "cars", uaID, data)
+		// Общий срок хелпера («по 2099 год») заявке «По факту» больше не разрешён
+		// (#2320), а проверяется здесь не он, а обязательность номера и марки.
+		rec := submitByFactOneDay(t, e, token, orgName, uaID, data)
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 
