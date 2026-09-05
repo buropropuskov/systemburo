@@ -32,17 +32,18 @@ const PDF_CELL_PADDING = 14;
 const PDF_TIGHT_BUDGET = 0.75;
 
 /**
- * Ширины колонок PDF. Узкой колонке даём ширину под её содержимое (и под самое
- * длинное слово заголовка - переносить заголовок можно), остальным - долю остатка.
+ * Ширины колонок PDF. Узкой колонке даём ширину под её содержимое (строки вместе с
+ * итогами; заголовок мерим по самому длинному слову - его переносить можно),
+ * остальным - долю остатка.
  * Сплошное 'auto' раньше ужимало узкие колонки ради колонки с длинным текстом, и
  * номер заявки с периодом работ переносились (#2332). Когда узкие все, конкуренции
  * за ширину нет - 'auto' там точнее, а таблицу центрирует вызывающий.
  */
-function pdfColumnWidths(table, tight, allTight) {
+function pdfColumnWidths(table, rows, tight, allTight) {
   if (allTight) return table.header.map(() => 'auto');
   const fixed = table.header.map((label, i) => {
     if (!tight[i]) return 0;
-    const valueLen = table.rows.reduce((max, row) => Math.max(max, String(row[i] ?? '').length), 0);
+    const valueLen = rows.reduce((max, row) => Math.max(max, String(row[i] ?? '').length), 0);
     const wordLen = String(label ?? '').split(/\s+/).reduce((max, w) => Math.max(max, w.length), 0);
     return Math.ceil(Math.max(valueLen, wordLen) * PDF_CHAR_WIDTH) + PDF_CELL_PADDING;
   });
@@ -87,10 +88,10 @@ export async function exportPdf(table, opts) {
   const headerCells = table.header.map((text) => ({
     text: pdfCellText(text), bold: true, color: '#FFFFFF', fillColor: PDF_PRIMARY, alignment: 'center',
   }));
-  // Узкой колонке — ширина по содержимому, остальным — доля остатка: при сплошном
-  // 'auto' pdfmake ужимал всё пропорционально, и номер заявки с периодом работ
-  // переносились ради колонки с длинным текстом (#2332).
-  const tight = table.header.map((_, i) => isTightColumnValues(table.rows.map((row) => row[i])));
+  // Строка итогов идёт тем же столбцом, что и тело, поэтому меряется и не рвётся
+  // наравне с ним: «2 ч 15 мин» в итоге иначе переносился там, где строки выше нет.
+  const allRows = table.totalsRow ? [...table.rows, table.totalsRow] : table.rows;
+  const tight = table.header.map((_, i) => isTightColumnValues(allRows.map((row) => row[i])));
   const allTight = tight.every(Boolean);
 
   const bodyRows = table.rows.map((cells, index) => cells.map((value, i) => ({
@@ -101,12 +102,15 @@ export async function exportPdf(table, opts) {
   const body = [headerCells, ...bodyRows];
   if (table.totalsRow) {
     body.push(table.totalsRow.map((value, i) => ({
-      text: pdfCellText(value), bold: true, alignment: pdfAlign(i, table.numericColumns), fillColor: PDF_TOTALS,
+      text: tight[i] ? nowrapText(pdfCellText(value)) : pdfCellText(value),
+      bold: true,
+      alignment: pdfAlign(i, table.numericColumns),
+      fillColor: PDF_TOTALS,
     })));
   }
 
   const tableNode = {
-    table: { headerRows: 1, widths: pdfColumnWidths(table, tight, allTight), body },
+    table: { headerRows: 1, widths: pdfColumnWidths(table, allRows, tight, allTight), body },
     layout: {
       hLineWidth: () => 0.5,
       vLineWidth: () => 0.5,

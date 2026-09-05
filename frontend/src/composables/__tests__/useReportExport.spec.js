@@ -329,4 +329,30 @@ describe('useReportExport — выгрузка строк и период (#2332
     expect(body[1][0].text).toBe('№\u00A020260815/001');
     clickSpy.mockRestore();
   });
+
+  it('pdf: строка итогов узкой колонки не рвётся по пробелу наравне со строками', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exportReport } = useReportExport();
+    await exportReport({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [{ key: 'p50_processing', label: 'Медиана обработки', type: 'duration' }],
+      metric_rows: [
+        { label: 'ООО «Очень длинное название организации-подрядчика»', values: { p50_processing: 8100 } },
+      ],
+      totals: { p50_processing: 9000 },
+    }, { title: 'Сроки обработки' }, 'pdf');
+
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    const { widths, body } = findTableNode(doc.content).table;
+    expect(typeof widths[1]).toBe('number'); // длительность — узкая колонка
+    expect(body[1][1].text).toBe('2\u00A0ч\u00A015\u00A0мин');
+    expect(body[2][1].text).toBe('2\u00A0ч\u00A030\u00A0мин'); // строка итогов
+    clickSpy.mockRestore();
+  });
 });
