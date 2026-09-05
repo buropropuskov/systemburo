@@ -418,7 +418,7 @@
     />
 
     <!-- #1183: единая плавающая панель предупреждений выбранных мест (режим/текст/окна). -->
-    <SchedulePlaceWarningPanel :groups="placeNotices" />
+    <SchedulePlaceWarningPanel :groups="warningGroups" />
 
     <!-- #1380: на телефоне согласие открывается модалкой с содержимым, не новой вкладкой. -->
     <DataProcessingModal
@@ -467,7 +467,7 @@ import {
     vehicleLabel,
 } from '@/utils/applicationDuplicates';
 import { notifyApiError } from '@/utils/apiError';
-import { hasByFactVehicle, BY_FACT_ONE_DAY_HINT } from '@/utils/byFactVehicle';
+import { hasByFactVehicle, byFactWarningGroup } from '@/utils/byFactVehicle';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -769,7 +769,6 @@ export default {
                 timeTo: d.endTime || ''
             };
         },
-
         // Срок текущего вложения в API-формате для авто-проверки расписания мест
         // (#1183 S5): формы сверяют его с time_slots выбранных мест. Даты -> YYYY-MM-DD,
         // время остаётся ЧЧ:ММ; пустые границы -> null (проверка их пропускает).
@@ -782,19 +781,20 @@ export default {
                 time_to: d.endTime || null
             };
         },
+        warningGroups() {
+            const надо = this.currentAttachmentData && !this.currentAttachmentData.isOneDay && (this.byFactPending || hasByFactVehicle(this.vehicles));
+            return надо ? [...this.placeNotices, byFactWarningGroup()] : this.placeNotices;
+        },
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
-            if (!data?.isOneDay && (this.byFactPending || hasByFactVehicle(this.vehicles))) return { ...(data?.errors || {}), endDate: BY_FACT_ONE_DAY_HINT, startDate: BY_FACT_ONE_DAY_HINT };
             return data?.errors || {};
         },
         submitValidation() {
             const reasons = [];
-
             if (this.attachments.length === 0) {
                 reasons.push('Добавьте хотя бы одно вложение');
             }
-
             const missingFields = [];
             if (!this.organization?.trim() && !this.company?.trim()) missingFields.push('организация или компания');
             if (!this.responsiblePerson) missingFields.push('инициатор заявки');
