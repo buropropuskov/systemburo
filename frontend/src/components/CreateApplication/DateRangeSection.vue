@@ -157,6 +157,15 @@
         >
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
+        <!-- Крайний срок «По факту» подсказкой над полями: системный паттерн
+             hints.css, is-hinted держит её открытой без наведения, --danger
+             красит в цвет ошибки. Полное правило объясняет панель (#2320). -->
+        <div
+          v-if="errors.periodHint"
+          class="hint-anchor hint-anchor--danger is-hinted period-hint-anchor"
+          :data-hint="errors.periodHint"
+          role="status"
+        />
         <Teleport to="body">
           <!-- Мобилка: затемнение под листом - календарь не сливается с формой за ним. -->
           <transition name="datepicker-overlay-fade">

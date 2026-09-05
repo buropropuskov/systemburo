@@ -467,7 +467,7 @@ import {
     vehicleLabel,
 } from '@/utils/applicationDuplicates';
 import { notifyApiError } from '@/utils/apiError';
-import { byFactWarningGroup, byFactPeriodBroken } from '@/utils/byFactVehicle';
+import { byFactWarningGroup, byFactPeriodBroken, byFactFieldHint } from '@/utils/byFactVehicle';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -787,7 +787,7 @@ export default {
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
-            if (byFactPeriodBroken(this.currentEntryPeriod, this.vehicles, this.byFactPending)) return { ...(data?.errors || {}), periodInvalid: true };
+            if (byFactPeriodBroken(this.currentEntryPeriod, this.vehicles, this.byFactPending)) return { ...(data?.errors || {}), periodInvalid: true, periodHint: byFactFieldHint() };
             return data?.errors || {};
         },
         submitValidation() {
