@@ -130,6 +130,9 @@ describe('CreateApplication - гард дублей перед подачей', 
         expect(w.vm.findDuplicateEntry()).toBeNull();
     });
 
+    // Две «По факту» здесь остаются: findDuplicateEntry отвечает на вопрос «одна и
+    // та же машина дважды», а не «сколько безымянных пропусков в заявке» - второе
+    // проверяет правило #2320 в самой форме.
     it('чистый черновик проходит', async () => {
         const w = await mountApp({
             attachments: [PEOPLE_ATTACHMENT, CARS_ATTACHMENT],
@@ -263,8 +266,22 @@ describe('VehicleForm - запрет повторного добавления �
         expect(w.emitted('vehicle-added')).toBeUndefined();
     });
 
-    it('несколько машин "По факту" допустимы', async () => {
+    // Раньше «По факту» намеренно пропускали мимо проверки дублей: такой номер не
+    // опознаёт машину, и строк могло быть сколько угодно. С #2320 правило другое -
+    // одна такая машина на заявку, потому что по безымянному пропуску заезжает кто
+    // угодно. Проверка дублей по-прежнему их не сравнивает (разные машины), но
+    // добавить вторую не даёт отдельное правило.
+    it('вторая машина "По факту" не добавляется', async () => {
         const w = await mountVehicleForm([{ id: 1, plateNumber: 'По факту', mark: 'По факту' }]);
+        await w.setData({ isNumberByFact: true, isMarkByFact: true });
+
+        w.vm.addVehicle();
+
+        expect(w.emitted('vehicle-added')).toBeUndefined();
+    });
+
+    it('первая машина "По факту" добавляется свободно', async () => {
+        const w = await mountVehicleForm([{ id: 1, plateNumber: 'A777AA 777', mark: 'BMW' }]);
         await w.setData({ isNumberByFact: true, isMarkByFact: true });
 
         w.vm.addVehicle();
