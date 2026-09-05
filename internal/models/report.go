@@ -112,3 +112,10 @@ type ReportListResponse struct {
 	Rows    []map[string]any   `json:"rows"`
 	Total   int                `json:"total"`
 }
+
+// ReportDataPeriod — границы дат, доступные отчёту по его оси времени (той же, по
+// которой сужает фильтр date_range). Пустые строки — данных нет или ось отсутствует.
+type ReportDataPeriod struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}

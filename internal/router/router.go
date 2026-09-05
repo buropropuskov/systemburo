@@ -1271,6 +1271,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup.GET("/metrics", statistics.GetMetrics, requireStats)
 		statsGroup.GET("/insights", statistics.GetInsights, requireStats)
 		statsGroup.POST("/report", statistics.RunReport, requireStats)
+		statsGroup.GET("/report/period", statistics.ReportDataPeriod, requireStats)
 		statsGroup.GET("/templates", statistics.ListTemplates, requireStats)
 		statsGroup.POST("/templates", statistics.CreateTemplate, requireStats)
 		statsGroup.PUT("/templates/:id", statistics.UpdateTemplate, requireStats)
