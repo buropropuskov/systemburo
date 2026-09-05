@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
-import { BY_FACT_PERIOD_RULE } from '@/utils/byFactVehicle';
+import { BY_FACT_PERIOD_RULE, byFactDeadlineExact } from '@/utils/byFactVehicle';
 
 /**
  * Правило «срок один день» показывается в общей панели предупреждений, ещё до
@@ -70,6 +70,11 @@ describe('CreateApplication — предупреждение о сроке ма�
     expect(w.vm.currentAttachmentErrors.startDate).toBeUndefined();
     expect(w.vm.currentAttachmentErrors.endDate).toBeUndefined();
     expect(w.vm.currentAttachmentErrors.periodInvalid, 'поля дат должны покраснеть').toBe(true);
+
+    // Рядом с полями - точный срок цифрами: правило в панели объясняет «до суток»,
+    // а сколько это в датах, человек должен видеть у самих полей.
+    expect(w.vm.currentAttachmentErrors.periodHint).toContain(byFactDeadlineExact());
+    expect(byFactDeadlineExact(new Date('2026-09-05T14:38:00Z'))).toBe('06.09.2026 23:59');
     w.unmount();
   });
 
@@ -105,6 +110,10 @@ describe('CreateApplication — предупреждение о сроке ма�
     const имена = w.vm.warningGroups.map((g) => g.name);
     expect(имена).toContain('Дебаркадер №1');
     expect(имена).toContain('Машина «По факту»');
+
+    // Группа правила помечена: панель рисует её иначе, чем предупреждения по местам.
+    const правило = w.vm.warningGroups.find((g) => g.name === 'Машина «По факту»');
+    expect(правило.rule, 'без признака группа сольётся с остальными').toBe(true);
     w.unmount();
   });
 });

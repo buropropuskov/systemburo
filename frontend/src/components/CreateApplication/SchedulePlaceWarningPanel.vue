@@ -317,6 +317,7 @@ const shown = computed(
                 v-for="group in visibleGroups"
                 :key="group.id || group.name"
                 class="warn-group"
+                :class="{ 'warn-group--rule': group.rule }"
               >
                 <p class="warn-group__name">
                   {{ group.name }}
@@ -533,6 +534,21 @@ const shown = computed(
 .warn-group {
   padding: 12px 0;
   border-bottom: 1px solid var(--color-border, var(--border));
+}
+
+/* Правило подачи, а не режим работы места: своя подложка и полоса слева, иначе
+   в общем списке оно читается как ещё одно место и теряется (#2320). */
+.warn-group--rule {
+  margin: 4px 0;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--surface));
+  border-left: 3px solid var(--danger);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.warn-group--rule .warn-group__name {
+  color: var(--danger);
 }
 
 .warn-group:last-child {

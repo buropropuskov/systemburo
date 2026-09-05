@@ -37,9 +37,28 @@ export function byFactDeadline(now = serverNow()) {
   return formatMomentDate(new Date(now.getTime() + 24 * 60 * 60 * 1000));
 }
 
+/**
+ * Крайний срок с точным временем: «06.09.2026 23:59».
+ *
+ * Время показываем именно 23:59, а не «сейчас плюс сутки»: предел округляется
+ * вверх до конца дня, и минута в подсказке не должна убегать вперёд, пока человек
+ * заполняет форму.
+ *
+ * @param {Date} [now]
+ * @returns {string}
+ */
+export function byFactDeadlineExact(now = serverNow()) {
+  return `${byFactDeadline(now)} 23:59`;
+}
+
 /** Подсказка про крайний срок: вторая строка предупреждения. */
 export function byFactDeadlineHint(now = serverNow()) {
-  return `Сейчас заявку можно оформить по ${byFactDeadline(now)} включительно.`;
+  return `Сейчас заявку можно оформить по ${byFactDeadlineExact(now)} включительно.`;
+}
+
+/** Короткая подсказка у полей даты - она встаёт поверх формы, места мало. */
+export function byFactFieldHint(now = serverNow()) {
+  return `Срок «По факту» — по ${byFactDeadlineExact(now)}`;
 }
 
 /**
@@ -103,7 +122,9 @@ export function isOneDayPeriod(period, now = serverNow()) {
  * @returns {{name: string, free: string, windows: string[]}} группа для SchedulePlaceWarningPanel
  */
 export function byFactWarningGroup(now = serverNow()) {
-  return { name: 'Машина «По факту»', free: BY_FACT_PERIOD_RULE, windows: [byFactDeadlineHint(now)] };
+  // rule помечает группу правила: панель рисует её иначе, чем предупреждения по
+  // местам, иначе в общем списке она теряется (#2320).
+  return { name: 'Машина «По факту»', rule: true, free: BY_FACT_PERIOD_RULE, windows: [byFactDeadlineHint(now)] };
 }
 
 /**
