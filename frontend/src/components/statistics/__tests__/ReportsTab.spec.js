@@ -349,4 +349,50 @@ describe('ReportsTab — каталог на узком экране (#2314)', (
 
     expect(wrapper.findAll('.col-heading--toggle')[0].text()).toContain(preset.title);
   });
+
+  it('отчёт за весь период разворачивается в конкретные даты (#2338)', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    // Родитель зовёт метод через exposed-прокси `<script setup>`, поэтому подменяем
+    // именно его: шпион на vm мимо этой цепочки.
+    const setPeriod = vi.fn();
+    builder.vm.$.exposed.setPeriod = setPeriod;
+    // Запрос без фильтра по датам — это и есть «Весь период».
+    builder.vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'period', filters: [] });
+    await nextTick();
+
+    state.deferred[0]({
+      mode: 'aggregate',
+      dimension: 'period',
+      metric_rows: [
+        { label: '2026-04-09', values: { applications_count: 1 } },
+        { label: '2026-09-05', values: { applications_count: 2 } },
+      ],
+      totals: { applications_count: 3 },
+    });
+    await flushPromises();
+
+    expect(wrapper.findComponent(ReportResult).props('meta').period).toEqual({ from: '2026-04-09', to: '2026-09-05' });
+    expect(setPeriod).toHaveBeenCalledWith('2026-04-09', '2026-09-05');
+  });
+
+  it('дат в отчёте нет — период мастера не трогаем (#2338)', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    const setPeriod = vi.fn();
+    builder.vm.$.exposed.setPeriod = setPeriod;
+    builder.vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'status', filters: [] });
+    await nextTick();
+
+    state.deferred[0]({ mode: 'aggregate', dimension: 'status', rows: [{ label: 'Завершено', value: 4 }], total: 4 });
+    await flushPromises();
+
+    expect(setPeriod).not.toHaveBeenCalled();
+  });
 });

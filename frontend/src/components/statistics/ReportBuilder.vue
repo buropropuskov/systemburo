@@ -806,12 +806,21 @@ function run() {
 
 // Пустой результат предлагает расширить период до «весь». Отдаём наружу метод, а не
 // повторяем вычисление диапазона в ReportsTab: границы периода живут здесь.
+// Разворот «Весь период» в конкретные даты: границы отчёта знает только родитель,
+// получивший ответ, а пустые поля читались как «выбор не применился» (#2338).
+function setPeriod(from, to) {
+  if (!from || !to) return;
+  form.period.from = from;
+  form.period.to = to;
+  activePeriodPreset.value = 'custom';
+}
+
 function expandPeriodToAll() {
   applyPeriodPreset('all');
   run();
 }
 
-defineExpose({ expandPeriodToAll });
+defineExpose({ expandPeriodToAll, setPeriod });
 </script>
 
 <style scoped>

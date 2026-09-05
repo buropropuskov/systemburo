@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { useReportExport } from '../useReportExport';
-import { reportToTable, computeColumnWidths } from '@/utils/reportTable';
+import { reportToTable, computeColumnWidths, resultDataPeriod } from '@/utils/reportTable';
 
 // PDF-ветку тестируем с мок-pdfmake: проверяем, что формат 'pdf' строит документ
 // через pdfmake (vfs + createPdf) и инициирует скачивание - без реального браузера.
@@ -364,5 +364,36 @@ describe('useReportExport — выгрузка строк и период (#2332
       total: 1,
     });
     expect(t.rows[0][0]).toBe('Системный администратор, +7 (910) 053 00-55');
+  });
+});
+
+describe('resultDataPeriod (#2338)', () => {
+  it('сводка по периоду: границы из подписей строк', () => {
+    expect(resultDataPeriod({
+      mode: 'aggregate',
+      dimension: 'period',
+      metric_rows: [{ label: '2026-09-05' }, { label: '2026-04-09' }, { label: '2026-06-01' }],
+    })).toEqual({ from: '2026-04-09', to: '2026-09-05' });
+  });
+
+  it('выгрузка строк: границы по колонкам с датами, включая две даты в одной ячейке', () => {
+    expect(resultDataPeriod({
+      mode: 'list',
+      columns: [{ key: 'work_period', label: 'Период работ', type: 'date' }, { key: 'name', label: 'Работы' }],
+      rows: [
+        { work_period: '2026-08-15 - 2026-08-31', name: 'Монтаж' },
+        { work_period: '2026-04-22 - 2026-04-23', name: 'Осмотр' },
+      ],
+    })).toEqual({ from: '2026-04-22', to: '2026-08-31' });
+  });
+
+  it('разрез не по периоду и выгрузка без дат — границ нет', () => {
+    expect(resultDataPeriod({
+      mode: 'aggregate', dimension: 'status', rows: [{ label: 'Завершено', value: 2 }],
+    })).toBeNull();
+    expect(resultDataPeriod({
+      mode: 'list', columns: [{ key: 'car_number', label: 'Гос. номер' }], rows: [{ car_number: 'А123ВС' }],
+    })).toBeNull();
+    expect(resultDataPeriod(null)).toBeNull();
   });
 });

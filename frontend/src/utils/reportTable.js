@@ -43,7 +43,7 @@ export function reportToTable(result) {
       totalsRow: null,
       // Выгрузка строк выравнивается сплошным левым - как таблица на экране (#2332).
       numericColumns: [],
-      dataPeriod: listDataPeriod(result),
+      dataPeriod: resultDataPeriod(result),
     };
   }
 
@@ -77,7 +77,7 @@ export function reportToTable(result) {
     rows,
     totalsRow,
     numericColumns,
-    dataPeriod: isPeriod ? isoRange(metricRows.map((r) => r.label)) : null,
+    dataPeriod: resultDataPeriod(result),
   };
 }
 
@@ -90,9 +90,25 @@ function cellValue(value, type) {
   return formatPhonesInText(formatReportCell(value, type));
 }
 
-// Даты, реально попавшие в выгрузку строк: движок отдаёт их ISO-строками, причём
-// «период работ» несёт сразу две даты в одной ячейке - берём все, что нашли.
-function listDataPeriod(result) {
+/**
+ * Даты, реально попавшие в отчёт. У выгрузки строк движок отдаёт их ISO-строками в
+ * колонках типа date/datetime (причём «период работ» несёт сразу две даты в одной
+ * ячейке - берём все), у сводки с разрезом «период» подписи строк сами и есть даты.
+ * Разрез по статусу или организации дат в ответе не содержит - тогда null.
+ *
+ * Ими подписывается шапка выгрузки и разворачивается пресет «Весь период» в
+ * конкретный диапазон (#2338).
+ *
+ * @param {object|null|undefined} result результат POST /statistics/report
+ * @returns {{from: string, to: string}|null} границы в ISO, null - дат в отчёте нет
+ */
+export function resultDataPeriod(result) {
+  if (!result) return null;
+  if (result.mode !== 'list') {
+    if (result.dimension !== 'period') return null;
+    const rows = result.metric_rows || result.rows || [];
+    return isoRange(rows.map((r) => r.label));
+  }
   const dateKeys = (result.columns || [])
     .filter((c) => c.type === 'date' || c.type === 'datetime')
     .map((c) => c.key);
