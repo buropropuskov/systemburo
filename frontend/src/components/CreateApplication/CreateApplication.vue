@@ -467,6 +467,7 @@ import {
     vehicleLabel,
 } from '@/utils/applicationDuplicates';
 import { notifyApiError } from '@/utils/apiError';
+import { hasByFactVehicle, BY_FACT_ONE_DAY_HINT } from '@/utils/byFactVehicle';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -781,13 +782,12 @@ export default {
                 time_to: d.endTime || null
             };
         },
-
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
+            if (!data?.isOneDay && hasByFactVehicle(this.vehicles)) return { ...(data?.errors || {}), endDate: BY_FACT_ONE_DAY_HINT };
             return data?.errors || {};
         },
-        
         submitValidation() {
             const reasons = [];
 
