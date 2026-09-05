@@ -53,15 +53,18 @@ describe('useFormValidation', () => {
   });
 
   describe('tooltipMessage', () => {
+    // Заголовок нейтральный: в списке причин лежат не только незаполненные поля,
+    // но и запреты («Машина в чёрном списке», «уже есть машина По факту»), и с
+    // «Заполните поля» они читались как требование что-то ввести (#2320).
     it('shows single field message', () => {
       name.value = 'Сергей';
       const { tooltipMessage } = createValidation();
-      expect(tooltipMessage.value).toBe('Заполните поле: Email');
+      expect(tooltipMessage.value).toBe('Не хватает: Email');
     });
 
     it('shows multiple fields message', () => {
       const { tooltipMessage } = createValidation();
-      expect(tooltipMessage.value).toContain('Заполните поля:');
+      expect(tooltipMessage.value).toContain('Не хватает:');
       expect(tooltipMessage.value).toContain('• Имя');
       expect(tooltipMessage.value).toContain('• Email');
     });

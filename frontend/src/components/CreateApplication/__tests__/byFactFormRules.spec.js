@@ -35,14 +35,35 @@ describe('форма подачи: правила машины «По факту
     expect(/hasByFactVehicle\(vm\.existingVehicles, vm\.editingVehicle\)/.test(читать('VehicleForm.vue'))).toBe(true);
   });
 
+  it('кнопка «Добавить» недоступна, пока период не однодневный', () => {
+    // Без этого первая машина «По факту» спокойно добавлялась при периоде в месяц:
+    // ошибка появлялась уже после того, как её пропустили в список.
+    expect(
+      /check:\s*!vm\.isNumberByFact \|\| isOneDayPeriod\(vm\.entryPeriod\)/.test(читать('VehicleForm.vue')),
+      'в списке причин блокировки нет правила про однодневный период',
+    ).toBe(true);
+  });
+
+  it('включение тумблера при длинном периоде предупреждает сразу', () => {
+    const src = читать('VehicleForm.vue');
+    const обработчик = src.slice(src.indexOf('handleNumberByFactChange()'), src.indexOf('handleMarkByFactChange()'));
+
+    expect(
+      /isOneDayPeriod\(this\.entryPeriod\)[\s\S]{0,120}notify/.test(обработчик),
+      'при включении «по факту» с длинным периодом форма должна предупредить тостом',
+    ).toBe(true);
+  });
+
   it('период длиннее дня подсвечивается ошибкой у поля дат', () => {
     const src = читать('CreateApplication.vue');
 
     expect(
-      /currentAttachmentErrors\(\)[\s\S]{0,400}hasByFactVehicle\(this\.vehicles\)/.test(src),
-      'ошибка периода должна идти через currentAttachmentErrors - его читает DateRangeSection',
+      /currentAttachmentErrors\(\)[\s\S]{0,400}byFactPending \|\| hasByFactVehicle\(this\.vehicles\)/.test(src),
+      'ошибка периода должна учитывать и включённый тумблер, и уже добавленные машины',
     ).toBe(true);
-    expect(src).toContain('BY_FACT_ONE_DAY_HINT');
+    // Красными становятся оба поля периода: ошибка только у «по» читалась как
+    // претензия к одной дате, хотя не годится сам диапазон.
+    expect(/endDate: BY_FACT_ONE_DAY_HINT, startDate: BY_FACT_ONE_DAY_HINT/.test(src)).toBe(true);
   });
 
   it('тексты правил не пустые и объясняют, а не просто запрещают', () => {

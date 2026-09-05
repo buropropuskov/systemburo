@@ -64,8 +64,12 @@ async function fillEmployee(w, { lastName, firstName, middleName = '', passportS
     await w.setData({ lastName, firstName, middleName, passportSeriesNumber, position: 'Слесарь', pdConsent: true });
 }
 
-async function mountVehicleForm(existingVehicles = []) {
-    const w = mount(VehicleForm, { props: { fieldConfig: VEHICLE_CONFIG, existingVehicles } });
+// Период однодневный: машине «По факту» иначе нельзя (#2320), а прочие проверки
+// формы от него не зависят.
+const ONE_DAY_PERIOD = { date_from: '2026-09-05', date_to: '2026-09-05', time_from: '09:00', time_to: '18:00' };
+
+async function mountVehicleForm(existingVehicles = [], entryPeriod = ONE_DAY_PERIOD) {
+    const w = mount(VehicleForm, { props: { fieldConfig: VEHICLE_CONFIG, existingVehicles, entryPeriod } });
     await flushPromises();
     return w;
 }
@@ -273,6 +277,15 @@ describe('VehicleForm - запрет повторного добавления �
     // добавить вторую не даёт отдельное правило.
     it('вторая машина "По факту" не добавляется', async () => {
         const w = await mountVehicleForm([{ id: 1, plateNumber: 'По факту', mark: 'По факту' }]);
+        await w.setData({ isNumberByFact: true, isMarkByFact: true });
+
+        w.vm.addVehicle();
+
+        expect(w.emitted('vehicle-added')).toBeUndefined();
+    });
+
+    it('машину "По факту" не добавить, пока период длиннее дня', async () => {
+        const w = await mountVehicleForm([], { date_from: '2026-09-05', date_to: '2026-10-05' });
         await w.setData({ isNumberByFact: true, isMarkByFact: true });
 
         w.vm.addVehicle();

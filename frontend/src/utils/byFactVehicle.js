@@ -53,3 +53,19 @@ export function hasByFactVehicle(source, editing = null) {
     (v) => isByFactVehicle(v) && (!editing || v !== editing),
   ));
 }
+
+/**
+ * Период вложения укладывается в один день?
+ *
+ * Форма отдаёт период в виде API-объекта (`currentEntryPeriod`), даты там уже в
+ * формате ГГГГ-ММ-ДД, поэтому сравнение строкой. Пустой период считаем недопустимым:
+ * бэкенд отклоняет заявку «По факту» без дат так же, как многодневную.
+ *
+ * @param {{date_from?: string, date_to?: string}|null} period
+ * @returns {boolean}
+ */
+export function isOneDayPeriod(period) {
+  const from = String(period?.date_from || '').trim();
+  const to = String(period?.date_to || '').trim();
+  return Boolean(from) && from === to;
+}
