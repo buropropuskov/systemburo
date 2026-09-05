@@ -24,6 +24,10 @@ import (
 // понятную ошибку на форме, а не общее «не удалось отправить».
 
 // byFactBody собирает тело подачи с одной машиной «По факту» на заданный срок.
+//
+// Окно пребывания - до конца суток. Фиксированное «до 18:00» делало тесты
+// непроходимыми после шести вечера по Москве: первая заявка успевала истечь, место
+// освобождалось, и «вторая заявка отклоняется» падало на вечернем прогоне CI.
 func byFactBody(uaID int, dateFrom, dateTo string) string {
 	return fmt.Sprintf(`{
 		"message": "по факту",
@@ -38,8 +42,8 @@ func byFactBody(uaID int, dateFrom, dateTo string) string {
 			"unique_attachment_id": %d,
 			"entry_date_from": "%s",
 			"entry_date_to": "%s",
-			"entry_time_from": "08:00",
-			"entry_time_to": "18:00",
+			"entry_time_from": "00:01",
+			"entry_time_to": "23:59",
 			"data": { "vehicles": [{ "car_number": "По факту", "car_brand": "Kamaz" }] }
 		}]
 	}`, uaID, dateFrom, dateTo)
