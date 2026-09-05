@@ -466,6 +466,7 @@ import {
     employeeLabel,
     vehicleLabel,
 } from '@/utils/applicationDuplicates';
+import { notifyApiError } from '@/utils/apiError';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -2892,9 +2893,7 @@ export default {
                     });
                     this.showSuccessModal = true;
                 } else {
-                    const errorText = await response.text();
-                    console.error('Ошибка отправки заявки:', errorText);
-                    useDeletionsStore().notify({ prefix: 'Ошибка отправки заявки: ', bold: errorText, type: 'error' });
+                    notifyApiError('Ошибка отправки заявки: ', await response.text());
                 }
             } catch (error) {
                 console.error('Ошибка отправки заявки:', error);

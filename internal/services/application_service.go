@@ -2131,6 +2131,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}
 
 	// Один человек или одна машина не могут попасть во вложение дважды.
+	if err := validateByFactVehicles(req); err != nil {
+		return nil, err
+	}
+
 	if err := validateNoDuplicates(req); err != nil {
 		return nil, err
 	}
@@ -2175,6 +2179,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	if organizationID == nil && companyID == nil {
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
+	}
+
+	if err := s.ensureNoActiveByFactApplication(tx, organizationID, hasByFactVehicle(req)); err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
 	// Создаём заявку
