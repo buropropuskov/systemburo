@@ -21,13 +21,18 @@ export const BY_FACT_ONE_DAY_HINT = 'Заявка на машину «По фа�
 
 /**
  * Машина записана как «По факту»? Сравнение нормализованное: значение приходит и
- * из формы (каноническое «По факту»), и из ранее сохранённых данных.
+ * из формы, и из ранее сохранённых данных.
  *
- * @param {{car_number?: string, number?: string}} vehicle
+ * Полей три, потому что номер зовётся по-разному на разных отрезках пути: форма
+ * подачи держит его как `plateNumber` (VehicleForm), API заявки отдаёт
+ * `car_number`, реестр уникальных машин - `number`. Проверять одно из них значит
+ * работать в тестах и молчать в браузере.
+ *
+ * @param {{plateNumber?: string, car_number?: string, number?: string}} vehicle
  * @returns {boolean}
  */
 export function isByFactVehicle(vehicle) {
-  const plate = String(vehicle?.car_number ?? vehicle?.number ?? '');
+  const plate = String(vehicle?.plateNumber ?? vehicle?.car_number ?? vehicle?.number ?? '');
   return plate.replace(/\s+/g, '').toLowerCase() === BY_FACT_PLATE.replace(/\s+/g, '').toLowerCase();
 }
 

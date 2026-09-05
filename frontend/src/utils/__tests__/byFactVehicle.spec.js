@@ -14,6 +14,14 @@ describe('isByFactVehicle', () => {
     expect(isByFactVehicle({ number: 'По факту' })).toBe(true);
   });
 
+  it('видит номер в поле формы подачи - оно зовётся plateNumber', () => {
+    // Форма держит машину как { plateNumber, mark, ... } - проверка только по
+    // car_number была зелёной в тестах и молчала в браузере: вторая «По факту»
+    // спокойно добавлялась в список.
+    expect(isByFactVehicle({ plateNumber: 'По факту', mark: 'По факту' })).toBe(true);
+    expect(isByFactVehicle({ plateNumber: 'A123AA777' })).toBe(false);
+  });
+
   it('обычный номер не путает с «По факту»', () => {
     expect(isByFactVehicle({ car_number: 'A123AA777' })).toBe(false);
     expect(isByFactVehicle({})).toBe(false);
@@ -24,6 +32,7 @@ describe('isByFactVehicle', () => {
 describe('hasByFactVehicle', () => {
   const обычная = { car_number: 'A123AA777' };
   const поФакту = { car_number: 'По факту' };
+  const изФормы = { plateNumber: 'По факту' };
 
   it('видит машину в другом вложении - правило про заявку целиком', () => {
     // Считать по одному вложению мало: во втором бланке форма пропустила бы
@@ -34,6 +43,10 @@ describe('hasByFactVehicle', () => {
   it('принимает и плоский список - так его зовёт форма транспорта', () => {
     expect(hasByFactVehicle([обычная, поФакту])).toBe(true);
     expect(hasByFactVehicle([обычная])).toBe(false);
+  });
+
+  it('считает и машины, добавленные через форму подачи', () => {
+    expect(hasByFactVehicle([обычная, изФормы])).toBe(true);
   });
 
   it('без «По факту» отвечает нет', () => {
