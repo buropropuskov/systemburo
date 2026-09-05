@@ -199,6 +199,7 @@ import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { getMe } from '@/api/auth';
 import { REPORT_PRESETS } from './reportPresets';
 import { formatDateRu } from '@/utils/datetime';
+import { resultDataPeriod } from '@/utils/reportTable';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
@@ -393,10 +394,14 @@ async function onRun(request) {
     resultLimit.value = Number(request.limit) || 0;
     const dr = (request.filters || []).find((f) => f.key === 'date_range');
     const { from = '', to = '' } = dr || {};
+    // Отчёт за весь период разворачиваем в конкретные даты: границы известны только
+    // из ответа, а пустые поля мастера читались как «выбор не применился» (#2338).
+    const period = from || to ? { from, to } : resultDataPeriod(r);
+    if (!dr && period) builderRef.value?.setPeriod(period.from, period.to);
     exportMeta.value = {
       title: buildExportTitle(request),
       author: author.value,
-      ...(dr ? { period: { from, to } } : {}),
+      ...(period ? { period } : {}),
     };
   } catch (e) {
     if (seq !== runSeq) return;
