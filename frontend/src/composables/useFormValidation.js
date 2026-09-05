@@ -11,11 +11,19 @@ export function useFormValidation(rules) {
 
   const isValid = computed(() => missingFields.value.length === 0)
 
+  /**
+   * Причины, по которым кнопка недоступна.
+   *
+   * Заголовок нейтральный: в списке лежат не только незаполненные поля, но и
+   * запреты - «Машина в чёрном списке», «На этот автомобиль уже есть активная
+   * заявка», «в заявке уже есть машина „По факту“». С «Заполните поля» они
+   * читались как требование что-то ввести (#2320).
+   */
   const tooltipMessage = computed(() => {
     if (isValid.value) return ''
     const fields = missingFields.value
-    if (fields.length === 1) return `Заполните поле: ${fields[0]}`
-    return `Заполните поля:\n${fields.map(f => `• ${f}`).join('\n')}`
+    if (fields.length === 1) return `Не хватает: ${fields[0]}`
+    return `Не хватает:\n${fields.map(f => `• ${f}`).join('\n')}`
   })
 
   function validateField(fieldName) {
