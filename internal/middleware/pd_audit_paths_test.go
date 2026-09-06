@@ -26,11 +26,73 @@ func TestPDPaths(t *testing.T) {
 		// на экран, а не файлом: под 152-ФЗ попадает вынос пачкой, а не просмотр.
 		{"/api/request-logs", false, ""},
 		{"/api/request-logs/stats", false, ""},
-		// Соседи по карточке заявки персональных данных не отдают: состав ответственных
-		// приходит без контактов, история - записями о действиях.
-		{"/api/applications/42/responsible-users", false, ""},
-		{"/api/applications/42/history", false, ""},
-		{"/api/applications/42", false, ""},
+		// #2352: карточка заявки и её соседи персональные данные всё-таки отдают -
+		// sender_full_name/responsible_full_name в детали, ФИО актора в истории, ФИО
+		// и должность в составе ответственных. Раньше здесь стояло "false" - ровно та
+		// дыра, которую закрывает эта задача.
+		{"/api/applications", true, "application"},
+		{"/api/applications/user", true, "application"},
+		{"/api/applications/attachable", true, "application"},
+		{"/api/applications/42", true, "application"},
+		{"/api/applications/42/details", true, "application"},
+		{"/api/applications/42/history", true, "application"},
+		{"/api/applications/42/responsible-users", true, "application"},
+		{"/api/applications/42/forward-messages", true, "application"},
+		{"/api/applications/42/viewers", true, "application"},
+		{"/api/applications/42/reads", true, "application"},
+		{"/api/applications/42/questions", true, "application"},
+		{"/api/applications/42/supplements", true, "application"},
+		// Статические соседи на том же уровне маршрутизации персональных данных не
+		// отдают: только счётчики/флаги, без единого ФИО.
+		{"/api/applications/unread-count", false, ""},
+		{"/api/applications/user/status-updates-count", false, ""},
+		{"/api/applications/42/check-approval-status", false, ""},
+		{"/api/applications/42/attachments", false, ""},
+		// Действия (не просмотр) под теми же суффиксами-соседями персональных данных
+		// в ответе не показывают - только статус операции.
+		{"/api/applications/42/questions/seen", false, ""},
+		{"/api/applications/42/supplements/3/approve", false, ""},
+		// Список пользователей (#2352): доказано на стенде - счётчик журнала не
+		// сдвигался на этом пути, хотя ответ несёт ФИО, должность, почту, телефон.
+		{"/api/users/all", true, "user"},
+		{"/api/users/all?include_archived=true", true, "user"},
+		// История изменений учётки: ActorName - тоже ФИО, тот же принцип, что и
+		// история пользователя-заявки.
+		{"/api/users/ivanov/history", true, "user"},
+		// Соседи по управлению пользователями в ответе ФИО не показывают - только
+		// статус операции (создание/смена типа/пароля/архивация).
+		{"/api/users/me", false, ""},
+		{"/api/users/me/theme", false, ""},
+		{"/api/users/ivanov/type", false, ""},
+		{"/api/users/ivanov/password", false, ""},
+		{"/api/users/ivanov/unload-places", false, ""},
+		{"/api/users/bulk/archive", false, ""},
+		// Реестр автомобилей (#2352): зеркало /api/unique-employees - UserName в
+		// ответе это ФИО владельца записи (см. maskCarOwners).
+		{"/api/unique-cars", true, "unique_car"},
+		{"/api/unique-cars/5/history", true, "unique_car"},
+		// История машин (заявочных, не реестра): ФИО охранника, менявшего статус.
+		{"/api/cars/42/history", true, "car"},
+		{"/api/cars/history/all", true, "car"},
+		{"/api/cars/history/table/5", true, "car"},
+		{"/api/cars/history/unified", true, "car"},
+		// Текущий статус и живая таблица поста персональных данных не показывают:
+		// номер и марка машины субъекта не идентифицируют (см. UniqueCar.PDConsentAt).
+		{"/api/cars/history/current-status", false, ""},
+		{"/api/cars/active-for-table/5", false, ""},
+		{"/api/cars/fact-for-table/5", false, ""},
+		// Корзина и слепок таблицы поста (#186, #980): те же ФИО/номера машин, что
+		// в основной таблице, только удалённые или зафиксированные версией.
+		{"/api/system-tables/5/trash", true, "system_table_content"},
+		{"/api/system-tables/5/trash/history", true, "system_table_content"},
+		{"/api/system-tables/5/snapshots/9", true, "system_table_content"},
+		{"/api/system-tables/5/snapshots/9/export", true, "system_table_content"},
+		// Список версий (без /{sid}) отдаёт только метаданные, восстановление и
+		// очистка корзины - только счётчик; структура таблицы - конфигурация, не
+		// содержимое.
+		{"/api/system-tables/5/snapshots", false, ""},
+		{"/api/system-tables/5/trash/restore", false, ""},
+		{"/api/system-tables/5", false, ""},
 		{"/api/organizations", false, ""},
 	}
 
@@ -59,6 +121,14 @@ func TestPDResourceNamedForEveryPDPath(t *testing.T) {
 		"/api/settings/pd-consent/collection",
 		"/api/applications/export",
 		"/api/request-logs/export",
+		"/api/applications/7",
+		"/api/applications/7/history",
+		"/api/users/all",
+		"/api/users/ivanov/history",
+		"/api/unique-cars",
+		"/api/cars/7/history",
+		"/api/system-tables/7/trash",
+		"/api/system-tables/7/snapshots/1",
 	}
 	for _, p := range paths {
 		if !isPDPath(p) {

@@ -16,10 +16,12 @@ func TestIsPDPath_ApplicationFiles(t *testing.T) {
 		{"/api/applications/12/files/34", true, "application_file"},
 		// Загрузка черновика идёт без номера заявки и тоже несёт документ.
 		{"/api/applications/files", false, ""},
-		// Сама заявка персональных данных в этом смысле не отдаёт: состав вложений
-		// уже закрыт другими правилами перечня.
-		{"/api/applications/12", false, ""},
-		{"/api/applications", false, ""},
+		// #2352: сама заявка (список и деталь) персональные данные всё-таки отдаёт -
+		// sender_full_name/responsible_full_name. Полный разбор путей заявки - в
+		// pd_audit_paths_test.go, здесь достаточно не потерять эти два соседа при
+		// проверке файлов.
+		{"/api/applications/12", true, "application"},
+		{"/api/applications", true, "application"},
 		// Соседние маршруты заявки не должны попасть под правило целиком.
 		{"/api/applications/12/attachments", false, ""},
 	}
