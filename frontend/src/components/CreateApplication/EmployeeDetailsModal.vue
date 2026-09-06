@@ -218,27 +218,14 @@
                            заведённых до введения отметки, строку не рисуем, чтобы не
                            читалось как «не уведомлён». -->
                       <div
-                        v-if="employee.pd_consent_at"
+                        v-if="employee.pd_consent_at || employee.pd_objection_at"
                         class="detail-item"
                       >
-                        <span class="detail-label">Уведомление об обработке ПД:</span>
+                        <span class="detail-label">{{ employee.pd_objection_at ? 'Возражение против обработки:' : 'Уведомление об обработке ПД:' }}</span>
                         <span
                           class="detail-value"
                           data-testid="employee-pd-consent-date"
-                        >отмечено {{ formatConsentDate(employee.pd_consent_at) }}</span>
-                      </div>
-                      <!-- Возражение субъекта (#2361): человек потребовал прекратить
-                           обработку. Строку рисуем только при наличии отметки - у
-                           большинства записей её нет и не будет. -->
-                      <div
-                        v-if="employee.pd_objection_at"
-                        class="detail-item"
-                      >
-                        <span class="detail-label">Возражение против обработки:</span>
-                        <span
-                          class="detail-value"
-                          data-testid="employee-pd-objection-date"
-                        >поступило {{ formatConsentDate(employee.pd_objection_at) }}</span>
+                        >{{ employee.pd_objection_at ? 'поступило ' + formatConsentDate(employee.pd_objection_at) : 'отмечено ' + formatConsentDate(employee.pd_consent_at) }}</span>
                       </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
