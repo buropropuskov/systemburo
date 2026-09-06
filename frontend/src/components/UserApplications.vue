@@ -644,9 +644,9 @@ export default {
     },
 
     hasActiveFilters() {
-      return !!this.searchQuery ||
-             !!this.selectedDate ||
-             (this.dateRangeStart && this.dateRangeEnd);
+      // Чип «Обновления» - такой же фильтр: иначе пусто под ним объясняют «нет заявок» (#2339).
+      return !!this.searchQuery || !!this.selectedDate || this.statusUpdatedOnly
+             || (this.dateRangeStart && this.dateRangeEnd);
     },
 
     // Сортировка по колонке - клиентская, поэтому должна идти по ВСЕМУ набору, не по
@@ -1902,10 +1902,10 @@ export default {
     gap: 10px;
   }
 
-  /* Не уже лейбла: при min-width: 0 фильтр схлопывался до 78px - «М...» (#2339). */
+  /* Своей строкой во всю ширину под заголовком и чипом: в общей жался до 78px (#2339). */
   .cabinet__filter-dropdown {
-    flex: 1;
-    min-width: 150px;
+    order: 3;
+    flex: 1 0 100%;
   }
 
   .card-header__settings {
