@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/apperr"
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
 	"systemburo/internal/realtime"
@@ -1633,6 +1635,50 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 	}, nil
 }
 
+// validateObjections отклоняет заявку, если кто-то из её участников возразил против
+// обработки своих персональных данных (#2361). Отметка ставится на записи реестра, и
+// пока она стоит, человека нельзя завести заново: иначе возражение обходилось бы
+// подачей новой заявки.
+//
+// Ищем по свёртке документа - точное совпадение, не раскрывая значения. По ФИО не
+// ищем намеренно: однофамильцы попадали бы под чужое возражение и не смогли пройти,
+// а цена такой ошибки выше, чем цена пропущенной строки без документа.
+func (s *applicationService) validateObjections(ctx context.Context, req CompleteApplicationRequest) error {
+	var hashes []string
+	for _, att := range req.Attachments {
+		if att.Data.Employees == nil {
+			continue
+		}
+		for _, e := range *att.Data.Employees {
+			passport := strings.TrimSpace(e.PassportSeriesNumber)
+			if passport == "" {
+				continue
+			}
+			hashes = append(hashes, crypto.ComputeHMAC(passport, crypto.GetGlobalKey()))
+		}
+	}
+	if len(hashes) == 0 {
+		return nil
+	}
+
+	var objected []models.UniqueEmployee
+	if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
+		Where("pd_objection_at IS NOT NULL AND passport_series_number_hmac IN ?", hashes).
+		Limit(1).Find(&objected).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки возражений")
+	}
+	if len(objected) == 0 {
+		return nil
+	}
+
+	// Имя в ответе нужно: заявитель должен понять, кого убрать из заявки. Данные не
+	// раскрываются лишнему - он же сам их и вводил строкой выше.
+	fio := employeeFIOOrPlaceholder(&objected[0], objected[0].ID)
+	return apperr.Conflict(fmt.Sprintf(
+		"%s возразил(а) против обработки своих персональных данных, включить этого человека в заявку нельзя. "+
+			"Если возражение отозвано, обратитесь в бюро пропусков: снять отметку может только администратор.", fio))
+}
+
 // validateBlacklist проверяет машины и людей заявки против активного ЧС (#443).
 // Машины матчатся по номеру + mark_id (как и фронтовый /check); машины без mark_id
 // ("по факту"/свободная марка) пропускаем - по mark_id в ЧС они попасть не могут.
@@ -2126,6 +2172,14 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 	// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком
 	// до старта транзакции - на случай обхода фронтовой проверки.
+	// Человек, возразивший против обработки, в новых заявках не заводится (#2361):
+	// иначе отметка о возражении не значила бы ничего - его данные вносили бы снова
+	// следующей же заявкой. Проверка стоит рядом с чёрным списком: та же природа
+	// (заявку целиком отклоняем до создания), тот же приём сбора плоского списка.
+	if err := s.validateObjections(ctx, req); err != nil {
+		return nil, err
+	}
+
 	if err := s.validateBlacklist(ctx, req); err != nil {
 		return nil, err
 	}
