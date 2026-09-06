@@ -1,0 +1,2688 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Тетрадь тестировщика. Подготовка к стажировке в R-Vision</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 15mm 18mm 15mm;
+  }
+
+  :root {
+    --ink: #16181d;
+    --ink-2: #3d434c;
+    --ink-3: #6b7280;
+    --accent: #1d3f80;
+    --accent-soft: #e8edf6;
+    --line: #c9ced6;
+    --line-soft: #e3e6ea;
+    --fill: #f2f3f5;
+    --serif: "Noto Serif", "DejaVu Serif", Georgia, serif;
+    --sans: "Inter", "Liberation Sans", Arial, sans-serif;
+    --mono: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 10.15pt;
+    line-height: 1.4;
+    color: var(--ink);
+    background: #fff;
+  }
+
+  p { margin: 0 0 5pt; text-align: justify; hyphens: auto; }
+  ul, ol { margin: 0 0 6pt; padding-left: 15pt; }
+  li { margin-bottom: 2.5pt; }
+  b, strong { font-weight: 600; }
+
+  h1, h2, h3, h4 { font-family: var(--sans); color: var(--ink); margin: 0; }
+
+  h2 {
+    font-size: 16pt;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 0 0 3pt;
+    padding-bottom: 4pt;
+    border-bottom: 1.6pt solid var(--accent);
+    break-after: avoid;
+  }
+  h2 .num {
+    display: inline-block;
+    min-width: 22pt;
+    color: var(--accent);
+  }
+
+  h3 {
+    font-size: 11.2pt;
+    font-weight: 600;
+    margin: 10pt 0 4pt;
+    break-after: avoid;
+  }
+
+  h4 {
+    font-size: 10.2pt;
+    font-weight: 600;
+    margin: 8pt 0 3pt;
+    break-after: avoid;
+  }
+
+  section.chapter { break-before: page; }
+  section.chapter:first-of-type { break-before: auto; }
+
+  .lead {
+    font-size: 10.2pt;
+    color: var(--ink-2);
+    margin-bottom: 9pt;
+    font-style: italic;
+  }
+
+  /* ---- блоки ---- */
+  .term, .ex, .real, .task, .quiz, .warn, .sum {
+    break-inside: avoid;
+    margin: 6pt 0;
+    padding: 5.5pt 8pt;
+    font-size: 9.6pt;
+  }
+
+  .term { border-left: 3pt solid var(--accent); background: var(--accent-soft); }
+  .term .w { font-weight: 600; font-family: var(--sans); }
+
+  .ex { border-left: 2pt solid var(--line); background: var(--fill); }
+
+  .real {
+    border: 1pt dashed var(--ink-3);
+    background: #fff;
+  }
+  .real::before {
+    content: "В проекте systemburo";
+    display: block;
+    font-family: var(--sans);
+    font-size: 7.4pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 3pt;
+  }
+
+  .task {
+    border: 1.2pt solid var(--ink);
+    background: #fff;
+  }
+  .task .h, .quiz .h {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 9.4pt;
+    margin-bottom: 3pt;
+  }
+  .task .h span, .quiz .h span {
+    background: var(--ink);
+    color: #fff;
+    padding: 0.5pt 4pt;
+    margin-right: 5pt;
+    border-radius: 2pt;
+  }
+
+  .quiz { border: 1pt solid var(--line); background: #fff; }
+  .quiz ol { padding-left: 14pt; margin-bottom: 0; }
+  .quiz .opts { list-style: none; padding-left: 0; margin: 2pt 0 0; }
+  .quiz .opts li { margin-bottom: 1pt; }
+
+  .warn { border-left: 3pt solid var(--ink); background: var(--fill); }
+  .warn::before {
+    content: "Ловушка";
+    display: block;
+    font-family: var(--sans);
+    font-size: 7.4pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 2pt;
+  }
+
+  .sum { border: 1pt solid var(--accent); background: #fff; }
+  .sum::before {
+    content: "Итог раздела";
+    display: block;
+    font-family: var(--sans);
+    font-size: 7.4pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 3pt;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 8.9pt;
+    background: var(--fill);
+    padding: 0.5pt 2.5pt;
+    border-radius: 2pt;
+  }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 8.3pt;
+    line-height: 1.36;
+    background: var(--fill);
+    border-left: 2pt solid var(--line);
+    padding: 6pt 8pt;
+    margin: 6pt 0;
+    white-space: pre-wrap;
+    break-inside: avoid;
+    overflow-wrap: anywhere;
+  }
+  pre b { font-weight: 700; background: #fff; padding: 0 1pt; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.9pt;
+    margin: 6pt 0;
+    break-inside: avoid;
+  }
+  th, td {
+    border: 0.5pt solid var(--line);
+    padding: 3pt 4.5pt;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--fill);
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 8.6pt;
+  }
+
+  figure { margin: 8pt 0; break-inside: avoid; text-align: center; }
+  figure svg { max-width: 100%; height: auto; }
+  figcaption {
+    font-family: var(--sans);
+    font-size: 8.2pt;
+    color: var(--ink-3);
+    margin-top: 3pt;
+    text-align: center;
+  }
+
+  .svg-t { font-family: "Inter", Arial, sans-serif; font-size: 8.5px; fill: #16181d; }
+  .svg-s { font-family: "Inter", Arial, sans-serif; font-size: 7.2px; fill: #6b7280; }
+  .svg-b { font-family: "Inter", Arial, sans-serif; font-size: 8.5px; font-weight: 600; fill: #16181d; }
+  .box { fill: #fff; stroke: #16181d; stroke-width: 1; }
+  .box-f { fill: #f2f3f5; stroke: #16181d; stroke-width: 1; }
+  .box-a { fill: #e8edf6; stroke: #1d3f80; stroke-width: 1.2; }
+  .arrow { stroke: #16181d; stroke-width: 1; fill: none; marker-end: url(#ah); }
+  .arrow-d { stroke: #6b7280; stroke-width: .9; fill: none; stroke-dasharray: 3 2; marker-end: url(#ahg); }
+
+
+  /* ---- места для записей ---- */
+  .notes {
+    break-inside: avoid;
+    margin: 9pt 0 0;
+    padding: 7pt 9pt 4pt;
+    border: 1pt solid var(--line);
+    border-radius: 2pt;
+  }
+  .notes .nh {
+    font-family: var(--sans);
+    font-size: 7.6pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6pt;
+  }
+  .notes .q {
+    font-family: var(--sans);
+    font-size: 8.8pt;
+    color: var(--ink-2);
+    margin: 0 0 3pt;
+  }
+  .ln { border-bottom: 0.4pt solid var(--line); height: 14pt; }
+  .ln:last-child { margin-bottom: 2pt; }
+
+  .box-check {
+    display: inline-block;
+    width: 8pt;
+    height: 8pt;
+    border: 0.7pt solid var(--ink-3);
+    border-radius: 1pt;
+    vertical-align: -0.5pt;
+  }
+  .tracker td { text-align: center; }
+  .tracker td:first-child { text-align: left; }
+  .glossary td { height: 22pt; }
+  .glossary td:first-child { width: 32%; }
+
+  /* ---- титул ---- */
+  .cover {
+    height: 246mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    break-after: page;
+  }
+  .cover .top { font-family: var(--sans); font-size: 8.6pt; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+  .cover h1 {
+    font-size: 31pt;
+    line-height: 1.06;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    margin-bottom: 8pt;
+  }
+  .cover .sub { font-size: 12pt; color: var(--ink-2); max-width: 118mm; font-family: var(--sans); font-weight: 400; }
+  .cover .meta { font-family: var(--sans); font-size: 8.8pt; color: var(--ink-3); line-height: 1.8; border-top: 1pt solid var(--line); padding-top: 8pt; }
+
+  .toc { font-family: var(--sans); font-size: 9.6pt; }
+  .toc div { display: flex; gap: 6pt; padding: 2.6pt 0; border-bottom: 0.5pt dotted var(--line-soft); }
+  .toc .n { min-width: 20pt; color: var(--accent); font-weight: 600; }
+  .toc .t { flex: 1; }
+  .toc .d { color: var(--ink-3); font-size: 8.6pt; }
+
+  .cols2 { column-count: 2; column-gap: 10mm; }
+  .nobreak { break-inside: avoid; }
+  .answers { font-size: 9.4pt; }
+  .answers h3 { margin-top: 9pt; }
+  .answers .a { margin-bottom: 5pt; }
+  .answers .a b { font-family: var(--sans); }
+</style>
+</head>
+<body>
+
+<!-- ================= ТИТУЛ ================= -->
+<div class="cover">
+  <div class="top">Рабочая тетрадь · подготовка к стажировке</div>
+  <div>
+    <h1>Тетрадь<br>тестировщика</h1>
+    <div class="sub">
+      От нуля до собеседования на стажировку QA в R-Vision.
+      Теория, разобранная на живом проекте, практика с заготовками и ответами.
+    </div>
+  </div>
+  <div class="meta">
+    Сквозной проект тетради: тест-набор для «Заявки на пропуск» в systemburo<br>
+    Целевая вакансия: стажёр-тестировщик, R-Vision (ручное тестирование с уклоном в автоматизацию)<br>
+    Стек по вакансии: Playwright, TypeScript, Git, SQL, API, DevTools, Allure, Confluence<br>
+    Составлено 6 сентября 2026 года
+  </div>
+</div>
+
+
+<!-- ================= ОГЛАВЛЕНИЕ ================= -->
+<div style="break-after:page">
+  <h2 style="border-bottom:1.6pt solid var(--accent)">Содержание</h2>
+  <div class="toc">
+    <div><span class="n">0</span><span class="t">Как устроена тетрадь</span><span class="d">сквозной проект, значки, дорожная карта на 4 недели</span></div>
+    <div><span class="n">1</span><span class="t">Тестировщик: роль, команда, R-Vision</span><span class="d">зачем нужен, кто есть кто, продукты и стек компании</span></div>
+    <div><span class="n">2</span><span class="t">База: термины, уровни, виды</span><span class="d">дефект и отказ, пирамида, severity и priority</span></div>
+    <div><span class="n">3</span><span class="t">Тест-дизайн</span><span class="d">классы, границы, таблица решений, состояния, pairwise</span></div>
+    <div><span class="n">4</span><span class="t">Документы тестировщика</span><span class="d">чек-лист, тест-кейс, баг-репорт, жизненный цикл дефекта</span></div>
+    <div><span class="n">5</span><span class="t">Веб под капотом</span><span class="d">DevTools, DOM, локаторы, Page Object</span></div>
+    <div><span class="n">6</span><span class="t">API: проверка без браузера</span><span class="d">методы, коды, конверт ответа, JWT, REST и GraphQL</span></div>
+    <div><span class="n">7</span><span class="t">SQL: что реально сохранилось</span><span class="d">SELECT, JOIN, GROUP BY, проверки после действия</span></div>
+    <div><span class="n">8</span><span class="t">TypeScript по делу</span><span class="d">типы, интерфейсы, async и await, классы для POM</span></div>
+    <div><span class="n">9</span><span class="t">Playwright</span><span class="d">локаторы, автоожидания, фикстуры, моки, трейсы</span></div>
+    <div><span class="n">10</span><span class="t">CI, отчёты, флаки</span><span class="d">конвейер, разбор падений, Allure и TestOps</span></div>
+    <div><span class="n">11</span><span class="t">Сборка pet-проекта</span><span class="d">структура репозитория, README, критерии готовности</span></div>
+    <div><span class="n">12</span><span class="t">Собеседование</span><span class="d">карта требований, типовые вопросы, что спросить самому</span></div>
+    <div><span class="n">А</span><span class="t">Ответы и решения</span><span class="d">разборы всех заданий П1-П16 и тестов Т1-Т9</span></div>
+    <div><span class="n">Б</span><span class="t">Шпаргалки</span><span class="d">коды ответов, Playwright, SQL, шаблон баг-репорта</span></div>
+  </div>
+</div>
+
+<!-- ================= 0. КАК ПОЛЬЗОВАТЬСЯ ================= -->
+<section class="chapter">
+<h2><span class="num">0</span>Как устроена тетрадь</h2>
+
+<p>Тетрадь ведёт от «не знаю, что такое дефект» до готового тест-набора, который не стыдно показать
+на собеседовании. Теории ровно столько, чтобы понимать, что делаешь и зачем; всё остальное время
+занимает практика.</p>
+
+<h3>Сквозной проект</h3>
+<p>Все разделы работают на один результат. Мы берём одну функцию реального проекта <b>systemburo</b>
+(бюро пропусков: Go + PostgreSQL на бэкенде, Vue 3 на фронте) — <b>подачу заявки на пропуск</b> — и
+по ходу тетради собираем для неё полный набор артефактов тестировщика:</p>
+
+<table>
+  <tr><th style="width:26%">Раздел</th><th style="width:38%">Что делаем</th><th>Что появляется в наборе</th></tr>
+  <tr><td>3. Тест-дизайн</td><td>разбиваем поля формы на классы и границы</td><td>чек-лист проверок</td></tr>
+  <tr><td>4. Документация</td><td>оформляем проверки и найденный дефект</td><td>6 тест-кейсов, 1 баг-репорт</td></tr>
+  <tr><td>5. Веб и локаторы</td><td>снимаем селекторы со страницы</td><td>карта локаторов</td></tr>
+  <tr><td>6. API</td><td>проверяем запрос создания заявки</td><td>API-проверка</td></tr>
+  <tr><td>7. SQL</td><td>убеждаемся, что данные легли в базу</td><td>SQL-запрос проверки</td></tr>
+  <tr><td>8-9. TS и Playwright</td><td>пишем Page Object и автотесты</td><td>3 автотеста + POM</td></tr>
+  <tr><td>11. Сборка</td><td>складываем всё в репозиторий с отчётом</td><td>готовый pet-проект</td></tr>
+</table>
+
+<p>Именно такой pet-проект закрывает сразу четыре строки требований вакансии: «опыт разработки
+учебных или pet-проектов», «знание Page Object и локаторов», «Git», «плюсом TypeScript и Playwright».</p>
+
+<h3>Значки на полях</h3>
+<table>
+  <tr><td style="width:24%"><b>Термин</b></td><td>определение, которое спросят на собеседовании</td></tr>
+  <tr><td><b>Пример</b></td><td>тот же термин на конкретной ситуации</td></tr>
+  <tr><td><b>В проекте systemburo</b></td><td>как это выглядит в живом коде, а не в учебнике</td></tr>
+  <tr><td><b>Практика П<i>N</i></b></td><td>задание с заготовкой: дописать, дополнить, исправить</td></tr>
+  <tr><td><b>Тест Т<i>N</i></b></td><td>вопрос с вариантами ответа для самопроверки</td></tr>
+  <tr><td><b>Ловушка</b></td><td>ошибка новичка, которую видно на собеседовании сразу</td></tr>
+</table>
+<p>Ответы на все задания и тесты — в приложении А. Подглядывать сразу бессмысленно: ценность
+задания в попытке, а не в правильной строчке.</p>
+
+<h3>Дорожная карта: четыре недели</h3>
+<p>Расчёт на 10-12 часов в неделю. Если времени больше, план сжимается, но порядок сохраняется:
+каждая неделя опирается на предыдущую.</p>
+
+<figure>
+<svg viewBox="0 0 560 190" xmlns="http://www.w3.org/2000/svg" role="img">
+  <defs>
+    <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="#16181d"/>
+    </marker>
+    <marker id="ahg" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <line x1="20" y1="26" x2="540" y2="26" stroke="#16181d" stroke-width="1.2"/>
+  <circle cx="20" cy="26" r="3.5" fill="#16181d"/>
+  <circle cx="150" cy="26" r="3.5" fill="#16181d"/>
+  <circle cx="280" cy="26" r="3.5" fill="#16181d"/>
+  <circle cx="410" cy="26" r="3.5" fill="#16181d"/>
+  <circle cx="540" cy="26" r="4.5" fill="#1d3f80"/>
+
+  <text class="svg-b" x="20" y="18">Неделя 1</text>
+  <text class="svg-b" x="150" y="18">Неделя 2</text>
+  <text class="svg-b" x="280" y="18">Неделя 3</text>
+  <text class="svg-b" x="410" y="18">Неделя 4</text>
+  <text class="svg-b" x="486" y="18">Собеседование</text>
+
+  <rect class="box-f" x="20" y="38" width="118" height="66" rx="3"/>
+  <text class="svg-t" x="28" y="52">Разделы 1-4</text>
+  <text class="svg-s" x="28" y="64">кто такой тестировщик,</text>
+  <text class="svg-s" x="28" y="74">база, тест-дизайн,</text>
+  <text class="svg-s" x="28" y="84">кейсы и баг-репорты</text>
+  <text class="svg-s" x="28" y="97">на выходе: чек-лист</text>
+
+  <rect class="box-f" x="150" y="38" width="118" height="66" rx="3"/>
+  <text class="svg-t" x="158" y="52">Разделы 5-7</text>
+  <text class="svg-s" x="158" y="64">DevTools, локаторы,</text>
+  <text class="svg-s" x="158" y="74">HTTP и API, SQL</text>
+  <text class="svg-s" x="158" y="97">на выходе: API и SQL</text>
+
+  <rect class="box-f" x="280" y="38" width="118" height="66" rx="3"/>
+  <text class="svg-t" x="288" y="52">Разделы 8-9</text>
+  <text class="svg-s" x="288" y="64">TypeScript по делу,</text>
+  <text class="svg-s" x="288" y="74">Playwright, Page Object,</text>
+  <text class="svg-s" x="288" y="84">фикстуры, отчёты</text>
+  <text class="svg-s" x="288" y="97">на выходе: 3 автотеста</text>
+
+  <rect class="box-a" x="410" y="38" width="130" height="66" rx="3"/>
+  <text class="svg-t" x="418" y="52">Разделы 10-12</text>
+  <text class="svg-s" x="418" y="64">CI, флаки, сборка</text>
+  <text class="svg-s" x="418" y="74">pet-проекта, разбор</text>
+  <text class="svg-s" x="418" y="84">вопросов собеседования</text>
+  <text class="svg-s" x="418" y="97">на выходе: репозиторий</text>
+
+  <path class="arrow" d="M20,120 L540,120"/>
+  <text class="svg-s" x="180" y="134">одна функция systemburo проходит через все четыре недели</text>
+
+  <rect class="box" x="20" y="146" width="250" height="34" rx="3"/>
+  <text class="svg-t" x="28" y="160">Каждый день: 20 минут теории</text>
+  <text class="svg-s" x="28" y="172">остальное время — руками, в редакторе и браузере</text>
+
+  <rect class="box" x="290" y="146" width="250" height="34" rx="3"/>
+  <text class="svg-t" x="298" y="160">Каждую неделю: коммит в Git</text>
+  <text class="svg-s" x="298" y="172">история коммитов и есть доказательство работы</text>
+</svg>
+<figcaption>Дорожная карта: четыре недели и результат каждой</figcaption>
+</figure>
+
+
+<h3>Трекер прогресса</h3>
+<p>Отмечайте по ходу. Третья колонка — самая важная: задание считается сделанным, только когда вы
+сверились с ответом в приложении А и поняли расхождение, если оно было.</p>
+<table class="tracker">
+  <tr><th style="width:44%">Раздел</th><th style="width:20%">Задания</th><th>Прочитан</th><th>Практика</th><th>Сверено</th></tr>
+    <tr><td>1. Тестировщик: роль, команда, R-Vision</td><td>Т1</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>2. База: термины, уровни, виды</td><td>П1, Т2</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>3. Тест-дизайн</td><td>П2-П4, Т3</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>4. Документы тестировщика</td><td>П5, П6, Т4</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>5. Веб под капотом</td><td>П7, П8, Т5</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>6. API</td><td>П9, П10, Т6</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>7. SQL</td><td>П11, Т7</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>8. TypeScript по делу</td><td>П12, П13</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>9. Playwright</td><td>П14, П15, Т8</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>10. CI, отчёты, флаки</td><td>Т9</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>11. Сборка pet-проекта</td><td>П16</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>12. Собеседование</td><td>—</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+</table>
+
+<h3>Что понадобится установить</h3>
+<ul>
+  <li><b>Node.js 20+</b> и <b>npm</b> — среда для Playwright.</li>
+  <li><b>VS Code</b> — редактор, расширение Playwright Test for VSCode.</li>
+  <li><b>Git</b> и аккаунт на GitHub — репозиторий pet-проекта.</li>
+  <li><b>Браузер Chrome или Firefox</b> — DevTools открывается по F12.</li>
+  <li>По желанию: <b>Postman</b> для API и <b>DBeaver</b> для SQL. Оба заменяются командной строкой.</li>
+</ul>
+</section>
+
+<!-- ================= 1. КТО ТАКОЙ ТЕСТИРОВЩИК ================= -->
+<section class="chapter">
+<h2><span class="num">1</span>Тестировщик: роль, команда, R-Vision</h2>
+<p class="lead">Начинать с техники бессмысленно, пока непонятно, зачем в команде отдельный человек
+и за что ему платят.</p>
+
+<h3>1.1 Зачем нужен тестировщик</h3>
+<p>Разработчик пишет код и проверяет, что <i>его сценарий</i> работает. Тестировщик проверяет,
+что <i>система</i> работает: в том числе там, где данные пришли неожиданные, пользователь нажал
+не туда, а две функции пересеклись боком.</p>
+
+<div class="term">
+  <span class="w">Тестирование</span> — проверка соответствия того, что система делает, тому, что она
+  должна делать, с целью найти расхождение раньше пользователя.
+</div>
+
+<p>Важная поправка: тестирование не доказывает, что ошибок нет. Оно показывает, что найденные
+ошибки есть, а ненайденные могут существовать. Полный перебор невозможен: у формы из пяти полей
+комбинаций больше, чем жизни на их проверку. Отсюда всё ремесло тест-дизайна — как проверить
+малым числом сценариев максимум риска.</p>
+
+<div class="real">
+В systemburo есть 7652 автотеста, зелёный CI и всё равно случались провалы на проде: деплой падал
+на сборке nginx, интерфейс не разворачивал ответ API формы <code>{table:{}}</code>. Вывод, записанный
+в правилах проекта: «зелёный CI не равно работает». Автотесты проверяют то, что в них заложили,
+а не то, что важно пользователю.
+</div>
+
+<h3>1.2 Кто есть кто в тестировании</h3>
+<table>
+  <tr><th style="width:27%">Роль</th><th>Чем занимается</th></tr>
+  <tr><td>Ручной тестировщик (QA manual)</td><td>проверяет функции руками, пишет кейсы и баг-репорты, исследует новое</td></tr>
+  <tr><td>Автоматизатор (AQA)</td><td>переносит повторяющиеся проверки в код, поддерживает фреймворк тестов</td></tr>
+  <tr><td>Инженер по нагрузке</td><td>проверяет, держит ли система поток данных и не деградирует ли между релизами</td></tr>
+  <tr><td>AppSec-инженер</td><td>ищет уязвимости в своём же продукте: пентест, фаззинг, разбор сканеров</td></tr>
+  <tr><td>Лид автоматизации</td><td>фреймворк, стратегия, люди</td></tr>
+</table>
+
+<p>В вакансии стажёра R-Vision написано «ручное тестирование с уклоном в автоматизацию». Это
+означает: начинаете с кейсов и баг-репортов, но растёте в сторону кода. Отдельной вакансии
+ручного тестировщика у компании нет вообще — единственный вход в направление лежит через
+автоматизацию.</p>
+
+<h3>1.3 Куда именно вы идёте: R-Vision</h3>
+<p>Компания с 2011 года делает системы кибербезопасности, около 442 сотрудников, выручка за
+2025 год 2,72 млрд рублей. Больше половины штата — департамент разработки. Продукты объединены
+в экосистему <b>R-Vision EVO</b>:</p>
+
+<table>
+  <tr><th style="width:16%">Продукт</th><th>Что делает</th><th style="width:30%">Что это значит для тестировщика</th></tr>
+  <tr><td>SIEM</td><td>собирает и коррелирует события безопасности</td><td>потоки в 10 000 событий в секунду, хранение в ClickHouse</td></tr>
+  <tr><td>SOAR</td><td>автоматизирует реагирование на инциденты, плейбуки</td><td>сценарии с ветвлением, интеграции с чужими системами</td></tr>
+  <tr><td>SGRC</td><td>управление рисками и соответствием стандартам</td><td>много форм, ролей и отчётов</td></tr>
+  <tr><td>VM</td><td>управление уязвимостями</td><td>сканеры, большие таблицы, фильтры</td></tr>
+  <tr><td>TIP</td><td>данные о киберугрозах</td><td>миллион сущностей на источник, часть на Rust</td></tr>
+  <tr><td>TDP</td><td>ловушки для атакующих</td><td>сетевые сценарии</td></tr>
+  <tr><td>CMDB, ITSM, ITAM</td><td>ИТ-учёт и процессы</td><td>связи объектов, справочники</td></tr>
+</table>
+
+<p>Технически это веб-интерфейсы на <b>React и TypeScript</b> с микрофронтендной архитектурой поверх
+бэкенда на <b>Node.js (NestJS)</b>, местами на <b>Rust</b>, с <b>PostgreSQL</b> и <b>ClickHouse</b>,
+очередями <b>NATS</b>, доставкой в <b>Kubernetes</b> и сборкой в <b>GitLab CI</b>. Автотесты — на
+<b>Playwright с TypeScript</b>, отчёты в <b>Allure TestOps</b>.</p>
+
+<div class="warn">
+Не путайте два стека в их вакансиях. На карьерном сайте у инженера по автоматизации упомянуты
+Java, Kotlin, Selenide, а в живой вакансии QA Automation и у лида — Playwright с TypeScript.
+Это похоже на незаконченный переезд с одного фреймворка на другой. Учить надо то, что в живой
+вакансии: Playwright.
+</div>
+
+<h3>1.4 С кем работает тестировщик</h3>
+<figure>
+<svg viewBox="0 0 520 210" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="196" y="86" width="128" height="38" rx="4"/>
+  <text class="svg-b" x="228" y="103">Тестировщик</text>
+  <text class="svg-s" x="216" y="115">вы на стажировке</text>
+
+  <rect class="box" x="20" y="14" width="130" height="40" rx="4"/>
+  <text class="svg-t" x="28" y="30">Системный аналитик</text>
+  <text class="svg-s" x="28" y="43">требования, Use Cases</text>
+
+  <rect class="box" x="370" y="14" width="130" height="40" rx="4"/>
+  <text class="svg-t" x="378" y="30">Разработчик</text>
+  <text class="svg-s" x="378" y="43">чинит найденное</text>
+
+  <rect class="box" x="20" y="156" width="130" height="40" rx="4"/>
+  <text class="svg-t" x="28" y="172">Продакт и лид</text>
+  <text class="svg-s" x="28" y="185">приоритеты, релиз</text>
+
+  <rect class="box" x="370" y="156" width="130" height="40" rx="4"/>
+  <text class="svg-t" x="378" y="172">DevOps</text>
+  <text class="svg-s" x="378" y="185">стенды, CI, прогоны</text>
+
+  <path class="arrow" d="M150,40 L196,88"/>
+  <path class="arrow" d="M324,88 L370,44"/>
+  <path class="arrow" d="M150,172 L196,122"/>
+  <path class="arrow" d="M324,122 L370,166"/>
+  <path class="arrow-d" d="M370,34 L150,34"/>
+  <text class="svg-s" x="196" y="30">задача и вопросы по неоднозначностям</text>
+  <text class="svg-s" x="196" y="66">баг-репорт, воспроизведение</text>
+  <text class="svg-s" x="150" y="146">риски и что нельзя выпускать</text>
+  <text class="svg-s" x="330" y="146">упавшие прогоны</text>
+</svg>
+<figcaption>Связи тестировщика в продуктовой команде</figcaption>
+</figure>
+
+<p>В вакансии стажёра прямо записано «взаимодействие с аналитиками и разработчиками» и «анализ
+документации — выявление пропусков и неоднозначностей». Это значит: от вас ждут вопросов
+к постановке <i>до</i> того, как код написан. Найденная в требованиях дыра стоит компании
+в десятки раз дешевле, чем тот же дефект, найденный на проде.</p>
+
+<h3>1.5 Как выглядит рабочая неделя</h3>
+<ul>
+  <li><b>Стендап</b> каждый день, 10-15 минут: что делал, что буду, что мешает.</li>
+  <li><b>Планирование</b> раз в спринт (обычно 2 недели): команда разбирает задачи.</li>
+  <li><b>Груминг</b> или разбор бэклога: аналитик рассказывает задачу, вы задаёте вопросы «а что если».</li>
+  <li><b>Ретро</b> в конце спринта: что улучшить в процессе.</li>
+  <li>Между этим — работа: кейсы, прогоны, баг-репорты, автотесты, разбор упавшего в CI.</li>
+</ul>
+
+<div class="quiz">
+  <div class="h"><span>Т1</span>Проверьте себя</div>
+  <ol>
+    <li>Тестирование доказывает отсутствие ошибок в программе. Верно или нет?</li>
+    <li>Какая роль пишет автотесты и поддерживает фреймворк: QA manual, AQA, DevOps?</li>
+    <li>Что означает «анализ документации» в обязанностях стажёра R-Vision?
+      <ul class="opts">
+        <li>а) читать инструкции пользователя</li>
+        <li>б) искать в требованиях пропуски и противоречия до начала разработки</li>
+        <li>в) писать документацию вместо аналитика</li>
+      </ul>
+    </li>
+  </ol>
+</div>
+
+<div class="sum">
+Тестировщик отвечает не за «нажать все кнопки», а за информацию о качестве: что сломано, чем это
+грозит и можно ли выпускать. В R-Vision стажёр входит через ручное тестирование, но растёт
+в автоматизацию на Playwright и TypeScript, потому что другого пути в компании нет.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Главное из раздела своими словами:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Что спросить у ментора или на собеседовании:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 2. БАЗА ================= -->
+<section class="chapter">
+<h2><span class="num">2</span>База: термины, уровни, виды</h2>
+<p class="lead">Словарь, на котором говорит команда. Половина вопросов на собеседовании — отсюда.</p>
+
+<h3>2.1 Ошибка, дефект, отказ</h3>
+<div class="term">
+  <span class="w">Ошибка (error)</span> — действие человека, приведшее к неверному результату.
+  Программист перепутал знак сравнения.<br>
+  <span class="w">Дефект (defect, bug)</span> — сам изъян в коде или документе. Условие
+  <code>&gt;=</code> вместо <code>&gt;</code>.<br>
+  <span class="w">Отказ (failure)</span> — наблюдаемое неверное поведение системы. Заявка на
+  30 дней проходит, хотя лимит 30 дней должен её отклонять.
+</div>
+<p>Цепочка всегда одна: человек ошибся → в продукте появился дефект → при выполнении он проявился
+как отказ. Дефект может годами лежать в коде и не давать отказа, пока не выполнится нужное условие.</p>
+
+<div class="term">
+  <span class="w">Верификация</span> — «делаем ли мы продукт правильно» (соответствие требованиям).<br>
+  <span class="w">Валидация</span> — «делаем ли мы правильный продукт» (решает ли он задачу пользователя).
+</div>
+<div class="ex">
+Форма подачи заявки сделана ровно по макету и требованиям — верификация пройдена. Но охраннику на
+КПП нужна фамилия водителя, которой в форме нет вообще, и заявку приходится уточнять по телефону —
+валидация провалена.
+</div>
+
+<h3>2.2 Уровни тестирования и пирамида</h3>
+<figure>
+<svg viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg" role="img">
+  <polygon points="260,12 330,68 190,68" class="box-a"/>
+  <polygon points="190,70 330,70 372,126 148,126" class="box-f"/>
+  <polygon points="148,128 372,128 420,186 100,186" class="box"/>
+
+  <text class="svg-b" x="238" y="52">E2E</text>
+  <text class="svg-b" x="228" y="104">Интеграционные</text>
+  <text class="svg-b" x="238" y="162">Юнит-тесты</text>
+
+  <text class="svg-s" x="382" y="46">медленные, хрупкие,</text>
+  <text class="svg-s" x="382" y="56">ближе всего к пользователю</text>
+  <text class="svg-s" x="382" y="108">проверяют связку модулей:</text>
+  <text class="svg-s" x="382" y="118">код + база, сервис + сервис</text>
+  <text class="svg-s" x="382" y="160">быстрые, дешёвые,</text>
+  <text class="svg-s" x="382" y="170">много и на каждую функцию</text>
+
+  <path class="arrow" d="M78,186 L78,20"/>
+  <text class="svg-s" x="20" y="110">дороже</text>
+  <text class="svg-s" x="18" y="180">дешевле</text>
+</svg>
+<figcaption>Пирамида: чем выше уровень, тем меньше тестов и тем дороже каждый</figcaption>
+</figure>
+
+<div class="real">
+Счётчики systemburo на сегодня: 2204 теста бэкенда в 396 файлах (Go), 5258 тестов фронтенда
+в 587 файлах (Vitest), плюс несколько десятков E2E-сценариев на Playwright. Форма пирамиды
+соблюдена: основание из быстрых юнитов, узкая верхушка из медленных браузерных прогонов.
+</div>
+
+<div class="warn">
+Перевёрнутая пирамида («мороженое») — когда E2E-тестов больше, чем юнитов. Прогон занимает часы,
+половина падений — не баги, а нестабильность, и команда перестаёт верить красному CI. Если на
+собеседовании спросят, почему нельзя всё покрыть E2E, ответ именно такой.
+</div>
+
+<h3>2.3 Виды тестирования</h3>
+<table>
+  <tr><th style="width:22%">Вид</th><th>Когда применяется</th><th style="width:34%">Пример на заявке</th></tr>
+  <tr><td>Смоук</td><td>сразу после сборки: живо ли вообще</td><td>вход в систему, открытие формы, отправка одной заявки</td></tr>
+  <tr><td>Регресс</td><td>после изменений: не сломалось ли старое</td><td>прогон всех кейсов подачи после правки статусов</td></tr>
+  <tr><td>Ретест</td><td>после починки конкретного бага</td><td>повторяем шаги из баг-репорта</td></tr>
+  <tr><td>Санити</td><td>узкая проверка одной области</td><td>только фильтр по датам, который вчера правили</td></tr>
+  <tr><td>Исследовательское</td><td>когда нет требований или мало времени</td><td>час свободного «а что если» по новой форме</td></tr>
+  <tr><td>Статическое</td><td>до запуска кода</td><td>чтение требований и поиск противоречий</td></tr>
+</table>
+
+<p>Разделение по знанию устройства: <b>чёрный ящик</b> — проверяем только вход и выход, кода не
+видим; <b>белый ящик</b> — знаем реализацию и целимся в ветки кода; <b>серый ящик</b> — знаем
+структуру данных и API, но тестируем снаружи. Тестировщик на продукте чаще всего работает в сером:
+интерфейс снаружи, но с пониманием, какой запрос уходит и что лежит в базе.</p>
+
+<h3>2.4 Severity и Priority</h3>
+<div class="term">
+  <span class="w">Severity (серьёзность)</span> — насколько сильно дефект ломает систему.
+  Объективная характеристика, её называет тестировщик.<br>
+  <span class="w">Priority (приоритет)</span> — насколько срочно чинить. Решение бизнеса,
+  его ставит продакт или лид.
+</div>
+<table>
+  <tr><th style="width:34%">Ситуация</th><th style="width:18%">Severity</th><th style="width:18%">Priority</th><th>Почему</th></tr>
+  <tr><td>Опечатка в названии компании на главной</td><td>низкая</td><td>высокий</td><td>видят все клиенты, стыдно</td></tr>
+  <tr><td>Падение экспорта отчёта, которым пользуются раз в год</td><td>высокая</td><td>низкий</td><td>ломает функцию, но ждать может</td></tr>
+  <tr><td>Не отправляется заявка ни у кого</td><td>блокер</td><td>высокий</td><td>продукт не выполняет свою работу</td></tr>
+</table>
+<p>Классическая шкала severity: <b>блокер</b> (работать нельзя), <b>критический</b> (ключевая
+функция сломана), <b>значительный</b> (функция работает не так), <b>незначительный</b> (неудобно,
+но обходится), <b>тривиальный</b> (косметика).</p>
+
+<h3>2.5 Жизненный цикл разработки и место проверок</h3>
+<figure>
+<svg viewBox="0 0 540 128" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box" x="8" y="34" width="86" height="34" rx="3"/>
+  <text class="svg-t" x="20" y="49">Требования</text>
+  <text class="svg-s" x="16" y="61">аналитик</text>
+
+  <rect class="box" x="112" y="34" width="86" height="34" rx="3"/>
+  <text class="svg-t" x="130" y="49">Разработка</text>
+  <text class="svg-s" x="132" y="61">программист</text>
+
+  <rect class="box-a" x="216" y="34" width="86" height="34" rx="3"/>
+  <text class="svg-t" x="240" y="49">Тестирование</text>
+  <text class="svg-s" x="252" y="61">вы</text>
+
+  <rect class="box" x="320" y="34" width="86" height="34" rx="3"/>
+  <text class="svg-t" x="346" y="49">Релиз</text>
+  <text class="svg-s" x="338" y="61">DevOps</text>
+
+  <rect class="box" x="424" y="34" width="108" height="34" rx="3"/>
+  <text class="svg-t" x="440" y="49">Эксплуатация</text>
+  <text class="svg-s" x="436" y="61">пользователи и саппорт</text>
+
+  <path class="arrow" d="M94,51 L110,51"/>
+  <path class="arrow" d="M198,51 L214,51"/>
+  <path class="arrow" d="M302,51 L318,51"/>
+  <path class="arrow" d="M406,51 L422,51"/>
+
+  <path class="arrow-d" d="M258,32 C 240,6 60,6 46,32"/>
+  <text class="svg-s" x="96" y="16">вопросы к требованиям: дешевле всего чинить здесь</text>
+
+  <path class="arrow-d" d="M470,72 C 440,110 300,110 262,74"/>
+  <text class="svg-s" x="300" y="120">баг с прода: дороже всего</text>
+</svg>
+<figcaption>Чем правее найден дефект, тем дороже он обходится</figcaption>
+</figure>
+
+<div class="task">
+  <div class="h"><span>П1</span>Разложите по полочкам</div>
+  <p>Дан кусок требования к форме подачи заявки:</p>
+  <pre>Поле «Дата въезда» обязательно.
+Заявку можно подать не более чем на 30 дней.
+Прошедшую дату выбрать нельзя.</pre>
+  <p>Заполните таблицу, дописав пустые ячейки:</p>
+  <table>
+    <tr><th>Что проверяем</th><th>Вид тестирования</th><th>Severity, если сломано</th></tr>
+    <tr><td>Форма вообще открывается и заявка отправляется</td><td>смоук</td><td>блокер</td></tr>
+    <tr><td>Дата на 31 день вперёд отклоняется</td><td>__________</td><td>__________</td></tr>
+    <tr><td>После правки календаря старые сценарии не сломались</td><td>__________</td><td>__________</td></tr>
+    <tr><td>В требовании не сказано, считать ли 30 дней от сегодня или от даты подачи</td><td>__________</td><td>__________</td></tr>
+  </table>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т2</span>Проверьте себя</div>
+  <ol>
+    <li>Программист перепутал знак сравнения — это ошибка, дефект или отказ?</li>
+    <li>Кто ставит Priority: тестировщик, продакт, разработчик?</li>
+    <li>Какой вид тестирования запускают первым после новой сборки?
+      <ul class="opts">
+        <li>а) регресс б) смоук в) исследовательское</li>
+      </ul>
+    </li>
+    <li>Почему нельзя покрыть весь продукт только E2E-тестами? Ответьте одним предложением.</li>
+  </ol>
+</div>
+
+<div class="sum">
+Ошибка порождает дефект, дефект проявляется отказом. Verification про соответствие требованиям,
+validation про пользу. Пирамида: много дешёвых юнитов, мало дорогих E2E. Severity объективна и
+ваша, Priority решает бизнес.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Термины, которые пока путаю:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Свой пример на severity и priority:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 3. ТЕСТ-ДИЗАЙН ================= -->
+<section class="chapter">
+<h2><span class="num">3</span>Тест-дизайн: как проверить много малым числом сценариев</h2>
+<p class="lead">Главный профессиональный навык. Отличает тестировщика от человека, который просто
+тыкает кнопки.</p>
+
+<h3>3.1 Почему нельзя проверить всё</h3>
+<p>Форма подачи заявки в systemburo: организация, сотрудник, дата въезда, дата выезда, цель визита,
+машина. Даже если у каждого поля всего 10 осмысленных значений, комбинаций миллион. Проверять
+их все не хватит жизни. Тест-дизайн — набор техник, которые отбирают из миллиона десяток проверок,
+покрывающих те же риски.</p>
+
+<h3>3.2 Классы эквивалентности</h3>
+<div class="term">
+  <span class="w">Класс эквивалентности</span> — группа входных значений, которые система обрабатывает
+  одинаково. Достаточно проверить одно значение из класса: остальные поведут себя так же.
+</div>
+<div class="ex">
+Поле «Срок действия пропуска», допустимо от 1 до 30 дней.<br>
+Классы: <b>меньше 1</b> (0, −5) — невалидный; <b>от 1 до 30</b> — валидный; <b>больше 30</b>
+(31, 100) — невалидный; <b>не число</b> («абв», пустое) — невалидный.<br>
+Вместо тридцати проверок берём четыре: одно значение из каждого класса.
+</div>
+
+<h3>3.3 Анализ граничных значений</h3>
+<p>Ошибки живут на границах: перепутанный <code>&lt;</code> и <code>&lt;=</code> — самый частый
+дефект в проверках. Поэтому к классам добавляют значения по краям: <b>граница − 1</b>,
+<b>граница</b>, <b>граница + 1</b>.</p>
+
+<figure>
+<svg viewBox="0 0 520 108" xmlns="http://www.w3.org/2000/svg" role="img">
+  <line x1="30" y1="60" x2="490" y2="60" stroke="#16181d" stroke-width="1.2"/>
+  <rect x="150" y="52" width="220" height="16" fill="#e8edf6" stroke="#1d3f80" stroke-width="1"/>
+
+  <line x1="150" y1="46" x2="150" y2="74" stroke="#1d3f80" stroke-width="1.6"/>
+  <line x1="370" y1="46" x2="370" y2="74" stroke="#1d3f80" stroke-width="1.6"/>
+
+  <text class="svg-b" x="230" y="65">допустимо: 1 … 30</text>
+  <text class="svg-s" x="52" y="86">меньше 1</text>
+  <text class="svg-s" x="404" y="86">больше 30</text>
+
+  <circle cx="115" cy="60" r="3.5" fill="#16181d"/>
+  <circle cx="150" cy="60" r="3.5" fill="#16181d"/>
+  <circle cx="185" cy="60" r="3.5" fill="#16181d"/>
+  <circle cx="335" cy="60" r="3.5" fill="#16181d"/>
+  <circle cx="370" cy="60" r="3.5" fill="#16181d"/>
+  <circle cx="405" cy="60" r="3.5" fill="#16181d"/>
+
+  <text class="svg-t" x="110" y="42">0</text>
+  <text class="svg-t" x="146" y="42">1</text>
+  <text class="svg-t" x="180" y="42">2</text>
+  <text class="svg-t" x="328" y="42">29</text>
+  <text class="svg-t" x="364" y="42">30</text>
+  <text class="svg-t" x="398" y="42">31</text>
+
+  <text class="svg-s" x="150" y="102">шесть значений вместо тридцати одного: только края классов</text>
+</svg>
+<figcaption>Границы диапазона 1-30: проверяем 0, 1, 2, 29, 30, 31</figcaption>
+</figure>
+
+<div class="warn">
+Типичная ошибка новичка — проверить «нормальное» значение 15 и успокоиться. Дефект «на 30 дней
+заявка не проходит, хотя должна» живёт ровно на границе, и середина диапазона его не поймает.
+</div>
+
+<h3>3.4 Таблица решений</h3>
+<p>Когда результат зависит от нескольких условий сразу, помогает таблица: столбцы — комбинации,
+строки — условия и результат.</p>
+
+<div class="real">
+Видимость заявки в systemburo зависит от трёх вещей: пользователь — суперадмин или нет; заявка
+принадлежит его организации или чужой; заявка активна или в архиве. Это ровно тот случай, когда
+без таблицы решений легко пропустить комбинацию.
+</div>
+
+<table>
+  <tr><th style="width:34%">Условие</th><th>К1</th><th>К2</th><th>К3</th><th>К4</th><th>К5</th></tr>
+  <tr><td>Суперадмин</td><td>да</td><td>нет</td><td>нет</td><td>нет</td><td>нет</td></tr>
+  <tr><td>Своя организация</td><td>—</td><td>да</td><td>да</td><td>нет</td><td>нет</td></tr>
+  <tr><td>Заявка в архиве</td><td>—</td><td>нет</td><td>да</td><td>нет</td><td>да</td></tr>
+  <tr><th>Ожидаемый результат</th><th>видит</th><th>видит</th><th>видит в архиве</th><th>404</th><th>404</th></tr>
+</table>
+
+<p>Прочерк означает «значение не важно»: суперадмин видит всё в любом случае, и раздувать таблицу
+его комбинациями смысла нет.</p>
+
+<h3>3.5 Диаграмма состояний и переходов</h3>
+<p>Техника для объектов, которые живут во времени и меняют статус. Проверяем не только «каждый
+статус достижим», но и «запрещённые переходы действительно запрещены».</p>
+
+<div class="real">
+Статусы заявки в systemburo заданы в коде константами: Непрочитано, В обработке, Согласование,
+Согласовано, Не согласовано, В работе, Завершено, Отказано, Отозвана. Отдельно отмечено, что у
+статуса «Отозвана» обратного пути нет.
+</div>
+
+<figure>
+<svg viewBox="0 0 540 210" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="14" y="14" width="94" height="30" rx="14"/>
+  <text class="svg-t" x="30" y="33">Непрочитано</text>
+
+  <rect class="box" x="150" y="14" width="94" height="30" rx="14"/>
+  <text class="svg-t" x="168" y="33">В обработке</text>
+
+  <rect class="box" x="286" y="14" width="94" height="30" rx="14"/>
+  <text class="svg-t" x="304" y="33">Согласование</text>
+
+  <rect class="box" x="422" y="14" width="100" height="30" rx="14"/>
+  <text class="svg-t" x="444" y="33">Согласовано</text>
+
+  <rect class="box" x="422" y="76" width="100" height="30" rx="14"/>
+  <text class="svg-t" x="432" y="95">Не согласовано</text>
+
+  <rect class="box" x="286" y="138" width="94" height="30" rx="14"/>
+  <text class="svg-t" x="312" y="157">В работе</text>
+
+  <rect class="box-f" x="422" y="138" width="100" height="30" rx="14"/>
+  <text class="svg-t" x="446" y="157">Завершено</text>
+
+  <rect class="box-f" x="150" y="138" width="94" height="30" rx="14"/>
+  <text class="svg-t" x="176" y="157">Отозвана</text>
+
+  <rect class="box-f" x="14" y="76" width="94" height="30" rx="14"/>
+  <text class="svg-t" x="38" y="95">Отказано</text>
+
+  <path class="arrow" d="M108,29 L148,29"/>
+  <path class="arrow" d="M244,29 L284,29"/>
+  <path class="arrow" d="M380,29 L420,29"/>
+  <path class="arrow" d="M356,44 L448,74"/>
+  <path class="arrow" d="M440,106 L360,138"/>
+  <path class="arrow" d="M380,153 L420,153"/>
+  <path class="arrow" d="M197,44 L197,136"/>
+  <path class="arrow" d="M61,44 L61,74"/>
+
+  <text class="svg-s" x="112" y="24">открыли</text>
+  <text class="svg-s" x="248" y="24">отправили</text>
+  <text class="svg-s" x="384" y="24">все за</text>
+  <text class="svg-s" x="380" y="66">отказ</text>
+  <text class="svg-s" x="366" y="126">приняли</text>
+  <text class="svg-s" x="200" y="96">отзыв</text>
+  <text class="svg-s" x="66" y="66">отказ</text>
+  <text class="svg-s" x="384" y="126">срок истёк</text>
+
+  <text class="svg-s" x="14" y="196">Серым — терминальные состояния: из них переходов нет. Проверять надо и их: из «Отозвана» заявка</text>
+  <text class="svg-s" x="14" y="206">не должна возвращаться в работу ни через интерфейс, ни через прямой запрос к API.</text>
+</svg>
+<figcaption>Жизненный цикл заявки: узлы — статусы, стрелки — разрешённые переходы</figcaption>
+</figure>
+
+<h3>3.6 Попарное тестирование (pairwise)</h3>
+<p>Когда параметров много, полный перебор не нужен: большинство дефектов проявляется от
+взаимодействия <i>двух</i> факторов, а не пяти сразу. Pairwise подбирает набор комбинаций так,
+чтобы каждая пара значений встретилась хотя бы раз.</p>
+<div class="ex">
+Три параметра по три значения: браузер (Chrome, Firefox, Safari), роль (админ, сотрудник, охранник),
+тема (светлая, тёмная, системная). Полный перебор — 27 прогонов. Pairwise даёт 9, покрывая все пары.
+Инструменты: PICT, allpairs, онлайн-генераторы.
+</div>
+
+<h3>3.7 Какую технику когда брать</h3>
+<table>
+  <tr><th style="width:34%">Ситуация</th><th>Техника</th></tr>
+  <tr><td>Поле ввода с диапазоном или форматом</td><td>классы эквивалентности + границы</td></tr>
+  <tr><td>Результат зависит от нескольких флагов и ролей</td><td>таблица решений</td></tr>
+  <tr><td>Объект меняет статусы</td><td>диаграмма состояний</td></tr>
+  <tr><td>Много независимых настроек</td><td>pairwise</td></tr>
+  <tr><td>Требований нет, время ограничено</td><td>исследовательское + предугадывание ошибок</td></tr>
+</table>
+
+<div class="task">
+  <div class="h"><span>П2</span>Классы и границы своими руками</div>
+  <p>Поле «Номер автомобиля» в заявке: русский формат <code>А123БВ777</code>, буквы только из
+  разрешённых (АВЕКМНОРСТУХ), регион 2 или 3 цифры. Заполните таблицу:</p>
+  <table>
+    <tr><th style="width:30%">Класс</th><th style="width:34%">Пример значения</th><th>Ожидаемый результат</th></tr>
+    <tr><td>Валидный, регион 3 цифры</td><td>А123БВ777</td><td>принимается</td></tr>
+    <tr><td>Валидный, регион 2 цифры</td><td>________</td><td>________</td></tr>
+    <tr><td>Запрещённая буква</td><td>Ж123БВ77</td><td>________</td></tr>
+    <tr><td>________</td><td>А12БВ77</td><td>отклоняется</td></tr>
+    <tr><td>Пустое поле</td><td>________</td><td>________</td></tr>
+    <tr><td>Латиница вместо кириллицы</td><td>A123BB77</td><td>________</td></tr>
+  </table>
+  <p>Последняя строка — ловушка. Подумайте, каким должно быть поведение и почему это вопрос
+  к аналитику, а не к вам.</p>
+</div>
+
+<div class="task">
+  <div class="h"><span>П3</span>Достройте таблицу решений</div>
+  <p>Кнопка «Отозвать заявку» показывается, если: пользователь — автор заявки, заявка не в архиве,
+  статус не терминальный. Достройте колонки К3 и К4 и впишите результат:</p>
+  <table>
+    <tr><th style="width:34%">Условие</th><th>К1</th><th>К2</th><th>К3</th><th>К4</th></tr>
+    <tr><td>Пользователь — автор</td><td>да</td><td>нет</td><td>да</td><td>да</td></tr>
+    <tr><td>Заявка не в архиве</td><td>да</td><td>да</td><td>нет</td><td>да</td></tr>
+    <tr><td>Статус не терминальный</td><td>да</td><td>да</td><td>да</td><td>нет</td></tr>
+    <tr><th>Кнопка видна</th><th>да</th><th>нет</th><th>____</th><th>____</th></tr>
+  </table>
+</div>
+
+<div class="task">
+  <div class="h"><span>П4</span>Переходы, которых быть не должно</div>
+  <p>По схеме жизненного цикла выпишите три перехода, которые система обязана запрещать, и
+  придумайте, как проверить каждый не через интерфейс, а напрямую запросом к API. Заготовка:</p>
+  <pre>1. Из «Отозвана» → «В работе». Проверка: PATCH /applications/{id}/status
+   с телом {"status": "В работе"} должен вернуть ______ (какой код?)
+2. Из «Завершено» → ______________. Проверка: ______________
+3. Из «Непрочитано» → ______________. Проверка: ______________</pre>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т3</span>Проверьте себя</div>
+  <ol>
+    <li>Диапазон допустимых значений 10-99. Назовите шесть значений по границам.</li>
+    <li>Какую технику выбрать для проверки прав доступа, зависящих от роли, владельца и статуса?</li>
+    <li>Pairwise экономит прогоны за счёт допущения, что:
+      <ul class="opts">
+        <li>а) большинство дефектов вызывается взаимодействием двух параметров</li>
+        <li>б) параметры не влияют друг на друга</li>
+        <li>в) можно тестировать только популярные комбинации</li>
+      </ul>
+    </li>
+    <li>Что важнее проверить в диаграмме состояний: что разрешённые переходы работают или что запрещённые не работают?</li>
+  </ol>
+</div>
+
+<div class="sum">
+Классы и границы — для полей. Таблица решений — для комбинаций условий. Диаграмма состояний —
+для статусов, причём запрещённые переходы важнее разрешённых. Pairwise — когда параметров много.
+Из этих техник и рождается чек-лист сквозного проекта.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Какую технику мне труднее всего применять и почему:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Поля из знакомого мне интерфейса, разложенные на классы:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 4. ДОКУМЕНТАЦИЯ ================= -->
+<section class="chapter">
+<h2><span class="num">4</span>Документы тестировщика: чек-лист, кейс, баг-репорт</h2>
+<p class="lead">Проверка, о которой никто не узнал, не считается. Половина работы — внятно записать.</p>
+
+<h3>4.1 Чек-лист и тест-кейс</h3>
+<div class="term">
+  <span class="w">Чек-лист</span> — список того, что надо проверить, без подробностей. Быстро пишется,
+  требует знания системы.<br>
+  <span class="w">Тест-кейс</span> — пошаговый сценарий с конкретными данными и ожидаемым результатом.
+  Дольше пишется, но его выполнит любой новичок и получит тот же ответ.
+</div>
+<table>
+  <tr><th style="width:22%">Берём</th><th>Когда</th></tr>
+  <tr><td>Чек-лист</td><td>своя команда, времени мало, функция знакомая, идёт исследовательский прогон</td></tr>
+  <tr><td>Тест-кейс</td><td>регресс, передача другому человеку, приёмка, сертификация, основа для автотеста</td></tr>
+</table>
+
+<h4>Структура тест-кейса</h4>
+<pre>ID:              APP-07
+Название:        Отклонение заявки со сроком больше 30 дней
+Приоритет:       высокий
+Предусловия:     пользователь sergey вошёл в систему,
+                 у организации «Ромашка» есть активное вложение
+Тестовые данные: дата въезда = сегодня, дата выезда = сегодня + 31 день
+Шаги:            1. Открыть «Подать заявку»
+                 2. Выбрать организацию «Ромашка»
+                 3. Заполнить даты из тестовых данных
+                 4. Нажать «Отправить»
+Ожидаемый
+результат:       заявка не создана, под полем «Дата выезда» показано
+                 сообщение «Срок пропуска не может превышать 30 дней»,
+                 запрос POST /applications не отправлен
+Постусловия:     данные не изменились, форма осталась заполненной</pre>
+
+<div class="warn">
+Ожидаемый результат «должно работать корректно» — не результат. Проверяемая формулировка называет
+конкретный признак: текст сообщения, код ответа, число строк, статус в базе. Если по вашему кейсу
+двое исполнителей могут прийти к разным выводам, кейс написан плохо.
+</div>
+
+<h3>4.2 Баг-репорт</h3>
+<p>Цель баг-репорта — чтобы разработчик воспроизвёл дефект <i>без вас</i> и починил, не задавая
+вопросов. Всё остальное вторично.</p>
+
+<table>
+  <tr><th style="width:24%">Поле</th><th>Что писать</th></tr>
+  <tr><td>Заголовок</td><td>что сломано, где и при каких условиях, одной строкой</td></tr>
+  <tr><td>Окружение</td><td>стенд, версия сборки, браузер, роль пользователя</td></tr>
+  <tr><td>Предусловия</td><td>что должно быть в системе до шагов</td></tr>
+  <tr><td>Шаги</td><td>пронумерованные, минимальные, с конкретными данными</td></tr>
+  <tr><td>Фактический результат</td><td>что происходит, с текстом ошибки и кодом ответа</td></tr>
+  <tr><td>Ожидаемый результат</td><td>что должно происходить и на основании чего (ссылка на требование)</td></tr>
+  <tr><td>Вложения</td><td>скриншот, видео, лог консоли, трейс Playwright, запрос из Network</td></tr>
+  <tr><td>Severity</td><td>ваша оценка серьёзности</td></tr>
+</table>
+
+<h4>Плохо и хорошо</h4>
+<pre>ПЛОХО
+Заголовок: Заявка не работает
+Шаги: подал заявку, ничего не произошло
+Факт: не работает</pre>
+<pre>ХОРОШО
+Заголовок: Заявка со сроком 30 дней отклоняется, хотя граница включительная
+Окружение: staging, сборка 2026.09.06, Chrome 140, роль «Сотрудник»
+Предусловия: пользователь sergey, организация «Ромашка», активное вложение
+Шаги:
+  1. Открыть «Подать заявку»
+  2. Дата въезда = 06.09.2026, дата выезда = 05.10.2026 (ровно 30 дней)
+  3. Нажать «Отправить»
+Факт: под полем «Дата выезда» сообщение «Срок пропуска не может
+      превышать 30 дней», POST /api/applications не отправляется
+Ожидаемо: заявка создаётся, 30 дней входят в допустимый диапазон
+          (требование ТЗ 4.2.1: «не более 30 дней»)
+Вложения: скриншот, HAR-запись вкладки Network
+Severity: значительный</pre>
+
+<div class="real">
+Из уроков systemburo: часть найденных дефектов не ловилась ни одним из 7652 автотестов, потому что
+проявлялась только на реальных данных и на конкретной платформе. Поэтому в баг-репорте важны
+окружение и данные: без них дефект «не воспроизводится» и закрывается как несуществующий.
+</div>
+
+<h3>4.3 Жизненный цикл дефекта</h3>
+<figure>
+<svg viewBox="0 0 540 132" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="10" y="30" width="76" height="28" rx="3"/>
+  <text class="svg-t" x="28" y="48">Открыт</text>
+  <rect class="box" x="112" y="30" width="86" height="28" rx="3"/>
+  <text class="svg-t" x="126" y="48">В работе</text>
+  <rect class="box" x="224" y="30" width="86" height="28" rx="3"/>
+  <text class="svg-t" x="240" y="48">Исправлен</text>
+  <rect class="box" x="336" y="30" width="90" height="28" rx="3"/>
+  <text class="svg-t" x="348" y="48">Проверяется</text>
+  <rect class="box-f" x="452" y="30" width="78" height="28" rx="3"/>
+  <text class="svg-t" x="470" y="48">Закрыт</text>
+
+  <rect class="box-f" x="224" y="94" width="200" height="28" rx="3"/>
+  <text class="svg-t" x="236" y="112">Отклонён / Не воспроизводится / Дубль</text>
+
+  <path class="arrow" d="M86,44 L110,44"/>
+  <path class="arrow" d="M198,44 L222,44"/>
+  <path class="arrow" d="M310,44 L334,44"/>
+  <path class="arrow" d="M426,44 L450,44"/>
+  <path class="arrow" d="M380,58 C 360,80 260,74 240,92"/>
+  <path class="arrow-d" d="M336,108 C 240,124 130,110 140,60"/>
+  <text class="svg-s" x="392" y="76">не починено</text>
+  <text class="svg-s" x="140" y="86">переоткрыт</text>
+  <text class="svg-s" x="10" y="22">завели вы</text>
+  <text class="svg-s" x="336" y="22">проверяете вы</text>
+</svg>
+<figcaption>Путь дефекта в трекере. Закрывает баг тестировщик, а не разработчик</figcaption>
+</figure>
+
+<p>Статус «Не воспроизводится» почти всегда означает, что в репорте не хватило данных: роли,
+окружения, конкретных значений. Это не спор с разработчиком, а сигнал дописать шаги.</p>
+
+<h3>4.4 Где всё это живёт</h3>
+<ul>
+  <li><b>Jira</b> — задачи и дефекты. Стажёру достаточно уметь завести баг, приложить файл, поменять статус, найти свои задачи фильтром.</li>
+  <li><b>Confluence</b> — база знаний: тест-планы, чек-листы, описания функций. В вакансии R-Vision «написание и поддержка статей в Confluence» стоит прямо в задачах.</li>
+  <li><b>TestOps (Allure)</b> — хранилище тест-кейсов и результатов прогонов, связывает автотесты с кейсами.</li>
+</ul>
+
+<div class="task">
+  <div class="h"><span>П5</span>Почините баг-репорт</div>
+  <p>Дан репорт от стажёра. Перепишите его так, чтобы разработчик воспроизвёл дефект без вопросов.
+  Используйте структуру из 4.2.</p>
+  <pre>Заголовок: Ошибка в архиве
+Шаги: зашёл в архив, нажал на заявку, вылезла ошибка
+Факт: ошибка 500
+Severity: блокер</pre>
+  <p>Подсказки: чего не хватает в заголовке; какие три поля отсутствуют полностью; корректна ли
+  severity, если архив открывают раз в месяц и другие разделы работают.</p>
+</div>
+
+<div class="task">
+  <div class="h"><span>П6</span>Первый артефакт сквозного проекта</div>
+  <p>Соберите чек-лист для формы подачи заявки: не менее 12 пунктов, сгруппированных по блокам.
+  Начало дано, продолжите:</p>
+  <pre>ФОРМА ПОДАЧИ ЗАЯВКИ — ЧЕК-ЛИСТ
+
+Открытие и доступ
+  [ ] форма открывается по кнопке «Подать заявку»
+  [ ] неавторизованного пользователя редиректит на вход
+  [ ] ______________________________________
+
+Поля и валидация
+  [ ] пустая форма не отправляется, ошибки под каждым полем
+  [ ] срок 30 дней принимается (граница включительная)
+  [ ] срок 31 день отклоняется
+  [ ] ______________________________________
+  [ ] ______________________________________
+
+Отправка
+  [ ] после отправки заявка появляется в списке со статусом «Непрочитано»
+  [ ] ______________________________________
+
+Негатив и края
+  [ ] двойной клик по «Отправить» не создаёт две заявки
+  [ ] ______________________________________
+  [ ] ______________________________________</pre>
+  <p>Этот файл — первый артефакт вашего pet-проекта. Сохраните его как
+  <code>checklists/application-form.md</code> и сделайте первый коммит.</p>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т4</span>Проверьте себя</div>
+  <ol>
+    <li>Чем чек-лист отличается от тест-кейса одним предложением?</li>
+    <li>Кто переводит дефект в статус «Закрыт»?</li>
+    <li>Что из перечисленного нельзя писать в ожидаемом результате?
+      <ul class="opts">
+        <li>а) «показано сообщение "Срок пропуска не может превышать 30 дней"»</li>
+        <li>б) «система работает корректно»</li>
+        <li>в) «ответ 201 и заявка видна в списке»</li>
+      </ul>
+    </li>
+    <li>Дефект воспроизводится только у роли «Охранник». Куда это писать в репорте?</li>
+  </ol>
+</div>
+
+<div class="sum">
+Чек-лист для скорости, кейс для повторяемости. Баг-репорт живёт или умирает по одному критерию:
+воспроизводится ли он без автора. Ожидаемый результат всегда проверяемый, severity ваша,
+приоритет не ваш.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Что я исправил бы в своём первом баг-репорте:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Пункты чек-листа, до которых додумался сам:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 5. ВЕБ ПОД КАПОТОМ ================= -->
+<section class="chapter">
+<h2><span class="num">5</span>Веб под капотом: DevTools, DOM, локаторы</h2>
+<p class="lead">Тестировщик, который видит только картинку на экране, находит половину дефектов.
+Вторая половина видна во вкладке Network.</p>
+
+<h3>5.1 Что происходит при нажатии кнопки</h3>
+<figure>
+<svg viewBox="0 0 540 150" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="8" y="46" width="104" height="42" rx="3"/>
+  <text class="svg-b" x="30" y="64">Браузер</text>
+  <text class="svg-s" x="16" y="78">Vue, ваш клик</text>
+
+  <rect class="box" x="152" y="46" width="112" height="42" rx="3"/>
+  <text class="svg-b" x="176" y="64">HTTP-запрос</text>
+  <text class="svg-s" x="160" y="78">POST /api/applications</text>
+
+  <rect class="box" x="304" y="46" width="104" height="42" rx="3"/>
+  <text class="svg-b" x="322" y="64">Бэкенд Go</text>
+  <text class="svg-s" x="312" y="78">проверки, права</text>
+
+  <rect class="box" x="448" y="46" width="84" height="42" rx="3"/>
+  <text class="svg-b" x="460" y="64">PostgreSQL</text>
+  <text class="svg-s" x="466" y="78">строка в БД</text>
+
+  <path class="arrow" d="M112,60 L150,60"/>
+  <path class="arrow" d="M264,60 L302,60"/>
+  <path class="arrow" d="M408,60 L446,60"/>
+  <path class="arrow-d" d="M446,80 L410,80"/>
+  <path class="arrow-d" d="M302,80 L266,80"/>
+  <path class="arrow-d" d="M150,80 L114,80"/>
+
+  <text class="svg-s" x="8" y="112">Уровни проверки:</text>
+  <text class="svg-s" x="8" y="124">UI-тест видит всю цепочку целиком, но медленно и хрупко</text>
+  <text class="svg-s" x="8" y="136">API-тест бьёт в середину: быстро, стабильно, без браузера. SQL-запрос проверяет самый конец</text>
+
+  <text class="svg-s" x="20" y="34">клик</text>
+  <text class="svg-s" x="180" y="34">запрос с токеном</text>
+  <text class="svg-s" x="316" y="34">валидация</text>
+  <text class="svg-s" x="462" y="34">INSERT</text>
+</svg>
+<figcaption>Один клик проходит четыре слоя. Дефект может жить в любом</figcaption>
+</figure>
+
+<p>Практический вывод: увидев на экране «Ошибка», первым делом открывайте Network. Три исхода
+дают три разных баг-репорта: запрос не ушёл вовсе (дефект фронта), ушёл и вернул 400 (дефект
+данных или валидации), вернул 500 (дефект бэка).</p>
+
+<h3>5.2 DevTools: две вкладки, которые нужны всегда</h3>
+<table>
+  <tr><th style="width:22%">Вкладка</th><th>Что смотреть</th></tr>
+  <tr><td>Network</td><td>какой запрос ушёл, метод и URL, код ответа, тело запроса (Payload) и тело ответа (Response), заголовки, время</td></tr>
+  <tr><td>Console</td><td>красные ошибки JavaScript, предупреждения. Ошибка в консоли — почти всегда баг, даже если внешне всё нарисовалось</td></tr>
+</table>
+<p>Полезные приёмы: фильтр <code>Fetch/XHR</code> убирает картинки и шрифты; галка
+<code>Preserve log</code> сохраняет запросы при переходах; правый клик по запросу →
+<code>Copy as cURL</code> даёт готовую команду для баг-репорта; <code>Save all as HAR</code>
+выгружает всю сессию файлом, который можно приложить к дефекту.</p>
+
+<h3>5.3 DOM: где живут элементы</h3>
+<p>Страница в браузере — дерево элементов. Автотест ищет узел этого дерева и действует над ним.
+Чем устойчивее признак поиска, тем меньше тест ломается от вёрстки.</p>
+
+<pre>&lt;form data-testid="login-form"&gt;
+  &lt;input data-testid="login-input-username" class="lk-input" placeholder="Логин"&gt;
+  &lt;input data-testid="login-input-password" type="password" class="lk-input"&gt;
+  &lt;button data-testid="login-button-submit" class="lk-button"&gt;Войти&lt;/button&gt;
+  &lt;p data-testid="login-error-message" class="error"&gt;Неверный логин или пароль&lt;/p&gt;
+&lt;/form&gt;</pre>
+
+<div class="real">
+Это реальная разметка формы входа systemburo: атрибуты <code>data-testid</code> проставлены
+специально для тестов. Их не меняет дизайнер при перекраске кнопки, поэтому тест на них не падает.
+</div>
+
+<h3>5.4 Локаторы</h3>
+<table>
+  <tr><th style="width:12%">Тип</th><th style="width:44%">Пример</th><th>Когда</th></tr>
+  <tr><td>CSS по testid</td><td><code>[data-testid="login-button-submit"]</code></td><td>основной выбор</td></tr>
+  <tr><td>CSS по id</td><td><code>#username</code></td><td>если id стабильный</td></tr>
+  <tr><td>CSS по классу</td><td><code>.lk-input</code></td><td>крайний случай: класс меняет дизайнер</td></tr>
+  <tr><td>CSS вложенность</td><td><code>form.login &gt; input:first-child</code></td><td>когда нет других признаков</td></tr>
+  <tr><td>XPath по тексту</td><td><code>//button[contains(text(),'Войти')]</code></td><td>текст важен по смыслу</td></tr>
+  <tr><td>XPath по оси</td><td><code>//label[text()='Логин']/following-sibling::input</code></td><td>элемент опознаётся через соседа</td></tr>
+</table>
+
+<div class="warn">
+Абсолютный XPath вида <code>/html/body/div[2]/div/form/input[1]</code> — худший из возможных
+локаторов. Он ломается от любой обёртки, добавленной вёрсткой, и ничего не говорит читателю теста
+о том, что за элемент выбран.
+</div>
+
+<h4>Приоритет, принятый в командах</h4>
+<ol>
+  <li><b>По роли и доступному имени</b>: кнопка, поле, ссылка так, как их видит пользователь и скринридер.</li>
+  <li><b>По data-testid</b>: договорённость команды, самый стабильный технический признак.</li>
+  <li><b>По тексту</b>: если текст — часть смысла (например, сообщение об ошибке).</li>
+  <li><b>CSS-селектор</b> от ближайшего устойчивого родителя.</li>
+  <li>XPath — только когда без него нельзя.</li>
+</ol>
+
+<h3>5.5 Page Object</h3>
+<div class="term">
+  <span class="w">Page Object (POM)</span> — паттерн, при котором страница описывается классом:
+  локаторы лежат в полях, действия — в методах, а тест вызывает методы и не знает ни одного
+  селектора.
+</div>
+
+<figure>
+<svg viewBox="0 0 520 118" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="10" y="34" width="130" height="46" rx="3"/>
+  <text class="svg-b" x="24" y="52">Тест (spec)</text>
+  <text class="svg-s" x="24" y="66">login.spec.ts:</text>
+  <text class="svg-s" x="24" y="76">login('sergey','...')</text>
+
+  <rect class="box" x="190" y="34" width="140" height="46" rx="3"/>
+  <text class="svg-b" x="204" y="52">Page Object</text>
+  <text class="svg-s" x="204" y="66">LoginPage: локаторы</text>
+  <text class="svg-s" x="204" y="76">и методы страницы</text>
+
+  <rect class="box-f" x="380" y="34" width="130" height="46" rx="3"/>
+  <text class="svg-b" x="394" y="52">Страница в браузере</text>
+  <text class="svg-s" x="394" y="66">data-testid,</text>
+  <text class="svg-s" x="394" y="76">кнопки, поля</text>
+
+  <path class="arrow" d="M140,57 L188,57"/>
+  <path class="arrow" d="M330,57 L378,57"/>
+  <text class="svg-s" x="142" y="28">вызывает методы</text>
+  <text class="svg-s" x="336" y="28">ищет по локаторам</text>
+  <text class="svg-s" x="10" y="104">Поменялась вёрстка — правим один файл POM, а не двадцать тестов. В этом вся выгода.</text>
+</svg>
+<figcaption>Тест не знает о селекторах: между ним и страницей стоит Page Object</figcaption>
+</figure>
+
+<div class="real">
+Так выглядит настоящий POM формы входа в systemburo (<code>e2e/pages/LoginPage.cjs</code>):
+<pre>class LoginPage {
+  constructor(page) {
+    this.page = page;
+    this.form = page.getByTestId('login-form');
+    this.usernameInput = page.getByTestId('login-input-username');
+    this.passwordInput = page.getByTestId('login-input-password');
+    this.submitButton = page.getByTestId('login-button-submit');
+    this.errorMessage = page.getByTestId('login-error-message');
+  }
+
+  async goto() { await this.page.goto('/'); }
+
+  async login(username, password) {
+    await this.usernameInput.fill(username);
+    await this.passwordInput.fill(password);
+    await this.submitButton.click();
+  }
+}</pre>
+Пять локаторов, два действия, ни одного ассерта. Проверки живут в тестах.
+</div>
+
+<div class="task">
+  <div class="h"><span>П7</span>Соберите локаторы</div>
+  <p>Дан фрагмент разметки карточки заявки. Впишите локатор для каждого элемента, соблюдая приоритет
+  из 5.4:</p>
+  <pre>&lt;article data-testid="application-card" class="card"&gt;
+  &lt;h3 class="card__title"&gt;Заявка № 1042&lt;/h3&gt;
+  &lt;span data-testid="application-status" class="badge"&gt;Непрочитано&lt;/span&gt;
+  &lt;button class="btn btn--danger"&gt;Отозвать&lt;/button&gt;
+&lt;/article&gt;
+
+Карточка целиком:  _______________________________________
+Статус заявки:     _______________________________________
+Кнопка «Отозвать»: _______________________________________
+Заголовок с номером (текст важен): ______________________</pre>
+</div>
+
+<div class="task">
+  <div class="h"><span>П8</span>Достройте Page Object</div>
+  <p>Дан каркас POM страницы подачи заявки. Допишите пропущенное: три локатора и один метод.</p>
+  <pre>class CreateApplicationPage {
+  constructor(page) {
+    this.page = page;
+    this.form = page.getByTestId('application-form');
+    this.organizationSelect = page.getByTestId('application-organization');
+    this.dateFrom = ______________________________________;
+    this.dateTo = ________________________________________;
+    this.submitButton = __________________________________;
+    this.fieldError = page.getByTestId('application-field-error');
+  }
+
+  async goto() {
+    await this.page.goto('/applications/create');
+  }
+
+  // метод: заполнить форму и отправить
+  async fillAndSubmit({ organization, from, to }) {
+    ____________________________________________________
+    ____________________________________________________
+    ____________________________________________________
+    ____________________________________________________
+  }
+}</pre>
+  <p>Подсказка: у <code>select</code> в Playwright есть метод <code>selectOption</code>,
+  у полей — <code>fill</code>, у кнопки — <code>click</code>.</p>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т5</span>Проверьте себя</div>
+  <ol>
+    <li>Кнопка «Отправить» не реагирует. Какую вкладку DevTools открыть первой и что там искать?</li>
+    <li>Почему <code>.btn--danger</code> — плохой локатор для кнопки «Отозвать»?</li>
+    <li>Что из этого не должно лежать в Page Object?
+      <ul class="opts">
+        <li>а) локаторы полей б) метод «заполнить форму» в) проверка <code>expect(...).toHaveText('Непрочитано')</code> внутри каждого метода</li>
+      </ul>
+    </li>
+    <li>Тест упал после редизайна, хотя функция работает. Что это говорит о локаторах?</li>
+  </ol>
+</div>
+
+<div class="sum">
+Клик — это запрос, запрос — это код ответа, код ответа — это адрес дефекта. Локаторы выбираем по
+устойчивости: роль, testid, текст, и только потом CSS с XPath. Page Object держит селекторы в одном
+месте, чтобы редизайн стоил одной правки.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Локаторы, снятые с реальной страницы:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Что показал Network на моей странице:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 6. API ================= -->
+<section class="chapter">
+<h2><span class="num">6</span>API: проверка без браузера</h2>
+<p class="lead">Быстрее UI в десятки раз и стабильнее. В вакансии R-Vision автоматизация API-тестов
+стоит отдельной строкой требований.</p>
+
+<h3>6.1 HTTP за пять минут</h3>
+<table>
+  <tr><th style="width:14%">Метод</th><th style="width:40%">Смысл</th><th>Пример</th></tr>
+  <tr><td>GET</td><td>получить, ничего не меняя</td><td><code>GET /api/applications</code></td></tr>
+  <tr><td>POST</td><td>создать</td><td><code>POST /api/applications</code></td></tr>
+  <tr><td>PUT / PATCH</td><td>заменить целиком / изменить частично</td><td><code>PATCH /api/applications/42</code></td></tr>
+  <tr><td>DELETE</td><td>удалить</td><td><code>DELETE /api/cars/7</code></td></tr>
+</table>
+
+<table>
+  <tr><th style="width:14%">Код</th><th style="width:32%">Значение</th><th>Что это значит для тестировщика</th></tr>
+  <tr><td>200 / 201</td><td>успех / создано</td><td>проверяем тело ответа, а не только код</td></tr>
+  <tr><td>204</td><td>успех без тела</td><td>типично для DELETE</td></tr>
+  <tr><td>400</td><td>плохой запрос</td><td>клиент прислал мусор: не тот тип, нет поля</td></tr>
+  <tr><td>401</td><td>не аутентифицирован</td><td>токена нет или он протух</td></tr>
+  <tr><td>403</td><td>нет прав</td><td>пользователь известен, но доступ запрещён</td></tr>
+  <tr><td>404</td><td>не найдено</td><td>иногда используется вместо 403, чтобы скрыть существование объекта</td></tr>
+  <tr><td>409</td><td>конфликт</td><td>дубль, нарушение уникальности</td></tr>
+  <tr><td>422</td><td>не прошло валидацию</td><td>формат верный, значения недопустимы</td></tr>
+  <tr><td>500</td><td>ошибка сервера</td><td>всегда дефект, даже если данные были странные</td></tr>
+</table>
+
+<div class="warn">
+Различие 401 и 403 спрашивают почти на каждом собеседовании. 401 — «я не знаю, кто ты»;
+403 — «я знаю, кто ты, и тебе нельзя».
+</div>
+
+<h3>6.2 Тело ответа и конверт</h3>
+<p>Большинство API оборачивают полезные данные в конверт: успех, данные, метаданные, ошибка.
+Тестировщик обязан знать форму конверта своего продукта, иначе будет проверять не то поле.</p>
+
+<div class="real">
+В systemburo конверт задан в коде и одинаков для всех методов:
+<pre>type Response struct {
+    Success bool   `json:"success"`
+    Data    any    `json:"data,omitempty"`
+    Meta    any    `json:"meta,omitempty"`
+    Error   string `json:"error,omitempty"`
+}</pre>
+Ответ на список выглядит так:
+<pre>{
+  "success": true,
+  "data": [ { "id": 1042, "status": "Непрочитано" } ],
+  "meta": { "page": 1, "per_page": 20, "total": 137 }
+}</pre>
+А ошибка — так: <code>{"success": false, "error": "Invalid ID"}</code>.
+</div>
+
+<div class="warn">
+Отдельная ловушка того же проекта: часть методов кладёт объект ещё в одну обёртку
+(<code>data.table</code> вместо <code>data</code>). Из-за этого интерфейс однажды не показал
+таблицу, хотя данные приходили. Мораль: перед написанием проверки посмотрите настоящий ответ
+в Network, а не предполагайте его форму.
+</div>
+
+<h3>6.3 Авторизация</h3>
+<p>Обычная схема: логин отдаёт токен, дальше он ходит в заголовке
+<code>Authorization: Bearer &lt;токен&gt;</code>. Токен (JWT) состоит из трёх частей через точку и
+живёт ограниченное время. Что проверять тестировщику: запрос без токена даёт 401, с чужим токеном
+403 или 404, с протухшим — 401, а после выхода из системы старый токен перестаёт работать.</p>
+
+<h3>6.4 Как дёргать API руками</h3>
+<pre>curl -s -X POST http://localhost:8080/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"sergey","password":"secret"}'
+
+curl -s http://localhost:8080/api/applications \
+  -H "Authorization: Bearer $TOKEN"</pre>
+<p>То же самое в Postman: коллекция запросов, переменная окружения <code>{{token}}</code>, вкладка
+Tests для простых проверок. Для баг-репорта удобнее всего копировать запрос прямо из DevTools
+через «Copy as cURL» — разработчик выполнит его у себя.</p>
+
+<div class="real">
+В E2E-наборе systemburo API-хелпер устроен ровно так: получает токен через <code>/login</code>,
+подставляет <code>Authorization: Bearer</code> и разворачивает конверт функцией
+<code>unwrap(body)</code>, возвращающей <code>body.data</code>.
+</div>
+
+<h3>6.5 REST и GraphQL</h3>
+<table>
+  <tr><th style="width:20%"></th><th>REST</th><th>GraphQL</th></tr>
+  <tr><td>Адреса</td><td>много путей: <code>/applications</code>, <code>/users</code></td><td>один путь <code>/graphql</code></td></tr>
+  <tr><td>Выбор полей</td><td>сервер решает, что вернуть</td><td>клиент перечисляет нужные поля в запросе</td></tr>
+  <tr><td>Ошибки</td><td>кодом HTTP</td><td>часто код 200, а ошибка внутри тела в поле <code>errors</code></td></tr>
+</table>
+<div class="warn">
+Последняя строка — ловушка для тестировщика на проектах R-Vision, где GraphQL используется:
+проверка «ответ 200, значит всё хорошо» пропустит ошибку. Смотреть надо в тело.
+</div>
+
+<div class="task">
+  <div class="h"><span>П9</span>Разберите ответ</div>
+  <p>Дан ответ сервера. Ответьте на вопросы под ним:</p>
+  <pre>HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": { "id": 1042, "status": "Непрочитано", "organization_id": 7 },
+  "meta": null
+}</pre>
+  <pre>1. Какой код ответа ожидался бы для успешного СОЗДАНИЯ заявки? ______
+2. Заявка создана, но в списке пользователя не видна. В каком слое
+   искать дефект в первую очередь и почему? ____________________
+3. Напишите проверку на JavaScript, которая убеждается, что статус
+   новой заявки именно «Непрочитано»:
+   expect(______________________).toBe(______________________);</pre>
+</div>
+
+<div class="task">
+  <div class="h"><span>П10</span>Допишите API-проверку</div>
+  <p>Заготовка теста на Playwright. Впишите пропущенное:</p>
+  <pre>test('создание заявки возвращает 201 и заявку в статусе Непрочитано',
+  async ({ request }) => {
+    const token = await getToken('sergey', 'secret');
+
+    const res = await request.post('/api/applications', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { organization_id: 7, date_from: '2026-09-06',
+              date_to: '2026-10-05' },
+    });
+
+    expect(res.status()).toBe(______);
+    const body = await res.json();
+    expect(body.success).toBe(______);
+    expect(body.data.status).toBe('______________');
+});</pre>
+  <p>Затем допишите второй тест: тот же запрос <b>без заголовка Authorization</b> должен вернуть
+  401. Три строки.</p>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т6</span>Проверьте себя</div>
+  <ol>
+    <li>Запрос вернул 403. Токен валидный. В чём причина?</li>
+    <li>Что быстрее и стабильнее для проверки бизнес-правила «срок не больше 30 дней»: UI-тест или API-тест? Почему?</li>
+    <li>Сервер вернул 200, но в теле <code>{"success": false, "error": "..."}</code>. Это дефект?
+      <ul class="opts">
+        <li>а) нет, раз код 200 б) да, если по контракту ошибка должна отдаваться кодом 4xx в) зависит от контракта API — надо свериться с документацией</li>
+      </ul>
+    </li>
+    <li>Зачем тестировщику копировать запрос как cURL?</li>
+  </ol>
+</div>
+
+<div class="sum">
+API-проверка бьёт в середину цепочки: без браузера, быстро, стабильно. Знать надо методы, коды,
+заголовок авторизации и форму конверта своего продукта. Настоящую форму ответа всегда смотрим
+в Network, а не додумываем.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Коды ответов, которые встретил сам:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Форма конверта в API, который я смотрел:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 7. SQL ================= -->
+<section class="chapter">
+<h2><span class="num">7</span>SQL: проверка того, что реально сохранилось</h2>
+<p class="lead">Интерфейс может показать «Успешно» и не сохранить ничего. База — последняя инстанция.</p>
+
+<h3>7.1 Зачем это тестировщику</h3>
+<ul>
+  <li>Убедиться, что после действия в интерфейсе строка появилась и поля заполнены верно.</li>
+  <li>Подготовить данные для проверки: найти заявку в нужном статусе, пользователя с нужной ролью.</li>
+  <li>Понять причину дефекта: в базе пусто или лежит не то, что показывает экран.</li>
+</ul>
+
+<div class="real">
+Упрощённая схема systemburo, на которой мы дальше пишем запросы:
+<pre>users            (id, username, organization_id, role_id, is_active)
+organizations    (id, name, type)
+applications     (id, application_number, status, organization_id,
+                  sender_user_id, sending_datetime, accepted_at)
+employees        (id, attachment_id, last_name, first_name)
+attachments      (id, application_id, date_from, date_to)</pre>
+</div>
+
+<h3>7.2 Минимум конструкций</h3>
+<pre>-- выбрать колонки с условием
+SELECT id, status, sending_datetime
+FROM applications
+WHERE organization_id = 7 AND status = 'Непрочитано'
+ORDER BY sending_datetime DESC
+LIMIT 10;
+
+-- соединить с другой таблицей
+SELECT a.id, a.status, u.username, o.name AS organization
+FROM applications a
+JOIN users u ON u.id = a.sender_user_id
+JOIN organizations o ON o.id = a.organization_id
+WHERE a.id = 1042;
+
+-- посчитать по группам
+SELECT status, COUNT(*) AS cnt
+FROM applications
+GROUP BY status
+HAVING COUNT(*) > 5
+ORDER BY cnt DESC;</pre>
+
+<table>
+  <tr><th style="width:22%">Конструкция</th><th>Что делает</th></tr>
+  <tr><td><code>WHERE</code></td><td>фильтрует строки до группировки</td></tr>
+  <tr><td><code>JOIN</code> (INNER)</td><td>оставляет только строки, у которых есть пара в обеих таблицах</td></tr>
+  <tr><td><code>LEFT JOIN</code></td><td>оставляет все строки левой таблицы, справа NULL если пары нет</td></tr>
+  <tr><td><code>GROUP BY</code> + <code>COUNT</code></td><td>считает по группам</td></tr>
+  <tr><td><code>HAVING</code></td><td>фильтрует уже посчитанные группы</td></tr>
+  <tr><td><code>IS NULL</code></td><td>единственный способ сравнить с NULL: <code>= NULL</code> не работает</td></tr>
+</table>
+
+<div class="warn">
+Классическая ловушка на собеседовании: <code>LEFT JOIN</code> с условием по правой таблице
+в <code>WHERE</code> превращается в обычный <code>INNER JOIN</code>, потому что строки с NULL
+отсеиваются. Условие для правой таблицы надо писать в <code>ON</code>.
+</div>
+
+<h3>7.3 Типовые проверки после действия в интерфейсе</h3>
+<pre>-- 1. заявка действительно создана и в правильном статусе
+SELECT id, status FROM applications
+WHERE sender_user_id = 12
+ORDER BY id DESC LIMIT 1;
+
+-- 2. двойной клик не создал дубль
+SELECT COUNT(*) FROM applications
+WHERE sender_user_id = 12
+  AND sending_datetime > now() - interval '1 minute';
+
+-- 3. у заявки сохранились все сотрудники из формы
+SELECT e.last_name, e.first_name
+FROM employees e
+JOIN attachments att ON att.id = e.attachment_id
+WHERE att.application_id = 1042;</pre>
+
+<div class="task">
+  <div class="h"><span>П11</span>Допишите запросы</div>
+  <pre>-- а) сколько заявок в каждом статусе у организации 7
+SELECT ________, COUNT(*) AS cnt
+FROM applications
+WHERE ______________
+GROUP BY ________;
+
+-- б) пользователи, которые ни разу не подавали заявку
+--    (подсказка: LEFT JOIN и проверка на NULL)
+SELECT u.username
+FROM users u
+______ JOIN applications a ON a.sender_user_id = u.id
+WHERE a.id ____________;
+
+-- в) заявки, принятые в работу, но без даты принятия —
+--    признак дефекта в бэкенде
+SELECT id FROM applications
+WHERE status = '________' AND accepted_at ____________;</pre>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т7</span>Проверьте себя</div>
+  <ol>
+    <li>Чем <code>WHERE</code> отличается от <code>HAVING</code>?</li>
+    <li>Как найти строки, у которых поле пустое?
+      <ul class="opts">
+        <li>а) <code>WHERE col = NULL</code> б) <code>WHERE col IS NULL</code> в) <code>WHERE col = ''</code></li>
+      </ul>
+    </li>
+    <li>Интерфейс показал «Заявка отправлена», в таблице <code>applications</code> новой строки нет. Ваши действия и какой severity?</li>
+  </ol>
+</div>
+
+<div class="sum">
+Тестировщику хватает SELECT, WHERE, JOIN, GROUP BY и IS NULL. Этого достаточно, чтобы отличить
+«интерфейс соврал» от «бэкенд не сохранил» и написать точный баг-репорт вместо «что-то не работает».
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Запросы, которые пригодились:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Что не сошлось между интерфейсом и базой:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 8. TYPESCRIPT ================= -->
+<section class="chapter">
+<h2><span class="num">8</span>TypeScript ровно столько, сколько нужно тесту</h2>
+<p class="lead">Не курс по языку. Только те конструкции, без которых не написать и не прочитать
+автотест на Playwright.</p>
+
+<h3>8.1 Зачем тесту типы</h3>
+<p>TypeScript — это JavaScript, которому дописали типы. Пользы для тестировщика две: редактор
+подсказывает методы (набрали <code>page.</code> и видите весь список), а опечатка ловится до
+запуска, а не на десятой минуте прогона.</p>
+
+<pre>let count: number = 5;
+let title: string = 'Заявка № 1042';
+let isActive: boolean = true;
+let statuses: string[] = ['Непрочитано', 'В обработке'];</pre>
+
+<h3>8.2 Интерфейс: форма объекта</h3>
+<pre>interface Application {
+  id: number;
+  status: string;
+  organizationId: number;
+  acceptedAt?: string;   // знак ? — поле необязательное, может отсутствовать
+}
+
+const app: Application = { id: 1042, status: 'Непрочитано', organizationId: 7 };</pre>
+<p>В тестах интерфейсы удобны для описания тестовых данных и ответов API: если бэкенд переименует
+поле, редактор подсветит все места, где оно используется.</p>
+
+<h3>8.3 Функции</h3>
+<pre>// обычная функция с типами параметров и возврата
+function daysBetween(from: string, to: string): number {
+  return (new Date(to).getTime() - new Date(from).getTime()) / 86400000;
+}
+
+// стрелочная функция — тот же смысл, короче запись
+const isLongStay = (days: number): boolean => days > 30;</pre>
+
+<h3>8.4 async, await и промисы: главное для Playwright</h3>
+<div class="term">
+  <span class="w">Промис (Promise)</span> — обещание результата, который придёт позже: ответ сервера,
+  загрузка страницы, клик по кнопке. <span class="w">await</span> — «подожди этот результат
+  и продолжай». Функция, внутри которой есть <code>await</code>, объявляется как <code>async</code>.
+</div>
+
+<pre>test('вход в систему', <b>async</b> ({ page }) =&gt; {
+  <b>await</b> page.goto('/');
+  <b>await</b> page.getByTestId('login-input-username').fill('sergey');
+  <b>await</b> page.getByTestId('login-button-submit').click();
+});</pre>
+
+<div class="warn">
+Забытый <code>await</code> — ошибка номер один у новичков в Playwright. Тест не падает, а
+завершается раньше, чем действие выполнено: клик «уходит в пустоту», проверка срабатывает на
+старой странице, а результат прогона получается случайным. Правило простое: почти каждая строка
+теста на Playwright начинается с <code>await</code>.
+</div>
+
+<h3>8.5 Класс: основа Page Object</h3>
+<pre>import { Page, Locator } from '@playwright/test';
+
+export class LoginPage {
+  readonly page: Page;
+  readonly usernameInput: Locator;
+  readonly submitButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.usernameInput = page.getByTestId('login-input-username');
+    this.submitButton = page.getByTestId('login-button-submit');
+  }
+
+  async login(username: string, password: string): Promise&lt;void&gt; {
+    await this.usernameInput.fill(username);
+    await this.page.getByTestId('login-input-password').fill(password);
+    await this.submitButton.click();
+  }
+}</pre>
+<p><code>readonly</code> означает «поле задаётся один раз в конструкторе и дальше не меняется» —
+ровно то, что нужно локаторам. <code>export</code> делает класс доступным другим файлам.</p>
+
+<h3>8.6 Импорт и экспорт</h3>
+<pre>// файл pages/LoginPage.ts
+export class LoginPage { /* ... */ }
+
+// файл tests/login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';</pre>
+
+<div class="task">
+  <div class="h"><span>П12</span>Найдите три ошибки</div>
+  <p>В коде три дефекта: один типовой, два по части async. Найдите и исправьте.</p>
+  <pre>test('отправка заявки', ({ page }) =&gt; {
+  const form = new CreateApplicationPage(page);
+  form.goto();
+  await form.fillAndSubmit({ organization: 7, from: '2026-09-06',
+                             to: '2026-10-05' });
+  const count: string = 1;
+  expect(page.getByTestId('application-status')).toHaveText('Непрочитано');
+});</pre>
+</div>
+
+<div class="task">
+  <div class="h"><span>П13</span>Опишите данные типами</div>
+  <p>Допишите интерфейс под ответ API из раздела 6 и типизируйте функцию:</p>
+  <pre>interface ApiResponse&lt;T&gt; {
+  success: ________;
+  data: ________;
+  error?: ________;
+}
+
+// функция должна возвращать данные из конверта
+function unwrap&lt;T&gt;(body: ApiResponse&lt;T&gt;): ______ {
+  return ______________;
+}</pre>
+</div>
+
+<div class="sum">
+Для автотестов достаточно: типы переменных, интерфейсы для данных, функции, классы для POM,
+импорт-экспорт и, главное, async с await. Всё остальное в языке подождёт до первой рабочей задачи.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Конструкции TypeScript, которые пока не даются:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Ошибки с await, которые я поймал:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 9. PLAYWRIGHT ================= -->
+<section class="chapter">
+<h2><span class="num">9</span>Playwright: автотесты, которые не разваливаются</h2>
+<p class="lead">Инструмент, который в вакансии значится «плюсом», а на деле является входным
+билетом: у QA Automation в R-Vision он в обязательных требованиях.</p>
+
+<h3>9.1 Установка и структура проекта</h3>
+<pre>npm init playwright@latest
+
+qa-workbook/
+├── e2e/
+│   ├── pages/            Page Object'ы
+│   ├── fixtures/         свои фикстуры
+│   └── tests/            спеки: *.spec.ts
+├── playwright.config.ts  конфиг: адрес стенда, таймауты, репортеры
+└── package.json</pre>
+
+<div class="real">
+Конфиг systemburo устроен так же и показывает минимально нужный набор настроек:
+<pre>module.exports = defineConfig({
+  testDir: './e2e/tests',
+  timeout: 30000,
+  retries: 1,
+  use: {
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:8081',
+    headless: true,
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
+  },
+  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+});</pre>
+Обратите внимание на две строки: скриншот снимается только при падении, трейс сохраняется только
+для упавших. Это готовые вложения для баг-репорта.
+</div>
+
+<h3>9.2 Первый тест</h3>
+<pre>import { test, expect } from '@playwright/test';
+
+test('неверный пароль показывает ошибку', async ({ page }) =&gt; {
+  await page.goto('/');
+  await page.getByTestId('login-input-username').fill('sergey');
+  await page.getByTestId('login-input-password').fill('wrong');
+  await page.getByTestId('login-button-submit').click();
+
+  await expect(page.getByTestId('login-error-message'))
+    .toHaveText('Неверный логин или пароль');
+});</pre>
+
+<h3>9.3 Локаторы Playwright</h3>
+<table>
+  <tr><th style="width:34%">Метод</th><th>Когда использовать</th></tr>
+  <tr><td><code>getByRole('button', {name: 'Войти'})</code></td><td>первый выбор: ищет так, как видит пользователь</td></tr>
+  <tr><td><code>getByTestId('login-form')</code></td><td>второй выбор: договорённость команды</td></tr>
+  <tr><td><code>getByText('Непрочитано')</code></td><td>когда важен именно текст</td></tr>
+  <tr><td><code>getByLabel('Логин')</code></td><td>поля формы с подписью</td></tr>
+  <tr><td><code>locator('.card').first()</code></td><td>крайний случай, для контейнеров</td></tr>
+  <tr><td><code>card.getByRole('button')</code></td><td>поиск внутри контейнера, а не по всей странице</td></tr>
+</table>
+
+<div class="warn">
+Не связывайте локаторы через <code>.or()</code>: цепочка «или тот, или этот» матчит несколько
+элементов и делает падения непредсказуемыми. Один элемент — один точный локатор.
+</div>
+
+<h3>9.4 Автоожидания: почему в тестах нет sleep</h3>
+<p>Playwright сам ждёт, пока элемент появится, станет видимым и кликабельным, и только потом
+действует. Ожидание встроено в каждый метод и в каждый <code>expect</code>. Поэтому пауз
+в коде быть не должно.</p>
+
+<pre>// плохо: гадаем, хватит ли двух секунд
+await page.waitForTimeout(2000);
+await page.getByTestId('application-status').click();
+
+// хорошо: ждём ровно того, что нужно, столько, сколько нужно
+await expect(page.getByTestId('application-status')).toBeVisible();
+await page.getByTestId('application-status').click();</pre>
+
+<div class="warn">
+Второй антипаттерн той же природы — <code>waitForLoadState('networkidle')</code>. На странице
+с опросами сервера или live-обновлениями сеть не «затихает» никогда, и тест виснет до таймаута.
+Ждать надо конкретный элемент.
+</div>
+
+<h3>9.5 Проверки</h3>
+<pre>await expect(page.getByTestId('application-status')).toHaveText('Непрочитано');
+await expect(page.getByTestId('application-card')).toHaveCount(3);
+await expect(page.getByTestId('login-form')).toBeVisible();
+await expect(page).toHaveURL(/\/applications\/\d+/);
+await expect(page.getByTestId('submit')).toBeDisabled();
+
+// мягкая проверка: тест продолжится, а падение зафиксируется
+await expect.soft(page.getByTestId('title')).toHaveText('Заявка № 1042');
+
+// повтор действия до успеха, для редких гонок
+await expect(async () =&gt; {
+  const count = await page.getByTestId('row').count();
+  expect(count).toBeGreaterThan(0);
+}).toPass();</pre>
+
+<h3>9.6 Фикстуры: подготовка без копипасты</h3>
+<div class="term">
+  <span class="w">Фикстура</span> — кусок подготовки, который Playwright выполняет за вас перед
+  тестом и убирает после. Через неё дают готовый POM, авторизованную сессию, тестовые данные.
+</div>
+
+<pre>import { test as base } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
+import { CreateApplicationPage } from '../pages/CreateApplicationPage';
+
+export const test = base.extend&lt;{
+  loginPage: LoginPage;
+  applicationPage: CreateApplicationPage;
+}&gt;({
+  loginPage: async ({ page }, use) =&gt; {
+    await use(new LoginPage(page));            // просто объект, без навигации
+  },
+
+  applicationPage: async ({ page, loginPage }, use) =&gt; {
+    await loginPage.goto();
+    await loginPage.login('sergey', 'secret'); // вошли
+    const app = new CreateApplicationPage(page);
+    await app.goto();                          // открыли форму
+    await use(app);                            // отдали тесту готовое состояние
+  },
+});
+
+export { expect } from '@playwright/test';</pre>
+<p>Дальше тест импортирует <code>test</code> из своего файла фикстур, а не из библиотеки, и
+получает страницу уже в рабочем состоянии.</p>
+
+<h3>9.7 Тесты API внутри Playwright</h3>
+<pre>test('без токена список заявок недоступен', async ({ request }) =&gt; {
+  const res = await request.get('/api/applications');
+  expect(res.status()).toBe(401);
+});</pre>
+<p>Тот же <code>request</code> удобно использовать для подготовки данных: создать заявку запросом
+за доли секунды, а браузером проверять только то, ради чего тест написан.</p>
+
+<h3>9.8 Моки: тест без живого бэкенда</h3>
+<pre>// подменяем ответ сервера
+await page.route('**/api/applications', route =&gt; route.fulfill({
+  status: 200,
+  body: JSON.stringify({ success: true, data: [] }),
+}));
+
+// имитируем обрыв сети
+await page.route('**/api/applications', route =&gt; route.abort());</pre>
+<p>Более честный способ — записать реальные ответы в HAR-файл и воспроизводить их:
+<code>await page.routeFromHAR('fixtures/applications.har')</code>. Такой мок ближе к реальности,
+чем руками написанный JSON, и его дифф видно в ревью.</p>
+
+<h3>9.9 Разбор упавшего теста</h3>
+<table>
+  <tr><th style="width:26%">Инструмент</th><th>Что даёт</th></tr>
+  <tr><td><code>npx playwright test --headed</code></td><td>прогон с видимым браузером</td></tr>
+  <tr><td><code>--debug</code></td><td>пошаговое выполнение с инспектором</td></tr>
+  <tr><td><code>npx playwright show-report</code></td><td>HTML-отчёт с шагами и ошибками</td></tr>
+  <tr><td><code>npx playwright show-trace trace.zip</code></td><td>таймлайн: снимок DOM на каждом шаге, сеть, консоль</td></tr>
+  <tr><td><code>npx playwright codegen &lt;url&gt;</code></td><td>запись действий в код: черновик, который потом переписывают руками</td></tr>
+</table>
+<p>Трейс — главный инструмент разбора: по нему видно состояние страницы ровно в момент падения,
+и часто становится ясно, что тест ждал не тот элемент.</p>
+
+<h3>9.10 Антипаттерны, которые видно на собеседовании</h3>
+<table>
+  <tr><th style="width:44%">Плохо</th><th>Как правильно</th></tr>
+  <tr><td><code>waitForTimeout(3000)</code></td><td>ожидание конкретного элемента через <code>expect</code></td></tr>
+  <tr><td>Селекторы прямо в тесте</td><td>Page Object</td></tr>
+  <tr><td>Один тест на десять несвязанных проверок</td><td>один тест — одно поведение</td></tr>
+  <tr><td>Тесты зависят от порядка запуска</td><td>каждый тест готовит свои данные</td></tr>
+  <tr><td>Общее состояние между тестами</td><td>изоляция через фикстуры</td></tr>
+  <tr><td>Цепочка действий и один ассерт в конце</td><td>проверка после каждого значимого шага</td></tr>
+  <tr><td>Абсолютный XPath</td><td>роль или testid</td></tr>
+</table>
+
+<div class="task">
+  <div class="h"><span>П14</span>Допишите тест целиком</div>
+  <p>Заготовка теста на подачу заявки. Заполните пропуски так, чтобы проверка была по шагам,
+  а не одним ассертом в конце.</p>
+  <pre>import { test, expect } from '../fixtures/app';
+
+test('заявка на 30 дней создаётся и попадает в список', async ({
+  applicationPage, page }) =&gt; {
+
+  await applicationPage.fillAndSubmit({
+    organization: 'Ромашка',
+    from: '2026-09-06',
+    to: '2026-10-05',
+  });
+
+  // 1. форма закрылась
+  await expect(applicationPage.form).____________________;
+
+  // 2. появилось уведомление об успехе
+  await expect(page.getByTestId('notification')).____________________;
+
+  // 3. в списке появилась карточка со статусом «Непрочитано»
+  const card = page.getByTestId('application-card').first();
+  await expect(card.getByTestId('application-status'))
+    .____________________;
+
+  // 4. адрес страницы сменился на список заявок
+  await expect(page).____________________;
+});</pre>
+</div>
+
+<div class="task">
+  <div class="h"><span>П15</span>Почините нестабильный тест</div>
+  <p>Тест падает примерно в одном прогоне из пяти. Найдите три причины и перепишите.</p>
+  <pre>test('фильтр по статусу', async ({ page }) =&gt; {
+  await page.goto('/applications');
+  await page.waitForTimeout(1500);
+  await page.locator('div.filters &gt; div:nth-child(2) &gt; button').click();
+  await page.waitForLoadState('networkidle');
+  const rows = await page.locator('.row').count();
+  expect(rows).toBe(7);
+});</pre>
+  <p>Подсказки: две паузы и один локатор здесь неправильные, а число 7 зависит от чужих данных.</p>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т8</span>Проверьте себя</div>
+  <ol>
+    <li>Почему в Playwright не нужен <code>sleep</code>?</li>
+    <li>Что даёт трейс, чего не даёт скриншот?</li>
+    <li>Какой локатор предпочтительнее?
+      <ul class="opts">
+        <li>а) <code>page.locator('div.card &gt; button.btn--primary')</code></li>
+        <li>б) <code>page.getByRole('button', { name: 'Отправить' })</code></li>
+        <li>в) <code>page.locator('//div[3]/button')</code></li>
+      </ul>
+    </li>
+    <li>Зачем нужна фикстура, если можно вызвать логин в начале каждого теста?</li>
+    <li>Тест проверяет создание заявки. Данные для него лучше готовить через интерфейс или через API? Назовите по одному аргументу за каждый вариант.</li>
+  </ol>
+</div>
+
+<div class="sum">
+Playwright сам ждёт — паузы не нужны. Локаторы: роль, testid, текст. Селекторы живут в Page Object,
+подготовка в фикстурах, разбор падений по трейсу. Эти пять правил отличают поддерживаемый набор
+тестов от свалки, которую через полгода выключают в CI.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Команды Playwright, которые использую чаще всего:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Почему упал мой тест и что помогло разобраться:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 10. CI ================= -->
+<section class="chapter">
+<h2><span class="num">10</span>Где тесты живут дальше: CI, отчёты, флаки</h2>
+<p class="lead">Автотест, который запускают только руками, бесполезен. Ценность появляется, когда он
+гоняется на каждый пул-реквест.</p>
+
+<h3>10.1 Конвейер</h3>
+<figure>
+<svg viewBox="0 0 540 118" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box" x="6" y="34" width="84" height="30" rx="3"/>
+  <text class="svg-t" x="24" y="53">Коммит</text>
+  <rect class="box" x="106" y="34" width="96" height="30" rx="3"/>
+  <text class="svg-t" x="122" y="53">Сборка и линт</text>
+  <rect class="box" x="218" y="34" width="96" height="30" rx="3"/>
+  <text class="svg-t" x="232" y="53">Юнит-тесты</text>
+  <rect class="box-a" x="330" y="34" width="96" height="30" rx="3"/>
+  <text class="svg-t" x="348" y="53">E2E-тесты</text>
+  <rect class="box-f" x="442" y="34" width="92" height="30" rx="3"/>
+  <text class="svg-t" x="462" y="53">Деплой</text>
+
+  <path class="arrow" d="M90,49 L104,49"/>
+  <path class="arrow" d="M202,49 L216,49"/>
+  <path class="arrow" d="M314,49 L328,49"/>
+  <path class="arrow" d="M426,49 L440,49"/>
+
+  <path class="arrow-d" d="M270,68 C 250,96 120,96 60,68"/>
+  <text class="svg-s" x="120" y="90">упало — обратно к автору, дальше не идёт</text>
+  <text class="svg-s" x="6" y="24">минуты</text>
+  <text class="svg-s" x="230" y="24">секунды</text>
+  <text class="svg-s" x="340" y="24">до десятков минут</text>
+</svg>
+<figcaption>Порядок этапов: дешёвые проверки раньше дорогих</figcaption>
+</figure>
+
+<div class="real">
+В systemburo E2E запускаются на каждый пул-реквест в ветку dev и разбиты на четыре параллельных
+шарда с таймаутом 20 минут: рядом поднимаются PostgreSQL и бэкенд, задаются тестовые логины и
+повышаются лимиты частоты запросов, чтобы четыре потока не упёрлись в защиту от перебора.
+Это типичное устройство прогона, которое вы увидите и в GitLab CI у R-Vision.
+</div>
+
+<h3>10.2 Флаки</h3>
+<div class="term">
+  <span class="w">Флак (flaky test)</span> — тест, который на одном и том же коде то падает,
+  то проходит. Опаснее упавшего: команда привыкает перезапускать прогон и перестаёт читать красное.
+</div>
+<table>
+  <tr><th style="width:38%">Причина</th><th>Лечение</th></tr>
+  <tr><td>Пауза вместо ожидания элемента</td><td>убрать <code>waitForTimeout</code></td></tr>
+  <tr><td>Тест зависит от данных другого теста</td><td>своя подготовка данных в фикстуре</td></tr>
+  <tr><td>Жёсткое ожидаемое число строк</td><td>проверять свою запись, а не общее количество</td></tr>
+  <tr><td>Гонка запросов, анимация</td><td><code>expect(...).toPass()</code> или ожидание конечного состояния</td></tr>
+  <tr><td>Общая тестовая база на параллельных прогонах</td><td>изоляция данных, уникальные имена</td></tr>
+</table>
+
+<h3>10.3 Отчёты и TestOps</h3>
+<p>Результат прогона попадает в отчёт: HTML-репорт Playwright локально, Allure или Allure TestOps
+в компании. Что там смотрит тестировщик: какие тесты упали, на каком шаге, скриншот и трейс,
+история — падал ли этот тест раньше, и связан ли он с тест-кейсом из TMS.</p>
+
+<div class="quiz">
+  <div class="h"><span>Т9</span>Проверьте себя</div>
+  <ol>
+    <li>Почему юнит-тесты в конвейере идут раньше E2E?</li>
+    <li>Тест падает раз в пять прогонов. Ваши действия: перезапустить, отключить, разобрать?</li>
+    <li>Что опаснее для команды: стабильно красный тест или флак? Обоснуйте одним предложением.</li>
+  </ol>
+</div>
+
+<div class="sum">
+Тесты живут в конвейере: дешёвые раньше дорогих, падение блокирует движение дальше. Флак нужно
+чинить, а не перезапускать: доверие к прогону — единственная причина, по которой автотесты вообще
+держат.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Как устроен прогон в проекте, который я смотрел:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Флаки, которые встретил, и их причина:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 11. СБОРКА ПРОЕКТА ================= -->
+<section class="chapter">
+<h2><span class="num">11</span>Сборка: pet-проект, который показывают на собеседовании</h2>
+<p class="lead">Всё, что вы делали по ходу тетради, складывается в один репозиторий. Он и есть
+доказательство навыка вместо слов «изучал тестирование».</p>
+
+<h3>11.1 Что должно получиться</h3>
+<pre>qa-workbook/
+├── README.md                   что за проект, что проверяется, как запустить
+├── docs/
+│   ├── checklist.md            чек-лист формы подачи (П6)
+│   ├── test-cases.md           6 тест-кейсов
+│   └── bug-reports.md          2 баг-репорта по образцу из раздела 4
+├── e2e/
+│   ├── pages/
+│   │   ├── LoginPage.ts
+│   │   └── CreateApplicationPage.ts
+│   ├── fixtures/app.ts         фикстуры: bare POM и авторизованная
+│   └── tests/
+│       ├── login.spec.ts       негативный вход
+│       ├── application.spec.ts подача заявки, границы срока
+│       └── api.spec.ts         создание через API + 401 без токена
+├── sql/checks.sql              запросы проверки из раздела 7
+└── playwright.config.ts</pre>
+
+<h3>11.2 Порядок сборки</h3>
+<ol>
+  <li>Создать репозиторий на GitHub, склонировать, <code>npm init playwright@latest</code>.</li>
+  <li>Перенести чек-лист и кейсы в <code>docs/</code>. Это первые коммиты: тестировщик начинает с документов, а не с кода.</li>
+  <li>Написать <code>LoginPage</code>, на нём — первый тест на негативный вход.</li>
+  <li>Добавить <code>CreateApplicationPage</code> и фикстуру с авторизацией.</li>
+  <li>Написать три UI-теста: успешная подача, граница 30 дней, отклонение 31 дня.</li>
+  <li>Добавить API-тесты: создание и 401 без токена.</li>
+  <li>Положить SQL-проверки и описать в README, что именно они доказывают.</li>
+  <li>Прогнать всё, приложить в README вывод <code>npx playwright test</code> и скриншот отчёта.</li>
+</ol>
+
+<div class="warn">
+Не берите чужой сайт-однодневку для тестов: он поменяется, и проект перестанет запускаться прямо
+на собеседовании. Подойдёт любой стабильный тренировочный стенд или локально поднятое приложение.
+Если гоняете на systemburo — поднимите его локально, а адрес вынесите в переменную окружения.
+</div>
+
+<h3>11.3 README, который читают</h3>
+<pre># QA workbook
+
+Учебный тест-набор для формы подачи заявки.
+
+## Что проверяется
+- вход в систему: негативный сценарий
+- подача заявки: успешный путь и границы срока (30 / 31 день)
+- API: создание заявки, отказ без токена
+
+## Стек
+Playwright, TypeScript, Page Object, фикстуры
+
+## Запуск
+npm ci
+npx playwright install --with-deps
+npx playwright test
+
+## Структура
+docs/     ручные артефакты: чек-лист, кейсы, баг-репорты
+e2e/      автотесты
+sql/      проверки данных</pre>
+
+<h3>11.4 Критерии готовности</h3>
+<table>
+  <tr><th style="width:60%">Признак</th><th>Есть?</th></tr>
+  <tr><td>Селекторов в тестах нет, все в Page Object</td><td></td></tr>
+  <tr><td>Ни одного <code>waitForTimeout</code></td><td></td></tr>
+  <tr><td>Каждый тест проходит в одиночку и в любом порядке</td><td></td></tr>
+  <tr><td>Есть и позитивный, и негативный сценарий</td><td></td></tr>
+  <tr><td>Есть API-тест, а не только UI</td><td></td></tr>
+  <tr><td>История коммитов показывает ход работы, а не один коммит «all»</td><td></td></tr>
+  <tr><td>README запускается по шагам на чужой машине</td><td></td></tr>
+</table>
+
+<div class="task">
+  <div class="h"><span>П16</span>Финальная сборка</div>
+  <p>Соберите репозиторий по структуре выше. Минимальный набор для показа: 3 UI-теста, 2 API-теста,
+  2 Page Object, 1 фикстура, чек-лист, 6 кейсов, 2 баг-репорта, README. Ссылку на репозиторий
+  положите в резюме отдельной строкой.</p>
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Что осталось доделать в pet-проекте:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Ссылка на репозиторий и дата первого прогона:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 12. СОБЕСЕДОВАНИЕ ================= -->
+<section class="chapter">
+<h2><span class="num">12</span>Собеседование: карта требований и вопросы</h2>
+
+<h3>12.1 Требования вакансии и где они закрыты</h3>
+<table>
+  <tr><th style="width:52%">Строка из вакансии R-Vision</th><th>Раздел тетради</th></tr>
+  <tr><td>Базовые знания программирования</td><td>8</td></tr>
+  <tr><td>Опыт разработки учебных или pet-проектов</td><td>11</td></tr>
+  <tr><td>Базовое понимание автоматизации тестирования</td><td>2, 9</td></tr>
+  <tr><td>Знание Page Object и локаторов</td><td>5, 9</td></tr>
+  <tr><td>Опыт работы с Git</td><td>11</td></tr>
+  <tr><td>Понимание методологий и пирамиды тестирования</td><td>2</td></tr>
+  <tr><td>Тест-дизайн, структура тест-кейса и баг-репорта</td><td>3, 4</td></tr>
+  <tr><td>Понимание SDLC и роли тестировщика</td><td>1, 2</td></tr>
+  <tr><td>Основы API: структура запросов и ответов, JSON</td><td>6</td></tr>
+  <tr><td>Навыки SQL</td><td>7</td></tr>
+  <tr><td>Плюсом: TypeScript и Playwright</td><td>8, 9</td></tr>
+  <tr><td>Задачи: DevTools, тест-кейсы, баг-репорты, анализ прогонов, Confluence</td><td>4, 5, 10</td></tr>
+</table>
+
+<h3>12.2 Вопросы, которые задают почти всегда</h3>
+<table>
+  <tr><th style="width:46%">Вопрос</th><th>Каркас ответа</th></tr>
+  <tr><td>Чем отличается severity от priority</td><td>серьёзность объективна и моя, приоритет решает бизнес; пример с опечаткой на главной</td></tr>
+  <tr><td>Что такое пирамида тестирования</td><td>много юнитов, меньше интеграционных, мало E2E; почему перевёрнутая плоха</td></tr>
+  <tr><td>Как протестируете поле ввода даты</td><td>классы эквивалентности, границы, формат, пустое, прошедшая дата, часовой пояс</td></tr>
+  <tr><td>Разница 401 и 403</td><td>не аутентифицирован против нет прав</td></tr>
+  <tr><td>Что делать, если баг не воспроизводится у разработчика</td><td>уточнить окружение, роль, данные, приложить HAR и видео, повторить вместе</td></tr>
+  <tr><td>Что такое Page Object и зачем</td><td>селекторы в одном месте, редизайн стоит одной правки</td></tr>
+  <tr><td>Почему нельзя <code>sleep</code> в автотестах</td><td>гадание по времени, флаки, есть автоожидания</td></tr>
+  <tr><td>Тест упал в CI, что делаете</td><td>смотрю отчёт и трейс, воспроизвожу локально, отличаю дефект продукта от дефекта теста</td></tr>
+  <tr><td>Как проверите, что заявка сохранилась</td><td>UI, ответ API, строка в базе — три уровня</td></tr>
+</table>
+
+<h3>12.3 Что спросить самому</h3>
+<ul>
+  <li>Как оформляется стажировка: трудовой договор, ГПХ или ученический, и какая оплата.</li>
+  <li>По каким критериям в конце шести месяцев принимают решение о переходе в штат.</li>
+  <li>Насколько жёсткие 30-40 часов в неделю и возможна ли нижняя граница.</li>
+  <li>На каком продукте буду работать и какой там стек автоматизации сейчас.</li>
+  <li>Кто ментор и как устроена обратная связь.</li>
+</ul>
+
+<div class="real">
+Полезный контекст для разговора: у компании отдельная группа автоматизации из 10+ человек,
+автотесты на Playwright с TypeScript, отчёты в Allure TestOps, сборка в GitLab CI. Вопрос
+«на каком продукте и какой там фреймворк» показывает, что вы читали не только заголовок вакансии.
+</div>
+
+<div class="sum">
+На собеседовании стажёра проверяют не объём знаний, а способность рассуждать: как вы разложите
+незнакомую форму на проверки и как объясните найденный дефект. Тетрадь даёт словарь и практику
+для обоих вопросов, pet-проект — доказательство.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Вопросы, которые задам на собеседовании:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Что ответил неуверенно и надо повторить:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= ПРИЛОЖЕНИЕ А ================= -->
+<section class="chapter answers">
+<h2><span class="num">А</span>Ответы и решения</h2>
+
+<h3>Раздел 1</h3>
+<div class="a"><b>Т1.</b> 1) Нет: тестирование показывает наличие дефектов, но не доказывает их отсутствие.
+2) AQA. 3) вариант б — искать в требованиях пропуски и противоречия до начала разработки.</div>
+
+<h3>Раздел 2</h3>
+<div class="a"><b>П1.</b> Дата на 31 день вперёд отклоняется — функциональная проверка границы,
+severity значительный (нарушено бизнес-правило, но система работает). После правки календаря
+прогон старых сценариев — регресс, severity зависит от того, что сломалось; сама задача проверки
+критична перед релизом. Неоднозначность в требовании — статическое тестирование, дефекта ещё нет,
+это вопрос аналитику; severity не ставится, заводится уточнение к требованию.</div>
+<div class="a"><b>Т2.</b> 1) Ошибка (человеческое действие), её результат в коде — дефект.
+2) Продакт или лид. 3) б — смоук. 4) E2E медленные, хрупкие и дорогие в поддержке: полное покрытие
+ими даёт прогон на часы и поток ложных падений, из-за которых команда перестаёт верить результату.</div>
+
+<h3>Раздел 3</h3>
+<div class="a"><b>П2.</b> Валидный с 2-значным регионом: <code>А123БВ77</code> — принимается.
+Запрещённая буква Ж — отклоняется. <code>А12БВ77</code> — неверный формат номера (две цифры вместо
+трёх) — отклоняется. Пустое поле: «» — отклоняется с сообщением об обязательности, если поле
+обязательно. Латиница <code>A123BB77</code> — ловушка: визуально номер выглядит правильно, но
+символы другие. Решение принимает не тестировщик: нужно уточнить у аналитика, приводит ли система
+латиницу к кириллице (частая практика для номеров) или отклоняет. Ваша задача — заметить
+неоднозначность и завести вопрос.</div>
+<div class="a"><b>П3.</b> К3 — кнопка не видна (заявка в архиве). К4 — кнопка не видна (статус
+терминальный). Дополнительно стоит завести проверку, что при скрытой кнопке запрос отзыва,
+отправленный напрямую в API, тоже отклоняется: скрытие в интерфейсе не является защитой.</div>
+<div class="a"><b>П4.</b> Пример решения. 1) Из «Отозвана» в «В работе»: <code>PATCH</code> должен
+вернуть 409 (конфликт состояния) или 422; конкретный код смотрим в контракте API, главное — не 200.
+2) Из «Завершено» в «Согласование»: тот же запрос, ожидаем отказ и неизменный статус в базе.
+3) Из «Непрочитано» сразу в «Завершено» минуя согласование: ожидаем отказ. В каждом случае после
+запроса проверяем SQL-запросом, что статус в базе не изменился.</div>
+<div class="a"><b>Т3.</b> 1) 9, 10, 11, 98, 99, 100. 2) Таблица решений. 3) вариант а.
+4) Важнее запрещённые: разрешённые переходы обычно проверяются самим ходом работы, а дыра
+в запрете — это уязвимость и порча данных.</div>
+
+<h3>Раздел 4</h3>
+<div class="a"><b>П5.</b> Пример исправленного репорта: заголовок «Ошибка 500 при открытии заявки
+из архива (роль Сотрудник)»; окружение — стенд, сборка, браузер, роль; предусловия — есть архивная
+заявка организации пользователя; шаги — 1. Войти как sergey, 2. Открыть «Архив», 3. Кликнуть по
+заявке № 1042; факт — страница не открывается, <code>GET /api/applications/1042</code> отвечает 500,
+в консоли ошибка; ожидаемо — карточка заявки открывается в режиме просмотра; вложения — скриншот,
+HAR, лог. Severity разумно поставить «критический», а не «блокер»: сломан один раздел, остальная
+система работает. Блокер — когда работать нельзя вообще.</div>
+<div class="a"><b>П6.</b> Возможные пункты: доступ — форма недоступна пользователю без права подачи;
+поля — обязательные поля подсвечиваются, дата выезда не раньше даты въезда, прошедшая дата
+не выбирается, номер машины валидируется; отправка — кнопка блокируется на время запроса, при
+ошибке сети данные формы не теряются; негатив — заявка без сотрудников не отправляется, длинные
+значения обрезаются или отклоняются, спецсимволы не ломают отображение, обновление страницы после
+отправки не создаёт дубль.</div>
+<div class="a"><b>Т4.</b> 1) Чек-лист называет, что проверить; тест-кейс описывает, как именно,
+с данными и ожидаемым результатом. 2) Тестировщик после ретеста. 3) б. 4) В окружение (роль
+пользователя) и обязательно в заголовок, если дефект специфичен для роли.</div>
+
+<h3>Раздел 5</h3>
+<div class="a"><b>П7.</b> Карточка — <code>[data-testid="application-card"]</code>; статус —
+<code>[data-testid="application-status"]</code>; кнопка — по роли и имени: в Playwright
+<code>getByRole('button', { name: 'Отозвать' })</code>, в CSS пришлось бы использовать класс,
+что хуже; заголовок — по тексту: <code>getByText('Заявка № 1042')</code>, либо XPath
+<code>//h3[contains(text(),'Заявка №')]</code>.</div>
+<div class="a"><b>П8.</b> <code>this.dateFrom = page.getByTestId('application-date-from');</code>,
+<code>this.dateTo = page.getByTestId('application-date-to');</code>,
+<code>this.submitButton = page.getByTestId('application-submit');</code>. Метод:
+<pre>async fillAndSubmit({ organization, from, to }) {
+  await this.organizationSelect.selectOption(organization);
+  await this.dateFrom.fill(from);
+  await this.dateTo.fill(to);
+  await this.submitButton.click();
+}</pre></div>
+<div class="a"><b>Т5.</b> 1) Network: ушёл ли запрос вообще и с каким кодом ответа; если запроса нет —
+дефект на фронте. 2) Класс отвечает за оформление и меняется при редизайне; кроме того, таких кнопок
+на странице может быть несколько. 3) в — ассерты внутри каждого метода POM делают его негибким;
+допустимы отдельные expect-методы, но не проверка внутри действия. 4) Локаторы завязаны на вёрстку
+(классы, вложенность), а не на устойчивые признаки.</div>
+
+<h3>Раздел 6</h3>
+<div class="a"><b>П9.</b> 1) 201 Created. 2) Начать с API: если создание вернуло 201 и объект,
+проверить запрос списка — возможно, фильтр по организации или пагинация отсекают новую заявку;
+затем сверить строку в базе. 3) <code>expect(body.data.status).toBe('Непрочитано');</code></div>
+<div class="a"><b>П10.</b> <code>toBe(201)</code>, <code>toBe(true)</code>,
+<code>toBe('Непрочитано')</code>. Второй тест:
+<pre>test('без токена создание запрещено', async ({ request }) =&gt; {
+  const res = await request.post('/api/applications', {
+    data: { organization_id: 7 },
+  });
+  expect(res.status()).toBe(401);
+});</pre></div>
+<div class="a"><b>Т6.</b> 1) Пользователь аутентифицирован, но не имеет прав на объект или действие.
+2) API-тест: он проверяет то же правило без браузера, за доли секунды и без зависимости от вёрстки.
+3) в — сверяться с контрактом; если контракт требует 4xx, это дефект. 4) Чтобы разработчик
+воспроизвёл запрос у себя одной командой, без пересказа шагов.</div>
+
+<h3>Раздел 7</h3>
+<div class="a"><b>П11.</b> а) <code>SELECT status, COUNT(*) AS cnt FROM applications WHERE
+organization_id = 7 GROUP BY status;</code> б) <code>LEFT JOIN</code> и <code>WHERE a.id IS
+NULL;</code> в) <code>WHERE status = 'В работе' AND accepted_at IS NULL;</code></div>
+<div class="a"><b>Т7.</b> 1) WHERE фильтрует строки до группировки, HAVING — уже посчитанные группы.
+2) б. 3) Открыть Network и посмотреть код ответа на создание: при 2xx дефект на бэкенде (не
+сохранил), при 4xx/5xx фронт показал успех вместо ошибки — это тоже дефект, и severity высокий,
+потому что пользователь уверен, что заявка подана.</div>
+
+<h3>Раздел 8</h3>
+<div class="a"><b>П12.</b> 1) У функции теста нет <code>async</code>, хотя внутри есть
+<code>await</code>. 2) <code>form.goto()</code> без <code>await</code>. 3)
+<code>const count: string = 1;</code> — число присвоено переменной типа string. Плюс полезная
+придирка: <code>expect(...)</code> с локатором тоже требует <code>await</code>.</div>
+<div class="a"><b>П13.</b> <code>success: boolean; data: T; error?: string;</code> и
+<code>function unwrap&lt;T&gt;(body: ApiResponse&lt;T&gt;): T { return body.data; }</code></div>
+
+<h3>Раздел 9</h3>
+<div class="a"><b>П14.</b> 1) <code>.toBeHidden()</code>. 2) <code>.toBeVisible()</code> или
+<code>.toHaveText('Заявка отправлена')</code>. 3) <code>.toHaveText('Непрочитано')</code>.
+4) <code>.toHaveURL(/\/applications/)</code>.</div>
+<div class="a"><b>П15.</b> Причины: <code>waitForTimeout(1500)</code> — гадание по времени;
+<code>networkidle</code> — не наступает на странице с фоновыми запросами; локатор по вложенности
+<code>div.filters &gt; div:nth-child(2)</code> ломается от любой правки вёрстки; жёсткое число 7
+зависит от данных, оставшихся от других тестов. Вариант решения:
+<pre>test('фильтр по статусу', async ({ page }) =&gt; {
+  await page.goto('/applications');
+  await page.getByTestId('filter-status-unread').click();
+  const rows = page.getByTestId('application-card');
+  await expect(rows.first()).toBeVisible();
+  await expect(rows.filter({ hasText: 'Непрочитано' }))
+    .toHaveCount(await rows.count());
+});</pre>
+Смысл последней проверки: не «строк ровно семь», а «все показанные строки соответствуют фильтру».</div>
+<div class="a"><b>Т8.</b> 1) Все действия и проверки уже содержат ожидание нужного состояния;
+пауза лишь замедляет прогон и не гарантирует готовности. 2) Трейс показывает состояние страницы
+на каждом шаге, сетевые запросы и консоль, а не один кадр в момент падения. 3) б.
+4) Фикстура убирает копипасту, гарантирует одинаковое стартовое состояние и умеет прибирать данные
+после теста. 5) Через интерфейс — проверяется и сам путь создания, данные точно проходят валидацию;
+через API — быстрее и стабильнее, тест не падает из-за чужой формы. Обычно: то, что проверяем, —
+через интерфейс, фон — через API.</div>
+
+<h3>Раздел 10</h3>
+<div class="a"><b>Т9.</b> 1) Дешёвые и быстрые проверки отсекают большинство дефектов раньше,
+чем запускается дорогой E2E-прогон. 2) Разобрать: найти причину, починить тест или завести дефект
+продукта; перезапуск маскирует проблему. 3) Флак: красный тест чинят, а флак приучает игнорировать
+красный цвет, и вместе с ним пропускают настоящие падения.</div>
+</section>
+
+<!-- ================= ПРИЛОЖЕНИЕ Б ================= -->
+<section class="chapter">
+<h2><span class="num">Б</span>Шпаргалки</h2>
+
+<h3>Коды ответов</h3>
+<table>
+  <tr><td><b>200</b> успех</td><td><b>201</b> создано</td><td><b>204</b> успех без тела</td><td><b>400</b> плохой запрос</td></tr>
+  <tr><td><b>401</b> не вошёл</td><td><b>403</b> нет прав</td><td><b>404</b> не найдено</td><td><b>409</b> конфликт</td></tr>
+  <tr><td><b>422</b> не прошло валидацию</td><td><b>429</b> слишком часто</td><td><b>500</b> ошибка сервера</td><td><b>502/503</b> сервис недоступен</td></tr>
+</table>
+
+<h3>Playwright: то, что нужно каждый день</h3>
+<pre>page.goto('/applications')
+page.getByRole('button', { name: 'Отправить' })
+page.getByTestId('application-card')
+page.getByText('Непрочитано')
+locator.fill('текст')   locator.click()   locator.selectOption('7')
+await expect(locator).toBeVisible() / toHaveText() / toHaveCount(n)
+await expect(page).toHaveURL(/regexp/)
+await expect.soft(locator).toHaveText('...')
+await expect(async () =&gt; { ... }).toPass()
+npx playwright test --headed --debug
+npx playwright show-report / show-trace trace.zip</pre>
+
+<h3>SQL для проверок</h3>
+<pre>SELECT ... FROM t WHERE ... ORDER BY ... LIMIT n;
+JOIN / LEFT JOIN ... ON ...
+GROUP BY ... HAVING COUNT(*) &gt; n
+WHERE col IS NULL          -- сравнение с NULL только так
+WHERE ts &gt; now() - interval '1 minute'</pre>
+
+<h3>Шаблон баг-репорта</h3>
+<pre>Заголовок: [что сломано] при [условие], [где]
+Окружение: стенд, сборка, браузер, роль
+Предусловия: ...
+Шаги: 1. ... 2. ... 3. ...
+Факт: ... (код ответа, текст ошибки)
+Ожидаемо: ... (ссылка на требование)
+Вложения: скриншот / HAR / трейс / лог консоли
+Severity: блокер | критический | значительный | незначительный | тривиальный</pre>
+
+<h3>Техники тест-дизайна: что когда</h3>
+<pre>поле с диапазоном      → классы эквивалентности + границы
+несколько условий      → таблица решений
+объект меняет статусы  → диаграмма состояний и переходов
+много настроек         → pairwise
+нет требований         → исследовательское + предугадывание ошибок</pre>
+
+<h3>Порядок разбора «что-то не работает»</h3>
+<pre>1. Что видно на экране? (текст ошибки, состояние формы)
+2. Network: ушёл ли запрос, метод, код ответа, тело
+3. Console: есть ли ошибка JavaScript
+4. База: появилась ли строка, какие значения
+5. Вывод: слой дефекта → баг-репорт с точным адресом
+</pre>
+
+
+<h3>Мой словарь</h3>
+<p>Выписывайте сюда термины, которые встретились в работе и в вакансиях: своими словами, а не
+определением из интернета. Проговорённый своими словами термин на собеседовании звучит иначе,
+чем заученный.</p>
+<table class="glossary">
+  <tr><th>Термин</th><th>Что это значит своими словами</th></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+  <tr><td></td><td></td></tr>
+</table>
+
+<h3>Журнал прогонов</h3>
+<p>Заполняется на этапе pet-проекта: по нему видно, растёт ли набор и стабильны ли тесты.</p>
+<table>
+  <tr><th style="width:18%">Дата</th><th style="width:16%">Тестов</th><th style="width:16%">Упало</th><th>Что чинил</th></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+  <tr><td style="height:18pt"></td><td></td><td></td><td></td></tr>
+</table>
+
+<div class="sum">
+Тетрадь закончилась, набор навыков — нет. Дальше растут через задачи: чем больше форм вы разложите
+на классы и границы, тем быстрее это становится автоматическим. Успехов на стажировке.
+</div>
+</section>
+
+</body>
+</html>
