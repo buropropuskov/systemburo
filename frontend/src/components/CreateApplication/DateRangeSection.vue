@@ -151,6 +151,12 @@
             >
           </div>
         </div>
+        <div
+          v-if="errors.startDate || errors.endDate || errors.singleDate"
+          class="error-message date-error"
+        >
+          {{ errors.startDate || errors.endDate || errors.singleDate }}
+        </div>
         <!-- Крайний срок «По факту» подсказкой ПОД полями: системный паттерн
              hints.css, is-hinted держит её открытой без наведения, --danger
              красит в цвет ошибки, --below опускает вниз - над полями она их

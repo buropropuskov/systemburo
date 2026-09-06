@@ -98,21 +98,48 @@ function pathsOfVariable(text, name) {
   return [...new Set(paths)];
 }
 
+/** Объявления функций: `function имя`, `const имя = () =>`, метод объекта `имя() {`. */
+const DECLARATION = /(?:^|\n)[ \t]*(?:export\s+)?(?:(?:async\s+)?function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>|\w+\s*=>)|(?:async\s+)?(\w+)\s*\([^\n)]*\)\s*\{)/g;
+
+/** Слова, за которыми идёт блок, но не функция: `if (...) {` именем не считается. */
+const CONTROL_WORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'do', 'else', 'return', 'function', 'try', 'with']);
+
+/**
+ * Имена объявлений с позициями - чтобы назвать функцию, внутри которой стоит вызов.
+ *
+ * @param {string} text исходник модуля
+ * @returns {Array<{ index: number, name: string }>}
+ */
+function declarationsIn(text) {
+  const marks = [];
+  for (const m of text.matchAll(DECLARATION)) {
+    const name = m[1] ?? m[2] ?? m[3];
+    if (name && !CONTROL_WORDS.has(name)) marks.push({ index: m.index, name });
+  }
+  return marks;
+}
+
 /**
  * Вызовы `apiRequest`/`apiRequestRaw`: путь, метод и полный текст аргументов (в нём
  * ищем `silent403`). У вызова через неразобранную переменную `path` равен null -
  * такие спека перечисляет отдельно, чтобы «не смог прочитать» не читалось как
  * «проверено и чисто».
  *
+ * `scope` - имя объемлющей функции. Спека адресует разобранные руками вызовы по нему,
+ * а не по номеру строки: номер сдвигала любая правка выше по файлу, и замок падал на
+ * ровном месте трижды подряд.
+ *
  * @param {string} text исходник модуля
- * @returns {Array<{ path: string|null, expression: string, method: string, args: string, line: number }>}
+ * @returns {Array<{ path: string|null, expression: string, method: string, args: string, line: number, scope: string }>}
  */
 export function apiCallsIn(text) {
   const calls = [];
+  const declarations = declarationsIn(text).reverse();
   for (const m of text.matchAll(/apiRequest(?:Raw)?\(/g)) {
     const args = argumentsAfter(text, m.index + m[0].length - 1);
     const first = args.trim().split(',')[0].trim();
     const line = text.slice(0, m.index).split('\n').length;
+    const scope = declarations.find((d) => d.index < m.index)?.name ?? '(верхний уровень)';
     const method = args.match(/method:\s*['"](\w+)['"]/)?.[1] ?? 'GET';
 
     const literal = first.match(/^(?:`([^`]*)`|'([^']*)'|"([^"]*)")$/);
@@ -120,8 +147,8 @@ export function apiCallsIn(text) {
       ? [normalizePath(literal[1] ?? literal[2] ?? literal[3])]
       : (/^\w+$/.test(first) ? pathsOfVariable(text, first) : []);
 
-    if (!paths.length) { calls.push({ path: null, expression: first, method, args, line }); continue; }
-    paths.forEach((p) => calls.push({ path: p, expression: first, method, args, line }));
+    if (!paths.length) { calls.push({ path: null, expression: first, method, args, line, scope }); continue; }
+    paths.forEach((p) => calls.push({ path: p, expression: first, method, args, line, scope }));
   }
   return calls;
 }
