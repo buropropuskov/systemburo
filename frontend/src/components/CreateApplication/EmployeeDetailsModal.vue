@@ -218,14 +218,14 @@
                            заведённых до введения отметки, строку не рисуем, чтобы не
                            читалось как «не уведомлён». -->
                       <div
-                        v-if="employee.pd_consent_at"
+                        v-if="employee.pd_consent_at || employee.pd_objection_at"
                         class="detail-item"
                       >
-                        <span class="detail-label">Уведомление об обработке ПД:</span>
+                        <span class="detail-label">{{ employee.pd_objection_at ? 'Возражение против обработки:' : 'Уведомление об обработке ПД:' }}</span>
                         <span
                           class="detail-value"
                           data-testid="employee-pd-consent-date"
-                        >отмечено {{ formatConsentDate(employee.pd_consent_at) }}</span>
+                        >{{ employee.pd_objection_at ? 'поступило ' + formatConsentDate(employee.pd_objection_at) : 'отмечено ' + formatConsentDate(employee.pd_consent_at) }}</span>
                       </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>

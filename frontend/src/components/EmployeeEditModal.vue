@@ -200,6 +200,18 @@
         </div>
       </div>
 
+      <!-- Возражение субъекта (#2361): пока оно стоит, персональные поля заперты
+           сервером. Без видимой причины человек решит, что форма сломалась. -->
+      <p
+        v-if="hasObjection"
+        class="objection-note"
+        data-testid="employee-objection-note"
+      >
+        Работник возразил против обработки своих персональных данных
+        {{ formatConsentDate(editingEmployee.pd_objection_at) }}. Фамилия, имя, должность
+        и документы доступны только для чтения. Снять отметку может администратор бюро.
+      </p>
+
       <!-- Уведомление субъекта об обработке персональных данных (часть 3 статьи 18
            152-ФЗ). У записи, где отметка уже стоит, показываем дату - повторять нечего. -->
       <div class="completion__consent">
@@ -387,6 +399,11 @@ export default {
         },
 
         canSaveEmployee() {
+            // Сервер всё равно отклонит правку персональных полей (409), но кнопка,
+            // ведущая к отказу, - плохая кнопка: гасим сразу и объясняем причину.
+            if (this.hasObjection) {
+                return false;
+            }
             if (!this.lastName.trim() || !this.firstName.trim()) {
                 return false;
             }
@@ -412,6 +429,9 @@ export default {
 
         // Согласие у записи уже зафиксировано - повторно его не спрашиваем и снять
         // галочкой не даём: отметка живёт в базе с датой и автором.
+        hasObjection() {
+            return !!(this.editingEmployee && this.editingEmployee.pd_objection_at);
+        },
         consentAlreadyGranted() {
             return !!(this.editingEmployee && this.editingEmployee.pd_consent_at);
         },
@@ -422,6 +442,10 @@ export default {
          * значение не берёт).
          */
         saveEmployeeHint() {
+            if (this.hasObjection) {
+                return 'Работник возразил против обработки своих данных: правка запрещена. '
+                    + 'Снять отметку может администратор бюро.';
+            }
             if (this.canSaveEmployee) return '';
 
             const missing = [];
@@ -1051,6 +1075,18 @@ export default {
     margin: 6px 0 0;
     font-size: 11px;
     color: var(--text-muted);
+}
+
+/* Возражение (#2361) заметнее прочих подписей: оно объясняет, почему форма
+   не сохраняется, и потеряться среди служебных строк не должно. */
+.objection-note {
+    margin: 0 0 15px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: var(--danger-bg, rgba(220, 53, 69, 0.08));
+    color: var(--danger-text, #b02a37);
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 .completion__binding {
