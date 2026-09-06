@@ -157,6 +157,18 @@
         >
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
+        <!-- Крайний срок «По факту» подсказкой СБОКУ от полей: системный паттерн
+             hints.css, is-hinted держит её открытой без наведения, --danger
+             красит в цвет ошибки, --aside уводит пузырёк вправо от блока. Сбоку,
+             а не снизу: снизу он ложился на «однодневную заявку», а место под
+             себя занять не мог - высота блока дат от подсказки меняться не
+             должна. Полное правило со сроком объясняет панель (#2320). -->
+        <div
+          v-if="errors.periodHint"
+          class="hint-anchor hint-anchor--danger hint-anchor--aside is-hinted period-hint-anchor"
+          :data-hint="errors.periodHint"
+          role="status"
+        />
         <Teleport to="body">
           <!-- Мобилка: затемнение под листом - календарь не сливается с формой за ним. -->
           <transition name="datepicker-overlay-fade">
@@ -261,18 +273,6 @@
         >
         <p>однодневная заявка</p>
       </div>
-      <!-- Крайний срок «По факту» подсказкой ПОД всей группой дат: системный
-           паттерн hints.css, is-hinted держит её открытой без наведения,
-           --danger красит в цвет ошибки, --below опускает вниз. Стоит последней
-           и резервирует себе высоту - иначе всплывающий пузырёк ложится на
-           «однодневную заявку» и закрывает подпись чекбокса. Полное правило со
-           сроком объясняет панель предупреждений (#2320). -->
-      <div
-        v-if="errors.periodHint"
-        class="hint-anchor hint-anchor--danger hint-anchor--below hint-anchor--reserve is-hinted period-hint-anchor"
-        :data-hint="errors.periodHint"
-        role="status"
-      />
     </div>
     <div
       v-if="fieldVisible('entry_time_from')"
