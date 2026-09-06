@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -160,3 +161,66 @@ func TestPDObjection_ClearIsAdminOnly(t *testing.T) {
 	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, path+"/objection", adminH).Code,
 		"администратор бюро снимает по итогам рассмотрения")
 }
+
+// Аннулирование действующих пропусков при возражении (#2361, решение владельца:
+// аннулировать сразу). Человек возразил - его данные не используются больше ни для
+// чего, включая проход. Строки убираются мягко: остаются в корзине и в истории,
+// иначе порвалась бы связь с отметками прохода.
+func TestPDObjection_RevokesActivePasses(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	const passport = "4501 777777"
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees",
+		`{"last_name":"Проходов","first_name":"Семён","position":"Слесарь","passport_series_number":"`+passport+`","pd_consent":true}`, h).Code)
+	id := objectionEmployeeID(t, db, "Проходов")
+
+	// Действующая строка в заявке у того же человека: тот же документ, значит та же
+	// свёртка, по ней его и находят.
+	active := models.Employee{
+		LastName:             ptr("Проходов"),
+		FirstName:            ptr("Семён"),
+		PassportSeriesNumber: ptr(passport),
+		Status:               ptrInt(1),
+	}
+	require.NoError(t, db.Create(&active).Error)
+
+	// Уже убранная строка повторно не трогается и в счёт не идёт.
+	removedAt := time.Now().UTC().Add(-time.Hour)
+	removed := models.Employee{
+		LastName:             ptr("Проходов"),
+		FirstName:            ptr("Семён"),
+		PassportSeriesNumber: ptr(passport),
+		Status:               ptrInt(0),
+		DateDeleted:          &removedAt,
+	}
+	require.NoError(t, db.Create(&removed).Error)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees/"+itoa(id)+"/objection",
+		`{"source":"письмо в бюро"}`, h).Code)
+
+	var got models.Employee
+	require.NoError(t, db.First(&got, active.ID).Error)
+	require.NotNil(t, got.DateDeleted, "действующая строка убрана из заявки")
+	require.NotNil(t, got.Status)
+	assert.Equal(t, 0, *got.Status, "статус обнулён")
+
+	// Мягко: строка на месте, а не удалена физически - иначе оборвалась бы связь
+	// с отметками прохода.
+	var alive int64
+	require.NoError(t, db.Model(&models.Employee{}).Where("id = ?", active.ID).Count(&alive).Error)
+	assert.EqualValues(t, 1, alive, "строка осталась в базе")
+
+	// Событие видно в истории строки: «кто убрал и почему» спрашивают именно про неё.
+	var events int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, active.ID, "delete").
+		Count(&events).Error)
+	assert.EqualValues(t, 1, events, "аннулирование записано в историю строки")
+}
+
+func ptr(s string) *string { return &s }
+func ptrInt(i int) *int    { return &i }

@@ -295,6 +295,10 @@ func main() {
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
+	// Аннулирование пропусков при возражении субъекта (#2361) убирает строки из
+	// заявок, а таблицы постов собираются по действующим строкам: без оповещения
+	// охранник видел бы аннулированный пропуск до перезагрузки страницы.
+	uniqueEmployeeService.SetTablesProducer(tablesRefreshProducer)
 	// #1748 S5: уведомления feedback_created/feedback_answered - аудитория первого
 	// считается резолвером прав (page.admin.feedback), поэтому сервису нужен и
 	// notificationServiceEarly, и permissionResolver (оба уже подняты выше).
