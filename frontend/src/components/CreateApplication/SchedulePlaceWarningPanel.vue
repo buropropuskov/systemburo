@@ -317,6 +317,7 @@ const shown = computed(
                 v-for="group in visibleGroups"
                 :key="group.id || group.name"
                 class="warn-group"
+                :class="{ 'warn-group--rule': group.rule }"
               >
                 <p class="warn-group__name">
                   {{ group.name }}
@@ -389,7 +390,11 @@ const shown = computed(
      (sticky-шапка списка Т/С, ряд дат). */
   width: 360px;
   max-width: calc(100vw - 32px);
-  max-height: calc(var(--app-vh, 1vh) * 60);
+  /* Высота по содержимому вплоть до всего экрана: пока предупреждения помещаются,
+     прокрутки нет. Предел в 60% экрана заставлял прокручивать панель, в которой
+     умещалось три блока из четырёх (#2320). Вычитаем свой отступ снизу и такой же
+     сверху - панель не должна упираться в края окна. */
+  max-height: calc(var(--app-vh, 1vh) * 100 - 40px);
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -516,17 +521,40 @@ const shown = computed(
   background: color-mix(in srgb, var(--warning) 14%, var(--surface));
 }
 
+/* Полосу прокрутки не показываем: панель узкая, и полоса съедала её ширину,
+   поджимая текст предупреждений. Прокрутка колесом и жестом остаётся. */
 .warn-panel__body {
   position: relative;
   min-height: 0;
   padding: 8px 16px 14px;
   overflow-y: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.warn-panel__body::-webkit-scrollbar {
+  display: none;
 }
 
 .warn-group {
   padding: 12px 0;
   border-bottom: 1px solid var(--color-border, var(--border));
+}
+
+/* Правило подачи, а не режим работы места: своя подложка и полоса слева, иначе
+   в общем списке оно читается как ещё одно место и теряется (#2320). */
+.warn-group--rule {
+  /* Воздух сверху: блок правила идёт после разделительной линии предыдущей группы
+     и без отступа лип к ней. */
+  margin: 16px 0 4px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--surface));
+  border-left: 3px solid var(--danger);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.warn-group--rule .warn-group__name {
+  color: var(--danger);
 }
 
 .warn-group:last-child {
@@ -659,7 +687,9 @@ const shown = computed(
     bottom: 12px;
     width: auto;
     max-width: none;
-    max-height: 52dvh;
+    /* На телефоне тоже по содержимому, но с запасом сверху: панель во весь экран
+       выглядит модалкой, а под ней должна угадываться форма. */
+    max-height: calc(100dvh - 64px);
   }
 
   /* Свёрнутая плашка раскрывается плавно; граница живёт на теле (border-top),

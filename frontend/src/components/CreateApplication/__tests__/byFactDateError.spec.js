@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
-import { BY_FACT_ONE_DAY_HINT } from '@/utils/byFactVehicle';
+import { BY_FACT_PERIOD_RULE, byFactDeadlineExact } from '@/utils/byFactVehicle';
 
 /**
  * Правило «срок один день» показывается в общей панели предупреждений, ещё до
@@ -24,6 +24,13 @@ vi.mock('@/api/client', () => ({
 }));
 
 import CreateApplication from '../CreateApplication.vue';
+
+/** Сегодняшняя дата в формате формы: срок «сегодня» всегда в пределах крайней даты. */
+function todayRu() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
 
 function mountForm() {
   setActivePinia(createPinia());
@@ -54,27 +61,35 @@ describe('CreateApplication — предупреждение о сроке ма�
     });
 
     expect(
-      w.vm.warningGroups.some((g) => g.free === BY_FACT_ONE_DAY_HINT),
+      w.vm.warningGroups.some((g) => g.free === BY_FACT_PERIOD_RULE),
       'правило должно попасть в панель предупреждений',
     ).toBe(true);
 
-    // Под полями дат сообщения быть не должно: предупреждение живёт в панели.
+    // Под полями дат сообщения быть не должно: предупреждение живёт в панели,
+    // а поля лишь краснеют по флагу без текста.
     expect(w.vm.currentAttachmentErrors.startDate).toBeUndefined();
     expect(w.vm.currentAttachmentErrors.endDate).toBeUndefined();
+    expect(w.vm.currentAttachmentErrors.periodInvalid, 'поля дат должны покраснеть').toBe(true);
+
+    // Рядом с полями - точный срок цифрами: правило в панели объясняет «до суток»,
+    // а сколько это в датах, человек должен видеть у самих полей.
+    expect(w.vm.currentAttachmentErrors.periodHint).toContain(byFactDeadlineExact());
+    expect(byFactDeadlineExact(new Date('2026-09-05T14:38:00Z'))).toBe('06.09.2026 23:59');
     w.unmount();
   });
 
-  it('однодневный период предупреждения не поднимает', async () => {
+  it('срок в пределах крайней даты предупреждения не поднимает', async () => {
     const w = mountForm();
     const key = w.vm.attachmentKey({ local_id: 'a1', attachment_type: 'cars' });
     await w.setData({
       attachments: [{ local_id: 'a1', attachment_type: 'cars', display_name: 'Авто' }],
       selectedAttachment: { local_id: 'a1', attachment_type: 'cars', display_name: 'Авто' },
-      attachmentDatesByAttachment: { [key]: { isOneDay: true, singleDate: '05.09.2026', errors: {} } },
+      attachmentDatesByAttachment: { [key]: { isOneDay: true, singleDate: todayRu(), errors: {} } },
       byFactPending: true,
     });
 
-    expect(w.vm.warningGroups.some((g) => g.free === BY_FACT_ONE_DAY_HINT)).toBe(false);
+    expect(w.vm.warningGroups.some((g) => g.free === BY_FACT_PERIOD_RULE)).toBe(false);
+    expect(w.vm.currentAttachmentErrors.periodInvalid, 'в пределах срока поля не краснеют').toBeUndefined();
     w.unmount();
   });
 
@@ -95,6 +110,10 @@ describe('CreateApplication — предупреждение о сроке ма�
     const имена = w.vm.warningGroups.map((g) => g.name);
     expect(имена).toContain('Дебаркадер №1');
     expect(имена).toContain('Машина «По факту»');
+
+    // Группа правила помечена: панель рисует её иначе, чем предупреждения по местам.
+    const правило = w.vm.warningGroups.find((g) => g.name === 'Машина «По факту»');
+    expect(правило.rule, 'без признака группа сольётся с остальными').toBe(true);
     w.unmount();
   });
 });

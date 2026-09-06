@@ -107,6 +107,36 @@ describe('SchedulePlaceWarningPanel', () => {
     expect(panel().textContent).toContain('Дебаркадер №1');
   });
 
+  it('группа правила подачи выделяется на фоне предупреждений по местам', () => {
+    // Правило шло третьим одинаковым блоком после мест и читалось как ещё одно
+    // место - признак rule даёт ему собственный вид (#2320).
+    const w = mountPanel([
+      { name: 'Дебаркадер №1', free: 'Въезд через ПОСТ №72' },
+      { name: 'Машина «По факту»', rule: true, free: 'Пропуск оформляется на срок до суток.' },
+    ]);
+
+    // Панель уходит в Teleport, поэтому ищем в документе, а не в обёртке.
+    const группы = [...document.querySelectorAll('.warn-group')];
+    expect(группы).toHaveLength(2);
+    expect(группы[0].classList.contains('warn-group--rule')).toBe(false);
+    expect(группы[1].classList.contains('warn-group--rule'), 'группа правила обязана отличаться классом').toBe(true);
+    w.unmount();
+  });
+
+  it('высота панели не режется заранее - прокрутка только когда контент не влез', () => {
+    // Предел в 60% экрана заставлял прокручивать панель, где умещалось три блока
+    // из четырёх. Замок текстовый: в jsdom нет раскладки, а число процентов - это
+    // и есть то, что чинили.
+    const css = readFileSync(resolve(__dirname, '..', 'SchedulePlaceWarningPanel.vue'), 'utf8');
+    const правило = css.match(/\.warn-panel \{([^}]*)\}/);
+
+    expect(правило, 'правило .warn-panel не найдено').not.toBeNull();
+    expect(
+      /max-height:\s*calc\(var\(--app-vh, 1vh\) \* 100/.test(правило[1]),
+      'панель должна тянуться до высоты экрана, а не до его доли',
+    ).toBe(true);
+  });
+
   it('на десктопе содержимое раскрыто сразу, счётчика и шеврона в шапке нет', () => {
     mountPanel([scheduleGroup()]);
     expect(document.querySelector('.warn-panel__reveal').classList.contains('warn-panel__reveal--open')).toBe(true);
@@ -238,4 +268,5 @@ describe('панель и онбординг-тур', () => {
     });
     expect(wrapper.find('.warn-panel').exists()).toBe(false);
   });
+
 });

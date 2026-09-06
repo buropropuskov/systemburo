@@ -480,7 +480,7 @@ import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.
 import { resetVehicleFormState } from './entryFormReset'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
-import { BY_FACT_ALREADY_ADDED, BY_FACT_ONE_DAY_HINT, hasByFactVehicle, isOneDayPeriod } from '@/utils/byFactVehicle';
+import { BY_FACT_ALREADY_ADDED, BY_FACT_PERIOD_RULE, hasByFactVehicle, isOneDayPeriod } from '@/utils/byFactVehicle';
 
 export default {
     name: 'VehicleForm',
@@ -572,7 +572,7 @@ export default {
 
             return [
                 { check: !vm.isNumberByFact || !hasByFactVehicle(vm.existingVehicles, vm.editingVehicle), message: BY_FACT_ALREADY_ADDED },
-                { check: !vm.isNumberByFact || isOneDayPeriod(vm.entryPeriod), message: BY_FACT_ONE_DAY_HINT },
+                { check: !vm.isNumberByFact || isOneDayPeriod(vm.entryPeriod), message: BY_FACT_PERIOD_RULE },
                 { check: !vm.activeCarInfo || vm.isNumberByFact || !fieldVisible('number'), message: 'На этот автомобиль уже есть активная заявка' },
                 { check: !vm.blacklistInfo || !fieldVisible('number'), message: 'Машина в чёрном списке' },
                 { check: (vm.isNumberByFact && vm.isMarkByFact) || !hasInactiveSelected || !fieldVisible('unloading_places'), message: 'Невозможно выбрать неактивные места разгрузки' },
@@ -1254,7 +1254,6 @@ export default {
             if (this.isNumberByFact) {
                 this.numberParts = [];
                 this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
-                if (!isOneDayPeriod(this.entryPeriod)) useDeletionsStore().notify({ bold: BY_FACT_ONE_DAY_HINT, type: 'warning' });
             } else {
                 this.initializeNumberParts();
             }

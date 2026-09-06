@@ -1,3 +1,6 @@
+import { moscowParts, serverNow } from '@/utils/serverTime';
+import { formatMomentDate } from '@/utils/datetime';
+
 /**
  * Правила заявки с машиной «По факту» на стороне формы (#2320).
  *
@@ -16,8 +19,47 @@ export const BY_FACT_PLATE = 'По факту';
 /** Почему нельзя добавить вторую такую машину. */
 export const BY_FACT_ALREADY_ADDED = 'в заявке уже есть машина «По факту» - допускается одна';
 
-/** Почему период заблокирован на одном дне. */
-export const BY_FACT_ONE_DAY_HINT = 'Заявка на машину «По факту» действует один день';
+/** Правило срока: первая строка предупреждения. */
+export const BY_FACT_PERIOD_RULE = 'Пропуск «По факту» оформляется на срок до суток.';
+
+/**
+ * Крайняя дата окончания заявки «По факту» на текущий момент.
+ *
+ * Конец суток, в которые попадает «сейчас плюс 24 часа»: в 17:38 пятого числа это
+ * шестое. Округление вверх до конца дня и есть тот запас, без которого предел
+ * сползал бы каждую минуту - заявка, оформленная в 17:31, через минуту оказывалась
+ * бы просроченной. Считается по московским часам, как и весь срок в заявке.
+ *
+ * @param {Date} [now] момент отсчёта
+ * @returns {string} ДД.ММ.ГГГГ
+ */
+export function byFactDeadline(now = serverNow()) {
+  return formatMomentDate(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+}
+
+/**
+ * Крайний срок с точным временем: «06.09.2026 23:59».
+ *
+ * Время показываем именно 23:59, а не «сейчас плюс сутки»: предел округляется
+ * вверх до конца дня, и минута в подсказке не должна убегать вперёд, пока человек
+ * заполняет форму.
+ *
+ * @param {Date} [now]
+ * @returns {string}
+ */
+export function byFactDeadlineExact(now = serverNow()) {
+  return `${byFactDeadline(now)} 23:59`;
+}
+
+/** Подсказка про крайний срок: вторая строка предупреждения. */
+export function byFactDeadlineHint(now = serverNow()) {
+  return `Сейчас заявку можно оформить по ${byFactDeadlineExact(now)} включительно.`;
+}
+
+/** Короткая подсказка у полей даты - она встаёт поверх формы, места мало. */
+export function byFactFieldHint(now = serverNow()) {
+  return `Срок «По факту» — по ${byFactDeadlineExact(now)}`;
+}
 
 /**
  * Машина записана как «По факту»? Сравнение нормализованное: значение приходит и
@@ -55,7 +97,7 @@ export function hasByFactVehicle(source, editing = null) {
 }
 
 /**
- * Период вложения укладывается в один день?
+ * Период вложения укладывается в крайний срок?
  *
  * Форма отдаёт период в виде API-объекта (`currentEntryPeriod`), даты там уже в
  * формате ГГГГ-ММ-ДД, поэтому сравнение строкой. Пустой период считаем недопустимым:
@@ -64,21 +106,57 @@ export function hasByFactVehicle(source, editing = null) {
  * @param {{date_from?: string, date_to?: string}|null} period
  * @returns {boolean}
  */
-export function isOneDayPeriod(period) {
+export function isOneDayPeriod(period, now = serverNow()) {
   const from = String(period?.date_from || '').trim();
   const to = String(period?.date_to || '').trim();
-  return Boolean(from) && from === to;
+  return Boolean(from) && Boolean(to) && isWithinByFactDeadline(to, now);
 }
 
 /**
- * Предупреждение для общей панели формы: срок заявки с машиной «По факту»
- * ограничен одним днём.
+ * Предупреждение для общей панели формы: правило срока и крайняя дата.
  *
  * Форма показывает его там же, где предупреждения по расписанию мест, - панель
  * одна, и отдельное сообщение под полями дат только дробило бы внимание.
  *
- * @returns {{name: string, free: string}} группа в формате SchedulePlaceWarningPanel
+ * @param {Date} [now] момент отсчёта
+ * @returns {{name: string, free: string, windows: string[]}} группа для SchedulePlaceWarningPanel
  */
-export function byFactWarningGroup() {
-  return { name: 'Машина «По факту»', free: BY_FACT_ONE_DAY_HINT };
+export function byFactWarningGroup(now = serverNow()) {
+  // rule помечает группу правила: панель рисует её иначе, чем предупреждения по
+  // местам, иначе в общем списке она теряется (#2320).
+  return { name: 'Машина «По факту»', rule: true, free: BY_FACT_PERIOD_RULE, windows: [byFactDeadlineHint(now)] };
+}
+
+/**
+ * Дата окончания укладывается в крайний срок?
+ *
+ * @param {string} isoDate дата окончания в формате ГГГГ-ММ-ДД (как её отдаёт форма)
+ * @param {Date} [now] момент отсчёта
+ * @returns {boolean}
+ */
+export function isWithinByFactDeadline(isoDate, now = serverNow()) {
+  const дата = String(isoDate || '').trim();
+  if (!дата) return false;
+  const предел = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const p = moscowParts(предел);
+  const pad = (n) => String(n).padStart(2, '0');
+  return дата <= `${p.year}-${pad(p.month)}-${pad(p.day)}`;
+}
+
+/**
+ * Срок вложения нарушает правило «По факту»?
+ *
+ * Истинно, когда в заявке есть такая машина (или тумблер включён прямо сейчас), а
+ * дата окончания уходит дальше крайней. Собрано в одном месте: форма по этому
+ * признаку и красит поля дат, и поднимает предупреждение в панели.
+ *
+ * @param {{date_from?: string, date_to?: string}|null} period срок вложения
+ * @param {Array} vehicles машины вложения
+ * @param {boolean} pending включён ли тумблер «по факту» в форме
+ * @param {Date} [now] момент отсчёта - без него проверка зависела бы от дня прогона
+ * @returns {boolean}
+ */
+export function byFactPeriodBroken(period, vehicles, pending, now = serverNow()) {
+  if (!pending && !hasByFactVehicle(vehicles)) return false;
+  return !isOneDayPeriod(period, now);
 }

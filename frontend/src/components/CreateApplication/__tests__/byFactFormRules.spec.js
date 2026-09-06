@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { BY_FACT_ALREADY_ADDED, BY_FACT_ONE_DAY_HINT } from '@/utils/byFactVehicle';
+import { BY_FACT_ALREADY_ADDED, BY_FACT_PERIOD_RULE, byFactDeadlineHint } from '@/utils/byFactVehicle';
 
 /**
  * Форма подачи объясняет правила «По факту» на месте, а не отказом при отправке (#2320).
@@ -44,29 +44,31 @@ describe('форма подачи: правила машины «По факту
     ).toBe(true);
   });
 
-  it('включение тумблера при длинном периоде предупреждает сразу', () => {
+  it('тумблер сообщает наверх, чтобы предупреждение поднялось до добавления машины', () => {
     const src = читать('VehicleForm.vue');
     const обработчик = src.slice(src.indexOf('handleNumberByFactChange()'), src.indexOf('handleMarkByFactChange()'));
 
-    expect(
-      /isOneDayPeriod\(this\.entryPeriod\)[\s\S]{0,120}notify/.test(обработчик),
-      'при включении «по факту» с длинным периодом форма должна предупредить тостом',
-    ).toBe(true);
+    expect(/\$emit\('by-fact-change'/.test(обработчик), 'форма обязана сообщать о смене режима').toBe(true);
+    // Тоста здесь быть не должно: предупреждение живёт в панели, а всплывающее
+    // окно в правом углу дублировало его и мешало.
+    expect(/notify\(/.test(обработчик)).toBe(false);
   });
 
   it('предупреждение о периоде идёт в общую панель формы', () => {
     const src = читать('CreateApplication.vue');
 
-    expect(
-      /warningGroups\(\)[\s\S]{0,300}byFactPending \|\| hasByFactVehicle\(this\.vehicles\)/.test(src),
-      'правило должно учитывать и включённый тумблер, и уже добавленные машины',
-    ).toBe(true);
     expect(src, 'панель должна получать группы из warningGroups').toContain(':groups="warningGroups"');
+    expect(/warningGroups\(\)[\s\S]{0,200}byFactPeriodBroken/.test(src), 'группа поднимается общей проверкой').toBe(true);
     expect(src, 'предупреждение собирается общей функцией').toContain('byFactWarningGroup()');
+    // Поля дат краснеют по флагу без текста - объяснение показывает панель.
+    expect(src).toContain('periodInvalid: true');
   });
 
   it('тексты правил не пустые и объясняют, а не просто запрещают', () => {
     expect(BY_FACT_ALREADY_ADDED).toMatch(/одна/);
-    expect(BY_FACT_ONE_DAY_HINT).toMatch(/один день/);
+    expect(BY_FACT_PERIOD_RULE).toMatch(/до суток/);
+    // Вторая строка называет крайнюю дату: без неё правило понятно, но неясно,
+    // какой срок ставить прямо сейчас.
+    expect(byFactDeadlineHint(new Date('2026-09-05T14:38:00Z'))).toContain('06.09.2026');
   });
 });

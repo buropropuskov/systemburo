@@ -87,3 +87,23 @@
 .hint-anchor[data-hint]:not([data-hint=""]).is-hinted::before {
   opacity: 1;
 }
+
+/*
+ * Красный вариант: подсказка не поясняет, а предупреждает - крайний срок заявки
+ * «По факту» рядом с покрасневшими полями даты (#2320). Цвет тот же, что у рамок,
+ * иначе связь между подсказкой и полями приходится додумывать.
+ */
+.hint-anchor--danger[data-hint]:not([data-hint=""])::after {
+  background: var(--danger);
+  color: var(--danger-contrast, #fff);
+  font-weight: 600;
+}
+
+.hint-anchor--danger[data-hint]:not([data-hint=""])::before {
+  border-top-color: var(--danger);
+}
+
+.hint-anchor--danger.hint-anchor--below[data-hint]:not([data-hint=""])::before {
+  border-top-color: transparent;
+  border-bottom-color: var(--danger);
+}

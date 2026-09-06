@@ -102,7 +102,7 @@
               class="input__date"
               placeholder="дд.мм.гггг"
               :value="startDate"
-              :class="{ 'input--error': errors.startDate }"
+              :class="{ 'input--error': errors.startDate || errors.periodInvalid }"
               maxlength="10"
               @input="onStartDateInput"
               @focus="openDatepicker('start')"
@@ -121,7 +121,7 @@
               class="input__date"
               placeholder="дд.мм.гггг"
               :value="endDate"
-              :class="{ 'input--error': errors.endDate }"
+              :class="{ 'input--error': errors.endDate || errors.periodInvalid }"
               maxlength="10"
               @input="onEndDateInput"
               @focus="openDatepicker('end')"
@@ -141,7 +141,7 @@
               class="input__date"
               placeholder="дд.мм.гггг"
               :value="singleDate"
-              :class="{ 'input--error': errors.singleDate }"
+              :class="{ 'input--error': errors.singleDate || errors.periodInvalid }"
               maxlength="10"
               @input="onSingleDateInput"
               @focus="openDatepicker('single')"
@@ -157,6 +157,15 @@
         >
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
+        <!-- Крайний срок «По факту» подсказкой над полями: системный паттерн
+             hints.css, is-hinted держит её открытой без наведения, --danger
+             красит в цвет ошибки. Полное правило объясняет панель (#2320). -->
+        <div
+          v-if="errors.periodHint"
+          class="hint-anchor hint-anchor--danger is-hinted period-hint-anchor"
+          :data-hint="errors.periodHint"
+          role="status"
+        />
         <Teleport to="body">
           <!-- Мобилка: затемнение под листом - календарь не сливается с формой за ним. -->
           <transition name="datepicker-overlay-fade">
