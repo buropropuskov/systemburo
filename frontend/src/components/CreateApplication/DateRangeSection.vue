@@ -151,18 +151,13 @@
             >
           </div>
         </div>
-        <div
-          v-if="errors.startDate || errors.endDate || errors.singleDate"
-          class="error-message date-error"
-        >
-          {{ errors.startDate || errors.endDate || errors.singleDate }}
-        </div>
-        <!-- Крайний срок «По факту» подсказкой над полями: системный паттерн
+        <!-- Крайний срок «По факту» подсказкой ПОД полями: системный паттерн
              hints.css, is-hinted держит её открытой без наведения, --danger
-             красит в цвет ошибки. Полное правило объясняет панель (#2320). -->
+             красит в цвет ошибки, --below опускает вниз - над полями она их
+             перекрывала. Полное правило объясняет панель (#2320). -->
         <div
           v-if="errors.periodHint"
-          class="hint-anchor hint-anchor--danger is-hinted period-hint-anchor"
+          class="hint-anchor hint-anchor--danger hint-anchor--below is-hinted period-hint-anchor"
           :data-hint="errors.periodHint"
           role="status"
         />

@@ -1320,16 +1320,10 @@ export default {
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData || !dateData.errors) return;
             
-            if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
-                const start = new Date(dateData.startDate.split('.').reverse().join('-'));
-                const end = new Date(dateData.endDate.split('.').reverse().join('-'));
-                if (start > end) {
-                    dateData.errors.endDate = 'Дата окончания не может быть раньше даты начала';
-                } else {
-                    dateData.errors.endDate = '';
-                }
-            }
-            
+            // Плашка под датами убрана (#2320): о перевёрнутом диапазоне сообщают
+            // подсказка у полей и причина у кнопки отправки.
+            if (!dateData.isOneDay && dateData.startDate && dateData.endDate) dateData.errors.endDate = '';
+
             this.saveToLocalStorage();
         },
         
@@ -2344,15 +2338,7 @@ export default {
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData || !dateData.errors) return;
             
-            if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
-                const start = new Date(dateData.startDate.split('.').reverse().join('-'));
-                const end = new Date(dateData.endDate.split('.').reverse().join('-'));
-                if (start > end) {
-                    dateData.errors.endDate = 'Дата окончания не может быть раньше даты начала';
-                } else {
-                    dateData.errors.endDate = '';
-                }
-            }
+            if (!dateData.isOneDay && dateData.startDate && dateData.endDate) dateData.errors.endDate = '';
         },
         
         validateAttachmentTimeRangeForAttachment(attachmentId) {

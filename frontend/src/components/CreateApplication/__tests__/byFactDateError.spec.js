@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { BY_FACT_PERIOD_RULE, byFactDeadlineExact } from '@/utils/byFactVehicle';
 
@@ -74,6 +76,8 @@ describe('CreateApplication — предупреждение о сроке ма�
     // Рядом с полями - точный срок цифрами: правило в панели объясняет «до суток»,
     // а сколько это в датах, человек должен видеть у самих полей.
     expect(w.vm.currentAttachmentErrors.periodHint).toContain(byFactDeadlineExact());
+    // Подсказка стоит у полей, которые надо поправить, - читается как указание.
+    expect(w.vm.currentAttachmentErrors.periodHint).toMatch(/^Укажите корректный срок/);
     expect(byFactDeadlineExact(new Date('2026-09-05T14:38:00Z'))).toBe('06.09.2026 23:59');
     w.unmount();
   });
@@ -115,5 +119,19 @@ describe('CreateApplication — предупреждение о сроке ма�
     const правило = w.vm.warningGroups.find((g) => g.name === 'Машина «По факту»');
     expect(правило.rule, 'без признака группа сольётся с остальными').toBe(true);
     w.unmount();
+  });
+
+  it('плашки с текстом под датами больше нет - остаётся только подсказка', () => {
+    // Владелец просил убрать сообщение «Дата окончания не может быть раньше даты
+    // начала»: о перевёрнутом диапазоне теперь говорит подсказка у полей и причина
+    // у кнопки отправки, а место под полями освободилось.
+    const разметка = readFileSync(
+      resolve(__dirname, '..', 'DateRangeSection.vue'), 'utf8',
+    ).split('<script')[0];
+
+    expect(/class="error-message date-error"/.test(разметка), 'плашка под датами должна быть убрана').toBe(false);
+    expect(разметка, 'подсказка у полей остаётся').toContain('period-hint-anchor');
+    // --below опускает её под поля: над ними она их перекрывала.
+    expect(разметка).toContain('hint-anchor--below');
   });
 });
