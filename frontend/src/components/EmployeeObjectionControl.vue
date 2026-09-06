@@ -1,6 +1,6 @@
 <template>
   <div class="objection">
-    <template v-if="objectedAt">
+    <template v-if="localObjectedAt">
       <p
         class="objection__note"
         data-testid="objection-note"
@@ -10,11 +10,11 @@
         чтения, действующие пропуска аннулированы.
       </p>
       <p
-        v-if="source"
+        v-if="localSource"
         class="objection__source"
         data-testid="objection-source"
       >
-        Основание: {{ source }}
+        Основание: {{ localSource }}
       </p>
       <button
         v-if="canManageAll"
@@ -91,13 +91,24 @@ export default {
     },
     emits: ['changed'],
     data() {
-        return { draftSource: '', busy: false };
+        // Состояние держим у себя, а не ждём перечитывания карточки снаружи: карточка
+        // после действия остаётся открытой, и вид обязан смениться сразу. Наверх
+        // уходит событие, по которому вью перечитывает список.
+        return { draftSource: '', busy: false, localObjectedAt: this.objectedAt, localSource: this.source };
     },
     computed: {
         formattedDate() {
-            if (!this.objectedAt) return '';
-            const d = new Date(this.objectedAt);
+            if (!this.localObjectedAt) return '';
+            const d = new Date(this.localObjectedAt);
             return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ru-RU');
+        },
+    },
+    watch: {
+        objectedAt(value) {
+            this.localObjectedAt = value;
+        },
+        source(value) {
+            this.localSource = value;
         },
     },
     methods: {
@@ -107,6 +118,8 @@ export default {
             this.busy = true;
             try {
                 await setEmployeeObjection(this.employeeId, source);
+                this.localObjectedAt = new Date().toISOString();
+                this.localSource = source;
                 this.draftSource = '';
                 useDeletionsStore().notify({ prefix: 'Возражение отмечено, пропуска аннулированы' });
                 this.$emit('changed');
@@ -121,6 +134,8 @@ export default {
             this.busy = true;
             try {
                 await clearEmployeeObjection(this.employeeId);
+                this.localObjectedAt = null;
+                this.localSource = '';
                 useDeletionsStore().notify({ prefix: 'Отметка о возражении снята' });
                 this.$emit('changed');
             } catch (e) {

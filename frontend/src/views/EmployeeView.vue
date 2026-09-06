@@ -580,7 +580,6 @@
       :ownership-info="ownershipInfo"
       :foreign-record="!!editingEmployee && !employeeBelongsToUser(editingEmployee)"
       @saved="onEmployeeSaved"
-      @objection-changed="onObjectionChanged"
       @close="closeModal"
     />
 
@@ -1150,17 +1149,6 @@ export default {
 
         onEmployeeSaved() {
             this.fetchEmployees();
-        },
-
-        // Отметка о возражении меняет состояние записи и аннулирует пропуска (#2361):
-        // перечитываем список и карточку, иначе кнопки останутся в прежнем виде, а
-        // человек решит, что действие не сработало.
-        async onObjectionChanged() {
-            await this.fetchEmployees();
-            if (this.editingEmployee?.id) {
-                const fresh = this.employees.find(e => e.id === this.editingEmployee.id);
-                if (fresh) this.editingEmployee = fresh;
-            }
         },
 
         // Форматирование ФИО

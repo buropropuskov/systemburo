@@ -208,7 +208,7 @@
         :objected-at="editingEmployee.pd_objection_at"
         :source="editingEmployee.pd_objection_source || ''"
         :can-manage-all="ownershipInfo?.can_manage_all === true"
-        @changed="$emit('objection-changed')"
+        @changed="$emit('saved')"
       />
 
       <!-- Уведомление субъекта об обработке персональных данных (часть 3 статьи 18
@@ -349,7 +349,7 @@ export default {
             default: false
         }
     },
-    emits: ['saved', 'close', 'objection-changed'],
+    emits: ['saved', 'close'],
     data() {
         return {
             // Гражданство
