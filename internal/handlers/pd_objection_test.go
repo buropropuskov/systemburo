@@ -131,3 +131,32 @@ func TestPDObjection_ClearUnlocksRecord(t *testing.T) {
 	// Снимать нечего - отдельный случай, а не молчаливый успех.
 	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, path+"/objection", h).Code)
 }
+
+// Снять отметку может только администратор бюро: возражение адресовано оператору,
+// и решение по нему принимает он. Иначе заявитель снял бы чужое возражение и
+// продолжил править данные человека, который этого не хотел.
+func TestPDObjection_ClearIsAdminOnly(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	applicantH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "objection_applicant",
+		"password123456789012345678901234", 1, td.OrgID, td.CompanyID))
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees",
+		`{"last_name":"Заявителев","first_name":"Пётр","position":"Слесарь","passport_series_number":"4501 555555","pd_consent":true}`, applicantH).Code)
+	id := objectionEmployeeID(t, db, "Заявителев")
+	path := "/unique-employees/" + itoa(id)
+
+	// Поставить отметку заявитель может: человек скажет о возражении работодателю.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, path+"/objection",
+		`{"source":"сказал лично"}`, applicantH).Code)
+
+	// А снять - нет.
+	assert.Equal(t, http.StatusForbidden, testutil.DELETE(t, e, path+"/objection", applicantH).Code,
+		"заявитель не снимает возражение сам")
+
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, path+"/objection", adminH).Code,
+		"администратор бюро снимает по итогам рассмотрения")
+}

@@ -1160,9 +1160,11 @@ func (s *uniqueEmployeeService) SetObjection(ctx context.Context, username strin
 	return nil
 }
 
-// ClearObjection снимает отметку по итогам рассмотрения обращения оператором либо
-// когда человек отозвал возражение. Доступна тому же кругу: отметку иногда ставят
-// ошибочно, и запись не должна оставаться запертой навсегда из-за описки.
+// ClearObjection снимает отметку по итогам рассмотрения обращения либо когда человек
+// отозвал возражение. Доступна ТОЛЬКО администратору бюро, в отличие от постановки:
+// возражение адресовано оператору, и решение по нему принимает он. Заявитель,
+// поставивший отметку ошибочно, обращается в бюро - иначе он мог бы снять чужое
+// возражение и продолжить править данные человека, который этого не хотел.
 func (s *uniqueEmployeeService) ClearObjection(ctx context.Context, username string, id int) error {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
@@ -1176,8 +1178,8 @@ func (s *uniqueEmployeeService) ClearObjection(ctx context.Context, username str
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
 	}
-	if !s.canEditEmployee(&existing, ownerInfo) {
-		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
+	if !ownerInfo.CanManageAll {
+		return echo.NewHTTPError(http.StatusForbidden, "Снять отметку о возражении может только администратор бюро: возражение адресовано оператору, и решение по нему принимает он")
 	}
 	if existing.PDObjectionAt == nil {
 		return echo.NewHTTPError(http.StatusNotFound, "Возражение по этой записи не отмечено")
