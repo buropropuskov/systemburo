@@ -56,9 +56,22 @@ func TestPDObjection_LocksPersonalFieldsButNotBinding(t *testing.T) {
 		Select("COALESCE(last_name, '')").Row().Scan(&last))
 	assert.Equal(t, "Возражаев", last, "прежнее значение сохранено")
 
-	// Привязка к подразделению - не сведения о человеке, её менять можно.
-	rec = testutil.PUT(t, e, path, `{"company_id":`+itoa(td.CompanyID)+`,"pd_consent":true}`, h)
+	// Привязка к подразделению - не сведения о человеке, её менять можно. Но
+	// персональные поля обязаны прийти в запросе неизменными: метод правки пишет
+	// весь набор разом, и короткий запрос стёр бы ФИО (поймано на стенде).
+	rec = testutil.PUT(t, e, path,
+		`{"last_name":"Возражаев","first_name":"Пётр","position":"Мастер","passport_series_number":"4501 111111","company_id":`+itoa(td.CompanyID)+`,"pd_consent":true}`, h)
 	assert.Equal(t, http.StatusOK, rec.Code, "привязка меняется и при возражении: "+rec.Body.String())
+
+	// А короткий запрос, где персональных полей нет вовсе, отклоняется: иначе он
+	// молча обнулил бы фамилию, имя и должность у записи, которую возражение как раз
+	// и должно защищать.
+	rec = testutil.PUT(t, e, path, `{"company_id":`+itoa(td.CompanyID)+`}`, h)
+	assert.Equal(t, http.StatusConflict, rec.Code, "запрос без персональных полей стирает их - отклоняем")
+
+	require.NoError(t, db.Model(&models.UniqueEmployee{}).Where("id = ?", id).
+		Select("COALESCE(last_name, '')").Row().Scan(&last))
+	assert.Equal(t, "Возражаев", last, "фамилия на месте после отказа")
 }
 
 func TestPDObjection_StoresWhoWhenAndSource(t *testing.T) {

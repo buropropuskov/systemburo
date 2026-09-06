@@ -1108,9 +1108,14 @@ func (s *uniqueEmployeeService) canEditEmployee(emp *models.UniqueEmployee, owne
 // Поле, отсутствующее в запросе (nil), считается неизменным: формы шлют не все поля,
 // и «не прислали» не значит «стереть».
 func personalFieldsChanged(existing *models.UniqueEmployee, req NewUniqueEmployeeRequest) bool {
+	// Поле, не пришедшее в запросе, СТИРАЕТ значение: Update кладёт в карту весь набор
+	// персональных полей, включая nil. Поэтому отсутствие поля - это изменение, а не
+	// «не трогай». Иначе правка привязки коротким запросом молча обнуляла бы ФИО у
+	// записи с возражением - ровно то, что возражение и должно предотвращать
+	// (поймано живой проверкой на стенде, #2361).
 	changedString := func(now *string, want *string) bool {
 		if want == nil {
-			return false
+			return now != nil && *now != ""
 		}
 		if now == nil {
 			return *want != ""
@@ -1126,12 +1131,10 @@ func personalFieldsChanged(existing *models.UniqueEmployee, req NewUniqueEmploye
 		changedString(existing.OtherPermission, req.OtherPermission) {
 		return true
 	}
-	if req.CitizenshipID != nil {
-		if existing.CitizenshipID == nil || *existing.CitizenshipID != *req.CitizenshipID {
-			return true
-		}
+	if req.CitizenshipID == nil {
+		return existing.CitizenshipID != nil
 	}
-	return false
+	return existing.CitizenshipID == nil || *existing.CitizenshipID != *req.CitizenshipID
 }
 
 // SetObjection отмечает поступившее возражение субъекта против обработки его данных
