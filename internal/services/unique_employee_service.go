@@ -113,7 +113,12 @@ type UniqueEmployeeWithRelations struct {
 	OwnerMiddleName *string `json:"-" gorm:"column:owner_middle_name"`
 	// PDConsentAt -- когда подтверждено согласие субъекта на обработку его данных.
 	// NULL у записей, заведённых до введения поля: карточка так и пишет, что отметки нет.
-	PDConsentAt          *time.Time `json:"pd_consent_at"`
+	PDConsentAt *time.Time `json:"pd_consent_at"`
+	// PDObjectionAt и PDObjectionSource - отметка о возражении субъекта (#2361).
+	// Без них интерфейс не покажет, почему поля карточки заперты, и человек будет
+	// думать, что форма сломалась.
+	PDObjectionAt        *time.Time `json:"pd_objection_at"`
+	PDObjectionSource    *string    `json:"pd_objection_source"`
 	ActiveEntryDateTo    *string    `json:"active_entry_date_to"`
 	ActivePassTime       *string    `json:"active_pass_time"`
 	ActiveAppOrgName     *string    `json:"active_app_org_name"`
@@ -167,6 +172,11 @@ type UniqueEmployeeResponse struct {
 	Status               bool       `json:"status"`
 	CreatedAt            *time.Time `json:"created_at"`
 	PDConsentAt          *time.Time `json:"pd_consent_at"`
+	// PDObjectionAt и PDObjectionSource - отметка о возражении субъекта (#2361).
+	// Без них интерфейс не покажет, почему поля карточки заперты, и человек будет
+	// думать, что форма сломалась.
+	PDObjectionAt     *time.Time `json:"pd_objection_at"`
+	PDObjectionSource *string    `json:"pd_objection_source"`
 }
 
 // UniqueEmployeeHistoryItem -- запись истории мастер-сотрудника с username вызывающего.
@@ -313,7 +323,7 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 	ue."position", ue.passport_series_number, ue.patent_number,
 	ue.other_permission, ue.created_at,
 	o.name as organization_name, c.name as company_name,
-	cit.name as citizenship_name, ue.pd_consent_at,
+	cit.name as citizenship_name, ue.pd_consent_at, ue.pd_objection_at, ue.pd_objection_source,
 	usr.username as owner_username, usr.last_name as owner_last_name,
 	usr.first_name as owner_first_name, usr.middle_name as owner_middle_name,
 	COALESCE((

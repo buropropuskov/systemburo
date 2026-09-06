@@ -227,6 +227,19 @@
                           data-testid="employee-pd-consent-date"
                         >отмечено {{ formatConsentDate(employee.pd_consent_at) }}</span>
                       </div>
+                      <!-- Возражение субъекта (#2361): человек потребовал прекратить
+                           обработку. Строку рисуем только при наличии отметки - у
+                           большинства записей её нет и не будет. -->
+                      <div
+                        v-if="employee.pd_objection_at"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Возражение против обработки:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-pd-objection-date"
+                        >поступило {{ formatConsentDate(employee.pd_objection_at) }}</span>
+                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
