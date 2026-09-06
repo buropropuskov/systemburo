@@ -1028,6 +1028,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
 	query = applyApplicationFilters(query, filter, true, user.ID)
+	query = applyArchiveScope(query, filter)
 	query = applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, true)
 	query = query.Order("a.sending_datetime DESC")
 
@@ -1069,6 +1070,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 
 	// Намеренно БЕЗ applyApplicationAccessFilter - привязка это admin-операция.
 	query = applyApplicationFilters(query, filter, true, user.ID)
+	query = applyArchiveScope(query, filter)
 	query = query.Order("a.sending_datetime DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
@@ -1092,6 +1094,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 	query = applyApplicationAccessFilter(query, userID, isApprover)
 
 	query = applyApplicationFilters(query, filter, true, userID)
+	query = applyArchiveScope(query, filter)
 	// Центр: чип "Обновления" показывает только прочитанные заявки (requireRead=true).
 	return applyStatusUpdatedFilter(query, userID, filter.StatusUpdated, true)
 }
@@ -1158,6 +1161,8 @@ func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context,
 
 	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
 
+	// Без applyArchiveScope намеренно (#2339): кабинет показывает все заявки человека
+	// одним списком, включая архивные - у него нет деления на активные и архив.
 	query = applyApplicationFilters(query, filter, true, user.ID)
 	// ЛК: у отправителя нет строк application_reads, гейт прочтения не нужен (requireRead=false).
 	return applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, false)
