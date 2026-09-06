@@ -591,7 +591,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	// обрабатывать, нет.
 	if !req.PDConsent {
 		return nil, echo.NewHTTPError(http.StatusBadRequest,
-			"Без согласия субъекта на обработку персональных данных запись создать нельзя")
+			"Без отметки о том, что работник уведомлён об обработке персональных данных, запись создать нельзя")
 	}
 
 	// Проверка уникальности паспортных данных для пользователя

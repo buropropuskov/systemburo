@@ -381,9 +381,9 @@
       </div>
     </div>
 
-    <!-- Согласие субъекта на обработку его персональных данных (152-ФЗ). Показывается
+    <!-- Уведомление субъекта об обработке его данных (ч. 3 ст. 18 152-ФЗ). Показывается
          и требуется по настройке полей вложения; у сотрудника, выбранного из реестра,
-         согласие уже получено при заведении записи - там отметка не спрашивается. -->
+         человек уведомлён при заведении записи - там отметка не спрашивается. -->
     <div
       v-if="fieldVisible('pd_consent') && selectedExistingEmployees.length === 0"
       class="completion__consent"
@@ -395,13 +395,13 @@
           data-testid="employee-pd-consent"
         >
         <span>
-          Работник дал <a
+          Работник уведомлён об <a
             href="/data-processing"
             target="_blank"
             rel="noopener"
             class="blue"
             @click.stop
-          >согласие</a> на обработку своих персональных данных<span
+          >обработке персональных данных</a><span
             v-if="fieldRequired('pd_consent')"
             class="required"
           >*</span>
@@ -548,7 +548,7 @@ export default {
                 rules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
             }
             if (fieldVisible('pd_consent') && fieldRequired('pd_consent')) {
-                rules.push({ check: vm.pdConsent, message: 'отметьте согласие работника на обработку персональных данных' })
+                rules.push({ check: vm.pdConsent, message: 'отметьте, что работник уведомлён об обработке персональных данных' })
             }
 
             return rules
