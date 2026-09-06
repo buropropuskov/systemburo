@@ -313,6 +313,11 @@ const RESOURCE_LABELS = {
   file_archive: 'Файловый архив',
   applications_export: 'Выгрузка реестра заявок',
   request_logs_export: 'Выгрузка журнала обращений',
+  application: 'Заявки',
+  user: 'Пользователи',
+  car: 'Машины (история)',
+  unique_car: 'Реестр машин',
+  system_table_content: 'Содержимое таблицы поста',
   search: 'Сквозной поиск',
 };
 
