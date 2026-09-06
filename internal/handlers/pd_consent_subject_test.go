@@ -27,7 +27,7 @@ func TestPDConsent_RegistryRejectsEmployeeWithoutConsent(t *testing.T) {
 
 	rec := testutil.POST(t, e, "/unique-employees", `{"last_name":"Безсогласия","first_name":"Иван"}`, h)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "без отметки запись реестра не создаётся")
-	assert.Contains(t, rec.Body.String(), "согласия субъекта")
+	assert.Contains(t, rec.Body.String(), "уведомлён об обработке персональных данных")
 
 	var count int64
 	require.NoError(t, db.Model(&models.UniqueEmployee{}).Where("last_name = ?", "Безсогласия").Count(&count).Error)
