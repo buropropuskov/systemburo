@@ -157,15 +157,15 @@
         >
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
-        <!-- Крайний срок «По факту» подсказкой СБОКУ от полей: системный паттерн
+        <!-- Крайний срок «По факту» подсказкой ПОД полями: системный паттерн
              hints.css, is-hinted держит её открытой без наведения, --danger
-             красит в цвет ошибки, --aside уводит пузырёк вправо от блока. Сбоку,
-             а не снизу: снизу он ложился на «однодневную заявку», а место под
-             себя занять не мог - высота блока дат от подсказки меняться не
-             должна. Полное правило со сроком объясняет панель (#2320). -->
+             красит в цвет ошибки, --below опускает пузырёк вниз, --float уводит
+             якорь из потока - иначе он добавляет флексу лишнюю строку с зазором и
+             блок дат подрастает при каждом появлении подсказки. Полное правило со
+             сроком объясняет панель (#2320). -->
         <div
           v-if="errors.periodHint"
-          class="hint-anchor hint-anchor--danger hint-anchor--aside is-hinted period-hint-anchor"
+          class="hint-anchor hint-anchor--danger hint-anchor--below hint-anchor--float hint-anchor--noarrow is-hinted period-hint-anchor"
           :data-hint="errors.periodHint"
           role="status"
         />
