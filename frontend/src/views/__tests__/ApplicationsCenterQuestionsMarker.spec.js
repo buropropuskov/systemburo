@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import ApplicationsCenter from '../ApplicationsCenter.vue';
@@ -10,6 +10,10 @@ vi.mock('@/api/client', () => ({ apiRequest: vi.fn().mockResolvedValue({ ok: fal
 // Список Центра (#1158) идёт через getApplicationsPaginated, не apiRequest напрямую.
 vi.mock('@/api/applications', () => ({
   getApplicationsPaginated: vi.fn().mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } }),
+  // Тот же модуль отдаёт точечную загрузку по id: deep-link зовёт её, когда заявки нет
+  // в накопленном списке. Без мока вызов уходит в undefined, ветка глотает исключение
+  // в catch, и тест падает на пустом результате, а не на своей причине.
+  getApplicationById: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn(), SOUND_PRESETS: [] }));
 
@@ -102,16 +106,23 @@ describe('ApplicationsCenter — маркер обсуждения (#973)', () =
 
   it('deep-link ?open открывает заявку из списка и чистит query', async () => {
     wrapper = mountCenter();
+    // mounted грузит список и по завершении сам зовёт openFromDeepLink. Пока эта цепочка
+    // в полёте, подменять список бесполезно: загрузка перетрёт его пустым ответом мока,
+    // повторный вызов не найдёт заявку и уйдёт в точечную загрузку. Дожидаемся тишины
+    // и только потом расставляем данные теста.
+    await flushPromises();
     const push = wrapper.vm.$router;
     wrapper.vm.$route.query = { open: '5' };
     const app = { id: 5, is_read: true, application_number: 'A-5', organization_name: 'Орг' };
     wrapper.vm.applications = [app];
-    wrapper.vm.openFromDeepLink();
-    // Сравниваем с элементом списка, а не с исходным объектом: присваивание в
-    // реактивный массив оборачивает его в прокси, и с @vue/test-utils 2.5 тождество
-    // с сырым объектом больше не выполняется. Требование прежнее - открыт элемент
-    // списка, а не его копия, иначе правки в карточке не дойдут до строки.
-    expect(wrapper.vm.selectedApplication).toBe(wrapper.vm.applications[0]);
+    await wrapper.vm.openFromDeepLink();
+    // Тождество здесь проверять нельзя: компонент внутри работает с сырым объектом,
+    // а wrapper.vm отдаёт наружу реактивный прокси того же объекта, и toBe сравнивает
+    // обёртки, а не суть. Требование же не про ссылку: открыт должен быть элемент
+    // списка, а не его копия, иначе правки в карточке не дойдут до строки. Это и
+    // проверяем - меняем через карточку, смотрим в списке.
+    wrapper.vm.selectedApplication.is_read = false;
+    expect(wrapper.vm.applications[0].is_read).toBe(false);
     expect(push.replace).toHaveBeenCalled();
   });
 });
