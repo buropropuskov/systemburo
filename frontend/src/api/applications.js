@@ -137,16 +137,16 @@ export async function getUnreadCount() {
 }
 
 /**
- * Число заявок ЛК с обновлённым статусом для чипа "Обновления" (#1349): scope ЛК
- * (автор или заявки его организации), активные, с флагом обновления - БЕЗ гейта
- * прочтения (у отправителя нет строк application_reads). Отдельный от Центра
- * эндпоинт: у ЛК другая матрица доступа, чем у approver/viewer.
- * unwrap как approvers.js: apiRequest снимает envelope в data, на !ok бросаем
- * сообщением бэка (голый res.json() отдал бы {message} при !success как успех).
+ * Число заявок ЛК с обновлённым статусом для чипа "Обновления" (#1349): scope ЛК (автор
+ * или заявки его организации), активные, с флагом обновления - БЕЗ гейта прочтения (у
+ * отправителя нет строк application_reads); матрица доступа у ЛК своя, потому эндпоинт
+ * отдельный от Центра. unwrap как approvers.js. Вкладку шлём теми же параметрами, что и
+ * списку, иначе чип обещает больше, чем откроет клик (#2339).
+ * @param {{sender_user_id?: number, organization_id?: number}} [params] вкладка кабинета
  * @returns {Promise<{status_updates: number}>}
  */
-export async function getUserStatusUpdatesCount() {
-  const res = await apiRequest('/applications/user/status-updates-count');
+export async function getUserStatusUpdatesCount(params = {}) {
+  const res = await apiRequest(`/applications/user/status-updates-count?${new URLSearchParams(params)}`);
   const body = await res.json();
   if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить счётчик обновлений');
   return body;

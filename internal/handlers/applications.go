@@ -457,17 +457,26 @@ func (h *ApplicationHandler) GetUnreadCount(c echo.Context) error {
 // @Summary      Число заявок ЛК с обновлённым статусом
 // @Description  Счётчик для чипа "Обновления" в ЛК (#1349): заявки пользователя (его или
 // @Description  организации), чей статус/подтверждение менялись после последнего просмотра.
+// @Description  Вкладка кабинета сужает счёт так же, как список (#2339).
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
+// @Param        sender_user_id  query int false "Вкладка «Мои заявки»: считать только заявки этого автора"
+// @Param        organization_id query int false "Вкладка «Организация»: считать только заявки этой организации"
 // @Success      200 {object} models.StatusUpdatesCountResponse
+// @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/user/status-updates-count [get]
 func (h *ApplicationHandler) GetUserStatusUpdatesCount(c echo.Context) error {
 	username := c.Get("username").(string)
 
-	resp, err := h.service.GetUserStatusUpdatesCount(c.Request().Context(), username)
+	var filter services.ApplicationFilter
+	if err := c.Bind(&filter); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
+	}
+
+	resp, err := h.service.GetUserStatusUpdatesCount(c.Request().Context(), username, filter)
 	if err != nil {
 		return err
 	}

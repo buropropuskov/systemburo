@@ -15,10 +15,10 @@ vi.mock('@/api/applications', () => ({
 import UserApplications from '../UserApplications.vue';
 import { getUserApplicationsPaginated, getUserStatusUpdatesCount } from '@/api/applications';
 
-function mountUA() {
+function mountUA(props = {}) {
   setActivePinia(createPinia());
   const wrapper = shallowMount(UserApplications, {
-    props: { userId: 1 },
+    props: { userId: 1, ...props },
     global: { mocks: { $route: { query: {} }, $router: { replace: vi.fn(() => Promise.resolve()), push: vi.fn() } } },
   });
   return { wrapper };
@@ -39,6 +39,59 @@ describe('UserApplications — чип "Обновления" (#1349 срез 4)'
 
     expect(getUserStatusUpdatesCount).toHaveBeenCalled();
     expect(wrapper.vm.statusUpdateCount).toBe(5);
+  });
+
+  it('счётчик уходит с той же вкладкой, что и список (#2339)', async () => {
+    const { wrapper } = mountUA({ userId: 7, userOrganizationId: 42 });
+    await flushPromises();
+    await wrapper.setData({ currentFilter: 'my' });
+
+    getUserStatusUpdatesCount.mockClear();
+    await wrapper.vm.fetchStatusUpdateCount();
+    expect(
+      getUserStatusUpdatesCount.mock.calls.at(-1)[0],
+      'вкладка «Мои заявки» - счёт только по своим',
+    ).toEqual({ sender_user_id: 7 });
+
+    // Скоуп кабинета шире вкладки: без этого параметра чип считал заявки всей
+    // организации и обещал больше, чем показывал список по клику.
+    getUserStatusUpdatesCount.mockClear();
+    wrapper.vm.setFilter('organization');
+    await flushPromises();
+    expect(
+      getUserStatusUpdatesCount.mock.calls.at(-1)[0],
+      'вкладка «Организация» - счёт по организации',
+    ).toEqual({ organization_id: 42 });
+  });
+
+  it('смена вкладки пересчитывает чип, а не только список (#2339)', async () => {
+    const { wrapper } = mountUA({ userId: 7, userOrganizationId: 42 });
+    await flushPromises();
+
+    getUserStatusUpdatesCount.mockClear();
+    wrapper.vm.setFilter('organization');
+    await flushPromises();
+    expect(getUserStatusUpdatesCount, 'без перезапроса чип показывал бы число прошлой вкладки')
+      .toHaveBeenCalledTimes(1);
+  });
+
+  it('список и чип берут вкладку из одной точки (#2339)', async () => {
+    // Пока параметры вкладки собирались в двух местах, они и разъехались: список
+    // сузился до вкладки, счётчик остался на всём скоупе.
+    const { wrapper } = mountUA({ userId: 7, userOrganizationId: 42 });
+    await flushPromises();
+    await wrapper.setData({ currentFilter: 'organization' });
+
+    getUserApplicationsPaginated.mockClear();
+    await wrapper.vm.buildUserApplicationsPage(1, 30);
+    const параметрыСписка = getUserApplicationsPaginated.mock.calls.at(-1)[0];
+    const параметрыЧипа = wrapper.vm.scopeParams();
+
+    expect(параметрыЧипа).toEqual({ organization_id: 42 });
+    expect(параметрыСписка.organization_id, 'список и чип сужаются одинаково')
+      .toBe(параметрыЧипа.organization_id);
+    expect(параметрыСписка.sender_user_id, 'вкладка «Организация» не сужает по автору')
+      .toBeUndefined();
   });
 
   it('чип рисует счётчик, когда обновления есть', async () => {

@@ -468,6 +468,7 @@ import { pinLeavingElement } from '@/utils/listTransition';
 import { observeTagsColumnWidth } from '@/utils/tagsColumnWidth';
 import { apiRequest } from '@/api/client'
 import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesCount } from '@/api/applications'
+import { cabinetScopeParams } from '@/utils/cabinetScope'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { copyText } from '@/utils/clipboard'
@@ -774,6 +775,9 @@ export default {
      * массиву - раньше GetUserApplications вообще не ограничивал доступ по пользователю,
      * клиент лишь ОТОБРАЖАЛ подмножество (см. фикс applyUserApplicationsAccessFilter).
      */
+    scopeParams() {
+      return cabinetScopeParams(this.currentFilter, this.ownerUserId, this.userOrganizationId);
+    },
     async buildUserApplicationsPage(page, perPage) {
       const params = {};
 
@@ -781,11 +785,7 @@ export default {
         params.search_query = this.searchQuery;
       }
 
-      if (this.currentFilter === 'my' && this.ownerUserId) {
-        params.sender_user_id = this.ownerUserId;
-      } else if (this.currentFilter === 'organization' && this.userOrganizationId) {
-        params.organization_id = this.userOrganizationId;
-      }
+      Object.assign(params, this.scopeParams());
 
       // Чип "Обновления" (#1349): бэк фильтрует по hasStatusUpdatePredicate БЕЗ гейта
       // прочтения (applyStatusUpdatedFilter requireRead=false для ЛК).
@@ -864,13 +864,12 @@ export default {
       this.fetchStatusUpdateCount();
     },
 
-    // Счётчик чипа "Обновления" (#1349): число заявок ЛК с обновлённым статусом
-    // (scope автора/организации, без гейта прочтения). При сбое сохраняем последнее
-    // известное значение (не обнуляем - восстановление не должно выглядеть как
-    // "обновления пропали").
+    // Чип "Обновления" (#1349): заявки ЛК с обновлённым статусом в пределах выбранной
+    // вкладки (#2339). При сбое держим последнее значение - иначе восстановление
+    // выглядит как "обновления пропали".
     async fetchStatusUpdateCount() {
       try {
-        const { status_updates } = await getUserStatusUpdatesCount();
+        const { status_updates } = await getUserStatusUpdatesCount(this.scopeParams());
         this.statusUpdateCount = status_updates || 0;
       } catch (error) {
         console.error('Не удалось загрузить счётчик обновлений статуса:', error);
@@ -1092,6 +1091,7 @@ export default {
       this.selectedApplication = null;
       this.responsibleUsers = [];
       this.fetchUserApplications();
+      this.fetchStatusUpdateCount(); // чип считает по вкладке (#2339)
     },
 
     updateSelectedDate(date) {
