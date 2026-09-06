@@ -52,6 +52,20 @@ var pdPaths = []string{
 	// обращался» остаётся сведениями о людях, и снятие его пачкой владелец решил
 	// считать просмотром персональных данных наравне с выгрузкой реестра заявок.
 	"/api/request-logs/export",
+	// Список пользователей (#2352): та же дыра, что закрывали в #1472, только с
+	// другой стороны формы - отдаёт ФИО, должность, почту, телефон и организацию
+	// работника. Обнаружено на стенде: запрос к этому пути не сдвигал счётчик
+	// журнала, а к /api/unique-employees - сдвигал.
+	"/api/users/all",
+	// Реестр автомобилей (#2352): зеркало уже учтённого /api/unique-employees, только
+	// для машин. UserName в ответе - ФИО владельца записи (отдаётся только
+	// администратору, см. maskCarOwners), то есть привязка номера машины к
+	// конкретному человеку, а не только номер сам по себе.
+	"/api/unique-cars",
+	// Кандидаты в получатели заявки (#2352): models.RecipientCandidate несёт ФИО и
+	// должность коллег по организации/компании - тот же набор полей, что и в
+	// /api/users/all, только для окна пересылки, доступного любому авторизованному.
+	"/api/users/recipient-candidates",
 }
 
 // auditWriteTimeout - максимальное время на запись лога в БД. Если БД легла или
@@ -102,10 +116,19 @@ func PDAudit(db *gorm.DB) echo.MiddlewareFunc {
 	}
 }
 
+// IsPDPathForRouteCoverage экспортирует isPDPath ради гвард-теста
+// TestPDAudit_NoUntriagedGetRoute в internal/handlers: тот сверяет разбор пути с
+// реальным роутером (e.Routes()), а строить роутер здесь, в internal/middleware,
+// означало бы импортировать internal/testutil - тот и так зависит от middleware
+// (тот же приём, что у mw.PDConsentWhitelist в pd_consent.go).
+func IsPDPathForRouteCoverage(path string) bool {
+	return isPDPath(path)
+}
+
 // isPDPath отвечает, ведёт ли запрос к персональным данным. Кроме перечня префиксов
-// сюда попадают два адреса с идентификатором в середине: выгрузка бланка (один .xlsx
-// уносит ФИО, паспорта и патенты всех сотрудников заявки) и деталь доступного
-// вложения, где охрана видит те же паспортные данные.
+// сюда попадают адреса с идентификатором в середине пути (заявка/id/подраздел,
+// пользователь/username/history и т.п.) - строкой в pdPaths их не описать, поэтому
+// каждый такой случай разобран отдельной функцией ниже (#1472, #2352).
 func isPDPath(path string) bool {
 	for _, p := range pdPaths {
 		if strings.HasPrefix(path, p) {
@@ -113,7 +136,146 @@ func isPDPath(path string) bool {
 		}
 	}
 	return isBlankPath(path) || isAvailableAttachmentPath(path) || isApplicationArchivePath(path) ||
-		isApplicationFilePath(path) || isApplicationParticipantsPath(path)
+		isApplicationFilePath(path) || isApplicationParticipantsPath(path) ||
+		isApplicationListPath(path) || isApplicationDetailPath(path) || isApplicationCardSubPath(path) ||
+		isUserHistoryPath(path) || isCarHistoryPath(path) ||
+		isSystemTableTrashListPath(path) || isSystemTableSnapshotPayloadPath(path) ||
+		isSystemTableHistoryPath(path)
+}
+
+// isApplicationListPath - три списка заявок, построенных на одной и той же выборке
+// (ApplicationWithDetails): Центр (/api/applications), ЛК (/api/applications/user) и
+// список для ручного вложения без формы (/api/applications/attachable, #1049). Все
+// три отдают sender_full_name и responsible_full_name - ФИО инициатора и принимающего,
+// то самое "имя инициатора", из-за которого завели #2352.
+func isApplicationListPath(path string) bool {
+	switch path {
+	case "/api/applications", "/api/applications/user", "/api/applications/attachable":
+		return true
+	}
+	return false
+}
+
+// isApplicationDetailPath - карточка одной заявки (/api/applications/{id}): те же
+// sender_full_name/responsible_full_name, что и в списке. Проверка "весь остаток -
+// цифры" отделяет числовой id от статических соседей на этом же уровне маршрутизации
+// (export, user, attachable, unread-count...), которые персональных данных не отдают.
+func isApplicationDetailPath(path string) bool {
+	const prefix = "/api/applications/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	rest := path[len(prefix):]
+	return rest != "" && isDigits(rest)
+}
+
+// applicationCardSuffixes - подпути карточки заявки, где JOIN users отдаёт ФИО:
+// инициатора и принимающего (history, details - как в самой карточке), автора
+// пересылки (forward-messages), согласующего (responsible-users), смотревшего
+// (viewers, reads), автора вопроса или дополнения (questions, supplements). Тот же
+// человек, что виден в участниках (закрыто в #1472), только с другой стороны формы.
+var applicationCardSuffixes = []string{
+	"/history", "/responsible-users", "/forward-messages", "/viewers", "/reads",
+	"/questions", "/supplements", "/details",
+}
+
+// isApplicationCardSubPath - .../applications/{id}/{суффикс из applicationCardSuffixes}.
+func isApplicationCardSubPath(path string) bool {
+	const prefix = "/api/applications/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	rest := path[len(prefix):]
+	for _, suf := range applicationCardSuffixes {
+		id, ok := strings.CutSuffix(rest, suf)
+		if ok && id != "" && isDigits(id) {
+			return true
+		}
+	}
+	return false
+}
+
+// isUserHistoryPath - история изменений учётки (/api/users/{username}/history):
+// models.UserHistoryItem несёт ActorName - ФИО того, кто менял запись, тот же
+// принцип, что и DeletedByName в корзине таблиц ниже.
+func isUserHistoryPath(path string) bool {
+	const prefix = "/api/users/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	return strings.HasSuffix(path, "/history")
+}
+
+// isCarHistoryPath - подпути истории машин, где CarHistoryItemResponse и
+// AllCarsHistoryItem несут ФИО охранника, менявшего территориальный статус. Текущий
+// статус (history/current-status) сюда НЕ входит - там только car_id/статус/время,
+// без единого имени, а сам номер и марка машины субъекта не идентифицируют (см.
+// комментарий у UniqueCar.PDConsentAt) - поэтому остальные пути /cars
+// (active-for-table, unload-places и т.п.) в журнал тоже не идут.
+func isCarHistoryPath(path string) bool {
+	switch path {
+	case "/api/cars/history/all", "/api/cars/history/unified":
+		return true
+	}
+	const prefix = "/api/cars/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	rest := path[len(prefix):]
+	if strings.HasPrefix(rest, "history/table/") {
+		return true
+	}
+	return strings.HasSuffix(path, "/history")
+}
+
+// isSystemTableTrashListPath - список и журнал корзины таблицы поста (#186):
+// models.TrashItem несёт ФИО/номер машины удалённой записи и DeletedByName - кто её
+// удалил. Восстановление и очистка (POST/DELETE) отдают только счётчик, а не сами
+// записи, - персональных данных не показывают, поэтому в список не идут.
+func isSystemTableTrashListPath(path string) bool {
+	const prefix = "/api/system-tables/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	return strings.HasSuffix(path, "/trash") || strings.HasSuffix(path, "/trash/history")
+}
+
+// isSystemTableSnapshotPayloadPath - одна версия слепка таблицы с полным payload
+// (машины/люди со статусами, #980) и файл её выгрузки. Список версий (без /{sid})
+// отдаёт только метаданные - дату, автора, агрегаты, - без единой строки содержимого,
+// поэтому в журнал не идёт.
+func isSystemTableSnapshotPayloadPath(path string) bool {
+	const prefix = "/api/system-tables/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	return strings.Contains(path[len(prefix):], "/snapshots/")
+}
+
+// isSystemTableHistoryPath - история изменений СТРУКТУРЫ таблицы поста
+// (/api/system-tables/{id}/history, #345): models.SystemTableHistoryItem несёт
+// UserName - ФИО администратора, переименовавшего таблицу или менявшего её настройки.
+// Не путать с содержимым таблицы (isSystemTableTrashListPath/
+// isSystemTableSnapshotPayloadPath выше) - там ФИО того, кто на ней проходит, здесь -
+// того, кто её настраивал.
+func isSystemTableHistoryPath(path string) bool {
+	const prefix = "/api/system-tables/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	id, ok := strings.CutSuffix(path[len(prefix):], "/history")
+	return ok && id != "" && isDigits(id)
+}
+
+// isDigits отвечает, состоит ли строка целиком из цифр - способ отличить числовой
+// id пути от статического сегмента-соседа (export, user, history...).
+func isDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // isApplicationParticipantsPath - состав участников заявки
@@ -208,6 +370,24 @@ func pathToResource(path string) string {
 		return "application_file"
 	case isApplicationParticipantsPath(path):
 		return "application_participants"
+	// Список (Центр/ЛК/ручное вложение), деталь и подпути карточки (история,
+	// ответственные, пересылки, просмотры, вопросы, дополнения) - один резон
+	// "application": для фильтра в журнале это всё "просмотр карточки заявки",
+	// дробить на восемь строк смысла не добавляет, а RESOURCE_LABELS во фронте
+	// (frontend/src/views/admin/PdAuditLog.vue, TestPDResourceLabeledOnScreen)
+	// пришлось бы разрастить на столько же новых подписей.
+	case isApplicationCardSubPath(path), isApplicationListPath(path), isApplicationDetailPath(path):
+		return "application"
+	case isUserHistoryPath(path):
+		return "user"
+	case isCarHistoryPath(path):
+		return "car"
+	case isSystemTableTrashListPath(path), isSystemTableSnapshotPayloadPath(path), isSystemTableHistoryPath(path):
+		return "system_table_content"
+	case strings.HasPrefix(path, "/api/users/all"), strings.HasPrefix(path, "/api/users/recipient-candidates"):
+		return "user"
+	case strings.HasPrefix(path, "/api/unique-cars"):
+		return "unique_car"
 	case strings.HasPrefix(path, "/api/unique-employees"):
 		return "unique_employee"
 	case strings.HasPrefix(path, "/api/employees"):
