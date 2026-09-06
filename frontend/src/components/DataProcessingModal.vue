@@ -1,7 +1,7 @@
 <template>
   <BaseModal
     :show="show"
-    title="Согласие на обработку персональных данных"
+    title="Обработка персональных данных"
     width="720px"
     content-class="dp-modal"
     @close="$emit('close')"

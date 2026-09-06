@@ -200,16 +200,16 @@
         </div>
       </div>
 
-      <!-- Согласие субъекта на обработку персональных данных (152-ФЗ). У записи, где
-           согласие уже получено, показываем дату - подтверждать второй раз нечего. -->
+      <!-- Уведомление субъекта об обработке персональных данных (часть 3 статьи 18
+           152-ФЗ). У записи, где отметка уже стоит, показываем дату - повторять нечего. -->
       <div class="completion__consent">
-        <label class="input__label">Согласие на обработку персональных данных</label>
+        <label class="input__label">Уведомление об обработке персональных данных</label>
         <p
           v-if="consentAlreadyGranted"
           class="consent-granted"
           data-testid="employee-consent-granted"
         >
-          Получено {{ formatConsentDate(editingEmployee.pd_consent_at) }}
+          Уведомлён {{ formatConsentDate(editingEmployee.pd_consent_at) }}
         </p>
         <label
           v-else
@@ -221,13 +221,13 @@
             data-testid="employee-registry-pd-consent"
           >
           <span>
-            Работник дал <a
+            Работник уведомлён об <a
               href="/data-processing"
               target="_blank"
               rel="noopener"
               class="blue"
               @click.stop
-            >согласие</a> на обработку своих персональных данных<span class="required">*</span>
+            >обработке персональных данных</a><span class="required">*</span>
           </span>
         </label>
       </div>
@@ -439,7 +439,7 @@ export default {
                 reasons.push('Для этого гражданства нужен номер патента или иное разрешение на работы');
             }
             if (!this.consentAlreadyGranted && !this.pdConsent) {
-                reasons.push('Отметьте согласие работника на обработку персональных данных');
+                reasons.push('Отметьте, что работник уведомлён об обработке персональных данных');
             }
             return reasons.join('. ');
         }

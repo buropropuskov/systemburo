@@ -129,13 +129,13 @@
           data-testid="bim-pd-consent-checkbox"
         >
         <span>
-          {{ consentSubjectsLabel }} дали <a
+          {{ consentSubjectsLabel }} уведомлены об <a
             href="/data-processing"
             target="_blank"
             rel="noopener"
             class="blue"
             @click.stop
-          >согласие</a> на обработку своих персональных данных<span
+          >обработке персональных данных</a><span
             v-if="pdConsentRequired"
             class="required"
           >*</span>
@@ -474,7 +474,7 @@ export default {
       selectedTargetTables: [],
       selectedUnloadPlaces: [],
       selectedPassageTables: [],
-      // Согласие субъекта - одна отметка на всю пачку, см. блок bim__consent в разметке.
+      // Уведомление субъектов - одна отметка на всю пачку, см. блок bim__consent в разметке.
       pdConsent: false,
       problemRows: [],
       // Ссылки на инпуты ячеек номера по строке (rowNumber -> [input,...]) - нужны для
@@ -616,7 +616,7 @@ export default {
         return `Выберите ${this.missingPlaces.map((p) => p.label).join(' и ')}, чтобы добавить строки в заявку.`;
       }
       if (!this.consentReady) {
-        return 'Отметьте согласие на обработку персональных данных - без него строки в заявку не уйдут.';
+        return 'Отметьте, что работники уведомлены об обработке персональных данных - без этого строки в заявку не уйдут.';
       }
       return '';
     },

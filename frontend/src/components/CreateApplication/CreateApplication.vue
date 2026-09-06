@@ -84,15 +84,15 @@
                   required
                 >
                 <label for="consent">
-                  Даю <a
+                  Подтверждаю, что указанные в заявке лица уведомлены об <a
                     href="/data-processing"
                     target="_blank"
                     rel="noopener"
                     class="blue consent-link"
                     data-testid="create-app-consent-link"
                     @click.stop="onConsentClick"
-                  >согласие</a> на обработку, хранение, передачу
-                  персональных данных, изложенных в заявке
+                  >обработке персональных данных</a> и сведения переданы
+                  правомерно
                 </label>
               </div>
               <div
@@ -799,7 +799,7 @@ export default {
             if (!this.organization?.trim() && !this.company?.trim()) missingFields.push('организация или компания');
             if (!this.responsiblePerson) missingFields.push('инициатор заявки');
             if (!this.phoneNumber) missingFields.push('телефон');
-            if (!this.consentGiven) missingFields.push('согласие на обработку данных');
+            if (!this.consentGiven) missingFields.push('подтверждение правомерности сведений');
             if (missingFields.length > 0) {
                 reasons.push(`Заполните поля: ${missingFields.join(', ')}`);
             }
@@ -870,7 +870,7 @@ export default {
             if (!this.organization?.trim() && !this.company?.trim()) globalErrors.push('Не заполнена организация или компания');
             if (!this.responsiblePerson) globalErrors.push('Не указан инициатор заявки');
             if (!this.phoneNumber) globalErrors.push('Не указан номер телефона');
-            if (!this.consentGiven) globalErrors.push('Не дано согласие на обработку данных');
+            if (!this.consentGiven) globalErrors.push('Не подтверждена правомерность сведений в заявке');
 
             if (globalErrors.length) {
                 sections.push({ type: 'global', messages: globalErrors });
