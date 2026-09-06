@@ -59,6 +59,9 @@ func TestPDPaths(t *testing.T) {
 		// История изменений учётки: ActorName - тоже ФИО, тот же принцип, что и
 		// история пользователя-заявки.
 		{"/api/users/ivanov/history", true, "user"},
+		// Кандидаты в получатели заявки: models.RecipientCandidate несёт ФИО и
+		// должность коллег, доступно любому авторизованному (не только page.admin.users).
+		{"/api/users/recipient-candidates", true, "user"},
 		// Соседи по управлению пользователями в ответе ФИО не показывают - только
 		// статус операции (создание/смена типа/пароля/архивация).
 		{"/api/users/me", false, ""},
@@ -82,11 +85,13 @@ func TestPDPaths(t *testing.T) {
 		{"/api/cars/active-for-table/5", false, ""},
 		{"/api/cars/fact-for-table/5", false, ""},
 		// Корзина и слепок таблицы поста (#186, #980): те же ФИО/номера машин, что
-		// в основной таблице, только удалённые или зафиксированные версией.
+		// в основной таблице, только удалённые или зафиксированные версией. История
+		// структуры таблицы (кто её настраивал) - тот же resource: UserName актора.
 		{"/api/system-tables/5/trash", true, "system_table_content"},
 		{"/api/system-tables/5/trash/history", true, "system_table_content"},
 		{"/api/system-tables/5/snapshots/9", true, "system_table_content"},
 		{"/api/system-tables/5/snapshots/9/export", true, "system_table_content"},
+		{"/api/system-tables/5/history", true, "system_table_content"},
 		// Список версий (без /{sid}) отдаёт только метаданные, восстановление и
 		// очистка корзины - только счётчик; структура таблицы - конфигурация, не
 		// содержимое.

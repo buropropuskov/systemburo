@@ -62,6 +62,10 @@ var pdPaths = []string{
 	// администратору, см. maskCarOwners), то есть привязка номера машины к
 	// конкретному человеку, а не только номер сам по себе.
 	"/api/unique-cars",
+	// Кандидаты в получатели заявки (#2352): models.RecipientCandidate несёт ФИО и
+	// должность коллег по организации/компании - тот же набор полей, что и в
+	// /api/users/all, только для окна пересылки, доступного любому авторизованному.
+	"/api/users/recipient-candidates",
 }
 
 // auditWriteTimeout - максимальное время на запись лога в БД. Если БД легла или
@@ -112,6 +116,15 @@ func PDAudit(db *gorm.DB) echo.MiddlewareFunc {
 	}
 }
 
+// IsPDPathForRouteCoverage экспортирует isPDPath ради гвард-теста
+// TestPDAudit_NoUntriagedGetRoute в internal/handlers: тот сверяет разбор пути с
+// реальным роутером (e.Routes()), а строить роутер здесь, в internal/middleware,
+// означало бы импортировать internal/testutil - тот и так зависит от middleware
+// (тот же приём, что у mw.PDConsentWhitelist в pd_consent.go).
+func IsPDPathForRouteCoverage(path string) bool {
+	return isPDPath(path)
+}
+
 // isPDPath отвечает, ведёт ли запрос к персональным данным. Кроме перечня префиксов
 // сюда попадают адреса с идентификатором в середине пути (заявка/id/подраздел,
 // пользователь/username/history и т.п.) - строкой в pdPaths их не описать, поэтому
@@ -126,7 +139,8 @@ func isPDPath(path string) bool {
 		isApplicationFilePath(path) || isApplicationParticipantsPath(path) ||
 		isApplicationListPath(path) || isApplicationDetailPath(path) || isApplicationCardSubPath(path) ||
 		isUserHistoryPath(path) || isCarHistoryPath(path) ||
-		isSystemTableTrashListPath(path) || isSystemTableSnapshotPayloadPath(path)
+		isSystemTableTrashListPath(path) || isSystemTableSnapshotPayloadPath(path) ||
+		isSystemTableHistoryPath(path)
 }
 
 // isApplicationListPath - три списка заявок, построенных на одной и той же выборке
@@ -236,6 +250,21 @@ func isSystemTableSnapshotPayloadPath(path string) bool {
 		return false
 	}
 	return strings.Contains(path[len(prefix):], "/snapshots/")
+}
+
+// isSystemTableHistoryPath - история изменений СТРУКТУРЫ таблицы поста
+// (/api/system-tables/{id}/history, #345): models.SystemTableHistoryItem несёт
+// UserName - ФИО администратора, переименовавшего таблицу или менявшего её настройки.
+// Не путать с содержимым таблицы (isSystemTableTrashListPath/
+// isSystemTableSnapshotPayloadPath выше) - там ФИО того, кто на ней проходит, здесь -
+// того, кто её настраивал.
+func isSystemTableHistoryPath(path string) bool {
+	const prefix = "/api/system-tables/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	id, ok := strings.CutSuffix(path[len(prefix):], "/history")
+	return ok && id != "" && isDigits(id)
 }
 
 // isDigits отвечает, состоит ли строка целиком из цифр - способ отличить числовой
@@ -353,9 +382,9 @@ func pathToResource(path string) string {
 		return "user"
 	case isCarHistoryPath(path):
 		return "car"
-	case isSystemTableTrashListPath(path), isSystemTableSnapshotPayloadPath(path):
+	case isSystemTableTrashListPath(path), isSystemTableSnapshotPayloadPath(path), isSystemTableHistoryPath(path):
 		return "system_table_content"
-	case strings.HasPrefix(path, "/api/users/all"):
+	case strings.HasPrefix(path, "/api/users/all"), strings.HasPrefix(path, "/api/users/recipient-candidates"):
 		return "user"
 	case strings.HasPrefix(path, "/api/unique-cars"):
 		return "unique_car"
