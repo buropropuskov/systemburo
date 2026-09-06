@@ -73,11 +73,14 @@ describe('CreateApplication — предупреждение о сроке ма�
     expect(w.vm.currentAttachmentErrors.endDate).toBeUndefined();
     expect(w.vm.currentAttachmentErrors.periodInvalid, 'поля дат должны покраснеть').toBe(true);
 
-    // Рядом с полями - точный срок цифрами: правило в панели объясняет «до суток»,
-    // а сколько это в датах, человек должен видеть у самих полей.
-    expect(w.vm.currentAttachmentErrors.periodHint).toContain(byFactDeadlineExact());
-    // Подсказка стоит у полей, которые надо поправить, - читается как указание.
-    expect(w.vm.currentAttachmentErrors.periodHint).toMatch(/^Укажите корректный срок/);
+    // У полей - короткое указание без даты. Дату сюда уже вписывали: подсказка
+    // раздувалась вширь, повторяя то, что панель говорит строкой ниже.
+    expect(w.vm.currentAttachmentErrors.periodHint).toBe('Укажите корректный срок');
+    expect(w.vm.currentAttachmentErrors.periodHint).not.toContain(byFactDeadlineExact());
+
+    // Точный срок живёт в панели - единственным местом, иначе даты разъедутся.
+    const группа = w.vm.warningGroups.find((g) => g.name === 'Машина «По факту»');
+    expect(группа.windows.join(' ')).toContain(byFactDeadlineExact());
     expect(byFactDeadlineExact(new Date('2026-09-05T14:38:00Z'))).toBe('06.09.2026 23:59');
     w.unmount();
   });
