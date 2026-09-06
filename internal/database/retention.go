@@ -51,12 +51,18 @@ const (
 	// забытое устройство, которое отвечает 2xx, но человек им давно не пользуется.
 	// Обесценивается сама по себе - в автоматической уборке рядом с уведомлениями.
 	TargetPushSubscriptions RetentionTarget = "push-subscriptions"
+	// TargetEmailMessages - письма из очереди, которые уже разрешились: доставлены
+	// или отказ признан окончательным (#2351). Тело у них уже стёрто mail_service.go,
+	// но без срока сама строка (адрес получателя, тема, шаблон) копилась бы вечно.
+	// Письмо в очереди (pending) не трогается, сколько бы ему ни было: застрявшее
+	// письмо - повод админу разобраться, а не повод его молча удалить.
+	TargetEmailMessages RetentionTarget = "email-messages"
 )
 
 // AllRetentionTargets - порядок вывода в отчёте: сначала мусор, потом то, что
 // удаляется осознанно.
 var AllRetentionTargets = []RetentionTarget{
-	TargetTokens, TargetNotifications, TargetUnreadNotifications, TargetPushSubscriptions, TargetAudit, TargetSnapshots, TargetRequestAggregates,
+	TargetTokens, TargetNotifications, TargetUnreadNotifications, TargetPushSubscriptions, TargetEmailMessages, TargetAudit, TargetSnapshots, TargetRequestAggregates,
 }
 
 // auditRetentionWhere - условие удаления истории сущностей. Два исключения не про
@@ -137,6 +143,18 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -180) },
 		description: "подписки Web Push без успешной доставки за срок",
+	},
+	TargetEmailMessages: {
+		table: "email_messages",
+		// COALESCE на sent_at, как и у push-подписок выше: у отказавшегося письма
+		// sent_at пуст, и возраст отсчитывается от постановки в очередь, а не
+		// "никогда не обесценится". pending не входит в условие статуса намеренно -
+		// письмо, которое всё ещё ждёт отправки, уборка не трогает ни при каком сроке.
+		where:       "status IN ('sent', 'failed') AND COALESCE(sent_at, created_at) < ?",
+		cutoffArgs:  1,
+		timeColumn:  "created_at",
+		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -30) },
+		description: "доставленные и окончательно недоставленные письма",
 	},
 	TargetAudit: {
 		table:        "audit_log",
@@ -478,9 +496,10 @@ func measureRetentionTable(ctx context.Context, db *gorm.DB, table string, res *
 
 // SweepRoutine - суточная уборка технического мусора: недействительные токены,
 // прочитанные уведомления, непрочитанные уведомления (по своему, более мягкому сроку -
-// unreadNotificationDays) и подписки Web Push без единой успешной доставки (#974). Ошибка
-// одной группы не отменяет остальные: это обслуживание, а не транзакция.
-func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays int) {
+// unreadNotificationDays), подписки Web Push без единой успешной доставки (#974) и
+// разрешившиеся письма из очереди (#2351). Ошибка одной группы не отменяет остальные:
+// это обслуживание, а не транзакция.
+func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays int) {
 	now := time.Now().UTC()
 	plan := []struct {
 		target RetentionTarget
@@ -490,6 +509,7 @@ func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays,
 		{TargetNotifications, now.AddDate(0, 0, -notificationDays)},
 		{TargetUnreadNotifications, now.AddDate(0, 0, -unreadNotificationDays)},
 		{TargetPushSubscriptions, now.AddDate(0, 0, -pushSubscriptionDays)},
+		{TargetEmailMessages, now.AddDate(0, 0, -mailMessageDays)},
 	}
 	for _, p := range plan {
 		res, err := SweepRetention(ctx, db, p.target, SweepOptions{Cutoff: p.cutoff, Apply: true})
