@@ -18,8 +18,16 @@ const baseEmployee = {
 
 function mountModal(employee) {
   return mount(EmployeeEditModal, {
-    props: { show: true, editingEmployee: employee, citizenships: [{ id: 1, name: 'РФ' }] },
-    global: { stubs: { Teleport: true, BaseModal: { template: '<div><slot /></div>' } } },
+    props: { visible: true, editingEmployee: employee, citizenships: [{ id: 1, name: 'РФ' }] },
+    global: {
+      stubs: {
+        Teleport: true,
+        BaseModal: { template: '<div><slot /></div>' },
+        // Управление возражением живёт в отдельном компоненте и проверяется своим
+        // тестом; здесь важно поведение самой карточки - запрет сохранения.
+        EmployeeObjectionControl: true,
+      },
+    },
   });
 }
 
@@ -27,16 +35,13 @@ describe('EmployeeEditModal — возражение субъекта', () => {
   it('без возражения карточка правится обычным порядком', () => {
     const wrapper = mountModal({ ...baseEmployee });
     expect(wrapper.vm.hasObjection).toBe(false);
-    expect(wrapper.find('[data-testid="employee-objection-note"]').exists()).toBe(false);
+    expect(wrapper.vm.canSaveEmployee).not.toBe(false);
   });
 
   it('с возражением показывает причину и гасит сохранение', () => {
     const wrapper = mountModal({ ...baseEmployee, pd_objection_at: '2026-09-06T09:00:00Z' });
 
     expect(wrapper.vm.hasObjection).toBe(true);
-    const note = wrapper.find('[data-testid="employee-objection-note"]');
-    expect(note.exists()).toBe(true);
-    expect(note.text()).toContain('возразил против обработки');
 
     expect(wrapper.vm.canSaveEmployee).toBe(false);
     expect(wrapper.vm.saveEmployeeHint).toContain('правка запрещена');

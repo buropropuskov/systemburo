@@ -200,17 +200,16 @@
         </div>
       </div>
 
-      <!-- Возражение субъекта (#2361): пока оно стоит, персональные поля заперты
-           сервером. Без видимой причины человек решит, что форма сломалась. -->
-      <p
-        v-if="hasObjection"
-        class="objection-note"
-        data-testid="employee-objection-note"
-      >
-        Работник возразил против обработки своих персональных данных
-        {{ formatConsentDate(editingEmployee.pd_objection_at) }}. Фамилия, имя, должность
-        и документы доступны только для чтения. Снять отметку может администратор бюро.
-      </p>
+      <!-- Возражение субъекта (#2361): состояние и управление им. Отдельным
+           компонентом - карточка упёрта в предел размера по всем трём частям. -->
+      <EmployeeObjectionControl
+        v-if="editingEmployee && editingEmployee.id"
+        :employee-id="editingEmployee.id"
+        :objected-at="editingEmployee.pd_objection_at"
+        :source="editingEmployee.pd_objection_source || ''"
+        :can-manage-all="ownershipInfo?.can_manage_all === true"
+        @changed="$emit('objection-changed')"
+      />
 
       <!-- Уведомление субъекта об обработке персональных данных (часть 3 статьи 18
            152-ФЗ). У записи, где отметка уже стоит, показываем дату - повторять нечего. -->
@@ -318,10 +317,12 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { formatMomentDate } from '@/utils/datetime';
+import EmployeeObjectionControl from '@/components/EmployeeObjectionControl.vue';
 
 export default {
     components: {
-        BaseModal
+        BaseModal,
+        EmployeeObjectionControl
     },
     props: {
         visible: {
@@ -348,7 +349,7 @@ export default {
             default: false
         }
     },
-    emits: ['saved', 'close'],
+    emits: ['saved', 'close', 'objection-changed'],
     data() {
         return {
             // Гражданство
@@ -1077,17 +1078,6 @@ export default {
     color: var(--text-muted);
 }
 
-/* Возражение (#2361) заметнее прочих подписей: оно объясняет, почему форма
-   не сохраняется, и потеряться среди служебных строк не должно. */
-.objection-note {
-    margin: 0 0 15px;
-    padding: 10px 14px;
-    border-radius: var(--radius-md);
-    background: var(--danger-bg, rgba(220, 53, 69, 0.08));
-    color: var(--danger-text, #b02a37);
-    font-size: 12px;
-    line-height: 1.45;
-}
 
 .completion__binding {
     margin-top: 15px;

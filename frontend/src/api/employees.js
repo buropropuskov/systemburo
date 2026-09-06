@@ -115,3 +115,32 @@ export async function bulkUnbindEmployeesTable(ids, tableId) {
   });
   return res.json();
 }
+
+/**
+ * Отмечает поступившее возражение субъекта против обработки его данных (#2361).
+ * Пока отметка стоит, персональные поля записи только читаются, действующие
+ * пропуска аннулируются, а завести человека в новой заявке нельзя.
+ *
+ * Источник обращения обязателен: отметка без указания, откуда она взялась, через
+ * полгода не отличается от случайного нажатия, а разбирать возражение будет человек.
+ * @param {number} id идентификатор записи реестра
+ * @param {string} source откуда поступило обращение
+ * @returns {Promise<void>}
+ */
+export async function setEmployeeObjection(id, source) {
+  await apiRequest(`/unique-employees/${id}/objection`, {
+    method: 'POST',
+    body: JSON.stringify({ source }),
+  });
+}
+
+/**
+ * Снимает отметку о возражении по итогам рассмотрения обращения (#2361).
+ * Доступно только администратору бюро: возражение адресовано оператору, и решение
+ * по нему принимает он. Сервер откажет остальным.
+ * @param {number} id идентификатор записи реестра
+ * @returns {Promise<void>}
+ */
+export async function clearEmployeeObjection(id) {
+  await apiRequest(`/unique-employees/${id}/objection`, { method: 'DELETE' });
+}
