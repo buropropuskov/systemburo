@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Чип "Обновления" в ЛК (#1349 срез 4): серверный фильтр status_updated=true,
 // счётчик из отдельного эндпоинта, оптимистичное гашение при открытии.
@@ -39,6 +41,29 @@ describe('UserApplications — чип "Обновления" (#1349 срез 4)'
 
     expect(getUserStatusUpdatesCount).toHaveBeenCalled();
     expect(wrapper.vm.statusUpdateCount).toBe(5);
+  });
+
+  it('пусто под чипом объясняется фильтром, а не отсутствием заявок (#2339)', async () => {
+    // «Заявок нет. У вас ещё нет отправленных заявок» под включённым чипом - враньё:
+    // заявки есть, просто ни одна не обновлялась. Чип обязан считаться фильтром.
+    const { wrapper } = mountUA();
+    await flushPromises();
+    expect(wrapper.vm.hasActiveFilters, 'без фильтров признак выключен').toBeFalsy();
+
+    wrapper.vm.toggleStatusUpdated();
+    await flushPromises();
+    expect(wrapper.vm.statusUpdatedOnly).toBe(true);
+    expect(wrapper.vm.hasActiveFilters, 'включённый чип - активный фильтр').toBeTruthy();
+  });
+
+  it('на узком экране фильтр уходит своей строкой под заголовок и чип (#2339)', () => {
+    // Проверяем правило, а не отрисовку: jsdom не считает раскладку, а дефект был
+    // именно в ней - в общей строке фильтр жался до 78px и показывал «М...».
+    const стили = readFileSync(resolve(__dirname, '..', 'UserApplications.vue'), 'utf8')
+      .split('<style')[1] || '';
+    const правило = стили.match(/\.cabinet__filter-dropdown\s*\{[^}]*\}/g)?.at(-1) || '';
+    expect(правило, 'фильтр занимает всю ширину строки').toMatch(/flex:\s*1 0 100%/);
+    expect(правило, 'order уводит его под заголовок и чип').toMatch(/order:\s*3/);
   });
 
   it('пункты фильтра читаются целиком, а меню не уже их (#2339)', async () => {
