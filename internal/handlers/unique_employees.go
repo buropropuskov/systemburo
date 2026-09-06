@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -150,6 +151,66 @@ func (h *UniqueEmployeeHandler) Delete(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Employee deleted successfully")
+}
+
+// SetObjectionRequest - тело отметки о возражении. Из запроса приходит только
+// основание: время и автора ставит сервер (#2361).
+type SetObjectionRequest struct {
+	// Source - откуда поступило обращение. Обязателен: отметка без указания, откуда
+	// она взялась, через полгода не отличается от случайного нажатия, а разбирать
+	// возражение будет человек.
+	Source string `json:"source" validate:"required"`
+}
+
+// SetObjection godoc
+// @Summary      Отметить возражение субъекта против обработки его данных
+// @Description  Пока отметка стоит, персональные поля записи только читаются.
+// @Tags         unique-employees
+// @Accept       json
+// @Produce      json
+// @Param        id   path  int                  true  "ID записи реестра"
+// @Param        body body  SetObjectionRequest  true  "Основание"
+// @Success      200  {object}  map[string]string
+// @Failure      409  {object}  map[string]string  "Возражение уже отмечено"
+// @Router       /unique-employees/{id}/objection [post]
+func (h *UniqueEmployeeHandler) SetObjection(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req SetObjectionRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if strings.TrimSpace(req.Source) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Укажите, откуда поступило обращение")
+	}
+	if err := h.service.SetObjection(c.Request().Context(), username, id, req.Source); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Objection recorded")
+}
+
+// ClearObjection godoc
+// @Summary      Снять отметку о возражении
+// @Description  По итогам рассмотрения обращения оператором либо когда человек отозвал возражение.
+// @Tags         unique-employees
+// @Produce      json
+// @Param        id  path  int  true  "ID записи реестра"
+// @Success      200  {object}  map[string]string
+// @Failure      404  {object}  map[string]string  "Возражение не отмечено"
+// @Router       /unique-employees/{id}/objection [delete]
+func (h *UniqueEmployeeHandler) ClearObjection(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	if err := h.service.ClearObjection(c.Request().Context(), username, id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Objection cleared")
 }
 
 // GetHistory godoc

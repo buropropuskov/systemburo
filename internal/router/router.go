@@ -839,6 +839,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
 	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
 	ueg.GET("/:id/history", ue.GetHistory)
+	// Возражение субъекта (#2361): доступно тому же кругу, что правка записи -
+	// заявителю у своих работников и администратору бюро. Человек скажет о
+	// возражении работодателю, а не бюро, поэтому отметить должны мочь оба.
+	ueg.POST("/:id/objection", ue.SetObjection)
+	ueg.DELETE("/:id/objection", ue.ClearObjection)
 	ueg.GET("/history", ue.GetRegistryLog)
 
 	// Обратная связь. Отправка (POST) и свои обращения (GET /my) - любому
