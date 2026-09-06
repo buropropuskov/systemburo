@@ -265,6 +265,24 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 		assert.GreaterOrEqual(t, lk.StatusUpdates, 1, "ЛК-счётчик обновлений у отправителя")
 	})
 
+	// --- #2339: кабинет показывает и архивные заявки, одним списком ---
+	t.Run("архивная заявка остаётся в кабинете", func(t *testing.T) {
+		// Заявка уходит в архив, когда завершилась больше месяца назад. Центр её
+		// прячет (там есть переключатель Активные/Архив), кабинет - нет: у владельца
+		// из 26 своих заявок было видно 5, остальные молча выпадали из списка.
+		appOld := createSimpleApplication(t, e, senderToken, td.OrgID)
+		require.NoError(t, db.Exec(
+			"UPDATE applications SET status = ?, withdrawn_at = NOW() - INTERVAL '2 months' WHERE id = ?",
+			models.StatusWithdrawn, appOld).Error)
+
+		assert.True(t, inList(senderToken, "/applications/user", appOld),
+			"архивная заявка видна в кабинете")
+		assert.False(t, inList(observerToken, "/applications", appOld),
+			"а в Центре она по-прежнему за переключателем архива")
+		assert.True(t, inList(observerToken, "/applications?archive=true", appOld),
+			"и находится в самом архиве Центра")
+	})
+
 	// --- #2339: чип считает по вкладке кабинета, а не по всему скоупу ЛК ---
 	t.Run("счётчик обновлений сужается вкладкой кабинета", func(t *testing.T) {
 		// Скоуп ЛК шире вкладки: в него входят и заявки коллег по организации. Пока чип

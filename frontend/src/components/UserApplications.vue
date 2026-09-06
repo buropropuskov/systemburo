@@ -12,7 +12,7 @@
           :model-value="currentFilter"
           :options="filterOptions"
           value-key="key"
-          label-key="label"
+          label-key="label" :menu-min-width="210"
           @update:model-value="setFilter"
         />
 
@@ -608,7 +608,7 @@ export default {
     filterOptions() {
       const opts = [{ key: 'my', label: 'Мои заявки' }];
       if (this.userOrganizationId) {
-        opts.push({ key: 'organization', label: 'Заявки организации (отдела)' });
+        opts.push({ key: 'organization', label: 'Заявки организации' });
       }
       return opts;
     },
@@ -1902,10 +1902,10 @@ export default {
     gap: 10px;
   }
 
-  /* Выпадающий фильтр забирает остаток ширины, длинный лейбл обрезается. */
+  /* Не уже лейбла: при min-width: 0 фильтр схлопывался до 78px - «М...» (#2339). */
   .cabinet__filter-dropdown {
     flex: 1;
-    min-width: 0;
+    min-width: 150px;
   }
 
   .card-header__settings {

@@ -658,6 +658,23 @@ func parseIDList(raw *string) []int {
 // applyApplicationFilters навешивает фильтры из ApplicationFilter. userID нужен для
 // псевдо-фильтра "Непрочитано" (filter.Unread) - предикат по application_reads текущего
 // пользователя; для остальных фильтров он не используется.
+// applyArchiveScope делит выдачу на активные и архивные: по умолчанию архивные скрыты,
+// archive=true оставляет только их. Определение архива одно на весь сервис -
+// application_archive.go.
+//
+// Вынесено из applyApplicationFilters намеренно (#2339): личный кабинет показывает ВСЕ
+// заявки человека одним списком, включая архивные, и деления на активные/архив у него
+// нет. Пока срез сидел внутри общих фильтров, кабинет резал выдачу молча: у владельца
+// из 26 своих заявок было видно 5, остальные 21 закончились больше месяца назад.
+func applyArchiveScope(query *gorm.DB, filter ApplicationFilter) *gorm.DB {
+	if filter.Archive != nil && *filter.Archive {
+		cond, args := archivedApplicationCond("a")
+		return query.Where(cond, args...)
+	}
+	cond, args := activeApplicationCond("a")
+	return query.Where(cond, args...)
+}
+
 func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool, userID int) *gorm.DB {
 	if filter.SearchQuery != nil && *filter.SearchQuery != "" {
 		raw := *filter.SearchQuery
@@ -865,16 +882,6 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	}
 	if filter.DateTo != nil && *filter.DateTo != "" {
 		query = query.Where("a.sending_datetime <= ?", *filter.DateTo+" 23:59:59")
-	}
-
-	// Архив: по умолчанию скрываем архивные, archive=true оставляет только их.
-	// Определение архива одно на весь сервис - application_archive.go.
-	if filter.Archive != nil && *filter.Archive {
-		cond, args := archivedApplicationCond("a")
-		query = query.Where(cond, args...)
-	} else {
-		cond, args := activeApplicationCond("a")
-		query = query.Where(cond, args...)
 	}
 
 	// Active today: заявка активна сегодня, если период действия хотя бы одного

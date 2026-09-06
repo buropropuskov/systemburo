@@ -178,16 +178,17 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 // скоупу, а список по вкладке: «Обновления 11» открывались тремя заявками, и человек читал
 // это как потерянные. Из фильтра берётся ТОЛЬКО вкладка - поиск, даты и статусы чип не
 // сужают намеренно: он показывает, сколько обновлений во вкладке, а не в текущей выборке.
+//
+// Архивные заявки считаются наравне с остальными - список кабинета их тоже показывает
+// (#2339). Отсечь их здесь значило бы вернуть то самое расхождение, только наоборот.
 func (s *applicationService) GetUserStatusUpdatesCount(ctx context.Context, username string, filter ApplicationFilter) (*models.StatusUpdatesCountResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
 
-	activeCond, activeArgs := activeApplicationCond("a")
 	query := s.db.WithContext(ctx).
 		Table("applications a").
-		Where(activeCond, activeArgs...).
 		Where(hasStatusUpdatePredicate, user.ID, user.ID)
 	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
 	if filter.SenderUserID != nil {

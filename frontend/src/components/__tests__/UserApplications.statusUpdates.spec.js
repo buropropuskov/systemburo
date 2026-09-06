@@ -41,6 +41,23 @@ describe('UserApplications — чип "Обновления" (#1349 срез 4)'
     expect(wrapper.vm.statusUpdateCount).toBe(5);
   });
 
+  it('пункты фильтра читаются целиком, а меню не уже их (#2339)', async () => {
+    // На стенде фильтр схлопывался до 78px: триггер показывал «М...», пункты -
+    // «Мои ...» и «Заяв...». Двух вещей не хватало: короткого лейбла и меню, которое
+    // не наследует ширину узкого триггера.
+    const { wrapper } = mountUA({ userId: 7, userOrganizationId: 42 });
+    await flushPromises();
+
+    const пункты = wrapper.vm.filterOptions.map((o) => o.label);
+    expect(пункты).toEqual(['Мои заявки', 'Заявки организации']);
+    пункты.forEach((л) => expect(л.length, `«${л}» не влезает в узкий фильтр`).toBeLessThanOrEqual(20));
+
+    const dd = wrapper.findComponent({ name: 'BaseDropdown' });
+    expect(dd.exists()).toBe(true);
+    expect(dd.props('menuMinWidth'), 'меню должно быть шире узкого триггера')
+      .toBeGreaterThanOrEqual(200);
+  });
+
   it('счётчик уходит с той же вкладкой, что и список (#2339)', async () => {
     const { wrapper } = mountUA({ userId: 7, userOrganizationId: 42 });
     await flushPromises();
