@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -728,6 +729,23 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 
 // UpdateInfo обновляет персональные данные пользователя.
 func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username string, req models.UpdateUserInfoRequest) error {
+	// Отозвавший согласие блокирован: данные хранятся и выдаются по запросам
+	// государственных органов, но обработка по прежним целям прекращена, а правка
+	// карточки - это она и есть (#2361). Проверка стоит первой: до снимка старых
+	// значений и до валидации адреса, чтобы отказ не зависел от содержимого запроса.
+	//
+	// Отзыв и отсутствие согласия различаются намеренно: новому работнику карточку
+	// заводят и правят обычным порядком, см. consentRevoked.
+	if targetID, err := s.resolveUserID(ctx, username); err == nil {
+		revoked, err := consentRevoked(ctx, s.db, targetID)
+		if err != nil {
+			return apperr.New(http.StatusInternalServerError, "Не удалось проверить состояние согласия")
+		}
+		if revoked {
+			return apperr.Conflict("Работник отозвал согласие на обработку персональных данных: его сведения доступны только для чтения. Правка возможна после нового согласия.")
+		}
+	}
+
 	// Снимок старых значений до апдейта - чтобы в историю писать дифф "старое -> новое"
 	// и только по реально изменившимся полям (фронт шлёт все поля каждый раз).
 	var prev struct {
