@@ -1,6 +1,13 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"systemburo/internal/crypto"
+
+	"gorm.io/gorm"
+)
 
 // Статусы письма в очереди.
 const (
@@ -31,9 +38,13 @@ type EmailMessage struct {
 	// отбираются письма для повторной отправки одного вида.
 	TemplateCode string `gorm:"size:64;index" json:"template_code"`
 	Subject      string `gorm:"size:255;not null" json:"subject"`
-	Body         string `gorm:"type:text;not null" json:"-"`
-	// Status: pending, sent, failed. Body не отдаётся наружу: в письме плановой
-	// смены лежит пароль открытым текстом, и журнал очереди не должен его показывать.
+	// Body хранится шифротекстом (#2351): в письме плановой смены пароля пароль
+	// лежит открытым текстом, а дамп базы иначе отдавал бы действующие пароли за
+	// всё время. BeforeSave/AfterFind шифруют и расшифровывают его тем же ключом,
+	// что паспорт и патент (internal/crypto, AES-256-GCM). Body не отдаётся наружу
+	// и в незашифрованном виде: журнал очереди не должен его показывать.
+	Body string `gorm:"type:text;not null" json:"-"`
+	// Status: pending, sent, failed.
 	Status   string `gorm:"size:16;not null;default:'pending';index" json:"status"`
 	Attempts int    `gorm:"not null;default:0" json:"attempts"`
 	// LastError - текст последнего отказа сервера. Ради него журнал и читают:
@@ -49,3 +60,32 @@ type EmailMessage struct {
 
 // TableName - имя таблицы очереди писем.
 func (EmailMessage) TableName() string { return "email_messages" }
+
+// BeforeSave шифрует тело письма перед записью. Пустое тело (письмо уже
+// отправлено или отказ исчерпал попытки, см. mail_service.go) не шифруется -
+// шифровать нечего, а пустая строка обязана остаться пустой строкой.
+func (m *EmailMessage) BeforeSave(tx *gorm.DB) error {
+	if m.Body == "" {
+		return nil
+	}
+	enc, err := crypto.EncryptOptional(&m.Body)
+	if err != nil {
+		return fmt.Errorf("шифрование тела письма: %w", err)
+	}
+	m.Body = *enc
+	return nil
+}
+
+// AfterFind расшифровывает тело письма после чтения. Расшифровка использует
+// DecryptOptional: неудача (чужой ключ, письмо, поставленное в очередь до
+// включения шифрования) не должна ронять всю выборку - воркер разбирает письма
+// пачкой, и одна нечитаемая запись не обязана останавливать остальные. Пустое
+// тело decrypt не проходит намеренно: у отправленных и окончательно
+// недоставленных писем оно уже стёрто, и это не ошибка ключа.
+func (m *EmailMessage) AfterFind(tx *gorm.DB) error {
+	if m.Body == "" {
+		return nil
+	}
+	m.Body = *crypto.DecryptOptional(&m.Body)
+	return nil
+}

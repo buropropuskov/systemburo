@@ -196,6 +196,14 @@ type Config struct {
 	MailRetryAttempts int `env:"MAIL_RETRY_ATTEMPTS" envDefault:"5"`
 	// MailWorkerTick - как часто разбирается очередь писем.
 	MailWorkerTick time.Duration `env:"MAIL_WORKER_TICK" envDefault:"15s"`
+	// MailMessageRetentionDays - через сколько дней строки доставленных и
+	// окончательно недоставленных писем подчищаются (#2351). Тело уже стёрто в
+	// момент, когда письмо разрешилось (mail_service.go), но без срока сама
+	// таблица росла бы бессрочно, а дамп базы копил бы адреса получателей и
+	// переписку за всё время. Письмо обесценивается само по себе, как и токен
+	// сессии, поэтому уборка идёт автоматическим суточным воркером, а не
+	// подкомандой cleanup, где решение оставлено оператору.
+	MailMessageRetentionDays int `env:"MAIL_MESSAGE_RETENTION_DAYS" envDefault:"30"`
 
 	// Пул соединений с базой (database/sql под GORM). Своих значений здесь не было
 	// вовсе, а умолчания драйвера под нагрузкой работают против системы: число
@@ -362,6 +370,11 @@ func (c *Config) Validate() error {
 	}
 	if c.PushSubscriptionRetentionDays <= 0 {
 		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
+	}
+	// Не внутри validateMail: строки очереди переживают выключение почты, и срок
+	// хранения обязан быть верным даже при пустом SMTP_HOST.
+	if c.MailMessageRetentionDays <= 0 {
+		return fmt.Errorf("MAIL_MESSAGE_RETENTION_DAYS must be positive (got %d)", c.MailMessageRetentionDays)
 	}
 	if err := c.validateMail(); err != nil {
 		return err

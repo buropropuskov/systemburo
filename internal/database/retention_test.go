@@ -209,6 +209,49 @@ func TestSweepRetention_PushSubscriptionsFreshNotSwept(t *testing.T) {
 	require.True(t, exists(oldButRecentSuccess), "недавняя успешная доставка защищает даже старую подписку")
 }
 
+// TestSweepRetention_EmailMessagesKeepsPending защищает уборку писем (#2351): письмо,
+// которое ещё ждёт отправки, уборка не трогает ни при каком возрасте - застрявшее
+// письмо это повод администратору разобраться, а не повод его молча удалить.
+// Доставленные и окончательно недоставленные письма старше срока, наоборот, должны
+// уйти - их тело уже стёрто mail_service.go, ценности в самой строке больше нет.
+func TestSweepRetention_EmailMessagesKeepsPending(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	old := now.AddDate(0, 0, -90)
+
+	newMail := func(to, status string, createdAt time.Time, sentAt *time.Time) int {
+		var id int
+		require.NoError(t, db.Raw(`
+			INSERT INTO email_messages (to_address, subject, body, template_code, status, created_at, sent_at)
+			VALUES (?,?,?,?,?,?,?) RETURNING id`,
+			to, "тема", "", "test", status, createdAt, sentAt,
+		).Scan(&id).Error)
+		return id
+	}
+
+	oldSent := newMail("retention-sent@example.org", models.EmailStatusSent, old, &old)
+	oldFailed := newMail("retention-failed@example.org", models.EmailStatusFailed, old, nil)
+	oldPending := newMail("retention-pending@example.org", models.EmailStatusPending, old, nil)
+	freshSent := newMail("retention-fresh@example.org", models.EmailStatusSent, now, &now)
+
+	cutoff := database.DefaultRetentionCutoff(database.TargetEmailMessages, now)
+	_, err := database.SweepRetention(context.Background(), db, database.TargetEmailMessages,
+		database.SweepOptions{Cutoff: cutoff, Apply: true})
+	require.NoError(t, err)
+
+	exists := func(id int) bool {
+		var n int64
+		require.NoError(t, db.Raw(`SELECT count(*) FROM email_messages WHERE id = ?`, id).Scan(&n).Error)
+		return n > 0
+	}
+	require.False(t, exists(oldSent), "старое доставленное письмо должно быть удалено")
+	require.False(t, exists(oldFailed), "старое окончательно недоставленное письмо должно быть удалено")
+	require.True(t, exists(oldPending), "письмо, ждущее отправки, уборка не должна трогать")
+	require.True(t, exists(freshSent), "свежее письмо удалять рано")
+}
+
 // TestSweepRetention_AuditKeepsTrashAndLastPassage - главная защита уборки истории:
 // запись об удалении держит корзину таблицы поста, а последние entry/exit дают
 // «последний выезд» в карточке. Обе переживают любой срок хранения.

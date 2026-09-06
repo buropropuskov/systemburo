@@ -34,6 +34,8 @@ func validConfig() *Config {
 		ApplicationFileJPEGQuality:  82,
 		// Срок хранения подписок Web Push тоже проверяется на положительность (#974).
 		PushSubscriptionRetentionDays: 180,
+		// Срок хранения писем тоже проверяется на положительность (#2351).
+		MailMessageRetentionDays: 30,
 	}
 }
 
@@ -503,6 +505,16 @@ func TestValidate_PushSubscriptionRetentionDaysMustBePositive(t *testing.T) {
 	cfg := validConfig()
 	cfg.PushSubscriptionRetentionDays = 0
 	require.ErrorContains(t, cfg.Validate(), "PUSH_SUBSCRIPTION_RETENTION_DAYS")
+}
+
+// TestValidate_MailMessageRetentionDaysMustBePositive (#2351) - зеркалит проверку
+// подписок Web Push: срок хранения писем нулём или отрицательным быть не может,
+// иначе уборка снесла бы очередь целиком при первом же прогоне. Проверка вне
+// validateMail нарочно: строки очереди переживают выключение почты.
+func TestValidate_MailMessageRetentionDaysMustBePositive(t *testing.T) {
+	cfg := validConfig()
+	cfg.MailMessageRetentionDays = 0
+	require.ErrorContains(t, cfg.Validate(), "MAIL_MESSAGE_RETENTION_DAYS")
 }
 
 // TestValidate_VAPIDSubjectRequiredWhenEnabled (#974) - службы доставки (в первую
