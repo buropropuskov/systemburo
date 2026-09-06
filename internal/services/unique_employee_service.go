@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
@@ -200,6 +201,10 @@ type UniqueEmployeeService interface {
 	Create(ctx context.Context, username string, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Delete(ctx context.Context, username string, id int) error
+	// SetObjection отмечает, что субъект возразил против обработки своих данных
+	// (#2361), ClearObjection снимает отметку по итогам рассмотрения оператором.
+	SetObjection(ctx context.Context, username string, id int, source string) error
+	ClearObjection(ctx context.Context, username string, id int) error
 	GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error)
 	// GetRegistryLog возвращает журнал по всему реестру, включая удалённые записи:
 	// у исчезнувшей строки истории по id не открыть, а вопрос «кем и когда удалена»
@@ -700,6 +705,14 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
 	}
 
+	// Возражение субъекта запирает персональные поля (#2361): человек возразил против
+	// обработки, и правка его сведений - это она и есть. Организацию, привязку и места
+	// прохода менять по-прежнему можно, иначе встало бы администрирование справочников,
+	// а возражение превратилось бы в защиту записи от порядка в реестре.
+	if existing.PDObjectionAt != nil && personalFieldsChanged(&existing, req) {
+		return nil, apperr.Conflict("Субъект возразил против обработки своих персональных данных: фамилия, имя, отчество, должность и документы доступны только для чтения. Снять отметку может администратор бюро по итогам рассмотрения обращения.")
+	}
+
 	// Уникальность считается по владельцу ЗАПИСИ, а не по тому, кто правит:
 	// администратор правит чужих сотрудников, и его собственный список тут ни при чём.
 	ownerUserID := ownerInfo.UserID
@@ -1063,4 +1076,137 @@ func (s *uniqueEmployeeService) canEditEmployee(emp *models.UniqueEmployee, owne
 		return true
 	}
 	return false
+}
+
+// personalFieldsChanged сообщает, меняет ли запрос персональные сведения о человеке:
+// имя, должность, гражданство, документы. Организация, подразделение и привязка к
+// учётной записи сюда не входят - это сведения о том, кто ведёт запись, а не о самом
+// человеке, и порядок в справочниках возражение перекрывать не должно (#2361).
+//
+// Поле, отсутствующее в запросе (nil), считается неизменным: формы шлют не все поля,
+// и «не прислали» не значит «стереть».
+func personalFieldsChanged(existing *models.UniqueEmployee, req NewUniqueEmployeeRequest) bool {
+	changedString := func(now *string, want *string) bool {
+		if want == nil {
+			return false
+		}
+		if now == nil {
+			return *want != ""
+		}
+		return *now != *want
+	}
+	if changedString(existing.LastName, req.LastName) ||
+		changedString(existing.FirstName, req.FirstName) ||
+		changedString(existing.MiddleName, req.MiddleName) ||
+		changedString(existing.Position, req.Position) ||
+		changedString(existing.PassportSeriesNumber, req.PassportSeriesNumber) ||
+		changedString(existing.PatentNumber, req.PatentNumber) ||
+		changedString(existing.OtherPermission, req.OtherPermission) {
+		return true
+	}
+	if req.CitizenshipID != nil {
+		if existing.CitizenshipID == nil || *existing.CitizenshipID != *req.CitizenshipID {
+			return true
+		}
+	}
+	return false
+}
+
+// SetObjection отмечает поступившее возражение субъекта против обработки его данных
+// (#2361). Отметить может тот же круг, что правит запись: заявитель у своих работников
+// и администратор бюро. Человек скажет о возражении своему работодателю, а не бюро,
+// поэтому кнопка нужна обоим - иначе обращение потеряется по дороге.
+//
+// Время и автора ставит сервер; из запроса приходит только основание.
+func (s *uniqueEmployeeService) SetObjection(ctx context.Context, username string, id int, source string) error {
+	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
+	if err != nil {
+		return err
+	}
+
+	var existing models.UniqueEmployee
+	if err := s.db.WithContext(ctx).First(&existing, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
+	}
+	if !s.canEditEmployee(&existing, ownerInfo) {
+		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
+	}
+	if existing.PDObjectionAt != nil {
+		return apperr.Conflict("Возражение по этой записи уже отмечено")
+	}
+
+	now := time.Now().UTC()
+	updates := map[string]any{
+		"pd_objection_at":         now,
+		"pd_objection_by_user_id": ownerInfo.UserID,
+		"pd_objection_source":     strings.TrimSpace(source),
+	}
+	if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).Where("id = ?", id).
+		Updates(updates).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error saving objection")
+	}
+
+	// Снимок имени в детали, как при удалении: запись могут убрать, а спрашивать будут
+	// как раз про неё, и ссылкой на строку тут не обойтись.
+	fio := employeeFIOOrPlaceholder(&existing, id)
+	comment := fmt.Sprintf("Отмечено возражение против обработки данных. Основание: %s", strings.TrimSpace(source))
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &id, "pd_objection_set",
+		&ownerInfo.UserID, carAuditDetails{Comment: &comment, Subject: &fio}); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error writing audit record")
+	}
+	return nil
+}
+
+// ClearObjection снимает отметку по итогам рассмотрения обращения оператором либо
+// когда человек отозвал возражение. Доступна тому же кругу: отметку иногда ставят
+// ошибочно, и запись не должна оставаться запертой навсегда из-за описки.
+func (s *uniqueEmployeeService) ClearObjection(ctx context.Context, username string, id int) error {
+	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
+	if err != nil {
+		return err
+	}
+
+	var existing models.UniqueEmployee
+	if err := s.db.WithContext(ctx).First(&existing, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
+	}
+	if !s.canEditEmployee(&existing, ownerInfo) {
+		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
+	}
+	if existing.PDObjectionAt == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Возражение по этой записи не отмечено")
+	}
+
+	if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).Where("id = ?", id).
+		Updates(map[string]any{
+			"pd_objection_at":         nil,
+			"pd_objection_by_user_id": nil,
+			"pd_objection_source":     nil,
+		}).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error clearing objection")
+	}
+
+	fio := employeeFIOOrPlaceholder(&existing, id)
+	comment := "Возражение против обработки данных снято"
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &id, "pd_objection_cleared",
+		&ownerInfo.UserID, carAuditDetails{Comment: &comment, Subject: &fio}); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error writing audit record")
+	}
+	return nil
+}
+
+// employeeFIOOrPlaceholder собирает ФИО для журнала. У записи без имени подставляет
+// номер: строка журнала «кто-то возразил» без указания, кто именно, бесполезна.
+func employeeFIOOrPlaceholder(e *models.UniqueEmployee, id int) string {
+	fio := strings.TrimSpace(strings.Join(nonEmptyStrings(e.LastName, e.FirstName, e.MiddleName), " "))
+	if fio == "" {
+		fio = fmt.Sprintf("без имени (номер записи %d)", id)
+	}
+	return fio
 }
