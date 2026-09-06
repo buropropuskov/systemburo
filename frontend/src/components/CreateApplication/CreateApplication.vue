@@ -1323,13 +1323,9 @@ export default {
             if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
                 const start = new Date(dateData.startDate.split('.').reverse().join('-'));
                 const end = new Date(dateData.endDate.split('.').reverse().join('-'));
-                if (start > end) {
-                    dateData.errors.endDate = 'Дата окончания не может быть раньше даты начала';
-                } else {
-                    dateData.errors.endDate = '';
-                }
+                dateData.errors.endDate = start > end ? 'Дата окончания не может быть раньше даты начала' : '';
             }
-            
+
             this.saveToLocalStorage();
         },
         
@@ -2347,11 +2343,7 @@ export default {
             if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
                 const start = new Date(dateData.startDate.split('.').reverse().join('-'));
                 const end = new Date(dateData.endDate.split('.').reverse().join('-'));
-                if (start > end) {
-                    dateData.errors.endDate = 'Дата окончания не может быть раньше даты начала';
-                } else {
-                    dateData.errors.endDate = '';
-                }
+                dateData.errors.endDate = start > end ? 'Дата окончания не может быть раньше даты начала' : '';
             }
         },
         

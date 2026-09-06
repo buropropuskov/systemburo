@@ -21,9 +21,13 @@ const relative = (file) => path.relative(SRC_ROOT, file).split(path.sep).join('/
  * Вызовы, у которых путь приходит переменной-параметром и статически не читается.
  * Каждый разобран руками; список растёт - разбирать новый, иначе замок перестаёт
  * видеть часть запросов экрана и молчит про них как про чистые.
+ *
+ * Ключ - файл, имя объемлющей функции и выражение пути. По номеру строки он не
+ * адресуется намеренно: номер сдвигала любая правка выше по файлу, замок падал на
+ * ровном месте, а чинили его подстановкой нового числа - шум без пользы.
  */
 const OPAQUE_CALLS = {
-  'components/CreateApplication/CreateApplication.vue:1409':
+  'components/CreateApplication/CreateApplication.vue::collect(url)':
     'loadDefaultApprovers гоняет общий collect(url) по /organizations/:id/users и /companies/:id/users - оба открыты любому вошедшему',
 };
 
@@ -89,8 +93,8 @@ describe('вызовы закрытых правом методов с поль�
     for (const file of modules) {
       for (const call of apiCallsIn(fs.readFileSync(file, 'utf8'))) {
         if (call.path) continue;
-        const key = `${relative(file)}:${call.line}`;
-        if (!OPAQUE_CALLS[key]) opaque.push(`${key} -> apiRequest(${call.expression})`);
+        const key = `${relative(file)}::${call.scope}(${call.expression})`;
+        if (!OPAQUE_CALLS[key]) opaque.push(`${key}, строка ${call.line}`);
       }
     }
     expect(opaque, [

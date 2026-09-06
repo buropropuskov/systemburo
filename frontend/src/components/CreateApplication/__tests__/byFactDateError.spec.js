@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { BY_FACT_PERIOD_RULE, byFactDeadlineExact } from '@/utils/byFactVehicle';
 
@@ -74,6 +76,8 @@ describe('CreateApplication — предупреждение о сроке ма�
     // Рядом с полями - точный срок цифрами: правило в панели объясняет «до суток»,
     // а сколько это в датах, человек должен видеть у самих полей.
     expect(w.vm.currentAttachmentErrors.periodHint).toContain(byFactDeadlineExact());
+    // Подсказка стоит у полей, которые надо поправить, - читается как указание.
+    expect(w.vm.currentAttachmentErrors.periodHint).toMatch(/^Укажите корректный срок/);
     expect(byFactDeadlineExact(new Date('2026-09-05T14:38:00Z'))).toBe('06.09.2026 23:59');
     w.unmount();
   });
@@ -115,5 +119,18 @@ describe('CreateApplication — предупреждение о сроке ма�
     const правило = w.vm.warningGroups.find((g) => g.name === 'Машина «По факту»');
     expect(правило.rule, 'без признака группа сольётся с остальными').toBe(true);
     w.unmount();
+  });
+
+  it('плашка об ошибке дат и подсказка о сроке живут рядом, не мешая друг другу', () => {
+    // Плашка под датами остаётся - она сообщает о перевёрнутом диапазоне. Подсказка
+    // про крайний срок «По факту» опущена ПОД поля (--below): сверху она их
+    // перекрывала, а теперь встаёт рядом с плашкой, а не поверх инпутов (#2320).
+    const разметка = readFileSync(
+      resolve(__dirname, '..', 'DateRangeSection.vue'), 'utf8',
+    ).split('<script')[0];
+
+    expect(разметка, 'плашка об ошибке дат остаётся').toContain('class="error-message date-error"');
+    expect(разметка, 'подсказка о крайнем сроке на месте').toContain('period-hint-anchor');
+    expect(разметка, '--below опускает подсказку под поля').toContain('hint-anchor--below');
   });
 });
