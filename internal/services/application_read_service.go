@@ -173,7 +173,12 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 // ЛК (applyUserApplicationsAccessFilter - sender или заявки его организации) + активные +
 // предикат обновления. БЕЗ гейта прочтения (у отправителя нет строк application_reads).
 // Отдельный от Центра эндпоинт: у ЛК другая матрица доступа, чем у approver/viewer.
-func (s *applicationService) GetUserStatusUpdatesCount(ctx context.Context, username string) (*models.StatusUpdatesCountResponse, error) {
+//
+// Вкладка кабинета сужает счёт так же, как список (#2339). Без этого чип считал по всему
+// скоупу, а список по вкладке: «Обновления 11» открывались тремя заявками, и человек читал
+// это как потерянные. Из фильтра берётся ТОЛЬКО вкладка - поиск, даты и статусы чип не
+// сужают намеренно: он показывает, сколько обновлений во вкладке, а не в текущей выборке.
+func (s *applicationService) GetUserStatusUpdatesCount(ctx context.Context, username string, filter ApplicationFilter) (*models.StatusUpdatesCountResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -185,6 +190,12 @@ func (s *applicationService) GetUserStatusUpdatesCount(ctx context.Context, user
 		Where(activeCond, activeArgs...).
 		Where(hasStatusUpdatePredicate, user.ID, user.ID)
 	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+	if filter.SenderUserID != nil {
+		query = query.Where("a.sender_user_id = ?", *filter.SenderUserID)
+	}
+	if filter.OrganizationID != nil {
+		query = query.Where("a.organization_id = ?", *filter.OrganizationID)
+	}
 
 	var count int64
 	if err := query.Count(&count).Error; err != nil {

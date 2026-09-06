@@ -279,7 +279,9 @@ type ApplicationService interface {
 	GetUnreadCount(ctx context.Context, username string) (*models.UnreadCountResponse, error)
 
 	// GetUserStatusUpdatesCount возвращает число заявок ЛК с обновлённым статусом (#1349).
-	GetUserStatusUpdatesCount(ctx context.Context, username string) (*models.StatusUpdatesCountResponse, error)
+	// Из фильтра читает только вкладку кабинета (sender_user_id / organization_id): чип
+	// обязан считать по тому же набору, что покажет список по клику (#2339).
+	GetUserStatusUpdatesCount(ctx context.Context, username string, filter ApplicationFilter) (*models.StatusUpdatesCountResponse, error)
 
 	// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
 	CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool

@@ -264,4 +264,47 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 			testutil.GET(t, e, "/applications/user/status-updates-count", testutil.AuthHeader(senderToken)))
 		assert.GreaterOrEqual(t, lk.StatusUpdates, 1, "ЛК-счётчик обновлений у отправителя")
 	})
+
+	// --- #2339: чип считает по вкладке кабинета, а не по всему скоупу ЛК ---
+	t.Run("счётчик обновлений сужается вкладкой кабинета", func(t *testing.T) {
+		// Скоуп ЛК шире вкладки: в него входят и заявки коллег по организации. Пока чип
+		// ходил без параметров вкладки, он считал весь скоуп, а список - выбранную
+		// вкладку: счётчик обещал одно число, клик показывал другое.
+		testutil.RegisterUser(t, e, "su_colleague", "pass123", 6, td.OrgID, td.CompanyID)
+		colleagueToken, _ := testutil.LoginUser(t, e, "su_colleague", "pass123")
+
+		appMine := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appColleague := createSimpleApplication(t, e, colleagueToken, td.OrgID)
+
+		// Приём заявки актором зажигает флаг обновления всем, кроме самого актора.
+		for _, id := range []int{appMine, appColleague} {
+			rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", id),
+				fmt.Sprintf(`{"user_id":%d,"action":"accept"}`, actorID), testutil.AuthHeader(actorToken))
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		}
+
+		счёт := func(query string) int {
+			resp := testutil.ParseResponse[models.StatusUpdatesCountResponse](t,
+				testutil.GET(t, e, "/applications/user/status-updates-count"+query, testutil.AuthHeader(senderToken)))
+			return resp.StatusUpdates
+		}
+
+		весьСкоуп := счёт("")
+		мои := счёт(fmt.Sprintf("?sender_user_id=%d", senderID))
+		организация := счёт(fmt.Sprintf("?organization_id=%d", td.OrgID))
+
+		assert.GreaterOrEqual(t, мои, 1, "своя заявка с обновлением попадает во вкладку «Мои»")
+		assert.Greater(t, весьСкоуп, мои,
+			"без вкладки счёт шире: в него входит заявка коллеги, которой во вкладке «Мои» нет")
+		assert.GreaterOrEqual(t, организация, 1, "вкладка «Организация» тоже считает")
+
+		// Список по той же вкладке и счётчик обязаны сходиться - ради этого правка и
+		// делалась: чип обещает ровно то, что откроется по клику.
+		assert.True(t, inList(senderToken,
+			fmt.Sprintf("/applications/user?status_updated=true&sender_user_id=%d", senderID), appMine),
+			"своя обновлённая заявка есть в списке вкладки «Мои»")
+		assert.False(t, inList(senderToken,
+			fmt.Sprintf("/applications/user?status_updated=true&sender_user_id=%d", senderID), appColleague),
+			"заявки коллеги во вкладке «Мои» нет - значит и счётчик её считать не должен")
+	})
 }
