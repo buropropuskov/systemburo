@@ -18,6 +18,15 @@
     --line: #c9ced6;
     --line-soft: #e3e6ea;
     --fill: #f2f3f5;
+
+    --c-term: #1d3f80;      --c-term-bg: #e9eef8;
+    --c-warn: #b3402a;      --c-warn-bg: #fbeae6;
+    --c-task: #1f6b4a;      --c-task-bg: #e6f2ec;
+    --c-quiz: #6b3fa0;      --c-quiz-bg: #f0eafa;
+    --c-scene: #8a5a1a;     --c-scene-bg: #fbf1e2;
+    --c-real: #0f6b78;      --c-real-bg: #e4f2f4;
+    --c-sum: #1d3f80;       --c-sum-bg: #eef2fa;
+
     --serif: "Noto Serif", "DejaVu Serif", Georgia, serif;
     --sans: "Inter", "Liberation Sans", Arial, sans-serif;
     --mono: "JetBrains Mono", "DejaVu Sans Mono", monospace;
@@ -218,6 +227,197 @@
 
 
 
+
+
+
+  /* ---- макеты интерфейсов ---- */
+  .ui {
+    border: 1pt solid var(--line);
+    border-radius: 4pt;
+    overflow: hidden;
+    margin: 8pt 0;
+    background: #fff;
+    break-inside: avoid;
+    box-shadow: 0 1pt 3pt rgba(0,0,0,.06);
+  }
+  .ui-bar {
+    display: flex;
+    align-items: center;
+    gap: 5pt;
+    background: #e8eaee;
+    border-bottom: 0.8pt solid var(--line);
+    padding: 4pt 7pt;
+  }
+  .ui-dot { width: 6pt; height: 6pt; border-radius: 50%; background: #c2c7cf; display: inline-block; }
+  .ui-url {
+    flex: 1;
+    background: #fff;
+    border: 0.6pt solid var(--line);
+    border-radius: 8pt;
+    font-family: var(--mono);
+    font-size: 7.4pt;
+    color: var(--ink-3);
+    padding: 1.6pt 7pt;
+    margin-left: 4pt;
+  }
+  .ui-body { padding: 9pt 11pt; font-family: var(--sans); font-size: 8.8pt; }
+  .ui-title { font-weight: 600; font-size: 10pt; margin-bottom: 7pt; color: var(--ink); }
+  .ui-field { margin-bottom: 6pt; }
+  .ui-label { display: block; font-size: 7.6pt; color: var(--ink-3); margin-bottom: 2pt; }
+  .ui-input {
+    border: 0.8pt solid var(--line);
+    border-radius: 3pt;
+    padding: 3.5pt 6pt;
+    font-size: 8.4pt;
+    color: var(--ink);
+    background: #fff;
+  }
+  .ui-input.err { border-color: var(--c-warn); background: #fdf3f1; }
+  .ui-err { color: var(--c-warn); font-size: 7.6pt; margin-top: 2pt; }
+  .ui-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 3pt;
+    padding: 4pt 12pt;
+    font-size: 8.4pt;
+    font-weight: 500;
+  }
+  .ui-btn.ghost { background: #fff; color: var(--ink-2); border: 0.8pt solid var(--line); }
+  .ui-row { display: flex; gap: 8pt; align-items: flex-end; }
+  .ui-row > * { flex: 1; }
+
+  .ui-tabs { display: flex; gap: 0; border-bottom: 0.8pt solid var(--line); background: #f6f7f9; }
+  .ui-tab { padding: 3.5pt 9pt; font-size: 8pt; color: var(--ink-3); border-right: 0.6pt solid var(--line); }
+  .ui-tab.on { background: #fff; color: var(--ink); font-weight: 600; border-bottom: 1.6pt solid var(--accent); }
+
+  table.ui-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 7.6pt; margin: 0; }
+  table.ui-tbl th, table.ui-tbl td { border: none; border-bottom: 0.5pt solid var(--line-soft); padding: 3pt 5pt; text-align: left; }
+  table.ui-tbl th { background: #f6f7f9; font-family: var(--sans); font-size: 7.4pt; color: var(--ink-3); font-weight: 600; }
+  .st-ok { color: var(--c-task); font-weight: 600; }
+  .st-err { color: var(--c-warn); font-weight: 600; }
+  .st-warn { color: #8a5a1a; font-weight: 600; }
+
+  .ui-console {
+    background: #1e2127;
+    color: #e6e8ec;
+    font-family: var(--mono);
+    font-size: 7.6pt;
+    padding: 7pt 9pt;
+    line-height: 1.5;
+  }
+  .ui-console .e { color: #ff8a75; }
+  .ui-console .w { color: #ffd479; }
+  .ui-console .ok { color: #8ee49a; }
+  .ui-console .dim { color: #8b93a1; }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 7.2pt;
+    font-weight: 600;
+    padding: 1.4pt 5pt;
+    border-radius: 8pt;
+  }
+  .badge.new { background: var(--c-term-bg); color: var(--c-term); }
+  .badge.work { background: #fdf0d8; color: #8a5a1a; }
+  .badge.done { background: var(--c-task-bg); color: var(--c-task); }
+  .badge.bad { background: var(--c-warn-bg); color: var(--c-warn); }
+  .cap-ui { font-family: var(--sans); font-size: 8.2pt; color: var(--ink-3); text-align: center; margin-top: -4pt; margin-bottom: 8pt; }
+
+  /* ---- цветовая система блоков ---- */
+  .term { border-left: 3.5pt solid var(--c-term); background: var(--c-term-bg); }
+  .term .w { color: var(--c-term); }
+
+  .warn { border-left: 3.5pt solid var(--c-warn); background: var(--c-warn-bg); }
+  .warn::before { color: var(--c-warn); content: "⚡ Ловушка"; }
+
+  .task { border: 1.4pt solid var(--c-task); background: var(--c-task-bg); }
+  .task .h span { background: var(--c-task); }
+
+  .quiz { border: 1.4pt solid var(--c-quiz); background: var(--c-quiz-bg); }
+  .quiz .h span { background: var(--c-quiz); }
+
+  .scene { border-left: 3.5pt solid var(--c-scene); background: var(--c-scene-bg); }
+  .scene::before { color: var(--c-scene); content: "▶ Сцена из работы"; }
+
+  .real { border: 1pt dashed var(--c-real); background: var(--c-real-bg); }
+  .real::before { color: var(--c-real); content: "◆ В проекте systemburo"; }
+
+  .sum { border: 1.2pt solid var(--c-sum); background: var(--c-sum-bg); }
+  .sum::before { color: var(--c-sum); content: "★ Итог раздела"; }
+
+  /* ---- заголовок раздела: цветная плашка ---- */
+  h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 9pt;
+    border-bottom: 2.2pt solid var(--accent);
+    padding-bottom: 5pt;
+    margin-bottom: 8pt;
+  }
+  h2 .num {
+    display: inline-block;
+    min-width: auto;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13pt;
+    line-height: 1;
+    padding: 4pt 8pt;
+    border-radius: 3pt;
+  }
+
+  h3 { color: var(--accent); }
+  h4 { color: var(--ink); }
+
+  /* ---- врезка «из жизни» ---- */
+  .joke {
+    background: var(--fill);
+    border: 0.8pt solid var(--line);
+    border-radius: 3pt;
+    padding: 6pt 9pt;
+    margin: 7pt 0;
+    font-size: 9.5pt;
+    font-style: italic;
+    color: var(--ink-2);
+    break-inside: avoid;
+  }
+  .joke::before {
+    content: "☺ Из жизни";
+    display: block;
+    font-style: normal;
+    font-family: var(--sans);
+    font-size: 7.4pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 3pt;
+  }
+
+  /* ---- крупные факты ---- */
+  .facts-row {
+    display: flex;
+    gap: 8pt;
+    margin: 8pt 0;
+    break-inside: avoid;
+  }
+  .fact {
+    flex: 1;
+    border: 1pt solid var(--line);
+    border-top: 3pt solid var(--accent);
+    border-radius: 3pt;
+    padding: 7pt 9pt;
+    background: #fff;
+  }
+  .fact .n {
+    font-family: var(--mono);
+    font-size: 17pt;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1.1;
+    display: block;
+  }
+  .fact .t { font-size: 8.8pt; color: var(--ink-2); display: block; margin-top: 3pt; }
 
   /* ---- витрина результата ---- */
   .show {
@@ -544,6 +744,13 @@ A: медленные и хрупкие. У меня 5 тестов идут 12 
 </table>
 
 
+
+<div class="facts-row">
+  <div class="fact"><span class="n">15</span><span class="t">артефактов на руках к воскресенью</span></div>
+  <div class="fact"><span class="n">7</span><span class="t">дней по 5-6 часов, без растягивания на месяцы</span></div>
+  <div class="fact"><span class="n">22</span><span class="t">задания с заготовками и разбором ответов</span></div>
+</div>
+
 <h3>Зачем это лично вам: куда ведёт лестница</h3>
 <p>Медианы рынка по данным Хабр Карьеры за первое полугодие 2026 года, на руки. Это не обещание,
 а ориентир, из которого видно, за что именно платят на каждой ступени.</p>
@@ -865,6 +1072,13 @@ Java, Kotlin, Selenide, а в живой вакансии QA Automation и у л
 вакансии: Playwright.
 </div>
 
+
+<div class="facts-row">
+  <div class="fact"><span class="n">442</span><span class="t">сотрудника в R-Vision, больше половины — разработка</span></div>
+  <div class="fact"><span class="n">10+</span><span class="t">человек в группе автоматизации тестирования</span></div>
+  <div class="fact"><span class="n">40%</span><span class="t">стажёров взяли в штат по итогам 2024 года</span></div>
+</div>
+
 <h3>1.4 С кем работает тестировщик</h3>
 <figure>
 <svg viewBox="0 0 520 210" xmlns="http://www.w3.org/2000/svg" role="img">
@@ -1070,6 +1284,7 @@ Java, Kotlin, Selenide, а в живой вакансии QA Automation и у л
 интерфейс снаружи, но с пониманием, какой запрос уходит и что лежит в базе.</p>
 
 <h3>2.5 Severity и Priority</h3>
+<div class="joke">Опечатка в названии компании на главной странице: severity — минимальная, приоритет — максимальный, потому что её видит каждый посетитель и первым делом её замечает директор.</div>
 <div class="term">
   <span class="w">Severity (серьёзность)</span> — насколько сильно дефект ломает систему.
   Объективная характеристика, её называет тестировщик.<br>
@@ -1195,6 +1410,31 @@ validation про пользу. Пирамида: много дешёвых юн
 их все не хватит жизни. Тест-дизайн — набор техник, которые отбирают из миллиона десяток проверок,
 покрывающих те же риски.</p>
 
+<div class="ui">
+  <div class="ui-bar"><span class="ui-dot"></span><span class="ui-dot"></span><span class="ui-dot"></span>
+    <span class="ui-url">https://buro.example.ru/applications/create</span></div>
+  <div class="ui-body">
+    <div class="ui-title">Подать заявку на пропуск</div>
+    <div class="ui-row">
+      <div class="ui-field"><span class="ui-label">Организация</span>
+        <div class="ui-input">Ромашка</div></div>
+      <div class="ui-field"><span class="ui-label">Цель визита</span>
+        <div class="ui-input">Обслуживание оборудования</div></div>
+    </div>
+    <div class="ui-row">
+      <div class="ui-field"><span class="ui-label">Дата въезда</span>
+        <div class="ui-input">06.09.2026</div></div>
+      <div class="ui-field"><span class="ui-label">Дата выезда</span>
+        <div class="ui-input err">05.10.2026</div>
+        <div class="ui-err">Срок пропуска не может превышать 30 дней</div></div>
+    </div>
+    <div style="margin-top:7pt"><span class="ui-btn">Отправить</span>
+      <span class="ui-btn ghost" style="margin-left:5pt">Отмена</span></div>
+  </div>
+</div>
+<div class="cap-ui">Экран, вокруг которого построена вся тетрадь. Ошибка на нём — настоящий дефект: 30 дней должны проходить</div>
+
+
 <h3>3.2 Классы эквивалентности</h3>
 <div class="term">
   <span class="w">Класс эквивалентности</span> — группа входных значений, которые система обрабатывает
@@ -1268,6 +1508,23 @@ validation про пользу. Пирамида: много дешёвых юн
 
 <p>Прочерк означает «значение не важно»: суперадмин видит всё в любом случае, и раздувать таблицу
 его комбинациями смысла нет.</p>
+
+
+<div class="ui">
+  <div class="ui-bar"><span class="ui-dot"></span><span class="ui-dot"></span><span class="ui-dot"></span>
+    <span class="ui-url">https://buro.example.ru/applications</span></div>
+  <div class="ui-body" style="padding-bottom:4pt">
+    <div class="ui-title">Заявки организации «Ромашка»</div>
+  </div>
+  <table class="ui-tbl">
+    <tr><th>№</th><th>Кто подал</th><th>Даты</th><th>Статус</th></tr>
+    <tr><td>1042</td><td>Сергей П.</td><td>06.09 — 05.10</td><td><span class="badge new">Непрочитано</span></td></tr>
+    <tr><td>1041</td><td>Сергей П.</td><td>01.09 — 10.09</td><td><span class="badge work">Согласование</span></td></tr>
+    <tr><td>1039</td><td>Никита В.</td><td>28.08 — 02.09</td><td><span class="badge done">Завершено</span></td></tr>
+    <tr><td>1036</td><td>Сергей П.</td><td>20.08 — 25.08</td><td><span class="badge bad">Отказано</span></td></tr>
+  </table>
+</div>
+<div class="cap-ui">Список, по которому проверяют результат подачи: статус новой заявки должен быть «Непрочитано»</div>
 
 <h3>3.5 Диаграмма состояний и переходов</h3>
 <p>Техника для объектов, которые живут во времени и меняют статус. Проверяем не только «каждый
@@ -1480,6 +1737,7 @@ validation про пользу. Пирамида: много дешёвых юн
 </div>
 
 <h3>4.2 Баг-репорт</h3>
+<div class="joke">Самый частый ответ на плохой баг-репорт — «у меня работает». Это не грубость и не лень: разработчик правда запустил у себя и правда увидел рабочую форму. Просто у него другая роль, другие данные и другой браузер. Хороший репорт снимает эту фразу заранее.</div>
 <p>Цель баг-репорта — чтобы разработчик воспроизвёл дефект <i>без вас</i> и починил, не задавая
 вопросов. Всё остальное вторично.</p>
 
@@ -1520,6 +1778,24 @@ Severity: значительный</pre>
 проявлялась только на реальных данных и на конкретной платформе. Поэтому в баг-репорте важны
 окружение и данные: без них дефект «не воспроизводится» и закрывается как несуществующий.
 </div>
+
+
+<div class="ui">
+  <div class="ui-bar"><span class="ui-dot"></span><span class="ui-dot"></span><span class="ui-dot"></span>
+    <span class="ui-url">Трекер задач · BUG-02</span></div>
+  <div class="ui-body">
+    <div class="ui-title">Заявка со сроком 30 дней отклоняется, хотя граница включительная</div>
+    <table class="ui-tbl">
+      <tr><td style="width:24%; font-family:var(--sans); color:var(--ink-3)">Статус</td><td><span class="badge work">В работе</span></td></tr>
+      <tr><td style="font-family:var(--sans); color:var(--ink-3)">Severity</td><td>значительный</td></tr>
+      <tr><td style="font-family:var(--sans); color:var(--ink-3)">Priority</td><td>высокий</td></tr>
+      <tr><td style="font-family:var(--sans); color:var(--ink-3)">Окружение</td><td>staging · сборка 2026.09.06 · Chrome 140</td></tr>
+      <tr><td style="font-family:var(--sans); color:var(--ink-3)">Вложения</td><td>screenshot.png · network.har · trace.zip</td></tr>
+      <tr><td style="font-family:var(--sans); color:var(--ink-3)">Исполнитель</td><td>бэкенд-разработчик</td></tr>
+    </table>
+  </div>
+</div>
+<div class="cap-ui">Так выглядит ваш баг-репорт в трекере после того, как его завели по всем правилам</div>
 
 <h3>4.3 Жизненный цикл дефекта</h3>
 <figure>
@@ -1797,6 +2073,7 @@ Accept-Language: ru-RU              Location: /applications/1042</pre>
 </div>
 
 <h3>5.7 Кэш: почему «у меня не воспроизводится»</h3>
+<div class="joke">«Почистите кэш» — универсальный ответ первой линии поддержки на всё подряд. Иногда он даже помогает, и это худшее, что могло случиться: настоящая причина осталась в продукте, а обращение закрыли.</div>
 <p>Браузер и промежуточные серверы сохраняют ответы, чтобы не спрашивать заново. Из-за этого
 исправленный файл может не доехать до пользователя, а тестировщик — увидеть старую версию
 интерфейса. Что делать: жёсткая перезагрузка (Ctrl+Shift+R), галка Disable cache в DevTools,
@@ -2097,6 +2374,7 @@ git log --oneline -5           последние коммиты</pre>
 </div>
 
 <h3>7.3 Окружения</h3>
+<div class="joke">Дефекты имеют привычку дожидаться пятницы. Отсюда неписаное правило: не выкатывать в пятницу вечером то, что не готовы чинить в субботу утром.</div>
 <table>
   <tr><th style="width:16%">Окружение</th><th>Кто пользуется</th><th style="width:38%">Что тестируют</th></tr>
   <tr><td>dev</td><td>разработчики</td><td>черновые сборки, часто сломано, данных мало</td></tr>
@@ -2460,6 +2738,40 @@ SIEM собирает события и превращает их в инцид�
 <code>Preserve log</code> сохраняет запросы при переходах; правый клик по запросу →
 <code>Copy as cURL</code> даёт готовую команду для баг-репорта; <code>Save all as HAR</code>
 выгружает всю сессию файлом, который можно приложить к дефекту.</p>
+
+<div class="ui">
+  <div class="ui-bar"><span class="ui-dot"></span><span class="ui-dot"></span><span class="ui-dot"></span>
+    <span class="ui-url">Инструменты разработчика · вкладка Network</span></div>
+  <div class="ui-tabs"><span class="ui-tab">Elements</span><span class="ui-tab">Console</span>
+    <span class="ui-tab on">Network</span><span class="ui-tab">Sources</span><span class="ui-tab">Application</span></div>
+  <table class="ui-tbl">
+    <tr><th style="width:34%">Запрос</th><th style="width:12%">Метод</th><th style="width:14%">Статус</th><th style="width:14%">Время</th><th>Размер</th></tr>
+    <tr><td>login</td><td>POST</td><td class="st-ok">200</td><td>142 мс</td><td>1,2 КБ</td></tr>
+    <tr><td>organizations</td><td>GET</td><td class="st-ok">200</td><td>88 мс</td><td>6,4 КБ</td></tr>
+    <tr><td>applications</td><td>POST</td><td class="st-err">500</td><td>1 204 мс</td><td>134 Б</td></tr>
+    <tr><td>notifications</td><td>GET</td><td class="st-warn">304</td><td>21 мс</td><td>из кэша</td></tr>
+  </table>
+  <div class="ui-console"><span class="dim">Response · applications</span><br>
+{ <span class="e">"success": false</span>, "error": "internal server error" }<br>
+<span class="dim">Request Headers</span><br>
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs…<br>
+Content-Type: application/json</div>
+</div>
+<div class="cap-ui">Та же поломка глазами тестировщика: видно метод, код 500 и тело ответа. Это и идёт в баг-репорт</div>
+
+
+
+<div class="ui">
+  <div class="ui-bar"><span class="ui-dot"></span><span class="ui-dot"></span><span class="ui-dot"></span>
+    <span class="ui-url">Инструменты разработчика · вкладка Console</span></div>
+  <div class="ui-console">
+<span class="e">✕ Uncaught TypeError: Cannot read properties of undefined (reading 'items')</span><br>
+<span class="dim">    at ApplicationList.vue:142</span><br>
+<span class="w">⚠ Mixed Content: страница загружена по HTTPS, но запрашивает http://cdn.example.ru/icons.png</span><br>
+<span class="dim">— запрос заблокирован браузером</span><br>
+<span class="ok">✓ загрузка завершена за 1,8 с</span></div>
+</div>
+<div class="cap-ui">Красная строка в консоли — почти всегда дефект, даже если внешне страница нарисовалась</div>
 
 <h3>10.3 DOM: где живут элементы</h3>
 <div class="term">
@@ -3023,6 +3335,7 @@ function daysBetween(from: string, to: string): number {
 const isLongStay = (days: number): boolean => days > 30;</pre>
 
 <h3>13.4 async, await и промисы: главное для Playwright</h3>
+<div class="joke">Тест, написанный без await, обычно зелёный и очень быстрый. Новичок радуется, что «всё работает», пока кто-нибудь не спросит, почему проверка проходит даже на сломанной странице.</div>
 <div class="term">
   <span class="w">Промис (Promise)</span> — обещание результата, который придёт позже: ответ сервера,
   загрузка страницы, клик по кнопке. <span class="w">await</span> — «подожди этот результат
@@ -3294,6 +3607,29 @@ await page.route('**/api/applications', route =&gt; route.abort());</pre>
 <p>Трейс — главный инструмент разбора: по нему видно состояние страницы ровно в момент падения,
 и часто становится ясно, что тест ждал не тот элемент.</p>
 
+<div class="ui">
+  <div class="ui-bar"><span class="ui-dot"></span><span class="ui-dot"></span><span class="ui-dot"></span>
+    <span class="ui-url">Отчёт Playwright · npx playwright show-report</span></div>
+  <div class="ui-body" style="padding-bottom:5pt">
+    <span class="badge done">4 passed</span> <span class="badge bad" style="margin-left:4pt">1 failed</span>
+    <span style="color:var(--ink-3); font-size:8pt; margin-left:6pt">всего 14,2 с</span>
+  </div>
+  <table class="ui-tbl">
+    <tr><th style="width:56%">Тест</th><th style="width:16%">Итог</th><th>Время</th></tr>
+    <tr><td>вход с неверным паролем показывает ошибку</td><td class="st-ok">passed</td><td>1,9 с</td></tr>
+    <tr><td>заявка на 30 дней создаётся</td><td class="st-err">failed</td><td>5,1 с</td></tr>
+    <tr><td>заявка на 31 день отклоняется</td><td class="st-ok">passed</td><td>2,4 с</td></tr>
+    <tr><td>API: создание возвращает 201</td><td class="st-ok">passed</td><td>0,3 с</td></tr>
+    <tr><td>API: без токена возвращает 401</td><td class="st-ok">passed</td><td>0,2 с</td></tr>
+  </table>
+  <div class="ui-console"><span class="e">✕ заявка на 30 дней создаётся</span><br>
+<span class="dim">  Error: expect(locator).toHaveText('Непрочитано')</span><br>
+<span class="dim">  Received: "" · Timeout 5000ms exceeded</span><br>
+<span class="dim">  Прикреплено: screenshot.png, trace.zip</span></div>
+</div>
+<div class="cap-ui">Красная строка здесь — либо настоящий дефект продукта, либо плохой локатор. Различить помогает трейс</div>
+
+
 <h3>14.10 Антипаттерны, которые видно на собеседовании</h3>
 <table>
   <tr><th style="width:44%">Плохо</th><th>Как правильно</th></tr>
@@ -3439,6 +3775,7 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
 </div>
 
 <h3>15.2 Флаки</h3>
+<div class="joke">Как выглядит смерть доверия к тестам: сначала «перезапусти, он иногда падает», потом «да у нас всегда один красный», потом «а что, релиз сломан? так CI же был красный, мы думали, это тот самый тест».</div>
 <div class="term">
   <span class="w">Флак (flaky test)</span> — тест, который на одном и том же коде то падает,
   то проходит. Опаснее упавшего: команда привыкает перезапускать прогон и перестаёт читать красное.
