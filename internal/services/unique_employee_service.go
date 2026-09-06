@@ -203,6 +203,7 @@ type UniqueEmployeeService interface {
 	Delete(ctx context.Context, username string, id int) error
 	// SetObjection отмечает, что субъект возразил против обработки своих данных
 	// (#2361), ClearObjection снимает отметку по итогам рассмотрения оператором.
+	SetTablesProducer(p *TablesRefreshPublisher)
 	SetObjection(ctx context.Context, username string, id int, source string) error
 	ClearObjection(ctx context.Context, username string, id int) error
 	GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error)
@@ -215,11 +216,22 @@ type UniqueEmployeeService interface {
 type uniqueEmployeeService struct {
 	db       *gorm.DB
 	recorder AuditRecorder
+	// tablesProducer оповещает таблицы постов об изменении строки. Может быть nil:
+	// подключается в main.go, а тестам реестра посты не нужны.
+	tablesProducer *TablesRefreshPublisher
 }
 
 // NewUniqueEmployeeService создаёт реализацию UniqueEmployeeService.
 func NewUniqueEmployeeService(db *gorm.DB) UniqueEmployeeService {
 	return &uniqueEmployeeService{db: db, recorder: NewAuditRecorder(db)}
+}
+
+// SetTablesProducer подключает оповещение таблиц постов. Нужно аннулированию пропусков
+// при возражении субъекта (#2361): строки, убранные из заявок, обязаны исчезнуть у
+// охранника сразу, а не после того, как он перезагрузит страницу. Зависимость
+// опциональная - в тестах реестра без постов её нет, и это не ошибка.
+func (s *uniqueEmployeeService) SetTablesProducer(p *TablesRefreshPublisher) {
+	s.tablesProducer = p
 }
 
 // getEmployeeOwnerInfo получает информацию о владельце по username.
@@ -1157,7 +1169,85 @@ func (s *uniqueEmployeeService) SetObjection(ctx context.Context, username strin
 		&ownerInfo.UserID, carAuditDetails{Comment: &comment, Subject: &fio}); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error writing audit record")
 	}
+
+	// Действующие пропуска аннулируются сразу (решение владельца): возразил - данные
+	// не используются больше ни для чего, включая проход. Ошибка аннулирования не
+	// отменяет саму отметку: возражение зафиксировано, а незакрытые строки видно
+	// в журнале, и их снимут вручную. Обратный порядок был бы хуже - отметка
+	// потерялась бы из-за одной неубранной строки.
+	revoked, err := s.revokeActivePasses(ctx, &existing, ownerInfo.UserID)
+	if err != nil {
+		slog.Error("возражение отмечено, но пропуска аннулированы не полностью",
+			"unique_employee_id", id, "error", err)
+	}
+	if revoked > 0 {
+		slog.Info("пропуска аннулированы по возражению субъекта", "unique_employee_id", id, "rows", revoked)
+	}
 	return nil
+}
+
+// revokeActivePasses убирает из заявок все действующие строки человека, по которому
+// поступило возражение (#2361). Возвращает число убранных строк.
+//
+// Человек ищется по свёртке паспорта: она для того и заведена - находит точное
+// совпадение, не раскрывая значения. Записи без документа ищутся по ФИО: это менее
+// надёжно (однофамильцы), поэтому применяется только когда документа нет вовсе.
+//
+// Удаление мягкое, тем же механизмом, что у принимающего: статус обнуляется, ставится
+// дата удаления, строка остаётся в корзине и в истории. Физическое удаление порвало бы
+// связь с отметками прохода и превратило заявку в документ с пропущенной строкой.
+func (s *uniqueEmployeeService) revokeActivePasses(ctx context.Context, subject *models.UniqueEmployee, actorID int) (int, error) {
+	query := s.db.WithContext(ctx).Model(&models.Employee{}).
+		Where("date_deleted IS NULL AND is_purged = false")
+	switch {
+	case subject.PassportSeriesNumberHMAC != nil && *subject.PassportSeriesNumberHMAC != "":
+		query = query.Where("passport_series_number_hmac = ?", *subject.PassportSeriesNumberHMAC)
+	case subject.LastName != nil && strings.TrimSpace(*subject.LastName) != "":
+		query = query.Where("LOWER(TRIM(last_name)) = ?", strings.ToLower(strings.TrimSpace(*subject.LastName)))
+		if subject.FirstName != nil && strings.TrimSpace(*subject.FirstName) != "" {
+			query = query.Where("LOWER(TRIM(first_name)) = ?", strings.ToLower(strings.TrimSpace(*subject.FirstName)))
+		}
+	default:
+		// Ни документа, ни имени - опознать человека в заявках нечем, и гадать нельзя:
+		// убрать чужую строку хуже, чем не убрать свою.
+		return 0, nil
+	}
+
+	var ids []int
+	if err := query.Pluck("id", &ids).Error; err != nil {
+		return 0, fmt.Errorf("поиск действующих строк: %w", err)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	now := time.Now().UTC()
+	revoked := 0
+	for _, employeeID := range ids {
+		res := s.db.WithContext(ctx).Table("employees").
+			Where("id = ? AND date_deleted IS NULL AND is_purged = false", employeeID).
+			Updates(map[string]any{"status": 0, "date_deleted": now, "updated_at": now})
+		if res.Error != nil {
+			return revoked, fmt.Errorf("аннулирование строки %d: %w", employeeID, res.Error)
+		}
+		if res.RowsAffected == 0 {
+			continue
+		}
+		revoked++
+
+		comment := "Строка убрана из заявки: субъект возразил против обработки своих персональных данных"
+		if err := s.recorder.Record(ctx, nil, models.AuditEntityEmployee, &employeeID, "delete",
+			&actorID, carAuditDetails{Comment: &comment}); err != nil {
+			return revoked, fmt.Errorf("запись в историю строки %d: %w", employeeID, err)
+		}
+
+		// Таблицы постов собираются по действующим строкам: без оповещения охранник
+		// увидел бы аннулированный пропуск до перезагрузки страницы.
+		if s.tablesProducer != nil {
+			s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
+		}
+	}
+	return revoked, nil
 }
 
 // ClearObjection снимает отметку по итогам рассмотрения обращения либо когда человек
