@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Тетрадь тестировщика. Подготовка к стажировке в R-Vision</title>
 <style>
-  @page {
+  page {
     size: A4;
     margin: 16mm 15mm 18mm 15mm;
   }
@@ -28,8 +28,8 @@
   body {
     margin: 0;
     font-family: var(--serif);
-    font-size: 10.15pt;
-    line-height: 1.4;
+    font-size: 9.9pt;
+    line-height: 1.35;
     color: var(--ink);
     background: #fff;
   }
@@ -57,9 +57,9 @@
   }
 
   h3 {
-    font-size: 11.2pt;
+    font-size: 10.8pt;
     font-weight: 600;
-    margin: 10pt 0 4pt;
+    margin: 9pt 0 3pt;
     break-after: avoid;
   }
 
@@ -85,7 +85,7 @@
     break-inside: avoid;
     margin: 6pt 0;
     padding: 5.5pt 8pt;
-    font-size: 9.6pt;
+    font-size: 9.35pt;
   }
 
   .term { border-left: 3pt solid var(--accent); background: var(--accent-soft); }
@@ -165,8 +165,8 @@
 
   pre {
     font-family: var(--mono);
-    font-size: 8.3pt;
-    line-height: 1.36;
+    font-size: 8.1pt;
+    line-height: 1.32;
     background: var(--fill);
     border-left: 2pt solid var(--line);
     padding: 6pt 8pt;
@@ -180,8 +180,8 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8.9pt;
-    margin: 6pt 0;
+    font-size: 8.7pt;
+    margin: 5pt 0;
     break-inside: avoid;
   }
   th, td {
@@ -219,7 +219,6 @@
 
   /* ---- места для записей ---- */
   .notes {
-    break-inside: avoid;
     margin: 9pt 0 0;
     padding: 7pt 9pt 4pt;
     border: 1pt solid var(--line);
@@ -239,7 +238,7 @@
     color: var(--ink-2);
     margin: 0 0 3pt;
   }
-  .ln { border-bottom: 0.4pt solid var(--line); height: 14pt; }
+  .ln { border-bottom: 0.4pt solid var(--line); height: 13pt; }
   .ln:last-child { margin-bottom: 2pt; }
 
   .box-check {
@@ -313,20 +312,25 @@
 <div style="break-after:page">
   <h2 style="border-bottom:1.6pt solid var(--accent)">Содержание</h2>
   <div class="toc">
-    <div><span class="n">0</span><span class="t">Как устроена тетрадь</span><span class="d">сквозной проект, значки, дорожная карта на 4 недели</span></div>
+    <div><span class="n">0</span><span class="t">Как устроена тетрадь</span><span class="d">сквозной проект, значки, дорожная карта на неделю</span></div>
     <div><span class="n">1</span><span class="t">Тестировщик: роль, команда, R-Vision</span><span class="d">зачем нужен, кто есть кто, продукты и стек компании</span></div>
     <div><span class="n">2</span><span class="t">База: термины, уровни, виды</span><span class="d">дефект и отказ, пирамида, severity и priority</span></div>
     <div><span class="n">3</span><span class="t">Тест-дизайн</span><span class="d">классы, границы, таблица решений, состояния, pairwise</span></div>
     <div><span class="n">4</span><span class="t">Документы тестировщика</span><span class="d">чек-лист, тест-кейс, баг-репорт, жизненный цикл дефекта</span></div>
-    <div><span class="n">5</span><span class="t">Веб под капотом</span><span class="d">DevTools, DOM, локаторы, Page Object</span></div>
-    <div><span class="n">6</span><span class="t">API: проверка без браузера</span><span class="d">методы, коды, конверт ответа, JWT, REST и GraphQL</span></div>
-    <div><span class="n">7</span><span class="t">SQL: что реально сохранилось</span><span class="d">SELECT, JOIN, GROUP BY, проверки после действия</span></div>
-    <div><span class="n">8</span><span class="t">TypeScript по делу</span><span class="d">типы, интерфейсы, async и await, классы для POM</span></div>
-    <div><span class="n">9</span><span class="t">Playwright</span><span class="d">локаторы, автоожидания, фикстуры, моки, трейсы</span></div>
-    <div><span class="n">10</span><span class="t">CI, отчёты, флаки</span><span class="d">конвейер, разбор падений, Allure и TestOps</span></div>
-    <div><span class="n">11</span><span class="t">Сборка pet-проекта</span><span class="d">структура репозитория, README, критерии готовности</span></div>
-    <div><span class="n">12</span><span class="t">Собеседование</span><span class="d">карта требований, типовые вопросы, что спросить самому</span></div>
-    <div><span class="n">А</span><span class="t">Ответы и решения</span><span class="d">разборы всех заданий П1-П16 и тестов Т1-Т9</span></div>
+    <div><span class="n">5</span><span class="t">Как устроен веб</span><span class="d">DNS, порты 80 и 443, HTTP и HTTPS, cookie и токены, кэш, CORS</span></div>
+    <div><span class="n">6</span><span class="t">Как устроен продукт изнутри</span><span class="d">слои, микросервисы, очереди, Docker и Kubernetes</span></div>
+    <div><span class="n">7</span><span class="t">Команда: процесс, Git, окружения</span><span class="d">спринт, критерии приёмки, ветки и пул-реквесты, dev-test-prod</span></div>
+    <div><span class="n">8</span><span class="t">Логи и мониторинг</span><span class="d">уровни логов, идентификатор запроса, что прикладывать к дефекту</span></div>
+    <div><span class="n">9</span><span class="t">Домен кибербезопасности</span><span class="d">SOC, событие и инцидент, корреляция, уязвимости, плейбуки</span></div>
+    <div><span class="n">10</span><span class="t">Веб под капотом</span><span class="d">DevTools, DOM, локаторы, Page Object</span></div>
+    <div><span class="n">11</span><span class="t">API: проверка без браузера</span><span class="d">методы, коды, конверт ответа, JWT, REST и GraphQL</span></div>
+    <div><span class="n">12</span><span class="t">SQL: что реально сохранилось</span><span class="d">SELECT, JOIN, GROUP BY, проверки после действия</span></div>
+    <div><span class="n">13</span><span class="t">TypeScript по делу</span><span class="d">типы, интерфейсы, async и await, классы для POM</span></div>
+    <div><span class="n">14</span><span class="t">Playwright</span><span class="d">локаторы, автоожидания, фикстуры, моки, трейсы</span></div>
+    <div><span class="n">15</span><span class="t">CI, отчёты, флаки</span><span class="d">конвейер, разбор падений, Allure и TestOps</span></div>
+    <div><span class="n">16</span><span class="t">Сборка pet-проекта</span><span class="d">структура репозитория, README, критерии готовности</span></div>
+    <div><span class="n">17</span><span class="t">Собеседование</span><span class="d">карта требований, типовые вопросы, что спросить самому</span></div>
+    <div><span class="n">А</span><span class="t">Ответы и решения</span><span class="d">разборы всех заданий П1-П22 и тестов Т1-Т14</span></div>
     <div><span class="n">Б</span><span class="t">Шпаргалки</span><span class="d">коды ответов, Playwright, SQL, шаблон баг-репорта</span></div>
   </div>
 </div>
@@ -346,13 +350,13 @@
 
 <table>
   <tr><th style="width:26%">Раздел</th><th style="width:38%">Что делаем</th><th>Что появляется в наборе</th></tr>
-  <tr><td>3. Тест-дизайн</td><td>разбиваем поля формы на классы и границы</td><td>чек-лист проверок</td></tr>
-  <tr><td>4. Документация</td><td>оформляем проверки и найденный дефект</td><td>6 тест-кейсов, 1 баг-репорт</td></tr>
-  <tr><td>5. Веб и локаторы</td><td>снимаем селекторы со страницы</td><td>карта локаторов</td></tr>
-  <tr><td>6. API</td><td>проверяем запрос создания заявки</td><td>API-проверка</td></tr>
-  <tr><td>7. SQL</td><td>убеждаемся, что данные легли в базу</td><td>SQL-запрос проверки</td></tr>
+  <tr><td>3. Тест-дизайн</td><td>вт</td><td>разбиваем поля формы на классы и границы</td><td>чек-лист проверок</td></tr>
+  <tr><td>4. Документация</td><td>вт</td><td>оформляем проверки и найденный дефект</td><td>6 тест-кейсов, 1 баг-репорт</td></tr>
+  <tr><td>10. Веб и локаторы</td><td>ср</td><td>снимаем селекторы со страницы</td><td>карта локаторов</td></tr>
+  <tr><td>11. API</td><td>ср</td><td>проверяем запрос создания заявки</td><td>API-проверка</td></tr>
+  <tr><td>12. SQL</td><td>чт</td><td>убеждаемся, что данные легли в базу</td><td>SQL-запрос проверки</td></tr>
   <tr><td>8-9. TS и Playwright</td><td>пишем Page Object и автотесты</td><td>3 автотеста + POM</td></tr>
-  <tr><td>11. Сборка</td><td>складываем всё в репозиторий с отчётом</td><td>готовый pet-проект</td></tr>
+  <tr><td>16. Сборка</td><td>сб</td><td>складываем всё в репозиторий с отчётом</td><td>готовый pet-проект</td></tr>
 </table>
 
 <p>Именно такой pet-проект закрывает сразу четыре строки требований вакансии: «опыт разработки
@@ -370,12 +374,13 @@
 <p>Ответы на все задания и тесты — в приложении А. Подглядывать сразу бессмысленно: ценность
 задания в попытке, а не в правильной строчке.</p>
 
-<h3>Дорожная карта: четыре недели</h3>
-<p>Расчёт на 10-12 часов в неделю. Если времени больше, план сжимается, но порядок сохраняется:
-каждая неделя опирается на предыдущую.</p>
+<h3>Дорожная карта: одна неделя, с понедельника по воскресенье</h3>
+<p>План рассчитан на семь дней подряд: по 4-5 часов в будни и по 6-7 в выходные. Это интенсив, а не
+фон: каждый день опирается на предыдущий, и пропуск дня рвёт цепочку. Если день выпал, сдвигайте
+всю неделю, а не догоняйте два дня за один.</p>
 
 <figure>
-<svg viewBox="0 0 560 190" xmlns="http://www.w3.org/2000/svg" role="img">
+<svg viewBox="0 0 560 250" xmlns="http://www.w3.org/2000/svg" role="img">
   <defs>
     <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
       <path d="M0,0 L6,3 L0,6 z" fill="#16181d"/>
@@ -385,78 +390,116 @@
     </marker>
   </defs>
 
-  <line x1="20" y1="26" x2="540" y2="26" stroke="#16181d" stroke-width="1.2"/>
-  <circle cx="20" cy="26" r="3.5" fill="#16181d"/>
-  <circle cx="150" cy="26" r="3.5" fill="#16181d"/>
-  <circle cx="280" cy="26" r="3.5" fill="#16181d"/>
-  <circle cx="410" cy="26" r="3.5" fill="#16181d"/>
-  <circle cx="540" cy="26" r="4.5" fill="#1d3f80"/>
+  <rect class="box-f" x="8" y="16" width="128" height="72" rx="3"/>
+  <text class="svg-b" x="16" y="31">Понедельник</text>
+  <text class="svg-s" x="16" y="43">разделы 0-3</text>
+  <text class="svg-t" x="16" y="57">роль, база, тест-дизайн</text>
+  <text class="svg-s" x="16" y="69">термины, пирамида,</text>
+  <text class="svg-s" x="16" y="79">severity и priority</text>
 
-  <text class="svg-b" x="20" y="18">Неделя 1</text>
-  <text class="svg-b" x="150" y="18">Неделя 2</text>
-  <text class="svg-b" x="280" y="18">Неделя 3</text>
-  <text class="svg-b" x="410" y="18">Неделя 4</text>
-  <text class="svg-b" x="486" y="18">Собеседование</text>
+  <rect class="box-f" x="152" y="16" width="128" height="72" rx="3"/>
+  <text class="svg-b" x="160" y="31">Вторник</text>
+  <text class="svg-s" x="160" y="43">разделы 4, 5</text>
+  <text class="svg-t" x="160" y="57">кейсы и устройство веба</text>
+  <text class="svg-s" x="160" y="69">чек-лист, кейсы,</text>
+  <text class="svg-s" x="160" y="79">HTTP и HTTPS</text>
 
-  <rect class="box-f" x="20" y="38" width="118" height="66" rx="3"/>
-  <text class="svg-t" x="28" y="52">Разделы 1-4</text>
-  <text class="svg-s" x="28" y="64">кто такой тестировщик,</text>
-  <text class="svg-s" x="28" y="74">база, тест-дизайн,</text>
-  <text class="svg-s" x="28" y="84">кейсы и баг-репорты</text>
-  <text class="svg-s" x="28" y="97">на выходе: чек-лист</text>
+  <rect class="box-f" x="296" y="16" width="128" height="72" rx="3"/>
+  <text class="svg-b" x="304" y="31">Среда</text>
+  <text class="svg-s" x="304" y="43">разделы 6-9</text>
+  <text class="svg-t" x="304" y="57">как работает компания</text>
+  <text class="svg-s" x="304" y="69">архитектура, Git, логи,</text>
+  <text class="svg-s" x="304" y="79">домен кибербезопасности</text>
 
-  <rect class="box-f" x="150" y="38" width="118" height="66" rx="3"/>
-  <text class="svg-t" x="158" y="52">Разделы 5-7</text>
-  <text class="svg-s" x="158" y="64">DevTools, локаторы,</text>
-  <text class="svg-s" x="158" y="74">HTTP и API, SQL</text>
-  <text class="svg-s" x="158" y="97">на выходе: API и SQL</text>
+  <rect class="box-f" x="440" y="16" width="112" height="72" rx="3"/>
+  <text class="svg-b" x="448" y="31">Четверг</text>
+  <text class="svg-s" x="448" y="43">разделы 10-12</text>
+  <text class="svg-t" x="448" y="57">DevTools, API, SQL</text>
+  <text class="svg-s" x="448" y="69">запросы руками,</text>
+  <text class="svg-s" x="448" y="79">проверка данных</text>
 
-  <rect class="box-f" x="280" y="38" width="118" height="66" rx="3"/>
-  <text class="svg-t" x="288" y="52">Разделы 8-9</text>
-  <text class="svg-s" x="288" y="64">TypeScript по делу,</text>
-  <text class="svg-s" x="288" y="74">Playwright, Page Object,</text>
-  <text class="svg-s" x="288" y="84">фикстуры, отчёты</text>
-  <text class="svg-s" x="288" y="97">на выходе: 3 автотеста</text>
+  <rect class="box-f" x="8" y="108" width="128" height="72" rx="3"/>
+  <text class="svg-b" x="16" y="123">Пятница</text>
+  <text class="svg-s" x="16" y="135">разделы 13, 14</text>
+  <text class="svg-t" x="16" y="149">TypeScript, Playwright</text>
+  <text class="svg-s" x="16" y="161">первый зелёный тест</text>
+  <text class="svg-s" x="16" y="171">и Page Object</text>
 
-  <rect class="box-a" x="410" y="38" width="130" height="66" rx="3"/>
-  <text class="svg-t" x="418" y="52">Разделы 10-12</text>
-  <text class="svg-s" x="418" y="64">CI, флаки, сборка</text>
-  <text class="svg-s" x="418" y="74">pet-проекта, разбор</text>
-  <text class="svg-s" x="418" y="84">вопросов собеседования</text>
-  <text class="svg-s" x="418" y="97">на выходе: репозиторий</text>
+  <rect class="box-f" x="152" y="108" width="128" height="72" rx="3"/>
+  <text class="svg-b" x="160" y="123">Суббота</text>
+  <text class="svg-s" x="160" y="135">разделы 14-16</text>
+  <text class="svg-t" x="160" y="149">сборка проекта</text>
+  <text class="svg-s" x="160" y="161">фикстуры, API-тесты,</text>
+  <text class="svg-s" x="160" y="171">репозиторий с README</text>
 
-  <path class="arrow" d="M20,120 L540,120"/>
-  <text class="svg-s" x="180" y="134">одна функция systemburo проходит через все четыре недели</text>
+  <rect class="box-a" x="296" y="108" width="128" height="72" rx="3"/>
+  <text class="svg-b" x="304" y="123">Воскресенье</text>
+  <text class="svg-s" x="304" y="135">раздел 17 и повтор</text>
+  <text class="svg-t" x="304" y="149">прогон по трекеру</text>
+  <text class="svg-s" x="304" y="161">вопросы вслух, разбор</text>
+  <text class="svg-s" x="304" y="171">своих слабых мест</text>
 
-  <rect class="box" x="20" y="146" width="250" height="34" rx="3"/>
-  <text class="svg-t" x="28" y="160">Каждый день: 20 минут теории</text>
-  <text class="svg-s" x="28" y="172">остальное время — руками, в редакторе и браузере</text>
+  <rect class="box" x="440" y="108" width="112" height="72" rx="3"/>
+  <text class="svg-b" x="448" y="123">Итог недели</text>
+  <text class="svg-s" x="448" y="137">репозиторий с</text>
+  <text class="svg-s" x="448" y="147">5 автотестами,</text>
+  <text class="svg-s" x="448" y="157">чек-лист, кейсы,</text>
+  <text class="svg-s" x="448" y="167">2 баг-репорта</text>
 
-  <rect class="box" x="290" y="146" width="250" height="34" rx="3"/>
-  <text class="svg-t" x="298" y="160">Каждую неделю: коммит в Git</text>
-  <text class="svg-s" x="298" y="172">история коммитов и есть доказательство работы</text>
+  <path class="arrow" d="M136,52 L150,52"/>
+  <path class="arrow" d="M280,52 L294,52"/>
+  <path class="arrow" d="M424,52 L438,52"/>
+  <path class="arrow" d="M496,88 C 496,98 90,96 72,106"/>
+  <path class="arrow" d="M136,144 L150,144"/>
+  <path class="arrow" d="M280,144 L294,144"/>
+  <path class="arrow" d="M424,144 L438,144"/>
+
+  <rect class="box" x="8" y="196" width="272" height="44" rx="3"/>
+  <text class="svg-t" x="16" y="212">Каждый день заканчивается артефактом</text>
+  <text class="svg-s" x="16" y="225">файл в репозитории или заполненная страница тетради.</text>
+  <text class="svg-s" x="16" y="235">Прочитанный раздел без артефакта не считается пройденным</text>
+
+  <rect class="box" x="296" y="196" width="256" height="44" rx="3"/>
+  <text class="svg-t" x="304" y="212">Если недели мало</text>
+  <text class="svg-s" x="304" y="225">растяните дни 5 и 6 на два дня каждый: Playwright</text>
+  <text class="svg-s" x="304" y="235">и сборка проекта — самая тяжёлая часть для новичка</text>
 </svg>
-<figcaption>Дорожная карта: четыре недели и результат каждой</figcaption>
+<figcaption>Неделя: семь дней, каждый со своим результатом</figcaption>
 </figure>
 
+<table>
+  <tr><th style="width:15%">День</th><th style="width:22%">Разделы</th><th style="width:14%">Часы</th><th>Что должно появиться к вечеру</th></tr>
+  <tr><td>Понедельник</td><td>0, 1, 2, 3</td><td>5</td><td>трекер, ответы на Т1-Т3, задания П1-П4</td></tr>
+  <tr><td>Вторник</td><td>4, 5</td><td>5</td><td>чек-лист, 6 тест-кейсов, баг-репорт, разбор URL и HTTPS</td></tr>
+  <tr><td>Среда</td><td>6, 7, 8, 9</td><td>5</td><td>критерии приёмки, git-последовательность, разбор лога, словарь ИБ</td></tr>
+  <tr><td>Четверг</td><td>10, 11, 12</td><td>5</td><td>карта локаторов, каркас POM, запросы через curl, SQL-проверки</td></tr>
+  <tr><td>Пятница</td><td>13, 14</td><td>5</td><td>установленный Playwright, первый зелёный тест, LoginPage</td></tr>
+  <tr><td>Суббота</td><td>14, 15, 16</td><td>6-7</td><td>фикстура, три UI-теста, два API-теста, репозиторий с README</td></tr>
+  <tr><td>Воскресенье</td><td>17, повторение</td><td>6</td><td>ответы вслух на вопросы 17.2, закрытый трекер, отклик на вакансию</td></tr>
+</table>
 
 <h3>Трекер прогресса</h3>
 <p>Отмечайте по ходу. Третья колонка — самая важная: задание считается сделанным, только когда вы
 сверились с ответом в приложении А и поняли расхождение, если оно было.</p>
 <table class="tracker">
-  <tr><th style="width:44%">Раздел</th><th style="width:20%">Задания</th><th>Прочитан</th><th>Практика</th><th>Сверено</th></tr>
-    <tr><td>1. Тестировщик: роль, команда, R-Vision</td><td>Т1</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>2. База: термины, уровни, виды</td><td>П1, Т2</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>3. Тест-дизайн</td><td>П2-П4, Т3</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>4. Документы тестировщика</td><td>П5, П6, Т4</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>5. Веб под капотом</td><td>П7, П8, Т5</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>6. API</td><td>П9, П10, Т6</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>7. SQL</td><td>П11, Т7</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>8. TypeScript по делу</td><td>П12, П13</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>9. Playwright</td><td>П14, П15, Т8</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>10. CI, отчёты, флаки</td><td>Т9</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>11. Сборка pet-проекта</td><td>П16</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
-    <tr><td>12. Собеседование</td><td>—</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+  <tr><th style="width:38%">Раздел</th><th style="width:12%">День</th><th style="width:16%">Задания</th><th>Прочитан</th><th>Практика</th><th>Сверено</th></tr>
+    <tr><td>1. Тестировщик: роль и команда</td><td>пн</td><td>Т1</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>2. База: термины, уровни, виды</td><td>пн</td><td>П1, Т2</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>3. Тест-дизайн</td><td>пн</td><td>П2-П4, Т3</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>4. Документы тестировщика</td><td>вт</td><td>П5, П6, Т4</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>5. Как устроен веб</td><td>вт</td><td>П7, П8, Т5</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>6. Как устроен продукт изнутри</td><td>ср</td><td>П9, Т6</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>7. Команда: процесс, Git, окружения</td><td>ср</td><td>П10, П11, Т7</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>8. Логи и мониторинг</td><td>ср</td><td>П12, Т8</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>9. Домен кибербезопасности</td><td>ср</td><td>Т9</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>10. Веб под капотом</td><td>чт</td><td>П13, П14, Т10</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>11. API</td><td>чт</td><td>П15, П16, Т11</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>12. SQL</td><td>чт</td><td>П17, Т12</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>13. TypeScript по делу</td><td>пт</td><td>П18, П19</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>14. Playwright</td><td>пт</td><td>П20, П21, Т13</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>15. CI, отчёты, флаки</td><td>сб</td><td>Т14</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>16. Сборка pet-проекта</td><td>сб</td><td>П22</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
+    <tr><td>17. Собеседование</td><td>вс</td><td>—</td><td><span class="box-check"></span></td><td><span class="box-check"></span></td><td><span class="box-check"></span></td></tr>
 </table>
 
 <h3>Что понадобится установить</h3>
@@ -621,8 +664,7 @@ Java, Kotlin, Selenide, а в живой вакансии QA Automation и у л
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 2. БАЗА ================= -->
@@ -805,8 +847,7 @@ validation про пользу. Пирамида: много дешёвых юн
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 3. ТЕСТ-ДИЗАЙН ================= -->
@@ -1050,8 +1091,7 @@ validation про пользу. Пирамида: много дешёвых юн
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 4. ДОКУМЕНТАЦИЯ ================= -->
@@ -1252,17 +1292,695 @@ Severity: блокер</pre>
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
+      </div>
+</section>
+
+
+<!-- ================= 5. КАК УСТРОЕН ВЕБ ================= -->
+<section class="chapter">
+<h2><span class="num">5</span>Как устроен веб</h2>
+<p class="lead">Половина дефектов на веб-продукте объясняется тем, что происходит между нажатием
+кнопки и появлением ответа. Разберём эту дорогу целиком.</p>
+
+<h3>5.1 Клиент и сервер</h3>
+<div class="term">
+  <span class="w">Клиент</span> — программа, которая просит: браузер, мобильное приложение,
+  скрипт с curl. <span class="w">Сервер</span> — программа, которая отвечает. Между ними
+  <span class="w">протокол</span> — договор о форме запроса и ответа. Для веба это HTTP.
+</div>
+<p>Ключевое свойство HTTP: он <b>без состояния</b>. Сервер не помнит предыдущий запрос. Чтобы
+система узнавала пользователя, к каждому запросу приходится прикладывать пропуск: cookie
+с идентификатором сессии или токен в заголовке.</p>
+
+<h3>5.2 Что происходит, когда вы вводите адрес</h3>
+<figure>
+<svg viewBox="0 0 560 168" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="6" y="40" width="86" height="36" rx="3"/>
+  <text class="svg-b" x="20" y="56">1. Браузер</text>
+  <text class="svg-s" x="14" y="69">разбирает адрес</text>
+
+  <rect class="box" x="112" y="40" width="86" height="36" rx="3"/>
+  <text class="svg-b" x="128" y="56">2. DNS</text>
+  <text class="svg-s" x="118" y="69">имя → IP-адрес</text>
+
+  <rect class="box" x="218" y="40" width="92" height="36" rx="3"/>
+  <text class="svg-b" x="232" y="56">3. TCP-связь</text>
+  <text class="svg-s" x="224" y="69">порт 80 или 443</text>
+
+  <rect class="box" x="330" y="40" width="92" height="36" rx="3"/>
+  <text class="svg-b" x="344" y="56">4. TLS</text>
+  <text class="svg-s" x="336" y="69">только для HTTPS</text>
+
+  <rect class="box" x="442" y="40" width="112" height="36" rx="3"/>
+  <text class="svg-b" x="456" y="56">5. HTTP-запрос</text>
+  <text class="svg-s" x="450" y="69">и ответ сервера</text>
+
+  <path class="arrow" d="M92,58 L110,58"/>
+  <path class="arrow" d="M198,58 L216,58"/>
+  <path class="arrow" d="M310,58 L328,58"/>
+  <path class="arrow" d="M422,58 L440,58"/>
+
+  <rect class="box-f" x="180" y="112" width="200" height="34" rx="3"/>
+  <text class="svg-t" x="192" y="128">6. Браузер строит DOM и рисует страницу</text>
+  <text class="svg-s" x="192" y="140">затем догружает картинки, стили, данные по API</text>
+  <path class="arrow" d="M498,78 C 498,104 400,110 380,124"/>
+
+  <text class="svg-s" x="6" y="20">Тестировщику важны шаги 3-5: порт, шифрование и код ответа. Шаг 6 — то, что видно глазами</text>
+</svg>
+<figcaption>Путь от адресной строки до нарисованной страницы</figcaption>
+</figure>
+
+<h3>5.3 Из чего состоит адрес</h3>
+<figure>
+<svg viewBox="0 0 560 118" xmlns="http://www.w3.org/2000/svg" role="img">
+  <text x="14" y="42" font-family="JetBrains Mono, monospace" font-size="13" fill="#16181d">https://staging.rvision.ru:8443/applications?status=new&amp;page=2#top</text>
+  <line x1="14" y1="50" x2="52" y2="50" stroke="#1d3f80" stroke-width="2"/>
+  <line x1="62" y1="50" x2="196" y2="50" stroke="#16181d" stroke-width="2"/>
+  <line x1="196" y1="50" x2="234" y2="50" stroke="#b0693b" stroke-width="2"/>
+  <line x1="234" y1="50" x2="330" y2="50" stroke="#16181d" stroke-width="2"/>
+  <line x1="330" y1="50" x2="470" y2="50" stroke="#16181d" stroke-width="2"/>
+  <line x1="470" y1="50" x2="510" y2="50" stroke="#6b7280" stroke-width="2"/>
+
+  <text class="svg-s" x="14" y="64">схема</text>
+  <text class="svg-s" x="90" y="64">домен</text>
+  <text class="svg-s" x="196" y="64">порт</text>
+  <text class="svg-s" x="252" y="64">путь</text>
+  <text class="svg-s" x="360" y="64">параметры</text>
+  <text class="svg-s" x="470" y="64">якорь</text>
+
+  <text class="svg-s" x="14" y="86">Схема задаёт порт по умолчанию: http → 80, https → 443. Явный порт (:8443) нужен только на</text>
+  <text class="svg-s" x="14" y="98">нестандартных стендах. Параметры после ? — то, что чаще всего ломается: фильтры, сортировка, страницы.</text>
+  <text class="svg-s" x="14" y="110">Якорь после # на сервер не отправляется вообще: он обрабатывается только в браузере.</text>
+</svg>
+<figcaption>Разбор URL по частям</figcaption>
+</figure>
+
+<h3>5.4 Порты 80 и 443, HTTP и HTTPS</h3>
+<div class="term">
+  <span class="w">Порт</span> — номер «двери» на сервере: по одному IP-адресу работает много служб,
+  и порт говорит, какой именно адресован запрос. <span class="w">80</span> — стандартный порт HTTP,
+  <span class="w">443</span> — HTTPS. Браузер подставляет их сам, поэтому в адресе их не видно.
+</div>
+<p><b>HTTPS — это тот же HTTP, завёрнутый в TLS.</b> TLS даёт три вещи: содержимое нельзя прочитать
+по дороге, нельзя незаметно подменить, и клиент убеждается, что говорит с настоящим сервером —
+по сертификату, выданному удостоверяющим центром.</p>
+
+<table>
+  <tr><th style="width:26%">Что проверять</th><th>Как и зачем</th></tr>
+  <tr><td>Редирект с HTTP на HTTPS</td><td>открыть <code>http://сайт</code> — должен вернуться 301 и адрес смениться на https. Иначе пароль уйдёт открытым текстом</td></tr>
+  <tr><td>Сертификат</td><td>замок в адресной строке, срок действия, совпадение домена. Просроченный сертификат — блокер: браузер покажет предупреждение вместо продукта</td></tr>
+  <tr><td>Смешанный контент</td><td>страница по HTTPS тянет что-то по HTTP — браузер блокирует, в консоли ошибка mixed content, часть интерфейса не работает</td></tr>
+  <tr><td>Нестандартные порты</td><td>на тестовых стендах <code>:8080</code>, <code>:8081</code>. Проверить, что ссылки внутри продукта не теряют порт</td></tr>
+</table>
+
+<div class="real">
+В systemburo фронтенд поднимается на порту 8081, бэкенд — на 8080, а на боевом сервере оба
+закрыты nginx, который слушает 443 и сам перенаправляет с 80. Отсюда типичный дефект стенда:
+ссылка, сформированная бэкендом, содержит внутренний порт и снаружи не открывается.
+</div>
+
+<h3>5.5 Заголовки: служебная часть запроса</h3>
+<pre>Запрос:                             Ответ:
+POST /api/applications HTTP/1.1     HTTP/1.1 201 Created
+Host: staging.rvision.ru            Content-Type: application/json
+Content-Type: application/json      Set-Cookie: session=abc; HttpOnly
+Authorization: Bearer eyJhbGci...   Cache-Control: no-store
+Accept-Language: ru-RU              Location: /applications/1042</pre>
+<table>
+  <tr><td style="width:30%"><code>Content-Type</code></td><td>в каком формате тело: JSON, форма, файл</td></tr>
+  <tr><td><code>Authorization</code></td><td>пропуск: токен пользователя</td></tr>
+  <tr><td><code>Set-Cookie</code></td><td>сервер просит браузер запомнить значение</td></tr>
+  <tr><td><code>Cache-Control</code></td><td>можно ли кэшировать ответ и как долго</td></tr>
+</table>
+
+<h3>5.6 Cookie, сессия и токен</h3>
+<table>
+  <tr><th style="width:20%">Механизм</th><th>Как работает</th><th style="width:30%">Что проверяет тестировщик</th></tr>
+  <tr><td>Cookie</td><td>браузер хранит пару имя-значение и шлёт её на каждый запрос к домену</td><td>флаги HttpOnly и Secure, срок жизни, удаление при выходе</td></tr>
+  <tr><td>Сессия</td><td>в cookie лежит только идентификатор, состояние хранит сервер</td><td>выход убивает сессию, чужой идентификатор не работает</td></tr>
+  <tr><td>Токен (JWT)</td><td>подписанная строка, клиент шлёт её в заголовке Authorization</td><td>протухание, обновление, доступ с чужим токеном</td></tr>
+</table>
+<div class="warn">
+Ошибка новичка: проверить выход из системы только по тому, что интерфейс вернулся на форму входа.
+Настоящая проверка — повторить запрос со старым токеном или cookie: он должен получить 401.
+</div>
+
+<h3>5.7 Кэш: почему «у меня не воспроизводится»</h3>
+<p>Браузер и промежуточные серверы сохраняют ответы, чтобы не спрашивать заново. Из-за этого
+исправленный файл может не доехать до пользователя, а тестировщик — увидеть старую версию
+интерфейса. Что делать: жёсткая перезагрузка (Ctrl+Shift+R), галка Disable cache в DevTools,
+проверка в приватном окне. Если после сброса кэша дефект исчез — это отдельный дефект про
+кэширование, а не «показалось».</p>
+
+<h3>5.8 Редиректы, CORS и другие частые находки</h3>
+<ul>
+  <li><b>301 и 302</b> — постоянное и временное перенаправление. Проверяем цепочку: не должно быть
+  петель и лишних шагов, адрес должен сохранять параметры.</li>
+  <li><b>CORS</b> — правило браузера: страница с одного домена не может свободно ходить запросами
+  на другой. В консоли выглядит как «blocked by CORS policy». Для тестировщика это сигнал: фронт
+  и бэк разведены по разным адресам, а разрешение не настроено.</li>
+  <li><b>429</b> — слишком много запросов, сработала защита от перебора. Частая причина странных
+  падений автотестов, гоняющих логин в несколько потоков.</li>
+</ul>
+
+<div class="task">
+  <div class="h"><span>П7</span>Разберите адрес и ответьте</div>
+  <pre>https://buro.example.ru/applications?status=new&amp;page=2
+
+1. Какой порт будет использован и почему его не видно? ________
+2. Что произойдёт, если открыть тот же адрес через http:// ?
+   Какой код ответа вы ожидаете увидеть в Network? ________
+3. Тестировщик открыл страницу, увидел старый интерфейс.
+   Три действия, чтобы отличить кэш от дефекта: ________
+4. В консоли ошибка «mixed content». Что это значит и чей
+   это дефект: фронта, бэка или инфраструктуры? ________</pre>
+</div>
+
+<div class="task">
+  <div class="h"><span>П8</span>Диагностика по симптому</div>
+  <p>Для каждой ситуации напишите, куда смотреть и какой дефект предполагаете:</p>
+  <table>
+    <tr><th style="width:44%">Симптом</th><th>Где смотреть и что это может быть</th></tr>
+    <tr><td>После выхода из системы старая вкладка продолжает показывать данные</td><td></td></tr>
+    <tr><td>Часть иконок не загрузилась, в консоли ошибки блокировки</td><td></td></tr>
+    <tr><td>Автотесты падают на входе только при параллельном запуске</td><td></td></tr>
+    <tr><td>Ссылка из письма открывается, а из приложения — нет</td><td></td></tr>
+  </table>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т5</span>Проверьте себя</div>
+  <ol>
+    <li>Чем HTTPS отличается от HTTP и какой порт использует каждый?</li>
+    <li>Что означает «HTTP не хранит состояние» и как система тогда узнаёт пользователя?</li>
+    <li>Какая часть URL не отправляется на сервер?
+      <ul class="opts"><li>а) путь б) параметры после ? в) якорь после #</li></ul>
+    </li>
+    <li>Сертификат просрочен на день. Severity?</li>
+  </ol>
+</div>
+
+<div class="sum">
+HTTP — договор между клиентом и сервером, без памяти о прошлых запросах. HTTPS — он же плюс
+шифрование TLS, порт 443 против 80. Пропуск пользователя живёт в cookie или токене, и проверять
+выход надо запросом, а не картинкой. Кэш, CORS и редиректы дают дефекты, которые видно только
+в DevTools.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Что нового узнал про HTTP и HTTPS:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Что посмотрел в Network на реальном сайте:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 6. АРХИТЕКТУРА ПРОДУКТА ================= -->
+<section class="chapter">
+<h2><span class="num">6</span>Как устроен продукт изнутри</h2>
+<p class="lead">Чтобы понимать, где может сломаться, нужно представлять, из каких частей собран
+современный веб-продукт.</p>
+
+<h3>6.1 Слои</h3>
+<figure>
+<svg viewBox="0 0 560 200" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="10" y="16" width="150" height="42" rx="3"/>
+  <text class="svg-b" x="24" y="34">Фронтенд</text>
+  <text class="svg-s" x="24" y="48">React или Vue в браузере</text>
+
+  <rect class="box" x="200" y="16" width="150" height="42" rx="3"/>
+  <text class="svg-b" x="214" y="34">API-слой</text>
+  <text class="svg-s" x="214" y="48">маршруты, права, валидация</text>
+
+  <rect class="box" x="390" y="16" width="160" height="42" rx="3"/>
+  <text class="svg-b" x="404" y="34">Бизнес-логика</text>
+  <text class="svg-s" x="404" y="48">сервисы: что и когда можно</text>
+
+  <rect class="box-f" x="10" y="90" width="150" height="42" rx="3"/>
+  <text class="svg-b" x="24" y="108">База данных</text>
+  <text class="svg-s" x="24" y="122">PostgreSQL, ClickHouse</text>
+
+  <rect class="box-f" x="200" y="90" width="150" height="42" rx="3"/>
+  <text class="svg-b" x="214" y="108">Очередь</text>
+  <text class="svg-s" x="214" y="122">NATS, Kafka: фон и события</text>
+
+  <rect class="box-f" x="390" y="90" width="160" height="42" rx="3"/>
+  <text class="svg-b" x="404" y="108">Внешние системы</text>
+  <text class="svg-s" x="404" y="122">почта, сканеры, интеграции</text>
+
+  <path class="arrow" d="M160,37 L198,37"/>
+  <path class="arrow" d="M350,37 L388,37"/>
+  <path class="arrow" d="M470,58 L470,88"/>
+  <path class="arrow" d="M420,58 C 300,70 200,74 120,88"/>
+  <path class="arrow-d" d="M300,90 L300,60"/>
+
+  <text class="svg-s" x="10" y="158">Где что проверяют: UI-тест — верхний левый угол; API-тест — средний блок; SQL — база;</text>
+  <text class="svg-s" x="10" y="170">очередь даёт асинхронность: результат появляется не сразу, и тест обязан ждать состояние, а не время.</text>
+  <text class="svg-s" x="10" y="186">Каждая стрелка — место, где данные могут потеряться или прийти в неожиданной форме.</text>
+</svg>
+<figcaption>Слои продукта и точки приложения тестов</figcaption>
+</figure>
+
+<h3>6.2 Монолит, микросервисы, микрофронтенды</h3>
+<table>
+  <tr><th style="width:24%">Подход</th><th>Суть</th><th style="width:34%">Что меняется для тестировщика</th></tr>
+  <tr><td>Монолит</td><td>всё приложение — одна программа</td><td>проще стенд, но релиз целиком: регресс шире</td></tr>
+  <tr><td>Микросервисы</td><td>десятки маленьких сервисов общаются по сети</td><td>ошибки на стыках, частичные отказы, нужны контрактные тесты</td></tr>
+  <tr><td>Микрофронтенды</td><td>интерфейс собирается из частей разных команд</td><td>несогласованность версий и стилей, общая библиотека компонентов</td></tr>
+</table>
+<div class="real">
+R-Vision строит интерфейсы продуктов EVO как микрофронтенды поверх общей библиотеки компонентов,
+а бэкенд разбит на сервисы, часть которых переписана на Rust ради производительности. Отсюда
+и вакансия фронтендера про «системные компоненты для объединения микрофронтендов».
+</div>
+
+<h3>6.3 Асинхронность: почему результат появляется не сразу</h3>
+<p>Тяжёлые операции не делают в момент запроса. Сервер отвечает «принято» (код 202), кладёт
+задачу в очередь, а обработка идёт в фоне. Для тестировщика это означает: после действия
+результат может появиться через секунду, а может через минуту.</p>
+<div class="warn">
+Проверка асинхронной операции через фиксированную паузу — источник флаков. Правильно: опрашивать
+состояние до появления результата с разумным пределом ожидания либо проверять факт постановки
+в очередь отдельно от факта выполнения.
+</div>
+
+<h3>6.4 Docker и Kubernetes простыми словами</h3>
+<ul>
+  <li><b>Контейнер</b> — приложение вместе со всем, что ему нужно для запуска. Работает одинаково
+  на ноутбуке и на сервере, чем убирает споры «у меня же запускается».</li>
+  <li><b>Docker</b> — инструмент, который эти контейнеры собирает и запускает.</li>
+  <li><b>Kubernetes</b> — система, которая держит много контейнеров на многих серверах: сама
+  перезапускает упавшие, добавляет копии под нагрузкой, выкатывает новые версии.</li>
+</ul>
+<p>Тестировщику это нужно для двух вещей: поднять стенд одной командой и понимать, что «сервис
+перезапустился» — обычное явление, а не всегда дефект.</p>
+
+<div class="task">
+  <div class="h"><span>П9</span>Найдите слой</div>
+  <p>Для каждого дефекта укажите слой и уровень теста, который поймал бы его дешевле всего:</p>
+  <table>
+    <tr><th style="width:52%">Дефект</th><th>Слой</th><th>Каким тестом ловится</th></tr>
+    <tr><td>Кнопка «Отправить» не блокируется, можно нажать дважды</td><td></td><td></td></tr>
+    <tr><td>Пользователь чужой организации получает данные по прямому запросу к API</td><td></td><td></td></tr>
+    <tr><td>Заявка сохраняется без обязательного поля</td><td></td><td></td></tr>
+    <tr><td>Уведомление приходит через 20 минут вместо минуты</td><td></td><td></td></tr>
+  </table>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т6</span>Проверьте себя</div>
+  <ol>
+    <li>Зачем продукту очередь, если можно сделать всё сразу в ответе на запрос?</li>
+    <li>Почему проверку прав доступа нельзя тестировать только через интерфейс?</li>
+    <li>Что означает код 202 в ответе?</li>
+  </ol>
+</div>
+
+<div class="sum">
+Продукт — это слои: интерфейс, API, логика, база, очередь, внешние системы. Дефект всегда живёт
+в конкретном слое, и задача тестировщика — назвать его. Асинхронность требует ожидания состояния,
+а не паузы.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Слои продукта, который я знаю, и где там очередь:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Какие дефекты живут на стыках слоёв:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 7. КОМАНДА И ПРОЦЕСС ================= -->
+<section class="chapter">
+<h2><span class="num">7</span>Как работает команда: процесс, Git, окружения</h2>
+<p class="lead">Стажёру важнее понимать поток работы, чем помнить термины. Но термины спросят,
+поэтому и то и другое.</p>
+
+<h3>7.1 Спринт и его ритуалы</h3>
+<figure>
+<svg viewBox="0 0 560 150" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box" x="8" y="46" width="96" height="38" rx="3"/>
+  <text class="svg-t" x="18" y="62">Бэклог</text>
+  <text class="svg-s" x="18" y="75">задачи по приоритету</text>
+
+  <rect class="box" x="124" y="46" width="96" height="38" rx="3"/>
+  <text class="svg-t" x="134" y="62">Груминг</text>
+  <text class="svg-s" x="134" y="75">разбор и вопросы</text>
+
+  <rect class="box" x="240" y="46" width="96" height="38" rx="3"/>
+  <text class="svg-t" x="250" y="62">Планирование</text>
+  <text class="svg-s" x="250" y="75">что берём в спринт</text>
+
+  <rect class="box-a" x="356" y="46" width="96" height="38" rx="3"/>
+  <text class="svg-t" x="366" y="62">Работа</text>
+  <text class="svg-s" x="366" y="75">стендапы каждый день</text>
+
+  <rect class="box" x="472" y="46" width="80" height="38" rx="3"/>
+  <text class="svg-t" x="482" y="62">Ретро</text>
+  <text class="svg-s" x="482" y="75">что улучшить</text>
+
+  <path class="arrow" d="M104,65 L122,65"/>
+  <path class="arrow" d="M220,65 L238,65"/>
+  <path class="arrow" d="M336,65 L354,65"/>
+  <path class="arrow" d="M452,65 L470,65"/>
+  <path class="arrow-d" d="M512,84 C 500,120 80,120 56,86"/>
+  <text class="svg-s" x="250" y="116">следующий спринт, обычно две недели</text>
+  <text class="svg-s" x="124" y="34">здесь тестировщик задаёт «а что если» и находит дыры в требованиях</text>
+</svg>
+<figcaption>Цикл спринта: где в нём место тестировщика</figcaption>
+</figure>
+
+<table>
+  <tr><td style="width:26%"><b>User story</b></td><td>задача словами пользователя: «как сотрудник, я хочу подать заявку, чтобы получить пропуск»</td></tr>
+  <tr><td><b>Критерии приёмки</b></td><td>список условий, при которых задача считается выполненной. Основа ваших тест-кейсов</td></tr>
+  <tr><td><b>Definition of Ready</b></td><td>когда задачу можно брать в работу: требования понятны, макет есть, критерии описаны</td></tr>
+  <tr><td><b>Definition of Done</b></td><td>когда задача закрыта: код в ветке, ревью пройдено, тесты зелёные, проверено тестировщиком</td></tr>
+</table>
+
+<h3>7.2 Git: как код попадает в продукт</h3>
+<figure>
+<svg viewBox="0 0 560 128" xmlns="http://www.w3.org/2000/svg" role="img">
+  <line x1="20" y1="86" x2="540" y2="86" stroke="#16181d" stroke-width="1.4"/>
+  <text class="svg-s" x="20" y="102">основная ветка (dev или main)</text>
+  <circle cx="70" cy="86" r="4" fill="#16181d"/>
+  <circle cx="480" cy="86" r="4" fill="#16181d"/>
+
+  <path d="M70,86 C 110,86 110,40 150,40" fill="none" stroke="#1d3f80" stroke-width="1.4"/>
+  <line x1="150" y1="40" x2="420" y2="40" stroke="#1d3f80" stroke-width="1.4"/>
+  <path d="M420,40 C 460,40 460,86 480,86" fill="none" stroke="#1d3f80" stroke-width="1.4"/>
+  <circle cx="190" cy="40" r="4" fill="#1d3f80"/>
+  <circle cx="270" cy="40" r="4" fill="#1d3f80"/>
+  <circle cx="350" cy="40" r="4" fill="#1d3f80"/>
+
+  <text class="svg-s" x="96" y="30">ветка задачи</text>
+  <text class="svg-s" x="176" y="28">коммит</text>
+  <text class="svg-s" x="256" y="28">коммит</text>
+  <text class="svg-s" x="330" y="28">правки после ревью</text>
+  <text class="svg-s" x="404" y="70">пул-реквест: ревью, зелёный CI, слияние</text>
+  <text class="svg-s" x="20" y="118">Ваши автотесты живут в такой же ветке и проходят такое же ревью, как продуктовый код.</text>
+</svg>
+<figcaption>Путь изменения: ветка, коммиты, пул-реквест, слияние</figcaption>
+</figure>
+
+<pre>git clone &lt;адрес&gt;              скачать репозиторий
+git checkout -b feature/tests  создать свою ветку
+git status                     что изменено
+git add . &amp;&amp; git commit -m "…" зафиксировать изменения
+git push -u origin feature/tests отправить на сервер
+git pull                       забрать чужие изменения
+git log --oneline -5           последние коммиты</pre>
+<div class="warn">
+Работа напрямую в основной ветке и коммит «fix» без описания — два признака, по которым в команде
+сразу видно новичка. Сообщение коммита пишется так, чтобы через полгода было понятно, что и зачем
+менялось.
+</div>
+
+<h3>7.3 Окружения</h3>
+<table>
+  <tr><th style="width:16%">Окружение</th><th>Кто пользуется</th><th style="width:38%">Что тестируют</th></tr>
+  <tr><td>dev</td><td>разработчики</td><td>черновые сборки, часто сломано, данных мало</td></tr>
+  <tr><td>test</td><td>тестировщики</td><td>основная работа: кейсы, регресс, автотесты</td></tr>
+  <tr><td>staging</td><td>команда и заказчик</td><td>копия боевого: финальная проверка перед релизом</td></tr>
+  <tr><td>prod</td><td>пользователи</td><td>только смоук после выката, эксперименты запрещены</td></tr>
+</table>
+<p>Почему дефекты доходят до прода даже при зелёных тестах: на стенде другие данные и их объём,
+другие настройки, другая нагрузка, отключены внешние интеграции. Поэтому после выката делают
+смоук на бою, а рискованные функции прячут за <b>фича-флагом</b> — переключателем, которым
+функцию можно выключить без нового релиза.</p>
+
+<div class="real">
+Инцидент из истории systemburo: все проверки в CI были зелёными, а деплой падал четыре раза
+подряд и фронтенд на стенд не попадал. Вывод, ставший правилом проекта: после выката нужно
+своими глазами открыть стенд и дёрнуть реальный метод API, а не верить зелёному значку.
+</div>
+
+<div class="task">
+  <div class="h"><span>П10</span>Критерии приёмки</div>
+  <p>Дана user story. Допишите критерии приёмки так, чтобы по ним можно было писать тест-кейсы.</p>
+  <pre>Как сотрудник организации, я хочу отозвать свою заявку,
+чтобы отменить визит, если он не состоится.
+
+Критерии приёмки:
+1. Кнопка «Отозвать» видна только автору заявки
+2. ________________________________________________
+3. ________________________________________________
+4. После отзыва статус заявки становится «Отозвана»
+5. ________________________________________________ (про API)</pre>
+</div>
+
+<div class="task">
+  <div class="h"><span>П11</span>Последовательность Git</div>
+  <pre>Вы дописали два автотеста в pet-проекте. Расставьте шаги по порядку
+и допишите пропущенные команды:
+
+__ git push -u origin tests/application-form
+__ git checkout -b tests/application-form
+__ ____________________________  (посмотреть, что изменено)
+__ git commit -m "test: добавил проверки границ срока заявки"
+__ ____________________________  (добавить файлы в коммит)</pre>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т7</span>Проверьте себя</div>
+  <ol>
+    <li>Чем Definition of Ready отличается от Definition of Done?</li>
+    <li>На каком окружении нельзя ставить эксперименты и почему?</li>
+    <li>Зачем нужен фича-флаг?</li>
+    <li>Все тесты зелёные, релиз выкатили, продукт не работает. Как такое возможно? Назовите две причины.</li>
+  </ol>
+</div>
+
+<div class="sum">
+Задача идёт по кругу: бэклог, груминг, планирование, работа, ретро. Код едет через ветку и
+пул-реквест с ревью. Окружений несколько, и зелёный CI не заменяет проверку глазами после выката.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Как устроен процесс в команде, которую я видел:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Команды Git, которые надо довести до автоматизма:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 8. ЛОГИ И МОНИТОРИНГ ================= -->
+<section class="chapter">
+<h2><span class="num">8</span>Логи и мониторинг: доказательства для баг-репорта</h2>
+<p class="lead">Скриншот показывает симптом. Лог показывает причину. Разница между «что-то упало»
+и «упало вот здесь» — это лог.</p>
+
+<h3>8.1 Что такое лог</h3>
+<div class="term">
+  <span class="w">Лог</span> — поток записей о том, что делала программа. У каждой записи есть время,
+  уровень важности и сообщение, а в современных системах ещё и структурированные поля.
+</div>
+<table>
+  <tr><td style="width:16%"><code>DEBUG</code></td><td>подробности для разработчика, в бою обычно выключены</td></tr>
+  <tr><td><code>INFO</code></td><td>обычные события: запрос обработан, задача выполнена</td></tr>
+  <tr><td><code>WARN</code></td><td>странно, но работаем дальше</td></tr>
+  <tr><td><code>ERROR</code></td><td>операция не выполнена. Именно это ищут после дефекта</td></tr>
+</table>
+
+<pre>2026-09-06T14:22:31Z ERROR request_id=7f3a9c user_id=12 method=POST
+  path=/api/applications status=500
+  msg="failed to create application: date_to before date_from"</pre>
+<p>Из одной строки видно: когда, кто, какой запрос, какой код и по какой причине. К баг-репорту
+достаточно приложить её вместе с <code>request_id</code>.</p>
+
+<h3>8.2 Как связать свой клик с записью в логе</h3>
+<figure>
+<svg viewBox="0 0 560 118" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box-a" x="8" y="40" width="110" height="38" rx="3"/>
+  <text class="svg-t" x="20" y="56">Клик в браузере</text>
+  <text class="svg-s" x="20" y="69">видим ошибку</text>
+
+  <rect class="box" x="150" y="40" width="120" height="38" rx="3"/>
+  <text class="svg-t" x="162" y="56">Network: запрос</text>
+  <text class="svg-s" x="162" y="69">код 500, request id</text>
+
+  <rect class="box" x="302" y="40" width="110" height="38" rx="3"/>
+  <text class="svg-t" x="314" y="56">Поиск в логах</text>
+  <text class="svg-s" x="314" y="69">по request id</text>
+
+  <rect class="box-f" x="444" y="40" width="108" height="38" rx="3"/>
+  <text class="svg-t" x="456" y="56">Причина</text>
+  <text class="svg-s" x="456" y="69">строка с ERROR</text>
+
+  <path class="arrow" d="M118,59 L148,59"/>
+  <path class="arrow" d="M270,59 L300,59"/>
+  <path class="arrow" d="M412,59 L442,59"/>
+  <text class="svg-s" x="8" y="26">Тот же путь работает и в обратную сторону: по ошибке в логе восстанавливают действие пользователя</text>
+  <text class="svg-s" x="8" y="102">Инструменты: Kibana или Grafana Loki для поиска по логам, Grafana с Prometheus для графиков и тревог</text>
+</svg>
+<figcaption>От симптома к причине через идентификатор запроса</figcaption>
+</figure>
+
+<h3>8.3 Что прикладывать к баг-репорту</h3>
+<ul>
+  <li>Скриншот или короткое видео — что видел пользователь.</li>
+  <li>Запрос из Network: «Copy as cURL» или выгрузка HAR.</li>
+  <li>Ошибку из консоли браузера, если она есть.</li>
+  <li>Строку лога сервера с идентификатором запроса и временем.</li>
+  <li>Для автотеста — трейс Playwright: в нём уже есть и сеть, и консоль, и снимки страницы.</li>
+</ul>
+<div class="warn">
+Время в логах обычно в UTC, а на экране у вас местное. Разница в три часа приводит к тому, что
+«нужной записи нет». Всегда сверяйте часовой пояс, прежде чем заявлять, что лог пустой.
+</div>
+
+<div class="task">
+  <div class="h"><span>П12</span>Прочитайте лог</div>
+  <pre>2026-09-06T09:15:02Z INFO  request_id=a1b2 user_id=12 POST /api/login 200
+2026-09-06T09:15:44Z INFO  request_id=c3d4 user_id=12 POST /api/applications 201
+2026-09-06T09:15:44Z WARN  request_id=c3d4 msg="attachment expires in 2 days"
+2026-09-06T09:16:10Z ERROR request_id=e5f6 user_id=12 GET /api/applications/1042 500
+  msg="nil pointer dereference in buildApplicationResponse"
+
+1. Что делал пользователь по шагам? ______________________
+2. Какая запись — дефект, а какая просто предупреждение? __
+3. Что напишете в заголовке баг-репорта? _________________
+4. Какое поле поможет разработчику найти этот случай? _____</pre>
+</div>
+
+<div class="quiz">
+  <div class="h"><span>Т8</span>Проверьте себя</div>
+  <ol>
+    <li>Чем WARN отличается от ERROR?</li>
+    <li>Зачем нужен идентификатор запроса?</li>
+    <li>В логе нет записи о вашем действии. Две причины, кроме «логи не пишутся».</li>
+  </ol>
+</div>
+
+<div class="sum">
+Лог превращает баг-репорт из жалобы в доказательство. Ищите строку с ERROR по идентификатору
+запроса, прикладывайте её вместе с запросом из Network и помните про часовые пояса.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Что нашёл в логе и как это связал с запросом:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Что теперь буду прикладывать к баг-репорту:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
+  </div>
+</section>
+
+<!-- ================= 9. ИБ-ДОМЕН ================= -->
+<section class="chapter">
+<h2><span class="num">9</span>Домен: что тестируют в продуктах кибербезопасности</h2>
+<p class="lead">Словарь, без которого разговор на собеседовании в R-Vision будет вполсилы.</p>
+
+<h3>9.1 Словарь</h3>
+<table>
+  <tr><td style="width:22%"><b>SOC</b></td><td>подразделение, которое круглосуточно следит за безопасностью компании. Главный пользователь продуктов R-Vision</td></tr>
+  <tr><td><b>Событие</b></td><td>любая запись из системы: вход в систему, запуск процесса, срабатывание антивируса</td></tr>
+  <tr><td><b>Инцидент</b></td><td>событие или их цепочка, которая означает возможную атаку и требует реакции</td></tr>
+  <tr><td><b>Корреляция</b></td><td>правило, которое из потока событий собирает инцидент: «пять неудачных входов, затем удачный, с нового адреса»</td></tr>
+  <tr><td><b>Актив</b></td><td>то, что защищаем: сервер, рабочая станция, сервис</td></tr>
+  <tr><td><b>Уязвимость, CVE, CVSS</b></td><td>слабое место, его номер в мировом каталоге и оценка опасности от 0 до 10</td></tr>
+  <tr><td><b>Плейбук</b></td><td>сценарий реагирования: что система делает автоматически при инциденте</td></tr>
+</table>
+
+<h3>9.2 Как это складывается в продукт</h3>
+<figure>
+<svg viewBox="0 0 560 112" xmlns="http://www.w3.org/2000/svg" role="img">
+  <rect class="box" x="6" y="40" width="96" height="38" rx="3"/>
+  <text class="svg-t" x="16" y="56">Источники</text>
+  <text class="svg-s" x="16" y="69">серверы, СЗИ, сеть</text>
+
+  <rect class="box" x="122" y="40" width="104" height="38" rx="3"/>
+  <text class="svg-t" x="132" y="56">Сбор и разбор</text>
+  <text class="svg-s" x="132" y="69">нормализация полей</text>
+
+  <rect class="box-a" x="246" y="40" width="104" height="38" rx="3"/>
+  <text class="svg-t" x="256" y="56">Корреляция</text>
+  <text class="svg-s" x="256" y="69">правила SIEM</text>
+
+  <rect class="box" x="370" y="40" width="96" height="38" rx="3"/>
+  <text class="svg-t" x="380" y="56">Инцидент</text>
+  <text class="svg-s" x="380" y="69">карточка в SOAR</text>
+
+  <rect class="box-f" x="486" y="40" width="68" height="38" rx="3"/>
+  <text class="svg-t" x="496" y="56">Реакция</text>
+  <text class="svg-s" x="496" y="69">плейбук</text>
+
+  <path class="arrow" d="M102,59 L120,59"/>
+  <path class="arrow" d="M226,59 L244,59"/>
+  <path class="arrow" d="M350,59 L368,59"/>
+  <path class="arrow" d="M466,59 L484,59"/>
+  <text class="svg-s" x="6" y="24">10 000 событий в секунду — референсный поток для R-Vision SIEM; события хранятся в ClickHouse</text>
+  <text class="svg-s" x="6" y="100">Тестировщик проверяет каждый переход: не потерялось ли поле, сработало ли правило, создался ли инцидент</text>
+</svg>
+<figcaption>Конвейер SIEM и SOAR: от события до реакции</figcaption>
+</figure>
+
+<h3>9.3 Что это меняет в работе тестировщика</h3>
+<ul>
+  <li><b>Объёмы.</b> Интерфейс должен оставаться живым на таблице в миллионы строк. Отсюда важность
+  фильтров, пагинации и нагрузочных прогонов.</li>
+  <li><b>Права.</b> В ИБ-продуктах роли решают всё: аналитик SOC, администратор, аудитор видят
+  разное. Проверка доступа идёт не только по интерфейсу, но и прямым запросом к API.</li>
+  <li><b>Аудит.</b> Система обязана фиксировать, кто что сделал. Пропавшая запись в журнале аудита —
+  дефект, даже если функция работает.</li>
+  <li><b>Интеграции.</b> Продукт общается с чужими системами, и половина дефектов живёт на стыках:
+  неожиданный формат, недоступный сервис, таймаут.</li>
+</ul>
+
+<div class="quiz">
+  <div class="h"><span>Т9</span>Проверьте себя</div>
+  <ol>
+    <li>Чем событие отличается от инцидента?</li>
+    <li>Что делает правило корреляции?</li>
+    <li>Почему в ИБ-продукте проверку прав нельзя ограничить интерфейсом?</li>
+    <li>Функция работает, но действие не попало в журнал аудита. Это дефект?</li>
+  </ol>
+</div>
+
+<div class="sum">
+SIEM собирает события и превращает их в инциденты, SOAR реагирует по плейбукам, VM закрывает
+уязвимости, TIP приносит данные об угрозах. Для тестировщика это означает большие объёмы, строгие
+права, обязательный аудит и много интеграций.
+</div>
+
+  <div class="notes">
+    <div class="nh">Мои заметки</div>
+    <p class="q">Термины домена, которые надо повторить:</p>
+    <div class="ln"></div>
+    <div class="ln"></div>
+    <p class="q">Вопросы про продукты, которые задам на собеседовании:</p>
+      <div class="ln"></div>
+      <div class="ln"></div>
+      <div class="ln"></div>
       <div class="ln"></div>
   </div>
 </section>
 
 <!-- ================= 5. ВЕБ ПОД КАПОТОМ ================= -->
 <section class="chapter">
-<h2><span class="num">5</span>Веб под капотом: DevTools, DOM, локаторы</h2>
+<h2><span class="num">10</span>Веб под капотом: DevTools, DOM, локаторы</h2>
 <p class="lead">Тестировщик, который видит только картинку на экране, находит половину дефектов.
 Вторая половина видна во вкладке Network.</p>
 
-<h3>5.1 Что происходит при нажатии кнопки</h3>
+<h3>10.1 Что происходит при нажатии кнопки</h3>
 <figure>
 <svg viewBox="0 0 540 150" xmlns="http://www.w3.org/2000/svg" role="img">
   <rect class="box-a" x="8" y="46" width="104" height="42" rx="3"/>
@@ -1304,7 +2022,7 @@ Severity: блокер</pre>
 дают три разных баг-репорта: запрос не ушёл вовсе (дефект фронта), ушёл и вернул 400 (дефект
 данных или валидации), вернул 500 (дефект бэка).</p>
 
-<h3>5.2 DevTools: две вкладки, которые нужны всегда</h3>
+<h3>10.2 DevTools: две вкладки, которые нужны всегда</h3>
 <table>
   <tr><th style="width:22%">Вкладка</th><th>Что смотреть</th></tr>
   <tr><td>Network</td><td>какой запрос ушёл, метод и URL, код ответа, тело запроса (Payload) и тело ответа (Response), заголовки, время</td></tr>
@@ -1315,7 +2033,7 @@ Severity: блокер</pre>
 <code>Copy as cURL</code> даёт готовую команду для баг-репорта; <code>Save all as HAR</code>
 выгружает всю сессию файлом, который можно приложить к дефекту.</p>
 
-<h3>5.3 DOM: где живут элементы</h3>
+<h3>10.3 DOM: где живут элементы</h3>
 <p>Страница в браузере — дерево элементов. Автотест ищет узел этого дерева и действует над ним.
 Чем устойчивее признак поиска, тем меньше тест ломается от вёрстки.</p>
 
@@ -1331,7 +2049,7 @@ Severity: блокер</pre>
 специально для тестов. Их не меняет дизайнер при перекраске кнопки, поэтому тест на них не падает.
 </div>
 
-<h3>5.4 Локаторы</h3>
+<h3>10.4 Локаторы</h3>
 <table>
   <tr><th style="width:12%">Тип</th><th style="width:44%">Пример</th><th>Когда</th></tr>
   <tr><td>CSS по testid</td><td><code>[data-testid="login-button-submit"]</code></td><td>основной выбор</td></tr>
@@ -1357,7 +2075,7 @@ Severity: блокер</pre>
   <li>XPath — только когда без него нельзя.</li>
 </ol>
 
-<h3>5.5 Page Object</h3>
+<h3>10.5 Page Object</h3>
 <div class="term">
   <span class="w">Page Object (POM)</span> — паттерн, при котором страница описывается классом:
   локаторы лежат в полях, действия — в методах, а тест вызывает методы и не знает ни одного
@@ -1414,7 +2132,7 @@ Severity: блокер</pre>
 </div>
 
 <div class="task">
-  <div class="h"><span>П7</span>Соберите локаторы</div>
+  <div class="h"><span>П13</span>Соберите локаторы</div>
   <p>Дан фрагмент разметки карточки заявки. Впишите локатор для каждого элемента, соблюдая приоритет
   из 5.4:</p>
   <pre>&lt;article data-testid="application-card" class="card"&gt;
@@ -1430,7 +2148,7 @@ Severity: блокер</pre>
 </div>
 
 <div class="task">
-  <div class="h"><span>П8</span>Достройте Page Object</div>
+  <div class="h"><span>П14</span>Достройте Page Object</div>
   <p>Дан каркас POM страницы подачи заявки. Допишите пропущенное: три локатора и один метод.</p>
   <pre>class CreateApplicationPage {
   constructor(page) {
@@ -1460,7 +2178,7 @@ Severity: блокер</pre>
 </div>
 
 <div class="quiz">
-  <div class="h"><span>Т5</span>Проверьте себя</div>
+  <div class="h"><span>Т10</span>Проверьте себя</div>
   <ol>
     <li>Кнопка «Отправить» не реагирует. Какую вкладку DevTools открыть первой и что там искать?</li>
     <li>Почему <code>.btn--danger</code> — плохой локатор для кнопки «Отозвать»?</li>
@@ -1489,17 +2207,16 @@ Severity: блокер</pre>
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 6. API ================= -->
 <section class="chapter">
-<h2><span class="num">6</span>API: проверка без браузера</h2>
+<h2><span class="num">11</span>API: проверка без браузера</h2>
 <p class="lead">Быстрее UI в десятки раз и стабильнее. В вакансии R-Vision автоматизация API-тестов
 стоит отдельной строкой требований.</p>
 
-<h3>6.1 HTTP за пять минут</h3>
+<h3>11.1 HTTP за пять минут</h3>
 <table>
   <tr><th style="width:14%">Метод</th><th style="width:40%">Смысл</th><th>Пример</th></tr>
   <tr><td>GET</td><td>получить, ничего не меняя</td><td><code>GET /api/applications</code></td></tr>
@@ -1526,7 +2243,7 @@ Severity: блокер</pre>
 403 — «я знаю, кто ты, и тебе нельзя».
 </div>
 
-<h3>6.2 Тело ответа и конверт</h3>
+<h3>11.2 Тело ответа и конверт</h3>
 <p>Большинство API оборачивают полезные данные в конверт: успех, данные, метаданные, ошибка.
 Тестировщик обязан знать форму конверта своего продукта, иначе будет проверять не то поле.</p>
 
@@ -1554,13 +2271,13 @@ Severity: блокер</pre>
 в Network, а не предполагайте его форму.
 </div>
 
-<h3>6.3 Авторизация</h3>
+<h3>11.3 Авторизация</h3>
 <p>Обычная схема: логин отдаёт токен, дальше он ходит в заголовке
 <code>Authorization: Bearer &lt;токен&gt;</code>. Токен (JWT) состоит из трёх частей через точку и
 живёт ограниченное время. Что проверять тестировщику: запрос без токена даёт 401, с чужим токеном
 403 или 404, с протухшим — 401, а после выхода из системы старый токен перестаёт работать.</p>
 
-<h3>6.4 Как дёргать API руками</h3>
+<h3>11.4 Как дёргать API руками</h3>
 <pre>curl -s -X POST http://localhost:8080/api/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"sergey","password":"secret"}'
@@ -1577,7 +2294,7 @@ Tests для простых проверок. Для баг-репорта уд�
 <code>unwrap(body)</code>, возвращающей <code>body.data</code>.
 </div>
 
-<h3>6.5 REST и GraphQL</h3>
+<h3>11.5 REST и GraphQL</h3>
 <table>
   <tr><th style="width:20%"></th><th>REST</th><th>GraphQL</th></tr>
   <tr><td>Адреса</td><td>много путей: <code>/applications</code>, <code>/users</code></td><td>один путь <code>/graphql</code></td></tr>
@@ -1590,7 +2307,7 @@ Tests для простых проверок. Для баг-репорта уд�
 </div>
 
 <div class="task">
-  <div class="h"><span>П9</span>Разберите ответ</div>
+  <div class="h"><span>П15</span>Разберите ответ</div>
   <p>Дан ответ сервера. Ответьте на вопросы под ним:</p>
   <pre>HTTP/1.1 200 OK
 {
@@ -1607,7 +2324,7 @@ Tests для простых проверок. Для баг-репорта уд�
 </div>
 
 <div class="task">
-  <div class="h"><span>П10</span>Допишите API-проверку</div>
+  <div class="h"><span>П16</span>Допишите API-проверку</div>
   <p>Заготовка теста на Playwright. Впишите пропущенное:</p>
   <pre>test('создание заявки возвращает 201 и заявку в статусе Непрочитано',
   async ({ request }) => {
@@ -1629,7 +2346,7 @@ Tests для простых проверок. Для баг-репорта уд�
 </div>
 
 <div class="quiz">
-  <div class="h"><span>Т6</span>Проверьте себя</div>
+  <div class="h"><span>Т11</span>Проверьте себя</div>
   <ol>
     <li>Запрос вернул 403. Токен валидный. В чём причина?</li>
     <li>Что быстрее и стабильнее для проверки бизнес-правила «срок не больше 30 дней»: UI-тест или API-тест? Почему?</li>
@@ -1658,16 +2375,15 @@ API-проверка бьёт в середину цепочки: без бра�
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 7. SQL ================= -->
 <section class="chapter">
-<h2><span class="num">7</span>SQL: проверка того, что реально сохранилось</h2>
+<h2><span class="num">12</span>SQL: проверка того, что реально сохранилось</h2>
 <p class="lead">Интерфейс может показать «Успешно» и не сохранить ничего. База — последняя инстанция.</p>
 
-<h3>7.1 Зачем это тестировщику</h3>
+<h3>12.1 Зачем это тестировщику</h3>
 <ul>
   <li>Убедиться, что после действия в интерфейсе строка появилась и поля заполнены верно.</li>
   <li>Подготовить данные для проверки: найти заявку в нужном статусе, пользователя с нужной ролью.</li>
@@ -1684,7 +2400,7 @@ employees        (id, attachment_id, last_name, first_name)
 attachments      (id, application_id, date_from, date_to)</pre>
 </div>
 
-<h3>7.2 Минимум конструкций</h3>
+<h3>12.2 Минимум конструкций</h3>
 <pre>-- выбрать колонки с условием
 SELECT id, status, sending_datetime
 FROM applications
@@ -1722,7 +2438,7 @@ ORDER BY cnt DESC;</pre>
 отсеиваются. Условие для правой таблицы надо писать в <code>ON</code>.
 </div>
 
-<h3>7.3 Типовые проверки после действия в интерфейсе</h3>
+<h3>12.3 Типовые проверки после действия в интерфейсе</h3>
 <pre>-- 1. заявка действительно создана и в правильном статусе
 SELECT id, status FROM applications
 WHERE sender_user_id = 12
@@ -1740,7 +2456,7 @@ JOIN attachments att ON att.id = e.attachment_id
 WHERE att.application_id = 1042;</pre>
 
 <div class="task">
-  <div class="h"><span>П11</span>Допишите запросы</div>
+  <div class="h"><span>П17</span>Допишите запросы</div>
   <pre>-- а) сколько заявок в каждом статусе у организации 7
 SELECT ________, COUNT(*) AS cnt
 FROM applications
@@ -1761,7 +2477,7 @@ WHERE status = '________' AND accepted_at ____________;</pre>
 </div>
 
 <div class="quiz">
-  <div class="h"><span>Т7</span>Проверьте себя</div>
+  <div class="h"><span>Т12</span>Проверьте себя</div>
   <ol>
     <li>Чем <code>WHERE</code> отличается от <code>HAVING</code>?</li>
     <li>Как найти строки, у которых поле пустое?
@@ -1788,17 +2504,16 @@ WHERE status = '________' AND accepted_at ____________;</pre>
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 8. TYPESCRIPT ================= -->
 <section class="chapter">
-<h2><span class="num">8</span>TypeScript ровно столько, сколько нужно тесту</h2>
+<h2><span class="num">13</span>TypeScript ровно столько, сколько нужно тесту</h2>
 <p class="lead">Не курс по языку. Только те конструкции, без которых не написать и не прочитать
 автотест на Playwright.</p>
 
-<h3>8.1 Зачем тесту типы</h3>
+<h3>13.1 Зачем тесту типы</h3>
 <p>TypeScript — это JavaScript, которому дописали типы. Пользы для тестировщика две: редактор
 подсказывает методы (набрали <code>page.</code> и видите весь список), а опечатка ловится до
 запуска, а не на десятой минуте прогона.</p>
@@ -1808,7 +2523,7 @@ let title: string = 'Заявка № 1042';
 let isActive: boolean = true;
 let statuses: string[] = ['Непрочитано', 'В обработке'];</pre>
 
-<h3>8.2 Интерфейс: форма объекта</h3>
+<h3>13.2 Интерфейс: форма объекта</h3>
 <pre>interface Application {
   id: number;
   status: string;
@@ -1820,7 +2535,7 @@ const app: Application = { id: 1042, status: 'Непрочитано', organizat
 <p>В тестах интерфейсы удобны для описания тестовых данных и ответов API: если бэкенд переименует
 поле, редактор подсветит все места, где оно используется.</p>
 
-<h3>8.3 Функции</h3>
+<h3>13.3 Функции</h3>
 <pre>// обычная функция с типами параметров и возврата
 function daysBetween(from: string, to: string): number {
   return (new Date(to).getTime() - new Date(from).getTime()) / 86400000;
@@ -1829,7 +2544,7 @@ function daysBetween(from: string, to: string): number {
 // стрелочная функция — тот же смысл, короче запись
 const isLongStay = (days: number): boolean => days > 30;</pre>
 
-<h3>8.4 async, await и промисы: главное для Playwright</h3>
+<h3>13.4 async, await и промисы: главное для Playwright</h3>
 <div class="term">
   <span class="w">Промис (Promise)</span> — обещание результата, который придёт позже: ответ сервера,
   загрузка страницы, клик по кнопке. <span class="w">await</span> — «подожди этот результат
@@ -1849,8 +2564,8 @@ const isLongStay = (days: number): boolean => days > 30;</pre>
 теста на Playwright начинается с <code>await</code>.
 </div>
 
-<h3>8.5 Класс: основа Page Object</h3>
-<pre>import { Page, Locator } from '@playwright/test';
+<h3>13.5 Класс: основа Page Object</h3>
+<pre>import { Page, Locator } from 'playwright/test';
 
 export class LoginPage {
   readonly page: Page;
@@ -1872,16 +2587,16 @@ export class LoginPage {
 <p><code>readonly</code> означает «поле задаётся один раз в конструкторе и дальше не меняется» —
 ровно то, что нужно локаторам. <code>export</code> делает класс доступным другим файлам.</p>
 
-<h3>8.6 Импорт и экспорт</h3>
+<h3>13.6 Импорт и экспорт</h3>
 <pre>// файл pages/LoginPage.ts
 export class LoginPage { /* ... */ }
 
 // файл tests/login.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import { LoginPage } from '../pages/LoginPage';</pre>
 
 <div class="task">
-  <div class="h"><span>П12</span>Найдите три ошибки</div>
+  <div class="h"><span>П18</span>Найдите три ошибки</div>
   <p>В коде три дефекта: один типовой, два по части async. Найдите и исправьте.</p>
   <pre>test('отправка заявки', ({ page }) =&gt; {
   const form = new CreateApplicationPage(page);
@@ -1894,8 +2609,8 @@ import { LoginPage } from '../pages/LoginPage';</pre>
 </div>
 
 <div class="task">
-  <div class="h"><span>П13</span>Опишите данные типами</div>
-  <p>Допишите интерфейс под ответ API из раздела 6 и типизируйте функцию:</p>
+  <div class="h"><span>П19</span>Опишите данные типами</div>
+  <p>Допишите интерфейс под ответ API из раздела 11 и типизируйте функцию:</p>
   <pre>interface ApiResponse&lt;T&gt; {
   success: ________;
   data: ________;
@@ -1923,18 +2638,17 @@ function unwrap&lt;T&gt;(body: ApiResponse&lt;T&gt;): ______ {
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 9. PLAYWRIGHT ================= -->
 <section class="chapter">
-<h2><span class="num">9</span>Playwright: автотесты, которые не разваливаются</h2>
+<h2><span class="num">14</span>Playwright: автотесты, которые не разваливаются</h2>
 <p class="lead">Инструмент, который в вакансии значится «плюсом», а на деле является входным
 билетом: у QA Automation в R-Vision он в обязательных требованиях.</p>
 
-<h3>9.1 Установка и структура проекта</h3>
-<pre>npm init playwright@latest
+<h3>14.1 Установка и структура проекта</h3>
+<pre>npm init playwrightlatest
 
 qa-workbook/
 ├── e2e/
@@ -1962,8 +2676,8 @@ qa-workbook/
 для упавших. Это готовые вложения для баг-репорта.
 </div>
 
-<h3>9.2 Первый тест</h3>
-<pre>import { test, expect } from '@playwright/test';
+<h3>14.2 Первый тест</h3>
+<pre>import { test, expect } from 'playwright/test';
 
 test('неверный пароль показывает ошибку', async ({ page }) =&gt; {
   await page.goto('/');
@@ -1975,7 +2689,7 @@ test('неверный пароль показывает ошибку', async ({
     .toHaveText('Неверный логин или пароль');
 });</pre>
 
-<h3>9.3 Локаторы Playwright</h3>
+<h3>14.3 Локаторы Playwright</h3>
 <table>
   <tr><th style="width:34%">Метод</th><th>Когда использовать</th></tr>
   <tr><td><code>getByRole('button', {name: 'Войти'})</code></td><td>первый выбор: ищет так, как видит пользователь</td></tr>
@@ -1991,7 +2705,7 @@ test('неверный пароль показывает ошибку', async ({
 элементов и делает падения непредсказуемыми. Один элемент — один точный локатор.
 </div>
 
-<h3>9.4 Автоожидания: почему в тестах нет sleep</h3>
+<h3>14.4 Автоожидания: почему в тестах нет sleep</h3>
 <p>Playwright сам ждёт, пока элемент появится, станет видимым и кликабельным, и только потом
 действует. Ожидание встроено в каждый метод и в каждый <code>expect</code>. Поэтому пауз
 в коде быть не должно.</p>
@@ -2010,7 +2724,7 @@ await page.getByTestId('application-status').click();</pre>
 Ждать надо конкретный элемент.
 </div>
 
-<h3>9.5 Проверки</h3>
+<h3>14.5 Проверки</h3>
 <pre>await expect(page.getByTestId('application-status')).toHaveText('Непрочитано');
 await expect(page.getByTestId('application-card')).toHaveCount(3);
 await expect(page.getByTestId('login-form')).toBeVisible();
@@ -2026,13 +2740,13 @@ await expect(async () =&gt; {
   expect(count).toBeGreaterThan(0);
 }).toPass();</pre>
 
-<h3>9.6 Фикстуры: подготовка без копипасты</h3>
+<h3>14.6 Фикстуры: подготовка без копипасты</h3>
 <div class="term">
   <span class="w">Фикстура</span> — кусок подготовки, который Playwright выполняет за вас перед
   тестом и убирает после. Через неё дают готовый POM, авторизованную сессию, тестовые данные.
 </div>
 
-<pre>import { test as base } from '@playwright/test';
+<pre>import { test as base } from 'playwright/test';
 import { LoginPage } from '../pages/LoginPage';
 import { CreateApplicationPage } from '../pages/CreateApplicationPage';
 
@@ -2053,11 +2767,11 @@ export const test = base.extend&lt;{
   },
 });
 
-export { expect } from '@playwright/test';</pre>
+export { expect } from 'playwright/test';</pre>
 <p>Дальше тест импортирует <code>test</code> из своего файла фикстур, а не из библиотеки, и
 получает страницу уже в рабочем состоянии.</p>
 
-<h3>9.7 Тесты API внутри Playwright</h3>
+<h3>14.7 Тесты API внутри Playwright</h3>
 <pre>test('без токена список заявок недоступен', async ({ request }) =&gt; {
   const res = await request.get('/api/applications');
   expect(res.status()).toBe(401);
@@ -2065,7 +2779,7 @@ export { expect } from '@playwright/test';</pre>
 <p>Тот же <code>request</code> удобно использовать для подготовки данных: создать заявку запросом
 за доли секунды, а браузером проверять только то, ради чего тест написан.</p>
 
-<h3>9.8 Моки: тест без живого бэкенда</h3>
+<h3>14.8 Моки: тест без живого бэкенда</h3>
 <pre>// подменяем ответ сервера
 await page.route('**/api/applications', route =&gt; route.fulfill({
   status: 200,
@@ -2078,7 +2792,7 @@ await page.route('**/api/applications', route =&gt; route.abort());</pre>
 <code>await page.routeFromHAR('fixtures/applications.har')</code>. Такой мок ближе к реальности,
 чем руками написанный JSON, и его дифф видно в ревью.</p>
 
-<h3>9.9 Разбор упавшего теста</h3>
+<h3>14.9 Разбор упавшего теста</h3>
 <table>
   <tr><th style="width:26%">Инструмент</th><th>Что даёт</th></tr>
   <tr><td><code>npx playwright test --headed</code></td><td>прогон с видимым браузером</td></tr>
@@ -2090,7 +2804,7 @@ await page.route('**/api/applications', route =&gt; route.abort());</pre>
 <p>Трейс — главный инструмент разбора: по нему видно состояние страницы ровно в момент падения,
 и часто становится ясно, что тест ждал не тот элемент.</p>
 
-<h3>9.10 Антипаттерны, которые видно на собеседовании</h3>
+<h3>14.10 Антипаттерны, которые видно на собеседовании</h3>
 <table>
   <tr><th style="width:44%">Плохо</th><th>Как правильно</th></tr>
   <tr><td><code>waitForTimeout(3000)</code></td><td>ожидание конкретного элемента через <code>expect</code></td></tr>
@@ -2103,7 +2817,7 @@ await page.route('**/api/applications', route =&gt; route.abort());</pre>
 </table>
 
 <div class="task">
-  <div class="h"><span>П14</span>Допишите тест целиком</div>
+  <div class="h"><span>П20</span>Допишите тест целиком</div>
   <p>Заготовка теста на подачу заявки. Заполните пропуски так, чтобы проверка была по шагам,
   а не одним ассертом в конце.</p>
   <pre>import { test, expect } from '../fixtures/app';
@@ -2134,7 +2848,7 @@ test('заявка на 30 дней создаётся и попадает в с
 </div>
 
 <div class="task">
-  <div class="h"><span>П15</span>Почините нестабильный тест</div>
+  <div class="h"><span>П21</span>Почините нестабильный тест</div>
   <p>Тест падает примерно в одном прогоне из пяти. Найдите три причины и перепишите.</p>
   <pre>test('фильтр по статусу', async ({ page }) =&gt; {
   await page.goto('/applications');
@@ -2148,7 +2862,7 @@ test('заявка на 30 дней создаётся и попадает в с
 </div>
 
 <div class="quiz">
-  <div class="h"><span>Т8</span>Проверьте себя</div>
+  <div class="h"><span>Т13</span>Проверьте себя</div>
   <ol>
     <li>Почему в Playwright не нужен <code>sleep</code>?</li>
     <li>Что даёт трейс, чего не даёт скриншот?</li>
@@ -2180,17 +2894,16 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 10. CI ================= -->
 <section class="chapter">
-<h2><span class="num">10</span>Где тесты живут дальше: CI, отчёты, флаки</h2>
+<h2><span class="num">15</span>Где тесты живут дальше: CI, отчёты, флаки</h2>
 <p class="lead">Автотест, который запускают только руками, бесполезен. Ценность появляется, когда он
 гоняется на каждый пул-реквест.</p>
 
-<h3>10.1 Конвейер</h3>
+<h3>15.1 Конвейер</h3>
 <figure>
 <svg viewBox="0 0 540 118" xmlns="http://www.w3.org/2000/svg" role="img">
   <rect class="box" x="6" y="34" width="84" height="30" rx="3"/>
@@ -2225,7 +2938,7 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
 Это типичное устройство прогона, которое вы увидите и в GitLab CI у R-Vision.
 </div>
 
-<h3>10.2 Флаки</h3>
+<h3>15.2 Флаки</h3>
 <div class="term">
   <span class="w">Флак (flaky test)</span> — тест, который на одном и том же коде то падает,
   то проходит. Опаснее упавшего: команда привыкает перезапускать прогон и перестаёт читать красное.
@@ -2239,13 +2952,13 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
   <tr><td>Общая тестовая база на параллельных прогонах</td><td>изоляция данных, уникальные имена</td></tr>
 </table>
 
-<h3>10.3 Отчёты и TestOps</h3>
+<h3>15.3 Отчёты и TestOps</h3>
 <p>Результат прогона попадает в отчёт: HTML-репорт Playwright локально, Allure или Allure TestOps
 в компании. Что там смотрит тестировщик: какие тесты упали, на каком шаге, скриншот и трейс,
 история — падал ли этот тест раньше, и связан ли он с тест-кейсом из TMS.</p>
 
 <div class="quiz">
-  <div class="h"><span>Т9</span>Проверьте себя</div>
+  <div class="h"><span>Т14</span>Проверьте себя</div>
   <ol>
     <li>Почему юнит-тесты в конвейере идут раньше E2E?</li>
     <li>Тест падает раз в пять прогонов. Ваши действия: перезапустить, отключить, разобрать?</li>
@@ -2269,17 +2982,16 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 11. СБОРКА ПРОЕКТА ================= -->
 <section class="chapter">
-<h2><span class="num">11</span>Сборка: pet-проект, который показывают на собеседовании</h2>
+<h2><span class="num">16</span>Сборка: pet-проект, который показывают на собеседовании</h2>
 <p class="lead">Всё, что вы делали по ходу тетради, складывается в один репозиторий. Он и есть
 доказательство навыка вместо слов «изучал тестирование».</p>
 
-<h3>11.1 Что должно получиться</h3>
+<h3>16.1 Что должно получиться</h3>
 <pre>qa-workbook/
 ├── README.md                   что за проект, что проверяется, как запустить
 ├── docs/
@@ -2295,12 +3007,12 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
 │       ├── login.spec.ts       негативный вход
 │       ├── application.spec.ts подача заявки, границы срока
 │       └── api.spec.ts         создание через API + 401 без токена
-├── sql/checks.sql              запросы проверки из раздела 7
+├── sql/checks.sql              запросы проверки из раздела 12
 └── playwright.config.ts</pre>
 
-<h3>11.2 Порядок сборки</h3>
+<h3>16.2 Порядок сборки</h3>
 <ol>
-  <li>Создать репозиторий на GitHub, склонировать, <code>npm init playwright@latest</code>.</li>
+  <li>Создать репозиторий на GitHub, склонировать, <code>npm init playwrightlatest</code>.</li>
   <li>Перенести чек-лист и кейсы в <code>docs/</code>. Это первые коммиты: тестировщик начинает с документов, а не с кода.</li>
   <li>Написать <code>LoginPage</code>, на нём — первый тест на негативный вход.</li>
   <li>Добавить <code>CreateApplicationPage</code> и фикстуру с авторизацией.</li>
@@ -2316,7 +3028,7 @@ Playwright сам ждёт — паузы не нужны. Локаторы: р�
 Если гоняете на systemburo — поднимите его локально, а адрес вынесите в переменную окружения.
 </div>
 
-<h3>11.3 README, который читают</h3>
+<h3>16.3 README, который читают</h3>
 <pre># QA workbook
 
 Учебный тест-набор для формы подачи заявки.
@@ -2339,7 +3051,7 @@ docs/     ручные артефакты: чек-лист, кейсы, баг-�
 e2e/      автотесты
 sql/      проверки данных</pre>
 
-<h3>11.4 Критерии готовности</h3>
+<h3>16.4 Критерии готовности</h3>
 <table>
   <tr><th style="width:60%">Признак</th><th>Есть?</th></tr>
   <tr><td>Селекторов в тестах нет, все в Page Object</td><td></td></tr>
@@ -2352,7 +3064,7 @@ sql/      проверки данных</pre>
 </table>
 
 <div class="task">
-  <div class="h"><span>П16</span>Финальная сборка</div>
+  <div class="h"><span>П22</span>Финальная сборка</div>
   <p>Соберите репозиторий по структуре выше. Минимальный набор для показа: 3 UI-теста, 2 API-теста,
   2 Page Object, 1 фикстура, чек-лист, 6 кейсов, 2 баг-репорта, README. Ссылку на репозиторий
   положите в резюме отдельной строкой.</p>
@@ -2368,32 +3080,31 @@ sql/      проверки данных</pre>
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= 12. СОБЕСЕДОВАНИЕ ================= -->
 <section class="chapter">
-<h2><span class="num">12</span>Собеседование: карта требований и вопросы</h2>
+<h2><span class="num">17</span>Собеседование: карта требований и вопросы</h2>
 
-<h3>12.1 Требования вакансии и где они закрыты</h3>
+<h3>17.1 Требования вакансии и где они закрыты</h3>
 <table>
   <tr><th style="width:52%">Строка из вакансии R-Vision</th><th>Раздел тетради</th></tr>
-  <tr><td>Базовые знания программирования</td><td>8</td></tr>
-  <tr><td>Опыт разработки учебных или pet-проектов</td><td>11</td></tr>
-  <tr><td>Базовое понимание автоматизации тестирования</td><td>2, 9</td></tr>
-  <tr><td>Знание Page Object и локаторов</td><td>5, 9</td></tr>
+  <tr><td>Базовые знания программирования</td><td>13</td></tr>
+  <tr><td>Опыт разработки учебных или pet-проектов</td><td>16</td></tr>
+  <tr><td>Базовое понимание автоматизации тестирования</td><td>2, 14</td></tr>
+  <tr><td>Знание Page Object и локаторов</td><td>10, 14</td></tr>
   <tr><td>Опыт работы с Git</td><td>11</td></tr>
   <tr><td>Понимание методологий и пирамиды тестирования</td><td>2</td></tr>
   <tr><td>Тест-дизайн, структура тест-кейса и баг-репорта</td><td>3, 4</td></tr>
   <tr><td>Понимание SDLC и роли тестировщика</td><td>1, 2</td></tr>
-  <tr><td>Основы API: структура запросов и ответов, JSON</td><td>6</td></tr>
-  <tr><td>Навыки SQL</td><td>7</td></tr>
-  <tr><td>Плюсом: TypeScript и Playwright</td><td>8, 9</td></tr>
-  <tr><td>Задачи: DevTools, тест-кейсы, баг-репорты, анализ прогонов, Confluence</td><td>4, 5, 10</td></tr>
+  <tr><td>Основы API: структура запросов и ответов, JSON</td><td>11</td></tr>
+  <tr><td>Навыки SQL</td><td>12</td></tr>
+  <tr><td>Плюсом: TypeScript и Playwright</td><td>13, 14</td></tr>
+  <tr><td>Задачи: DevTools, тест-кейсы, баг-репорты, анализ прогонов, Confluence</td><td>4, 10, 15</td></tr>
 </table>
 
-<h3>12.2 Вопросы, которые задают почти всегда</h3>
+<h3>17.2 Вопросы, которые задают почти всегда</h3>
 <table>
   <tr><th style="width:46%">Вопрос</th><th>Каркас ответа</th></tr>
   <tr><td>Чем отличается severity от priority</td><td>серьёзность объективна и моя, приоритет решает бизнес; пример с опечаткой на главной</td></tr>
@@ -2407,7 +3118,7 @@ sql/      проверки данных</pre>
   <tr><td>Как проверите, что заявка сохранилась</td><td>UI, ответ API, строка в базе — три уровня</td></tr>
 </table>
 
-<h3>12.3 Что спросить самому</h3>
+<h3>17.3 Что спросить самому</h3>
 <ul>
   <li>Как оформляется стажировка: трудовой договор, ГПХ или ученический, и какая оплата.</li>
   <li>По каким критериям в конце шести месяцев принимают решение о переходе в штат.</li>
@@ -2438,8 +3149,7 @@ sql/      проверки данных</pre>
       <div class="ln"></div>
       <div class="ln"></div>
       <div class="ln"></div>
-      <div class="ln"></div>
-  </div>
+      </div>
 </section>
 
 <!-- ================= ПРИЛОЖЕНИЕ А ================= -->
@@ -2499,12 +3209,80 @@ HAR, лог. Severity разумно поставить «критический
 пользователя) и обязательно в заголовок, если дефект специфичен для роли.</div>
 
 <h3>Раздел 5</h3>
-<div class="a"><b>П7.</b> Карточка — <code>[data-testid="application-card"]</code>; статус —
+<div class="a"><b>П7.</b> 1) Порт 443: его задаёт схема https, браузер подставляет по умолчанию.
+2) Ожидается редирект 301 на https-адрес; если редиректа нет и страница открывается по http —
+это дефект, пароли и токены пойдут открытым текстом. 3) Жёсткая перезагрузка Ctrl+Shift+R, галка
+Disable cache в DevTools, приватное окно; если после сброса всё верно — дефект в настройках
+кэширования. 4) Страница по HTTPS запрашивает ресурс по HTTP, браузер его блокирует. Чаще всего
+это дефект фронта (жёстко прописанный http-адрес) либо конфигурации: адрес формируется на бэкенде
+без учёта схемы.</div>
+<div class="a"><b>П8.</b> Старая вкладка после выхода: проверить в Network, отдаёт ли API данные
+по старому токену — если да, дефект инвалидации сессии, severity высокий. Не загрузились иконки
+с ошибкой блокировки: смешанный контент или CORS, смотреть точный текст в консоли. Падения только
+при параллельном запуске: сработал лимит частоты запросов, код 429; лечится тестовыми лимитами
+на стенде. Ссылка из письма работает, из приложения нет: в приложении формируется адрес
+с внутренним портом или без схемы — сравнить две ссылки посимвольно.</div>
+<div class="a"><b>Т5.</b> 1) HTTPS — тот же HTTP внутри шифрованного канала TLS; HTTP порт 80,
+HTTPS порт 443. 2) Сервер не помнит предыдущие запросы, поэтому идентификатор пользователя
+передаётся с каждым запросом: cookie сессии или токен в заголовке. 3) в — якорь после #.
+4) Блокер: браузер показывает предупреждение вместо продукта, пользоваться системой нельзя.</div>
+
+<h3>Раздел 6</h3>
+<div class="a"><b>П9.</b> Двойное нажатие — фронтенд, ловится UI-тестом (и дублем в базе через SQL).
+Доступ чужой организации через API — слой прав в API, ловится API-тестом, интерфейс тут вообще
+ни при чём. Сохранение без обязательного поля — валидация на бэкенде, дешевле всего юнит- или
+API-тестом. Уведомление через 20 минут — очередь и фоновая обработка, ловится проверкой времени
+выполнения задачи, а не UI-тестом.</div>
+<div class="a"><b>Т6.</b> 1) Тяжёлые операции нельзя делать в ответе на запрос: пользователь ждёт,
+таймауты рвут соединение; очередь позволяет ответить сразу и обработать в фоне. 2) Интерфейс
+может просто прятать кнопку, а сам запрос при этом выполняется: проверять надо на уровне API.
+3) Запрос принят, но обработка асинхронна и результат этим ответом не гарантирован.</div>
+
+<h3>Раздел 7</h3>
+<div class="a"><b>П10.</b> Возможные критерии: кнопка не видна, если заявка в архиве или в
+терминальном статусе; после подтверждения диалога заявка меняет статус на «Отозвана» и исчезает
+из активных; повторный отзыв невозможен, кнопка пропадает; запрос отзыва от пользователя, не
+являющегося автором, возвращает 403 или 404; действие фиксируется в журнале аудита.</div>
+<div class="a"><b>П11.</b> Порядок: 2, 3 (<code>git status</code>), 5 (<code>git add .</code>),
+4, 1. То есть: создать ветку, посмотреть изменения, добавить файлы, зафиксировать коммит,
+отправить ветку.</div>
+<div class="a"><b>Т7.</b> 1) DoR — условия, при которых задачу можно взять в работу; DoD — при
+которых её можно считать законченной. 2) На проде: там живые пользователи и настоящие данные,
+эксперимент означает реальный ущерб. 3) Чтобы включать и выключать функцию без нового релиза
+и быстро гасить проблему. 4) Например: на стенде другие данные и объёмы, а на бою всплыл случай,
+которого в тестовых данных не было; либо сломался сам процесс выката, и до пользователей доехала
+старая или неполная сборка.</div>
+
+<h3>Раздел 8</h3>
+<div class="a"><b>П12.</b> 1) Вошёл в систему, создал заявку (успешно, 201), затем открыл заявку
+1042 и получил ошибку. 2) Дефект — строка ERROR с кодом 500; WARN про истечение срока вложения
+это предупреждение бизнес-логики, не ошибка. 3) Например: «500 при открытии карточки заявки 1042
+(nil pointer в buildApplicationResponse)». 4) <code>request_id=e5f6</code> — по нему разработчик
+найдёт весь путь запроса.</div>
+<div class="a"><b>Т8.</b> 1) WARN — «странно, но работа продолжается»; ERROR — операция не
+выполнена. 2) Он связывает клик пользователя, конкретный HTTP-запрос и записи в логах разных
+сервисов. 3) Смотрите не то время (логи в UTC) или не тот сервис либо окружение; ещё вариант —
+уровень логирования на стенде поднят и INFO не пишется.</div>
+
+<h3>Раздел 9</h3>
+<div class="a"><b>Т9.</b> 1) Событие — любая запись из системы; инцидент — событие или цепочка,
+означающая возможную атаку и требующая реакции. 2) Собирает из потока событий осмысленную
+последовательность и создаёт инцидент. 3) Интерфейс лишь прячет элементы, а запрос к API можно
+отправить напрямую: проверка прав должна работать на сервере. 4) Да: для продуктов
+кибербезопасности журнал аудита — часть функциональности, а не служебная мелочь.</div>
+
+<div class="a"><b>П22.</b> Проверяйте себя по таблице «Критерии готовности» из раздела 16: ни одного
+селектора в тестах, ни одного waitForTimeout, каждый тест проходит в одиночку, есть позитивный и
+негативный сценарий, есть API-тест, история коммитов показывает ход работы, README запускается
+на чужой машине.</div>
+
+<h3>Раздел 10</h3>
+<div class="a"><b>П13.</b> Карточка — <code>[data-testid="application-card"]</code>; статус —
 <code>[data-testid="application-status"]</code>; кнопка — по роли и имени: в Playwright
 <code>getByRole('button', { name: 'Отозвать' })</code>, в CSS пришлось бы использовать класс,
 что хуже; заголовок — по тексту: <code>getByText('Заявка № 1042')</code>, либо XPath
 <code>//h3[contains(text(),'Заявка №')]</code>.</div>
-<div class="a"><b>П8.</b> <code>this.dateFrom = page.getByTestId('application-date-from');</code>,
+<div class="a"><b>П14.</b> <code>this.dateFrom = page.getByTestId('application-date-from');</code>,
 <code>this.dateTo = page.getByTestId('application-date-to');</code>,
 <code>this.submitButton = page.getByTestId('application-submit');</code>. Метод:
 <pre>async fillAndSubmit({ organization, from, to }) {
@@ -2513,17 +3291,17 @@ HAR, лог. Severity разумно поставить «критический
   await this.dateTo.fill(to);
   await this.submitButton.click();
 }</pre></div>
-<div class="a"><b>Т5.</b> 1) Network: ушёл ли запрос вообще и с каким кодом ответа; если запроса нет —
+<div class="a"><b>Т10.</b> 1) Network: ушёл ли запрос вообще и с каким кодом ответа; если запроса нет —
 дефект на фронте. 2) Класс отвечает за оформление и меняется при редизайне; кроме того, таких кнопок
 на странице может быть несколько. 3) в — ассерты внутри каждого метода POM делают его негибким;
 допустимы отдельные expect-методы, но не проверка внутри действия. 4) Локаторы завязаны на вёрстку
 (классы, вложенность), а не на устойчивые признаки.</div>
 
-<h3>Раздел 6</h3>
-<div class="a"><b>П9.</b> 1) 201 Created. 2) Начать с API: если создание вернуло 201 и объект,
+<h3>Раздел 11</h3>
+<div class="a"><b>П15.</b> 1) 201 Created. 2) Начать с API: если создание вернуло 201 и объект,
 проверить запрос списка — возможно, фильтр по организации или пагинация отсекают новую заявку;
 затем сверить строку в базе. 3) <code>expect(body.data.status).toBe('Непрочитано');</code></div>
-<div class="a"><b>П10.</b> <code>toBe(201)</code>, <code>toBe(true)</code>,
+<div class="a"><b>П16.</b> <code>toBe(201)</code>, <code>toBe(true)</code>,
 <code>toBe('Непрочитано')</code>. Второй тест:
 <pre>test('без токена создание запрещено', async ({ request }) =&gt; {
   const res = await request.post('/api/applications', {
@@ -2531,33 +3309,33 @@ HAR, лог. Severity разумно поставить «критический
   });
   expect(res.status()).toBe(401);
 });</pre></div>
-<div class="a"><b>Т6.</b> 1) Пользователь аутентифицирован, но не имеет прав на объект или действие.
+<div class="a"><b>Т11.</b> 1) Пользователь аутентифицирован, но не имеет прав на объект или действие.
 2) API-тест: он проверяет то же правило без браузера, за доли секунды и без зависимости от вёрстки.
 3) в — сверяться с контрактом; если контракт требует 4xx, это дефект. 4) Чтобы разработчик
 воспроизвёл запрос у себя одной командой, без пересказа шагов.</div>
 
-<h3>Раздел 7</h3>
-<div class="a"><b>П11.</b> а) <code>SELECT status, COUNT(*) AS cnt FROM applications WHERE
+<h3>Раздел 12</h3>
+<div class="a"><b>П17.</b> а) <code>SELECT status, COUNT(*) AS cnt FROM applications WHERE
 organization_id = 7 GROUP BY status;</code> б) <code>LEFT JOIN</code> и <code>WHERE a.id IS
 NULL;</code> в) <code>WHERE status = 'В работе' AND accepted_at IS NULL;</code></div>
-<div class="a"><b>Т7.</b> 1) WHERE фильтрует строки до группировки, HAVING — уже посчитанные группы.
+<div class="a"><b>Т12.</b> 1) WHERE фильтрует строки до группировки, HAVING — уже посчитанные группы.
 2) б. 3) Открыть Network и посмотреть код ответа на создание: при 2xx дефект на бэкенде (не
 сохранил), при 4xx/5xx фронт показал успех вместо ошибки — это тоже дефект, и severity высокий,
 потому что пользователь уверен, что заявка подана.</div>
 
-<h3>Раздел 8</h3>
-<div class="a"><b>П12.</b> 1) У функции теста нет <code>async</code>, хотя внутри есть
+<h3>Раздел 13</h3>
+<div class="a"><b>П18.</b> 1) У функции теста нет <code>async</code>, хотя внутри есть
 <code>await</code>. 2) <code>form.goto()</code> без <code>await</code>. 3)
 <code>const count: string = 1;</code> — число присвоено переменной типа string. Плюс полезная
 придирка: <code>expect(...)</code> с локатором тоже требует <code>await</code>.</div>
-<div class="a"><b>П13.</b> <code>success: boolean; data: T; error?: string;</code> и
+<div class="a"><b>П19.</b> <code>success: boolean; data: T; error?: string;</code> и
 <code>function unwrap&lt;T&gt;(body: ApiResponse&lt;T&gt;): T { return body.data; }</code></div>
 
-<h3>Раздел 9</h3>
-<div class="a"><b>П14.</b> 1) <code>.toBeHidden()</code>. 2) <code>.toBeVisible()</code> или
+<h3>Раздел 14</h3>
+<div class="a"><b>П20.</b> 1) <code>.toBeHidden()</code>. 2) <code>.toBeVisible()</code> или
 <code>.toHaveText('Заявка отправлена')</code>. 3) <code>.toHaveText('Непрочитано')</code>.
 4) <code>.toHaveURL(/\/applications/)</code>.</div>
-<div class="a"><b>П15.</b> Причины: <code>waitForTimeout(1500)</code> — гадание по времени;
+<div class="a"><b>П21.</b> Причины: <code>waitForTimeout(1500)</code> — гадание по времени;
 <code>networkidle</code> — не наступает на странице с фоновыми запросами; локатор по вложенности
 <code>div.filters &gt; div:nth-child(2)</code> ломается от любой правки вёрстки; жёсткое число 7
 зависит от данных, оставшихся от других тестов. Вариант решения:
@@ -2570,7 +3348,7 @@ NULL;</code> в) <code>WHERE status = 'В работе' AND accepted_at IS NULL;
     .toHaveCount(await rows.count());
 });</pre>
 Смысл последней проверки: не «строк ровно семь», а «все показанные строки соответствуют фильтру».</div>
-<div class="a"><b>Т8.</b> 1) Все действия и проверки уже содержат ожидание нужного состояния;
+<div class="a"><b>Т13.</b> 1) Все действия и проверки уже содержат ожидание нужного состояния;
 пауза лишь замедляет прогон и не гарантирует готовности. 2) Трейс показывает состояние страницы
 на каждом шаге, сетевые запросы и консоль, а не один кадр в момент падения. 3) б.
 4) Фикстура убирает копипасту, гарантирует одинаковое стартовое состояние и умеет прибирать данные
@@ -2578,8 +3356,8 @@ NULL;</code> в) <code>WHERE status = 'В работе' AND accepted_at IS NULL;
 через API — быстрее и стабильнее, тест не падает из-за чужой формы. Обычно: то, что проверяем, —
 через интерфейс, фон — через API.</div>
 
-<h3>Раздел 10</h3>
-<div class="a"><b>Т9.</b> 1) Дешёвые и быстрые проверки отсекают большинство дефектов раньше,
+<h3>Раздел 15</h3>
+<div class="a"><b>Т14.</b> 1) Дешёвые и быстрые проверки отсекают большинство дефектов раньше,
 чем запускается дорогой E2E-прогон. 2) Разобрать: найти причину, починить тест или завести дефект
 продукта; перезапуск маскирует проблему. 3) Флак: красный тест чинят, а флак приучает игнорировать
 красный цвет, и вместе с ним пропускают настоящие падения.</div>
