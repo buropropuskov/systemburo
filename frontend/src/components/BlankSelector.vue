@@ -578,6 +578,7 @@ export default {
                 display_name: `${template.display_name} №${nextNumber}`,
                 attachment_type: template.attachment_type,
                 instruction: template.instruction,
+                blank_import_ready: !!template.blank_import_ready,
                 created_at: new Date().toISOString(),
                 is_active: true
             };
@@ -675,12 +676,11 @@ export default {
 
         withCurrentInstruction(attachment) {
             if (!attachment) return attachment;
-            const templateId = attachment.template_id || attachment.id;
-            const template = this.allTemplates.find(t => t.id === templateId);
-            if (template && template.instruction !== attachment.instruction) {
-                return { ...attachment, instruction: template.instruction };
-            }
-            return attachment;
+            const template = this.allTemplates.find(t => t.id === (attachment.template_id || attachment.id));
+            if (!template) return attachment;
+            // Инструкция и готовность бланка принадлежат ТИПУ: снимок в черновике протухает.
+            const свежее = { instruction: template.instruction, blank_import_ready: !!template.blank_import_ready };
+            return Object.keys(свежее).some((k) => свежее[k] !== attachment[k]) ? { ...attachment, ...свежее } : attachment;
         },
 
         confirmDelete(attachment) {

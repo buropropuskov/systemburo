@@ -11,6 +11,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
@@ -122,6 +123,44 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", peopleUA), nil)
 		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 	})
+
+	// Список типов вложений сообщает, у каких бланк готов к массовому вводу: форма
+	// прячет по этому признаку кнопку скачивания и вход в импорт. Без него она звала
+	// туда всегда и отвечала на клик отказом 404.
+	t.Run("список типов помечает готовность бланка", func(t *testing.T) {
+		сСписком, _ := seedListTemplate(t, db, "ready_with_list", "people", 5, 9)
+		безСписка, tplID := copySeedTemplate(t, db, "ready_no_list", "people", 5, 9)
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: tplID, CellRef: "A1", FieldPath: "application.application_number",
+		}).Error)
+		безШаблона := seedPlainAttachment(t, db, "ready_no_template", "people")
+
+		список := testutil.ParseResponse[[]map[string]any](t, testutil.GET(t, w.h.e, "/attachments", admin))
+
+		признак := map[int]bool{}
+		for _, a := range список {
+			признак[int(a["id"].(float64))] = a["blank_import_ready"] == true
+		}
+		assert.True(t, признак[сСписком], "шаблон со списочной привязкой готов к импорту")
+		assert.False(t, признак[безСписка], "без списочной привязки заполнять нечего")
+		assert.False(t, признак[безШаблона], "без шаблона бланка нет вовсе")
+
+		// Признак обязан совпадать с тем, что реально ответит выдача бланка, - иначе
+		// форма снова начнёт обещать то, чего эндпоинт не даёт.
+		for id, готов := range map[int]bool{сСписком: true, безСписка: false, безШаблона: false} {
+			r := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", id), admin)
+			assert.Equal(t, готов, r.Code == http.StatusOK,
+				"признак разошёлся с выдачей бланка для типа %d", id)
+		}
+	})
+}
+
+// seedPlainAttachment - тип вложения без шаблона бланка вообще.
+func seedPlainAttachment(t *testing.T, db *gorm.DB, name, attachmentType string) int {
+	t.Helper()
+	ua := models.UniqueAttachment{AttachmentType: attachmentType, Name: &name, DisplayName: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+	return ua.ID
 }
 
 // seedListTemplate - тип вложения с активным шаблоном и размеченной списочной частью.

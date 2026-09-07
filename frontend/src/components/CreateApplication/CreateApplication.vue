@@ -663,9 +663,9 @@ export default {
         // есть право на загрузку списка (C1C2) и выбрано вложение со списком
         // участников - у ТМЦ (items) списочной части в бланке нет.
         canImportList() {
-            return usePermissionsStore().hasPermission(ACTION_IMPORT_LIST_PERMISSION)
-                && !!this.selectedAttachment
-                && ['cars', 'people'].includes(this.selectedAttachment.attachment_type);
+            const бланк = this.selectedAttachment; // blank_import_ready: без шаблона со списком импорт даёт 404
+            return usePermissionsStore().hasPermission(ACTION_IMPORT_LIST_PERMISSION) && !!бланк
+                && бланк.blank_import_ready !== false && ['cars', 'people'].includes(бланк.attachment_type);
         },
 
         // Привязка машин и сотрудников к организации возможна, только когда организация
