@@ -55,7 +55,46 @@ func (s *attachmentService) GetActive(ctx context.Context) ([]models.UniqueAttac
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachments")
 	}
+	s.markBlankImportReady(ctx, attachments)
 	return attachments, nil
+}
+
+// markBlankImportReady проставляет признак «бланк готов к массовому вводу»: у типа есть
+// активный шаблон, а в нём хотя бы одна списочная привязка. Условия те же, что проверяет
+// выдача пустого бланка (attachment_blank_service.go), иначе форма обещала бы скачивание
+// там, где эндпоинт отвечает отказом.
+//
+// Одним запросом на весь список, а не по типу: форма подачи грузит справочник целиком.
+func (s *attachmentService) markBlankImportReady(ctx context.Context, attachments []models.UniqueAttachment) {
+	if len(attachments) == 0 {
+		return
+	}
+
+	ids := make([]int, 0, len(attachments))
+	for _, a := range attachments {
+		ids = append(ids, a.ID)
+	}
+
+	ready := make([]int, 0)
+	if err := s.db.WithContext(ctx).
+		Table("attachment_templates t").
+		Joins("JOIN attachment_template_mappings m ON m.template_id = t.id AND m.is_list_field").
+		Where("t.unique_attachment_id IN ? AND t.is_active", ids).
+		Distinct().
+		Pluck("t.unique_attachment_id", &ready).Error; err != nil {
+		// Признак необязательный: без него кнопка просто останется скрытой, а не
+		// покажет ложное обещание. Список типов из-за этого ронять нельзя.
+		slog.Error("Не удалось определить готовность бланков к импорту", "error", err)
+		return
+	}
+
+	готовые := make(map[int]bool, len(ready))
+	for _, id := range ready {
+		готовые[id] = true
+	}
+	for i := range attachments {
+		attachments[i].BlankImportReady = готовые[attachments[i].ID]
+	}
 }
 
 // GetAll возвращает все шаблоны вложений, включая архивные.
