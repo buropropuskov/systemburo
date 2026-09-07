@@ -12,7 +12,7 @@
           :model-value="currentFilter"
           :options="filterOptions"
           value-key="key"
-          label-key="label" :menu-min-width="210"
+          label-key="label" :menu-min-width="210" :teleport="true"
           @update:model-value="setFilter"
         />
 
