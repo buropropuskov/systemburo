@@ -20,7 +20,7 @@
     "@tiptap/extension-underline": "^2.27.2",
     "@tiptap/pm": "^2.27.2",
     "@tiptap/starter-kit": "^2.27.2",
-    "@tiptap/vue-3": "^2.27.2",
+    "@tiptap/vue-3": "^3.31.2",
     "@vue/devtools-api": "^8.2.1",
     "chart.js": "^4.5.1",
     "dompurify": "^3.4.1",
