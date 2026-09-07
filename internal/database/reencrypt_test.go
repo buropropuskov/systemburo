@@ -104,6 +104,7 @@ func TestEncryptedTables_CoverPassportModels(t *testing.T) {
 		"body":                   false,
 		"email":                  true,
 		"phone":                  true,
+		"contact_phone":          false,
 	}
 	want := map[string]bool{
 		"employees":             true,
@@ -111,6 +112,7 @@ func TestEncryptedTables_CoverPassportModels(t *testing.T) {
 		"application_employees": true,
 		"email_messages":        false,
 		"users":                 true,
+		"applications":          false,
 	}
 	seen := map[string]bool{}
 	for _, table := range encryptedTables {

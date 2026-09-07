@@ -76,3 +76,50 @@ func TestContacts_EmailUniquenessSurvivesEncryption(t *testing.T) {
 	rec := testutil.PUT(t, e, "/users/contact_second/info", `{"email":"BUSY@EXAMPLE.COM"}`, h)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "тот же адрес в другом регистре занят: "+rec.Body.String())
 }
+
+// Телефон заявки шифруется, а имя инициатора - нет (#2351). Разделение осознанное:
+// имя это ФИО, по ним принято решение не шифровать, и оно же идёт в имя каталога
+// файлового архива - шифротекст сломал бы пути.
+func TestApplicationContacts_PhoneEncryptedNameNot(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	crypto.SetGlobalKey(contactsKey())
+	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
+
+	citizenship := models.Citizenship{Name: "Российская Федерация", IsActive: true}
+	require.NoError(t, db.Create(&citizenship).Error)
+	uaID := seedUniqueAttachment(t, db, "people", "contacts_tmpl_"+t.Name(), "Люди")
+	body := `{
+		"message": "проверка шифрования контактов",
+		"organization": "Test Organization",
+		"responsible_person": "Инициатов Иван",
+		"contact_phone": "+7 (911) 222-33-44",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "people", "attachment_name": "people_tmpl",
+			"attachment_display_name": "Люди", "unique_attachment_id": ` + itoa(uaID) + `,
+			"entry_date_from": "2026-04-01", "entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00", "entry_time_to": "18:00",
+			"data": {"employees": [{"last_name": "Контактов", "first_name": "Пётр",
+				"position": "Слесарь", "passport_series_number": "4700 555666",
+				"citizenship_id": ` + itoa(citizenship.ID) + `, "pd_consent": true}]}
+		}]
+	}`
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/applications/submit-complete-application", body, h).Code)
+
+	var rawPhone, rawName string
+	require.NoError(t, db.Raw(`SELECT COALESCE(contact_phone,''), COALESCE(initiator_name,'')
+		FROM applications ORDER BY id DESC LIMIT 1`).Row().Scan(&rawPhone, &rawName))
+	assert.NotContains(t, rawPhone, "222-33-44", "телефон не лежит в базе открытым")
+	assert.Equal(t, "Инициатов Иван", rawName, "имя инициатора остаётся читаемым: оно идёт в пути архива")
+
+	// Через модель телефон читается обратно - карточка заявки не должна показывать
+	// шифротекст.
+	var app models.Application
+	require.NoError(t, db.Order("id DESC").First(&app).Error)
+	require.NotNil(t, app.ContactPhone)
+	assert.Equal(t, "+7 (911) 222-33-44", *app.ContactPhone, "телефон расшифровывается при чтении")
+}

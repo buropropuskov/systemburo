@@ -2247,6 +2247,19 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, err
 	}
 
+	// Телефон шифруется (#2351). Вставка идёт сырым запросом мимо модели, поэтому
+	// здесь явно; пустое значение оставляем пустым - NULLIF в запросе рассчитывает
+	// именно на пустую строку, а шифротекст от пустой строки пустым не бывает.
+	encryptedContactPhone := ""
+	if phone := strings.TrimSpace(req.ContactPhone); phone != "" {
+		enc, encErr := crypto.Encrypt(phone, crypto.GetGlobalKey())
+		if encErr != nil {
+			tx.Rollback()
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить телефон заявки")
+		}
+		encryptedContactPhone = enc
+	}
+
 	// Создаём заявку
 	var appID int
 	err = tx.Raw(`
@@ -2254,7 +2267,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		VALUES (?, ?, ?, ?, ?, ?, 'Непрочитано', 'Согласование', ?, NULLIF(?, ''), NULLIF(?, ''))
 		RETURNING id
 	`, applicationNumber, organizationID, companyID, user.ID, req.Message, fmt.Sprintf("%v", req.DataApproval), baseTime,
-		strings.TrimSpace(req.ResponsiblePerson), strings.TrimSpace(req.ContactPhone)).Scan(&appID).Error
+		strings.TrimSpace(req.ResponsiblePerson), encryptedContactPhone).Scan(&appID).Error
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Ошибка создания заявки", "error", err)

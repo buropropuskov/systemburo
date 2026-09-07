@@ -48,6 +48,9 @@ var encryptedTables = []encryptedTable{
 	// Контакты работников (#2351). Свёртки есть: по ним проверяется занятость адреса
 	// и работает точный поиск, поэтому при переводе они пересчитываются вместе со
 	// значением.
+	// Телефон заявки (#2351). Имя инициатора рядом не шифруется - это ФИО, и оно
+	// идёт в имя каталога файлового архива.
+	{name: "applications", columns: []encryptedColumn{{value: "contact_phone"}}},
 	{name: "users", columns: []encryptedColumn{
 		{value: "email", hmac: "email_hmac"},
 		{value: "phone", hmac: "phone_hmac"},

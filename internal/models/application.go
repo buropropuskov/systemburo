@@ -1,6 +1,12 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+
+	"systemburo/internal/crypto"
+)
 
 type Application struct {
 	ID                   int        `json:"id"`
@@ -41,9 +47,13 @@ type Application struct {
 	// бланк попадали только профильные данные отправителя, даже если заявитель указал
 	// другого человека.
 	InitiatorName *string `gorm:"size:255" json:"initiator_name"`
-	ContactPhone  *string `gorm:"size:50" json:"contact_phone"`
-	CompanyID          *int         `gorm:"index" json:"company_id"`
-	Company            *Company     `json:"-"`
+	// Телефон шифруется (#2351): это канал связи с человеком. Тип text - шифротекст
+	// длиннее исходного. Имя инициатора рядом НЕ шифруется намеренно: это ФИО, а по
+	// ФИО принято решение оставлять открытыми ради поиска, и оно же идёт в имя
+	// каталога файлового архива.
+	ContactPhone *string  `gorm:"type:text" json:"contact_phone"`
+	CompanyID    *int     `gorm:"index" json:"company_id"`
+	Company      *Company `json:"-"`
 
 	// BureauNote - рабочая заметка бюро по заявке: почему она не сделана и что осталось.
 	// Одна на заявку, общая для всех принимающих; заявителю, согласующим и получателям
@@ -158,4 +168,23 @@ type ApplicationViewer struct {
 	User          User        `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	CreatedAt     time.Time   `json:"created_at"`
 	CreatedBy     *int        `json:"created_by"`
+}
+
+// BeforeSave шифрует телефон заявки (#2351). Заявка создаётся сырым запросом мимо
+// модели, там шифрование сделано явно; хук закрывает остальные пути записи.
+func (a *Application) BeforeSave(tx *gorm.DB) error {
+	if a.ContactPhone != nil {
+		enc, err := crypto.EncryptOptional(a.ContactPhone)
+		if err != nil {
+			return err
+		}
+		a.ContactPhone = enc
+	}
+	return nil
+}
+
+// AfterFind возвращает телефон в читаемый вид.
+func (a *Application) AfterFind(tx *gorm.DB) error {
+	a.ContactPhone = crypto.DecryptOptional(a.ContactPhone)
+	return nil
 }
