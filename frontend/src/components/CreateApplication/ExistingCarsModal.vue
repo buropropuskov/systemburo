@@ -111,24 +111,21 @@
                 <div
                   v-for="car in displayedCars"
                   :key="car.id"
-                  class="table-row rt-row"
+                  class="table-row rt-row range-select-row"
                   :class="{
                     'table-row--disabled': isCarDisabled(car),
                     'table-row--blacklisted': isCarBlacklisted(car),
                     'table-row--selected': isCarSelected(car)
                   }"
                   :title="carRowTitle(car)"
-                  @click="handleRowClick(car)"
+                  @click="handleRowClick(car, $event)"
                 >
-                  <div
-                    class="table-cell select-cell"
-                    @click.stop
-                  >
+                  <div class="table-cell select-cell">
                     <input
                       type="checkbox"
                       :checked="isCarSelected(car)"
                       :disabled="isCarDisabled(car)"
-                      @change="toggleCarSelection(car)"
+                      @click.stop.prevent="handleRowClick(car, $event)"
                     >
                   </div>
                   <div class="table-cell number-cell">
@@ -203,6 +200,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
+import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { ref } from 'vue'
@@ -270,6 +268,9 @@ export default {
             filteredCars: [],
             displayedCars: [],
             tempSelectedCars: [],
+            // Якорь диапазона и снимок выбора на момент его установки (#2399).
+            selectionAnchorId: null,
+            selectionBase: [],
             currentFilter: 'all',
             loadingCars: false,
             searchQuery: ''
@@ -408,10 +409,26 @@ export default {
             this.loadCarsByFilter(filter)
         },
 
-        handleRowClick(car) {
-            if (!this.isCarDisabled(car)) {
-                this.toggleCarSelection(car)
+        /**
+         * Обычный клик переключает строку и ставит якорь, Shift+клик берёт всё от якоря
+         * до этой строки в порядке отображения (#2399). Слияние идёт со снимком на
+         * момент якоря, поэтому повторный Shift переопределяет диапазон, а не копит его.
+         */
+        handleRowClick(car, event) {
+            if (this.isCarDisabled(car)) return
+
+            if (event && event.shiftKey && this.selectionAnchorId !== null) {
+                const диапазон = itemsInRange(this.displayedCars, this.selectionAnchorId, car.id,
+                    { isDisabled: (i) => this.isCarDisabled(i) })
+                if (диапазон.length) {
+                    this.tempSelectedCars = mergeSelection(this.selectionBase, диапазон)
+                    return
+                }
             }
+
+            this.toggleCarSelection(car)
+            this.selectionAnchorId = car.id
+            this.selectionBase = [...this.tempSelectedCars]
         },
 
         toggleCarSelection(car) {
