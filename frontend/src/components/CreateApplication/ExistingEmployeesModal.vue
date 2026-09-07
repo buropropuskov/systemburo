@@ -92,24 +92,21 @@
                 <div
                   v-for="employee in displayedEmployees"
                   :key="employee.id"
-                  class="table-row rt-row"
+                  class="table-row rt-row range-select-row"
                   :class="{
                     'table-row--disabled': isEmployeeDisabled(employee),
                     'table-row--blacklisted': isEmployeeBlacklisted(employee),
                     'table-row--selected': isEmployeeSelected(employee)
                   }"
                   :title="employeeRowTitle(employee)"
-                  @click="handleRowClick(employee)"
+                  @click="handleRowClick(employee, $event)"
                 >
-                  <div
-                    class="table-cell select-cell"
-                    @click.stop
-                  >
+                  <div class="table-cell select-cell">
                     <input
                       type="checkbox"
                       :checked="isEmployeeSelected(employee)"
                       :disabled="isEmployeeDisabled(employee)"
-                      @change="toggleEmployeeSelection(employee)"
+                      @click.stop.prevent="handleRowClick(employee, $event)"
                     >
                   </div>
                   <div class="table-cell number-cell">
@@ -185,6 +182,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
+import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { ref } from 'vue'
@@ -248,6 +246,9 @@ export default {
             filteredEmployees: [],
             displayedEmployees: [],
             tempSelectedEmployees: [],
+            // Якорь диапазона и снимок выбора на момент его установки (#2399).
+            selectionAnchorId: null,
+            selectionBase: [],
             currentFilter: 'all',
             loadingEmployees: false,
             searchQuery: ''
@@ -340,10 +341,26 @@ export default {
             this.loadEmployeesByFilter(filter)
         },
 
-        handleRowClick(employee) {
-            if (!this.isEmployeeDisabled(employee)) {
-                this.toggleEmployeeSelection(employee)
+        /**
+         * Обычный клик переключает строку и ставит якорь, Shift+клик берёт всё от якоря
+         * до этой строки в порядке отображения (#2399). Слияние идёт со снимком на
+         * момент якоря, поэтому повторный Shift переопределяет диапазон, а не копит его.
+         */
+        handleRowClick(employee, event) {
+            if (this.isEmployeeDisabled(employee)) return
+
+            if (event && event.shiftKey && this.selectionAnchorId !== null) {
+                const диапазон = itemsInRange(this.displayedEmployees, this.selectionAnchorId, employee.id,
+                    { isDisabled: (i) => this.isEmployeeDisabled(i) })
+                if (диапазон.length) {
+                    this.tempSelectedEmployees = mergeSelection(this.selectionBase, диапазон)
+                    return
+                }
             }
+
+            this.toggleEmployeeSelection(employee)
+            this.selectionAnchorId = employee.id
+            this.selectionBase = [...this.tempSelectedEmployees]
         },
 
         toggleEmployeeSelection(employee) {
