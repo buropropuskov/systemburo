@@ -45,6 +45,13 @@ var encryptedTables = []encryptedTable{
 	// нечитаемыми - сработала бы мягкая деградация, и человек не получил бы пароль,
 	// а причину искали бы в почтовом сервере, а не в смене ключа неделей раньше.
 	{name: "email_messages", columns: []encryptedColumn{{value: "body"}}},
+	// Контакты работников (#2351). Свёртки есть: по ним проверяется занятость адреса
+	// и работает точный поиск, поэтому при переводе они пересчитываются вместе со
+	// значением.
+	{name: "users", columns: []encryptedColumn{
+		{value: "email", hmac: "email_hmac"},
+		{value: "phone", hmac: "phone_hmac"},
+	}},
 }
 
 func passportColumns() []encryptedColumn {

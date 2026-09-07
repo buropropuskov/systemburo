@@ -3,8 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
+
+	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 )
 
 // userSearchProvider ищет по учётным записям.
@@ -33,10 +37,23 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 		"u.last_name", "u.first_name", "u.middle_name",
 		"u.username", `u."position"`,
 	}
-	if len(masks) == 0 {
-		cols = append(cols, "u.email", "u.phone")
-	}
 	cond, args := searchCondition(cols, req.Raw)
+
+	// Контакты зашифрованы (#2351), искать по ним подстрокой нельзя. Остаётся точное
+	// совпадение по свёртке: человек находится, если ввести адрес или номер целиком.
+	// Нормализация та же, что при записи, иначе «+7 900 …» не нашёл бы «8900…».
+	//
+	// Под маской контакты не ищем вовсе - тот же запрет, что и на показ: подобрать
+	// адрес перебором значит раскрыть его другим путём.
+	if len(masks) == 0 {
+		key := crypto.GetGlobalKey()
+		if raw := strings.TrimSpace(req.Raw); raw != "" {
+			cond = "(" + cond + " OR u.email_hmac = ? OR u.phone_hmac = ?)"
+			args = append(args,
+				crypto.ComputeHMAC(models.NormalizeEmailForHMAC(raw), key),
+				crypto.ComputeHMAC(models.NormalizePhoneForHMAC(raw), key))
+		}
+	}
 
 	rows := make([]searchRow, 0, req.Limit+1)
 	err := withTrigramThreshold(ctx, db, func(tx *gorm.DB) error {

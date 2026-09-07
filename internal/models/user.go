@@ -1,10 +1,12 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/normalize"
 )
 
@@ -32,13 +34,22 @@ type User struct {
 	BannedBy    *int       `json:"banned_by,omitempty"`
 	// BanReason -- текущая причина блокировки (показывается заблокированному в ЛК).
 	// Обнуляется при разблокировке; хронология ведётся в UserBanHistory.
-	BanReason   *string    `gorm:"type:text" json:"ban_reason,omitempty"`
-	LastName    *string    `gorm:"size:100" json:"last_name"`
-	FirstName   *string    `gorm:"size:100" json:"first_name"`
-	MiddleName  *string    `gorm:"size:100" json:"middle_name"`
-	Position    *string    `gorm:"size:100;column:position" json:"position"`
-	Email       *string    `gorm:"size:100" json:"email"`
-	Phone       *string    `gorm:"size:20" json:"phone"`
+	BanReason  *string `gorm:"type:text" json:"ban_reason,omitempty"`
+	LastName   *string `gorm:"size:100" json:"last_name"`
+	FirstName  *string `gorm:"size:100" json:"first_name"`
+	MiddleName *string `gorm:"size:100" json:"middle_name"`
+	Position   *string `gorm:"size:100;column:position" json:"position"`
+	// Почта и телефон шифруются (#2351): это каналы связи с человеком, и дамп базы
+	// не должен отдавать их списком. Тип text, а не размерный: шифротекст длиннее
+	// исходного значения.
+	//
+	// Рядом лежат свёртки. По ним работает то, ради чего поля читали в базе:
+	// проверка занятости адреса и точный поиск человека по адресу или номеру.
+	// Поиск по ЧАСТИ строки после шифрования невозможен - это цена решения.
+	Email       *string    `gorm:"type:text" json:"email"`
+	Phone       *string    `gorm:"type:text" json:"phone"`
+	EmailHMAC   *string    `gorm:"size:64;index" json:"-"`
+	PhoneHMAC   *string    `gorm:"size:64;index" json:"-"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 	// LastSeen - момент последней активности (любой authenticated-запрос),
 	// обновляется middleware с троттлингом. В отличие от LastLoginAt отражает
@@ -98,6 +109,76 @@ type Organization struct {
 	ModerationStatus string `gorm:"size:16;not null;default:'approved';index" json:"moderation_status"`
 	// CreatedByUserID - кто завёл запись из заявки; NULL у записей справочника.
 	CreatedByUserID *int `json:"created_by_user_id,omitempty"`
+}
+
+// BeforeSave шифрует контакты и держит свёртки в согласии со значениями (#2351).
+// Свёртка считается от НОРМАЛИЗОВАННОГО значения: у почты это нижний регистр (два
+// адреса, различающиеся только им, ведут в один ящик), у телефона - одни цифры
+// (+7, 8 и скобки пишут как придётся, а человек один и тот же).
+func (u *User) BeforeSave(tx *gorm.DB) error {
+	if u.Email != nil {
+		u.EmailHMAC = crypto.HMACOptional(normalizedEmailPtr(u.Email))
+		enc, err := crypto.EncryptOptional(u.Email)
+		if err != nil {
+			return err
+		}
+		u.Email = enc
+	}
+	if u.Phone != nil {
+		u.PhoneHMAC = crypto.HMACOptional(normalizedPhonePtr(u.Phone))
+		enc, err := crypto.EncryptOptional(u.Phone)
+		if err != nil {
+			return err
+		}
+		u.Phone = enc
+	}
+	return nil
+}
+
+// AfterFind возвращает контакты в читаемый вид.
+func (u *User) AfterFind(tx *gorm.DB) error {
+	u.Email = crypto.DecryptOptional(u.Email)
+	u.Phone = crypto.DecryptOptional(u.Phone)
+	return nil
+}
+
+// NormalizeEmailForHMAC и NormalizePhoneForHMAC - единственный источник правил
+// нормализации. Расходись они между записью и поиском, человек перестал бы
+// находиться по собственному адресу.
+func NormalizeEmailForHMAC(v string) string {
+	return strings.ToLower(strings.TrimSpace(v))
+}
+
+func NormalizePhoneForHMAC(v string) string {
+	var digits strings.Builder
+	for _, r := range v {
+		if r >= '0' && r <= '9' {
+			digits.WriteRune(r)
+		}
+	}
+	s := digits.String()
+	// Восьмёрка и семёрка в начале означают одну и ту же страну: 8 900 ... и
+	// +7 900 ... это один номер, записанный по привычке по-разному.
+	if len(s) == 11 && s[0] == '8' {
+		s = "7" + s[1:]
+	}
+	return s
+}
+
+func normalizedEmailPtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	n := NormalizeEmailForHMAC(*v)
+	return &n
+}
+
+func normalizedPhonePtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	n := NormalizePhoneForHMAC(*v)
+	return &n
 }
 
 // BeforeSave держит ключ дедупликации в согласии с наименованием. Ловит Create и
