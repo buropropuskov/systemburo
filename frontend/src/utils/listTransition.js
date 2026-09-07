@@ -1,3 +1,5 @@
+import { getViewportZoom } from './viewportScale';
+
 /**
  * Закрепление уходящих элементов списка на их местах.
  *
@@ -63,12 +65,19 @@ export function pinLeavingElement(el) {
   const rect = snapshot.children.get(el) || el.getBoundingClientRect();
   const parentRect = snapshot.parent;
 
+  // Корневой zoom (масштаб UI на мониторах шире 1440) делает getBoundingClientRect
+  // device-пикселями, а inline-стиль читается в layout-пикселях зумленного контекста:
+  // записать rect как есть - значит раздуть элемент в zoom раз. На 2560x1440 (zoom
+  // 1.6) уходящая строка получала ширину 3862px при контейнере 2414px и уезжала не
+  // туда, куда её вела анимация.
+  const zoom = getViewportZoom() || 1;
   // Прокрутка контейнера входит в координаты: без неё строки, уходящие из
   // прокрученного списка, закрепились бы выше своего места на величину скролла.
-  el.style.top = `${rect.top - parentRect.top + parent.scrollTop}px`;
-  el.style.left = `${rect.left - parentRect.left + parent.scrollLeft}px`;
-  el.style.width = `${rect.width}px`;
-  el.style.height = `${rect.height}px`;
+  // scrollTop/scrollLeft уже в layout-пикселях, их делить не надо.
+  el.style.top = `${(rect.top - parentRect.top) / zoom + parent.scrollTop}px`;
+  el.style.left = `${(rect.left - parentRect.left) / zoom + parent.scrollLeft}px`;
+  el.style.width = `${rect.width / zoom}px`;
+  el.style.height = `${rect.height / zoom}px`;
   // Размеры заданы явно, поэтому padding и border не должны прибавляться сверху.
   el.style.boxSizing = 'border-box';
   // Уходящие не должны перекрывать остающиеся: те едут на свои новые места.
