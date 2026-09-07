@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 
+const масштаб = { value: 1 };
+vi.mock('@/utils/viewportScale', () => ({ getViewportZoom: () => масштаб.value }));
+
 import { pinLeavingElement, holdParentHeight } from '../listTransition';
 
 /**
@@ -118,6 +121,54 @@ describe('закрепление уходящих элементов списк�
     expect(el.style.height).toBe('72px');
     // Внешний отступ у элемента вне потока сдвинул бы его относительно места.
     expect(el.style.margin).toBe('0');
+  });
+
+  it('делит координаты и размеры на корневой масштаб', () => {
+    // На мониторах шире 1440 интерфейс масштабируется корневым zoom. rect тогда
+    // приходит в device-пикселях, а inline-стиль читается в layout-пикселях: записать
+    // как есть - раздуть элемент ровно в zoom раз. Замер на стенде при 2560x1440:
+    // уходящая строка получала ширину 3862px при контейнере 2414px и уезжала мимо.
+    масштаб.value = 1.6;
+    const el = {
+      style: {},
+      getBoundingClientRect: () => ({ top: 420, left: 80, width: 2414, height: 51 }),
+    };
+    const parent = {
+      scrollTop: 0,
+      scrollLeft: 0,
+      children: [el],
+      getBoundingClientRect: () => ({ top: 100, left: 80 }),
+    };
+    el.parentElement = parent;
+
+    pinLeavingElement(el);
+
+    expect(el.style.width, 'ширина в layout-пикселях, а не device').toBe(`${2414 / 1.6}px`);
+    expect(el.style.height).toBe(`${51 / 1.6}px`);
+    expect(el.style.top, 'смещение от контейнера тоже device').toBe(`${320 / 1.6}px`);
+    expect(el.style.left).toBe('0px');
+    масштаб.value = 1;
+  });
+
+  it('прокрутку контейнера на масштаб не делит - она уже в layout-пикселях', () => {
+    масштаб.value = 1.6;
+    const el = {
+      style: {},
+      getBoundingClientRect: () => ({ top: 260, left: 0, width: 300, height: 40 }),
+    };
+    const parent = {
+      scrollTop: 200,
+      scrollLeft: 0,
+      children: [el],
+      getBoundingClientRect: () => ({ top: 100, left: 0 }),
+    };
+    el.parentElement = parent;
+
+    pinLeavingElement(el);
+
+    // (260 - 100) / 1.6 = 100, плюс 200 прокрутки как есть.
+    expect(el.style.top).toBe('300px');
+    масштаб.value = 1;
   });
 
   it('учитывает прокрутку контейнера', () => {
