@@ -134,6 +134,10 @@ import { useDeletionsStore } from '@/stores/deletions';
  * по всем трём частям сразу. Заодно переиспользуется - тот же раздел понадобится для
  * владельцев транспорта, когда возражение заведут и там.
  *
+ * Событие changed несёт НОВОЕ состояние: карточка должна погасить сохранение сразу
+ * после отметки, не дожидаясь перечитывания записи снаружи, иначе кнопка ведёт к отказу
+ * сервера.
+ *
  * Ставить отметку о возражении может тот же круг, что правит запись: человек скажет
  * о возражении своему работодателю, а не бюро, и обращение иначе потеряется. Снимать -
  * только администратор бюро: возражение адресовано оператору, решение принимает он.
@@ -194,7 +198,7 @@ export default {
                 this.localSource = source;
                 this.draftSource = '';
                 useDeletionsStore().notify({ prefix: 'Возражение отмечено, пропуска аннулированы' });
-                this.$emit('changed');
+                this.$emit('changed', true);
             } catch (e) {
                 useDeletionsStore().notify({ prefix: `Не удалось отметить возражение: ${e.message}` });
             } finally {
@@ -209,7 +213,7 @@ export default {
                 this.localObjectedAt = null;
                 this.localSource = '';
                 useDeletionsStore().notify({ prefix: 'Отметка о возражении снята' });
-                this.$emit('changed');
+                this.$emit('changed', false);
             } catch (e) {
                 useDeletionsStore().notify({ prefix: `Не удалось снять отметку: ${e.message}` });
             } finally {

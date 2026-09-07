@@ -209,7 +209,7 @@
         :source="editingEmployee?.pd_objection_source || ''"
         :consent-at="editingEmployee?.pd_consent_at || null"
         :can-manage-all="ownershipInfo?.can_manage_all === true"
-        @changed="$emit('saved')"
+        @changed="objectionLocal = $event; $emit('saved')"
       />
 
 
@@ -322,6 +322,8 @@ export default {
     emits: ['saved', 'close'],
     data() {
         return {
+            // Возражение, отмеченное прямо сейчас: null - смотрим на запись (#2361).
+            objectionLocal: null,
             // Гражданство
             selectedCitizenship: null,
             isCitizenshipDropdownOpen: false,
@@ -401,6 +403,9 @@ export default {
         // Согласие у записи уже зафиксировано - повторно его не спрашиваем и снять
         // галочкой не даём: отметка живёт в базе с датой и автором.
         hasObjection() {
+            // Состояние из раздела важнее данных записи: отметку могли поставить прямо
+            // сейчас, а запись перечитается позже, и до тех пор кнопка вела бы к отказу.
+            if (this.objectionLocal !== null) return this.objectionLocal;
             return !!(this.editingEmployee && this.editingEmployee.pd_objection_at);
         },
         consentAlreadyGranted() {
@@ -442,6 +447,9 @@ export default {
     watch: {
         visible(newVal) {
             if (newVal) {
+                // Открыли другую запись - состояние возражения берём из неё заново,
+                // иначе прошлая отметка запирала бы чужую карточку.
+                this.objectionLocal = null;
                 this.initForm();
             }
         },

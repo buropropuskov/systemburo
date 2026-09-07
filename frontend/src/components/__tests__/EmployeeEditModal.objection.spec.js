@@ -56,4 +56,28 @@ describe('EmployeeEditModal — возражение субъекта', () => {
     expect(wrapper.vm.saveEmployeeHint).not.toContain('Заполните');
     expect(wrapper.vm.saveEmployeeHint).toContain('правка запрещена');
   });
+
+  it('отметка, поставленная прямо в карточке, гасит сохранение сразу', async () => {
+    // Иначе кнопка остаётся живой до перечитывания записи, человек жмёт - и получает
+    // отказ сервера. Поймано ручной проверкой на стенде.
+    const wrapper = mountModal({ ...baseEmployee });
+    expect(wrapper.vm.canSaveEmployee).not.toBe(false);
+
+    wrapper.vm.objectionLocal = true;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.hasObjection).toBe(true);
+    expect(wrapper.vm.canSaveEmployee).toBe(false);
+    expect(wrapper.vm.saveEmployeeHint).toContain('правка запрещена');
+  });
+
+  it('снятие отметки возвращает возможность править', async () => {
+    const wrapper = mountModal({ ...baseEmployee, pd_objection_at: '2026-09-06T09:00:00Z' });
+    expect(wrapper.vm.hasObjection).toBe(true);
+
+    wrapper.vm.objectionLocal = false;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.hasObjection).toBe(false);
+  });
 });
