@@ -19,6 +19,9 @@ import (
 // не соответствует.
 
 // encryptedColumn - столбец с шифрованным значением и парный ему столбец HMAC.
+// Пустой hmac означает, что свёртки у поля нет: по нему не ищут, а шифруют ради
+// самого хранения (тело письма, #2377). Такой столбец переводится так же, просто
+// без второго значения в UPDATE.
 type encryptedColumn struct {
 	value string
 	hmac  string
@@ -37,6 +40,11 @@ var encryptedTables = []encryptedTable{
 	{name: "employees", columns: passportColumns()},
 	{name: "unique_employees", columns: passportColumns()},
 	{name: "application_employees", columns: passportColumns()},
+	// Тело письма в очереди отправки (#2351). Свёртки у него нет: по телу не ищут.
+	// Без этой строки смена ключа оставляла бы письма, ещё не ушедшие адресату,
+	// нечитаемыми - сработала бы мягкая деградация, и человек не получил бы пароль,
+	// а причину искали бы в почтовом сервере, а не в смене ключа неделей раньше.
+	{name: "email_messages", columns: []encryptedColumn{{value: "body"}}},
 }
 
 func passportColumns() []encryptedColumn {
@@ -193,9 +201,17 @@ func reencryptTable(ctx context.Context, tx *gorm.DB, table encryptedTable, opts
 			if err != nil {
 				return res, fmt.Errorf("%s.%s, запись %d: %w", table.name, col.value, r.ID, err)
 			}
-			update := fmt.Sprintf(`UPDATE %s SET %s = ?, %s = ? WHERE id = ?`,
-				table.name, col.value, col.hmac)
-			if err := tx.WithContext(ctx).Exec(update, value, hmac, r.ID).Error; err != nil {
+			var update string
+			var args []any
+			if col.hmac == "" {
+				update = fmt.Sprintf(`UPDATE %s SET %s = ? WHERE id = ?`, table.name, col.value)
+				args = []any{value, r.ID}
+			} else {
+				update = fmt.Sprintf(`UPDATE %s SET %s = ?, %s = ? WHERE id = ?`,
+					table.name, col.value, col.hmac)
+				args = []any{value, hmac, r.ID}
+			}
+			if err := tx.WithContext(ctx).Exec(update, args...).Error; err != nil {
 				return res, fmt.Errorf("запись %s.%s id=%d: %w", table.name, col.value, r.ID, err)
 			}
 		}

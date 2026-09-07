@@ -90,24 +90,36 @@ func TestReencryptValue_ToCleartext(t *testing.T) {
 // моделями, где стоят хуки шифрования: пропущенная таблица останется на старом ключе
 // молча, и обнаружится это только когда оператор откроет карточку.
 func TestEncryptedTables_CoverPassportModels(t *testing.T) {
+	// Ожидаемый состав: таблица -> нужна ли парная свёртка. Свёртка есть там, где по
+	// значению ищут (документы), и её нет у тела письма - по нему не ищут, шифруется
+	// оно ради самого хранения (#2377). Различать обязательно: пропавшая свёртка у
+	// паспорта ломает поиск молча, а требование свёртки у письма не дало бы внести
+	// его в перевод вовсе.
 	want := map[string]bool{
-		"employees":             false,
-		"unique_employees":      false,
-		"application_employees": false,
+		"employees":             true,
+		"unique_employees":      true,
+		"application_employees": true,
+		"email_messages":        false,
 	}
+	seen := map[string]bool{}
 	for _, table := range encryptedTables {
-		_, known := want[table.name]
+		needHMAC, known := want[table.name]
 		require.True(t, known, "таблица %s в перечне лишняя либо переименована", table.name)
-		want[table.name] = true
+		seen[table.name] = true
 
 		require.NotEmpty(t, table.columns, "у таблицы %s не указаны столбцы", table.name)
 		for _, col := range table.columns {
 			require.NotEmpty(t, col.value)
-			require.NotEmpty(t, col.hmac, "столбец %s.%s без парного HMAC: поиск сломается после перевода",
-				table.name, col.value)
+			if needHMAC {
+				require.NotEmpty(t, col.hmac, "столбец %s.%s без парного HMAC: поиск сломается после перевода",
+					table.name, col.value)
+			} else {
+				require.Empty(t, col.hmac, "у %s.%s свёртки быть не должно: по нему не ищут",
+					table.name, col.value)
+			}
 		}
 	}
-	for name, covered := range want {
-		require.True(t, covered, "таблица %s выпала из перевода", name)
+	for name := range want {
+		require.True(t, seen[name], "таблица %s выпала из перевода", name)
 	}
 }
