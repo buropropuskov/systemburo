@@ -120,12 +120,19 @@
                   :title="carRowTitle(car)"
                   @click="handleRowClick(car, $event)"
                 >
-                  <div class="table-cell select-cell">
+                  <!-- Клик ловит ячейка, а не сам флажок: тот выключен из событий
+                       (pointer-events), поэтому браузер его не переключает и состояние
+                       целиком идёт из данных. Иначе нативное переключение и откат
+                       preventDefault расходились с :checked - строка выделялась, а
+                       галочка не появлялась (#2399). -->
+                  <div
+                    class="table-cell select-cell"
+                    @click.stop="handleRowClick(car, $event)"
+                  >
                     <input
                       type="checkbox"
                       :checked="isCarSelected(car)"
                       :disabled="isCarDisabled(car)"
-                      @click.stop.prevent="handleRowClick(car, $event)"
                     >
                   </div>
                   <div class="table-cell number-cell">
