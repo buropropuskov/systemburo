@@ -51,6 +51,8 @@ func passportColumns() []encryptedColumn {
 	return []encryptedColumn{
 		{value: "passport_series_number", hmac: "passport_series_number_hmac"},
 		{value: "patent_number", hmac: "patent_number_hmac"},
+		// Иное разрешение шифруется с #2351. Свёртки нет: по нему не ищут.
+		{value: "other_permission"},
 	}
 }
 
