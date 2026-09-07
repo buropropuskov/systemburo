@@ -61,4 +61,30 @@ describe('EmployeeObjectionControl — управление возражение
     const admin = mountControl({ objectedAt: '2026-09-06T10:00:00Z', canManageAll: true });
     expect(admin.find('[data-testid="objection-clear"]').exists()).toBe(true);
   });
+
+  it('свёрнут у обычной записи и раскрыт, когда есть что показать', () => {
+    // Уведомлённая запись без возражения: раздел свёрнут, в заголовке состояние -
+    // ради него открывать ничего не нужно.
+    const quiet = mountControl({ consentAt: '2026-08-19T10:00:00Z' });
+    expect(quiet.vm.open).toBe(false);
+    expect(quiet.text()).toContain('уведомлён');
+
+    // Новая запись без отметки: раздел открыт, иначе обязательное поле спрятано и
+    // человек не поймёт, почему карточка не сохраняется.
+    const fresh = mountControl();
+    expect(fresh.vm.open).toBe(true);
+    expect(fresh.text()).toContain('требуется отметка');
+
+    // Возражение: открыт и помечен в заголовке.
+    const objected = mountControl({ objectedAt: '2026-09-06T09:00:00Z', consentAt: '2026-08-19T10:00:00Z' });
+    expect(objected.vm.open).toBe(true);
+    expect(objected.text()).toContain('возражение');
+  });
+
+  it('отметка об уведомлении уходит наверх через модель', async () => {
+    const wrapper = mountControl();
+    await wrapper.find('[data-testid="employee-registry-pd-consent"]').setValue(true);
+    expect(wrapper.emitted('update:consent')).toBeTruthy();
+    expect(wrapper.emitted('update:consent')[0]).toEqual([true]);
+  });
 });
