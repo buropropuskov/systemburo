@@ -203,45 +203,15 @@
       <!-- Возражение субъекта (#2361): состояние и управление им. Отдельным
            компонентом - карточка упёрта в предел размера по всем трём частям. -->
       <EmployeeObjectionControl
-        v-if="editingEmployee && editingEmployee.id"
-        :employee-id="editingEmployee.id"
-        :objected-at="editingEmployee.pd_objection_at"
-        :source="editingEmployee.pd_objection_source || ''"
+        v-model:consent="pdConsent"
+        :employee-id="editingEmployee?.id || null"
+        :objected-at="editingEmployee?.pd_objection_at || null"
+        :source="editingEmployee?.pd_objection_source || ''"
+        :consent-at="editingEmployee?.pd_consent_at || null"
         :can-manage-all="ownershipInfo?.can_manage_all === true"
         @changed="$emit('saved')"
       />
 
-      <!-- Уведомление субъекта об обработке персональных данных (часть 3 статьи 18
-           152-ФЗ). У записи, где отметка уже стоит, показываем дату - повторять нечего. -->
-      <div class="completion__consent">
-        <label class="input__label">Уведомление об обработке персональных данных</label>
-        <p
-          v-if="consentAlreadyGranted"
-          class="consent-granted"
-          data-testid="employee-consent-granted"
-        >
-          Уведомлён {{ formatConsentDate(editingEmployee.pd_consent_at) }}
-        </p>
-        <label
-          v-else
-          class="consent-option"
-        >
-          <input
-            v-model="pdConsent"
-            type="checkbox"
-            data-testid="employee-registry-pd-consent"
-          >
-          <span>
-            Работник уведомлён об <a
-              href="/data-processing"
-              target="_blank"
-              rel="noopener"
-              class="blue"
-              @click.stop
-            >обработке персональных данных</a><span class="required">*</span>
-          </span>
-        </label>
-      </div>
 
       <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
            вместо переключателей «привязать к моей организации» показываем, за кем

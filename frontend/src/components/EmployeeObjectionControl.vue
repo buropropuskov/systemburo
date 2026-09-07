@@ -1,67 +1,124 @@
 <template>
-  <div class="objection">
-    <template v-if="localObjectedAt">
-      <p
-        class="objection__note"
-        data-testid="objection-note"
-      >
-        Работник возразил против обработки своих персональных данных
-        {{ formattedDate }}. Фамилия, имя, должность и документы доступны только для
-        чтения, действующие пропуска аннулированы.
-      </p>
-      <p
-        v-if="localSource"
-        class="objection__source"
-        data-testid="objection-source"
-      >
-        Основание: {{ localSource }}
-      </p>
-      <button
-        v-if="canManageAll"
-        type="button"
-        class="lk-button lk-button--secondary objection__action"
-        :disabled="busy"
-        data-testid="objection-clear"
-        @click="clear"
-      >
-        {{ busy ? 'Снимаем...' : 'Снять отметку' }}
-      </button>
-      <p
-        v-else
-        class="objection__hint"
-      >
-        Снять отметку может администратор бюро по итогам рассмотрения обращения.
-      </p>
-    </template>
+  <div class="pd-section">
+    <!-- Раздел свёрнут по умолчанию: про персональные данные в карточке вспоминают
+         редко, а места блок занимает больше прочих полей. Раскрыт сразу, когда есть
+         что показать: стоит возражение или отметка об уведомлении ещё не поставлена. -->
+    <button
+      type="button"
+      class="pd-section__toggle"
+      :aria-expanded="open ? 'true' : 'false'"
+      data-testid="pd-section-toggle"
+      @click="open = !open"
+    >
+      <span class="pd-section__title">Персональные данные</span>
+      <span
+        class="pd-section__badge"
+        :class="{ 'pd-section__badge--alert': !!localObjectedAt }"
+      >{{ summary }}</span>
+      <span class="pd-section__chevron">{{ open ? '−' : '+' }}</span>
+    </button>
 
-    <template v-else>
-      <label
-        class="input__label"
-        for="objection-source"
-      >Возражение против обработки данных</label>
-      <p class="objection__hint">
-        Отметьте, если работник обратился с требованием прекратить обработку его
-        персональных данных. Сведения останутся в системе, но станут доступны только
-        для чтения, а пропуска будут аннулированы.
+    <div
+      v-show="open"
+      class="pd-section__body"
+      data-testid="pd-section-body"
+    >
+      <!-- Уведомление субъекта (часть 3 статьи 18 152-ФЗ): данные вводит заявитель,
+           он же обязан уведомить человека. У записи с отметкой показываем дату. -->
+      <label class="input__label">Уведомление об обработке персональных данных</label>
+      <p
+        v-if="consentAt"
+        class="pd-section__muted"
+        data-testid="employee-consent-granted"
+      >
+        Уведомлён {{ formatDate(consentAt) }}
       </p>
-      <input
-        id="objection-source"
-        v-model="draftSource"
-        class="lk-input"
-        type="text"
-        placeholder="Откуда поступило обращение"
-        data-testid="objection-source-input"
+      <label
+        v-else
+        class="consent-option"
       >
-      <button
-        type="button"
-        class="lk-button lk-button--danger objection__action"
-        :disabled="busy || !draftSource.trim()"
-        data-testid="objection-set"
-        @click="submit"
-      >
-        {{ busy ? 'Отмечаем...' : 'Отметить возражение' }}
-      </button>
-    </template>
+        <input
+          :checked="consent"
+          type="checkbox"
+          data-testid="employee-registry-pd-consent"
+          @change="$emit('update:consent', $event.target.checked)"
+        >
+        <span>
+          Работник уведомлён об <a
+            href="/data-processing"
+            target="_blank"
+            rel="noopener"
+            class="blue"
+            @click.stop
+          >обработке персональных данных</a><span class="required">*</span>
+        </span>
+      </label>
+
+      <div class="pd-section__objection">
+        <template v-if="localObjectedAt">
+          <p
+            class="pd-section__note"
+            data-testid="objection-note"
+          >
+            Работник возразил против обработки своих персональных данных
+            {{ formatDate(localObjectedAt) }}. Фамилия, имя, должность и документы
+            доступны только для чтения, действующие пропуска аннулированы.
+          </p>
+          <p
+            v-if="localSource"
+            class="pd-section__muted"
+            data-testid="objection-source"
+          >
+            Основание: {{ localSource }}
+          </p>
+          <button
+            v-if="canManageAll"
+            type="button"
+            class="lk-button lk-button--secondary pd-section__action"
+            :disabled="busy"
+            data-testid="objection-clear"
+            @click="clear"
+          >
+            {{ busy ? 'Снимаем...' : 'Снять отметку' }}
+          </button>
+          <p
+            v-else
+            class="pd-section__muted"
+          >
+            Снять отметку может администратор бюро по итогам рассмотрения обращения.
+          </p>
+        </template>
+
+        <template v-else>
+          <label
+            class="input__label"
+            for="objection-source"
+          >Возражение против обработки данных</label>
+          <p class="pd-section__muted">
+            Отметьте, если работник потребовал прекратить обработку своих данных.
+            Сведения останутся в системе, но станут доступны только для чтения,
+            а действующие пропуска будут аннулированы.
+          </p>
+          <input
+            id="objection-source"
+            v-model="draftSource"
+            class="lk-input"
+            type="text"
+            placeholder="Откуда поступило обращение"
+            data-testid="objection-source-input"
+          >
+          <button
+            type="button"
+            class="lk-button lk-button--danger pd-section__action"
+            :disabled="busy || !draftSource.trim()"
+            data-testid="objection-set"
+            @click="submit"
+          >
+            {{ busy ? 'Отмечаем...' : 'Отметить возражение' }}
+          </button>
+        </template>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -70,37 +127,47 @@ import { setEmployeeObjection, clearEmployeeObjection } from '@/api/employees';
 import { useDeletionsStore } from '@/stores/deletions';
 
 /**
- * Управление отметкой о возражении субъекта (#2361).
+ * Раздел карточки сотрудника про персональные данные (#2361): отметка об уведомлении
+ * и управление возражением субъекта.
  *
- * Отдельный компонент, а не блок внутри карточки: карточка реестра упёрта в предел
- * размера по всем трём частям сразу, и дописать туда нечего. Заодно управление
- * переиспользуется - тот же блок понадобится в карточке машины, когда возражение
- * заведут и для владельцев транспорта.
+ * Отдельный компонент, а не блок в карточке: карточка реестра упёрта в предел размера
+ * по всем трём частям сразу. Заодно переиспользуется - тот же раздел понадобится для
+ * владельцев транспорта, когда возражение заведут и там.
  *
- * Ставить отметку может тот же круг, что правит запись: человек скажет о возражении
- * своему работодателю, а не бюро, и обращение иначе потеряется. Снимать - только
- * администратор бюро: возражение адресовано оператору, решение принимает он.
+ * Ставить отметку о возражении может тот же круг, что правит запись: человек скажет
+ * о возражении своему работодателю, а не бюро, и обращение иначе потеряется. Снимать -
+ * только администратор бюро: возражение адресовано оператору, решение принимает он.
  */
 export default {
     name: 'EmployeeObjectionControl',
     props: {
-        employeeId: { type: Number, required: true },
+        employeeId: { type: Number, default: null },
         objectedAt: { type: String, default: null },
         source: { type: String, default: '' },
+        consentAt: { type: String, default: null },
+        consent: { type: Boolean, default: false },
         canManageAll: { type: Boolean, default: false },
     },
-    emits: ['changed'],
+    emits: ['changed', 'update:consent'],
     data() {
-        // Состояние держим у себя, а не ждём перечитывания карточки снаружи: карточка
-        // после действия остаётся открытой, и вид обязан смениться сразу. Наверх
-        // уходит событие, по которому вью перечитывает список.
-        return { draftSource: '', busy: false, localObjectedAt: this.objectedAt, localSource: this.source };
+        // Состояние держим у себя: карточка после действия остаётся открытой, и вид
+        // обязан смениться сразу. Наверх уходит событие, по которому вью перечитывает
+        // список.
+        return {
+            draftSource: '',
+            busy: false,
+            localObjectedAt: this.objectedAt,
+            localSource: this.source,
+            // Новую запись заводят с незаполненной отметкой, и прятать обязательное
+            // поле нельзя: человек не найдёт, почему не сохраняется.
+            open: !!this.objectedAt || !this.consentAt,
+        };
     },
     computed: {
-        formattedDate() {
-            if (!this.localObjectedAt) return '';
-            const d = new Date(this.localObjectedAt);
-            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ru-RU');
+        summary() {
+            if (this.localObjectedAt) return 'возражение';
+            if (this.consentAt) return 'уведомлён';
+            return 'требуется отметка';
         },
     },
     watch: {
@@ -112,9 +179,14 @@ export default {
         },
     },
     methods: {
+        formatDate(value) {
+            if (!value) return '';
+            const d = new Date(value);
+            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ru-RU');
+        },
         async submit() {
             const source = this.draftSource.trim();
-            if (!source || this.busy) return;
+            if (!source || this.busy || !this.employeeId) return;
             this.busy = true;
             try {
                 await setEmployeeObjection(this.employeeId, source);
@@ -130,7 +202,7 @@ export default {
             }
         },
         async clear() {
-            if (this.busy) return;
+            if (this.busy || !this.employeeId) return;
             this.busy = true;
             try {
                 await clearEmployeeObjection(this.employeeId);
@@ -149,15 +221,58 @@ export default {
 </script>
 
 <style scoped>
-.objection {
+.pd-section {
     margin-top: 15px;
     padding-top: 15px;
     border-top: 1px solid var(--border);
 }
 
-/* Заливкой, а не только цветом текста: состояние меняет правила работы с записью,
-   и потеряться среди служебных подписей карточки оно не должно. */
-.objection__note {
+.pd-section__toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.pd-section__title {
+    flex: 1;
+}
+
+.pd-section__badge {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+/* Возражение видно на свёрнутом разделе: состояние меняет правила работы с записью,
+   и открывать раздел ради этого никто не станет. */
+.pd-section__badge--alert {
+    color: var(--danger-text);
+    font-weight: 600;
+}
+
+.pd-section__chevron {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.pd-section__body {
+    margin-top: 12px;
+}
+
+.pd-section__objection {
+    margin-top: 14px;
+}
+
+.pd-section__note {
     margin: 0 0 8px;
     padding: 10px 14px;
     border-radius: var(--radius-md);
@@ -167,20 +282,14 @@ export default {
     line-height: 1.45;
 }
 
-.objection__source {
-    margin: 0 0 10px;
-    font-size: 11px;
-    color: var(--text-muted);
-}
-
-.objection__hint {
+.pd-section__muted {
     margin: 6px 0 10px;
     font-size: 11px;
     line-height: 1.4;
     color: var(--text-muted);
 }
 
-.objection__action {
+.pd-section__action {
     margin-top: 10px;
 }
 </style>
