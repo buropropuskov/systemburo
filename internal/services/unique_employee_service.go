@@ -781,16 +781,39 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		}
 	}
 
-	updates := map[string]interface{}{
-		"last_name":        req.LastName,
-		"first_name":       req.FirstName,
-		"middle_name":      req.MiddleName,
-		"citizenship_id":   req.CitizenshipID,
-		"position":         req.Position,
-		"other_permission": req.OtherPermission,
-		"organization_id":  req.OrganizationID,
-		"company_id":       req.CompanyID,
+	// Персональные поля пишем ТОЛЬКО пришедшие (#2400). Прежде в карту клался весь
+	// набор разом, и поле, которого в теле нет, уходило в базу как NULL: запрос
+	// «поменяй компанию» стирал фамилию и должность. Через форму это не
+	// воспроизводится - она шлёт все поля, - поэтому дефект прожил незамеченным и
+	// вскрылся частичным запросом.
+	//
+	// Пустая строка при этом по-прежнему очищает значение: администратор вправе
+	// стереть ошибочно введённое, и «не прислали» с «прислали пусто» - разные вещи.
+	// Тот же приём в userService.UpdateInfo, там он объяснён со стороны формы.
+	updates := map[string]interface{}{}
+	if req.LastName != nil {
+		updates["last_name"] = *req.LastName
 	}
+	if req.FirstName != nil {
+		updates["first_name"] = *req.FirstName
+	}
+	if req.MiddleName != nil {
+		updates["middle_name"] = *req.MiddleName
+	}
+	if req.CitizenshipID != nil {
+		updates["citizenship_id"] = *req.CitizenshipID
+	}
+	if req.Position != nil {
+		updates["position"] = *req.Position
+	}
+	if req.OtherPermission != nil {
+		updates["other_permission"] = *req.OtherPermission
+	}
+	// Привязки остаются прежними: у них nil означает осмысленное «отвязать», и
+	// переключатели в карточке шлют именно его. Данные при этом не теряются -
+	// запись остаётся, меняется только принадлежность.
+	updates["organization_id"] = req.OrganizationID
+	updates["company_id"] = req.CompanyID
 	// Владельца меняем только по явному указанию в запросе. Прежний код подставлял
 	// сюда правящего пользователя, и правка чужой записи переводила её на себя;
 	// у администратора, который правит сотрудников всей системы, это переписало бы
