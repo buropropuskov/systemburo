@@ -3,7 +3,7 @@ module systemburo
 go 1.26.6
 
 require (
-	filippo.io/age v1.3.1
+	filippo.io/age v1.3.2
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/go-pdf/fpdf v0.9.0
