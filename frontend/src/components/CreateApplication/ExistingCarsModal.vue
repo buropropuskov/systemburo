@@ -109,7 +109,7 @@
                 class="table-body"
               >
                 <div
-                  v-for="car in pagedCars"
+                  v-for="car in displayedCars"
                   :key="car.id"
                   class="table-row rt-row range-select-row"
                   :class="{
@@ -183,16 +183,6 @@
           </div>
 
           <!-- Кнопки действий -->
-          <Pager
-            v-if="totalPages > 1"
-            class="modal-pager"
-            :page="currentPage"
-            :total-pages="totalPages"
-            :total="displayedCars.length"
-            page-prefix="Стр. "
-            @update:page="goToPage"
-          />
-
           <div class="modal-actions">
             <button
               class="lk-button lk-button--ghost"
@@ -220,22 +210,16 @@ import { apiRequest } from '@/api/client'
 import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
-import Pager from '@/components/ui/Pager.vue'
 import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { isSameVehicle, vehicleFromCatalog } from '@/utils/applicationDuplicates'
 
-// Десять строк на страницу: в реестре у одного заявителя набирается под сотню
-// записей, и окно выбора должно листаться, а не тянуться сплошным списком (#2399).
-const РАЗМЕР_СТРАНИЦЫ = 10
-
 export default {
     name: 'ExistingCarsModal',
     components: {
         SearchComponent,
-        LoaderSpinner,
-        Pager
+        LoaderSpinner
     },
     props: {
         visible: {
@@ -292,7 +276,6 @@ export default {
             displayedCars: [],
             tempSelectedCars: [],
             // Якорь диапазона и снимок выбора на момент его установки (#2399).
-            currentPage: 1,
             selectionAnchorId: null,
             selectionBase: [],
             currentFilter: 'all',
@@ -324,18 +307,6 @@ export default {
         document.removeEventListener('keydown', this.handleKeydown)
         releaseBodyScrollLock(this);
     },
-    computed: {
-        totalPages() {
-            return Math.max(1, Math.ceil(this.displayedCars.length / РАЗМЕР_СТРАНИЦЫ))
-        },
-
-        /** Строки текущей страницы - они на экране, по ним же считается Shift-диапазон. */
-        pagedCars() {
-            const от = (this.currentPage - 1) * РАЗМЕР_СТРАНИЦЫ
-            return this.displayedCars.slice(от, от + РАЗМЕР_СТРАНИЦЫ)
-        },
-    },
-
     methods: {
         handleKeydown(e) {
             if (!this.visible) return
@@ -365,10 +336,6 @@ export default {
             }
         },
 
-        goToPage(page) {
-            this.currentPage = Math.min(Math.max(1, page), this.totalPages)
-        },
-
         handleSearch() {
             this.applySearch()
         },
@@ -391,10 +358,6 @@ export default {
         },
 
         applySearch() {
-            // Новая выдача - снова с первой страницы: иначе поиск, начатый на третьей,
-            // показывает пустоту при непустом результате.
-            this.currentPage = 1
-
             if (!this.searchQuery.trim()) {
                 this.displayedCars = [...this.filteredCars]
                 return
@@ -462,7 +425,7 @@ export default {
             if (this.isCarDisabled(car)) return
 
             if (event && event.shiftKey && this.selectionAnchorId !== null) {
-                const диапазон = itemsInRange(this.pagedCars, this.selectionAnchorId, car.id,
+                const диапазон = itemsInRange(this.displayedCars, this.selectionAnchorId, car.id,
                     { isDisabled: (i) => this.isCarDisabled(i) })
                 if (диапазон.length) {
                     this.tempSelectedCars = mergeSelection(this.selectionBase, диапазон)
@@ -671,7 +634,7 @@ export default {
     flex: 1;
     overflow: hidden;
     min-height: 240px;
-    max-height: 240px;
+    max-height: min(630px, calc(var(--app-vh, 1vh) * 65));
     display: flex;
     flex-direction: column;
 }
