@@ -1587,7 +1587,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Счётчик для чипа \"Обновления\" в ЛК (#1349): заявки пользователя (его или\nорганизации), чей статус/подтверждение менялись после последнего просмотра.",
+                "description": "Счётчик для чипа \"Обновления\" в ЛК (#1349): заявки пользователя (его или\nорганизации), чей статус/подтверждение менялись после последнего просмотра.\nВкладка кабинета сужает счёт так же, как список (#2339).",
                 "produces": [
                     "application/json"
                 ],
@@ -1595,11 +1595,31 @@
                     "applications"
                 ],
                 "summary": "Число заявок ЛК с обновлённым статусом",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Вкладка «Мои заявки»: считать только заявки этого автора",
+                        "name": "sender_user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Вкладка «Организация»: считать только заявки этой организации",
+                        "name": "organization_id",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.StatusUpdatesCountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     },
                     "401": {
@@ -2091,6 +2111,82 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/bureau-note": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сохраняет рабочую заметку принимающих по заявке; пустой текст снимает её.\nДоступно только принимающим, остальным 403. В ответ детали заявки заметка\nпопадает тоже только принимающему.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Заметка бюро по заявке",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Текст заметки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.SetBureauNoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BureauNoteView"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -2839,14 +2935,14 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает вопросы к заявке (#973) с вложенными ответами и вложениями. Видно всем, у кого есть доступ к заявке (включая инициатора).",
+                "description": "Возвращает темы обсуждения заявки (#973) с вложенными ответами и вложениями. Видно всем, у кого есть доступ к заявке (включая инициатора).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "applications"
                 ],
-                "summary": "Вопросы к заявке",
+                "summary": "Обсуждение заявки",
                 "parameters": [
                     {
                         "type": "integer",
@@ -2886,7 +2982,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Создаёт вопрос-топик (#973). Доступно любому с доступом к заявке, включая инициатора. Пишется в историю, инициатору уходит уведомление (если он не автор).",
+                "description": "Создаёт тему обсуждения (#973). Доступно любому с доступом к заявке, включая инициатора. Пишется в историю, инициатору уходит уведомление (если он не автор).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2896,7 +2992,7 @@
                 "tags": [
                     "applications"
                 ],
-                "summary": "Задать вопрос к заявке",
+                "summary": "Начать обсуждение заявки",
                 "parameters": [
                     {
                         "type": "integer",
@@ -2906,7 +3002,7 @@
                         "required": true
                     },
                     {
-                        "description": "Вопрос",
+                        "description": "Тема обсуждения",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2944,14 +3040,14 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Обновляет last-seen пользователя по Q\u0026A заявки (#973), гасит маркер \"новые вопросы/ответы\".",
+                "description": "Обновляет last-seen пользователя по обсуждению заявки (#973), гасит маркер \"новые сообщения\".",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "applications"
                 ],
-                "summary": "Отметить вопросы заявки просмотренными",
+                "summary": "Отметить обсуждение заявки просмотренным",
                 "parameters": [
                     {
                         "type": "integer",
@@ -2993,7 +3089,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Добавляет ответ в тред вопроса (#973). Доступно любому с доступом к заявке. Участникам обсуждения уходит уведомление.",
+                "description": "Добавляет ответ в тред темы (#973). Доступно любому с доступом к заявке. Участникам обсуждения уходит уведомление.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3003,7 +3099,7 @@
                 "tags": [
                     "applications"
                 ],
-                "summary": "Ответить на вопрос к заявке",
+                "summary": "Ответить в обсуждении заявки",
                 "parameters": [
                     {
                         "type": "integer",
@@ -3064,14 +3160,14 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Помечает конкретный вопрос-топик прочитанным (#973): гасит его новизну для пользователя. Недочитанные топики остаются новыми.",
+                "description": "Помечает конкретную тему обсуждения прочитанной (#973): гасит её новизну для пользователя. Недочитанные темы остаются новыми.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "applications"
                 ],
-                "summary": "Отметить вопрос-топик прочитанным",
+                "summary": "Отметить тему обсуждения прочитанной",
                 "parameters": [
                     {
                         "type": "integer",
@@ -15784,6 +15880,69 @@
                 }
             }
         },
+        "/statistics/report/period": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Самая ранняя и самая поздняя дата по оси времени отчёта - той же, по которой сужает фильтр периода. Пустые границы: данных нет или у отчёта нет оси времени.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Границы дат отчёта",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "aggregate (по умолчанию) или list",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ключ метрики (mode=aggregate)",
+                        "name": "metric",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ключ сущности (mode=list)",
+                        "name": "entity",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/statistics/stuck-approvals": {
             "get": {
                 "security": [
@@ -19266,6 +19425,98 @@
                         "description": "Не найден",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unique-employees/{id}/objection": {
+            "post": {
+                "description": "Пока отметка стоит, персональные поля записи только читаются.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-employees"
+                ],
+                "summary": "Отметить возражение субъекта против обработки его данных",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи реестра",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Основание",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SetObjectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Возражение уже отмечено",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "По итогам рассмотрения обращения оператором либо когда человек отозвал возражение.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-employees"
+                ],
+                "summary": "Снять отметку о возражении",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи реестра",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Возражение не отмечено",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -23408,6 +23659,18 @@
                 }
             }
         },
+        "handlers.SetObjectionRequest": {
+            "type": "object",
+            "required": [
+                "source"
+            ],
+            "properties": {
+                "source": {
+                    "description": "Source - откуда поступило обращение. Обязателен: отметка без указания, откуда\nона взялась, через полгода не отличается от случайного нажатия, а разбирать\nвозражение будет человек.",
+                    "type": "string"
+                }
+            }
+        },
         "handlers.markCompleteRequest": {
             "type": "object",
             "required": [
@@ -25883,6 +26146,13 @@
         "models.ReportRequest": {
             "type": "object",
             "properties": {
+                "columns": {
+                    "description": "Columns (опц., только Mode=list) — какие столбцы сущности отдавать. Пусто —\nвсе столбцы каталога. Порядок берётся из каталога, а не из запроса: он же\nопределяет порядок колонок в выгрузке.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "dimension": {
                     "type": "string"
                 },
@@ -26650,6 +26920,10 @@
                 },
                 "auto_export": {
                     "description": "AutoExport - писать ли бланки этого типа в файловый архив (#1615). Включён по\nумолчанию: администратор настраивает архив глобальным рубильником, а тумблер\nздесь нужен, чтобы исключить отдельный тип, а не чтобы перечислять нужные.",
+                    "type": "boolean"
+                },
+                "blank_import_ready": {
+                    "description": "BlankImportReady - у типа есть активный шаблон со списочными привязками, то есть\nпустой бланк можно скачать, заполнить и загрузить обратно (blank-import). Поле\nвычисляемое, в базе его нет: без него форма показывала кнопку скачивания всегда\nи отвечала на клик отказом 404 «Шаблон бланка не настроен».",
                     "type": "boolean"
                 },
                 "created_at": {
@@ -28659,6 +28933,23 @@
                 }
             }
         },
+        "services.BureauNoteView": {
+            "type": "object",
+            "properties": {
+                "author_id": {
+                    "type": "integer"
+                },
+                "author_name": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "services.CarCurrentStatus": {
             "type": "object",
             "properties": {
@@ -30264,6 +30555,7 @@
                     "type": "integer"
                 },
                 "mark": {
+                    "description": "Mark - указатель, чтобы отличать «поле не прислали» от «прислали пустым»\n(#2400). Значением марка стиралась частичным запросом: PUT с одним номером\nобнулял её вместе с форматом.",
                     "type": "string",
                     "maxLength": 100
                 },
@@ -30802,6 +31094,14 @@
                 },
                 "id": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.SetBureauNoteRequest": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string"
                 }
             }
         },
@@ -31483,6 +31783,13 @@
                 "pd_consent_at": {
                     "type": "string"
                 },
+                "pd_objection_at": {
+                    "description": "PDObjectionAt и PDObjectionSource - отметка о возражении субъекта (#2361).\nБез них интерфейс не покажет, почему поля карточки заперты, и человек будет\nдумать, что форма сломалась.",
+                    "type": "string"
+                },
+                "pd_objection_source": {
+                    "type": "string"
+                },
                 "position": {
                     "type": "string"
                 },
@@ -31565,6 +31872,13 @@
                 },
                 "pd_consent_at": {
                     "description": "PDConsentAt -- когда подтверждено согласие субъекта на обработку его данных.\nNULL у записей, заведённых до введения поля: карточка так и пишет, что отметки нет.",
+                    "type": "string"
+                },
+                "pd_objection_at": {
+                    "description": "PDObjectionAt и PDObjectionSource - отметка о возражении субъекта (#2361).\nБез них интерфейс не покажет, почему поля карточки заперты, и человек будет\nдумать, что форма сломалась.",
+                    "type": "string"
+                },
+                "pd_objection_source": {
                     "type": "string"
                 },
                 "position": {
