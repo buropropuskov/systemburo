@@ -49,10 +49,13 @@ export async function exportSubjectReport(payload) {
     const text = await response.text();
     throw new Error(text || 'Не удалось выгрузить справку');
   }
+  // Имя файла кириллическое, поэтому сервер отдаёт его в filename*=UTF-8'' (заголовки
+  // HTTP - ASCII). Читаем сначала его: простой filename="..." там запасной, ASCII-шный.
   const disposition = response.headers.get('Content-Disposition') || '';
-  const match = disposition.match(/filename="([^"]+)"/);
-  return {
-    blob: await response.blob(),
-    filename: match ? match[1] : `Сведения_о_субъекте.${payload.format || 'xlsx'}`,
-  };
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const plain = disposition.match(/filename="([^"]+)"/);
+  let filename = `Сведения_о_субъекте.${payload.format || 'xlsx'}`;
+  if (utf8) filename = decodeURIComponent(utf8[1]);
+  else if (plain) filename = plain[1];
+  return { blob: await response.blob(), filename };
 }

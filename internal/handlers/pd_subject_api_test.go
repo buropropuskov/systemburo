@@ -83,7 +83,12 @@ func TestPDSubjectAPI_ReportAndExport(t *testing.T) {
 		rec := testutil.POST(t, e, "/pd-subject/export",
 			`{"registry_id":`+itoa(registryID)+`,"recipient":"УМВД по г. Москве","request_ref":"исх. 12/345"}`, h)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Header().Get("Content-Disposition"), ".xlsx")
+		// Имя справки кириллическое, а заголовки HTTP - ASCII: без filename*=UTF-8''
+		// браузер сохраняет файл кракозябрами (поймано ручной проверкой на стенде).
+		disposition := rec.Header().Get("Content-Disposition")
+		assert.Contains(t, disposition, "filename*=UTF-8''", "кириллическое имя обязано идти закодированным")
+		assert.Contains(t, disposition, "%D0%A1%D0%B2%D0%B5%D0%B4%D0%B5%D0%BD%D0%B8%D1%8F",
+			"в закодированном имени должно читаться «Сведения»")
 		assert.Greater(t, rec.Body.Len(), 0, "файл справки пуст")
 
 		var count int64
