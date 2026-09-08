@@ -95,10 +95,17 @@ func (s *Service) Report(ctx context.Context, registryID int) (*ReportResponse, 
 
 	resp := &ReportResponse{Origin: rep.Origin, Basis: entityarchive.SubjectProcessingBasis()}
 	for _, s := range rep.Sections {
+		// Пустой срез, а не nil: nil уезжает в JSON как null, и экран падает на
+		// rows.length у раздела без строк - раздел «Заявки» у человека без заявок
+		// ронял всю страницу (поймано ручной проверкой на стенде).
+		rows := s.Rows
+		if rows == nil {
+			rows = [][]string{}
+		}
 		resp.Sections = append(resp.Sections, Section{
-			Title: s.Title, Headers: s.Headers, Rows: s.Rows,
+			Title: s.Title, Headers: s.Headers, Rows: rows,
 		})
-		resp.Total += len(s.Rows)
+		resp.Total += len(rows)
 	}
 	return resp, nil
 }

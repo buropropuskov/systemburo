@@ -100,11 +100,11 @@
         class="pds__block"
       >
         <h4 class="pds__block-title">
-          {{ s.title }} <span class="pds__count">{{ s.rows.length }}</span>
+          {{ s.title }} <span class="pds__count">{{ rowsOf(s).length }}</span>
         </h4>
         <div class="pds__table-wrap">
           <table
-            v-if="s.rows.length"
+            v-if="rowsOf(s).length"
             class="pds__table"
           >
             <thead>
@@ -119,7 +119,7 @@
             </thead>
             <tbody>
               <tr
-                v-for="(row, i) in s.rows"
+                v-for="(row, i) in rowsOf(s)"
                 :key="i"
               >
                 <td
@@ -197,6 +197,12 @@ const disclosures = ref([]);
 const selectedId = ref(0);
 
 const canExport = computed(() => permissions.hasPermission('action.pd_subject.export'));
+
+// Раздел без строк приходит с rows: null - Go отдаёт пустой срез как null. Обращение
+// к null.length роняет рендер целиком, и человека выбрасывает со страницы.
+function rowsOf(section) {
+  return section.rows || [];
+}
 
 async function search() {
   if (fio.value.trim().split(/\s+/).length < 2) {

@@ -56,13 +56,20 @@ func TestPDSubjectAPI_ReportAndExport(t *testing.T) {
 			Data struct {
 				Basis    string `json:"basis"`
 				Sections []struct {
-					Title string `json:"title"`
+					Title string     `json:"title"`
+					Rows  [][]string `json:"rows"`
 				} `json:"sections"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		assert.Contains(t, resp.Data.Basis, "п. 7 ч. 1 ст. 6 152-ФЗ")
 		require.Len(t, resp.Data.Sections, 4, "разделы справки: сведения, заявки, проходы, посты")
+
+		// Раздел без строк обязан приходить пустым массивом, а не null: nil-срез
+		// уезжает в JSON как null, и экран падает на rows.length - у человека без
+		// заявок это роняло всю страницу целиком (поймано на стенде).
+		assert.NotContains(t, rec.Body.String(), `"rows":null`,
+			"пустой раздел обязан быть [], иначе экран падает на null.length")
 	})
 
 	t.Run("выгрузка без реквизитов запроса отклоняется", func(t *testing.T) {
