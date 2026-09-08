@@ -33,6 +33,7 @@ const subjectHelp = `Данные одного человека - субъект
   server subject show -registry-id=N                 То же, по записи реестра сотрудников
   server subject find -fio="Иванов Иван Иванович"    Найти записи с таким именем
   server subject export -registry-id=N [-apply]      Снять справку о человеке в файл
+  server subject disclosures [-registry-id=N]        Показать журнал выдач сведений
 
 Флаги show (нужен ровно один способ указать человека):
   -passport      Серия и номер паспорта как он введён в системе
@@ -44,6 +45,14 @@ const subjectHelp = `Данные одного человека - субъект
 
 Флаги export (человек указывается так же, как в show):
   -apply         Записать файлы. Без него команда только показывает объём справки
+  -recipient     Кому выдаются сведения: наименование органа или «субъекту лично»
+  -request       Реквизиты запроса: номер и дата письма, по которому выдаётся
+  -basis         Основание своими словами. Необязательно
+  -issued-by     Кто выдаёт. По умолчанию - «консоль сервера»
+
+Флаги disclosures:
+  -registry-id   Показать выдачи по одному человеку. Без него - весь журнал
+  -limit         Сколько записей показать. По умолчанию 50
 
 show ничего не меняет: считает, сколько строк каждой таблицы относится к человеку -
 записи реестра, участие в заявках, привязки к постам, файлы, история и отметки прохода.
@@ -58,6 +67,11 @@ show ничего не меняет: считает, сколько строк �
 
 Учётная запись в граф не входит: связи «работник - пользователь системы» в базе нет,
 поле user_id у записи реестра означает владельца записи, а не самого работника.
+
+Выдача фиксируется в журнале: -apply без -recipient и -request отказывает. Передача
+сведений третьему лицу - это раскрытие персональных данных, и при проверке оператор
+обязан показать, кому, когда, по какому запросу и в каком объёме их выдали. Журнал
+общей уборкой не чистится: это документ, а не служебная запись.
 
 export собирает справку из четырёх разделов - сведения, заявки, проходы, посты - и
 кладёт её в ENTITY_EXPORT_PATH двумя файлами: .xlsx для работы и .pdf для приложения к
@@ -74,7 +88,8 @@ export собирает справку из четырёх разделов - с
   server subject show -registry-id=416
   server subject show -passport="4510 123456"
   server subject export -registry-id=416
-  server subject export -registry-id=416 -apply
+  server subject export -registry-id=416 -apply -recipient="УМВД по г. Москве" -request="исх. 12/345 от 08.09.2026"
+  server subject disclosures -registry-id=416
 `
 
 func runSubject(args []string) int {
@@ -92,6 +107,8 @@ func runSubject(args []string) int {
 		return subjectFind(args[1:])
 	case "export":
 		return subjectExport(args[1:])
+	case "disclosures":
+		return subjectDisclosures(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "неизвестная подкоманда %q\n\n", args[0])
 		fmt.Print(subjectHelp)
@@ -264,8 +281,28 @@ func subjectExport(args []string) int {
 	patent := fs.String("patent", "", "номер патента")
 	registryID := fs.Int("registry-id", 0, "идентификатор записи реестра")
 	apply := fs.Bool("apply", false, "записать файлы, а не только посчитать")
+	recipient := fs.String("recipient", "", "кому выдаются сведения")
+	request := fs.String("request", "", "реквизиты запроса")
+	basis := fs.String("basis", "", "основание выдачи")
+	issuedBy := fs.String("issued-by", "консоль сервера", "кто выдаёт сведения")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+
+	// Обязательность получателя и реквизитов проверяется ДО сборки справки: собрать
+	// персональные данные человека и только потом отказать - значит сделать лишнюю
+	// работу с самыми чувствительными данными в системе.
+	disclosure := entityarchive.DisclosureRequest{
+		Recipient: *recipient, RequestRef: *request, Basis: *basis, IssuedBy: *issuedBy,
+	}
+	if *apply {
+		if err := disclosure.Validate(); err != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка:", err)
+			fmt.Fprintln(os.Stderr, "Выдача сведений третьему лицу фиксируется в журнале, и без этих")
+			fmt.Fprintln(os.Stderr, "сведений запись бессмысленна: при проверке нечем показать, что")
+			fmt.Fprintln(os.Stderr, "раскрытие было законным.")
+			return 2
+		}
 	}
 
 	byDocument := strings.TrimSpace(*passport) != "" || strings.TrimSpace(*patent) != ""
@@ -320,9 +357,73 @@ func subjectExport(args []string) int {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
 	}
+
+	entry, err := entityarchive.RecordDisclosure(ctx, db, target, rep, written, disclosure)
+	if err != nil {
+		// Файлы уже на диске, а записи о выдаче нет - молчать об этом нельзя:
+		// незафиксированная выдача при проверке неотличима от утечки.
+		fmt.Fprintln(os.Stderr, "Ошибка: файлы записаны, но выдача НЕ попала в журнал:", err)
+		fmt.Fprintln(os.Stderr, "Файлы:", strings.Join(written, ", "))
+		return 1
+	}
+
 	fmt.Println("\nЗаписано:")
 	for _, f := range written {
 		fmt.Println(" ", f)
+	}
+	fmt.Printf("\nВыдача внесена в журнал под номером %d: %s, %s\n",
+		entry.ID, entry.Recipient, entry.RequestRef)
+	return 0
+}
+
+// subjectDisclosures печатает журнал выдач - целиком или по одному человеку.
+func subjectDisclosures(args []string) int {
+	fs := flag.NewFlagSet("subject disclosures", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, subjectHelp) }
+	registryID := fs.Int("registry-id", 0, "идентификатор записи реестра")
+	limit := fs.Int("limit", 50, "сколько записей показать")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	db, code := subjectPrepare()
+	if code >= 0 {
+		return code
+	}
+
+	ctx := context.Background()
+	hmac := ""
+	if *registryID > 0 {
+		target, err := entityarchive.SubjectTargetFromRegistry(ctx, db, *registryID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка:", err)
+			return 1
+		}
+		hmac = entityarchive.DisclosureSubjectKey(target)
+	}
+
+	entries, err := entityarchive.ListDisclosures(ctx, db, hmac, *limit)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	fmt.Println()
+	if len(entries) == 0 {
+		fmt.Println("Выдач не зарегистрировано.")
+		return 0
+	}
+	fmt.Printf("Выдач в журнале: %d\n\n", len(entries))
+	for _, e := range entries {
+		fmt.Printf("  %s  %s\n", e.CreatedAt.Format("02.01.2006 15:04"), e.SubjectName)
+		fmt.Printf("    кому: %s\n", e.Recipient)
+		fmt.Printf("    запрос: %s\n", e.RequestRef)
+		if e.Basis != "" {
+			fmt.Printf("    основание: %s\n", e.Basis)
+		}
+		fmt.Printf("    объём: %s\n", e.Scope)
+		fmt.Printf("    выдал: %s\n\n", e.IssuedBy)
 	}
 	return 0
 }
