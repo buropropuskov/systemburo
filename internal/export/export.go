@@ -7,6 +7,7 @@ package export
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/go-pdf/fpdf"
@@ -34,10 +35,65 @@ type Table struct {
 
 // ToXLSX рендерит таблицу в .xlsx и возвращает байты файла.
 func ToXLSX(t Table) ([]byte, error) {
+	return ToXLSXMulti([]Table{t})
+}
+
+// ToXLSXMulti рендерит несколько таблиц в одну книгу - лист на таблицу. Имя листа
+// берётся из Table.Title, потому что для получателя книги вкладка «Проходы» понятнее,
+// чем «Лист2».
+//
+// Нужно там, где выгрузка не одна таблица, а справка из разделов: сведения о человеке
+// (#2356) - это его данные, участие в заявках, проходы и привязки к постам, и сводить
+// их в одну плоскую таблицу значит сделать файл нечитаемым.
+func ToXLSXMulti(tables []Table) ([]byte, error) {
+	if len(tables) == 0 {
+		return nil, fmt.Errorf("нечего выгружать: ни одной таблицы")
+	}
+
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
-	sheet := f.GetSheetName(0)
 
+	for i, t := range tables {
+		sheet := sheetNameFor(t, i)
+		if i == 0 {
+			if err := f.SetSheetName(f.GetSheetName(0), sheet); err != nil {
+				return nil, fmt.Errorf("не удалось назвать первый лист: %w", err)
+			}
+		} else if _, err := f.NewSheet(sheet); err != nil {
+			return nil, fmt.Errorf("не удалось создать лист %q: %w", sheet, err)
+		}
+		if err := writeSheet(f, sheet, t); err != nil {
+			return nil, err
+		}
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to write xlsx: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// sheetNameFor - имя листа из заголовка таблицы. Excel не принимает символы \ / ? * [ ]
+// и длину больше 31 знака, поэтому имя чистится; пустой заголовок даёт «Лист N».
+func sheetNameFor(t Table, index int) string {
+	name := strings.TrimSpace(t.Title)
+	for _, bad := range []string{"\\", "/", "?", "*", "[", "]", ":"} {
+		name = strings.ReplaceAll(name, bad, " ")
+	}
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" {
+		return fmt.Sprintf("Лист %d", index+1)
+	}
+	if utf8.RuneCountInString(name) > 31 {
+		runes := []rune(name)
+		name = string(runes[:31])
+	}
+	return name
+}
+
+// writeSheet раскладывает одну таблицу на готовый лист.
+func writeSheet(f *excelize.File, sheet string, t Table) error {
 	row := 1
 	if t.Title != "" {
 		setCell(f, sheet, 1, row, t.Title)
@@ -65,15 +121,7 @@ func ToXLSX(t Table) ([]byte, error) {
 
 	styleHeader(f, sheet, headerRow, len(t.Headers))
 	adjustColWidths(f, sheet, t.Headers, t.Rows)
-	if err := enableFilterAndFreeze(f, sheet, headerRow, len(t.Headers), len(t.Rows)); err != nil {
-		return nil, err
-	}
-
-	buf, err := f.WriteToBuffer()
-	if err != nil {
-		return nil, fmt.Errorf("failed to write xlsx: %w", err)
-	}
-	return buf.Bytes(), nil
+	return enableFilterAndFreeze(f, sheet, headerRow, len(t.Headers), len(t.Rows))
 }
 
 // enableFilterAndFreeze вешает на шапку автофильтр и закрепляет её при прокрутке.
@@ -189,12 +237,38 @@ func styleHeader(f *excelize.File, sheet string, headerRow, cols int) {
 // Шрифт встраивается как FontFile2 (CIDFontType2, Identity-H) - кириллица рендерится
 // её собственными глифами, а не заменяется на «?» как у core-шрифтов.
 func ToPDF(t Table) ([]byte, error) {
+	return ToPDFMulti([]Table{t})
+}
+
+// ToPDFMulti рендерит несколько таблиц одним документом - раздел с новой страницы.
+// Парная к ToXLSXMulti: справка из разделов должна одинаково читаться в обоих форматах,
+// иначе получатель ответа увидит в них разное.
+func ToPDFMulti(tables []Table) ([]byte, error) {
+	if len(tables) == 0 {
+		return nil, fmt.Errorf("нечего выгружать: ни одной таблицы")
+	}
+
 	pdf := fpdf.New("L", "mm", "A4", "")
 	pdf.AddUTF8FontFromBytes(pdfFontFamily, "", dejaVuSans)
 	pdf.SetMargins(10, 10, 10)
 	pdf.SetAutoPageBreak(true, 12)
-	pdf.AddPage()
 
+	for _, t := range tables {
+		pdf.AddPage()
+		if err := writePDFSection(pdf, t); err != nil {
+			return nil, err
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		return nil, fmt.Errorf("failed to write pdf: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// writePDFSection рисует один раздел на уже открытой странице.
+func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 	pageW, _ := pdf.GetPageSize()
 	left, _, right, _ := pdf.GetMargins()
 	usableW := pageW - left - right
@@ -231,12 +305,7 @@ func ToPDF(t Table) ([]byte, error) {
 			drawPDFRow(pdf, r, colW, rowH, false)
 		}
 	}
-
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		return nil, fmt.Errorf("failed to write pdf: %w", err)
-	}
-	return buf.Bytes(), nil
+	return nil
 }
 
 // drawPDFRow рисует одну строку таблицы фиксированной высоты; значения, не влезающие

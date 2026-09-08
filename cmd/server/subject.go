@@ -32,6 +32,7 @@ const subjectHelp = `Данные одного человека - субъект
   server subject show -patent="77 1234567"           То же, если документ - патент
   server subject show -registry-id=N                 То же, по записи реестра сотрудников
   server subject find -fio="Иванов Иван Иванович"    Найти записи с таким именем
+  server subject export -registry-id=N [-apply]      Снять справку о человеке в файл
 
 Флаги show (нужен ровно один способ указать человека):
   -passport      Серия и номер паспорта как он введён в системе
@@ -40,6 +41,9 @@ const subjectHelp = `Данные одного человека - субъект
 
 Флаги find:
   -fio           Фамилия Имя Отчество через пробел
+
+Флаги export (человек указывается так же, как в show):
+  -apply         Записать файлы. Без него команда только показывает объём справки
 
 show ничего не меняет: считает, сколько строк каждой таблицы относится к человеку -
 записи реестра, участие в заявках, привязки к постам, файлы, история и отметки прохода.
@@ -55,10 +59,22 @@ show ничего не меняет: считает, сколько строк �
 Учётная запись в граф не входит: связи «работник - пользователь системы» в базе нет,
 поле user_id у записи реестра означает владельца записи, а не самого работника.
 
+export собирает справку из четырёх разделов - сведения, заявки, проходы, посты - и
+кладёт её в ENTITY_EXPORT_PATH двумя файлами: .xlsx для работы и .pdf для приложения к
+официальному ответу. Документы в справке расшифрованы: её и составляют затем, чтобы
+ответить органу по существу. Каталог выгрузки выбирает владелец системы - в файлах
+лежат персональные данные целиком.
+
+Основание обработки печатается в шапке каждого раздела: законный интерес оператора,
+п. 7 ч. 1 ст. 6 152-ФЗ. Отметка уведомления работника и его возражение против обработки
+идут отдельными столбцами - именно они меняют режим работы с записью.
+
 Примеры:
   server subject find -fio="Иванов Иван Иванович"
   server subject show -registry-id=416
   server subject show -passport="4510 123456"
+  server subject export -registry-id=416
+  server subject export -registry-id=416 -apply
 `
 
 func runSubject(args []string) int {
@@ -74,6 +90,8 @@ func runSubject(args []string) int {
 		return subjectShow(args[1:])
 	case "find":
 		return subjectFind(args[1:])
+	case "export":
+		return subjectExport(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "неизвестная подкоманда %q\n\n", args[0])
 		fmt.Print(subjectHelp)
@@ -127,20 +145,9 @@ func subjectShow(args []string) int {
 	}
 
 	ctx := context.Background()
-	var target entityarchive.SubjectTarget
-	if *registryID > 0 {
-		var err error
-		target, err = entityarchive.SubjectTargetFromRegistry(ctx, db, *registryID)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Ошибка:", err)
-			return 1
-		}
-		if target.Empty() {
-			fmt.Fprintf(os.Stderr, "Ошибка: у записи реестра %d нет ни паспорта, ни патента - склеить по ней нечего\n", *registryID)
-			return 1
-		}
-	} else {
-		target = entityarchive.SubjectTargetFromDocuments(*passport, *patent)
+	target, code := subjectResolveTarget(ctx, db, *passport, *patent, *registryID)
+	if code >= 0 {
+		return code
 	}
 
 	graph, err := entityarchive.CollectSubject(ctx, db, target)
@@ -226,6 +233,96 @@ func subjectFind(args []string) int {
 			doc = "есть"
 		}
 		fmt.Println(" ", padRight(c.Source, 18), padRight(strconv.Itoa(c.ID), 8), padRight(c.FullName, 40), doc)
+	}
+	return 0
+}
+
+// subjectResolveTarget разбирает общие для show и export флаги указания человека.
+func subjectResolveTarget(ctx context.Context, db *gorm.DB, passport, patent string, registryID int) (entityarchive.SubjectTarget, int) {
+	if registryID > 0 {
+		target, err := entityarchive.SubjectTargetFromRegistry(ctx, db, registryID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка:", err)
+			return entityarchive.SubjectTarget{}, 1
+		}
+		if target.Empty() {
+			fmt.Fprintf(os.Stderr, "Ошибка: у записи реестра %d нет ни паспорта, ни патента - склеить по ней нечего\n", registryID)
+			return entityarchive.SubjectTarget{}, 1
+		}
+		return target, -1
+	}
+	return entityarchive.SubjectTargetFromDocuments(passport, patent), -1
+}
+
+// subjectExport снимает справку. Без -apply только считает: справка уносит все
+// персональные данные человека разом, и оператор обязан сперва увидеть её объём.
+func subjectExport(args []string) int {
+	fs := flag.NewFlagSet("subject export", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, subjectHelp) }
+	passport := fs.String("passport", "", "серия и номер паспорта")
+	patent := fs.String("patent", "", "номер патента")
+	registryID := fs.Int("registry-id", 0, "идентификатор записи реестра")
+	apply := fs.Bool("apply", false, "записать файлы, а не только посчитать")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	byDocument := strings.TrimSpace(*passport) != "" || strings.TrimSpace(*patent) != ""
+	if byDocument == (*registryID > 0) {
+		fmt.Fprintln(os.Stderr, "Ошибка: укажите либо -passport/-patent, либо -registry-id")
+		return 2
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", err)
+		return 1
+	}
+	if strings.TrimSpace(cfg.EntityExportPath) == "" {
+		fmt.Fprintln(os.Stderr, "Ошибка: не задан ENTITY_EXPORT_PATH - каталог, куда складывать справки.")
+		fmt.Fprintln(os.Stderr, "В справке лежат персональные данные человека целиком, поэтому место хранения")
+		fmt.Fprintln(os.Stderr, "выбирает владелец системы, а не программа.")
+		return 2
+	}
+
+	db, code := subjectPrepare()
+	if code >= 0 {
+		return code
+	}
+
+	ctx := context.Background()
+	target, code := subjectResolveTarget(ctx, db, *passport, *patent, *registryID)
+	if code >= 0 {
+		return code
+	}
+
+	rep, err := entityarchive.BuildSubjectReport(ctx, db, target)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	fmt.Println()
+	fmt.Printf("Справка о человеке, найденном %s\n\n", rep.Origin)
+	for _, s := range rep.Sections {
+		fmt.Println(" ", padRight(s.Title, 24), padLeft(strconv.Itoa(len(s.Rows)), 8), "строк")
+	}
+	fmt.Printf("\nВсего строк: %d\n", entityarchive.SubjectReportRowCount(rep))
+
+	if !*apply {
+		fmt.Println("\nФайлы не записаны: добавьте -apply.")
+		return 0
+	}
+
+	written, err := entityarchive.WriteSubjectReport(cfg.EntityExportPath, rep)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	fmt.Println("\nЗаписано:")
+	for _, f := range written {
+		fmt.Println(" ", f)
 	}
 	return 0
 }
