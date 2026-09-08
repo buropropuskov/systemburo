@@ -569,17 +569,26 @@ func TestPDConsentMask_Search_HidesPD(t *testing.T) {
 
 	testutil.RegisterAndLogin(t, e, "mask_search", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	setUserName(t, db, "mask_search", "Поисков", "Павел", "Павлович")
-	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "mask_search").
-		Update("email", "hidden_addr@example.com").Error)
+	// Адрес пишем через модель, а не колонкой: он шифруется хуком, и мимо модели
+	// в базу лёг бы открытым, без свёртки, по которой ищут (#2351).
+	var searchUser models.User
+	require.NoError(t, db.Where("username = ?", "mask_search").First(&searchUser).Error)
+	addr := "hidden_addr@example.com"
+	searchUser.Email = &addr
+	require.NoError(t, db.Save(&searchUser).Error)
 
-	require.NotEmpty(t, searchTitles(t, e, admin, "hidden_addr"),
+	// Поиск по ЧАСТИ адреса после шифрования невозможен - ищем по полному, как и
+	// сделано в самом поиске: точное совпадение по свёртке.
+	require.NotEmpty(t, searchTitles(t, e, admin, "hidden_addr@example.com"),
 		"до включения запроса согласия поиск по почте работает")
 
 	enableConsent(t, e, admin, "<p>Согласие</p>")
 
 	// Запросы намеренно разные: ответы поиска живут в кэше 10 секунд, и повтор той
 	// же строки вернул бы прежнюю выдачу вместо новой.
-	assert.Empty(t, searchTitles(t, e, admin, "hidden_addr@example"),
+	// Другой регистр: кэш ответов живёт по сырой строке, а свёртка считается от
+	// нормализованного значения - значит запрос новый, а адрес тот же самый.
+	assert.Empty(t, searchTitles(t, e, admin, "HIDDEN_ADDR@EXAMPLE.COM"),
 		"по скрытой почте больше не находится")
 	assert.Equal(t, []string{"@mask_search"}, searchTitles(t, e, admin, "Поисков"),
 		"вместо скрытого ФИО в подсказке логин")

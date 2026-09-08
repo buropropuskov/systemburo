@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"strings"
+	"systemburo/internal/crypto"
 	"time"
 
 	"systemburo/internal/models"
@@ -214,7 +215,10 @@ func loadSnapshotApplication(ctx context.Context, db *gorm.DB, applicationID int
 		ID: row.ID, Number: row.Number, Status: row.Status, Confirmation: row.Confirmation,
 		Organization: row.Organization, Company: row.Company,
 		SenderName: row.SenderName, SenderUsername: row.SenderUsername,
-		InitiatorName: row.InitiatorName, ContactPhone: row.ContactPhone, Message: row.Message,
+		// Телефон приходит сырым запросом мимо модели, значит шифротекстом (#2351):
+		// в бланк он обязан попасть читаемым, иначе на проходной вместо номера
+		// будет строка из букв.
+		InitiatorName: row.InitiatorName, ContactPhone: decryptPlain(row.ContactPhone), Message: row.Message,
 		ResponsibleName: row.ResponsibleName, ResponsibleComment: row.ResponsibleComment,
 		SendingDatetime:      formatSnapshotTime(row.SendingDatetime),
 		ReadingDatetime:      formatSnapshotTime(row.ReadingDatetime),
@@ -607,4 +611,14 @@ func snapshotContentChanged(writer *ArchiveWriter, levels []string, data []byte)
 	newSum := sha256.Sum256(data)
 	oldSum := sha256.Sum256(existing)
 	return !bytes.Equal(newSum[:], oldSum[:]), nil
+}
+
+// decryptPlain расшифровывает значение, прочитанное сырым запросом. Пустое остаётся
+// пустым; нечитаемое (чужой ключ, запись до включения шифрования) возвращается как
+// есть - мягкая деградация здесь та же, что в моделях.
+func decryptPlain(v string) string {
+	if v == "" {
+		return ""
+	}
+	return *crypto.DecryptOptional(&v)
 }

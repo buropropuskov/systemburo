@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
+	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -45,7 +47,11 @@ func validateUserEmail(ctx context.Context, db *gorm.DB, email string, excludeUs
 			"Укажите только адрес почты, без имени получателя: "+normalized)
 	}
 
-	q := db.WithContext(ctx).Table("users").Where("LOWER(email) = LOWER(?)", normalized)
+	// Адрес в базе зашифрован (#2351), сравнивать его строкой больше нельзя: ищем по
+	// свёртке от нормализованного значения. Регистронезависимость при этом сохраняется
+	// - она заложена в саму нормализацию, а не в SQL.
+	q := db.WithContext(ctx).Table("users").
+		Where("email_hmac = ?", crypto.ComputeHMAC(models.NormalizeEmailForHMAC(normalized), crypto.GetGlobalKey()))
 	if excludeUserID > 0 {
 		q = q.Where("id <> ?", excludeUserID)
 	}

@@ -95,22 +95,38 @@ func TestEncryptedTables_CoverPassportModels(t *testing.T) {
 	// оно ради самого хранения (#2377). Различать обязательно: пропавшая свёртка у
 	// паспорта ломает поиск молча, а требование свёртки у письма не дало бы внести
 	// его в перевод вовсе.
+	// Признак нужен по столбцу, а не по таблице: у документов свёртка обязана быть,
+	// у «иного разрешения» и тела письма её быть не должно - по ним не ищут.
+	wantHMAC := map[string]bool{
+		"passport_series_number": true,
+		"patent_number":          true,
+		"other_permission":       false,
+		"body":                   false,
+		"email":                  true,
+		"phone":                  true,
+		"contact_phone":          false,
+	}
 	want := map[string]bool{
 		"employees":             true,
 		"unique_employees":      true,
 		"application_employees": true,
 		"email_messages":        false,
+		"users":                 true,
+		"applications":          false,
 	}
 	seen := map[string]bool{}
 	for _, table := range encryptedTables {
-		needHMAC, known := want[table.name]
+		_, known := want[table.name]
 		require.True(t, known, "таблица %s в перечне лишняя либо переименована", table.name)
 		seen[table.name] = true
 
 		require.NotEmpty(t, table.columns, "у таблицы %s не указаны столбцы", table.name)
 		for _, col := range table.columns {
 			require.NotEmpty(t, col.value)
-			if needHMAC {
+			need, known := wantHMAC[col.value]
+			require.True(t, known, "столбец %s.%s не описан в ожиданиях: решите, нужна ли ему свёртка",
+				table.name, col.value)
+			if need {
 				require.NotEmpty(t, col.hmac, "столбец %s.%s без парного HMAC: поиск сломается после перевода",
 					table.name, col.value)
 			} else {

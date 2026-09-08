@@ -45,12 +45,24 @@ var encryptedTables = []encryptedTable{
 	// нечитаемыми - сработала бы мягкая деградация, и человек не получил бы пароль,
 	// а причину искали бы в почтовом сервере, а не в смене ключа неделей раньше.
 	{name: "email_messages", columns: []encryptedColumn{{value: "body"}}},
+	// Контакты работников (#2351). Свёртки есть: по ним проверяется занятость адреса
+	// и работает точный поиск, поэтому при переводе они пересчитываются вместе со
+	// значением.
+	// Телефон заявки (#2351). Имя инициатора рядом не шифруется - это ФИО, и оно
+	// идёт в имя каталога файлового архива.
+	{name: "applications", columns: []encryptedColumn{{value: "contact_phone"}}},
+	{name: "users", columns: []encryptedColumn{
+		{value: "email", hmac: "email_hmac"},
+		{value: "phone", hmac: "phone_hmac"},
+	}},
 }
 
 func passportColumns() []encryptedColumn {
 	return []encryptedColumn{
 		{value: "passport_series_number", hmac: "passport_series_number_hmac"},
 		{value: "patent_number", hmac: "patent_number_hmac"},
+		// Иное разрешение шифруется с #2351. Свёртки нет: по нему не ищут.
+		{value: "other_permission"},
 	}
 }
 

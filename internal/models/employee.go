@@ -65,12 +65,24 @@ func (e *Employee) BeforeSave(tx *gorm.DB) error {
 		}
 		e.PatentNumber = enc
 	}
+	// Иное разрешение на работу - тот же документ, что патент, только выданный не
+	// по патентной схеме: серия, номер, кем выдан (#2351). Соседнее поле шифруется,
+	// а это лежало открытым - различие было историческим, а не осмысленным.
+	// Свёртки нет намеренно: по нему не ищут, в отличие от паспорта и патента.
+	if e.OtherPermission != nil {
+		enc, err := crypto.EncryptOptional(e.OtherPermission)
+		if err != nil {
+			return err
+		}
+		e.OtherPermission = enc
+	}
 	return nil
 }
 
 func (e *Employee) AfterFind(tx *gorm.DB) error {
 	e.PassportSeriesNumber = crypto.DecryptOptional(e.PassportSeriesNumber)
 	e.PatentNumber = crypto.DecryptOptional(e.PatentNumber)
+	e.OtherPermission = crypto.DecryptOptional(e.OtherPermission)
 	return nil
 }
 
@@ -136,12 +148,24 @@ func (e *UniqueEmployee) BeforeSave(tx *gorm.DB) error {
 		}
 		e.PatentNumber = enc
 	}
+	// Иное разрешение на работу - тот же документ, что патент, только выданный не
+	// по патентной схеме: серия, номер, кем выдан (#2351). Соседнее поле шифруется,
+	// а это лежало открытым - различие было историческим, а не осмысленным.
+	// Свёртки нет намеренно: по нему не ищут, в отличие от паспорта и патента.
+	if e.OtherPermission != nil {
+		enc, err := crypto.EncryptOptional(e.OtherPermission)
+		if err != nil {
+			return err
+		}
+		e.OtherPermission = enc
+	}
 	return nil
 }
 
 func (e *UniqueEmployee) AfterFind(tx *gorm.DB) error {
 	e.PassportSeriesNumber = crypto.DecryptOptional(e.PassportSeriesNumber)
 	e.PatentNumber = crypto.DecryptOptional(e.PatentNumber)
+	e.OtherPermission = crypto.DecryptOptional(e.OtherPermission)
 	return nil
 }
 
@@ -180,12 +204,24 @@ func (e *ApplicationEmployee) BeforeSave(tx *gorm.DB) error {
 		}
 		e.PatentNumber = enc
 	}
+	// Иное разрешение на работу - тот же документ, что патент, только выданный не
+	// по патентной схеме: серия, номер, кем выдан (#2351). Соседнее поле шифруется,
+	// а это лежало открытым - различие было историческим, а не осмысленным.
+	// Свёртки нет намеренно: по нему не ищут, в отличие от паспорта и патента.
+	if e.OtherPermission != nil {
+		enc, err := crypto.EncryptOptional(e.OtherPermission)
+		if err != nil {
+			return err
+		}
+		e.OtherPermission = enc
+	}
 	return nil
 }
 
 func (e *ApplicationEmployee) AfterFind(tx *gorm.DB) error {
 	e.PassportSeriesNumber = crypto.DecryptOptional(e.PassportSeriesNumber)
 	e.PatentNumber = crypto.DecryptOptional(e.PatentNumber)
+	e.OtherPermission = crypto.DecryptOptional(e.OtherPermission)
 	return nil
 }
 
