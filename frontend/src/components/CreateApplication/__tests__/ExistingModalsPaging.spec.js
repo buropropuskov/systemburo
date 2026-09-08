@@ -33,6 +33,22 @@ describe.each([
     return w;
   };
 
+  it('пейджер действительно отрисован, а не остался неизвестным тегом', async () => {
+    // Промах, который стоил выката: Pager импортировали, но не внесли в components -
+    // Vue отрендерил <pager> как неизвестный HTML-элемент, пустой и без кнопок. Все
+    // проверки vm при этом оставались зелёными, потому что смотрели на данные.
+    const w = mount(Компонент, { props: { visible: true }, global: { stubs }, attachTo: document.body });
+    w.vm[пок] = набор(70);
+    await w.vm.$nextTick();
+
+    expect(Компонент.components?.Pager, 'Pager обязан быть зарегистрирован').toBeTruthy();
+    const пейджер = document.querySelector('.modal-pager');
+    expect(пейджер, 'пейджер не найден в разметке').not.toBeNull();
+    expect(пейджер.tagName.toLowerCase(), 'тег <pager> означает нераспознанный компонент').not.toBe('pager');
+    expect(пейджер.querySelectorAll('button').length, 'кнопок листания нет').toBeGreaterThanOrEqual(2);
+    w.unmount();
+  });
+
   it('на странице не больше десяти строк', async () => {
     const w = await открыть(70);
     expect(w.vm[стр]).toHaveLength(10);

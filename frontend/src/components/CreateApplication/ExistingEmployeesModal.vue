@@ -216,7 +216,8 @@ export default {
     name: 'ExistingEmployeesModal',
     components: {
         SearchComponent,
-        LoaderSpinner
+        LoaderSpinner,
+        Pager
     },
     props: {
         visible: {
