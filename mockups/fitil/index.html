@@ -686,6 +686,92 @@
   }
 
   .cardback svg { width: 100%; height: 100%; display: block; }
+
+  /* ---------------- карты как карты, а не плитки ---------------- */
+
+  .cardface { display: grid; gap: 7px; }
+
+  .cardface .art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5 / 7;
+    height: auto;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--panel);
+  }
+
+  .cardface .art .photo { width: 100%; height: 100%; object-fit: cover; }
+  .cardface .art svg { width: 28px; height: 28px; color: var(--amber-soft); }
+
+  .cardface .n {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    background: rgba(8,11,20,.8);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 10px;
+    color: var(--cream);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cardface .t { font-size: 12px; font-weight: 600; line-height: 1.25; text-align: center; }
+  .cardface.kitten .art { outline: 2px solid var(--ember); outline-offset: -2px; }
+  .cardface.kitten .t { color: var(--amber-soft); }
+  .cardface.kitten .art svg { color: var(--ember); }
+
+  /* герой карточки карты */
+
+  .cardhero {
+    position: relative;
+    height: 208px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--panel);
+    display: grid;
+    place-items: center;
+  }
+
+  .cardhero .photo { width: 100%; height: 100%; object-fit: cover; }
+  .cardhero svg { width: 54px; height: 54px; color: var(--amber); }
+
+  .cardhero .overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 16px 18px;
+    background: linear-gradient(to top, rgba(8,11,20,.94) 30%, transparent);
+    display: grid;
+    gap: 2px;
+  }
+
+  .cardhero .title { font-family: var(--display); font-size: 26px; font-weight: 600; line-height: 1.1; }
+  .cardhero .count { font-size: 13px; color: var(--muted); }
+
+  /* крупные номера шагов */
+
+  .step .mark { font-family: var(--display); font-size: 17px; font-weight: 600; line-height: 1.2; }
+  .step.next .mark { color: var(--amber); }
+
+  /* полоса паттерна в шапке главного экрана */
+
+  .patternstrip { height: 54px; border-radius: 14px; overflow: hidden; }
+  .patternstrip svg { width: 100%; height: 100%; display: block; }
+
+  /* зоны риска на счётчике */
+
+  .riskscale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+  .riskscale span {
+    text-align: center;
+    font-size: 11px;
+    padding: 7px 0;
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--muted);
+  }
+
+  .riskscale span.on { background: rgba(225,72,58,.2); color: var(--ember); font-weight: 700; }
 </style>
 
 <div class="wrap">
@@ -728,6 +814,19 @@
               <div class="topline">
                 <span class="kicker">Партия идёт</span>
                 <h4>Что нужно сейчас?</h4>
+              </div>
+
+              <div class="patternstrip">
+                <svg viewBox="0 0 335 54" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                  <defs>
+                    <pattern id="strip-pattern" width="25" height="25" patternUnits="userSpaceOnUse">
+                      <rect width="25" height="25" fill="#101625"/>
+                      <path d="M12.5 5.5l1.6 3.7 3.7 1.6-3.7 1.6-1.6 3.7-1.6-3.7-3.7-1.6 3.7-1.6z" fill="#E9A63C" opacity=".45"/>
+                      <path d="M2 21l1.5-3.5L5 21M20 21l1.5-3.5L23 21" stroke="#E1483A" stroke-width="1" fill="none" opacity=".45"/>
+                    </pattern>
+                  </defs>
+                  <rect width="335" height="54" fill="url(#strip-pattern)"/>
+                </svg>
               </div>
 
               <div class="cta">
@@ -809,7 +908,12 @@
               </div>
 
               <div class="seg"><span>2</span><span>3</span><span class="on">4</span><span>5</span></div>
-              <div class="progress"><i style="width:66%"></i></div>
+              <div class="fuse" style="height:24px">
+                <span class="cord"></span>
+                <span class="burnt" style="width:66%"></span>
+                <span class="spark" style="left:66%"></span>
+                <span class="ticks"><span>начало сборки</span><span>колода готова</span></span>
+              </div>
 
               <div class="steps">
                 <div class="step done"><span class="mark">✓</span><span>Убрали из колоды 4 Взрывных котёнка</span></div>
@@ -849,47 +953,78 @@
               </div>
 
               <div class="grid-3">
-                <div class="cardtile kitten">
-                  <span class="art"><img class="photo" src="img/kitten.jpg" alt="Взрывной котёнок" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 2l2.2 5.2L20 6l-2.4 5L22 14l-5.6.6L15 21l-3-4-3 4-1.4-6.4L2 14l4.4-3L4 6l5.8 1.2z"/></svg></span>
-                  <span class="t">Взрывной котёнок</span><span class="n">4 шт</span>
+                <div class="cardface kitten">
+                  <span class="art">
+                    <img class="photo" src="img/kitten.jpg" alt="Взрывной котёнок" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 2l2.2 5.2L20 6l-2.4 5L22 14l-5.6.6L15 21l-3-4-3 4-1.4-6.4L2 14l4.4-3L4 6l5.8 1.2z"/></svg>
+                    <span class="n">4</span>
+                  </span>
+                  <span class="t">Взрывной котёнок</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/defuse.jpg" alt="Обезвредить" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5L20 18M8 16.5L20 6"/></svg></span>
-                  <span class="t">Обезвредить</span><span class="n">6 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/defuse.jpg" alt="Обезвредить" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5L20 18M8 16.5L20 6"/></svg>
+                    <span class="n">6</span>
+                  </span>
+                  <span class="t">Обезвредить</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/nope.jpg" alt="Неть" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg></span>
-                  <span class="t">Неть</span><span class="n">5 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/nope.jpg" alt="Неть" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg>
+                    <span class="n">5</span>
+                  </span>
+                  <span class="t">Неть</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/attack.jpg" alt="Нападай" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg></span>
-                  <span class="t">Нападай</span><span class="n">4 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/attack.jpg" alt="Нападай" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+                    <span class="n">4</span>
+                  </span>
+                  <span class="t">Нападай</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/skip.jpg" alt="Пропусти" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 12h12M12 7l5 5-5 5M20 6v12"/></svg></span>
-                  <span class="t">Пропусти</span><span class="n">4 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/skip.jpg" alt="Пропусти" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 12h12M12 7l5 5-5 5M20 6v12"/></svg>
+                    <span class="n">4</span>
+                  </span>
+                  <span class="t">Пропусти</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/shuffle.jpg" alt="Перетасуй" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 8h11l-3-3M20 16H9l3 3"/></svg></span>
-                  <span class="t">Перетасуй</span><span class="n">4 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/shuffle.jpg" alt="Перетасуй" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 8h11l-3-3M20 16H9l3 3"/></svg>
+                    <span class="n">4</span>
+                  </span>
+                  <span class="t">Перетасуй</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/future.png" alt="Загляни в будущее" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg></span>
-                  <span class="t">В будущее</span><span class="n">5 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/future.png" alt="В будущее" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                    <span class="n">5</span>
+                  </span>
+                  <span class="t">В будущее</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/favor.jpg" alt="Услуга" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 013 0V12"/><path d="M11 11.5a1.5 1.5 0 013 0V13M14 12.5a1.5 1.5 0 013 0V17a4 4 0 01-4 4h-2a5 5 0 01-5-5v-3"/></svg></span>
-                  <span class="t">Услуга</span><span class="n">4 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/favor.jpg" alt="Услуга" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 13V5.5a1.5 1.5 0 013 0V12"/><path d="M11 11.5a1.5 1.5 0 013 0V13M14 12.5a1.5 1.5 0 013 0V17a4 4 0 01-4 4h-2a5 5 0 01-5-5v-3"/></svg>
+                    <span class="n">4</span>
+                  </span>
+                  <span class="t">Услуга</span>
                 </div>
-                <div class="cardtile">
-                  <span class="art"><img class="photo" src="img/cat.jpg" alt="Кошачьи карты" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 10L4 4l5 3h6l5-3-1 6v5a5 5 0 01-5 5h-4a5 5 0 01-5-5z"/><path d="M10 13h.01M14 13h.01"/></svg></span>
-                  <span class="t">Кошачьи</span><span class="n">20 шт</span>
+                <div class="cardface">
+                  <span class="art">
+                    <img class="photo" src="img/cat.jpg" alt="Кошачьи" onerror="this.remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 10L4 4l5 3h6l5-3-1 6v5a5 5 0 01-5 5h-4a5 5 0 01-5-5z"/><path d="M10 13h.01M14 13h.01"/></svg>
+                    <span class="n">20</span>
+                  </span>
+                  <span class="t">Кошачьи</span>
                 </div>
-              </div>
-
-              <div class="rowline">
-                <span>Комбо из пар и троек</span>
-                <span class="v">3 правила</span>
               </div>
             </div>
             <div class="tabbar">
@@ -928,9 +1063,10 @@
                 <span>Справочник карт</span>
               </div>
 
-              <div class="bigcard">
-                <span class="art"><img class="photo" src="img/attack.jpg" alt="Карта Нападай" onerror="this.remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg></span>
-                <span class="who">
+              <div class="cardhero">
+                <img class="photo" src="img/attack.jpg" alt="Карта Нападай" onerror="this.remove()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+                <span class="overlay">
                   <span class="title">Нападай</span>
                   <span class="count">4 карты в колоде</span>
                 </span>
@@ -1085,6 +1221,10 @@
                 <span class="burnt" style="width:74%"></span>
                 <span class="spark" style="left:74%"></span>
                 <span class="ticks"><span>23 карты в начале</span><span>6 сейчас</span></span>
+              </div>
+
+              <div class="riskscale">
+                <span>до 15%</span><span>15-30%</span><span class="on">выше 30%</span>
               </div>
 
               <div class="counters">
