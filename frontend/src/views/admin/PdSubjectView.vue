@@ -1,177 +1,180 @@
 <template>
-  <section class="pds">
-    <header class="page-header">
-      <h2 class="page-title">
-        Сведения о субъекте персональных данных
-      </h2>
-      <RefreshButton
-        :loading="loading"
-        @refresh="refresh"
-      />
-    </header>
+  <AdminPageShell>
+    <section class="pds">
+      <header class="page-header">
+        <h2 class="page-title">
+          Сведения о субъекте персональных данных
+        </h2>
+        <RefreshButton
+          :loading="loading"
+          @refresh="refresh"
+        />
+      </header>
 
-    <p class="pds__hint">
-      Что система хранит о человеке: записи реестра, участие в заявках, проходы и посты.
-      Раздел отвечает на запросы государственных органов и обращения самих работников.
-      Записи склеиваются по документу, а не по имени: однофамильцы существуют.
-    </p>
-
-    <form
-      class="pds__search"
-      @submit.prevent="search"
-    >
-      <input
-        v-model="fio"
-        class="lk-input pds__search-input"
-        type="text"
-        placeholder="Фамилия Имя Отчество"
-        data-testid="pds-fio"
-      >
-      <button
-        class="lk-button lk-button--primary"
-        type="submit"
-        :disabled="loading"
-      >
-        Найти
-      </button>
-    </form>
-
-    <div
-      v-if="candidates.length"
-      class="pds__candidates"
-    >
-      <h3 class="pds__section-title">
-        Найденные записи
-      </h3>
-      <p class="pds__note">
-        Это не обязательно один человек. Сведения собираются по записи с документом.
+      <p class="pds__hint">
+        Что система хранит о человеке: записи реестра, участие в заявках, проходы и посты.
+        Раздел отвечает на запросы государственных органов и обращения самих работников.
+        Записи склеиваются по документу, а не по имени: однофамильцы существуют.
       </p>
-      <ul class="pds__list">
-        <li
-          v-for="c in candidates"
-          :key="`${c.source}-${c.id}`"
-          class="pds__item"
-          :class="{ 'pds__item--active': c.id === selectedId && c.source === 'реестр' }"
-        >
-          <span class="pds__item-name">{{ c.full_name }}</span>
-          <span class="pds__item-source">{{ c.source }}</span>
-          <button
-            v-if="c.source === 'реестр' && c.has_document"
-            class="lk-button lk-button--secondary lk-button--sm"
-            type="button"
-            data-testid="pds-collect"
-            @click="collect(c.id)"
-          >
-            Собрать сведения
-          </button>
-          <span
-            v-else
-            class="pds__item-muted"
-          >{{ c.has_document ? 'откройте запись реестра' : 'нет документа' }}</span>
-        </li>
-      </ul>
-    </div>
 
-    <div
-      v-if="report"
-      class="pds__report"
-    >
-      <div class="pds__report-head">
-        <h3 class="pds__section-title">
-          Сведения: {{ report.total }} записей
-        </h3>
+      <form
+        class="pds__search"
+        @submit.prevent="search"
+      >
+        <input
+          v-model="fio"
+          class="lk-input pds__search-input"
+          type="text"
+          placeholder="Фамилия Имя Отчество"
+          data-testid="pds-fio"
+        >
         <button
-          v-if="canExport"
           class="lk-button lk-button--primary"
-          type="button"
-          data-testid="pds-export"
-          @click="exportOpen = true"
+          type="submit"
+          :disabled="loading"
         >
-          Выгрузить справку
+          Найти
         </button>
-      </div>
-      <p class="pds__note">
-        Основание обработки: {{ report.basis }}
-      </p>
+      </form>
 
       <div
-        v-for="s in report.sections"
-        :key="s.title"
-        class="pds__block"
+        v-if="candidates.length"
+        class="pds__candidates"
       >
-        <h4 class="pds__block-title">
-          {{ s.title }} <span class="pds__count">{{ s.rows.length }}</span>
-        </h4>
-        <div class="pds__table-wrap">
-          <table
-            v-if="s.rows.length"
-            class="pds__table"
+        <h3 class="pds__section-title">
+          Найденные записи
+        </h3>
+        <p class="pds__note">
+          Это не обязательно один человек. Сведения собираются по записи с документом.
+        </p>
+        <ul class="pds__list">
+          <li
+            v-for="c in candidates"
+            :key="`${c.source}-${c.id}`"
+            class="pds__item"
+            :class="{ 'pds__item--active': c.id === selectedId && c.source === 'реестр' }"
           >
-            <thead>
-              <tr>
-                <th
-                  v-for="h in s.headers"
-                  :key="h"
-                >
-                  {{ h }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, i) in s.rows"
-                :key="i"
-              >
-                <td
-                  v-for="(cell, j) in row"
-                  :key="j"
-                >
-                  {{ cell }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p
-            v-else
-            class="pds__empty"
+            <span class="pds__item-name">{{ c.full_name }}</span>
+            <span class="pds__item-source">{{ c.source }}</span>
+            <button
+              v-if="c.source === 'реестр' && c.has_document"
+              class="lk-button lk-button--secondary lk-button--sm"
+              type="button"
+              data-testid="pds-collect"
+              @click="collect(c.id)"
+            >
+              Собрать сведения
+            </button>
+            <span
+              v-else
+              class="pds__item-muted"
+            >{{ c.has_document ? 'откройте запись реестра' : 'нет документа' }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <div
+        v-if="report"
+        class="pds__report"
+      >
+        <div class="pds__report-head">
+          <h3 class="pds__section-title">
+            Сведения: {{ report.total }} записей
+          </h3>
+          <button
+            v-if="canExport"
+            class="lk-button lk-button--primary"
+            type="button"
+            data-testid="pds-export"
+            @click="exportOpen = true"
           >
-            Записей нет
-          </p>
+            Выгрузить справку
+          </button>
+        </div>
+        <p class="pds__note">
+          Основание обработки: {{ report.basis }}
+        </p>
+
+        <div
+          v-for="s in report.sections"
+          :key="s.title"
+          class="pds__block"
+        >
+          <h4 class="pds__block-title">
+            {{ s.title }} <span class="pds__count">{{ rowsOf(s).length }}</span>
+          </h4>
+          <div class="pds__table-wrap">
+            <table
+              v-if="rowsOf(s).length"
+              class="pds__table"
+            >
+              <thead>
+                <tr>
+                  <th
+                    v-for="h in s.headers"
+                    :key="h"
+                  >
+                    {{ h }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, i) in rowsOf(s)"
+                  :key="i"
+                >
+                  <td
+                    v-for="(cell, j) in row"
+                    :key="j"
+                  >
+                    {{ cell }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p
+              v-else
+              class="pds__empty"
+            >
+              Записей нет
+            </p>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div
-      v-if="disclosures.length"
-      class="pds__disclosures"
-    >
-      <h3 class="pds__section-title">
-        Журнал выдач
-      </h3>
-      <ul class="pds__list">
-        <li
-          v-for="d in disclosures"
-          :key="d.id"
-          class="pds__disclosure"
-        >
-          <span class="pds__item-name">{{ d.subject_name || 'без имени' }}</span>
-          <span>{{ d.recipient }}</span>
-          <span class="pds__item-source">{{ d.request_ref }}</span>
-        </li>
-      </ul>
-    </div>
+      <div
+        v-if="disclosures.length"
+        class="pds__disclosures"
+      >
+        <h3 class="pds__section-title">
+          Журнал выдач
+        </h3>
+        <ul class="pds__list">
+          <li
+            v-for="d in disclosures"
+            :key="d.id"
+            class="pds__disclosure"
+          >
+            <span class="pds__item-name">{{ d.subject_name || 'без имени' }}</span>
+            <span>{{ d.recipient }}</span>
+            <span class="pds__item-source">{{ d.request_ref }}</span>
+          </li>
+        </ul>
+      </div>
 
-    <PdSubjectExportModal
-      :show="exportOpen"
-      :loading="exporting"
-      @close="exportOpen = false"
-      @submit="runExport"
-    />
-  </section>
+        <PdSubjectExportModal
+          :show="exportOpen"
+          :loading="exporting"
+          @close="exportOpen = false"
+          @submit="runExport"
+        />
+    </section>
+  </AdminPageShell>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue';
+import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import PdSubjectExportModal from '@/components/admin/PdSubjectExportModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -197,6 +200,12 @@ const disclosures = ref([]);
 const selectedId = ref(0);
 
 const canExport = computed(() => permissions.hasPermission('action.pd_subject.export'));
+
+// Раздел без строк приходит с rows: null - Go отдаёт пустой срез как null. Обращение
+// к null.length роняет рендер целиком, и человека выбрасывает со страницы.
+function rowsOf(section) {
+  return section.rows || [];
+}
 
 async function search() {
   if (fio.value.trim().split(/\s+/).length < 2) {
