@@ -211,6 +211,7 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	for i := range rows {
 		rows[i].PassportSeriesNumber = crypto.DecryptOptional(rows[i].PassportSeriesNumber)
 		rows[i].PatentNumber = crypto.DecryptOptional(rows[i].PatentNumber)
+		rows[i].OtherPermission = crypto.DecryptOptional(rows[i].OtherPermission)
 	}
 	return rows, nil
 }

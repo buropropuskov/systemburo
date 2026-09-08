@@ -1,5 +1,10 @@
 package handlers_test
 
+// «Иное разрешение» шифруется с #2351, но правка записи идёт через карту обновления,
+// а Updates с картой не проходит через BeforeSave: значение ложилось в базу открытым.
+// Рядом же, в том же методе, паспорт и патент шифруются явно - забыли только это поле
+// (#2413). Проверяем обе стороны разом: в базе шифротекст, в выдаче читаемое значение.
+
 import (
 	"net/http"
 	"testing"
@@ -12,47 +17,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Иное разрешение на работу шифруется наравне с патентом (#2351).
-//
-// Это тот же документ, дающий право работать, просто выданный не по патентной
-// схеме. Соседнее поле шифровалось, а это лежало открытым - различие историческое,
-// а не осмысленное. Свёртки у него нет намеренно: по нему не ищут.
-func TestOtherPermission_StoredEncrypted(t *testing.T) {
+func TestUniqueEmployeeUpdate_EncryptsOtherPermission(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
 
-	// Тестовое приложение поднимается без ключа (шифрование в тестах сквозное),
-	// поэтому включаем его на время проверки - как в тестах шифрования писем.
-	crypto.SetGlobalKey(testPermissionKey())
-	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
-
-	const permission = "Разрешение 77-АБ-123456 от 01.03.2026"
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees",
-		`{"last_name":"Разрешаев","first_name":"Пётр","position":"Каменщик","passport_series_number":"4600 111222","other_permission":"`+permission+`","pd_consent":true}`, h).Code)
+		`{"last_name":"Разрешаев","first_name":"Илья","position":"Сварщик","passport_series_number":"4588 030303","pd_consent":true}`, h).Code)
+	id := objectionEmployeeID(t, db, "Разрешаев")
 
-	var id int
-	require.NoError(t, db.Model(&models.UniqueEmployee{}).Where("last_name = ?", "Разрешаев").
-		Select("id").Row().Scan(&id))
-
-	// В базе - шифротекст: сырым запросом номер разрешения не прочитать.
-	var raw string
-	require.NoError(t, db.Raw("SELECT other_permission FROM unique_employees WHERE id = ?", id).Row().Scan(&raw))
-	assert.NotContains(t, raw, "77-АБ", "номер разрешения не лежит в базе открытым")
-
-	// А через модель читается обратно: шифрование не должно ломать работу с записью.
-	var row models.UniqueEmployee
-	require.NoError(t, db.First(&row, id).Error)
-	require.NotNil(t, row.OtherPermission)
-	assert.Equal(t, permission, *row.OtherPermission, "значение расшифровывается при чтении")
-}
-
-func testPermissionKey() []byte {
+	// Ключ включаем здесь, а не в начале: SetupTestApp сбрасывает его в passthrough,
+	// и всё, что заведено до этой строки, осталось бы открытым в общей тестовой базе.
 	key := make([]byte, 32)
 	for i := range key {
-		key[i] = byte(i + 3)
+		key[i] = byte(i + 17)
 	}
-	return key
+	crypto.SetGlobalKey(key)
+	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
+
+	const permission = "Разрешение на временное проживание 77 №123456"
+	rec := testutil.PUT(t, e, "/unique-employees/"+itoa(id),
+		`{"other_permission":"`+permission+`"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Сырой запрос мимо AfterFind: так значение лежит в базе на самом деле.
+	var stored string
+	require.NoError(t, db.Raw(`SELECT COALESCE(other_permission, '') FROM unique_employees WHERE id = ?`, id).
+		Scan(&stored).Error)
+	assert.NotEqual(t, permission, stored, "в базе обязан лежать шифротекст, а не открытый текст")
+	back, err := crypto.Decrypt(stored, key)
+	require.NoError(t, err, "значение должно расшифровываться действующим ключом")
+	assert.Equal(t, permission, back)
+
+	// А через модель - читаемое значение, как его видит оператор.
+	var employee models.UniqueEmployee
+	require.NoError(t, db.First(&employee, id).Error)
+	require.NotNil(t, employee.OtherPermission)
+	assert.Equal(t, permission, *employee.OtherPermission)
 }

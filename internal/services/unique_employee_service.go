@@ -318,6 +318,7 @@ func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, first
 	// Паспорт/патент хранятся зашифрованными - расшифровываем, как в GetAll.
 	rows[0].PassportSeriesNumber = crypto.DecryptOptional(rows[0].PassportSeriesNumber)
 	rows[0].PatentNumber = crypto.DecryptOptional(rows[0].PatentNumber)
+	rows[0].OtherPermission = crypto.DecryptOptional(rows[0].OtherPermission)
 	return &rows[0], nil
 }
 
@@ -572,12 +573,15 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 	return employees, total, nil
 }
 
-// decryptEmployees расшифровывает паспорт/патент строк реестра на месте (общий шаг
-// GetAll/GetAllPaginated).
+// decryptEmployees расшифровывает документы строк реестра на месте (общий шаг
+// GetAll/GetAllPaginated). Читаются они сырым SQL, мимо AfterFind, поэтому список
+// полей здесь обязан повторять список шифруемых - разъехавшись, он отдаёт
+// шифротекст прямо в интерфейс (#2413).
 func decryptEmployees(employees []UniqueEmployeeWithRelations) {
 	for i := range employees {
 		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
 		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
+		employees[i].OtherPermission = crypto.DecryptOptional(employees[i].OtherPermission)
 	}
 }
 
@@ -807,7 +811,13 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		updates["position"] = *req.Position
 	}
 	if req.OtherPermission != nil {
-		updates["other_permission"] = *req.OtherPermission
+		// Шифруем явно: Updates с картой идёт мимо BeforeSave, и значение легло бы в
+		// базу открытым (#2413). Свёртки у поля нет - по нему не ищут.
+		enc, err := crypto.Encrypt(*req.OtherPermission, crypto.GetGlobalKey())
+		if err != nil {
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "encryption error")
+		}
+		updates["other_permission"] = enc
 	}
 	// Привязки остаются прежними: у них nil означает осмысленное «отвязать», и
 	// переключатели в карточке шлют именно его. Данные при этом не теряются -
