@@ -28,6 +28,15 @@ const CYR_TO_LAT = {
     ь: '', э: 'e', ю: 'yu', я: 'ya',
 };
 
+/**
+ * Вторая схема кириллица -> латиница: как пишут на вывесках и визитках. Отличается
+ * ровно спорными буквами - «Траттория» там Trattoria, а не Trattoriya (#2414).
+ * Зеркалит normalize.Translit на сервере: клиент и сервер обязаны искать одинаково.
+ */
+const CYR_TO_LAT_ALT = {
+    ...CYR_TO_LAT, ж: 'j', й: 'i', х: 'h', ц: 'c', щ: 'sch', ю: 'u', я: 'a',
+};
+
 /** Фонетический транслит латиница -> кириллица. */
 const LAT_TO_CYR = {
     a: 'а', b: 'б', c: 'ц', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'и', j: 'й',
@@ -42,6 +51,9 @@ function mapChars(text, map) {
     return out;
 }
 
+/** Короче этого транслитерировать вредно - см. translitMinLen на сервере. */
+const TRANSLIT_MIN_LEN = 4;
+
 /**
  * Строит набор вариантов поискового запроса.
  * @param {string} query - сырой пользовательский ввод
@@ -54,8 +66,20 @@ export function buildSearchVariants(query) {
     const variants = new Set([base]);
     variants.add(mapChars(base, EN_TO_RU_LAYOUT));
     variants.add(mapChars(base, RU_TO_EN_LAYOUT));
-    variants.add(mapChars(base, CYR_TO_LAT));
-    variants.add(mapChars(base, LAT_TO_CYR));
+
+    // Транслит - только для длинных запросов: трёхбуквенный фрагмент после перевода в
+    // другой алфавит попадает в случайные подстроки («рга» -> «rga» внутри Organization).
+    if (base.replace(/\s+/g, '').length >= TRANSLIT_MIN_LEN) {
+        variants.add(mapChars(base, CYR_TO_LAT));
+        variants.add(mapChars(base, CYR_TO_LAT_ALT));
+        variants.add(mapChars(base, LAT_TO_CYR));
+    }
+
+    // Версии без удвоенных согласных: удвоение теряют чаще всего («tratoria»).
+    for (const variant of [...variants]) {
+        const collapsed = variant.replace(/(.)\1+/g, '$1');
+        if (collapsed !== variant) variants.add(collapsed);
+    }
 
     // Версии без пробелов - для номеров и слитного написания.
     for (const variant of [...variants]) {
@@ -77,7 +101,11 @@ export function matchesSearch(haystack, variants) {
     if (!variants || variants.length === 0) return true;
     const hay = (haystack ?? '').toString().toLowerCase();
     const hayNoSpace = hay.replace(/\s+/g, '');
-    return variants.some((v) => hay.includes(v) || hayNoSpace.includes(v));
+    // Схлопнутая версия текста - для запроса с потерянным удвоением: «тратория» должна
+    // доходить до «Trattoria» (#2414). Варианты запроса уже содержат схлопнутые формы,
+    // поэтому сравнение идёт по обе стороны.
+    const hayCollapsed = hayNoSpace.replace(/(.)\1+/g, '$1');
+    return variants.some((v) => hay.includes(v) || hayNoSpace.includes(v) || hayCollapsed.includes(v));
 }
 
 

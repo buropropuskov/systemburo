@@ -602,11 +602,13 @@ func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID 
 }
 
 // buildSearchVariants возвращает уникальный набор вариантов поискового запроса:
-// оригинал, альтернативная раскладка и нормализованный госномер (если запрос похож на номер).
-// Используется для покрытия ввода без переключения раскладки и номеров с омоглифами/нулями.
+// оригинал, альтернативная раскладка, транслитерация и нормализованный госномер
+// (если запрос похож на номер). Покрывает ввод без переключения раскладки, номера с
+// омоглифами и разное написание одного названия буквами двух алфавитов (#2414):
+// «Траттория» обязана находить «La Trattoria», а «Sergey» - искаться по «сергей».
 func buildSearchVariants(raw string) []string {
-	variants := make([]string, 0, 3)
-	seen := make(map[string]struct{}, 3)
+	variants := make([]string, 0, 8)
+	seen := make(map[string]struct{}, 8)
 	add := func(v string) {
 		v = strings.TrimSpace(v)
 		if v == "" {
@@ -619,6 +621,9 @@ func buildSearchVariants(raw string) []string {
 	}
 	add(raw)
 	add(normalize.SwitchLayout(raw))
+	for _, v := range normalize.Translit(raw) {
+		add(v)
+	}
 	add(normalize.Plate(raw))
 	return variants
 }
