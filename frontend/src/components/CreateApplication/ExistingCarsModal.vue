@@ -234,7 +234,8 @@ export default {
     name: 'ExistingCarsModal',
     components: {
         SearchComponent,
-        LoaderSpinner
+        LoaderSpinner,
+        Pager
     },
     props: {
         visible: {
