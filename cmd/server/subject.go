@@ -11,6 +11,7 @@ import (
 	"systemburo/internal/config"
 	"systemburo/internal/crypto"
 	"systemburo/internal/entityarchive"
+	"systemburo/internal/services"
 
 	"gorm.io/gorm"
 )
@@ -34,6 +35,7 @@ const subjectHelp = `Данные одного человека - субъект
   server subject find -fio="Иванов Иван Иванович"    Найти записи с таким именем
   server subject export -registry-id=N [-apply]      Снять справку о человеке в файл
   server subject disclosures [-registry-id=N]        Показать журнал выдач сведений
+  server subject anonymize -registry-id=N [-apply]   Необратимо обезличить человека
 
 Флаги show (нужен ровно один способ указать человека):
   -passport      Серия и номер паспорта как он введён в системе
@@ -49,6 +51,9 @@ const subjectHelp = `Данные одного человека - субъект
   -request       Реквизиты запроса: номер и дата письма, по которому выдаётся
   -basis         Основание своими словами. Необязательно
   -issued-by     Кто выдаёт. По умолчанию - «консоль сервера»
+
+Флаги anonymize (человек указывается так же, как в show):
+  -apply         Выполнить затирание. Без него команда только показывает, что затрёт
 
 Флаги disclosures:
   -registry-id   Показать выдачи по одному человеку. Без него - весь журнал
@@ -83,6 +88,19 @@ export собирает справку из четырёх разделов - с
 п. 7 ч. 1 ст. 6 152-ФЗ. Отметка уведомления работника и его возражение против обработки
 идут отдельными столбцами - именно они меняют режим работы с записью.
 
+anonymize необратимо затирает ФИО и документы человека вместе с их отпечатками во всех
+трёх таблицах - записи реестра, участники заявок, участники в шапке. Учётную запись не
+трогает: связи «работник - пользователь системы» в базе нет, и затирать пользователя по
+совпадению имени значило бы обезличить однофамильца.
+
+ПОСЛЕ обезличивания человек перестаёт находиться: свёртка документа стирается вместе со
+значением, и собрать по нему сведения больше нельзя. Это не побочный эффект, а смысл
+операции - поэтому справку, если она нужна, снимают ДО.
+
+Журнал истории и проходов команда не трогает: он доказывает, кто и когда был на
+объекте. Имя человека в пояснениях к проходам остаётся - команда говорит, сколько таких
+записей, чтобы решение принимал человек, а не молчание программы.
+
 Примеры:
   server subject find -fio="Иванов Иван Иванович"
   server subject show -registry-id=416
@@ -90,6 +108,8 @@ export собирает справку из четырёх разделов - с
   server subject export -registry-id=416
   server subject export -registry-id=416 -apply -recipient="УМВД по г. Москве" -request="исх. 12/345 от 08.09.2026"
   server subject disclosures -registry-id=416
+  server subject anonymize -registry-id=416
+  server subject anonymize -registry-id=416 -apply
 `
 
 func runSubject(args []string) int {
@@ -109,6 +129,8 @@ func runSubject(args []string) int {
 		return subjectExport(args[1:])
 	case "disclosures":
 		return subjectDisclosures(args[1:])
+	case "anonymize":
+		return subjectAnonymize(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "неизвестная подкоманда %q\n\n", args[0])
 		fmt.Print(subjectHelp)
@@ -424,6 +446,71 @@ func subjectDisclosures(args []string) int {
 		}
 		fmt.Printf("    объём: %s\n", e.Scope)
 		fmt.Printf("    выдал: %s\n\n", e.IssuedBy)
+	}
+	return 0
+}
+
+// subjectAnonymize необратимо затирает персональные поля человека. Без -apply только
+// показывает, что затёр бы: операция необратима, и увидеть её объём человек обязан
+// до, а не после.
+func subjectAnonymize(args []string) int {
+	fs := flag.NewFlagSet("subject anonymize", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, subjectHelp) }
+	passport := fs.String("passport", "", "серия и номер паспорта")
+	patent := fs.String("patent", "", "номер патента")
+	registryID := fs.Int("registry-id", 0, "идентификатор записи реестра")
+	apply := fs.Bool("apply", false, "выполнить затирание, а не только показать")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	byDocument := strings.TrimSpace(*passport) != "" || strings.TrimSpace(*patent) != ""
+	if byDocument == (*registryID > 0) {
+		fmt.Fprintln(os.Stderr, "Ошибка: укажите либо -passport/-patent, либо -registry-id")
+		return 2
+	}
+
+	db, code := subjectPrepare()
+	if code >= 0 {
+		return code
+	}
+
+	ctx := context.Background()
+	target, code := subjectResolveTarget(ctx, db, *passport, *patent, *registryID)
+	if code >= 0 {
+		return code
+	}
+
+	res, err := entityarchive.AnonymizeSubject(ctx, db, services.NewAuditRecorder(db), target, nil, *apply)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	fmt.Println()
+	if *apply {
+		fmt.Printf("Обезличен человек, найденный %s\n\n", res.Origin)
+	} else {
+		fmt.Printf("Будет обезличен человек, найденный %s\n\n", res.Origin)
+	}
+	fmt.Println("Затираются поля:")
+	for _, f := range res.Tables[0].Fields {
+		fmt.Println("  -", f)
+	}
+	fmt.Println()
+	for _, tbl := range res.Tables {
+		fmt.Println(" ", padRight(tbl.Table, 24), padLeft(strconv.Itoa(tbl.Rows), 8), "строк")
+	}
+	fmt.Printf("\nВсего строк: %d\n", res.Total())
+
+	fmt.Println("\nОстаётся после обезличивания:")
+	for _, w := range res.Warnings {
+		fmt.Println("  -", w)
+	}
+
+	if !*apply {
+		fmt.Println("\nНичего не изменено: добавьте -apply. Операция необратима.")
 	}
 	return 0
 }
