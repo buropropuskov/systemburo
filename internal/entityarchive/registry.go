@@ -195,11 +195,17 @@ var directOrgRoots = map[string]bool{
 // (см. комментарий пакета в import.go) - каждый как со своим гейтом, не полагаясь на то,
 // что второй вызов уже проверил.
 func allowedNodeTables(entityType string) (map[string]bool, error) {
-	if entityType != TypeOrganization {
-		return nil, fmt.Errorf("тип %q не поддерживается (v1: только %s)", entityType, TypeOrganization)
+	var nodes []Node
+	switch entityType {
+	case TypeOrganization:
+		nodes = organizationNodes()
+	case TypeSubject:
+		nodes = subjectNodes()
+	default:
+		return nil, fmt.Errorf("тип %q не поддерживается (доступны %s и %s)", entityType, TypeOrganization, TypeSubject)
 	}
-	set := make(map[string]bool)
-	for _, n := range organizationNodes() {
+	set := make(map[string]bool, len(nodes))
+	for _, n := range nodes {
 		set[n.Table] = true
 	}
 	return set, nil
