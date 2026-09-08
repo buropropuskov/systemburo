@@ -39,20 +39,9 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	}
 	cond, args := searchCondition(cols, req.Raw)
 
-	// Контакты зашифрованы (#2351), искать по ним подстрокой нельзя. Остаётся точное
-	// совпадение по свёртке: человек находится, если ввести адрес или номер целиком.
-	// Нормализация та же, что при записи, иначе «+7 900 …» не нашёл бы «8900…».
-	//
-	// Под маской контакты не ищем вовсе - тот же запрет, что и на показ: подобрать
-	// адрес перебором значит раскрыть его другим путём.
-	if len(masks) == 0 {
-		key := crypto.GetGlobalKey()
-		if raw := strings.TrimSpace(req.Raw); raw != "" {
-			cond = "(" + cond + " OR u.email_hmac = ? OR u.phone_hmac = ?)"
-			args = append(args,
-				crypto.ComputeHMAC(models.NormalizeEmailForHMAC(raw), key),
-				crypto.ComputeHMAC(models.NormalizePhoneForHMAC(raw), key))
-		}
+	if contact, cargs := contactMatchCondition(req.Raw, masks); contact != "" {
+		cond = "(" + cond + " OR " + contact + ")"
+		args = append(args, cargs...)
 	}
 
 	rows := make([]searchRow, 0, req.Limit+1)
@@ -94,4 +83,38 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 		}
 	}
 	return items, nil
+}
+
+// contactMatchCondition - условие точного совпадения по почте или телефону.
+//
+// Контакты зашифрованы (#2351), искать по ним подстрокой нельзя. Остаётся точное
+// совпадение по свёртке: человек находится, если ввести адрес или номер целиком.
+// Нормализация та же, что при записи, иначе «+7 900 …» не нашёл бы «8900…».
+//
+// Записи под маской из этого условия исключаются поимённо - тот же запрет, что и на
+// показ: подтвердить точным совпадением, чей это адрес, значит раскрыть его другим
+// путём. Именно поимённо, а не отключением поиска целиком: масок на живой установке
+// почти всегда больше нуля (на стенде 59 из 109), и общий выключатель означал бы,
+// что по контактам не находится вообще никто - что и случилось после выката #2351.
+func contactMatchCondition(raw string, masks map[int]string) (string, []any) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+
+	key := crypto.GetGlobalKey()
+	args := []any{
+		crypto.ComputeHMAC(models.NormalizeEmailForHMAC(raw), key),
+		crypto.ComputeHMAC(models.NormalizePhoneForHMAC(raw), key),
+	}
+	cond := "(u.email_hmac = ? OR u.phone_hmac = ?)"
+	if len(masks) == 0 {
+		return cond, args
+	}
+
+	hidden := make([]int, 0, len(masks))
+	for id := range masks {
+		hidden = append(hidden, id)
+	}
+	return "(" + cond + " AND u.id NOT IN (?))", append(args, hidden)
 }

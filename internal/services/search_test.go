@@ -7,6 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+
+	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 )
 
 // Провайдер без права -- это раздел, открытый всем подряд, поэтому реестр проверяется на
@@ -212,4 +215,55 @@ func TestMatchRankExprAny(t *testing.T) {
 	t.Run("matchRankExpr остался частным случаем", func(t *testing.T) {
 		require.Equal(t, matchRankExprAny("u.last_name"), matchRankExpr("u.last_name"))
 	})
+}
+
+// Поиск по контактам ищет по свёртке, поэтому условие собирается отдельно от
+// запроса - и ошибиться в нём можно ровно двумя способами: не исключить скрытые
+// записи или отключить поиск целиком, если скрытая нашлась хоть одна. Второе и
+// случилось после #2351: на стенде масок 59 из 109, и по контактам не находился
+// никто.
+
+// TestContactMatchCondition_NoMasks - без скрытых записей условие сводится к
+// точному совпадению по свёртке.
+func TestContactMatchCondition_NoMasks(t *testing.T) {
+	cond, args := contactMatchCondition(" ivanov@example.com ", nil)
+
+	if cond != "(u.email_hmac = ? OR u.phone_hmac = ?)" {
+		t.Fatalf("неожиданное условие: %s", cond)
+	}
+	if len(args) != 2 {
+		t.Fatalf("ожидались две свёртки, получено %d", len(args))
+	}
+	if args[0] != crypto.ComputeHMAC(models.NormalizeEmailForHMAC("ivanov@example.com"), crypto.GetGlobalKey()) {
+		t.Fatal("свёртка почты обязана считаться от нормализованного значения")
+	}
+}
+
+// TestContactMatchCondition_MasksExcludedByID - скрытые записи выпадают поимённо, а
+// поиск по остальным продолжает работать. Обратное поведение (общий выключатель) и
+// было регрессией.
+func TestContactMatchCondition_MasksExcludedByID(t *testing.T) {
+	cond, args := contactMatchCondition("89161234567", map[int]string{7: "@ivanov"})
+
+	if !strings.Contains(cond, "u.email_hmac = ?") {
+		t.Fatalf("поиск по контактам не должен выключаться из-за скрытых записей: %s", cond)
+	}
+	if !strings.Contains(cond, "u.id NOT IN (?)") {
+		t.Fatalf("скрытые записи обязаны исключаться поимённо: %s", cond)
+	}
+	if len(args) != 3 {
+		t.Fatalf("ожидались две свёртки и список скрытых, получено %d", len(args))
+	}
+	hidden, ok := args[2].([]int)
+	if !ok || len(hidden) != 1 || hidden[0] != 7 {
+		t.Fatalf("в исключение должен уйти идентификатор скрытой записи, получено %#v", args[2])
+	}
+}
+
+// TestContactMatchCondition_EmptyQuery - пустой запрос условия не даёт, иначе к
+// поиску прицепилось бы совпадение со свёрткой пустой строки.
+func TestContactMatchCondition_EmptyQuery(t *testing.T) {
+	if cond, args := contactMatchCondition("   ", nil); cond != "" || args != nil {
+		t.Fatalf("пустой запрос не должен давать условия: %q %#v", cond, args)
+	}
 }
