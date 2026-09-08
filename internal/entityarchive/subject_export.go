@@ -146,8 +146,12 @@ func buildSubjectApplicationsSection(ctx context.Context, db *gorm.DB, target Su
 		Organization *string
 		Company      *string
 		SentAt       *time.Time
-		DateFrom     *time.Time
-		DateTo       *time.Time
+		// Даты доступа во вложении хранятся строкой, а не датой (attachments.
+		// entry_date_from - character varying). Читаем как есть: попытка положить их
+		// в time.Time роняет весь раздел, и справка не собирается вовсе - поймано на
+		// стенде, тесты этого не видели, потому что вложения в них создавались без дат.
+		DateFrom *string
+		DateTo   *string
 	}
 
 	q := `
@@ -176,7 +180,7 @@ func buildSubjectApplicationsSection(ctx context.Context, db *gorm.DB, target Su
 	for _, r := range rows {
 		table.Rows = append(table.Rows, []string{
 			derefOrDash(r.Number), derefOrDash(r.Status), derefOrDash(r.Organization), derefOrDash(r.Company),
-			dateOrDash(r.SentAt), dateOrDash(r.DateFrom), dateOrDash(r.DateTo),
+			dateOrDash(r.SentAt), derefOrDash(r.DateFrom), derefOrDash(r.DateTo),
 		})
 	}
 	return table, nil

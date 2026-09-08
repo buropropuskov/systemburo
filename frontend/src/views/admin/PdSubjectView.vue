@@ -253,6 +253,29 @@ function refresh() {
 </script>
 
 <style scoped>
+/* Раскладка страницы у админских экранов своя, а не из общего layout: те же
+   .page-header/.page-title объявлены локально в PdAuditLog и соседях. Без них шапка
+   и блоки слипаются - экран выглядит сломанным. */
+.pds {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--color-text, #000);
+}
+
 .pds__hint,
 .pds__note {
   margin: 0 0 16px;
