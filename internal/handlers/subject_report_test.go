@@ -45,7 +45,14 @@ func TestBuildSubjectReport_CollectsSections(t *testing.T) {
 	app := models.Application{OrganizationID: org.ID, SenderUserID: user.ID,
 		ApplicationNumber: &number, Status: &status}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: &app.ID, OrganizationID: &org.ID}
+	// Даты доступа во вложении задаём обязательно: они хранятся строкой, а не датой,
+	// и без них раздел «Заявки» собирался бы на пустых значениях - именно так тест и
+	// пропустил ошибку типа, которая на стенде роняла всю справку.
+	dateFrom, dateTo := "01.09.2026", "30.09.2026"
+	att := models.Attachment{
+		ApplicationID: &app.ID, OrganizationID: &org.ID,
+		EntryDateFrom: &dateFrom, EntryDateTo: &dateTo,
+	}
 	require.NoError(t, db.Create(&att).Error)
 
 	post := models.SystemTable{Name: "КПП-1"}
@@ -96,6 +103,8 @@ func TestBuildSubjectReport_CollectsSections(t *testing.T) {
 		require.Len(t, rows, 1)
 		assert.Equal(t, number, rows[0][0])
 		assert.Equal(t, status, rows[0][1])
+		assert.Equal(t, dateFrom, rows[0][5], "даты доступа хранятся строкой и обязаны попасть в справку как есть")
+		assert.Equal(t, dateTo, rows[0][6])
 	})
 
 	t.Run("проходы: событие и пост", func(t *testing.T) {
