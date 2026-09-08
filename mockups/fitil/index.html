@@ -508,6 +508,184 @@
     .wrap { padding: 32px 14px 60px; }
     .board, .phone { width: 100%; max-width: 375px; }
   }
+
+  /* ---------------- айдентика ---------------- */
+
+  .ident { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px; align-items: stretch; }
+
+  .plate {
+    background: var(--panel);
+    border-radius: 18px;
+    padding: 24px;
+    display: grid;
+    gap: 16px;
+    align-content: start;
+  }
+
+  .plate .p-lbl { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .plate .p-note { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .lockup { display: flex; align-items: center; gap: 14px; }
+  .lockup .word { font-family: var(--display); font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+  .lockup .word em { color: var(--ember); font-style: normal; }
+
+  .appicons { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+
+  .appicon {
+    display: grid;
+    place-items: center;
+    background: radial-gradient(120% 120% at 30% 15%, #2A3348, #0B0F1A 70%);
+    border: 1px solid var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .appicon.s120 { width: 120px; height: 120px; border-radius: 27px; }
+  .appicon.s60  { width: 60px;  height: 60px;  border-radius: 14px; }
+  .appicon.s32  { width: 32px;  height: 32px;  border-radius: 8px; }
+  .appicon svg { width: 62%; height: 62%; }
+
+  .icon-caption { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  /* фитиль как графическая константа */
+
+  .fuse { position: relative; height: 26px; display: block; }
+
+  .fuse .cord {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 99px;
+    background: var(--panel-2);
+  }
+
+  .fuse .burnt {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    height: 3px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, rgba(225,72,58,.25), var(--ember));
+  }
+
+  .fuse .spark {
+    position: absolute;
+    top: 5px;
+    width: 17px;
+    height: 17px;
+    margin-left: -8px;
+    border-radius: 99px;
+    background: radial-gradient(circle, #FFF0C9 0 22%, var(--amber) 40%, rgba(225,72,58,.75) 62%, transparent 72%);
+  }
+
+  .fuse .ticks { position: absolute; top: 21px; left: 0; right: 0; display: flex; justify-content: space-between; }
+  .fuse .ticks span { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+
+  /* ---------------- модульная сетка ---------------- */
+
+  .gridspec {
+    position: relative;
+    width: 375px;
+    height: 420px;
+    border-radius: 18px;
+    background: var(--ink-deep);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .gridspec .cols {
+    position: absolute;
+    inset: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .gridspec .cols i { background: rgba(233,166,60,.14); border-left: 1px solid rgba(233,166,60,.4); border-right: 1px solid rgba(233,166,60,.4); }
+
+  .gridspec .baseline {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(to bottom, rgba(243,238,227,.08) 0 1px, transparent 1px 8px);
+  }
+
+  .gridspec .safe { position: absolute; inset: 0; border-left: 20px solid rgba(225,72,58,.14); border-right: 20px solid rgba(225,72,58,.14); }
+
+  .gridspec .tag {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber-soft);
+    background: rgba(11,15,26,.9);
+    padding: 3px 7px;
+    border-radius: 6px;
+  }
+
+  .gridnums { display: grid; gap: 10px; align-content: start; }
+  .gridnums .gn { display: flex; justify-content: space-between; gap: 16px; font-size: 13.5px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .gridnums .gn b { font-family: var(--mono); font-size: 13px; color: var(--amber); font-weight: 400; }
+
+  /* ---------------- набор иконок ---------------- */
+
+  .iconset { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 14px; }
+
+  .ic { display: grid; gap: 9px; justify-items: center; text-align: center; }
+
+  .ic .cellwrap {
+    width: 84px;
+    height: 84px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background:
+      repeating-linear-gradient(to right, rgba(243,238,227,.07) 0 1px, transparent 1px 14px),
+      repeating-linear-gradient(to bottom, rgba(243,238,227,.07) 0 1px, transparent 1px 14px),
+      var(--panel);
+    border: 1px solid var(--line);
+  }
+
+  .ic svg { width: 42px; height: 42px; color: var(--amber); }
+  .ic .ic-l { font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+  /* ---------------- состояния ---------------- */
+
+  .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+  .state { display: grid; gap: 9px; }
+  .state .s-l { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 700;
+    background: var(--amber);
+    color: #16120A;
+    padding: 14px 20px;
+  }
+
+  .btn.pressed { background: #C9862A; transform: scale(.985); }
+  .btn.disabled { background: var(--panel-2); color: #5D6479; }
+  .btn.secondary { background: transparent; color: var(--cream); border: 1px solid var(--line); font-weight: 600; }
+  .btn.danger { background: var(--ember); color: #FFF3F1; }
+
+  /* ---------------- паттерн ---------------- */
+
+  .patternrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: start; }
+
+  .cardback {
+    aspect-ratio: 5 / 7;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    overflow: hidden;
+    background: var(--ink-deep);
+  }
+
+  .cardback svg { width: 100%; height: 100%; display: block; }
 </style>
 
 <div class="wrap">
@@ -902,7 +1080,12 @@
                 <span class="cap">шанс взорваться на следующем взятии</span>
               </div>
 
-              <div class="deckbar"><i></i><i class="k"></i><i></i><i></i><i class="k"></i><i></i></div>
+              <div class="fuse" style="height:24px">
+                <span class="cord"></span>
+                <span class="burnt" style="width:74%"></span>
+                <span class="spark" style="left:74%"></span>
+                <span class="ticks"><span>23 карты в начале</span><span>6 сейчас</span></span>
+              </div>
 
               <div class="counters">
                 <div class="counter"><span class="v">6</span><span class="l">карт в колоде</span></div>
@@ -992,6 +1175,189 @@
         </div>
       </div>
 
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Знак и айдентика</h2></div>
+    <p class="sec-note">
+      Название взято из механики игры, а не из её персонажей: приложение отмеряет время до взрыва так же,
+      как это делает горящий шнур. Знак строится из одного жеста - дуга фитиля и искра на конце.
+      Искра всегда киноварная, шнур всегда приглушённый: тот же цветовой закон, что и во всём интерфейсе.
+    </p>
+
+    <div class="ident">
+      <div class="plate">
+        <span class="p-lbl">Логотип</span>
+        <div class="lockup">
+          <svg width="52" height="52" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <path d="M6 40c0-14 10-22 20-22 6 0 10 3 10 7" stroke="#8E96AC" stroke-width="3.2" stroke-linecap="round"/>
+            <circle cx="37" cy="21" r="8" fill="#E1483A" opacity=".28"/>
+            <circle cx="37" cy="21" r="4.6" fill="#E9A63C"/>
+            <circle cx="37" cy="21" r="1.9" fill="#FFF0C9"/>
+          </svg>
+          <span class="word">Фити<em>ль</em></span>
+        </div>
+        <span class="p-note">Начертание Unbounded 800. Последние две буквы окрашены в цвет опасности:
+          слово догорает так же, как шнур на знаке.</span>
+      </div>
+
+      <div class="plate">
+        <span class="p-lbl">Иконка приложения</span>
+        <div class="appicons">
+          <div style="display:grid;gap:8px;justify-items:center">
+            <div class="appicon s120">
+              <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <path d="M6 40c0-14 10-22 20-22 6 0 10 3 10 7" stroke="#F3EEE3" stroke-width="3.4" stroke-linecap="round"/>
+                <circle cx="37" cy="21" r="9" fill="#E1483A" opacity=".35"/>
+                <circle cx="37" cy="21" r="5" fill="#E9A63C"/>
+                <circle cx="37" cy="21" r="2" fill="#FFF0C9"/>
+              </svg>
+            </div>
+            <span class="icon-caption">120</span>
+          </div>
+          <div style="display:grid;gap:8px;justify-items:center">
+            <div class="appicon s60">
+              <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <path d="M6 40c0-14 10-22 20-22 6 0 10 3 10 7" stroke="#F3EEE3" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="37" cy="21" r="5.4" fill="#E9A63C"/>
+                <circle cx="37" cy="21" r="2.1" fill="#FFF0C9"/>
+              </svg>
+            </div>
+            <span class="icon-caption">60</span>
+          </div>
+          <div style="display:grid;gap:8px;justify-items:center">
+            <div class="appicon s32">
+              <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <path d="M8 40c0-13 9-21 18-21" stroke="#F3EEE3" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="34" cy="20" r="7" fill="#E9A63C"/>
+              </svg>
+            </div>
+            <span class="icon-caption">32</span>
+          </div>
+        </div>
+        <span class="p-note">На малых размерах знак упрощается: пропадает внутреннее ядро искры,
+          шнур укорачивается, толщина штриха растёт. Силуэт остаётся узнаваемым на 32 пикселях.</span>
+      </div>
+    </div>
+
+    <div class="plate" style="margin-top:22px">
+      <span class="p-lbl">Фитиль как элемент интерфейса</span>
+      <div class="fuse">
+        <span class="cord"></span>
+        <span class="burnt" style="width:67%"></span>
+        <span class="spark" style="left:67%"></span>
+        <span class="ticks"><span>колода собрана</span><span>осталось 6 карт</span></span>
+      </div>
+      <span class="p-note">Одна и та же графика работает в трёх местах: прогресс сборки колоды,
+        оставшийся объём колоды и накопленные ходы от атаки. Сгоревшая часть всегда слева,
+        искра стоит в текущей точке. Игрок читает состояние партии, не вчитываясь в цифры.</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Модульная сетка</h2></div>
+    <p class="sec-note">
+      Четыре колонки по 74,75 с промежутком 12 и полями по 20. Плитки разделов занимают две колонки,
+      карты справочника - одну с третью, кнопки тянутся на все четыре. Вертикальный ритм кратен 4:
+      это позволяет прижимать текст к базовой линии и не подгонять отступы на глаз.
+    </p>
+
+    <div class="patternrow">
+      <div class="gridspec">
+        <div class="safe"></div>
+        <div class="cols"><i></i><i></i><i></i><i></i></div>
+        <div class="baseline"></div>
+        <span class="tag" style="top:14px;left:20px">поле 20</span>
+        <span class="tag" style="top:52px;left:96px">колонка 74,75</span>
+        <span class="tag" style="top:92px;left:20px">промежуток 12</span>
+        <span class="tag" style="bottom:14px;left:20px">базовая сетка 8</span>
+      </div>
+
+      <div class="gridnums">
+        <span class="gn"><span>Ширина экрана</span><b>375</b></span>
+        <span class="gn"><span>Поля слева и справа</span><b>20 + 20</b></span>
+        <span class="gn"><span>Рабочая ширина</span><b>335</b></span>
+        <span class="gn"><span>Колонок</span><b>4</b></span>
+        <span class="gn"><span>Ширина колонки</span><b>74,75</b></span>
+        <span class="gn"><span>Промежуток</span><b>12</b></span>
+        <span class="gn"><span>Шаг вертикального ритма</span><b>4</b></span>
+        <span class="gn"><span>Отступ между блоками</span><b>16</b></span>
+        <span class="gn"><span>Минимальная зона нажатия</span><b>44 x 44</b></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Набор иконок</h2></div>
+    <p class="sec-note">
+      Девять знаков нарисованы в одной системе: поле 24 x 24, штрих 1,7, скругления на концах,
+      никаких заливок. Каждый знак читается силуэтом, поэтому работает и в плитке 26 пикселей,
+      и на карточке карты в 44. Сетка на подложке показывает шаг построения.
+    </p>
+
+    <div class="iconset">
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" style="color:var(--ember)"><path d="M12 2l2.2 5.2L20 6l-2.4 5L22 14l-5.6.6L15 21l-3-4-3 4-1.4-6.4L2 14l4.4-3L4 6l5.8 1.2z"/></svg></div><span class="ic-l">Взрывной котёнок</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5L20 18M8 16.5L20 6"/></svg></div><span class="ic-l">Обезвредить</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg></div><span class="ic-l">Неть</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg></div><span class="ic-l">Нападай</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 12h12M12 7l5 5-5 5M20 6v12"/></svg></div><span class="ic-l">Пропусти</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 8h11l-3-3M20 16H9l3 3"/></svg></div><span class="ic-l">Перетасуй</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg></div><span class="ic-l">В будущее</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 013 0V12"/><path d="M11 11.5a1.5 1.5 0 013 0V13M14 12.5a1.5 1.5 0 013 0V17a4 4 0 01-4 4h-2a5 5 0 01-5-5v-3"/></svg></div><span class="ic-l">Услуга</span></div>
+      <div class="ic"><div class="cellwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 10L4 4l5 3h6l5-3-1 6v5a5 5 0 01-5 5h-4a5 5 0 01-5-5z"/><path d="M10 13h.01M14 13h.01"/></svg></div><span class="ic-l">Кошачьи карты</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Состояния кнопок</h2></div>
+    <p class="sec-note">
+      Главное действие на экране всегда одно и всегда янтарное. Нажатие затемняет заливку на один шаг
+      и слегка ужимает кнопку - этого хватает для отклика без анимации, которую всё равно не увидят
+      при быстром касании. Недоступное действие теряет цвет полностью: серую кнопку не путают с активной.
+    </p>
+
+    <div class="states">
+      <div class="state"><span class="s-l">обычное</span><div class="btn">Собрать колоду</div></div>
+      <div class="state"><span class="s-l">нажатие</span><div class="btn pressed">Собрать колоду</div></div>
+      <div class="state"><span class="s-l">недоступно</span><div class="btn disabled">Собрать колоду</div></div>
+      <div class="state"><span class="s-l">второстепенное</span><div class="btn secondary">Обучение новичка</div></div>
+      <div class="state"><span class="s-l">опасное</span><div class="btn danger">Игрок взорвался</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Паттерн</h2></div>
+    <p class="sec-note">
+      Мотив построен из двух элементов игры: искры и кошачьих ушей. Он работает как рубашка карты
+      на заставке и как фон пустых состояний. Плотность намеренно низкая: узор не должен спорить
+      с текстом правил, поэтому в рабочих экранах он не появляется.
+    </p>
+
+    <div class="patternrow">
+      <div class="cardback">
+        <svg viewBox="0 0 100 140" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <pattern id="fuse-pattern" width="25" height="25" patternUnits="userSpaceOnUse">
+              <rect width="25" height="25" fill="#0B0F1A"/>
+              <path d="M12.5 5.5l1.6 3.7 3.7 1.6-3.7 1.6-1.6 3.7-1.6-3.7-3.7-1.6 3.7-1.6z" fill="#E9A63C" opacity=".55"/>
+              <path d="M2 21l1.5-3.5L5 21M20 21l1.5-3.5L23 21" stroke="#E1483A" stroke-width="1" fill="none" opacity=".5"/>
+            </pattern>
+          </defs>
+          <rect width="100" height="140" fill="url(#fuse-pattern)"/>
+        </svg>
+      </div>
+
+      <div class="plate">
+        <span class="p-lbl">Где применяется</span>
+        <span class="p-note">Заставка при запуске, рубашка карт в разделе обучения, фон пустого состояния
+          в трекере атак, когда партия ещё не началась. В справочнике и в спорных ситуациях паттерна нет:
+          там читают текст.</span>
+        <span class="p-lbl">Как построен</span>
+        <span class="p-note">Ячейка 25 x 25. Искра восьмиконечная, повёрнута по диагонали ячейки,
+          прозрачность 55 процентов. Уши отбиты киноварным контуром в 1 пиксель по нижним углам ячейки,
+          прозрачность 50 процентов.</span>
+      </div>
     </div>
   </section>
 
