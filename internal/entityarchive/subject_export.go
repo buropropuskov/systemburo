@@ -31,6 +31,11 @@ import (
 // юридическая, и менять её вместе с вёрсткой нельзя.
 const subjectProcessingBasis = "Законный интерес оператора, п. 7 ч. 1 ст. 6 152-ФЗ: пропускной режим на объекте"
 
+// SubjectProcessingBasis - основание обработки для показа на экране. Экспортируется,
+// чтобы интерфейс печатал ту же формулировку, что и файл: расхождение здесь означало
+// бы, что человеку и проверяющему система говорит разное.
+func SubjectProcessingBasis() string { return subjectProcessingBasis }
+
 // SubjectReport - собранные разделы справки.
 type SubjectReport struct {
 	Origin   string
