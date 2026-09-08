@@ -57,6 +57,9 @@ type VehicleBlacklistService interface {
 	// Слой предупреждения о возможном обходе (#481): точное совпадение ловит Check (409),
 	// сюда попадают опечатка/гомоглиф/подмена 0<->О. Пустой срез - похожих нет.
 	FindSimilar(ctx context.Context, carNumber string) ([]models.BlacklistSimilarMatch, error)
+	// FindSimilarBatch - тот же поиск сразу по набору номеров, ОДНИМ запросом.
+	// Ключ карты - нормализованный номер, значение отсортировано как у FindSimilar.
+	FindSimilarBatch(ctx context.Context, carNumbers []string) (map[string][]models.BlacklistSimilarMatch, error)
 	// Update - правка активной записи (номер/марка/причина) + лог в историю (updated). При
 	// смене идентичности перекаскадивает cars: реактивирует совпадавшие со старым номером,
 	// деактивирует совпадающие с новым. Дубль активной записи -> 409.
@@ -449,6 +452,82 @@ func (s *vehicleBlacklistService) FindSimilar(ctx context.Context, carNumber str
 		})
 	}
 	return matches, nil
+}
+
+// blacklistBatchSeparator - разделитель значений в пакетном поиске. Управляющий символ
+// (разделитель полей) в номерах и ФИО не встречается, а нормализация его бы и не
+// пропустила: разбор на стороне базы остаётся однозначным.
+const blacklistBatchSeparator = "\x1f"
+
+// FindSimilarBatch - поиск похожих сразу для набора номеров одним запросом.
+//
+// Построчный FindSimilar на подаче большого списка упирался не в вычисления, а в число
+// обращений к базе: чёрный список короткий, а запросов уходило по одному на строку -
+// 2000 машин давали 2000 round-trip. Здесь номера уезжают в базу массивом и
+// перемножаются с записями ЧС на её стороне.
+//
+// Ключ результата - НОРМАЛИЗОВАННЫЙ номер: вызывающий получает совпадения по
+// normalize.Plate(номер), как и в построчном пути.
+func (s *vehicleBlacklistService) FindSimilarBatch(ctx context.Context, carNumbers []string) (map[string][]models.BlacklistSimilarMatch, error) {
+	result := make(map[string][]models.BlacklistSimilarMatch, len(carNumbers))
+	queries := make([]string, 0, len(carNumbers))
+	seen := make(map[string]bool, len(carNumbers))
+	for _, n := range carNumbers {
+		q := normalize.Plate(n)
+		if q == "" || seen[q] {
+			continue
+		}
+		// Тот же предохранитель, что в построчном пути: levenshtein падает на аргументе
+		// длиннее 255 байт, а сюда приходит пользовательский ввод.
+		if r := []rune(q); len(r) > 64 {
+			q = string(r[:64])
+		}
+		seen[q] = true
+		queries = append(queries, q)
+	}
+	if len(queries) == 0 {
+		return result, nil
+	}
+
+	type simRow struct {
+		Query     string
+		ID        int
+		CarNumber string
+		MarkName  string
+		Reason    string
+		Sim       float64
+	}
+	var rows []simRow
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT query, id, car_number, mark_name, reason, sim FROM (
+			SELECT q.query, b.id, b.car_number, b.mark_name, b.reason,
+			       1 - levenshtein(b.normalized_number, q.query)::float
+			           / GREATEST(LENGTH(b.normalized_number), LENGTH(q.query), 1) AS sim
+			FROM unnest(string_to_array(@queries, @sep)) AS q(query)
+			CROSS JOIN vehicle_blacklists b
+			WHERE b.is_active = true AND b.normalized_number <> ''
+		) t
+		WHERE sim >= @threshold
+		ORDER BY query, sim DESC, id`,
+		map[string]interface{}{
+			"queries":   strings.Join(queries, blacklistBatchSeparator),
+			"sep":       blacklistBatchSeparator,
+			"threshold": blacklistSimilarityThreshold,
+		},
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска похожих записей чёрного списка")
+	}
+
+	for _, r := range rows {
+		result[r.Query] = append(result[r.Query], models.BlacklistSimilarMatch{
+			ID:           r.ID,
+			Similarity:   r.Sim,
+			MatchedValue: strings.TrimSpace(r.CarNumber + " " + r.MarkName),
+			Reason:       r.Reason,
+		})
+	}
+	return result, nil
 }
 
 // GetHistory возвращает историю записи ЧС машин (новые сверху).
