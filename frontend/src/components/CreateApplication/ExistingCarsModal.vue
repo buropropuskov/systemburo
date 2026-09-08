@@ -634,7 +634,7 @@ export default {
     flex: 1;
     overflow: hidden;
     min-height: 240px;
-    max-height: min(700px, calc(var(--app-vh, 1vh) * 72));
+    max-height: min(700px, calc(var(--app-vh, 1vh) * 78));
     display: flex;
     flex-direction: column;
 }
@@ -698,7 +698,7 @@ export default {
     flex: 1;
     overflow-y: auto;
     /* Пятнадцать строк по 42px, дальше прокрутка (#2399). */
-    max-height: min(630px, calc(var(--app-vh, 1vh) * 62));
+    max-height: min(630px, calc(var(--app-vh, 1vh) * 70));
     min-height: 200px;
 }
 
