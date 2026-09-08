@@ -1,0 +1,202 @@
+// Package pdsubject собирает сведения об одном человеке для интерфейса
+// администратора (#2356).
+//
+// Живёт отдельным пакетом, а не в internal/services, не по вкусу: entityarchive уже
+// зависит от services ради AuditRecorder, и сервис внутри services замкнул бы цикл
+// импорта. Пакет оркестрирует entityarchive и export, своей работы с базой у него
+// почти нет.
+package pdsubject
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"gorm.io/gorm"
+
+	"systemburo/internal/entityarchive"
+	"systemburo/internal/export"
+	"systemburo/internal/models"
+)
+
+// Сведения о субъекте персональных данных через интерфейс (#2356).
+//
+// Консольная команда server subject решает ту же задачу, но запросы государственных
+// органов приходят регулярно, а лезть в консоль сервера под каждый - плохая практика:
+// доступ к консоли шире, чем нужно для ответа на письмо. Поэтому сбор и выгрузка
+// доступны администратору с правом, а сама механика переиспользуется целиком.
+
+// PDSubjectService - поиск человека и справка о нём для интерфейса.
+type Service struct {
+	db *gorm.DB
+	// exportPath - каталог, куда команда кладёт файлы. Через интерфейс файл отдаётся
+	// потоком и на диск не пишется: лишняя копия персональных данных на сервере -
+	// это ещё одно место, откуда они могут утечь.
+	exportPath string
+}
+
+func New(db *gorm.DB) *Service {
+	return &Service{db: db}
+}
+
+// Candidate - запись, похожая по имени.
+type Candidate struct {
+	Source      string `json:"source"`
+	ID          int    `json:"id"`
+	FullName    string `json:"full_name"`
+	HasDocument bool   `json:"has_document"`
+}
+
+// FindByName ищет кандидатов по имени. Склейка по имени не делается: решает человек.
+func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, error) {
+	parts := strings.Fields(fio)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("укажите хотя бы фамилию и имя")
+	}
+	middle := ""
+	if len(parts) > 2 {
+		middle = strings.Join(parts[2:], " ")
+	}
+
+	found, err := entityarchive.FindSubjectCandidatesByFIO(ctx, s.db, parts[0], parts[1], middle)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Candidate, 0, len(found))
+	for _, c := range found {
+		out = append(out, Candidate{
+			Source: c.Source, ID: c.ID, FullName: c.FullName, HasDocument: c.HasDocument,
+		})
+	}
+	return out, nil
+}
+
+// Section - раздел справки для показа на экране.
+type Section struct {
+	Title   string     `json:"title"`
+	Headers []string   `json:"headers"`
+	Rows    [][]string `json:"rows"`
+}
+
+// ReportResponse - состав сведений о человеке.
+type ReportResponse struct {
+	Origin   string    `json:"origin"`
+	Basis    string    `json:"basis"`
+	Sections []Section `json:"sections"`
+	Total    int       `json:"total"`
+}
+
+// Report собирает сведения о человеке по записи реестра.
+func (s *Service) Report(ctx context.Context, registryID int) (*ReportResponse, error) {
+	rep, err := s.buildReport(ctx, registryID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &ReportResponse{Origin: rep.Origin, Basis: entityarchive.SubjectProcessingBasis()}
+	for _, s := range rep.Sections {
+		resp.Sections = append(resp.Sections, Section{
+			Title: s.Title, Headers: s.Headers, Rows: s.Rows,
+		})
+		resp.Total += len(s.Rows)
+	}
+	return resp, nil
+}
+
+// ExportRequest - выгрузка справки файлом. Получатель и реквизиты запроса
+// обязательны: без них выдачу нечем обосновать перед проверяющим.
+type ExportRequest struct {
+	RegistryID int    `json:"registry_id" validate:"required,gt=0"`
+	Format     string `json:"format" validate:"omitempty,oneof=xlsx pdf"`
+	Recipient  string `json:"recipient" validate:"required,max=300"`
+	RequestRef string `json:"request_ref" validate:"required,max=300"`
+	Basis      string `json:"basis" validate:"omitempty,max=1000"`
+}
+
+// Export собирает справку, пишет выдачу в журнал и возвращает файл потоком.
+//
+// Порядок важен: сперва журнал, потом файл. Выдача, не попавшая в журнал, при
+// проверке неотличима от утечки, поэтому файла без записи не бывает.
+func (s *Service) Export(ctx context.Context, req ExportRequest, actor Actor) ([]byte, string, string, error) {
+	rep, err := s.buildReport(ctx, req.RegistryID)
+	if err != nil {
+		return nil, "", "", err
+	}
+	target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, req.RegistryID)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	format := req.Format
+	if format == "" {
+		format = "xlsx"
+	}
+	var data []byte
+	var mime, ext string
+	if format == "pdf" {
+		data, err = export.ToPDFMulti(rep.Sections)
+		mime, ext = export.MIMEPDF, "pdf"
+	} else {
+		data, err = export.ToXLSXMulti(rep.Sections)
+		mime, ext = export.MIMEXLSX, "xlsx"
+	}
+	if err != nil {
+		return nil, "", "", fmt.Errorf("сборка справки: %w", err)
+	}
+
+	name := fmt.Sprintf("Сведения_о_субъекте_%s.%s", rep.MadeAt.Format("20060102-150405"), ext)
+	issuedBy := actor.Username
+	var actorID *int
+	if actor.UserID > 0 {
+		id := actor.UserID
+		actorID = &id
+	}
+	if strings.TrimSpace(issuedBy) == "" {
+		issuedBy = "интерфейс"
+	}
+	_, err = entityarchive.RecordDisclosure(ctx, s.db, target, rep, []string{name},
+		entityarchive.DisclosureRequest{
+			Recipient: req.Recipient, RequestRef: req.RequestRef, Basis: req.Basis,
+			IssuedBy: issuedBy, IssuedByUserID: actorID,
+		})
+	if err != nil {
+		return nil, "", "", err
+	}
+	return data, name, mime, nil
+}
+
+// Actor - кто выдаёт сведения через интерфейс. Попадает в журнал выдач: запись
+// «выдал интерфейс» ничего не доказывает, проверяющему нужен человек.
+type Actor struct {
+	UserID   int
+	Username string
+}
+
+// Disclosures - журнал выдач: весь или по одному человеку.
+func (s *Service) Disclosures(ctx context.Context, registryID, limit int) ([]models.PDDisclosure, error) {
+	key := ""
+	if registryID > 0 {
+		target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, registryID)
+		if err != nil {
+			return nil, err
+		}
+		key = entityarchive.DisclosureSubjectKey(target)
+	}
+	return entityarchive.ListDisclosures(ctx, s.db, key, limit)
+}
+
+// buildReport - общий шаг Report и Export: цель по записи реестра и сбор разделов.
+func (s *Service) buildReport(ctx context.Context, registryID int) (entityarchive.SubjectReport, error) {
+	if registryID <= 0 {
+		return entityarchive.SubjectReport{}, fmt.Errorf("не указана запись реестра")
+	}
+	target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, registryID)
+	if err != nil {
+		return entityarchive.SubjectReport{}, err
+	}
+	if target.Empty() {
+		return entityarchive.SubjectReport{}, fmt.Errorf(
+			"у записи %d нет ни паспорта, ни патента: собрать сведения о человеке не по чему", registryID)
+	}
+	return entityarchive.BuildSubjectReport(ctx, s.db, target)
+}

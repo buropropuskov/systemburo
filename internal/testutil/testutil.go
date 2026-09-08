@@ -18,6 +18,7 @@ import (
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/models"
+	"systemburo/internal/pdsubject"
 	"systemburo/internal/realtime"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
@@ -546,6 +547,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		Roles:               roleHandler,
 		AccessDenials:       accessDenialHandler,
 		PDAudit:             handlers.NewPDAuditHandler(services.NewPDAuditService(db)),
+		PDSubject:           handlers.NewPDSubjectHandler(pdsubject.New(db)),
 		UserBan:             userBanHandler,
 		Consent:             consentHandler,
 		Settings:            settingsHandler,

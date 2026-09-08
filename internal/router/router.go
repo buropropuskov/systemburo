@@ -53,6 +53,7 @@ type Dependencies struct {
 	Roles               *handlers.RoleHandler
 	AccessDenials       *handlers.AccessDenialHandler
 	PDAudit             *handlers.PDAuditHandler
+	PDSubject           *handlers.PDSubjectHandler
 	UserBan             *handlers.UserBanHandler
 	Consent             *handlers.ConsentHandler
 	Settings            *handlers.SettingsHandler
@@ -1031,6 +1032,17 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// по закону не удаляются, сроком хранения занимаются партиции таблицы.
 	pdAuditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminPDAudit)
 	protected.GET("/pd-audit", d.PDAudit.List, pdAuditRead)
+
+	// Сведения о субъекте персональных данных (#2356). Раздел закрыт своим правом, а
+	// выгрузка справки - ещё и парным: файл уходит третьему лицу и живёт дальше сам
+	// по себе, поэтому вес у действий разный (тот же принцип, что у бланков #2187).
+	pdSubjectRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminPDSubject)
+	pdSubjectExport := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionExportPDSubject)
+	pdSubject := protected.Group("/pd-subject", pdSubjectRead)
+	pdSubject.GET("/candidates", d.PDSubject.Find)
+	pdSubject.GET("/report", d.PDSubject.Report)
+	pdSubject.GET("/disclosures", d.PDSubject.Disclosures)
+	pdSubject.POST("/export", d.PDSubject.Export, pdSubjectExport)
 
 	// Журнал отказов в доступе (#230).
 	denialsGroup := protected.Group("/access-denials")

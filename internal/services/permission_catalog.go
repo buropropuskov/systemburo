@@ -28,9 +28,18 @@ const (
 	KeyPageAdminMonitoring = "page.admin.monitoring"
 	// Журнал доступа к персональным данным (152-ФЗ). Отдельно от permission.audit.read:
 	// тот про отказы в доступе, а здесь видно, кто и когда смотрел паспорта (#1472).
-	KeyPageAdminPDAudit     = "page.admin.pd_audit"
-	KeyPageAdminDirectories = "page.admin.directories"
-	KeyPageAdminTablesCtor  = "page.admin.tables_constructor"
+	KeyPageAdminPDAudit = "page.admin.pd_audit"
+	// Сведения о субъекте персональных данных (#2356): поиск человека и состав того,
+	// что система о нём хранит. Отдельно от page.admin.pd_audit намеренно: тот журнал
+	// отвечает «кто смотрел паспорта», а здесь собираются сами сведения о человеке -
+	// это разные по чувствительности вещи, и открывать их одним ключом нельзя.
+	KeyPageAdminPDSubject = "page.admin.pd_subject"
+	// Выгрузка справки о человеке файлом (#2356). Парное к разделу, не замена:
+	// увиденное на экране остаётся в системе, а выданный файл живёт дальше сам по
+	// себе и попадает третьему лицу. Тот же принцип, что у выгрузки бланков (#2187).
+	KeyActionExportPDSubject = "action.pd_subject.export"
+	KeyPageAdminDirectories  = "page.admin.directories"
+	KeyPageAdminTablesCtor   = "page.admin.tables_constructor"
 	// Раздел «Файловый архив» (#1615): состояние выгрузки бланков на диск, её
 	// настройки и выгрузка файлов. Слово «архив» отдельно уже занято архивными
 	// заявками, поэтому раздел называется файловым и в ключе, и в интерфейсе.
@@ -235,6 +244,8 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageAdminUsers, DisplayName: "Раздел «Пользователи»", Category: CatAdmin},
 		{Key: KeyPageAdminMonitoring, DisplayName: "Раздел «Мониторинг запросов»", Category: CatAdmin},
 		{Key: KeyPageAdminPDAudit, DisplayName: "Журнал доступа к персональным данным", Category: CatAdmin},
+		{Key: KeyPageAdminPDSubject, DisplayName: "Сведения о субъекте персональных данных", Category: CatAdmin},
+		{Key: KeyActionExportPDSubject, DisplayName: "Сведения о субъекте: выгрузка справки", Category: CatAdmin},
 		{Key: KeyPageAdminFeedback, DisplayName: "Раздел «Обратная связь»", Category: CatAdmin},
 		{Key: KeyPageBlacklist, DisplayName: "Раздел «Чёрный список»", Category: CatAdmin},
 		{Key: KeyPageAdminDirectories, DisplayName: "Раздел «Справочники»", Category: CatAdmin},
