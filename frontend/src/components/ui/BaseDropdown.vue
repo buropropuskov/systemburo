@@ -517,7 +517,13 @@ export default {
   position: absolute;
   top: calc(100% + 5px);
   left: 0;
-  width: 100%;
+  /* Меню не уже кнопки, но и не уже своего содержимого: кнопку фильтра часто зажимает
+     колонка таблицы, и при жёстком width: 100% пункты резались многоточием - в
+     справочнике организаций из шести пунктов обрезались пять при ширине меню 117px.
+     Потолок держит меню в пределах экрана на узких раскладках. */
+  min-width: 100%;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
