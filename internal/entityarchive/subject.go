@@ -165,6 +165,16 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 const subjectDocs = `((passport_series_number_hmac = @pass AND @pass <> '') ` +
 	`OR (patent_number_hmac = @patent AND @patent <> ''))`
 
+// subjectDocsFor - то же условие для таблицы под псевдонимом: в запросах справки
+// участвует несколько таблиц сразу, и без псевдонима имя столбца неоднозначно.
+func subjectDocsFor(alias string) string {
+	if alias == "" {
+		return subjectDocs
+	}
+	return fmt.Sprintf(`((%[1]s.passport_series_number_hmac = @pass AND @pass <> '') `+
+		`OR (%[1]s.patent_number_hmac = @patent AND @patent <> ''))`, alias)
+}
+
 const (
 	subjEmployees = "SELECT id FROM employees WHERE " + subjectDocs
 	subjUnique    = "SELECT id FROM unique_employees WHERE " + subjectDocs
