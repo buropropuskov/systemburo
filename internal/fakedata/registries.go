@@ -421,7 +421,7 @@ func buildCarRequest(refs registryRefs, s *carStreams) (services.NewUniqueCarReq
 
 	req := services.NewUniqueCarRequest{
 		Number:         plate,
-		Mark:           mark,
+		Mark:           &mark,
 		OrganizationID: &orgID,
 		FormatID:       &formatID,
 	}

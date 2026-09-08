@@ -94,12 +94,15 @@ type UniqueCarWithRelations struct {
 
 // NewUniqueCarRequest -- тело запроса на создание/обновление машины.
 type NewUniqueCarRequest struct {
-	Number         string `json:"number" validate:"required,min=1,max=50"`
-	Mark           string `json:"mark" validate:"omitempty,max=100"`
-	OrganizationID *int   `json:"organization_id"`
-	CompanyID      *int   `json:"company_id"`
-	FormatID       *int   `json:"format_id"`
-	UserID         *int   `json:"user_id"`
+	Number string `json:"number" validate:"required,min=1,max=50"`
+	// Mark - указатель, чтобы отличать «поле не прислали» от «прислали пустым»
+	// (#2400). Значением марка стиралась частичным запросом: PUT с одним номером
+	// обнулял её вместе с форматом.
+	Mark           *string `json:"mark" validate:"omitempty,max=100"`
+	OrganizationID *int    `json:"organization_id"`
+	CompanyID      *int    `json:"company_id"`
+	FormatID       *int    `json:"format_id"`
+	UserID         *int    `json:"user_id"`
 }
 
 // UniqueCarResponse -- ответ при создании/обновлении машины.
@@ -551,7 +554,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	// Проверка уникальности для пользователя
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-		Where("user_id = ? AND number = ? AND mark = ?", ownerInfo.UserID, req.Number, req.Mark).
+		Where("user_id = ? AND number = ? AND mark = ?", ownerInfo.UserID, req.Number, derefStr(req.Mark)).
 		Count(&count).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 	}
@@ -563,7 +566,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	if req.OrganizationID != nil {
 		var orgCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-			Where("organization_id = ? AND number = ? AND mark = ?", *req.OrganizationID, req.Number, req.Mark).
+			Where("organization_id = ? AND number = ? AND mark = ?", *req.OrganizationID, req.Number, derefStr(req.Mark)).
 			Count(&orgCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 		}
@@ -576,7 +579,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	if req.CompanyID != nil {
 		var compCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-			Where("company_id = ? AND number = ? AND mark = ?", *req.CompanyID, req.Number, req.Mark).
+			Where("company_id = ? AND number = ? AND mark = ?", *req.CompanyID, req.Number, derefStr(req.Mark)).
 			Count(&compCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 		}
@@ -593,7 +596,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	statusFalse := false
 	car := models.UniqueCar{
 		Number:         &req.Number,
-		Mark:           &req.Mark,
+		Mark:           markValueOrEmpty(req.Mark),
 		OrganizationID: req.OrganizationID,
 		CompanyID:      req.CompanyID,
 		FormatID:       req.FormatID,
@@ -633,12 +636,12 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 		// Проверка уникальности для пользователя
 		var count int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-			Where("user_id = ? AND number = ? AND mark = ?", ownerInfo.UserID, req.Number, req.Mark).
+			Where("user_id = ? AND number = ? AND mark = ?", ownerInfo.UserID, req.Number, derefStr(req.Mark)).
 			Count(&count).Error; err != nil {
 			return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 		}
 		if count > 0 {
-			errors = append(errors, "Автомобиль "+req.Number+" "+req.Mark+" уже привязан к вашему аккаунту")
+			errors = append(errors, "Автомобиль "+req.Number+" "+derefStr(req.Mark)+" уже привязан к вашему аккаунту")
 			continue
 		}
 
@@ -646,12 +649,12 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 		if req.OrganizationID != nil {
 			var orgCount int64
 			if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-				Where("organization_id = ? AND number = ? AND mark = ?", *req.OrganizationID, req.Number, req.Mark).
+				Where("organization_id = ? AND number = ? AND mark = ?", *req.OrganizationID, req.Number, derefStr(req.Mark)).
 				Count(&orgCount).Error; err != nil {
 				return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 			}
 			if orgCount > 0 {
-				errors = append(errors, "Автомобиль "+req.Number+" "+req.Mark+" уже существует в этой организации")
+				errors = append(errors, "Автомобиль "+req.Number+" "+derefStr(req.Mark)+" уже существует в этой организации")
 				continue
 			}
 		}
@@ -660,12 +663,12 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 		if req.CompanyID != nil {
 			var compCount int64
 			if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-				Where("company_id = ? AND number = ? AND mark = ?", *req.CompanyID, req.Number, req.Mark).
+				Where("company_id = ? AND number = ? AND mark = ?", *req.CompanyID, req.Number, derefStr(req.Mark)).
 				Count(&compCount).Error; err != nil {
 				return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 			}
 			if compCount > 0 {
-				errors = append(errors, "Автомобиль "+req.Number+" "+req.Mark+" уже существует в этой компании")
+				errors = append(errors, "Автомобиль "+req.Number+" "+derefStr(req.Mark)+" уже существует в этой компании")
 				continue
 			}
 		}
@@ -678,7 +681,7 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 		statusFalse := false
 		car := models.UniqueCar{
 			Number:         &req.Number,
-			Mark:           &req.Mark,
+			Mark:           markValueOrEmpty(req.Mark),
 			OrganizationID: req.OrganizationID,
 			CompanyID:      req.CompanyID,
 			FormatID:       req.FormatID,
@@ -687,8 +690,8 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 		}
 
 		if err := s.db.WithContext(ctx).Create(&car).Error; err != nil {
-			slog.Error("не удалось создать автомобиль в пакетной операции", "number", req.Number, "mark", req.Mark, "error", err)
-			errors = append(errors, "Ошибка при создании автомобиля "+req.Number+" "+req.Mark)
+			slog.Error("не удалось создать автомобиль в пакетной операции", "number", req.Number, "mark", derefStr(req.Mark), "error", err)
+			errors = append(errors, "Ошибка при создании автомобиля "+req.Number+" "+derefStr(req.Mark))
 			continue
 		}
 
@@ -738,7 +741,7 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 	// Проверка уникальности для владельца записи (исключая текущую)
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-		Where("user_id = ? AND number = ? AND mark = ? AND id != ?", ownerUserID, req.Number, req.Mark, id).
+		Where("user_id = ? AND number = ? AND mark = ? AND id != ?", ownerUserID, req.Number, derefStr(req.Mark), id).
 		Count(&count).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 	}
@@ -750,7 +753,7 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 	if req.OrganizationID != nil {
 		var orgCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-			Where("organization_id = ? AND number = ? AND mark = ? AND id != ?", *req.OrganizationID, req.Number, req.Mark, id).
+			Where("organization_id = ? AND number = ? AND mark = ? AND id != ?", *req.OrganizationID, req.Number, derefStr(req.Mark), id).
 			Count(&orgCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 		}
@@ -763,7 +766,7 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 	if req.CompanyID != nil {
 		var compCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-			Where("company_id = ? AND number = ? AND mark = ? AND id != ?", *req.CompanyID, req.Number, req.Mark, id).
+			Where("company_id = ? AND number = ? AND mark = ? AND id != ?", *req.CompanyID, req.Number, derefStr(req.Mark), id).
 			Count(&compCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
 		}
@@ -772,12 +775,24 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 		}
 	}
 
+	// Марку и формат пишем ТОЛЬКО пришедшие (#2400). Прежде карта собиралась разом,
+	// и запрос с одним номером обнулял марку и формат: проверено на стенде,
+	// «Проверка2400» превратилась в пустую строку, формат - в NULL.
+	//
+	// Пустая строка при этом по-прежнему очищает марку: администратор вправе стереть
+	// ошибочный ввод, и «не прислали» с «прислали пусто» - разные вещи.
 	updates := map[string]interface{}{
-		"number":          req.Number,
-		"mark":            req.Mark,
+		"number": req.Number,
+		// Привязки остаются прежними: у них nil означает осмысленное «отвязать»,
+		// данные при этом не теряются - меняется только принадлежность.
 		"organization_id": req.OrganizationID,
 		"company_id":      req.CompanyID,
-		"format_id":       req.FormatID,
+	}
+	if req.Mark != nil {
+		updates["mark"] = *req.Mark
+	}
+	if req.FormatID != nil {
+		updates["format_id"] = *req.FormatID
 	}
 	// Владельца меняем только по явному указанию в запросе. Прежний код подставлял
 	// сюда правящего пользователя, и любая правка чужой записи переводила её на себя;
@@ -1047,4 +1062,14 @@ func (s *uniqueCarService) canEditCar(car *models.UniqueCar, ownerInfo *CarOwner
 		return true
 	}
 	return false
+}
+
+// markValueOrEmpty - марка для новой записи. Отсутствие марки в запросе и пустая
+// марка при создании значат одно и то же: марку не указали.
+func markValueOrEmpty(v *string) *string {
+	if v == nil {
+		empty := ""
+		return &empty
+	}
+	return v
 }
