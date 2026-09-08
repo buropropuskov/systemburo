@@ -30,7 +30,7 @@ func TestReencryptValue_MovesToNewKey(t *testing.T) {
 	stored, err := crypto.Encrypt(passport, oldKey)
 	require.NoError(t, err)
 
-	value, hmac, err := reencryptValue(stored, oldKey, newKey)
+	value, hmac, err := reencryptValue(stored, oldKey, newKey, nil)
 	require.NoError(t, err)
 
 	back, err := crypto.Decrypt(value, newKey)
@@ -51,7 +51,7 @@ func TestReencryptValue_WrongOldKey(t *testing.T) {
 	stored, err := crypto.Encrypt("4510 123456", testKey(1))
 	require.NoError(t, err)
 
-	_, _, err = reencryptValue(stored, testKey(50), testKey(200))
+	_, _, err = reencryptValue(stored, testKey(50), testKey(200), nil)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrReencryptSourceKey))
 }
@@ -62,7 +62,7 @@ func TestReencryptValue_FromCleartext(t *testing.T) {
 	newKey := testKey(7)
 	const patent = "7712 3456789"
 
-	value, hmac, err := reencryptValue(patent, nil, newKey)
+	value, hmac, err := reencryptValue(patent, nil, newKey, nil)
 	require.NoError(t, err)
 	require.NotEqual(t, patent, value, "после перевода значение обязано быть шифротекстом")
 
@@ -81,7 +81,7 @@ func TestReencryptValue_ToCleartext(t *testing.T) {
 	stored, err := crypto.Encrypt(passport, oldKey)
 	require.NoError(t, err)
 
-	value, _, err := reencryptValue(stored, oldKey, nil)
+	value, _, err := reencryptValue(stored, oldKey, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, passport, value, "без нового ключа значение остаётся открытым")
 }
