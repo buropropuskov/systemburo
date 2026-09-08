@@ -65,14 +65,17 @@ func TestSearchProvidersHaveGates(t *testing.T) {
 }
 
 func TestBuildSearchVariantsFor(t *testing.T) {
-	t.Run("фамилия: раскладка есть, дубля по регистру нет", func(t *testing.T) {
+	t.Run("фамилия: раскладка и транслитерация есть, дубля по регистру нет", func(t *testing.T) {
 		got := buildSearchVariantsFor("Роголев")
 
 		require.Contains(t, got, "Роголев")
+		require.Contains(t, got, "hjujktd", "забытая раскладка")
+		require.Contains(t, got, "rogolev", "латинское написание той же фамилии (#2414)")
 		// normalize.Plate дал бы "РОГОЛЕВ" -- для ILIKE это тот же запрос, и лишнее
 		// условие только удлиняет SQL.
 		require.NotContains(t, got, "РОГОЛЕВ")
-		require.Len(t, got, 2, "ожидались оригинал и раскладка: %v", got)
+		// Вариантов немного: каждый уходит в запрос отдельным условием на каждую колонку.
+		require.LessOrEqual(t, len(got), 5, "слишком много вариантов: %v", got)
 	})
 
 	t.Run("госномер: вариант без пробелов добавляется", func(t *testing.T) {

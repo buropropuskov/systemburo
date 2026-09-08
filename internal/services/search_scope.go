@@ -149,8 +149,8 @@ func multiWordCondition(cols []string, raw string) (string, []interface{}) {
 // buildSearchVariants не трогаем: у него другие потребители (Центр заявок, реестры,
 // доступные вложения), и смена их семантики в объём сквозного поиска не входит.
 func buildSearchVariantsFor(raw string) []string {
-	variants := make([]string, 0, 3)
-	seen := make(map[string]struct{}, 3)
+	variants := make([]string, 0, 8)
+	seen := make(map[string]struct{}, 8)
 	add := func(v string) {
 		v = strings.TrimSpace(v)
 		if v == "" {
@@ -166,6 +166,12 @@ func buildSearchVariantsFor(raw string) []string {
 
 	add(raw)
 	add(normalize.SwitchLayout(raw))
+	// Транслитерация (#2414): одно и то же название пишут буквами двух алфавитов, и
+	// человек ищет тем, которое знает. Дальше варианты уходят и в точное вхождение,
+	// и в нечёткое сравнение - опечатка ловится триграммами уже поверх «tratoria».
+	for _, v := range normalize.Translit(raw) {
+		add(v)
+	}
 	if strings.ContainsAny(raw, "0123456789") {
 		add(normalize.Plate(raw))
 	}
@@ -218,10 +224,16 @@ func fuzzyWordCondition(cols []string, raw string) (string, []interface{}) {
 		if utf8.RuneCountInString(w) < searchFuzzyMinWordLen {
 			continue
 		}
-		colParts := make([]string, 0, len(cols))
-		for _, c := range cols {
-			colParts = append(colParts, c+" %>> ?")
-			args = append(args, w)
+		// Похожесть считается и по транслитерированным формам слова (#2414): иначе
+		// опечатка в кириллице доходит только до кириллической записи, а до латинской
+		// нет - «Сергев» не встречает «Sergeev», «Тратория» не встречает «Trattoria».
+		forms := append([]string{w}, normalize.Translit(w)...)
+		colParts := make([]string, 0, len(cols)*len(forms))
+		for _, f := range forms {
+			for _, c := range cols {
+				colParts = append(colParts, c+" %>> ?")
+				args = append(args, f)
+			}
 		}
 		parts = append(parts, "("+strings.Join(colParts, " OR ")+")")
 	}
