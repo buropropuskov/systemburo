@@ -72,7 +72,12 @@ describe('слои поверхностей в палитрах', () => {
 
 /** Компоненты, которые роутер рендерит как страницу (а не как карточку внутри shell). */
 function routedViews() {
-  const router = fs.readFileSync(path.join(SRC, 'router.js'), 'utf8');
+  // Оба файла роутов: админские маршруты вынесены из router.js, упёршегося в порог
+  // размера (#2356). Читая только router.js, проверка молча перестала бы видеть
+  // админские экраны.
+  const router = [path.join(SRC, 'router.js'), path.join(SRC, 'routes/admin.js')]
+    .map((f) => fs.readFileSync(f, 'utf8'))
+    .join('\n');
   const files = new Set();
   for (const m of router.matchAll(/import\(['"](?:\.|@)\/(views\/[^'"]+\.vue)['"]\)/g)) files.add(m[1]);
   for (const m of router.matchAll(/^import\s+\w+\s+from\s+['"](?:\.|@)\/(views\/[^'"]+\.vue)['"]/gm)) files.add(m[1]);
