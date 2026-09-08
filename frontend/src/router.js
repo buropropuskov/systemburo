@@ -180,6 +180,12 @@ const routes = [
     meta: { requiresAuth: true, permission: 'permission.audit.manage' }
   },
   {
+    path: '/admin/pd-subject',
+    name: 'PdSubjectView',
+    component: () => import('./views/admin/PdSubjectView.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin.pd_subject' }
+  },
+  {
     path: '/admin/pd-audit',
     name: 'PdAuditLog',
     component: () => import('./views/admin/PdAuditLog.vue'),
