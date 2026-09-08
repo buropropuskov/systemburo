@@ -634,7 +634,7 @@ export default {
     flex: 1;
     overflow: hidden;
     min-height: 240px;
-    max-height: min(630px, calc(var(--app-vh, 1vh) * 65));
+    max-height: min(700px, calc(var(--app-vh, 1vh) * 72));
     display: flex;
     flex-direction: column;
 }
@@ -697,9 +697,9 @@ export default {
 .table-body {
     flex: 1;
     overflow-y: auto;
-    max-height: 200px;
+    /* Пятнадцать строк по 42px, дальше прокрутка (#2399). */
+    max-height: min(630px, calc(var(--app-vh, 1vh) * 62));
     min-height: 200px;
-    height: 200px;
 }
 
 .table-row {
