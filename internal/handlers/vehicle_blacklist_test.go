@@ -535,3 +535,80 @@ func TestVehicleBlacklist_FindSimilar(t *testing.T) {
 		}
 	})
 }
+
+// TestBlacklist_FindSimilarBatch_MatchesPerRow: пакетный поиск отдаёт ровно то же, что
+// построчный. Ради этого он и заводился - ускорить подачу больших списков, не изменив
+// предупреждений: подача 2000 участников тратила время не на вычисления (чёрный список
+// короткий), а на 2000 обращений к базе по одному на строку.
+func TestBlacklist_FindSimilarBatch_MatchesPerRow(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_Batch")
+	ctx := context.Background()
+
+	vsvc := newVehicleBlacklistService(db)
+	_, err := vsvc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "А123ВС799", MarkID: mark.ID, Reason: "обход",
+	}, userID)
+	require.NoError(t, err)
+	_, err = vsvc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "Х555УК177", MarkID: mark.ID, Reason: "второй",
+	}, userID)
+	require.NoError(t, err)
+
+	номера := []string{
+		"А123ВС799", // точное совпадение
+		"A123BC799", // латиничный гомоглиф - тот же нормализованный
+		"А124ВС799", // опечатка в пределах порога
+		"О000ОО000", // далёкий номер, совпадений нет
+		"",          // пустое значение
+		"А123ВС799", // дубль: в пакете схлопывается, результат тот же
+	}
+
+	пакет, err := vsvc.FindSimilarBatch(ctx, номера)
+	require.NoError(t, err)
+
+	for _, n := range номера {
+		построчно, err := vsvc.FindSimilar(ctx, n)
+		require.NoError(t, err, "построчный поиск для %q", n)
+		ключ := normalize.Plate(n)
+		assert.Equal(t, len(построчно), len(пакет[ключ]), "число совпадений для %q", n)
+		for i := range построчно {
+			assert.Equal(t, построчно[i].ID, пакет[ключ][i].ID, "порядок совпадений для %q", n)
+			assert.InDelta(t, построчно[i].Similarity, пакет[ключ][i].Similarity, 0.0001, "близость для %q", n)
+			assert.Equal(t, построчно[i].MatchedValue, пакет[ключ][i].MatchedValue, "подпись совпадения для %q", n)
+			assert.Equal(t, построчно[i].Reason, пакет[ключ][i].Reason, "причина для %q", n)
+		}
+	}
+
+	psvc := newPersonBlacklistService(db)
+	_, err = psvc.Create(ctx, models.CreatePersonBlacklistRequest{
+		LastName: "Петров", FirstName: "Пётр", Reason: "обход",
+	}, userID)
+	require.NoError(t, err)
+
+	люди := []services.PersonFIO{
+		{LastName: "Петров", FirstName: "Пётр"},
+		{LastName: "Петров", FirstName: "Петр"},  // ё/е - та же нормализованная форма
+		{LastName: "Сидоров", FirstName: "Иван"}, // никого не напоминает
+		{LastName: "", FirstName: ""},            // пустое значение
+	}
+	пакетЛюди, err := psvc.FindSimilarBatch(ctx, люди)
+	require.NoError(t, err)
+
+	for _, f := range люди {
+		построчно, err := psvc.FindSimilar(ctx, f.LastName, f.FirstName, f.MiddleName)
+		require.NoError(t, err, "построчный поиск для %v", f)
+		ключ := normalize.Name(f.LastName, f.FirstName, f.MiddleName)
+		assert.Equal(t, len(построчно), len(пакетЛюди[ключ]), "число совпадений для %v", f)
+		for i := range построчно {
+			assert.Equal(t, построчно[i].ID, пакетЛюди[ключ][i].ID, "порядок для %v", f)
+			assert.InDelta(t, построчно[i].Similarity, пакетЛюди[ключ][i].Similarity, 0.0001, "близость для %v", f)
+			assert.Equal(t, построчно[i].MatchedValue, пакетЛюди[ключ][i].MatchedValue, "подпись для %v", f)
+		}
+	}
+}
