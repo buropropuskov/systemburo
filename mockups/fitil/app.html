@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1220">
+<title>Фитиль</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Golos+Text:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ink:        #0E1220;
+    --ink-deep:   #080B14;
+    --panel:      #171D2E;
+    --panel-2:    #1F2739;
+    --line:       #2C3448;
+    --cream:      #F3EEE3;
+    --muted:      #8E96AC;
+    --amber:      #E9A63C;
+    --amber-soft: #F5C877;
+    --ember:      #E1483A;
+    --mint:       #5FBFA0;
+
+    --display: "Unbounded", "Trebuchet MS", sans-serif;
+    --body: "Golos Text", "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: #05070D;
+    color: var(--cream);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    display: grid;
+    place-items: center;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 430px;
+    height: 100dvh;
+    max-height: 932px;
+    background: var(--ink-deep);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    position: relative;
+  }
+
+  @media (min-width: 460px) and (min-height: 860px) {
+    .app { border-radius: 34px; border: 1px solid var(--line); height: 812px; }
+  }
+
+  /* ---------- шапка ---------- */
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px 8px;
+    min-height: 52px;
+  }
+
+  .bar .back {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 500;
+    background: none;
+    border: 0;
+    padding: 6px 0;
+    font-family: var(--body);
+    cursor: pointer;
+  }
+
+  .bar .brand { display: flex; align-items: center; gap: 9px; }
+  .bar .brand .word { font-family: var(--display); font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+  .bar .brand .word em { color: var(--ember); font-style: normal; }
+
+  .bar .side { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  /* ---------- экраны ---------- */
+
+  .screens { position: relative; overflow: hidden; }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 20px 24px;
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .screen.on { display: flex; animation: rise .22s ease-out; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .screen.on { animation: none; }
+  }
+
+  .topline { display: grid; gap: 4px; }
+  .kicker { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); font-weight: 600; }
+  h1.title { font-family: var(--display); font-size: 22px; line-height: 1.18; font-weight: 600; margin: 0; }
+
+  /* ---------- нижняя навигация ---------- */
+
+  .tabbar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--line);
+    background: #0B0F1A;
+    padding: 10px 10px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .tab {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    background: none;
+    border: 0;
+    font-family: var(--body);
+    padding: 6px 0;
+    cursor: pointer;
+  }
+
+  .tab svg { width: 24px; height: 24px; }
+  .tab.on { color: var(--amber); }
+
+  /* ---------- кнопки ---------- */
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 52px;
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    background: var(--amber);
+    color: #16120A;
+    font-family: var(--body);
+    font-size: 16px;
+    font-weight: 700;
+    padding: 14px 20px;
+    cursor: pointer;
+  }
+
+  .btn:active { background: #C9862A; transform: scale(.99); }
+  .btn.ghost { background: transparent; color: var(--cream); border: 1px solid var(--line); font-weight: 600; }
+  .btn.ghost:active { background: var(--panel); transform: scale(.99); }
+  .btn.danger { background: var(--ember); color: #FFF3F1; }
+  .btn.danger:active { background: #C13B2F; }
+  .btn.small { min-height: 46px; font-size: 14px; padding: 12px 14px; }
+  .btn[disabled] { background: var(--panel-2); color: #5D6479; pointer-events: none; }
+  .btn.spread { justify-content: space-between; }
+  .btn:focus-visible { outline: 2px solid var(--amber-soft); outline-offset: 2px; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ---------- плитки разделов ---------- */
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .tile {
+    background: var(--panel);
+    border: 0;
+    border-radius: 16px;
+    padding: 16px 14px;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    min-height: 108px;
+    text-align: left;
+    font-family: var(--body);
+    color: var(--cream);
+    cursor: pointer;
+  }
+
+  .tile:active { background: var(--panel-2); }
+  .tile .name { font-size: 15px; font-weight: 600; line-height: 1.25; }
+  .tile .sub { font-size: 13px; color: var(--muted); line-height: 1.35; }
+  .tile svg { width: 26px; height: 26px; color: var(--amber); }
+  .tile.danger svg { color: var(--ember); }
+
+  /* ---------- фитиль ---------- */
+
+  .fuse { position: relative; height: 26px; }
+  .fuse .cord { position: absolute; top: 12px; left: 0; right: 0; height: 3px; border-radius: 99px; background: var(--panel-2); }
+  .fuse .burnt { position: absolute; top: 12px; left: 0; height: 3px; border-radius: 99px; background: linear-gradient(90deg, rgba(225,72,58,.25), var(--ember)); transition: width .3s ease; }
+  .fuse .spark {
+    position: absolute; top: 5px; width: 17px; height: 17px; margin-left: -8px; border-radius: 99px;
+    background: radial-gradient(circle, #FFF0C9 0 22%, var(--amber) 40%, rgba(225,72,58,.75) 62%, transparent 72%);
+    transition: left .3s ease;
+  }
+  .fuse .ticks { position: absolute; top: 21px; left: 0; right: 0; display: flex; justify-content: space-between; }
+  .fuse .ticks span { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+
+  /* ---------- мастер подготовки ---------- */
+
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border-radius: 16px; padding: 5px; gap: 5px; }
+
+  .seg button {
+    padding: 11px 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--muted);
+    font-family: var(--body);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .seg button.on { background: var(--amber); color: #16120A; }
+
+  .steps { display: grid; gap: 9px; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    align-items: start;
+    background: var(--panel);
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 13px 14px;
+    font-size: 14px;
+    line-height: 1.45;
+    text-align: left;
+    color: var(--cream);
+    font-family: var(--body);
+    cursor: pointer;
+  }
+
+  .step .mark { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--muted); }
+  .step.done { background: transparent; color: var(--muted); }
+  .step.done .mark { color: var(--mint); }
+  .step.next { border-color: var(--amber); }
+  .step.next .mark { color: var(--amber); }
+  .step b { color: var(--amber-soft); font-weight: 600; }
+
+  /* ---------- справочник ---------- */
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+  .cardface { display: grid; gap: 7px; background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--body); color: var(--cream); }
+
+  .cardface .art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5 / 7;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--panel);
+    display: grid;
+    place-items: center;
+  }
+
+  .cardface .art img { width: 100%; height: 100%; object-fit: cover; }
+  .cardface .art svg { width: 28px; height: 28px; color: var(--amber-soft); }
+  .cardface:active .art { outline: 2px solid var(--amber); outline-offset: -2px; }
+
+  .cardface .n {
+    position: absolute; right: 5px; bottom: 5px;
+    background: rgba(8,11,20,.8); border-radius: 6px; padding: 2px 6px;
+    font-size: 10px; font-variant-numeric: tabular-nums;
+  }
+
+  .cardface .t { font-size: 12px; font-weight: 600; line-height: 1.25; text-align: center; }
+  .cardface.kitten .art { outline: 2px solid var(--ember); outline-offset: -2px; }
+  .cardface.kitten .t { color: var(--amber-soft); }
+
+  /* ---------- карточка карты ---------- */
+
+  .hero { position: relative; height: 208px; border-radius: 18px; overflow: hidden; background: var(--panel); display: grid; place-items: center; }
+  .hero img { width: 100%; height: 100%; object-fit: cover; }
+  .hero .overlay { position: absolute; inset: auto 0 0 0; padding: 16px 18px; background: linear-gradient(to top, rgba(8,11,20,.94) 30%, transparent); display: grid; gap: 2px; }
+  .hero .h-title { font-family: var(--display); font-size: 26px; font-weight: 600; line-height: 1.1; }
+  .hero .h-count { font-size: 13px; color: var(--muted); }
+
+  .fact { display: grid; gap: 4px; }
+  .fact .lbl { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .fact .val { font-size: 15px; line-height: 1.5; }
+
+  .warn { background: rgba(225,72,58,.14); border-radius: 12px; padding: 13px 14px; font-size: 14px; line-height: 1.45; display: grid; gap: 4px; }
+  .warn .lbl { color: var(--ember); font-weight: 700; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+  .warn.amber { background: rgba(233,166,60,.14); }
+  .warn.amber .lbl { color: var(--amber); }
+
+  /* ---------- споры ---------- */
+
+  .qa { display: grid; gap: 10px; }
+
+  .q {
+    background: var(--panel);
+    border: 0;
+    border-left: 3px solid transparent;
+    border-radius: 12px;
+    padding: 14px 15px;
+    display: grid;
+    gap: 10px;
+    text-align: left;
+    font-family: var(--body);
+    color: var(--cream);
+    cursor: pointer;
+  }
+
+  .q .head { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 500; line-height: 1.4; }
+  .q .chev { color: var(--muted); font-size: 18px; line-height: 1; }
+  .q .body { display: none; gap: 6px; }
+  .q.open { background: var(--panel-2); border-left-color: var(--amber); }
+  .q.open .body { display: grid; }
+  .q .answer { font-size: 14px; line-height: 1.5; }
+  .q .source { font-size: 12px; color: var(--muted); }
+
+  /* ---------- партия ---------- */
+
+  .turnrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+
+  .turnrow.active { background: var(--amber); color: #16120A; font-weight: 700; }
+  .turnrow.out { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(142,150,172,.5); }
+
+  .badge { font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 99px; background: var(--panel-2); color: var(--cream); font-variant-numeric: tabular-nums; }
+  .turnrow.active .badge { background: rgba(0,0,0,.22); color: #16120A; }
+
+  .odds { display: grid; gap: 6px; justify-items: center; text-align: center; }
+  .odds .num { font-family: var(--display); font-size: 64px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .odds .cap { font-size: 13px; color: var(--muted); max-width: 30ch; }
+
+  .riskscale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .riskscale span { text-align: center; font-size: 11px; padding: 7px 0; border-radius: 8px; background: var(--panel); color: var(--muted); }
+  .riskscale span.on { background: rgba(225,72,58,.2); color: var(--ember); font-weight: 700; }
+  .riskscale span.on.calm { background: rgba(95,191,160,.18); color: var(--mint); }
+  .riskscale span.on.mid { background: rgba(233,166,60,.2); color: var(--amber); }
+
+  .counters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .counter { background: var(--panel); border-radius: 12px; padding: 14px; display: grid; gap: 3px; }
+  .counter .v { font-family: var(--display); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .counter .l { font-size: 12px; color: var(--muted); }
+
+  .log { display: grid; gap: 6px; }
+  .log .line { font-size: 13px; color: var(--muted); line-height: 1.45; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .log .line:last-child { border-bottom: 0; }
+  .log .line b { color: var(--cream); font-weight: 600; }
+
+  .empty { display: grid; gap: 14px; justify-items: center; text-align: center; padding: 28px 10px; }
+  .empty .pat { width: 120px; height: 120px; border-radius: 20px; overflow: hidden; }
+  .empty .e-h { font-family: var(--display); font-size: 18px; font-weight: 600; }
+  .empty .e-p { font-size: 14px; color: var(--muted); max-width: 34ch; }
+
+  /* ---------- обучение ---------- */
+
+  .teach { background: var(--panel); border-radius: 18px; padding: 18px 16px; display: grid; gap: 12px; justify-items: center; text-align: center; }
+  .teach .pic { width: 100%; height: 156px; border-radius: 12px; overflow: hidden; display: grid; place-items: center; background: var(--panel-2); }
+  .teach .pic img { width: 100%; height: 100%; object-fit: cover; }
+  .teach .h { font-family: var(--display); font-size: 18px; font-weight: 600; }
+  .teach .p { font-size: 15px; line-height: 1.5; }
+
+  .dots { display: flex; gap: 6px; justify-content: center; }
+  .dots i { width: 6px; height: 6px; border-radius: 99px; background: var(--panel-2); }
+  .dots i.on { background: var(--amber); width: 20px; }
+
+  .sheet-note { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .toast {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 92px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 13px 15px;
+    font-size: 14px;
+    box-shadow: 0 16px 34px rgba(4,6,12,.6);
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 5;
+  }
+
+  .toast.show { opacity: 1; transform: none; }
+
+  /* картинка карты перекрывает нарисованный знак; знак остаётся, если файла нет */
+  .cardface .art img ~ svg,
+  .hero img ~ svg { display: none; }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="bar">
+    <button class="back" id="back" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M15 6l-6 6 6 6"/></svg>
+      <span id="backLabel">Назад</span>
+    </button>
+    <span class="brand" id="brand">
+      <svg width="22" height="22" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <path d="M6 40c0-14 10-22 20-22 6 0 10 3 10 7" stroke="#8E96AC" stroke-width="3.4" stroke-linecap="round"/>
+        <circle cx="37" cy="21" r="5" fill="#E9A63C"/>
+        <circle cx="37" cy="21" r="2" fill="#FFF0C9"/>
+      </svg>
+      <span class="word">Фити<em>ль</em></span>
+    </span>
+    <span class="side" id="barSide"></span>
+  </div>
+
+  <div class="screens" id="screens"></div>
+
+  <nav class="tabbar">
+    <button class="tab on" data-tab="rules">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+      <span>Правила</span>
+    </button>
+    <button class="tab" data-tab="game">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+      <span>Партия</span>
+    </button>
+    <button class="tab" data-tab="learn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4l8 4-8 4-8-4z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+      <span>Обучение</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------------- данные ---------------- */
+
+const ICONS = {
+  kitten: '<path d="M12 2l2.2 5.2L20 6l-2.4 5L22 14l-5.6.6L15 21l-3-4-3 4-1.4-6.4L2 14l4.4-3L4 6l5.8 1.2z"/>',
+  defuse: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5L20 18M8 16.5L20 6"/>',
+  nope:   '<circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/>',
+  attack: '<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>',
+  skip:   '<path d="M4 12h12M12 7l5 5-5 5M20 6v12"/>',
+  shuffle:'<path d="M4 8h11l-3-3M20 16H9l3 3"/>',
+  future: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  favor:  '<path d="M8 13V5.5a1.5 1.5 0 013 0V12"/><path d="M11 11.5a1.5 1.5 0 013 0V13M14 12.5a1.5 1.5 0 013 0V17a4 4 0 01-4 4h-2a5 5 0 01-5-5v-3"/>',
+  cat:    '<path d="M5 10L4 4l5 3h6l5-3-1 6v5a5 5 0 01-5 5h-4a5 5 0 01-5-5z"/><path d="M10 13h.01M14 13h.01"/>'
+};
+
+const CARDS = [
+  { id: "kitten", title: "Взрывной котёнок", short: "Взрывной котёнок", count: 4, img: "img/kitten.jpg", danger: true,
+    what: "Вытянув эту карту, покажи её всем немедленно. Без карты «Обезвредить» ты выбываешь, и все твои карты уходят в сброс вместе с котёнком.",
+    tip: "Котят в колоде на одного меньше, чем игроков. Поэтому кто-то один доживёт до конца обязательно.",
+    warn: "Отменить котёнка картой «Неть» нельзя. Спасает только «Обезвредить»." },
+  { id: "defuse", title: "Обезвредить", short: "Обезвредить", count: 6, img: "img/defuse.jpg",
+    what: "Сбрасываешь эту карту вместо гибели, забираешь котёнка и тайно вставляешь его обратно в колоду в любое место.",
+    tip: "Положив котёнка на самый верх, ты подставляешь соседа. Колоду можно убрать под стол, чтобы никто не подсмотрел.",
+    warn: "Смотреть остальные карты колоды и менять их порядок при этом нельзя." },
+  { id: "nope", title: "Неть", short: "Неть", count: 5, img: "img/nope.jpg",
+    what: "Отменяет любое действие, кроме Взрывного котёнка и «Обезвредить». Всё, что находится под этой картой, считается несыгранным.",
+    tip: "Играется в любой момент до начала действия, даже не в твой ход. Это единственная такая карта в колоде.",
+    warn: "«Неть» поверх «Неть» даёт «Ага»: первое действие снова работает. И так сколько угодно раз." },
+  { id: "attack", title: "Нападай", short: "Нападай", count: 4, img: "img/attack.jpg",
+    what: "Ты не берёшь карту, твой ход немедленно заканчивается, а следующий игрок делает два хода подряд.",
+    tip: "Ходы накапливаются: если жертва атаки сама играет «Нападай», следующему достаётся 4 хода, потом 6.",
+    warn: "«Пропусти» гасит только один ход из двух. Чтобы отбиться от атаки полностью, нужны две такие карты." },
+  { id: "skip", title: "Пропусти", short: "Пропусти", count: 4, img: "img/skip.jpg",
+    what: "Немедленно заканчивает твой ход без взятия карты из колоды.",
+    tip: "Связка «Загляни в будущее» и «Пропусти» спасает жизнь: увидел котёнка сверху и не стал брать.",
+    warn: "Против атаки одной карты мало, она снимает лишь один ход из двух." },
+  { id: "shuffle", title: "Перетасуй", short: "Перетасуй", count: 4, img: "img/shuffle.jpg",
+    what: "Колода тщательно перемешивается. Порядок карт больше никому не известен.",
+    tip: "Главное оружие против чужого знания: тот, кто только что спрятал котёнка, теряет своё преимущество.",
+    warn: "После тасовки твой собственный просмотр будущего тоже обнуляется." },
+  { id: "future", title: "В будущее", short: "Загляни в будущее", count: 5, img: "img/future.png",
+    what: "Тайно посмотри три верхние карты колоды и верни их на место в том же порядке.",
+    tip: "Играй её перед своим взятием, а не заранее: чужая тасовка обесценит информацию.",
+    warn: "Показывать увиденное другим игрокам нельзя, менять порядок карт тоже." },
+  { id: "favor", title: "Услуга", short: "Услуга", count: 4, img: "img/favor.jpg",
+    what: "Выбранный тобой игрок отдаёт тебе одну карту из руки. Какую именно, решает он сам.",
+    tip: "Хороший способ выбить «Обезвредить», если соперник остался почти без карт.",
+    warn: "Отказаться нельзя, но и выбрать карту за соперника тоже нельзя." },
+  { id: "cat", title: "Кошачьи", short: "Кошачьи карты", count: 20, img: "img/cat.jpg",
+    what: "Пять видов по четыре карты. Поодиночке бесполезны и работают только в комбинациях.",
+    tip: "Пара одинаковых карт крадёт случайную карту у выбранного игрока, тройка позволяет назвать карту и потребовать её.",
+    warn: "Играя комбинацию, инструкции на самих картах не выполняются." }
+];
+
+const DISPUTES = [
+  { q: "Игрок под атакой сыграл «Пропусти». Он отбился?",
+    a: "Нет. Он погасил один ход из двух и обязан отходить второй: сыграть карты и взять карту из колоды.",
+    src: "Лист правил, карта «Пропусти»" },
+  { q: "Сколько ходов после второй атаки подряд?",
+    a: "Четыре. Жертва атаки, сыгравшая «Нападай» в ответ, передаёт свои оставшиеся ходы плюс два. Следующая атака даст шесть.",
+    src: "Лист правил, карта «Нападай»" },
+  { q: "Можно ли отменить Взрывного котёнка картой «Неть»?",
+    a: "Нет. «Неть» останавливает любое действие, кроме котёнка и «Обезвредить».",
+    src: "Лист правил, карта «Неть»" },
+  { q: "«Неть» играют только в свой ход?",
+    a: "Нет. Её можно сыграть в любой момент до того, как действие началось, даже когда ходит другой игрок.",
+    src: "Лист правил, карта «Неть»" },
+  { q: "Обезвредивший показывает, куда вернул котёнка?",
+    a: "Нет. Он вставляет котёнка в колоду тайно и может держать колоду под столом. Знание о позиции остаётся только у него.",
+    src: "Лист правил, карта «Обезвредить»" },
+  { q: "Что делает пара одинаковых карт?",
+    a: "Позволяет вслепую вытянуть случайную карту из руки выбранного игрока. Правило работает для любых двух карт с одинаковым названием, не только кошачьих.",
+    src: "Лист правил, комбинации" },
+  { q: "А тройка одинаковых?",
+    a: "Ты называешь конкретную карту. Если она есть у выбранного игрока, он обязан её отдать. Если нет, ты не получаешь ничего.",
+    src: "Лист правил, комбинации" },
+  { q: "Сколько карт можно сыграть за один ход?",
+    a: "Сколько угодно или ни одной. Ход заканчивается не картами, а взятием из колоды.",
+    src: "Лист правил, порядок хода" },
+  { q: "Что делать, если карты на руках кончились?",
+    a: "Ничего особенного. Лимита руки нет ни сверху, ни снизу, на следующем ходу ты возьмёшь хотя бы одну карту.",
+    src: "Лист правил, порядок хода" }
+];
+
+const LESSONS = [
+  { h: "Цель партии", p: "В колоде спрятаны Взрывные котята. Игроки по очереди берут карты, пока кто-то не вытянет котёнка. Побеждает последний, кто не взорвался.", img: "img/box.jpg" },
+  { h: "Сначала играешь, потом берёшь", p: "Ход состоит из двух частей: сыграй сколько угодно карт или ни одной, затем возьми карту из колоды. Именно взятие заканчивает твой ход.", img: "img/shuffle.jpg" },
+  { h: "Взрывной котёнок", p: "Вытянув котёнка, покажи его всем сразу. Без карты «Обезвредить» ты выбываешь из партии, и все твои карты уходят в сброс.", img: "img/kitten.jpg" },
+  { h: "Обезвредить", p: "Эта карта спасает от котёнка. Сбрасываешь её, забираешь котёнка и тайно прячешь его обратно в колоду в любое место, хоть на самый верх.", img: "img/defuse.jpg" },
+  { h: "Как не брать карту", p: "«Пропусти» заканчивает твой ход без взятия. «Нападай» делает то же самое, но следующий игрок ходит два раза подряд.", img: "img/attack.jpg" },
+  { h: "Неть", p: "Единственная карта, которую играют не в свой ход. Она отменяет чужое действие, но бессильна против котёнка и «Обезвредить».", img: "img/nope.jpg" },
+  { h: "Комбинации", p: "Кошачьи карты сами по себе ничего не делают. Пара одинаковых крадёт случайную карту, тройка позволяет назвать нужную и потребовать её.", img: "img/cat.jpg" }
+];
+
+const PATTERN_SVG = '<svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="width:100%;height:100%;display:block">'
+  + '<defs><pattern id="pat" width="25" height="25" patternUnits="userSpaceOnUse">'
+  + '<rect width="25" height="25" fill="#101625"/>'
+  + '<path d="M12.5 5.5l1.6 3.7 3.7 1.6-3.7 1.6-1.6 3.7-1.6-3.7-3.7-1.6 3.7-1.6z" fill="#E9A63C" opacity=".45"/>'
+  + '<path d="M2 21l1.5-3.5L5 21M20 21l1.5-3.5L23 21" stroke="#E1483A" stroke-width="1" fill="none" opacity=".45"/>'
+  + '</pattern></defs><rect width="120" height="120" fill="url(#pat)"/></svg>';
+
+/* ---------------- состояние ---------------- */
+
+const DEFAULT_STATE = {
+  tab: "rules",
+  screen: "home",
+  param: null,
+  setupPlayers: 4,
+  setupDone: [],
+  learnStep: 0,
+  game: null
+};
+
+let S = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem("fitil");
+    if (raw) return Object.assign({}, DEFAULT_STATE, JSON.parse(raw));
+  } catch (e) {
+    // приватный режим или запрет хранилища: работаем без сохранения
+  }
+  return Object.assign({}, DEFAULT_STATE);
+}
+
+function save() {
+  try {
+    localStorage.setItem("fitil", JSON.stringify(S));
+  } catch (e) {
+    // не смогли сохранить, партия живёт до перезагрузки
+  }
+}
+
+/* колода на N игроков: 46 обычных карт минус розданные, плюс возвращённые «Обезвредить», плюс котята */
+function deckSize(n) {
+  const defusesBack = n <= 3 ? 2 : 6 - n;
+  return 46 - 7 * n + defusesBack + (n - 1);
+}
+
+function setupSteps(n) {
+  const defusesBack = n <= 3 ? 2 : 6 - n;
+  const extra = n <= 3 ? ", остальные уберите из игры" : "";
+  return [
+    "Уберите из колоды 4 Взрывных котёнка",
+    "Раздайте каждому по одной карте «Обезвредить»",
+    "Верните в колоду <b>" + defusesBack + "</b> оставшиеся «Обезвредить»" + extra,
+    "Раздайте каждому по <b>7 карт</b> втёмную. На руках станет 8",
+    "Вложите обратно <b>" + (n - 1) + "</b> Взрывных котёнка, лишних уберите",
+    "Перемешайте колоду и положите её в центр стола"
+  ];
+}
+
+function startGame(n) {
+  const names = ["Игрок 1", "Игрок 2", "Игрок 3", "Игрок 4", "Игрок 5"].slice(0, n);
+  S.game = {
+    players: names.map(name => ({ name: name, alive: true })),
+    deck: deckSize(n),
+    startDeck: deckSize(n),
+    kittens: n - 1,
+    startKittens: n - 1,
+    current: 0,
+    turns: 1,
+    log: ["Партия началась: " + n + " игроков, " + deckSize(n) + " карт в колоде"]
+  };
+  save();
+}
+
+function alivePlayers() {
+  return S.game.players.filter(p => p.alive);
+}
+
+function nextAlive(from) {
+  const g = S.game;
+  let i = from;
+  for (let step = 0; step < g.players.length; step++) {
+    i = (i + 1) % g.players.length;
+    if (g.players[i].alive) return i;
+  }
+  return from;
+}
+
+function passTurn() {
+  const g = S.game;
+  g.current = nextAlive(g.current);
+  g.turns = 1;
+}
+
+function logLine(text) {
+  S.game.log.unshift(text);
+  S.game.log = S.game.log.slice(0, 6);
+}
+
+/* ---------------- действия партии ---------------- */
+
+function actAttack() {
+  const g = S.game;
+  const owed = g.turns > 1 ? g.turns : 0;
+  const name = g.players[g.current].name;
+  const target = nextAlive(g.current);
+  g.current = target;
+  g.turns = owed + 2;
+  logLine(name + " сыграл «Нападай»: " + g.players[target].name + " ходит " + g.turns + " раза подряд");
+  save();
+  render();
+}
+
+function actSkip() {
+  const g = S.game;
+  const name = g.players[g.current].name;
+  g.turns -= 1;
+  if (g.turns <= 0) {
+    passTurn();
+    logLine(name + " сыграл «Пропусти» и передал ход");
+  } else {
+    logLine(name + " сыграл «Пропусти», остался " + g.turns + " ход");
+  }
+  save();
+  render();
+}
+
+function actDraw() {
+  const g = S.game;
+  if (g.deck <= 0) { toast("В колоде не осталось карт"); return; }
+  const name = g.players[g.current].name;
+  g.deck -= 1;
+  g.turns -= 1;
+  if (g.turns <= 0) passTurn();
+  logLine(name + " взял карту, в колоде осталось " + g.deck);
+  save();
+  render();
+}
+
+function actDefused() {
+  const g = S.game;
+  const name = g.players[g.current].name;
+  g.deck += 1;
+  logLine(name + " обезвредил котёнка и вернул его в колоду");
+  save();
+  render();
+  toast("Котёнок вернулся в колоду. Прячьте его молча");
+}
+
+function actExplode() {
+  const g = S.game;
+  const p = g.players[g.current];
+  p.alive = false;
+  g.kittens = Math.max(0, g.kittens - 1);
+  logLine(p.name + " взорвался и выбыл из партии");
+  if (alivePlayers().length <= 1) {
+    const winner = alivePlayers()[0];
+    logLine("Победил " + (winner ? winner.name : "никто"));
+    save();
+    render();
+    toast(winner ? "Победил " + winner.name : "Партия окончена");
+    return;
+  }
+  passTurn();
+  save();
+  render();
+}
+
+function riskPercent() {
+  const g = S.game;
+  if (!g || g.deck <= 0) return 0;
+  return Math.round((g.kittens / g.deck) * 100);
+}
+
+/* ---------------- отрисовка ---------------- */
+
+const screens = document.getElementById("screens");
+const backBtn = document.getElementById("back");
+const backLabel = document.getElementById("backLabel");
+const brand = document.getElementById("brand");
+const barSide = document.getElementById("barSide");
+const toastEl = document.getElementById("toast");
+
+let toastTimer = null;
+
+function toast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2600);
+}
+
+function icon(id, size) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="' + size + '" height="' + size + '">' + ICONS[id] + '</svg>';
+}
+
+function fuse(percent, left, right) {
+  const p = Math.max(0, Math.min(100, percent));
+  return '<div class="fuse"><span class="cord"></span>'
+    + '<span class="burnt" style="width:' + p + '%"></span>'
+    + '<span class="spark" style="left:' + p + '%"></span>'
+    + '<span class="ticks"><span>' + left + '</span><span>' + right + '</span></span></div>';
+}
+
+function go(screen, param) {
+  S.screen = screen;
+  S.param = param || null;
+  save();
+  render();
+}
+
+function render() {
+  const s = S.screen;
+  let html = "";
+  let back = null;
+  let side = "";
+
+  if (s === "home") {
+    html = viewHome();
+  } else if (s === "setup") {
+    html = viewSetup(); back = ["Правила", "home"]; side = S.setupPlayers + " игрока";
+  } else if (s === "cards") {
+    html = viewCards(); back = ["Правила", "home"]; side = "56 карт";
+  } else if (s === "card") {
+    html = viewCard(S.param); back = ["Справочник", "cards"];
+  } else if (s === "disputes") {
+    html = viewDisputes(); back = ["Правила", "home"]; side = DISPUTES.length + " вопросов";
+  } else if (s === "game") {
+    html = viewGame();
+  } else if (s === "tracker") {
+    html = viewTracker(); back = ["Партия", "game"]; side = S.game ? "ход " + S.game.players[S.game.current].name : "";
+  } else if (s === "counter") {
+    html = viewCounter(); back = ["Партия", "game"]; side = S.game ? S.game.deck + " карт" : "";
+  } else if (s === "learn") {
+    html = viewLearn(); side = (S.learnStep + 1) + " из " + LESSONS.length;
+  }
+
+  screens.innerHTML = '<div class="screen on">' + html + "</div>";
+
+  if (back) {
+    backBtn.hidden = false;
+    brand.style.display = "none";
+    backLabel.textContent = back[0];
+    backBtn.onclick = () => go(back[1]);
+  } else {
+    backBtn.hidden = true;
+    brand.style.display = "flex";
+  }
+  barSide.textContent = side;
+
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("on", t.dataset.tab === S.tab);
+  });
+
+  bindScreen();
+}
+
+/* ---------- экраны ---------- */
+
+function viewHome() {
+  const running = S.game && alivePlayers().length > 1;
+  return '<div class="topline"><span class="kicker">' + (running ? "Партия идёт" : "Готовы играть") + '</span>'
+    + '<h1 class="title">Что нужно сейчас?</h1></div>'
+    + '<div style="height:54px;border-radius:14px;overflow:hidden">' + PATTERN_SVG + '</div>'
+    + '<button class="btn spread" data-go="setup"><span>Собрать колоду</span>'
+    + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>'
+    + '<div class="tiles">'
+    + tile("cards", "Справочник карт", "Что делает карта в руке", '<rect x="3" y="5" width="12" height="16" rx="2"/><path d="M8 9h2M8 13h4"/><path d="M17 8l4 2v9l-4 2"/>', false)
+    + tile("disputes", "Спорные ситуации", "Кто прав за столом", '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/><circle cx="12" cy="12" r="3"/>', true)
+    + tile("tracker", "Трекер атак", "Кто сколько ходов должен", '<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>', false)
+    + tile("counter", "Счётчик колоды", "Сколько котят осталось", '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/>', false)
+    + "</div>"
+    + '<button class="btn ghost spread" data-tab-go="learn"><span>Обучение новичка</span>'
+    + '<span style="font-size:13px;color:var(--muted)">' + LESSONS.length + " шагов</span></button>"
+    + (running
+        ? '<div class="log"><span class="line"><b>Идёт партия:</b> ' + alivePlayers().length + " игроков в игре, " + S.game.deck + " карт в колоде</span></div>"
+        : "");
+}
+
+function tile(target, name, sub, path, danger) {
+  return '<button class="tile' + (danger ? " danger" : "") + '" data-go="' + target + '">'
+    + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + path + "</svg>"
+    + '<span class="name">' + name + '</span><span class="sub">' + sub + "</span></button>";
+}
+
+function viewSetup() {
+  const n = S.setupPlayers;
+  const steps = setupSteps(n);
+  const done = S.setupDone.length;
+  const percent = Math.round((done / steps.length) * 100);
+
+  let list = "";
+  steps.forEach((text, i) => {
+    const isDone = S.setupDone.indexOf(i) !== -1;
+    const isNext = !isDone && S.setupDone.length === i;
+    list += '<button class="step' + (isDone ? " done" : "") + (isNext ? " next" : "") + '" data-step="' + i + '">'
+      + '<span class="mark">' + (isDone ? "✓" : i + 1) + "</span><span>" + text + "</span></button>";
+  });
+
+  let segs = "";
+  [2, 3, 4, 5].forEach(v => {
+    segs += '<button class="' + (v === n ? "on" : "") + '" data-players="' + v + '">' + v + "</button>";
+  });
+
+  return '<div class="topline"><span class="kicker">Шаг ' + Math.min(done + 1, steps.length) + " из " + steps.length + '</span>'
+    + '<h1 class="title">Сборка колоды</h1></div>'
+    + '<div class="seg">' + segs + "</div>"
+    + fuse(percent, "начало сборки", "колода готова")
+    + '<div class="steps">' + list + "</div>"
+    + '<div class="counters"><div class="counter"><span class="v">' + deckSize(n) + '</span><span class="l">карт будет в колоде</span></div>'
+    + '<div class="counter"><span class="v">' + (n - 1) + '</span><span class="l">Взрывных котёнка</span></div></div>'
+    + (done === steps.length
+        ? '<button class="btn" data-start="1">Начать партию на ' + n + " игроков</button>"
+        : '<p class="sheet-note">Отмечайте шаги по мере сборки. Числа пересчитываются под выбранное количество игроков: при двух и трёх лишние карты «Обезвредить» убираются из партии.</p>');
+}
+
+function viewCards() {
+  let grid = "";
+  CARDS.forEach(c => {
+    grid += '<button class="cardface' + (c.danger ? " kitten" : "") + '" data-card="' + c.id + '">'
+      + '<span class="art"><img src="' + c.img + '" alt="' + c.short + '" onerror="this.remove()">'
+      + icon(c.id, 28)
+      + '<span class="n">' + c.count + "</span></span>"
+      + '<span class="t">' + c.title + "</span></button>";
+  });
+  return '<div class="topline"><span class="kicker">56 карт в колоде</span><h1 class="title">Справочник карт</h1></div>'
+    + '<div class="cards">' + grid + "</div>"
+    + '<p class="sheet-note">Нажмите карту, чтобы прочитать, что она делает и где с ней обычно ошибаются.</p>';
+}
+
+function viewCard(id) {
+  const c = CARDS.filter(x => x.id === id)[0] || CARDS[0];
+  return '<div class="hero"><img src="' + c.img + '" alt="' + c.short + '" onerror="this.remove()">'
+    + icon(c.id, 54)
+    + '<span class="overlay"><span class="h-title">' + c.short + '</span>'
+    + '<span class="h-count">' + c.count + " карт в колоде</span></span></div>"
+    + '<div class="fact"><span class="lbl">Что делает</span><span class="val">' + c.what + "</span></div>"
+    + '<div class="fact"><span class="lbl">Как играют</span><span class="val">' + c.tip + "</span></div>"
+    + '<div class="warn"><span class="lbl">Частая ошибка</span><span>' + c.warn + "</span></div>"
+    + '<button class="btn ghost" data-go="disputes">Спорные ситуации</button>';
+}
+
+function viewDisputes() {
+  let list = "";
+  DISPUTES.forEach((d, i) => {
+    const open = S.param === i;
+    list += '<button class="q' + (open ? " open" : "") + '" data-q="' + i + '">'
+      + '<span class="head"><span>' + d.q + '</span><span class="chev">' + (open ? "−" : "+") + "</span></span>"
+      + '<span class="body"><span class="answer">' + d.a + '</span><span class="source">' + d.src + "</span></span></button>";
+  });
+  return '<div class="topline"><span class="kicker">Партия остановлена</span><h1 class="title">Кто прав</h1></div>'
+    + '<div class="qa">' + list + "</div>";
+}
+
+function viewGame() {
+  if (!S.game) {
+    return '<div class="topline"><span class="kicker">Партия не начата</span><h1 class="title">Партия</h1></div>'
+      + '<div class="empty"><span class="pat">' + PATTERN_SVG + "</span>"
+      + '<span class="e-h">Сначала соберите колоду</span>'
+      + '<span class="e-p">Приложение посчитает карты и котят под ваше количество игроков, а дальше будет вести счёт ходов и риска.</span>'
+      + '<button class="btn" data-go="setup">Собрать колоду</button></div>';
+  }
+
+  const g = S.game;
+  const alive = alivePlayers().length;
+  const risk = riskPercent();
+
+  return '<div class="topline"><span class="kicker">' + (alive > 1 ? "Идёт партия" : "Партия окончена") + "</span>"
+    + '<h1 class="title">' + (alive > 1 ? "Ходит " + g.players[g.current].name : "Победил " + (alivePlayers()[0] ? alivePlayers()[0].name : "никто")) + "</h1></div>"
+    + '<div class="counters"><div class="counter"><span class="v">' + g.deck + '</span><span class="l">карт в колоде</span></div>'
+    + '<div class="counter"><span class="v">' + g.kittens + '</span><span class="l">Взрывных котёнка</span></div></div>'
+    + fuse(Math.round((1 - g.deck / g.startDeck) * 100), g.startDeck + " в начале", g.deck + " сейчас")
+    + '<div class="counters"><div class="counter"><span class="v">' + risk + '%</span><span class="l">риск на взятии</span></div>'
+    + '<div class="counter"><span class="v">' + alive + '</span><span class="l">игроков в игре</span></div></div>'
+    + '<div class="tiles">'
+    + tile("tracker", "Трекер атак", "Ходы и очередь", '<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>', false)
+    + tile("counter", "Счётчик колоды", "Риск и остаток", '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/>', false)
+    + "</div>"
+    + '<button class="btn ghost" data-reset="1">Закончить партию</button>';
+}
+
+function viewTracker() {
+  if (!S.game) return viewGame();
+  const g = S.game;
+  let rows = "";
+  g.players.forEach((p, i) => {
+    const active = p.alive && i === g.current;
+    const label = !p.alive ? "взорвался" : (active ? g.turns + (g.turns === 1 ? " ход" : " хода") : "ждёт");
+    rows += '<div class="turnrow' + (active ? " active" : "") + (p.alive ? "" : " out") + '">'
+      + "<span>" + p.name + '</span><span class="badge">' + label + "</span></div>";
+  });
+
+  let log = "";
+  g.log.forEach(line => { log += '<span class="line">' + line + "</span>"; });
+
+  const over = alivePlayers().length <= 1;
+
+  return '<div class="topline"><span class="kicker">' + (over ? "Партия окончена" : "Очередь ходов") + '</span><h1 class="title">Трекер атак</h1></div>'
+    + '<div style="display:grid;gap:10px">' + rows + "</div>"
+    + (over ? "" :
+        '<div class="row2"><button class="btn ghost small" data-act="attack">Сыграл «Нападай»</button>'
+        + '<button class="btn ghost small" data-act="skip">Сыграл «Пропусти»</button></div>'
+        + '<button class="btn" data-act="draw">Взял карту, ход закрыт</button>'
+        + '<div class="row2"><button class="btn ghost small" data-act="defuse">Обезвредил котёнка</button>'
+        + '<button class="btn danger small" data-act="explode">Взорвался</button></div>')
+    + '<div class="fact"><span class="lbl">Как считаются ходы</span>'
+    + '<span class="val">Обычная атака даёт следующему игроку два хода. Если атакованный отвечает «Нападай», его оставшиеся ходы складываются с двумя новыми: получается четыре, потом шесть.</span></div>'
+    + '<div class="log">' + log + "</div>";
+}
+
+function viewCounter() {
+  if (!S.game) return viewGame();
+  const g = S.game;
+  const risk = riskPercent();
+  const zone = risk < 15 ? 0 : (risk <= 30 ? 1 : 2);
+  const colors = ["var(--mint)", "var(--amber)", "var(--ember)"];
+  const startRisk = Math.round((g.startKittens / g.startDeck) * 100);
+
+  return '<div class="topline"><span class="kicker">' + (g.deck > 6 ? "Колода в игре" : "Колода на исходе") + '</span><h1 class="title">Счётчик колоды</h1></div>'
+    + '<div class="odds"><span class="num" style="color:' + colors[zone] + '">' + risk + '%</span>'
+    + '<span class="cap">шанс взорваться на следующем взятии</span></div>'
+    + fuse(Math.round((1 - g.deck / g.startDeck) * 100), g.startDeck + " в начале", g.deck + " сейчас")
+    + '<div class="riskscale">'
+    + '<span class="' + (zone === 0 ? "on calm" : "") + '">до 15%</span>'
+    + '<span class="' + (zone === 1 ? "on mid" : "") + '">15-30%</span>'
+    + '<span class="' + (zone === 2 ? "on" : "") + '">выше 30%</span></div>'
+    + '<div class="counters"><div class="counter"><span class="v">' + g.deck + '</span><span class="l">карт в колоде</span></div>'
+    + '<div class="counter"><span class="v">' + g.kittens + '</span><span class="l">Взрывных котёнка</span></div></div>'
+    + '<div class="fact"><span class="lbl">Было в начале партии</span>'
+    + '<span class="val">' + g.startDeck + " карт и " + g.startKittens + " котёнка, риск " + startRisk + " процентов. "
+    + (risk > startRisk ? "Сейчас он вырос." : "Пока он не изменился.") + "</span></div>"
+    + '<div class="row2"><button class="btn ghost small" data-act="draw">Взяли карту</button>'
+    + '<button class="btn ghost small" data-act="defuse">Обезвредили</button></div>';
+}
+
+function viewLearn() {
+  const i = S.learnStep;
+  const l = LESSONS[i];
+  let dots = "";
+  LESSONS.forEach((_, k) => { dots += '<i class="' + (k === i ? "on" : "") + '"></i>'; });
+
+  return '<div class="topline"><span class="kicker">Шаг ' + (i + 1) + " из " + LESSONS.length + '</span>'
+    + '<h1 class="title">' + l.h + "</h1></div>"
+    + '<div class="teach"><span class="pic"><img src="' + l.img + '" alt="" onerror="this.remove()"></span>'
+    + '<span class="p">' + l.p + "</span></div>"
+    + (i === LESSONS.length - 1
+        ? '<div class="warn amber"><span class="lbl">Готово</span><span>Этого хватит, чтобы сыграть первую партию. Остальное можно смотреть в справочнике по ходу игры.</span></div>'
+        : "")
+    + '<div class="dots">' + dots + "</div>"
+    + '<div class="row2"><button class="btn ghost" data-learn="-1"' + (i === 0 ? " disabled" : "") + ">Назад</button>"
+    + (i === LESSONS.length - 1
+        ? '<button class="btn" data-tab-go="rules">К правилам</button>'
+        : '<button class="btn" data-learn="1">Дальше</button>') + "</div>";
+}
+
+/* ---------------- события ---------------- */
+
+function bindScreen() {
+  screens.querySelectorAll("[data-go]").forEach(el => {
+    el.onclick = () => {
+      const target = el.dataset.go;
+      if (target === "tracker" || target === "counter") {
+        if (!S.game) { S.tab = "game"; go("game"); return; }
+        S.tab = "game";
+      }
+      go(target);
+    };
+  });
+
+  screens.querySelectorAll("[data-tab-go]").forEach(el => {
+    el.onclick = () => switchTab(el.dataset.tabGo);
+  });
+
+  screens.querySelectorAll("[data-players]").forEach(el => {
+    el.onclick = () => { S.setupPlayers = Number(el.dataset.players); S.setupDone = []; save(); render(); };
+  });
+
+  screens.querySelectorAll("[data-step]").forEach(el => {
+    el.onclick = () => {
+      const i = Number(el.dataset.step);
+      const at = S.setupDone.indexOf(i);
+      if (at !== -1) S.setupDone = S.setupDone.filter(x => x < i);
+      else if (S.setupDone.length === i) S.setupDone.push(i);
+      else toast("Сначала отметьте предыдущий шаг");
+      save();
+      render();
+    };
+  });
+
+  screens.querySelectorAll("[data-start]").forEach(el => {
+    el.onclick = () => {
+      startGame(S.setupPlayers);
+      S.setupDone = [];
+      S.tab = "game";
+      go("tracker");
+      toast("Партия началась. Ходит " + S.game.players[0].name);
+    };
+  });
+
+  screens.querySelectorAll("[data-card]").forEach(el => {
+    el.onclick = () => go("card", el.dataset.card);
+  });
+
+  screens.querySelectorAll("[data-q]").forEach(el => {
+    el.onclick = () => {
+      const i = Number(el.dataset.q);
+      S.param = S.param === i ? null : i;
+      save();
+      render();
+    };
+  });
+
+  screens.querySelectorAll("[data-act]").forEach(el => {
+    el.onclick = () => {
+      const a = el.dataset.act;
+      if (a === "attack") actAttack();
+      else if (a === "skip") actSkip();
+      else if (a === "draw") actDraw();
+      else if (a === "defuse") actDefused();
+      else if (a === "explode") actExplode();
+    };
+  });
+
+  screens.querySelectorAll("[data-learn]").forEach(el => {
+    el.onclick = () => {
+      S.learnStep = Math.max(0, Math.min(LESSONS.length - 1, S.learnStep + Number(el.dataset.learn)));
+      save();
+      render();
+    };
+  });
+
+  screens.querySelectorAll("[data-reset]").forEach(el => {
+    el.onclick = () => {
+      S.game = null;
+      save();
+      render();
+      toast("Партия закрыта");
+    };
+  });
+}
+
+function switchTab(tab) {
+  S.tab = tab;
+  if (tab === "rules") go("home");
+  else if (tab === "game") go("game");
+  else go("learn");
+}
+
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => switchTab(t.dataset.tab);
+});
+
+if (S.screen === "card" && !S.param) S.screen = "cards";
+render();
+</script>
+</body>
+</html>
