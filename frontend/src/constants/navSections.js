@@ -19,6 +19,7 @@ export const ADMIN_GROUPS = [
       { label: 'Группы прав', icon: 'permission-groups', path: '/admin/permission-groups', permission: 'permission.audit.manage' },
       { label: 'Журнал отказов', icon: 'access-denials', path: '/admin/access-denials', permission: 'permission.audit.read' },
       { label: 'Доступ к перс. данным', icon: 'access-denials', path: '/admin/pd-audit', permission: 'page.admin.pd_audit' },
+      { label: 'Сведения о человеке', icon: 'access-denials', path: '/admin/pd-subject', permission: 'page.admin.pd_subject' },
       { label: 'Чёрный список', icon: 'blacklist', path: '/admin/blacklist', permission: 'page.admin.blacklist' },
     ],
   },

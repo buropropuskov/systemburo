@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Гейты роутов, прочитанные из исходника `router.js`.
+ * Гейты роутов, прочитанные из исходников роутера.
  *
  * Читаем текстом, а не импортом: импорт потянул бы все представления и создал бы
  * настоящий роутер ради списка путей. Тот же приём, что у замка на селекторы шагов
@@ -14,10 +14,14 @@ import { fileURLToPath } from 'node:url';
  * в меню. У `/news` пункт закрыт `page.news`, а сам роут открыт любому вошедшему.
  */
 
-const ROUTER_FILE = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../../router.js',
-);
+// Роуты живут в двух файлах: основной router.js и вынесенный routes/admin.js
+// (router.js упёрся в порог размера, #2356). Читать надо оба - иначе замок
+// перестанет требовать записи для админских страниц и промолчит об этом.
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const ROUTER_FILES = [
+  path.join(SRC, 'router.js'),
+  path.join(SRC, 'routes/admin.js'),
+];
 
 /**
  * Мета-флаги, которыми доступность роута закрыта ПОМИМО `permission`: гард
@@ -34,7 +38,7 @@ const EXTRA_GATE_FLAGS = ['requiresSuperAdmin', 'requiresSecurityOrAdmin'];
  *   роуты с requiresAuth; `component` - путь импорта, если его удалось прочитать
  */
 function parseAuthRoutes() {
-  const src = fs.readFileSync(ROUTER_FILE, 'utf8');
+  const src = ROUTER_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
   // Компоненты роутов объявлены двумя способами: ленивым import() прямо в объекте
   // роута и статическим импортом по имени в шапке файла.
   const staticImports = {};
