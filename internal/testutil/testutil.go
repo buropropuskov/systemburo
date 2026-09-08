@@ -58,7 +58,7 @@ var tables = []string{
 	"system_settings",
 	"user_online_peaks",
 	"report_templates",
-	"pd_audit_logs", "pd_consents",
+	"pd_audit_logs", "pd_consents", "pd_disclosures",
 	"access_denials", "access_denial_archives",
 	"user_permission_overrides", "user_groups", "permission_group_grants",
 	"role_default_groups", "permission_groups",

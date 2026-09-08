@@ -175,6 +175,9 @@ func AllModels() []interface{} {
 
 		// PD consent & audit (152-FZ)
 		&models.PDConsent{},
+		// Журнал выдач сведений третьим лицам (#2356). Общей уборкой НЕ чистится: это
+		// документ, которым оператор доказывает законность раскрытия.
+		&models.PDDisclosure{},
 		// pd_audit_logs партиционируется нативно (installLogPartitioning) - вне AutoMigrate.
 
 		// Documents (#39)
