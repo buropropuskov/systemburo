@@ -94,3 +94,60 @@ func TestSearch_Translit_Organization(t *testing.T) {
 		})
 	}
 }
+
+// Похожесть не должна превращать поиск в свалку. Живой случай: запрос «Траттория»
+// вместе с нужной записью выдавал «Трактор», и владелец назвал это бредом.
+//
+// Замер strict_word_similarity показал чистый разрыв - шум не дотягивает до 0.31,
+// настоящие опечатки начинаются с 0.40, - поэтому порог стоит посередине (0.35).
+// Тест держит обе стороны: мусор не приходит, опечатка по-прежнему находится.
+func TestSearch_FuzzyDoesNotDragNoise(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "noise_user", "password123", 1, td.OrgID, td.CompanyID)
+	assignBaseRole(t, db, "noise_user")
+	grantPermission(t, db, "noise_user", "page.admin.directories")
+	token, _ := testutil.LoginUser(t, e, "noise_user", "password123")
+
+	require.NoError(t, db.Create(&models.Organization{Name: "La Trattoria", Type: searchStrPtr("Организация")}).Error)
+	require.NoError(t, db.Create(&models.Organization{Name: "Трактор", Type: searchStrPtr("Организация")}).Error)
+
+	названия := func(query string) []string {
+		rec := testutil.GET(t, e, "/search?q="+urlQuery(query), testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, "тело: %s", rec.Body.String())
+		// groupByType отдаёт только счётчик - названия достаём сами: тест проверяет
+		// не «сколько нашлось», а «что именно пришло».
+		out := []string{}
+		for _, g := range decodeSearch(t, rec.Body.String()).Data.Groups {
+			if g.Type != "directories" {
+				continue
+			}
+			for _, i := range g.Items {
+				out = append(out, i.Title)
+			}
+		}
+		return out
+	}
+
+	t.Run("нужная запись находится, посторонняя не приходит", func(t *testing.T) {
+		got := названия("Траттория")
+		assert.Contains(t, got, "La Trattoria", "запись, которую человек ищет")
+		assert.NotContains(t, got, "Трактор", "мусор из-за низкого порога похожести")
+	})
+
+	t.Run("то же с потерянным удвоением", func(t *testing.T) {
+		got := названия("Тратория")
+		assert.Contains(t, got, "La Trattoria")
+		assert.NotContains(t, got, "Трактор")
+	})
+
+	t.Run("настоящая опечатка по-прежнему находится", func(t *testing.T) {
+		// Ближайший к порогу случай: одна буква мимо в шести буквах даёт ровно 0.400.
+		require.NoError(t, db.Create(&models.Organization{Name: "Иванов", Type: searchStrPtr("Организация")}).Error)
+		assert.Contains(t, названия("Ивонов"), "Иванов",
+			"порог поднят слишком высоко - опечатки перестали ловиться")
+	})
+}
