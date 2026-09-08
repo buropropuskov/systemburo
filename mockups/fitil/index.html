@@ -1,0 +1,1203 @@
+<title>Фитиль</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Golos+Text:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ink:        #0E1220;
+    --ink-deep:   #080B14;
+    --panel:      #171D2E;
+    --panel-2:    #1F2739;
+    --line:       #2C3448;
+    --cream:      #F3EEE3;
+    --muted:      #8E96AC;
+    --amber:      #E9A63C;
+    --amber-soft: #F5C877;
+    --ember:      #E1483A;
+    --mint:       #5FBFA0;
+
+    --display: "Unbounded", "Trebuchet MS", sans-serif;
+    --body: "Golos Text", "Segoe UI", system-ui, sans-serif;
+
+    --r-sm: 8px;
+    --r-md: 14px;
+    --r-lg: 22px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 620px at 78% -8%, rgba(233,166,60,.13), transparent 62%),
+      radial-gradient(760px 520px at 4% 108%, rgba(225,72,58,.10), transparent 60%),
+      var(--ink);
+    color: var(--cream);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* ---------- шапка ---------- */
+
+  .masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+    padding-bottom: 34px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--amber);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(46px, 8vw, 86px);
+    line-height: .92;
+    letter-spacing: -.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  h1 .spark { color: var(--ember); }
+
+  .lede {
+    max-width: 60ch;
+    color: var(--cream);
+    font-size: 17px;
+    margin: 0;
+  }
+
+  .lede b { color: var(--amber-soft); font-weight: 600; }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    padding-top: 4px;
+  }
+
+  .meta div { display: grid; gap: 2px; }
+
+  .meta dt {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .meta dd {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* ---------- секции ---------- */
+
+  section { padding-top: 56px; }
+
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: -.01em;
+    margin: 0;
+  }
+
+  .sec-note {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 62ch;
+    margin: 0 0 30px;
+  }
+
+  /* ---------- сетка макетов ---------- */
+
+  .boards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 40px 28px;
+    justify-items: center;
+  }
+
+  .board { display: grid; gap: 14px; width: 300px; }
+
+  .caption { display: grid; gap: 4px; }
+
+  .caption h3 {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .caption p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  /* ---------- корпус телефона ---------- */
+
+  .phone {
+    width: 300px;
+    height: 620px;
+    border-radius: 38px;
+    padding: 9px;
+    background: linear-gradient(160deg, #333C52, #191F2E 45%, #2A3348);
+    box-shadow: 0 24px 50px rgba(4, 6, 12, .55);
+  }
+
+  .screen {
+    height: 100%;
+    border-radius: 30px;
+    background: var(--ink-deep);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    font-size: 13px;
+  }
+
+  .statusbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 18px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .statusbar span { letter-spacing: .04em; }
+
+  .view {
+    padding: 8px 16px 14px;
+    overflow: hidden;
+    display: grid;
+    align-content: start;
+    gap: 12px;
+  }
+
+  .topline { display: grid; gap: 2px; }
+
+  .topline .kicker {
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  .topline h4 {
+    font-family: var(--display);
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.15;
+  }
+
+  .back {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* нижняя навигация: управление внизу экрана */
+
+  .tabbar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--line);
+    background: #0B0F1A;
+    padding: 8px 6px 14px;
+  }
+
+  .tab {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .tab.on { color: var(--amber); }
+
+  .tab svg { width: 20px; height: 20px; }
+
+  /* ---------- элементы интерфейса ---------- */
+
+  .cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--amber);
+    color: #16120A;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 13px 16px;
+    border-radius: var(--r-md);
+  }
+
+  .cta.ghost {
+    background: transparent;
+    color: var(--cream);
+    border: 1px solid var(--line);
+    font-weight: 600;
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+  .tile {
+    background: var(--panel);
+    border-radius: var(--r-md);
+    padding: 12px 11px;
+    display: grid;
+    gap: 7px;
+    align-content: start;
+    min-height: 84px;
+  }
+
+  .tile .name { font-size: 12.5px; font-weight: 600; line-height: 1.25; }
+  .tile .sub { font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+  .tile svg { width: 22px; height: 22px; color: var(--amber); }
+  .tile.danger svg { color: var(--ember); }
+
+  .cardtile {
+    background: var(--panel);
+    border-radius: var(--r-sm);
+    padding: 9px 7px;
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+    text-align: center;
+  }
+
+  .cardtile svg { width: 20px; height: 20px; color: var(--amber-soft); }
+  .cardtile .t { font-size: 10px; font-weight: 600; line-height: 1.2; }
+  .cardtile .n { font-size: 9px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cardtile.kitten { background: rgba(225,72,58,.14); }
+  .cardtile.kitten svg { color: var(--ember); }
+
+  .seg {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: var(--panel);
+    border-radius: var(--r-md);
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .seg span {
+    text-align: center;
+    padding: 8px 0;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .seg span.on { background: var(--amber); color: #16120A; }
+
+  .steps { display: grid; gap: 7px; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    gap: 10px;
+    align-items: start;
+    background: var(--panel);
+    border-radius: var(--r-sm);
+    padding: 10px 11px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .step.done { color: var(--muted); background: transparent; padding: 10px 11px; }
+  .step.done .mark { color: var(--mint); }
+  .step.next { border: 1px solid var(--amber); }
+  .step b { color: var(--amber-soft); font-weight: 600; }
+  .mark { font-size: 13px; font-weight: 700; color: var(--muted); }
+
+  .progress {
+    height: 4px;
+    border-radius: 99px;
+    background: var(--panel-2);
+    overflow: hidden;
+  }
+
+  .progress i { display: block; height: 100%; background: var(--amber); }
+
+  .qa { display: grid; gap: 8px; }
+
+  .q {
+    background: var(--panel);
+    border-radius: var(--r-sm);
+    padding: 11px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    line-height: 1.35;
+  }
+
+  .q .chev { color: var(--muted); }
+
+  .q.open {
+    background: var(--panel-2);
+    display: grid;
+    gap: 8px;
+    border-left: 3px solid var(--amber);
+  }
+
+  .q .answer {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--cream);
+    line-height: 1.5;
+  }
+
+  .q .source {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+
+  .bigcard {
+    background: linear-gradient(150deg, #232C42, #171D2E);
+    border-radius: var(--r-md);
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+  }
+
+  .bigcard svg { width: 34px; height: 34px; color: var(--amber); }
+  .bigcard .title { font-family: var(--display); font-size: 20px; font-weight: 600; }
+  .bigcard .count { font-size: 11px; color: var(--muted); }
+
+  .fact { display: grid; gap: 3px; }
+  .fact .lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .fact .val { font-size: 12px; line-height: 1.45; }
+
+  .warn {
+    background: rgba(225,72,58,.13);
+    border-radius: var(--r-sm);
+    padding: 10px 11px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    display: grid;
+    gap: 3px;
+  }
+
+  .warn .lbl { color: var(--ember); font-weight: 700; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+
+  .turnrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+    border-radius: var(--r-sm);
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .turnrow.active { background: var(--amber); color: #16120A; font-weight: 700; }
+  .turnrow .who { display: flex; align-items: center; gap: 8px; }
+  .turnrow .badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 99px;
+    background: var(--panel-2);
+    color: var(--cream);
+    font-variant-numeric: tabular-nums;
+  }
+  .turnrow.active .badge { background: rgba(0,0,0,.22); color: #16120A; }
+  .turnrow.out { color: var(--muted); }
+
+  .odds { display: grid; gap: 8px; justify-items: center; text-align: center; padding: 4px 0 0; }
+
+  .odds .num {
+    font-family: var(--display);
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--ember);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .odds .cap { font-size: 11px; color: var(--muted); }
+
+  .deckbar { display: flex; gap: 3px; }
+
+  .deckbar i {
+    flex: 1;
+    height: 26px;
+    border-radius: 3px;
+    background: var(--panel-2);
+  }
+
+  .deckbar i.k { background: var(--ember); }
+
+  .counters { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+  .counter {
+    background: var(--panel);
+    border-radius: var(--r-sm);
+    padding: 10px;
+    display: grid;
+    gap: 2px;
+  }
+
+  .counter .v {
+    font-family: var(--display);
+    font-size: 21px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .counter .l { font-size: 10px; color: var(--muted); }
+
+  .teach {
+    background: var(--panel);
+    border-radius: var(--r-md);
+    padding: 16px 14px;
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .teach svg { width: 54px; height: 54px; color: var(--amber); }
+  .teach .h { font-family: var(--display); font-size: 16px; font-weight: 600; }
+  .teach .p { font-size: 12px; line-height: 1.5; color: var(--cream); }
+
+  .dots { display: flex; gap: 5px; justify-content: center; }
+  .dots i { width: 5px; height: 5px; border-radius: 99px; background: var(--panel-2); display: block; }
+  .dots i.on { background: var(--amber); width: 16px; }
+
+  .rowline {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11.5px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .rowline:last-child { border-bottom: 0; }
+  .rowline .v { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* ---------- стилевая концепция ---------- */
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .sw {
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .sw .chip { height: 62px; }
+  .sw .info { padding: 10px 12px; display: grid; gap: 2px; background: var(--panel); }
+  .sw .role { font-size: 12.5px; font-weight: 600; }
+  .sw .hex { font-size: 11px; color: var(--muted); letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+
+  .typepair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+    margin-top: 18px;
+  }
+
+  .tp {
+    background: var(--panel);
+    border-radius: var(--r-md);
+    padding: 18px 20px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .tp .sample-display { font-family: var(--display); font-size: 32px; font-weight: 600; line-height: 1.05; }
+  .tp .sample-body { font-size: 15px; line-height: 1.5; }
+  .tp .tp-meta { font-size: 12px; color: var(--muted); }
+
+  .rules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .rule {
+    border-left: 2px solid var(--amber);
+    padding: 4px 0 4px 14px;
+    display: grid;
+    gap: 3px;
+  }
+
+  .rule .r-h { font-size: 13px; font-weight: 600; }
+  .rule .r-p { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+  .scen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .sc {
+    background: var(--panel);
+    border-radius: var(--r-md);
+    padding: 18px;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+
+  .sc h3 { font-family: var(--display); font-size: 15px; font-weight: 600; margin: 0; }
+  .sc .num { font-size: 11px; color: var(--amber); letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+  .sc p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .sc .uses { font-size: 12px; color: var(--cream); }
+  .sc .uses b { color: var(--amber-soft); font-weight: 600; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12.5px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 32px 16px 60px; }
+    .boards { gap: 34px 20px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Макет мобильного приложения</p>
+    <h1>Фитиль<span class="spark">.</span></h1>
+    <p class="lede">
+      Приложение-компаньон к настольной игре «Взрывные котята». Бумажная брошюра линейна и рассчитана
+      на чтение до партии. За столом к правилам обращаются иначе: посреди чужого хода, в споре,
+      на двадцать секунд, одной рукой. <b>Шесть разделов</b> собраны вокруг этих моментов.
+    </p>
+    <dl class="meta">
+      <div><dt>Дисциплина</dt><dd>Эргономика в виртуальной среде</dd></div>
+      <div><dt>Игра</dt><dd>Взрывные котята, 56 карт, 2-5 игроков</dd></div>
+      <div><dt>Экранов в макете</dt><dd>8</dd></div>
+      <div><dt>Этап</dt><dd>Части 4-7: архитектура и прототип</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Экраны</h2>
+    </div>
+    <p class="sec-note">
+      Макеты показаны в масштабе 80 процентов от экрана 375 x 812. Управление вынесено вниз,
+      основной текст внутри приложения набирается кеглем 14-16, заголовки 18-24.
+    </p>
+
+    <div class="boards">
+
+      <!-- 1. Главный экран -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:14</span><span>82%</span></div>
+            <div class="view">
+              <div class="topline">
+                <span class="kicker">Партия идёт</span>
+                <h4>Что нужно сейчас?</h4>
+              </div>
+
+              <div class="cta">
+                <span>Собрать колоду</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </div>
+
+              <div class="grid-2">
+                <div class="tile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="12" height="16" rx="2"/><path d="M8 9h2M8 13h4"/><path d="M17 8l4 2v9l-4 2"/></svg>
+                  <span class="name">Справочник карт</span>
+                  <span class="sub">Что делает карта в руке</span>
+                </div>
+                <div class="tile danger">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/><circle cx="12" cy="12" r="3"/></svg>
+                  <span class="name">Спорные ситуации</span>
+                  <span class="sub">Кто прав за столом</span>
+                </div>
+                <div class="tile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+                  <span class="name">Трекер атак</span>
+                  <span class="sub">Кто сколько ходов должен</span>
+                </div>
+                <div class="tile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
+                  <span class="name">Счётчик колоды</span>
+                  <span class="sub">Сколько котят осталось</span>
+                </div>
+              </div>
+
+              <div class="cta ghost">
+                <span>Обучение новичка</span>
+                <span style="font-size:11px;color:var(--muted)">7 шагов</span>
+              </div>
+            </div>
+            <div class="tabbar">
+              <div class="tab on">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+                <span>Правила</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+                <span>Партия</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4l8 4-8 4-8-4z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+                <span>Обучение</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Главный экран</h3>
+          <p>Открывается не оглавлением правил, а вопросом «что нужно сейчас». Сборка колоды вынесена
+            наверх: с неё начинается партия.</p>
+        </div>
+      </div>
+
+      <!-- 2. Мастер подготовки -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:15</span><span>82%</span></div>
+            <div class="view">
+              <div class="back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M15 6l-6 6 6 6"/></svg>
+                <span>Главный экран</span>
+              </div>
+              <div class="topline">
+                <span class="kicker">Шаг 4 из 6</span>
+                <h4>Сборка колоды</h4>
+              </div>
+
+              <div class="seg">
+                <span>2</span><span>3</span><span class="on">4</span><span>5</span>
+              </div>
+
+              <div class="progress"><i style="width:66%"></i></div>
+
+              <div class="steps">
+                <div class="step done"><span class="mark">✓</span><span>Убрали из колоды 4 Взрывных котёнка</span></div>
+                <div class="step done"><span class="mark">✓</span><span>Раздали каждому по одной карте «Обезвредить»</span></div>
+                <div class="step done"><span class="mark">✓</span><span>Вернули в колоду <b>2</b> оставшиеся «Обезвредить»</span></div>
+                <div class="step next"><span class="mark">4</span><span>Раздайте каждому по <b>7 карт</b> втёмную. На руках станет 8</span></div>
+                <div class="step"><span class="mark">5</span><span>Вложите обратно <b>3 Взрывных котёнка</b>, лишнего уберите</span></div>
+                <div class="step"><span class="mark">6</span><span>Перемешайте колоду и положите в центр стола</span></div>
+              </div>
+            </div>
+            <div class="tabbar" style="grid-template-columns:1fr">
+              <div class="cta" style="margin:0 10px">
+                <span>Готово, дальше</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Мастер подготовки</h3>
+          <p>Числа пересчитываются от количества игроков. Закрывает самую частую ошибку: при двух
+            и трёх игроках лишние «Обезвредить» убираются из партии, а не возвращаются в колоду.</p>
+        </div>
+      </div>
+
+      <!-- 3. Справочник карт -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:22</span><span>79%</span></div>
+            <div class="view">
+              <div class="topline">
+                <span class="kicker">56 карт в колоде</span>
+                <h4>Справочник карт</h4>
+              </div>
+
+              <div class="grid-3">
+                <div class="cardtile kitten">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 2l2.2 5.2L20 6l-2.4 5L22 14l-5.6.6L15 21l-3-4-3 4-1.4-6.4L2 14l4.4-3L4 6l5.8 1.2z"/></svg>
+                  <span class="t">Взрывной котёнок</span><span class="n">4 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5L20 18M8 16.5L20 6"/></svg>
+                  <span class="t">Обезвредить</span><span class="n">6 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg>
+                  <span class="t">Неть</span><span class="n">5 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+                  <span class="t">Нападай</span><span class="n">4 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 12h12M12 7l5 5-5 5M20 6v12"/></svg>
+                  <span class="t">Пропусти</span><span class="n">4 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 8h11l-3-3M20 16H9l3 3"/></svg>
+                  <span class="t">Перетасуй</span><span class="n">4 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                  <span class="t">Загляни в будущее</span><span class="n">5 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 013 0V12"/><path d="M11 11.5a1.5 1.5 0 013 0V13M14 12.5a1.5 1.5 0 013 0V17a4 4 0 01-4 4h-2a5 5 0 01-5-5v-3"/></svg>
+                  <span class="t">Услуга</span><span class="n">4 шт</span>
+                </div>
+                <div class="cardtile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 10L4 4l5 3h6l5-3-1 6v5a5 5 0 01-5 5h-4a5 5 0 01-5-5z"/><path d="M10 13h.01M14 13h.01"/></svg>
+                  <span class="t">Кошачьи карты</span><span class="n">20 шт</span>
+                </div>
+              </div>
+
+              <div class="rowline" style="border-bottom:0;padding-top:2px">
+                <span>Комбо из пар и троек</span>
+                <span class="v">3 правила</span>
+              </div>
+            </div>
+            <div class="tabbar">
+              <div class="tab on">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+                <span>Правила</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+                <span>Партия</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4l8 4-8 4-8-4z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+                <span>Обучение</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Справочник карт</h3>
+          <p>Сетка повторяет ситуацию за столом: карта уже в руке, игрок не понимает, что она делает.
+            Взрывной котёнок выделен цветом опасности, кошачьи карты собраны в одну плитку.</p>
+        </div>
+      </div>
+
+      <!-- 4. Карточка карты -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:23</span><span>79%</span></div>
+            <div class="view">
+              <div class="back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M15 6l-6 6 6 6"/></svg>
+                <span>Справочник карт</span>
+              </div>
+
+              <div class="bigcard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+                <span class="title">Нападай</span>
+                <span class="count">4 карты в колоде</span>
+              </div>
+
+              <div class="fact">
+                <span class="lbl">Что делает</span>
+                <span class="val">Ты не берёшь карту, ход сразу заканчивается, а следующий игрок делает
+                  два хода подряд.</span>
+              </div>
+
+              <div class="fact">
+                <span class="lbl">Ходы накапливаются</span>
+                <span class="val">Если жертва атаки сама играет «Нападай», следующему достаётся 4 хода,
+                  потом 6 и так далее.</span>
+              </div>
+
+              <div class="warn">
+                <span class="lbl">Частая ошибка</span>
+                <span>«Пропусти» гасит только один ход из двух. Чтобы отбиться от атаки полностью,
+                  нужны две такие карты.</span>
+              </div>
+            </div>
+            <div class="tabbar" style="grid-template-columns:1fr">
+              <div class="cta ghost" style="margin:0 10px">
+                <span>Спорные ситуации с этой картой</span>
+                <span style="font-size:11px;color:var(--amber)">3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Карточка карты</h3>
+          <p>Три блока в одном порядке для всех карт: что делает, тонкость правила, частая ошибка.
+            Снизу переход в споры, связанные именно с этой картой.</p>
+        </div>
+      </div>
+
+      <!-- 5. Спорные ситуации -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:41</span><span>74%</span></div>
+            <div class="view">
+              <div class="topline">
+                <span class="kicker">Партия остановлена</span>
+                <h4>Кто прав</h4>
+              </div>
+
+              <div class="qa">
+                <div class="q open">
+                  <span>Игрок под атакой сыграл «Пропусти». Он отбился?</span>
+                  <span class="answer">Нет. Он погасил один ход из двух и обязан отходить второй:
+                    сыграть карты и взять карту из колоды.</span>
+                  <span class="source">Лист правил, карта «Пропусти»</span>
+                </div>
+                <div class="q">
+                  <span>Сколько ходов после второй атаки подряд?</span>
+                  <span class="chev">+</span>
+                </div>
+                <div class="q">
+                  <span>Можно ли отменить Взрывного котёнка картой «Неть»?</span>
+                  <span class="chev">+</span>
+                </div>
+                <div class="q">
+                  <span>«Неть» играют только в свой ход?</span>
+                  <span class="chev">+</span>
+                </div>
+                <div class="q">
+                  <span>Обезвредивший показывает, куда вернул котёнка?</span>
+                  <span class="chev">+</span>
+                </div>
+              </div>
+            </div>
+            <div class="tabbar">
+              <div class="tab on">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+                <span>Правила</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+                <span>Партия</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4l8 4-8 4-8-4z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+                <span>Обучение</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Спорные ситуации</h3>
+          <p>Вопросы сформулированы так, как их произносят за столом, а не как названия разделов правил.
+            Ответ занимает две строки и ссылается на пункт листа.</p>
+        </div>
+      </div>
+
+      <!-- 6. Трекер атак -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:47</span><span>71%</span></div>
+            <div class="view">
+              <div class="topline">
+                <span class="kicker">Эндшпиль, двое в игре</span>
+                <h4>Трекер атак</h4>
+              </div>
+
+              <div style="display:grid;gap:7px">
+                <div class="turnrow active">
+                  <span class="who">Никита</span>
+                  <span class="badge">4 хода</span>
+                </div>
+                <div class="turnrow">
+                  <span class="who">Серёжа</span>
+                  <span class="badge">следующий</span>
+                </div>
+                <div class="turnrow out">
+                  <span class="who">Арина</span>
+                  <span class="badge">взорвалась</span>
+                </div>
+                <div class="turnrow out">
+                  <span class="who">Лиза</span>
+                  <span class="badge">взорвалась</span>
+                </div>
+              </div>
+
+              <div class="fact">
+                <span class="lbl">Как получилось 4</span>
+                <span class="val">Серёжа сыграл «Нападай» под конец своего хода, Никита ответил тем же,
+                  ходы сложились.</span>
+              </div>
+
+              <div class="grid-2">
+                <div class="cta ghost" style="justify-content:center;font-size:12px">Сыграл «Нападай»</div>
+                <div class="cta ghost" style="justify-content:center;font-size:12px">Сыграл «Пропусти»</div>
+              </div>
+            </div>
+            <div class="tabbar" style="grid-template-columns:1fr">
+              <div class="cta" style="margin:0 10px;justify-content:center">Взял карту, ход закрыт</div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Трекер атак</h3>
+          <p>Нужен там, где за столом сбиваются: при накоплении до четырёх и шести ходов. Показывает,
+            чей ход, сколько осталось и откуда взялось это число.</p>
+        </div>
+      </div>
+
+      <!-- 7. Счётчик колоды -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>21:52</span><span>70%</span></div>
+            <div class="view">
+              <div class="topline">
+                <span class="kicker">Колода на исходе</span>
+                <h4>Счётчик колоды</h4>
+              </div>
+
+              <div class="odds">
+                <span class="num">33%</span>
+                <span class="cap">шанс взорваться на следующем взятии</span>
+              </div>
+
+              <div class="deckbar">
+                <i></i><i class="k"></i><i></i><i></i><i class="k"></i><i></i>
+              </div>
+
+              <div class="counters">
+                <div class="counter"><span class="v">6</span><span class="l">карт в колоде</span></div>
+                <div class="counter"><span class="v">2</span><span class="l">Взрывных котёнка</span></div>
+              </div>
+
+              <div class="fact">
+                <span class="lbl">Было в начале партии</span>
+                <span class="val">23 карты и 3 котёнка, шанс взрыва 13 процентов. Сейчас риск вырос
+                  в два с половиной раза.</span>
+              </div>
+
+              <div class="grid-2">
+                <div class="cta ghost" style="justify-content:center;font-size:12px">Взяли карту</div>
+                <div class="cta ghost" style="justify-content:center;font-size:12px">Обезвредили</div>
+              </div>
+            </div>
+            <div class="tabbar">
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+                <span>Правила</span>
+              </div>
+              <div class="tab on">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+                <span>Партия</span>
+              </div>
+              <div class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4l8 4-8 4-8-4z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+                <span>Обучение</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Счётчик колоды</h3>
+          <p>Правила прямо советуют считать оставшиеся карты, но вручную этого никто не делает.
+            Полоса показывает колоду целиком, красные сегменты — котят внутри неё.</p>
+        </div>
+      </div>
+
+      <!-- 8. Обучение -->
+      <div class="board">
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>20:58</span><span>88%</span></div>
+            <div class="view">
+              <div class="back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M15 6l-6 6 6 6"/></svg>
+                <span>Пропустить обучение</span>
+              </div>
+
+              <div class="topline">
+                <span class="kicker">Шаг 3 из 7</span>
+                <h4>Ход состоит из двух частей</h4>
+              </div>
+
+              <div class="teach">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="9" height="13" rx="1.6"/><rect x="13" y="4" width="9" height="13" rx="1.6"/><path d="M5.5 11h2M16.5 8h2"/></svg>
+                <span class="h">Сначала играешь, потом берёшь</span>
+                <span class="p">Сыграй сколько угодно карт или ни одной. Затем возьми карту из колоды:
+                  именно взятие заканчивает твой ход.</span>
+              </div>
+
+              <div class="warn" style="background:rgba(233,166,60,.13)">
+                <span class="lbl" style="color:var(--amber)">Запомни</span>
+                <span>«Пропусти» и «Нападай» заканчивают ход без взятия карты. Это единственный способ
+                  не тянуть из колоды.</span>
+              </div>
+
+              <div class="dots">
+                <i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+            <div class="tabbar" style="grid-template-columns:auto 1fr;gap:8px;padding:8px 10px 14px">
+              <div class="cta ghost" style="justify-content:center;padding:13px 18px">Назад</div>
+              <div class="cta">
+                <span>Дальше</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          <h3>Обучение</h3>
+          <p>Отделено от справочника, потому что новичок и опытный игрок приходят за разным.
+            Семь шагов: цель игры, ход, котёнок, обезвреживание, атака, «Неть», комбо.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Экраны и сценарии</h2></div>
+    <p class="sec-note">
+      Разделы приложения выросли из трёх игровых сценариев, а не из оглавления брошюры.
+      В каждом сценарии к правилам обращаются по-своему.
+    </p>
+    <div class="scen">
+      <div class="sc">
+        <span class="num">Сценарий 1</span>
+        <h3>Полная партия на 4-5 игроков</h3>
+        <p>Колода 16-23 карты, в ней 3-4 Взрывных котёнка. К правилам обращаются короткими вспышками,
+          когда на стол ложится незнакомая карта.</p>
+        <span class="uses">Работают: <b>мастер подготовки</b>, <b>справочник карт</b></span>
+      </div>
+      <div class="sc">
+        <span class="num">Сценарий 2</span>
+        <h3>Дуэль на двоих</h3>
+        <p>Колода 35 карт и всего один котёнок. Правила нужны один раз, зато критично: сборка на двоих
+          отличается от общей, и её путают чаще всего.</p>
+        <span class="uses">Работают: <b>мастер подготовки</b>, <b>счётчик колоды</b></span>
+      </div>
+      <div class="sc">
+        <span class="num">Сценарий 3</span>
+        <h3>Эндшпиль: двое против тонкой колоды</h3>
+        <p>В колоде 3-8 карт и половина из них взрывная. Атаки идут подряд, счёт ходов сбивается,
+          спор о трактовке стоит партии.</p>
+        <span class="uses">Работают: <b>трекер атак</b>, <b>спорные ситуации</b></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Стилевая концепция</h2></div>
+    <p class="sec-note">
+      Тёмная схема выбрана не ради моды: в котят играют вечером, в компании, при настольной лампе,
+      и светлый экран телефона слепит соседей по столу. Янтарный отвечает за действия игрока,
+      киноварный закреплён за опасностью и не используется больше нигде, чтобы взгляд находил его мгновенно.
+    </p>
+
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#0E1220"></div><div class="info"><span class="role">Фон, ночной стол</span><span class="hex">#0E1220</span></div></div>
+      <div class="sw"><div class="chip" style="background:#171D2E"></div><div class="info"><span class="role">Панели и плитки</span><span class="hex">#171D2E</span></div></div>
+      <div class="sw"><div class="chip" style="background:#F3EEE3"></div><div class="info"><span class="role">Текст, картон карт</span><span class="hex">#F3EEE3</span></div></div>
+      <div class="sw"><div class="chip" style="background:#E9A63C"></div><div class="info"><span class="role">Действие игрока</span><span class="hex">#E9A63C</span></div></div>
+      <div class="sw"><div class="chip" style="background:#E1483A"></div><div class="info"><span class="role">Опасность, котёнок</span><span class="hex">#E1483A</span></div></div>
+      <div class="sw"><div class="chip" style="background:#8E96AC"></div><div class="info"><span class="role">Подписи и пояснения</span><span class="hex">#8E96AC</span></div></div>
+    </div>
+
+    <div class="typepair">
+      <div class="tp">
+        <span class="sample-display">Обезвредить</span>
+        <span class="tp-meta">Unbounded, начертания 600 и 800</span>
+        <span class="sample-body" style="color:var(--muted);font-size:13px">Заголовки экранов и крупные числа.
+          Широкие округлые формы перекликаются с карточной графикой, кегль 18-24.</span>
+      </div>
+      <div class="tp">
+        <span class="sample-body">Ты не берёшь карту, ход сразу заканчивается, а следующий игрок делает
+          два хода подряд.</span>
+        <span class="tp-meta">Golos Text, начертания 400-700</span>
+        <span class="sample-body" style="color:var(--muted);font-size:13px">Весь текст правил. Кегль 14-16,
+          межстрочный 1,5, различимые «I», «l» и «1», полный кириллический набор.</span>
+      </div>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <span class="r-h">Управление внизу</span>
+        <span class="r-p">Телефон держат одной рукой, вторая занята картами. Все кнопки действий
+          в нижней трети экрана.</span>
+      </div>
+      <div class="rule">
+        <span class="r-h">Контраст от 4,5 к 1</span>
+        <span class="r-p">Кремовый текст на чернильном фоне даёт запас по контрасту даже при
+          вечернем освещении.</span>
+      </div>
+      <div class="rule">
+        <span class="r-h">Строка 30-40 знаков</span>
+        <span class="r-p">Ответ на спорный вопрос умещается в две-три строки: за столом длиннее
+          никто не читает.</span>
+      </div>
+      <div class="rule">
+        <span class="r-h">Два шрифта, не больше</span>
+        <span class="r-p">Дисплейный только для заголовков, текстовый для всего остального.
+          Декоративных начертаний в правилах нет.</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Фитиль. Макет приложения-компаньона к игре «Взрывные котята»</span>
+    <span>Иллюстрации и знаки нарисованы для проекта, оригинальная графика издателя не используется</span>
+  </footer>
+
+</div>
