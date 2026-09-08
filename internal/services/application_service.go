@@ -2032,22 +2032,42 @@ type pendingEmployeeFlag struct {
 // ошибка поиска/записи флага логируется и проглатывается - неудача warning-слоя НЕ должна
 // валить уже созданную заявку. Вне транзакции сабмита: ошибка здесь не отравит и не откатит её.
 // supplementID - каким дополнением пришли проверяемые строки (#1685); nil у исходной подачи.
+//
+// Поиск идёт ПАКЕТНО - по одному запросу на машины и на людей вместо запроса на строку.
+// Замер подачи 2000 участников показал, что время уходило не в вычисления (чёрный список
+// короткий), а в число обращений к базе. Результат тот же: ключ карты - нормализованное
+// значение, совпадения отсортированы так же, как их отдаёт построчный поиск.
 func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appID int, supplementID *int, vehicles []pendingVehicleFlag, employees []pendingEmployeeFlag) {
-	for _, v := range vehicles {
-		matches, err := s.vehicleBlacklist.FindSimilar(ctx, v.carNumber)
-		if err != nil {
-			slog.Warn("blacklist similarity check failed (vehicle)", "err", err, "app_id", appID, "car_id", v.carID)
-			continue
+	if len(vehicles) > 0 {
+		numbers := make([]string, 0, len(vehicles))
+		for _, v := range vehicles {
+			numbers = append(numbers, v.carNumber)
 		}
-		s.saveBlacklistFlag(ctx, appID, supplementID, models.BlacklistElementCar, v.carID, normalize.Plate(v.carNumber), matches)
+		byNumber, err := s.vehicleBlacklist.FindSimilarBatch(ctx, numbers)
+		if err != nil {
+			slog.Warn("blacklist similarity check failed (vehicles)", "err", err, "app_id", appID)
+		} else {
+			for _, v := range vehicles {
+				key := normalize.Plate(v.carNumber)
+				s.saveBlacklistFlag(ctx, appID, supplementID, models.BlacklistElementCar, v.carID, key, byNumber[key])
+			}
+		}
 	}
-	for _, e := range employees {
-		matches, err := s.personBlacklist.FindSimilar(ctx, e.lastName, e.firstName, e.middleName)
-		if err != nil {
-			slog.Warn("blacklist similarity check failed (person)", "err", err, "app_id", appID, "employee_id", e.empID)
-			continue
+
+	if len(employees) > 0 {
+		fios := make([]PersonFIO, 0, len(employees))
+		for _, e := range employees {
+			fios = append(fios, PersonFIO{LastName: e.lastName, FirstName: e.firstName, MiddleName: e.middleName})
 		}
-		s.saveBlacklistFlag(ctx, appID, supplementID, models.BlacklistElementEmployee, e.empID, normalize.Name(e.lastName, e.firstName, e.middleName), matches)
+		byFIO, err := s.personBlacklist.FindSimilarBatch(ctx, fios)
+		if err != nil {
+			slog.Warn("blacklist similarity check failed (persons)", "err", err, "app_id", appID)
+			return
+		}
+		for _, e := range employees {
+			key := normalize.Name(e.lastName, e.firstName, e.middleName)
+			s.saveBlacklistFlag(ctx, appID, supplementID, models.BlacklistElementEmployee, e.empID, key, byFIO[key])
+		}
 	}
 }
 

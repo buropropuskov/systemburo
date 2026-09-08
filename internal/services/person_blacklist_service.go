@@ -42,6 +42,9 @@ type PersonBlacklistService interface {
 	// отсутствия отчества), порог 0.7. Слой предупреждения о возможном обходе (#481): точное
 	// совпадение ловит Check (409). Пустой срез - похожих нет.
 	FindSimilar(ctx context.Context, lastName, firstName, middleName string) ([]models.BlacklistSimilarMatch, error)
+	// FindSimilarBatch - тот же поиск сразу по набору ФИО, ОДНИМ запросом.
+	// Ключ карты - нормализованное ФИО, значение отсортировано как у FindSimilar.
+	FindSimilarBatch(ctx context.Context, fios []PersonFIO) (map[string][]models.BlacklistSimilarMatch, error)
 	// Update - правка активной записи (ФИО/причина) + лог в историю (updated). При смене
 	// ФИО перекаскадивает employees: реактивирует совпадавших со старым ФИО, деактивирует
 	// совпадающих с новым. Дубль активной записи -> 409.
@@ -295,6 +298,86 @@ func (s *personBlacklistService) FindSimilar(ctx context.Context, lastName, firs
 		})
 	}
 	return matches, nil
+}
+
+// PersonFIO - тройка имени для пакетного поиска по чёрному списку людей.
+type PersonFIO struct {
+	LastName   string
+	FirstName  string
+	MiddleName string
+}
+
+// FindSimilarBatch - поиск похожих сразу для набора ФИО одним запросом.
+//
+// Причина та же, что у машин: на подаче большого списка построчный путь упирался в
+// число обращений к базе, а не в вычисления - чёрный список короткий, а запросов
+// уходило по одному на человека.
+//
+// Ключ результата - НОРМАЛИЗОВАННОЕ ФИО (normalize.Name), как и в построчном пути.
+func (s *personBlacklistService) FindSimilarBatch(ctx context.Context, fios []PersonFIO) (map[string][]models.BlacklistSimilarMatch, error) {
+	result := make(map[string][]models.BlacklistSimilarMatch, len(fios))
+	queries := make([]string, 0, len(fios))
+	seen := make(map[string]bool, len(fios))
+	for _, f := range fios {
+		q := normalize.Name(f.LastName, f.FirstName, f.MiddleName)
+		if q == "" || seen[q] {
+			continue
+		}
+		seen[q] = true
+		queries = append(queries, q)
+	}
+	if len(queries) == 0 {
+		return result, nil
+	}
+
+	type simRow struct {
+		Query      string
+		ID         int
+		LastName   string
+		FirstName  string
+		MiddleName *string
+		Reason     string
+		Sim        float64
+	}
+	var rows []simRow
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT query, id, last_name, first_name, middle_name, reason, sim FROM (
+			SELECT q.query, b.id, b.last_name, b.first_name, b.middle_name, b.reason,
+			       GREATEST(
+			         similarity(b.normalized_fio, q.query),
+			         word_similarity(q.query, b.normalized_fio),
+			         word_similarity(b.normalized_fio, q.query)
+			       ) AS sim
+			FROM unnest(string_to_array(@queries, @sep)) AS q(query)
+			CROSS JOIN person_blacklists b
+			WHERE b.is_active = true AND b.normalized_fio <> ''
+		) t
+		WHERE sim >= @threshold
+		ORDER BY query, sim DESC, id`,
+		map[string]interface{}{
+			"queries":   strings.Join(queries, blacklistBatchSeparator),
+			"sep":       blacklistBatchSeparator,
+			"threshold": blacklistSimilarityThreshold,
+		},
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска похожих записей чёрного списка")
+	}
+
+	for _, r := range rows {
+		middle := ""
+		if r.MiddleName != nil {
+			middle = *r.MiddleName
+		}
+		label := strings.Join(strings.Fields(r.LastName+" "+r.FirstName+" "+middle), " ")
+		result[r.Query] = append(result[r.Query], models.BlacklistSimilarMatch{
+			ID:           r.ID,
+			Similarity:   r.Sim,
+			MatchedValue: label,
+			Reason:       r.Reason,
+		})
+	}
+	return result, nil
 }
 
 func (s *personBlacklistService) Update(ctx context.Context, id int, req models.UpdatePersonBlacklistRequest, userID int) (*models.PersonBlacklist, error) {
