@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 )
 
 // Перевод паспортных данных с одного ключа шифрования на другой (#2253).
@@ -25,6 +26,15 @@ import (
 type encryptedColumn struct {
 	value string
 	hmac  string
+	// normalize приводит значение к виду, от которого считается свёртка. Пустое
+	// поле означает свёртку от значения как есть.
+	//
+	// Правило нормализации живёт рядом со столбцом, потому что оно у каждого своё:
+	// паспорт сворачивается как введён, а почта - в нижнем регистре, телефон - по
+	// одним цифрам. Без этого перевод на новый ключ считал бы контактам свёртку от
+	// сырого значения, и поиск по почте и телефону переставал бы находить записи -
+	// ровно та поломка, которую чинит EncryptPlaintextValues.
+	normalize func(string) string
 }
 
 // encryptedTable - таблица, хранящая шифрованные поля.
@@ -52,8 +62,8 @@ var encryptedTables = []encryptedTable{
 	// идёт в имя каталога файлового архива.
 	{name: "applications", columns: []encryptedColumn{{value: "contact_phone"}}},
 	{name: "users", columns: []encryptedColumn{
-		{value: "email", hmac: "email_hmac"},
-		{value: "phone", hmac: "phone_hmac"},
+		{value: "email", hmac: "email_hmac", normalize: models.NormalizeEmailForHMAC},
+		{value: "phone", hmac: "phone_hmac", normalize: models.NormalizePhoneForHMAC},
 	}},
 }
 
@@ -97,7 +107,7 @@ type ReencryptResult struct {
 //
 // Функция отделена от базы намеренно - на ней держится вся проверка перевода, а
 // тесты пакета делят одну базу и не могут опираться на её содержимое.
-func reencryptValue(stored string, oldKey, newKey []byte) (value string, hmac string, err error) {
+func reencryptValue(stored string, oldKey, newKey []byte, normalize func(string) string) (value string, hmac string, err error) {
 	plain, err := crypto.Decrypt(stored, oldKey)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: значение не расшифровано прежним ключом", ErrReencryptSourceKey)
@@ -107,7 +117,15 @@ func reencryptValue(stored string, oldKey, newKey []byte) (value string, hmac st
 	if err != nil {
 		return "", "", fmt.Errorf("шифрование новым ключом: %w", err)
 	}
-	return value, crypto.ComputeHMAC(plain, newKey), nil
+	return value, computeColumnHMAC(plain, newKey, normalize), nil
+}
+
+// computeColumnHMAC считает свёртку по правилу столбца.
+func computeColumnHMAC(plain string, key []byte, normalize func(string) string) string {
+	if normalize != nil {
+		plain = normalize(plain)
+	}
+	return crypto.ComputeHMAC(plain, key)
 }
 
 // Reencrypt переводит паспортные и патентные поля на новый ключ.
@@ -209,7 +227,7 @@ func reencryptTable(ctx context.Context, tx *gorm.DB, table encryptedTable, opts
 		}
 
 		for _, r := range rows {
-			value, hmac, err := reencryptValue(r.Value, opts.OldKey, opts.NewKey)
+			value, hmac, err := reencryptValue(r.Value, opts.OldKey, opts.NewKey, col.normalize)
 			if err != nil {
 				return res, fmt.Errorf("%s.%s, запись %d: %w", table.name, col.value, r.ID, err)
 			}
