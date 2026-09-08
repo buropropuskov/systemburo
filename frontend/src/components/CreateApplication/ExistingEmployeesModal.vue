@@ -431,7 +431,7 @@ export default {
     border-radius: 30px;
     width: 100%;
     max-width: 900px;
-    max-height: calc(var(--app-vh, 1vh) * 85);
+    max-height: calc(var(--app-vh, 1vh) * 92);
     display: flex;
     flex-direction: column;
     overflow: hidden;
