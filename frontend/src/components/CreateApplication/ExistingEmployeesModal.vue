@@ -564,7 +564,7 @@ export default {
     flex: 1;
     overflow: hidden;
     min-height: 240px;
-    max-height: 240px;
+    max-height: min(630px, calc(var(--app-vh, 1vh) * 65));
     display: flex;
     flex-direction: column;
 }

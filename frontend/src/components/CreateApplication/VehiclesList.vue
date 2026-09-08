@@ -879,8 +879,8 @@ export default {
     color: var(--text);
 }
 
-.table-body {
-    max-height: 180px;
+.table-body { /* десять строк по 42px, дальше прокрутка */
+    max-height: 420px;
     overflow-y: auto;
     background: var(--surface);
     scrollbar-width: none;

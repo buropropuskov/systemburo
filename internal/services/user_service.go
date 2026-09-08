@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/apperr"
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -788,10 +789,23 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 		if err != nil {
 			return err
 		}
-		updates["email"] = normalized
+		// Правка идёт колонками, мимо модели, поэтому хук шифрования не сработает -
+		// шифруем здесь же (#2351). Свёртка считается от нормализованного значения:
+		// по ней проверяется занятость адреса и работает точный поиск.
+		enc, encErr := crypto.Encrypt(normalized, crypto.GetGlobalKey())
+		if encErr != nil {
+			return apperr.New(http.StatusInternalServerError, "Не удалось сохранить адрес почты")
+		}
+		updates["email"] = enc
+		updates["email_hmac"] = crypto.ComputeHMAC(models.NormalizeEmailForHMAC(normalized), crypto.GetGlobalKey())
 	}
 	if req.Phone != nil {
-		updates["phone"] = *req.Phone
+		enc, encErr := crypto.Encrypt(*req.Phone, crypto.GetGlobalKey())
+		if encErr != nil {
+			return apperr.New(http.StatusInternalServerError, "Не удалось сохранить телефон")
+		}
+		updates["phone"] = enc
+		updates["phone_hmac"] = crypto.ComputeHMAC(models.NormalizePhoneForHMAC(*req.Phone), crypto.GetGlobalKey())
 	}
 	if req.IsImportant != nil {
 		updates["is_important"] = *req.IsImportant

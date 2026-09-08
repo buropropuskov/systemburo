@@ -30,7 +30,7 @@ func TestReencryptValue_MovesToNewKey(t *testing.T) {
 	stored, err := crypto.Encrypt(passport, oldKey)
 	require.NoError(t, err)
 
-	value, hmac, err := reencryptValue(stored, oldKey, newKey)
+	value, hmac, err := reencryptValue(stored, oldKey, newKey, nil)
 	require.NoError(t, err)
 
 	back, err := crypto.Decrypt(value, newKey)
@@ -51,7 +51,7 @@ func TestReencryptValue_WrongOldKey(t *testing.T) {
 	stored, err := crypto.Encrypt("4510 123456", testKey(1))
 	require.NoError(t, err)
 
-	_, _, err = reencryptValue(stored, testKey(50), testKey(200))
+	_, _, err = reencryptValue(stored, testKey(50), testKey(200), nil)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrReencryptSourceKey))
 }
@@ -62,7 +62,7 @@ func TestReencryptValue_FromCleartext(t *testing.T) {
 	newKey := testKey(7)
 	const patent = "7712 3456789"
 
-	value, hmac, err := reencryptValue(patent, nil, newKey)
+	value, hmac, err := reencryptValue(patent, nil, newKey, nil)
 	require.NoError(t, err)
 	require.NotEqual(t, patent, value, "после перевода значение обязано быть шифротекстом")
 
@@ -81,7 +81,7 @@ func TestReencryptValue_ToCleartext(t *testing.T) {
 	stored, err := crypto.Encrypt(passport, oldKey)
 	require.NoError(t, err)
 
-	value, _, err := reencryptValue(stored, oldKey, nil)
+	value, _, err := reencryptValue(stored, oldKey, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, passport, value, "без нового ключа значение остаётся открытым")
 }
@@ -90,24 +90,52 @@ func TestReencryptValue_ToCleartext(t *testing.T) {
 // моделями, где стоят хуки шифрования: пропущенная таблица останется на старом ключе
 // молча, и обнаружится это только когда оператор откроет карточку.
 func TestEncryptedTables_CoverPassportModels(t *testing.T) {
-	want := map[string]bool{
-		"employees":             false,
-		"unique_employees":      false,
-		"application_employees": false,
+	// Ожидаемый состав: таблица -> нужна ли парная свёртка. Свёртка есть там, где по
+	// значению ищут (документы), и её нет у тела письма - по нему не ищут, шифруется
+	// оно ради самого хранения (#2377). Различать обязательно: пропавшая свёртка у
+	// паспорта ломает поиск молча, а требование свёртки у письма не дало бы внести
+	// его в перевод вовсе.
+	// Признак нужен по столбцу, а не по таблице: у документов свёртка обязана быть,
+	// у «иного разрешения» и тела письма её быть не должно - по ним не ищут.
+	wantHMAC := map[string]bool{
+		"passport_series_number": true,
+		"patent_number":          true,
+		"other_permission":       false,
+		"body":                   false,
+		"email":                  true,
+		"phone":                  true,
+		"contact_phone":          false,
 	}
+	want := map[string]bool{
+		"employees":             true,
+		"unique_employees":      true,
+		"application_employees": true,
+		"email_messages":        false,
+		"users":                 true,
+		"applications":          false,
+	}
+	seen := map[string]bool{}
 	for _, table := range encryptedTables {
 		_, known := want[table.name]
 		require.True(t, known, "таблица %s в перечне лишняя либо переименована", table.name)
-		want[table.name] = true
+		seen[table.name] = true
 
 		require.NotEmpty(t, table.columns, "у таблицы %s не указаны столбцы", table.name)
 		for _, col := range table.columns {
 			require.NotEmpty(t, col.value)
-			require.NotEmpty(t, col.hmac, "столбец %s.%s без парного HMAC: поиск сломается после перевода",
+			need, known := wantHMAC[col.value]
+			require.True(t, known, "столбец %s.%s не описан в ожиданиях: решите, нужна ли ему свёртка",
 				table.name, col.value)
+			if need {
+				require.NotEmpty(t, col.hmac, "столбец %s.%s без парного HMAC: поиск сломается после перевода",
+					table.name, col.value)
+			} else {
+				require.Empty(t, col.hmac, "у %s.%s свёртки быть не должно: по нему не ищут",
+					table.name, col.value)
+			}
 		}
 	}
-	for name, covered := range want {
-		require.True(t, covered, "таблица %s выпала из перевода", name)
+	for name := range want {
+		require.True(t, seen[name], "таблица %s выпала из перевода", name)
 	}
 }

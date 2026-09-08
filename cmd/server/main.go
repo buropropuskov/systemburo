@@ -177,6 +177,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Дошифровка идёт сразу после сверки ключа и до приёма трафика: поле, которое
+	// начали шифровать позже, чем завели, оставляет старые записи открытыми, а
+	// поиск по почте и телефону работает по свёртке, которой у них нет.
+	if _, err := database.EncryptPlaintextValues(context.Background(), db, encKey); err != nil {
+		slog.Error("дошифровка значений не выполнена", "причина", err)
+		os.Exit(1)
+	}
+
 	// Seed initial data
 	if err := database.Seed(db); err != nil {
 		slog.Error("seed failed", "error", err)

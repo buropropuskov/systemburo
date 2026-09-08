@@ -162,8 +162,8 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		cutoffArgs:   1,
 		timeColumn:   "created_at",
 		entityFilter: true,
-		defaultAge:  func(now time.Time) time.Time { return now.AddDate(-3, 0, 0) },
-		description: "история сущностей, кроме корзины и последних отметок прохода",
+		defaultAge:   func(now time.Time) time.Time { return now.AddDate(-3, 0, 0) },
+		description:  "история сущностей, кроме корзины и последних отметок прохода",
 	},
 	TargetSnapshots: {
 		table:       "table_snapshots",

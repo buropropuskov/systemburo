@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 )
 
 // Перевод паспортных данных с одного ключа шифрования на другой (#2253).
@@ -19,9 +20,21 @@ import (
 // не соответствует.
 
 // encryptedColumn - столбец с шифрованным значением и парный ему столбец HMAC.
+// Пустой hmac означает, что свёртки у поля нет: по нему не ищут, а шифруют ради
+// самого хранения (тело письма, #2377). Такой столбец переводится так же, просто
+// без второго значения в UPDATE.
 type encryptedColumn struct {
 	value string
 	hmac  string
+	// normalize приводит значение к виду, от которого считается свёртка. Пустое
+	// поле означает свёртку от значения как есть.
+	//
+	// Правило нормализации живёт рядом со столбцом, потому что оно у каждого своё:
+	// паспорт сворачивается как введён, а почта - в нижнем регистре, телефон - по
+	// одним цифрам. Без этого перевод на новый ключ считал бы контактам свёртку от
+	// сырого значения, и поиск по почте и телефону переставал бы находить записи -
+	// ровно та поломка, которую чинит EncryptPlaintextValues.
+	normalize func(string) string
 }
 
 // encryptedTable - таблица, хранящая шифрованные поля.
@@ -37,12 +50,29 @@ var encryptedTables = []encryptedTable{
 	{name: "employees", columns: passportColumns()},
 	{name: "unique_employees", columns: passportColumns()},
 	{name: "application_employees", columns: passportColumns()},
+	// Тело письма в очереди отправки (#2351). Свёртки у него нет: по телу не ищут.
+	// Без этой строки смена ключа оставляла бы письма, ещё не ушедшие адресату,
+	// нечитаемыми - сработала бы мягкая деградация, и человек не получил бы пароль,
+	// а причину искали бы в почтовом сервере, а не в смене ключа неделей раньше.
+	{name: "email_messages", columns: []encryptedColumn{{value: "body"}}},
+	// Контакты работников (#2351). Свёртки есть: по ним проверяется занятость адреса
+	// и работает точный поиск, поэтому при переводе они пересчитываются вместе со
+	// значением.
+	// Телефон заявки (#2351). Имя инициатора рядом не шифруется - это ФИО, и оно
+	// идёт в имя каталога файлового архива.
+	{name: "applications", columns: []encryptedColumn{{value: "contact_phone"}}},
+	{name: "users", columns: []encryptedColumn{
+		{value: "email", hmac: "email_hmac", normalize: models.NormalizeEmailForHMAC},
+		{value: "phone", hmac: "phone_hmac", normalize: models.NormalizePhoneForHMAC},
+	}},
 }
 
 func passportColumns() []encryptedColumn {
 	return []encryptedColumn{
 		{value: "passport_series_number", hmac: "passport_series_number_hmac"},
 		{value: "patent_number", hmac: "patent_number_hmac"},
+		// Иное разрешение шифруется с #2351. Свёртки нет: по нему не ищут.
+		{value: "other_permission"},
 	}
 }
 
@@ -77,7 +107,7 @@ type ReencryptResult struct {
 //
 // Функция отделена от базы намеренно - на ней держится вся проверка перевода, а
 // тесты пакета делят одну базу и не могут опираться на её содержимое.
-func reencryptValue(stored string, oldKey, newKey []byte) (value string, hmac string, err error) {
+func reencryptValue(stored string, oldKey, newKey []byte, normalize func(string) string) (value string, hmac string, err error) {
 	plain, err := crypto.Decrypt(stored, oldKey)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: значение не расшифровано прежним ключом", ErrReencryptSourceKey)
@@ -87,7 +117,15 @@ func reencryptValue(stored string, oldKey, newKey []byte) (value string, hmac st
 	if err != nil {
 		return "", "", fmt.Errorf("шифрование новым ключом: %w", err)
 	}
-	return value, crypto.ComputeHMAC(plain, newKey), nil
+	return value, computeColumnHMAC(plain, newKey, normalize), nil
+}
+
+// computeColumnHMAC считает свёртку по правилу столбца.
+func computeColumnHMAC(plain string, key []byte, normalize func(string) string) string {
+	if normalize != nil {
+		plain = normalize(plain)
+	}
+	return crypto.ComputeHMAC(plain, key)
 }
 
 // Reencrypt переводит паспортные и патентные поля на новый ключ.
@@ -189,13 +227,21 @@ func reencryptTable(ctx context.Context, tx *gorm.DB, table encryptedTable, opts
 		}
 
 		for _, r := range rows {
-			value, hmac, err := reencryptValue(r.Value, opts.OldKey, opts.NewKey)
+			value, hmac, err := reencryptValue(r.Value, opts.OldKey, opts.NewKey, col.normalize)
 			if err != nil {
 				return res, fmt.Errorf("%s.%s, запись %d: %w", table.name, col.value, r.ID, err)
 			}
-			update := fmt.Sprintf(`UPDATE %s SET %s = ?, %s = ? WHERE id = ?`,
-				table.name, col.value, col.hmac)
-			if err := tx.WithContext(ctx).Exec(update, value, hmac, r.ID).Error; err != nil {
+			var update string
+			var args []any
+			if col.hmac == "" {
+				update = fmt.Sprintf(`UPDATE %s SET %s = ? WHERE id = ?`, table.name, col.value)
+				args = []any{value, r.ID}
+			} else {
+				update = fmt.Sprintf(`UPDATE %s SET %s = ?, %s = ? WHERE id = ?`,
+					table.name, col.value, col.hmac)
+				args = []any{value, hmac, r.ID}
+			}
+			if err := tx.WithContext(ctx).Exec(update, args...).Error; err != nil {
 				return res, fmt.Errorf("запись %s.%s id=%d: %w", table.name, col.value, r.ID, err)
 			}
 		}
