@@ -499,6 +499,7 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 	for i := range employees {
 		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
 		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
+		employees[i].OtherPermission = crypto.DecryptOptional(employees[i].OtherPermission)
 	}
 
 	empIDs := make([]int, 0, len(employees))
