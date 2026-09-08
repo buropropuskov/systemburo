@@ -39,7 +39,12 @@ func (g Graph) Total() int64 {
 // таком «зелёном, но неверном» экспорте потерялись бы данные при реимпорте.
 func Collect(ctx context.Context, db *gorm.DB, entityType string, id int) (Graph, error) {
 	if entityType != TypeOrganization {
-		return Graph{}, fmt.Errorf("тип %q не поддерживается (v1: только %s)", entityType, TypeOrganization)
+		if entityType == TypeSubject {
+			// У человека нет числового идентификатора: цель задаётся свёрткой
+			// документа, а не id, - см. CollectSubject и команду server subject.
+			return Graph{}, fmt.Errorf("для человека нужен CollectSubject: цель задаётся документом, а не идентификатором")
+		}
+		return Graph{}, fmt.Errorf("тип %q не поддерживается (%s собирается через CollectSubject)", entityType, TypeSubject)
 	}
 	g := Graph{Type: entityType, ID: id}
 	for _, node := range organizationNodes() {

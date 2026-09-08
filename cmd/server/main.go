@@ -67,6 +67,8 @@ func main() {
 			os.Exit(runArchive(os.Args[2:]))
 		case "entity":
 			os.Exit(runEntity(os.Args[2:]))
+		case "subject":
+			os.Exit(runSubject(os.Args[2:]))
 		case "fake":
 			os.Exit(runFake(os.Args[2:]))
 		case "vapid":
