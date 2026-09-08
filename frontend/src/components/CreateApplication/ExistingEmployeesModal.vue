@@ -90,7 +90,7 @@
                 class="table-body"
               >
                 <div
-                  v-for="employee in displayedEmployees"
+                  v-for="employee in pagedEmployees"
                   :key="employee.id"
                   class="table-row rt-row range-select-row"
                   :class="{
@@ -165,6 +165,16 @@
             </div>
           </div>
 
+          <Pager
+            v-if="totalPages > 1"
+            class="modal-pager"
+            :page="currentPage"
+            :total-pages="totalPages"
+            :total="displayedEmployees.length"
+            page-prefix="Стр. "
+            @update:page="goToPage"
+          />
+
           <div class="modal-actions">
             <button
               class="lk-button lk-button--ghost"
@@ -192,10 +202,15 @@ import { apiRequest } from '@/api/client'
 import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import Pager from '@/components/ui/Pager.vue'
 import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { isSameEmployee, employeeFromCatalog } from '@/utils/applicationDuplicates'
+
+// Десять строк на страницу: в реестре у одного заявителя набирается под сотню
+// записей, и окно выбора должно листаться, а не тянуться сплошным списком (#2399).
+const РАЗМЕР_СТРАНИЦЫ = 10
 
 export default {
     name: 'ExistingEmployeesModal',
@@ -254,6 +269,7 @@ export default {
             displayedEmployees: [],
             tempSelectedEmployees: [],
             // Якорь диапазона и снимок выбора на момент его установки (#2399).
+            currentPage: 1,
             selectionAnchorId: null,
             selectionBase: [],
             currentFilter: 'all',
@@ -285,6 +301,18 @@ export default {
         document.removeEventListener('keydown', this.handleKeydown)
         releaseBodyScrollLock(this);
     },
+    computed: {
+        totalPages() {
+            return Math.max(1, Math.ceil(this.displayedEmployees.length / РАЗМЕР_СТРАНИЦЫ))
+        },
+
+        /** Строки текущей страницы - они на экране, по ним же считается Shift-диапазон. */
+        pagedEmployees() {
+            const от = (this.currentPage - 1) * РАЗМЕР_СТРАНИЦЫ
+            return this.displayedEmployees.slice(от, от + РАЗМЕР_СТРАНИЦЫ)
+        },
+    },
+
     methods: {
         handleKeydown(e) {
             if (!this.visible) return
@@ -314,11 +342,19 @@ export default {
             }
         },
 
+        goToPage(page) {
+            this.currentPage = Math.min(Math.max(1, page), this.totalPages)
+        },
+
         handleSearch() {
             this.applySearch()
         },
 
         applySearch() {
+            // Новая выдача - снова с первой страницы: иначе поиск, начатый на третьей,
+            // показывает пустоту при непустом результате.
+            this.currentPage = 1
+
             if (!this.searchQuery.trim()) {
                 this.displayedEmployees = [...this.filteredEmployees]
                 return
@@ -357,7 +393,7 @@ export default {
             if (this.isEmployeeDisabled(employee)) return
 
             if (event && event.shiftKey && this.selectionAnchorId !== null) {
-                const диапазон = itemsInRange(this.displayedEmployees, this.selectionAnchorId, employee.id,
+                const диапазон = itemsInRange(this.pagedEmployees, this.selectionAnchorId, employee.id,
                     { isDisabled: (i) => this.isEmployeeDisabled(i) })
                 if (диапазон.length) {
                     this.tempSelectedEmployees = mergeSelection(this.selectionBase, диапазон)
