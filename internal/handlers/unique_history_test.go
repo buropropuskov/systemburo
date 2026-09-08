@@ -202,7 +202,7 @@ func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
 		Mark:   mark,
 		UpdateData: services.NewUniqueCarRequest{
 			Number:         number,
-			Mark:           mark,
+			Mark:           &mark,
 			OrganizationID: &td.OrgID,
 			CompanyID:      &td.CompanyID,
 			FormatID:       &formatNew,
@@ -380,7 +380,7 @@ func TestUniqueCarService_GetHistory_ReturnsRecords(t *testing.T) {
 		Mark:   mark,
 		UpdateData: services.NewUniqueCarRequest{
 			Number:         number,
-			Mark:           mark,
+			Mark:           &mark,
 			OrganizationID: &td.OrgID,
 			CompanyID:      &td.CompanyID,
 			FormatID:       &formatNew,
