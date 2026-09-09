@@ -46,6 +46,10 @@ func TestPDSubjectAPI_ReportAndExport(t *testing.T) {
 		rec := testutil.GET(t, e, "/pd-subject/candidates?fio=Разделов%20Кирилл", h)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Разделов")
+		// Строки склеены по документу: один человек - один пункт списка, сколько за
+		// ним записей, видно счётчиками. Иначе по одному работнику выходило десять
+		// пунктов, и выбрать было не из чего.
+		assert.Contains(t, rec.Body.String(), `"registry_rows"`)
 	})
 
 	t.Run("состав сведений содержит разделы и основание", func(t *testing.T) {

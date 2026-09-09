@@ -45,7 +45,14 @@ describe('PdSubjectView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findSubjectCandidates.mockResolvedValue([
-      { source: 'реестр', id: 8, full_name: 'Иванов Иван', has_document: true },
+      {
+        full_name: 'Иванов Иван',
+        registry_id: 8,
+        employee_id: 0,
+        registry_rows: 3,
+        application_rows: 7,
+        has_document: true,
+      },
     ]);
     fetchSubjectReport.mockResolvedValue(REPORT);
     fetchSubjectDisclosures.mockResolvedValue([]);
@@ -108,5 +115,42 @@ describe('PdSubjectExportModal', () => {
     await wrapper.find('[data-testid="pdse-recipient"]').setValue('УМВД');
     await wrapper.find('[data-testid="pdse-request"]').setValue('исх. 1');
     expect(submit.attributes('disabled')).toBeUndefined();
+  });
+
+  it('строки одного человека склеены: один пункт вместо десяти, счётчики рядом', async () => {
+    const wrapper = mountView();
+    await wrapper.find('[data-testid="pds-fio"]').setValue('Иванов Иван');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    // Три записи реестра и семь строк в заявках - это один человек с одним паспортом.
+    // Раньше список показывал их десятью пунктами, и выбрать было не из чего.
+    expect(wrapper.findAll('.pds__item')).toHaveLength(1);
+    expect(wrapper.text()).toContain('в реестре: 3');
+    expect(wrapper.text()).toContain('в заявках: 7');
+  });
+
+  it('человек без записи реестра собирается от строки заявки', async () => {
+    findSubjectCandidates.mockResolvedValue([
+      {
+        full_name: 'Заявкин Пётр',
+        registry_id: 0,
+        employee_id: 42,
+        registry_rows: 0,
+        application_rows: 2,
+        has_document: true,
+      },
+    ]);
+
+    const wrapper = mountView();
+    await wrapper.find('[data-testid="pds-fio"]').setValue('Заявкин Пётр');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    await wrapper.find('[data-testid="pds-collect"]').trigger('click');
+    await flushPromises();
+
+    // Записи реестра у него нет вовсе - таких людей на стенде 22, и запрос органа
+    // может прийти именно о них.
+    expect(fetchSubjectReport).toHaveBeenCalledWith({ registryId: 0, employeeId: 42 });
   });
 });

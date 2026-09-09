@@ -95,23 +95,59 @@ func SubjectTargetFromRegistry(ctx context.Context, db *gorm.DB, registryID int)
 	return t, nil
 }
 
-// SubjectCandidate - запись, похожая на цель по имени. Не часть графа: список нужен,
-// чтобы человек решил, тот ли это работник, и запустил сбор по его документу.
+// SubjectTargetFromEmployee строит цель по строке заявки. Нужна тем, у кого записи
+// реестра нет вовсе: человек попал в систему одной подачей и живёт только в заявке.
+// Таких на стенде 22, и запрос государственного органа может прийти именно о нём.
+func SubjectTargetFromEmployee(ctx context.Context, db *gorm.DB, employeeID int) (SubjectTarget, error) {
+	var row struct {
+		PassportSeriesNumberHMAC *string
+		PatentNumberHMAC         *string
+	}
+	err := db.WithContext(ctx).Table("employees").
+		Select("passport_series_number_hmac, patent_number_hmac").
+		Where("id = ?", employeeID).Scan(&row).Error
+	if err != nil {
+		return SubjectTarget{}, fmt.Errorf("чтение строки заявки %d: %w", employeeID, err)
+	}
+
+	t := SubjectTarget{Origin: fmt.Sprintf("по строке заявки %d", employeeID)}
+	if row.PassportSeriesNumberHMAC != nil {
+		t.PassportHMAC = *row.PassportSeriesNumberHMAC
+	}
+	if row.PatentNumberHMAC != nil {
+		t.PatentHMAC = *row.PatentNumberHMAC
+	}
+	return t, nil
+}
+
+// SubjectCandidate - один человек, найденный по имени: строки склеены по документу.
+//
+// Раньше список отдавал каждую строку отдельно, и по одному человеку выходило десять
+// пунктов: три записи реестра и семь упоминаний в заявках. Разбираться в них негде -
+// решение принимают про ЧЕЛОВЕКА, а не про строку. Поэтому одна запись списка = один
+// документ, а сколько за ней строк, видно счётчиками.
 type SubjectCandidate struct {
-	Source   string
-	ID       int
 	FullName string
-	// HasDocument - есть ли у записи свёртка паспорта. Без документа склеить человека
-	// не по чему: команда show по такой записи работать не сможет.
+	// RegistryID - запись реестра, если она есть. Ноль означает, что человек
+	// встречается только в заявках; собирать тогда нужно от строки заявки.
+	RegistryID int
+	// EmployeeID - строка заявки, от которой можно собрать сведения, когда записи
+	// реестра нет. Таких людей на стенде 22 - без них по ним нельзя ответить органу.
+	EmployeeID int
+	// RegistryRows/ApplicationRows - сколько строк за этим человеком.
+	RegistryRows    int
+	ApplicationRows int
+	// HasDocument - есть ли документ. Без него склеить человека не по чему, и такая
+	// строка остаётся в списке лишь затем, чтобы человек увидел: запись есть, но
+	// собрать по ней нечего.
 	HasDocument bool
 }
 
-// FindSubjectCandidatesByFIO ищет записи с таким же именем в реестре и среди участников
-// заявок. Именно ищет, а не склеивает: см. правило пакета выше.
+// FindSubjectCandidatesByFIO ищет людей с таким именем, склеивая строки по документу.
 //
-// Отчество необязательно: в запросе государственного органа его часто нет вовсе, и
-// поиск, требующий полного совпадения тройки, не нашёл бы человека, который в системе
-// заведён с отчеством. Поэтому сравниваются те части, что заданы.
+// Именно ищет, а не решает за человека: см. правило пакета выше. Отчество
+// необязательно - в запросе государственного органа его часто нет вовсе, и поиск,
+// требующий полного совпадения тройки, не нашёл бы человека, заведённого с отчеством.
 func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, middle string) ([]SubjectCandidate, error) {
 	last, first, middle = normalize.Name(last), normalize.Name(first), normalize.Name(middle)
 	if last == "" || first == "" {
@@ -119,42 +155,69 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 	}
 
 	// Нормализация повторяет normalize.Name: нижний регистр, «ё» как «е», обрезанные
-	// края. Иначе «Пётр» не нашёл бы «Петра», а список кандидатов пустел бы ровно там,
-	// где он нужнее всего.
+	// края. Иначе «Пётр» не нашёл бы «Петра».
 	const norm = "TRIM(LOWER(REPLACE(COALESCE(%s, ''), 'ё', 'е')))"
 	where := fmt.Sprintf(norm, "last_name") + " = @last AND " + fmt.Sprintf(norm, "first_name") + " = @first"
 	if middle != "" {
 		where += " AND " + fmt.Sprintf(norm, "middle_name") + " = @middle"
 	}
 
-	out := make([]SubjectCandidate, 0)
-	for _, src := range []struct{ table, label string }{
-		{"unique_employees", "реестр"},
-		{"employees", "участник заявки"},
-	} {
-		var rows []struct {
-			ID                       int
-			FullName                 string
-			PassportSeriesNumberHMAC *string
+	type row struct {
+		Source   string
+		ID       int
+		FullName string
+		DocKey   string
+	}
+	var rows []row
+	q := fmt.Sprintf(`
+		SELECT 'registry' AS source, id,
+			TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)) AS full_name,
+			COALESCE(NULLIF(passport_series_number_hmac, ''), NULLIF(patent_number_hmac, ''), '') AS doc_key
+		FROM unique_employees WHERE %[1]s
+		UNION ALL
+		SELECT 'application', id,
+			TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)),
+			COALESCE(NULLIF(passport_series_number_hmac, ''), NULLIF(patent_number_hmac, ''), '')
+		FROM employees WHERE %[1]s
+		ORDER BY 1, 2`, where)
+	err := db.WithContext(ctx).Raw(q,
+		sql.Named("last", last), sql.Named("first", first), sql.Named("middle", middle)).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("поиск по имени: %w", err)
+	}
+
+	// Ключ склейки - свёртка документа. Строку без документа склеивать не по чему,
+	// поэтому она остаётся сама по себе.
+	order := make([]string, 0, len(rows))
+	byKey := make(map[string]*SubjectCandidate, len(rows))
+	for _, r := range rows {
+		key := r.DocKey
+		if key == "" {
+			key = fmt.Sprintf("%s-%d", r.Source, r.ID)
 		}
-		q := fmt.Sprintf(`SELECT id,
-				TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)) AS full_name,
-				passport_series_number_hmac
-			FROM %s WHERE %s ORDER BY id`, src.table, where)
-		err := db.WithContext(ctx).Raw(q,
-			sql.Named("last", last), sql.Named("first", first), sql.Named("middle", middle)).
-			Scan(&rows).Error
-		if err != nil {
-			return nil, fmt.Errorf("поиск по имени в %s: %w", src.table, err)
+		c, ok := byKey[key]
+		if !ok {
+			c = &SubjectCandidate{FullName: r.FullName, HasDocument: r.DocKey != ""}
+			byKey[key] = c
+			order = append(order, key)
 		}
-		for _, r := range rows {
-			out = append(out, SubjectCandidate{
-				Source:      src.label,
-				ID:          r.ID,
-				FullName:    r.FullName,
-				HasDocument: r.PassportSeriesNumberHMAC != nil && *r.PassportSeriesNumberHMAC != "",
-			})
+		if r.Source == "registry" {
+			c.RegistryRows++
+			if c.RegistryID == 0 {
+				c.RegistryID = r.ID
+			}
+			continue
 		}
+		c.ApplicationRows++
+		if c.EmployeeID == 0 {
+			c.EmployeeID = r.ID
+		}
+	}
+
+	out := make([]SubjectCandidate, 0, len(order))
+	for _, key := range order {
+		out = append(out, *byKey[key])
 	}
 	return out, nil
 }

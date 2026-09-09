@@ -50,25 +50,25 @@
         <ul class="pds__list">
           <li
             v-for="c in candidates"
-            :key="`${c.source}-${c.id}`"
+            :key="`${c.registry_id}-${c.employee_id}`"
             class="pds__item"
-            :class="{ 'pds__item--active': c.id === selectedId && c.source === 'реестр' }"
+            :class="{ 'pds__item--active': isSelected(c) }"
           >
             <span class="pds__item-name">{{ c.full_name }}</span>
-            <span class="pds__item-source">{{ c.source }}</span>
+            <span class="pds__item-source">{{ whereFound(c) }}</span>
             <button
-              v-if="c.source === 'реестр' && c.has_document"
+              v-if="c.has_document"
               class="lk-button lk-button--secondary lk-button--sm"
               type="button"
               data-testid="pds-collect"
-              @click="collect(c.id)"
+              @click="collect(c)"
             >
               Собрать сведения
             </button>
             <span
               v-else
               class="pds__item-muted"
-            >{{ c.has_document ? 'откройте запись реестра' : 'нет документа' }}</span>
+            >нет документа</span>
           </li>
         </ul>
       </div>
@@ -205,7 +205,7 @@ const exportOpen = ref(false);
 const candidates = ref([]);
 const report = ref(null);
 const disclosures = ref([]);
-const selectedId = ref(0);
+const selected = ref({ registryId: 0, employeeId: 0 });
 const reportBlock = ref(null);
 
 const canExport = computed(() => permissions.hasPermission('action.pd_subject.export'));
@@ -225,7 +225,7 @@ async function search() {
   try {
     candidates.value = await findSubjectCandidates(fio.value);
     report.value = null;
-    selectedId.value = 0;
+    selected.value = { registryId: 0, employeeId: 0 };
     if (!candidates.value.length) deletions.notify({ bold: 'Записей с таким именем не найдено' });
   } catch (e) {
     deletions.notify({ prefix: 'Не удалось ', bold: 'выполнить поиск', suffix: `: ${e.message}`, type: 'error' });
@@ -234,12 +234,27 @@ async function search() {
   }
 }
 
-async function collect(registryId) {
+/** Где человек встречается: строки склеены по документу, поэтому здесь счётчики. */
+function whereFound(c) {
+  const parts = [];
+  if (c.registry_rows) parts.push(`в реестре: ${c.registry_rows}`);
+  if (c.application_rows) parts.push(`в заявках: ${c.application_rows}`);
+  return parts.join(', ') || 'нет записей';
+}
+
+function isSelected(c) {
+  return (c.registry_id && c.registry_id === selected.value.registryId)
+    || (c.employee_id && c.employee_id === selected.value.employeeId);
+}
+
+async function collect(candidate) {
   loading.value = true;
   try {
-    selectedId.value = registryId;
-    report.value = await fetchSubjectReport(registryId);
-    disclosures.value = await fetchSubjectDisclosures(registryId);
+    // У человека без записи реестра собираем от строки заявки: иначе по нему нельзя
+    // ответить государственному органу вовсе.
+    selected.value = { registryId: candidate.registry_id, employeeId: candidate.employee_id };
+    report.value = await fetchSubjectReport(selected.value);
+    disclosures.value = await fetchSubjectDisclosures(selected.value);
     // Сведения появляются НИЖЕ списка найденных записей, за краем экрана: без
     // прокрутки клик выглядит как «ничего не произошло» (претензия при ручной
     // проверке). Прокручивает ближайший скроллящийся предок - обёртка админской
@@ -256,12 +271,16 @@ async function collect(registryId) {
 async function runExport(form) {
   exporting.value = true;
   try {
-    const { blob, filename } = await exportSubjectReport({ ...form, registry_id: selectedId.value });
+    const { blob, filename } = await exportSubjectReport({
+      ...form,
+      registry_id: selected.value.registryId,
+      employee_id: selected.value.employeeId,
+    });
     downloadBlob(blob, filename);
     exportOpen.value = false;
     // Журнал перечитываем сразу: выдача уже состоялась, и человек должен увидеть её
     // запись, а не гадать, попала ли она туда.
-    disclosures.value = await fetchSubjectDisclosures(selectedId.value);
+    disclosures.value = await fetchSubjectDisclosures(selected.value);
     deletions.notify({ bold: 'Справка выгружена', suffix: ', выдача внесена в журнал' });
   } catch (e) {
     deletions.notify({ prefix: 'Не удалось ', bold: 'выгрузить справку', suffix: `: ${e.message}`, type: 'error' });
@@ -271,8 +290,12 @@ async function runExport(form) {
 }
 
 function refresh() {
-  if (selectedId.value) collect(selectedId.value);
-  else if (fio.value.trim()) search();
+  const { registryId, employeeId } = selected.value;
+  if (registryId || employeeId) {
+    collect({ registry_id: registryId, employee_id: employeeId });
+    return;
+  }
+  if (fio.value.trim()) search();
 }
 </script>
 

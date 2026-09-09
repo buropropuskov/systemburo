@@ -21,15 +21,22 @@ export async function findSubjectCandidates(fio) {
   return (await readJson(response)) || [];
 }
 
-/** Состав сведений о человеке по записи реестра. */
-export async function fetchSubjectReport(registryId) {
-  const response = await apiRequest(`/pd-subject/report?registry_id=${registryId}`);
+/**
+ * Состав сведений о человеке. Цель - запись реестра ИЛИ строка заявки: у человека,
+ * попавшего в систему одной подачей, записи реестра нет вовсе.
+ */
+export async function fetchSubjectReport({ registryId, employeeId }) {
+  const q = registryId ? `registry_id=${registryId}` : `employee_id=${employeeId}`;
+  const response = await apiRequest(`/pd-subject/report?${q}`);
   return readJson(response);
 }
 
 /** Журнал выдач: весь или по одному человеку. */
-export async function fetchSubjectDisclosures(registryId) {
-  const q = registryId ? `?registry_id=${registryId}` : '';
+export async function fetchSubjectDisclosures(target = {}) {
+  const { registryId, employeeId } = target;
+  let q = '';
+  if (registryId) q = `?registry_id=${registryId}`;
+  else if (employeeId) q = `?employee_id=${employeeId}`;
   const response = await apiRequest(`/pd-subject/disclosures${q}`);
   return (await readJson(response)) || [];
 }

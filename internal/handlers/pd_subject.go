@@ -51,11 +51,12 @@ func (h *PDSubjectHandler) Find(c echo.Context) error {
 // @Success      200 {object} pdsubject.ReportResponse
 // @Router       /pd-subject/report [get]
 func (h *PDSubjectHandler) Report(c echo.Context) error {
-	registryID, err := strconv.Atoi(c.QueryParam("registry_id"))
-	if err != nil || registryID <= 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "registry_id обязателен")
+	registryID, _ := strconv.Atoi(c.QueryParam("registry_id"))
+	employeeID, _ := strconv.Atoi(c.QueryParam("employee_id"))
+	if registryID <= 0 && employeeID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "укажите registry_id или employee_id")
 	}
-	resp, err := h.service.Report(c.Request().Context(), registryID)
+	resp, err := h.service.Report(c.Request().Context(), registryID, employeeID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
@@ -106,11 +107,12 @@ func (h *PDSubjectHandler) Export(c echo.Context) error {
 // @Router       /pd-subject/disclosures [get]
 func (h *PDSubjectHandler) Disclosures(c echo.Context) error {
 	registryID, _ := strconv.Atoi(c.QueryParam("registry_id"))
+	employeeID, _ := strconv.Atoi(c.QueryParam("employee_id"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	entries, err := h.service.Disclosures(c.Request().Context(), registryID, limit)
+	entries, err := h.service.Disclosures(c.Request().Context(), registryID, employeeID, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

@@ -261,17 +261,23 @@ func subjectFind(args []string) int {
 		fmt.Println("Записей с таким именем не найдено.")
 		return 0
 	}
-	fmt.Printf("Найдено записей с таким именем: %d\n", len(candidates))
-	fmt.Println("Это НЕ обязательно один человек - однофамильцы существуют.")
-	fmt.Println("Собрать данные можно по записи с документом: server subject show -registry-id=N")
+	fmt.Printf("Найдено людей с таким именем: %d\n", len(candidates))
+	fmt.Println("Это НЕ обязательно один человек - однофамильцы существуют. Строки склеены")
+	fmt.Println("по документу: сколько за человеком записей, видно в столбцах справа.")
 	fmt.Println()
-	fmt.Println(" ", padRight("Источник", 18), padRight("ID", 8), padRight("ФИО", 40), "Документ")
+	fmt.Println(" ", padRight("ФИО", 34), padRight("Реестр", 9), padRight("Заявки", 9), "Собрать")
 	for _, c := range candidates {
-		doc := "нет"
-		if c.HasDocument {
-			doc = "есть"
+		how := "нет документа"
+		switch {
+		case !c.HasDocument:
+		case c.RegistryID > 0:
+			how = fmt.Sprintf("-registry-id=%d", c.RegistryID)
+		default:
+			how = fmt.Sprintf("-employee-id=%d", c.EmployeeID)
 		}
-		fmt.Println(" ", padRight(c.Source, 18), padRight(strconv.Itoa(c.ID), 8), padRight(c.FullName, 40), doc)
+		fmt.Println(" ", padRight(c.FullName, 34),
+			padRight(strconv.Itoa(c.RegistryRows), 9),
+			padRight(strconv.Itoa(c.ApplicationRows), 9), how)
 	}
 	return 0
 }
