@@ -73,8 +73,16 @@
         </ul>
       </div>
 
+      <p
+        v-if="loading && !report"
+        class="pds__note"
+      >
+        Собираем сведения...
+      </p>
+
       <div
         v-if="report"
+        ref="reportBlock"
         class="pds__report"
       >
         <div class="pds__report-head">
@@ -173,7 +181,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import PdSubjectExportModal from '@/components/admin/PdSubjectExportModal.vue';
@@ -198,6 +206,7 @@ const candidates = ref([]);
 const report = ref(null);
 const disclosures = ref([]);
 const selectedId = ref(0);
+const reportBlock = ref(null);
 
 const canExport = computed(() => permissions.hasPermission('action.pd_subject.export'));
 
@@ -231,6 +240,12 @@ async function collect(registryId) {
     selectedId.value = registryId;
     report.value = await fetchSubjectReport(registryId);
     disclosures.value = await fetchSubjectDisclosures(registryId);
+    // Сведения появляются НИЖЕ списка найденных записей, за краем экрана: без
+    // прокрутки клик выглядит как «ничего не произошло» (претензия при ручной
+    // проверке). Прокручивает ближайший скроллящийся предок - обёртка админской
+    // страницы, а не окно.
+    await nextTick();
+    reportBlock.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
     deletions.notify({ prefix: 'Не удалось ', bold: 'собрать сведения', suffix: `: ${e.message}`, type: 'error' });
   } finally {
