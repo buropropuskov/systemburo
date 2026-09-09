@@ -48,7 +48,9 @@ func TestBuildSubjectReport_CollectsSections(t *testing.T) {
 	// Даты доступа во вложении задаём обязательно: они хранятся строкой, а не датой,
 	// и без них раздел «Заявки» собирался бы на пустых значениях - именно так тест и
 	// пропустил ошибку типа, которая на стенде роняла всю справку.
-	dateFrom, dateTo := "01.09.2026", "30.09.2026"
+	// В базе даты доступа лежат строкой в виде «2026-09-01» - именно так их пишет
+	// форма подачи. В справке они обязаны читаться как везде в системе: 01.09.2026.
+	dateFrom, dateTo := "2026-09-01", "2026-09-30"
 	att := models.Attachment{
 		ApplicationID: &app.ID, OrganizationID: &org.ID,
 		EntryDateFrom: &dateFrom, EntryDateTo: &dateTo,
@@ -103,8 +105,8 @@ func TestBuildSubjectReport_CollectsSections(t *testing.T) {
 		require.Len(t, rows, 1)
 		assert.Equal(t, number, rows[0][0])
 		assert.Equal(t, status, rows[0][1])
-		assert.Equal(t, dateFrom, rows[0][5], "даты доступа хранятся строкой и обязаны попасть в справку как есть")
-		assert.Equal(t, dateTo, rows[0][6])
+		assert.Equal(t, "01.09.2026", rows[0][5], "дата доступа обязана быть в принятом в системе виде")
+		assert.Equal(t, "30.09.2026", rows[0][6])
 	})
 
 	t.Run("проходы: событие и пост", func(t *testing.T) {

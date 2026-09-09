@@ -55,6 +55,7 @@
             :class="{ 'pds__item--active': isSelected(c) }"
           >
             <span class="pds__item-name">{{ c.full_name }}</span>
+            <span class="pds__item-marks">{{ marksOf(c) }}</span>
             <span class="pds__item-source">{{ whereFound(c) }}</span>
             <button
               v-if="c.has_document"
@@ -234,6 +235,18 @@ async function search() {
   }
 }
 
+/**
+ * Чем этот человек отличается от однофамильцев: организация, должность и хвост
+ * документа. Без них три записи с одним ФИО выглядят одинаково, и выбрать не из чего.
+ */
+function marksOf(c) {
+  const parts = [];
+  if (c.document_tail) parts.push(`документ …${c.document_tail}`);
+  if (c.organization) parts.push(c.organization);
+  if (c.position) parts.push(c.position);
+  return parts.join(' · ');
+}
+
 /** Где человек встречается: строки склеены по документу, поэтому здесь счётчики. */
 function whereFound(c) {
   const parts = [];
@@ -372,6 +385,12 @@ function refresh() {
 .pds__item-name {
   font-weight: 500;
   min-width: 220px;
+}
+
+.pds__item-marks {
+  color: var(--text);
+  font-size: 13px;
+  flex: 1;
 }
 
 .pds__item-source,

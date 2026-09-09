@@ -51,6 +51,11 @@ type Candidate struct {
 	RegistryRows    int  `json:"registry_rows"`
 	ApplicationRows int  `json:"application_rows"`
 	HasDocument     bool `json:"has_document"`
+	// Чем однофамильцы отличаются друг от друга. Без этого список трёх людей с одним
+	// ФИО выглядит как три одинаковые строки.
+	Organization string `json:"organization,omitempty"`
+	Position     string `json:"position,omitempty"`
+	DocumentTail string `json:"document_tail,omitempty"`
 }
 
 // FindByName ищет кандидатов по имени. Склейка по имени не делается: решает человек.
@@ -77,6 +82,9 @@ func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, erro
 			RegistryRows:    c.RegistryRows,
 			ApplicationRows: c.ApplicationRows,
 			HasDocument:     c.HasDocument,
+			Organization:    c.Organization,
+			Position:        c.Position,
+			DocumentTail:    c.DocumentTail,
 		})
 	}
 	return out, nil

@@ -153,4 +153,43 @@ describe('PdSubjectExportModal', () => {
     // может прийти именно о них.
     expect(fetchSubjectReport).toHaveBeenCalledWith({ registryId: 0, employeeId: 42 });
   });
+
+  it('однофамильцы различаются по документу и организации', async () => {
+    findSubjectCandidates.mockResolvedValue([
+      {
+        full_name: 'Мякотных Сергей',
+        registry_id: 4,
+        employee_id: 0,
+        registry_rows: 1,
+        application_rows: 5,
+        has_document: true,
+        organization: 'Отдел контроля доступа',
+        position: 'Работник',
+        document_tail: '2135',
+      },
+      {
+        full_name: 'Мякотных Сергей',
+        registry_id: 6,
+        employee_id: 0,
+        registry_rows: 1,
+        application_rows: 1,
+        has_document: true,
+        organization: 'Бюро пропусков',
+        position: 'Монтажник',
+        document_tail: '7788',
+      },
+    ]);
+
+    const wrapper = mountView();
+    await wrapper.find('[data-testid="pds-fio"]').setValue('Мякотных Сергей');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    // Три одинаковые строки «Мякотных С.» - это то, на чём споткнулась ручная
+    // проверка: выбрать было не из чего.
+    const text = wrapper.text();
+    expect(text).toContain('документ …2135');
+    expect(text).toContain('документ …7788');
+    expect(text).toContain('Отдел контроля доступа');
+  });
 });
