@@ -28,6 +28,8 @@ type EmployeeService interface {
 	// Аналогично UpdateCarTerritoryStatus: пишет в employees_history запись
 	// с action_type=entry/exit, обновляет territory_status + territory_entry_time.
 	UpdateEmployeeTerritoryStatus(ctx context.Context, employeeID int, req UpdateTerritoryStatusRequest) error
+	// RevertEmployeePassage отменяет последнюю отметку прохода сотрудника (#2437).
+	RevertEmployeePassage(ctx context.Context, employeeID int, req RevertPassageRequest) error
 	// DeactivateEmployee деактивирует сотрудника (мягкое удаление) и пишет в историю.
 	DeactivateEmployee(ctx context.Context, employeeID int, req DeactivateEmployeeRequest) error
 	// ActivateEmployee вводит сотрудника в работу и пишет в историю.
@@ -657,6 +659,16 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 	// (#840 V2.3).
 	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
 
+	return nil
+}
+
+// RevertEmployeePassage отменяет последнюю отметку прохода сотрудника и откатывает
+// его территориальный статус (#2437). Полный аналог RevertCarPassage.
+func (s *employeeService) RevertEmployeePassage(ctx context.Context, employeeID int, req RevertPassageRequest) error {
+	if err := revertPassage(ctx, s.db, s.recorder, time.Now, models.AuditEntityEmployee, employeeID, req); err != nil {
+		return err
+	}
+	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
 	return nil
 }
 

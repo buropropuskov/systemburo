@@ -35,6 +35,7 @@ type carHistoryRow struct {
 	Company       *string
 	TableID       *int
 	TableName     *string
+	Reverted      bool
 }
 
 // GetCarHistory возвращает историю конкретного автомобиля.
@@ -62,6 +63,7 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 			h.metadata::text AS metadata,
 			h.table_id,
 			st.display_name AS table_name,
+			h.reverted,
 			app.id AS application_id
 		FROM `+carsHistoryUnion+` h
 		LEFT JOIN users u ON h.user_id = u.id
@@ -116,6 +118,7 @@ type allCarsHistoryRow struct {
 	Company      *string
 	TableID      *int
 	TableName    *string
+	Reverted     bool
 }
 
 // allCarsHistorySelectSQL - общая часть выборки истории въездов/выездов;
@@ -138,7 +141,8 @@ const allCarsHistorySelectSQL = `
 		COALESCE(o.name, '') AS organization,
 		COALESCE(c2.name, '') AS company,
 		h.table_id,
-		st.display_name AS table_name
+		st.display_name AS table_name,
+		h.reverted
 	FROM ` + carsHistoryUnion + ` h
 	LEFT JOIN users u ON h.user_id = u.id
 	JOIN cars c ON h.car_id = c.id
@@ -209,6 +213,7 @@ func mapAllCarsHistoryRows(rows []allCarsHistoryRow) []AllCarsHistoryItem {
 			Company:      r.Company,
 			TableID:      r.TableID,
 			TableName:    r.TableName,
+			Reverted:     r.Reverted,
 		})
 	}
 	return items
@@ -282,6 +287,7 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 			COALESCE(c2.name, '') AS company,
 			h.table_id,
 			st.display_name AS table_name,
+			h.reverted,
 			app.id AS application_id
 		FROM `+carsHistoryUnion+` h
 		LEFT JOIN users u ON h.user_id = u.id
@@ -335,6 +341,7 @@ func (s *carService) mapHistoryRows(rows []carHistoryRow, includeCarInfo bool) [
 			Metadata:      metadata,
 			TableID:       r.TableID,
 			TableName:     r.TableName,
+			Reverted:      r.Reverted,
 		}
 		if includeCarInfo {
 			item.CarNumber = r.CarNumber

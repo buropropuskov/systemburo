@@ -1444,6 +1444,49 @@ definitions:
       username:
         type: string
     type: object
+  models.PDDisclosure:
+    properties:
+      basis:
+        description: 'Basis - основание выдачи своими словами: запрос органа, обращение
+          субъекта.'
+        type: string
+      created_at:
+        type: string
+      files:
+        description: |-
+          Files - имена созданных файлов. Путь целиком не пишем: он привязан к машине,
+          а журнал переживает переезд.
+        type: string
+      id:
+        type: integer
+      issued_by:
+        description: |-
+          IssuedBy - кто выдал. Для консольной выдачи это не учётная запись системы, а
+          оператор сервера, поэтому текст, а не ссылка на пользователя.
+        type: string
+      issued_by_user_id:
+        description: IssuedByUserID - учётная запись, если выдача шла через интерфейс.
+        type: integer
+      recipient:
+        description: 'Recipient - кому выданы сведения: наименование органа или «субъекту
+          лично».'
+        type: string
+      request_ref:
+        description: 'RequestRef - реквизиты запроса: номер и дата письма, по которому
+          выдано.'
+        type: string
+      scope:
+        description: |-
+          Scope - объём выданного: сколько строк ушло по каждому разделу справки.
+          Строкой, а не числом: разделы меняются, а запись журнала обязана остаться
+          читаемой такой, какой её составили.
+        type: string
+      subject_name:
+        description: |-
+          SubjectName - ФИО человека на момент выдачи. Нужно, чтобы журнал читался
+          человеком: по свёртке проверяющий ничего не поймёт.
+        type: string
+    type: object
   models.PeakHoursInsight:
     properties:
       hourly:
@@ -2971,6 +3014,68 @@ definitions:
     required:
     - message
     type: object
+  pdsubject.Candidate:
+    properties:
+      full_name:
+        type: string
+      has_document:
+        type: boolean
+      id:
+        type: integer
+      source:
+        type: string
+    type: object
+  pdsubject.ExportRequest:
+    properties:
+      basis:
+        maxLength: 1000
+        type: string
+      format:
+        enum:
+        - xlsx
+        - pdf
+        type: string
+      recipient:
+        maxLength: 300
+        type: string
+      registry_id:
+        type: integer
+      request_ref:
+        maxLength: 300
+        type: string
+    required:
+    - recipient
+    - registry_id
+    - request_ref
+    type: object
+  pdsubject.ReportResponse:
+    properties:
+      basis:
+        type: string
+      origin:
+        type: string
+      sections:
+        items:
+          $ref: '#/definitions/pdsubject.Section'
+        type: array
+      total:
+        type: integer
+    type: object
+  pdsubject.Section:
+    properties:
+      headers:
+        items:
+          type: string
+        type: array
+      rows:
+        items:
+          items:
+            type: string
+          type: array
+        type: array
+      title:
+        type: string
+    type: object
   services.ActivateCarRequest:
     properties:
       user_id:
@@ -3041,6 +3146,8 @@ definitions:
         type: integer
       organization:
         type: string
+      reverted:
+        type: boolean
       table_id:
         type: integer
       table_name:
@@ -3736,6 +3843,11 @@ definitions:
         type: string
       organization:
         type: string
+      reverted:
+        description: |-
+          Reverted - отметка прохода отменена как ошибочная (#2437). Запись остаётся в
+          журнале и показывается с пометкой, но в цифрах не участвует.
+        type: boolean
       table_id:
         type: integer
       table_name:
@@ -4358,6 +4470,11 @@ definitions:
         type: string
       organization:
         type: string
+      reverted:
+        description: |-
+          Reverted - отметка прохода отменена как ошибочная (#2437): в журнале видна с
+          пометкой, в цифрах не участвует.
+        type: boolean
       table_id:
         type: integer
       table_name:
@@ -5088,6 +5205,15 @@ definitions:
   services.RestoreEmployeeRequest:
     properties:
       user_id:
+        type: integer
+    type: object
+  services.RevertPassageRequest:
+    properties:
+      reason:
+        type: string
+      table_id:
+        type: integer
+      territory_status:
         type: integer
     type: object
   services.RevokeApprovalRequest:
@@ -10146,6 +10272,35 @@ paths:
       summary: Обновление статуса нахождения автомобиля на территории
       tags:
       - cars
+  /cars/{id}/territory-status/revert:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Направление отменяемой отметки, пост и причина
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.RevertPassageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Отмена ошибочной отметки проезда машины
+      tags:
+      - cars
   /cars/active-for-table/{table_id}:
     get:
       parameters:
@@ -12330,6 +12485,35 @@ paths:
       security:
       - BearerAuth: []
       summary: Обновление статуса нахождения сотрудника на территории
+      tags:
+      - employees
+  /employees/{id}/territory-status/revert:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID сотрудника
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Направление отменяемой отметки, пост и причина
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.RevertPassageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Отмена ошибочной отметки прохода сотрудника
       tags:
       - employees
   /employees/active-for-table/{table_id}:
@@ -15309,6 +15493,99 @@ paths:
       summary: Журнал доступа к персональным данным
       tags:
       - pd-audit
+  /pd-subject/candidates:
+    get:
+      description: 'Записи реестра и участники заявок с таким же ФИО. Склейки по имени
+        нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.'
+      parameters:
+      - description: Фамилия Имя Отчество
+        in: query
+        name: fio
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/pdsubject.Candidate'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Поиск человека по имени
+      tags:
+      - pd-subject
+  /pd-subject/disclosures:
+    get:
+      description: Кому, когда и по какому запросу выдавали сведения. Право page.admin.pd_subject.
+      parameters:
+      - description: Только по одному человеку
+        in: query
+        name: registry_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.PDDisclosure'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Журнал выдач сведений
+      tags:
+      - pd-subject
+  /pd-subject/export:
+    post:
+      consumes:
+      - application/json
+      description: Собирает справку файлом и пишет выдачу в журнал. Получатель и реквизиты
+        запроса обязательны. Права page.admin.pd_subject и action.pd_subject.export.
+      parameters:
+      - description: Кому и по какому запросу
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pdsubject.ExportRequest'
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Выгрузить справку о человеке
+      tags:
+      - pd-subject
+  /pd-subject/report:
+    get:
+      description: 'Что система хранит о человеке: сведения, заявки, проходы, посты.
+        Право page.admin.pd_subject.'
+      parameters:
+      - description: Идентификатор записи реестра
+        in: query
+        name: registry_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pdsubject.ReportResponse'
+      security:
+      - BearerAuth: []
+      summary: Сведения о человеке
+      tags:
+      - pd-subject
   /person-blacklist:
     get:
       parameters:

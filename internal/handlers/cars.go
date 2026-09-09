@@ -257,6 +257,33 @@ func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
 	return RespondMessage(c, "Car territory status updated successfully")
 }
 
+// RevertCarPassage обрабатывает PUT /cars/:id/territory-status/revert.
+// @Summary Отмена ошибочной отметки проезда машины
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "ID автомобиля"
+// @Param body body services.RevertPassageRequest true "Направление отменяемой отметки, пост и причина"
+// @Success 200 {object} map[string]interface{}
+// @Router /cars/{id}/territory-status/revert [put]
+func (h *CarHandler) RevertCarPassage(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
+	}
+	var req services.RevertPassageRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	// Автора отмены ставит сервер, см. RevertEmployeePassage.
+	req.ActorUserID = GetUserID(c)
+	if err := h.service.RevertCarPassage(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Car passage mark reverted successfully")
+}
+
 // DeactivateCar обрабатывает PUT /cars/:id/deactivate.
 // @Summary Деактивация автомобиля
 // @Tags cars
