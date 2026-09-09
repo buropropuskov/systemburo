@@ -235,6 +235,10 @@
 
                     <div class="action-text">
                       {{ getActionText(item) }}
+                      <span
+                        v-if="item.reverted"
+                        class="reverted-badge"
+                      >отменена</span>
                     </div>
 
                     <div class="action-comment">
@@ -490,6 +494,10 @@ export default {
         return 'Проход на территорию';
       } else if (item.action_type === 'exit') {
         return 'Выход с территории';
+      } else if (item.action_type === 'entry_revert') {
+        return 'Отметка о проходе отменена';
+      } else if (item.action_type === 'exit_revert') {
+        return 'Отметка о выходе отменена';
       } else if (item.action_type === 'delete') {
         return 'Удаление из таблицы';
       } else if (item.action_type === 'restore') {

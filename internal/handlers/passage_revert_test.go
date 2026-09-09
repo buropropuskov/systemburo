@@ -294,3 +294,56 @@ func TestPassageRevert_OtherPostRejected(t *testing.T) {
 	require.NotNil(t, status)
 	assert.Equal(t, 1, *status, "отказ ничего не откатил")
 }
+
+// carStatusRow - строка ответа /cars/history/current-status в объёме, нужном тесту.
+type carStatusRow struct {
+	CarID           int  `json:"car_id"`
+	CanRevert       bool `json:"can_revert"`
+	LastMarkTableID *int `json:"last_mark_table_id"`
+}
+
+// canRevert спрашивает текущий статус глазами владельца токена.
+func (env revertEnv) canRevert(t *testing.T, token string) carStatusRow {
+	t.Helper()
+	rec := testutil.GET(t, env.e, "/cars/history/current-status", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var resp struct {
+		Data []carStatusRow `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	for _, row := range resp.Data {
+		if row.CarID == env.carID {
+			return row
+		}
+	}
+	t.Fatalf("машина %d не найдена в текущем статусе", env.carID)
+	return carStatusRow{}
+}
+
+// TestPassageRevert_CanRevertFlag - таблица не должна сама считать, кому и сколько
+// можно отменять: признак приходит из текущего статуса, посчитанный для
+// спрашивающего. Иначе окно в пятнадцать минут жило бы копией в трёх компонентах.
+func TestPassageRevert_CanRevertFlag(t *testing.T) {
+	env := setupRevertEnv(t, "kpp_revert_flag", "revguard7")
+
+	require.False(t, env.canRevert(t, env.token).CanRevert, "отметок нет - отменять нечего")
+
+	env.mark(t, 1, env.token, env.guardID)
+	own := env.canRevert(t, env.token)
+	assert.True(t, own.CanRevert, "свою свежую отметку отменить можно")
+	require.NotNil(t, own.LastMarkTableID)
+	assert.Equal(t, env.table.ID, *own.LastMarkTableID, "пост отметки виден таблице")
+
+	stranger := testutil.RegisterAndLogin(t, env.e, "revflag_other", "pass123", 1, env.td.OrgID, env.td.CompanyID)
+	assert.False(t, env.canRevert(t, stranger).CanRevert, "чужую отметку рядовой пользователь не отменяет")
+
+	env.ageLastMark(t, 20*time.Minute)
+	assert.False(t, env.canRevert(t, env.token).CanRevert, "за пределами окна признак снят")
+
+	adminToken := testutil.RegisterManager(t, env.e, "revflagadmin", env.td.OrgID, env.td.CompanyID)
+	assert.True(t, env.canRevert(t, adminToken).CanRevert, "администратору окно не мешает")
+
+	rec := env.revert(t, 1, adminToken, "разбор смены")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.False(t, env.canRevert(t, adminToken).CanRevert, "после отмены отменять снова нечего")
+}

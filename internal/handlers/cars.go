@@ -225,7 +225,7 @@ func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
 // @Success 200 {array} services.CarCurrentStatus
 // @Router /cars/history/current-status [get]
 func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
-	items, err := h.service.GetCarsCurrentStatus(c.Request().Context())
+	items, err := h.service.GetCarsCurrentStatus(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
 	}

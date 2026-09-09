@@ -224,6 +224,10 @@
 
                     <div class="action-text">
                       {{ getActionText(item) }}
+                      <span
+                        v-if="item.reverted"
+                        class="reverted-badge"
+                      >отменена</span>
                     </div>
 
                     <div
@@ -485,6 +489,10 @@ export default {
         return 'Отметил о прибытии';
       } else if (item.action_type === 'exit') {
         return 'Машина уехала';
+      } else if (item.action_type === 'entry_revert') {
+        return 'Отметка о прибытии отменена';
+      } else if (item.action_type === 'exit_revert') {
+        return 'Отметка об убытии отменена';
       } else if (item.action_type === 'delete') {
         return 'Удаление из таблицы';
       } else if (item.action_type === 'restore') {
@@ -1220,4 +1228,5 @@ export default {
     width: calc(50% - 20px);
   }
 }
+
 </style>

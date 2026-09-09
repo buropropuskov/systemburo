@@ -195,6 +195,10 @@
 
                     <div class="action-text">
                       {{ getActionText(item) }}
+                      <span
+                        v-if="item.reverted"
+                        class="reverted-badge"
+                      >отменена</span>
                     </div>
 
                     <div
@@ -245,6 +249,7 @@
 </template>
 
 <script>
+import { CAR_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -525,35 +530,7 @@ export default {
     },
 
     getActionText(item) {
-      if (item.action_type === 'entry') {
-        return 'Отметил о прибытии';
-      } else if (item.action_type === 'exit') {
-        return 'Машина уехала';
-      }
-      
-      const texts = {
-        'create': 'Подана заявка на автомобиль',
-        'update': 'Данные обновлены',
-        'delete': 'Автомобиль удалён',
-        'activate': 'Автомобиль введён в работу',
-        'deactivate': 'Автомобиль выведен из работы',
-        'restore': 'Автомобиль восстановлен',
-        'blacklisted': 'Добавлен в чёрный список',
-        'unblacklisted': 'Снят с чёрного списка',
-        'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
-        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)',
-        'added_to_table': 'Добавлен в таблицу проходной',
-        'moved_between_tables': 'Перенесён между таблицами',
-        'unbound_from_table': 'Снят с таблицы'
-      };
-
-      let text = texts[item.action_type] || item.action_type;
-      
-      if (item.action_type === 'update' && item.field_name) {
-        text = `Изменено поле "${item.field_name}"`;
-      }
-      
-      return text;
+      return historyActionText(item, CAR_HISTORY_ACTIONS);
     },
 
     getActionComment(item) {

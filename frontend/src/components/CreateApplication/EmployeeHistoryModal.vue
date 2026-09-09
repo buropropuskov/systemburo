@@ -236,6 +236,10 @@
 
                     <div class="action-text">
                       {{ getActionText(item) }}
+                      <span
+                        v-if="item.reverted"
+                        class="reverted-badge"
+                      >отменена</span>
                     </div>
 
                     <div
@@ -285,6 +289,7 @@
 </template>
 
 <script>
+import { EMPLOYEE_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -563,35 +568,7 @@ export default {
     },
 
     getActionText(item) {
-      if (item.action_type === 'entry') {
-        return 'Проход на территорию';
-      } else if (item.action_type === 'exit') {
-        return 'Выход с территории';
-      }
-      
-      const texts = {
-        'create': 'Подана заявка на сотрудника',
-        'update': 'Данные обновлены',
-        'delete': 'Сотрудник удалён',
-        'activate': 'Сотрудник введён в работу',
-        'deactivate': 'Сотрудник выведен из работы',
-        'restore': 'Сотрудник восстановлен',
-        'blacklisted': 'Добавлен в чёрный список',
-        'unblacklisted': 'Снят с чёрного списка',
-        'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
-        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)',
-        'added_to_table': 'Добавлен в таблицу проходной',
-        'moved_between_tables': 'Перенесён между таблицами',
-        'unbound_from_table': 'Снят с таблицы'
-      };
-
-      let text = texts[item.action_type] || item.action_type;
-      
-      if (item.action_type === 'update' && item.field_name) {
-        text = `Изменено поле "${item.field_name}"`;
-      }
-      
-      return text;
+      return historyActionText(item, EMPLOYEE_HISTORY_ACTIONS);
     },
 
     getActionComment(item) {

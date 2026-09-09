@@ -354,12 +354,12 @@
                 >
                   <button
                     class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked }"
-                    :disabled="preview || item.entry_checked"
+                    :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
+                    :disabled="preview || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     data-testid="ob-pass-entry"
-                    @click="preview ? null : handleEntryExit(item, 'entry')"
+                    @click="preview ? null : onPassButton(item, 'entry')"
                   >
-                    Въезд
+                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Въезд' }}
                   </button>
                 </div>
                 <!-- Выезд - кнопка -->
@@ -371,12 +371,12 @@
                 >
                   <button
                     class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked }"
-                    :disabled="preview || !item.entry_checked || item.exit_checked"
+                    :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
+                    :disabled="preview || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-pass-exit"
-                    @click="preview ? null : handleEntryExit(item, 'exit')"
+                    @click="preview ? null : onPassButton(item, 'exit')"
                   >
-                    Выезд
+                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выезд' }}
                   </button>
                 </div>
                 <div
@@ -623,6 +623,11 @@
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { idFilterSet } from '@/utils/idFilter';
+import { readEnlarged, writeEnlarged } from '@/utils/enlargedRows';
+import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
+import { formatUnloadPlaces as unloadPlacesLabel } from '@/utils/unloadPlaces';
+import { usePassageRevertStore } from '@/stores/passageRevert';
+import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import eventStream from '@/services/eventStream';
@@ -1141,6 +1146,21 @@ export default {
       }
     },
 
+    /** Клик по кнопке проезда: отмечает либо предлагает отменить свою отметку (#2437). */
+    onPassButton(item, type) {
+      if (!this.canRevertMark(item, type)) return this.handleEntryExit(item, type);
+      return usePassageRevertStore().ask({
+        kind: 'cars', id: item.id, direction: type, tableId: this.tableId,
+        subject: item.car_number || 'машина',
+        onDone: () => this.fetchCarHistoryStatus(),
+      });
+    },
+
+    /** Отменяется только последняя отметка, поэтому направление обязано совпасть. */
+    canRevertMark(item, type) {
+      return lastMarkDirection(item) === type && canRevertMark(item, this.tableId);
+    },
+
     async fetchCarHistoryStatus(seq) {
       try {
         const response = await apiRequest("/cars/history/current-status", {});
@@ -1154,6 +1174,9 @@ export default {
             if (status) {
               item.entry_checked = status.territory_status === 1;
               item.exit_checked = status.territory_status === 2;
+              item.territory_status = status.territory_status;
+              item.can_revert = status.can_revert;
+              item.last_mark_table_id = status.last_mark_table_id;
               item.entry_time = status.entry_time;
               item.exit_time = status.last_exit_time;
             }
@@ -1209,30 +1232,10 @@ export default {
     },
 
     formatUnloadPlaces(item) {
-      if (item.unload_place_ids && item.unload_place_ids.length > 0) {
-        const placeNames = item.unload_place_ids
-          .map(id => {
-            const place = this.allUnloadingPlaces.find(p => p.id === id);
-            return place ? place.name : null;
-          })
-          .filter(name => name);
-        if (placeNames.length === 0) return '-';
-        if (placeNames.length === 1) return placeNames[0];
-        return `${placeNames[0]} и др.`;
-      }
-      return item.unload_place || '-';
+      return unloadPlacesLabel(item, this.allUnloadingPlaces);
     },
 
-    formatDate(dateString) {
-      if (!dateString) return '';
-      try {
-        const [year, month, day] = dateString.split('-');
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('ru-RU');
-      } catch {
-        return '';
-      }
-    },
+    formatDate: formatDateRu,
 
     formatTimeRange(timeFrom, timeTo) {
       if (!timeFrom && !timeTo) return '-';
@@ -1258,36 +1261,25 @@ export default {
       }
     },
 
-    extractStartTime(timeString) {
-      if (!timeString || timeString === '-') return 0;
-      const parts = timeString.split(':');
-      if (parts.length >= 2) {
-        const hours = parseInt(parts[0]) || 0;
-        const minutes = parseInt(parts[1]) || 0;
-        return hours * 60 + minutes;
-      }
-      return 0;
-    },
+    extractStartTime: passTimeMinutes,
 
     async handleEntryExit(item, type) {
       if (!this.currentUserId) return;
       try {
-        let territory_status = type === 'entry' ? 1 : 2;
-        const response = await apiRequest(`/cars/${item.id}/territory-status`, {
-          method: "PUT",
-          body: JSON.stringify({ territory_status, user_id: this.currentUserId, table_id: this.tableId })
+        const response = await markPassage({
+          kind: 'cars', id: item.id, direction: type,
+          userId: this.currentUserId, tableId: this.tableId,
         });
         if (response.ok) {
           const index = this.itemsData.findIndex(i => i.id === item.id);
           if (index !== -1) {
             const updatedItem = { ...this.itemsData[index] };
-            if (type === 'entry') {
-              updatedItem.entry_checked = true;
-              updatedItem.exit_checked = false;
-            } else {
-              updatedItem.entry_checked = false;
-              updatedItem.exit_checked = true;
-            }
+            updatedItem.entry_checked = type === 'entry';
+            updatedItem.exit_checked = type === 'exit';
+            updatedItem.territory_status = type === 'entry' ? 1 : 2;
+            // Своя свежая отметка - отмена доступна сразу, до опроса статусов.
+            updatedItem.can_revert = true;
+            updatedItem.last_mark_table_id = this.tableId;
             this.itemsData.splice(index, 1, updatedItem);
           }
           useDeletionsStore().notify({ prefix: 'Машина ', bold: item.car_number, suffix: type === 'entry' ? ' отмечена о прибытии' : ' уехала', type: 'success' });
@@ -1543,19 +1535,11 @@ export default {
     },
 
     loadEnlargedFromStorage() {
-      try {
-        this.enlarged = localStorage.getItem(this.enlargedStorageKey()) === '1';
-      } catch {
-        this.enlarged = false;
-      }
+      this.enlarged = readEnlarged(this.enlargedStorageKey());
     },
 
     saveEnlargedToStorage(value) {
-      try {
-        localStorage.setItem(this.enlargedStorageKey(), value ? '1' : '0');
-      } catch {
-        /* localStorage недоступен - игнорируем */
-      }
+      writeEnlarged(this.enlargedStorageKey(), value);
     },
 
     isFieldVisible(fieldName) {

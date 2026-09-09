@@ -42,7 +42,8 @@ type CarService interface {
 	// GetCarsHistoryByTable возвращает историю въездов/выездов таблицы проходной.
 	GetCarsHistoryByTable(ctx context.Context, tableID int) ([]AllCarsHistoryItem, error)
 	// GetCarsCurrentStatus возвращает текущий территориальный статус активных машин.
-	GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStatus, error)
+	// viewerID - кто спрашивает, см. EmployeesHistoryService.GetCurrentStatus.
+	GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]CarCurrentStatus, error)
 	// UpdateCarTerritoryStatus обновляет статус нахождения на территории (въезд/выезд).
 	UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateCarTerritoryStatusRequest) error
 	// RevertCarPassage отменяет последнюю отметку проезда машины (#2437).
@@ -318,6 +319,9 @@ type CarCurrentStatus struct {
 	TerritoryStatus int     `json:"territory_status"`
 	EntryTime       *string `json:"entry_time"`
 	LastExitTime    *string `json:"last_exit_time"`
+	// CanRevert и LastMarkTableID - см. EmployeeCurrentStatus (#2437).
+	CanRevert       bool `json:"can_revert"`
+	LastMarkTableID *int `json:"last_mark_table_id"`
 }
 
 // --- Реализация ---
