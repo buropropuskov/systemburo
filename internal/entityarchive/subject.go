@@ -141,6 +141,14 @@ type SubjectCandidate struct {
 	// строка остаётся в списке лишь затем, чтобы человек увидел: запись есть, но
 	// собрать по ней нечего.
 	HasDocument bool
+	// Organization и Position - чем эти люди отличаются друг от друга. Без них список
+	// однофамильцев выглядит как три одинаковые строки, и выбрать не из чего.
+	Organization string
+	Position     string
+	// DocumentTail - последние четыре знака документа. Весь номер в списке показывать
+	// незачем: различить людей хватает хвоста, а список видят все, у кого есть доступ
+	// к разделу.
+	DocumentTail string
 }
 
 // FindSubjectCandidatesByFIO ищет людей с таким именем, склеивая строки по документу.
@@ -154,32 +162,39 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 		return nil, nil
 	}
 
-	// Нормализация повторяет normalize.Name: нижний регистр, «ё» как «е», обрезанные
-	// края. Иначе «Пётр» не нашёл бы «Петра».
-	const norm = "TRIM(LOWER(REPLACE(COALESCE(%s, ''), 'ё', 'е')))"
-	where := fmt.Sprintf(norm, "last_name") + " = @last AND " + fmt.Sprintf(norm, "first_name") + " = @first"
-	if middle != "" {
-		where += " AND " + fmt.Sprintf(norm, "middle_name") + " = @middle"
-	}
+	whereFor := func(alias string) string { return nameWhere(alias, middle != "") }
 
 	type row struct {
-		Source   string
-		ID       int
-		FullName string
-		DocKey   string
+		Source       string
+		ID           int
+		FullName     string
+		DocKey       string
+		Document     *string
+		Organization *string
+		Position     *string
 	}
 	var rows []row
 	q := fmt.Sprintf(`
-		SELECT 'registry' AS source, id,
-			TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)) AS full_name,
-			COALESCE(NULLIF(passport_series_number_hmac, ''), NULLIF(patent_number_hmac, ''), '') AS doc_key
-		FROM unique_employees WHERE %[1]s
+		SELECT 'registry' AS source, ue.id,
+			TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)) AS full_name,
+			COALESCE(NULLIF(ue.passport_series_number_hmac, ''), NULLIF(ue.patent_number_hmac, ''), '') AS doc_key,
+			COALESCE(ue.passport_series_number, ue.patent_number) AS document,
+			o.name AS organization, ue."position" AS position
+		FROM unique_employees ue
+		LEFT JOIN organizations o ON o.id = ue.organization_id
+		WHERE %[1]s
 		UNION ALL
-		SELECT 'application', id,
-			TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)),
-			COALESCE(NULLIF(passport_series_number_hmac, ''), NULLIF(patent_number_hmac, ''), '')
-		FROM employees WHERE %[1]s
-		ORDER BY 1, 2`, where)
+		SELECT 'application', e.id,
+			TRIM(CONCAT_WS(' ', e.last_name, e.first_name, e.middle_name)),
+			COALESCE(NULLIF(e.passport_series_number_hmac, ''), NULLIF(e.patent_number_hmac, ''), ''),
+			COALESCE(e.passport_series_number, e.patent_number),
+			o2.name, e."position"
+		FROM employees e
+		LEFT JOIN attachments a ON a.id = e.attachment_id
+		LEFT JOIN applications app ON app.id = a.application_id
+		LEFT JOIN organizations o2 ON o2.id = app.organization_id
+		WHERE %[2]s
+		ORDER BY 1, 2`, whereFor("ue"), whereFor("e"))
 	err := db.WithContext(ctx).Raw(q,
 		sql.Named("last", last), sql.Named("first", first), sql.Named("middle", middle)).
 		Scan(&rows).Error
@@ -198,9 +213,26 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 		}
 		c, ok := byKey[key]
 		if !ok {
-			c = &SubjectCandidate{FullName: r.FullName, HasDocument: r.DocKey != ""}
+			c = &SubjectCandidate{
+				FullName:     r.FullName,
+				HasDocument:  r.DocKey != "",
+				Organization: derefOrEmpty(r.Organization),
+				Position:     derefOrEmpty(r.Position),
+				DocumentTail: documentTail(r.Document),
+			}
 			byKey[key] = c
 			order = append(order, key)
+		}
+		// Организацию и должность берём у первой строки, где они есть: у записи
+		// реестра их может не быть, а у строки заявки они всегда от самой заявки.
+		if c.Organization == "" {
+			c.Organization = derefOrEmpty(r.Organization)
+		}
+		if c.Position == "" {
+			c.Position = derefOrEmpty(r.Position)
+		}
+		if c.DocumentTail == "" {
+			c.DocumentTail = documentTail(r.Document)
 		}
 		if r.Source == "registry" {
 			c.RegistryRows++
@@ -309,4 +341,45 @@ func SubjectApplications(ctx context.Context, db *gorm.DB, target SubjectTarget)
 		return nil, fmt.Errorf("заявки субъекта: %w", err)
 	}
 	return apps, nil
+}
+
+// nameWhere - условие совпадения по имени для таблицы под псевдонимом.
+//
+// Нормализация повторяет normalize.Name: нижний регистр, «ё» как «е», обрезанные
+// края. Иначе «Пётр» не нашёл бы «Петра». Отчество сравнивается, только если задано:
+// в запросе государственного органа его часто нет.
+func nameWhere(alias string, withMiddle bool) string {
+	norm := func(col string) string {
+		return fmt.Sprintf("TRIM(LOWER(REPLACE(COALESCE(%s.%s, ''), 'ё', 'е')))", alias, col)
+	}
+	where := norm("last_name") + " = @last AND " + norm("first_name") + " = @first"
+	if withMiddle {
+		where += " AND " + norm("middle_name") + " = @middle"
+	}
+	return where
+}
+
+func derefOrEmpty(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return strings.TrimSpace(*v)
+}
+
+// documentTail - последние четыре знака документа, чтобы отличить однофамильцев.
+// Номер целиком в списке не нужен: список открывают, чтобы выбрать человека, а не
+// чтобы прочитать его паспорт.
+func documentTail(v *string) string {
+	if v == nil {
+		return ""
+	}
+	plain := crypto.DecryptOptional(v)
+	if plain == nil {
+		return ""
+	}
+	digits := []rune(strings.TrimSpace(*plain))
+	if len(digits) <= 4 {
+		return string(digits)
+	}
+	return string(digits[len(digits)-4:])
 }

@@ -180,7 +180,7 @@ func buildSubjectApplicationsSection(ctx context.Context, db *gorm.DB, target Su
 	for _, r := range rows {
 		table.Rows = append(table.Rows, []string{
 			derefOrDash(r.Number), derefOrDash(r.Status), derefOrDash(r.Organization), derefOrDash(r.Company),
-			dateOrDash(r.SentAt), derefOrDash(r.DateFrom), derefOrDash(r.DateTo),
+			dateOrDash(r.SentAt), isoDateOrDash(r.DateFrom), isoDateOrDash(r.DateTo),
 		})
 	}
 	return table, nil
@@ -198,7 +198,7 @@ func buildSubjectPassagesSection(ctx context.Context, db *gorm.DB, target Subjec
 
 	q := `
 		SELECT al.created_at AS at, al.action,
-			st.name AS post,
+			COALESCE(NULLIF(st.display_name, ''), st.name) AS post,
 			TRIM(CONCAT_WS(' ', u.last_name, u.first_name)) AS actor
 		FROM audit_log al
 		LEFT JOIN system_tables st ON st.id = (al.details->>'table_id')::int
@@ -225,8 +225,15 @@ func buildSubjectPassagesSection(ctx context.Context, db *gorm.DB, target Subjec
 		if r.Action == "exit" {
 			event = "выход с территории"
 		}
+		// Пост в отметке появился не сразу: у старых записей его нет вовсе, и пустое
+		// место в справке читается как «человек прошёл неизвестно где». Пишем прямо,
+		// что пост не записан - это разные вещи, и в ответе органу это важно.
+		post := "не записан"
+		if r.Post != nil && strings.TrimSpace(*r.Post) != "" {
+			post = *r.Post
+		}
 		table.Rows = append(table.Rows, []string{
-			r.At.Format("02.01.2006 15:04"), event, derefOrDash(r.Post), derefOrDash(r.Actor),
+			r.At.Format("02.01.2006 15:04"), event, post, derefOrDash(r.Actor),
 		})
 	}
 	return table, nil
@@ -345,4 +352,19 @@ func SubjectReportRowCount(rep SubjectReport) int {
 		n += len(s.Rows)
 	}
 	return n
+}
+
+// isoDateOrDash приводит дату, хранящуюся строкой, к принятому в системе виду
+// 01.01.2026. В базе даты доступа лежат как «2026-06-11» (столбец character varying),
+// и в справке это единственное место, где формат отличался бы от остального вывода.
+func isoDateOrDash(v *string) string {
+	if v == nil || strings.TrimSpace(*v) == "" {
+		return "-"
+	}
+	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(*v))
+	if err != nil {
+		// Формат не тот, что ожидали: отдаём как есть, а не прячем значение.
+		return *v
+	}
+	return parsed.Format("02.01.2006")
 }
