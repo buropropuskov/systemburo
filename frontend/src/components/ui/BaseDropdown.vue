@@ -328,6 +328,46 @@ export default {
     },
 
     /**
+     * Расширяет телепортнутое меню до подписей пунктов.
+     *
+     * Ширина считается по кнопке, а кнопку фильтра зажимает колонка таблицы: в разделе
+     * таблиц «Все компании» и кнопка, и меню выходили по 152px, и названия компаний
+     * резались многоточием. Меряем после отрисовки, потому что до неё ширины подписей
+     * неизвестны.
+     *
+     * Потолок - место до правого края экрана: меню, вылезшее за границу окна, хуже
+     * обрезанной подписи (уже проходили: правило без контейнера растянуло меню Центра
+     * на всю страницу).
+     *
+     * @param {number} vw ширина вьюпорта в layout-px
+     * @param {number} margin отступ от края экрана
+     * @param {number} triggerLeft левый край кнопки в layout-px
+     */
+    growMenuToContent(vw, margin, triggerLeft) {
+      const menu = this.$refs.menu;
+      if (!menu || !this.teleport) return;
+
+      const подписи = menu.querySelectorAll('.base-dropdown__item-text');
+      let нужно = 0;
+      подписи.forEach((el) => {
+        // scrollWidth подписи - её ширина без многоточия; clientWidth - сколько дали.
+        нужно = Math.max(нужно, el.scrollWidth - el.clientWidth);
+      });
+      if (нужно <= 0) return;
+
+      const текущая = parseFloat(this.menuStyle.width) || menu.getBoundingClientRect().width;
+      const потолок = Math.max(текущая, vw - 2 * margin);
+      const ширина = Math.min(Math.round(текущая + нужно), Math.round(потолок));
+      if (ширина <= текущая) return;
+
+      this.menuStyle = {
+        ...this.menuStyle,
+        width: `${ширина}px`,
+        left: `${Math.min(Math.round(triggerLeft), Math.max(margin, Math.round(vw - ширина - margin)))}px`,
+      };
+    },
+
+    /**
      * Ограничивает список целым числом пунктов, чтобы он не обрывался на середине строки.
      *
      * Считает доступное место из ограничений меню, ничего предварительно не сбрасывая:
@@ -441,8 +481,13 @@ export default {
         zIndex: this.menuZIndex,
       };
       // Доступное место изменилось (скролл/ресайз сдвинули триггер) - пересчитываем,
-      // сколько целых пунктов теперь помещается.
-      if (this.isOpen) this.$nextTick(this.updateOptionsHeight);
+      // сколько целых пунктов теперь помещается, и хватает ли ширины их подписям.
+      if (this.isOpen) {
+        this.$nextTick(() => {
+          this.updateOptionsHeight();
+          this.growMenuToContent(vw, margin, r.left);
+        });
+      }
     },
     addRepositionListeners() {
       window.addEventListener('scroll', this.updateMenuPosition, true);
