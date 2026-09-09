@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -85,7 +86,12 @@ func (h *PDSubjectHandler) Export(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	c.Response().Header().Set(echo.HeaderContentDisposition, `attachment; filename="`+name+`"`)
+	// Имя справки кириллическое, а заголовки HTTP - ASCII: без filename*=UTF-8''
+	// браузер сохраняет файл кракозябрами (поймано ручной проверкой на стенде).
+	// Тот же приём, что у выгрузки бланков в attachment_blank.go: ASCII-запасное имя
+	// для старых клиентов плюс закодированное настоящее.
+	c.Response().Header().Set(echo.HeaderContentDisposition,
+		`attachment; filename="pd-subject-report.xlsx"; filename*=UTF-8''`+url.PathEscape(name))
 	return c.Blob(http.StatusOK, mime, data)
 }
 
