@@ -6715,6 +6715,52 @@
                 }
             }
         },
+        "/cars/{id}/territory-status/revert": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Отмена ошибочной отметки проезда машины",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID автомобиля",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Направление отменяемой отметки, пост и причина",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.RevertPassageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/citizenships": {
             "get": {
                 "security": [
@@ -9998,6 +10044,52 @@
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/services.UpdateTerritoryStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{id}/territory-status/revert": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Отмена ошибочной отметки прохода сотрудника",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Направление отменяемой отметки, пост и причина",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.RevertPassageRequest"
                         }
                     }
                 ],
@@ -14225,6 +14317,152 @@
                         "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/pd-subject/candidates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Записи реестра и участники заявок с таким же ФИО. Склейки по имени нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pd-subject"
+                ],
+                "summary": "Поиск человека по имени",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Фамилия Имя Отчество",
+                        "name": "fio",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/pdsubject.Candidate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/pd-subject/disclosures": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Кому, когда и по какому запросу выдавали сведения. Право page.admin.pd_subject.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pd-subject"
+                ],
+                "summary": "Журнал выдач сведений",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Только по одному человеку",
+                        "name": "registry_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PDDisclosure"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/pd-subject/export": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Собирает справку файлом и пишет выдачу в журнал. Получатель и реквизиты запроса обязательны. Права page.admin.pd_subject и action.pd_subject.export.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "pd-subject"
+                ],
+                "summary": "Выгрузить справку о человеке",
+                "parameters": [
+                    {
+                        "description": "Кому и по какому запросу",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pdsubject.ExportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/pd-subject/report": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Что система хранит о человеке: сведения, заявки, проходы, посты. Право page.admin.pd_subject.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pd-subject"
+                ],
+                "summary": "Сведения о человеке",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Идентификатор записи реестра",
+                        "name": "registry_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pdsubject.ReportResponse"
                         }
                     }
                 }
@@ -25716,6 +25954,49 @@
                 }
             }
         },
+        "models.PDDisclosure": {
+            "type": "object",
+            "properties": {
+                "basis": {
+                    "description": "Basis - основание выдачи своими словами: запрос органа, обращение субъекта.",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "files": {
+                    "description": "Files - имена созданных файлов. Путь целиком не пишем: он привязан к машине,\nа журнал переживает переезд.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "issued_by": {
+                    "description": "IssuedBy - кто выдал. Для консольной выдачи это не учётная запись системы, а\nоператор сервера, поэтому текст, а не ссылка на пользователя.",
+                    "type": "string"
+                },
+                "issued_by_user_id": {
+                    "description": "IssuedByUserID - учётная запись, если выдача шла через интерфейс.",
+                    "type": "integer"
+                },
+                "recipient": {
+                    "description": "Recipient - кому выданы сведения: наименование органа или «субъекту лично».",
+                    "type": "string"
+                },
+                "request_ref": {
+                    "description": "RequestRef - реквизиты запроса: номер и дата письма, по которому выдано.",
+                    "type": "string"
+                },
+                "scope": {
+                    "description": "Scope - объём выданного: сколько строк ушло по каждому разделу справки.\nСтрокой, а не числом: разделы меняются, а запись журнала обязана остаться\nчитаемой такой, какой её составили.",
+                    "type": "string"
+                },
+                "subject_name": {
+                    "description": "SubjectName - ФИО человека на момент выдачи. Нужно, чтобы журнал читался\nчеловеком: по свёртке проверяющий ничего не поймёт.",
+                    "type": "string"
+                }
+            }
+        },
         "models.PeakHoursInsight": {
             "type": "object",
             "properties": {
@@ -27907,6 +28188,98 @@
                 }
             }
         },
+        "pdsubject.Candidate": {
+            "type": "object",
+            "properties": {
+                "full_name": {
+                    "type": "string"
+                },
+                "has_document": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
+        "pdsubject.ExportRequest": {
+            "type": "object",
+            "required": [
+                "recipient",
+                "registry_id",
+                "request_ref"
+            ],
+            "properties": {
+                "basis": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "format": {
+                    "type": "string",
+                    "enum": [
+                        "xlsx",
+                        "pdf"
+                    ]
+                },
+                "recipient": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "registry_id": {
+                    "type": "integer"
+                },
+                "request_ref": {
+                    "type": "string",
+                    "maxLength": 300
+                }
+            }
+        },
+        "pdsubject.ReportResponse": {
+            "type": "object",
+            "properties": {
+                "basis": {
+                    "type": "string"
+                },
+                "origin": {
+                    "type": "string"
+                },
+                "sections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pdsubject.Section"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "pdsubject.Section": {
+            "type": "object",
+            "properties": {
+                "headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "services.ActivateCarRequest": {
             "type": "object",
             "properties": {
@@ -28012,6 +28385,9 @@
                 },
                 "organization": {
                     "type": "string"
+                },
+                "reverted": {
+                    "type": "boolean"
                 },
                 "table_id": {
                     "type": "integer"
@@ -29021,6 +29397,10 @@
                 "organization": {
                     "type": "string"
                 },
+                "reverted": {
+                    "description": "Reverted - отметка прохода отменена как ошибочная (#2437). Запись остаётся в\nжурнале и показывается с пометкой, но в цифрах не участвует.",
+                    "type": "boolean"
+                },
                 "table_id": {
                     "type": "integer"
                 },
@@ -29914,6 +30294,10 @@
                 },
                 "organization": {
                     "type": "string"
+                },
+                "reverted": {
+                    "description": "Reverted - отметка прохода отменена как ошибочная (#2437): в журнале видна с\nпометкой, в цифрах не участвует.",
+                    "type": "boolean"
                 },
                 "table_id": {
                     "type": "integer"
@@ -30947,6 +31331,20 @@
             "type": "object",
             "properties": {
                 "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.RevertPassageRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "territory_status": {
                     "type": "integer"
                 }
             }
