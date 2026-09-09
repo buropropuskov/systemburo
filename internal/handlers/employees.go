@@ -88,6 +88,34 @@ func (h *EmployeeHandler) UpdateEmployeeTerritoryStatus(c echo.Context) error {
 	return RespondMessage(c, "Employee territory status updated successfully")
 }
 
+// RevertEmployeePassage обрабатывает PUT /employees/:id/territory-status/revert.
+// @Summary Отмена ошибочной отметки прохода сотрудника
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "ID сотрудника"
+// @Param body body services.RevertPassageRequest true "Направление отменяемой отметки, пост и причина"
+// @Success 200 {object} map[string]interface{}
+// @Router /employees/{id}/territory-status/revert [put]
+func (h *EmployeeHandler) RevertEmployeePassage(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
+	}
+	var req services.RevertPassageRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	// Автора отмены ставит сервер: на нём держится правило «своя, последняя, свежая»,
+	// и приди он телом запроса, правило снималось бы подменой одного поля.
+	req.ActorUserID = GetUserID(c)
+	if err := h.service.RevertEmployeePassage(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Employee passage mark reverted successfully")
+}
+
 // GetActiveEmployeesForTable обрабатывает GET /employees/active-for-table/:table_id.
 // @Summary Получение активных сотрудников для таблицы
 // @Tags employees

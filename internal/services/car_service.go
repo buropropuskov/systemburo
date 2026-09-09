@@ -45,6 +45,8 @@ type CarService interface {
 	GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStatus, error)
 	// UpdateCarTerritoryStatus обновляет статус нахождения на территории (въезд/выезд).
 	UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateCarTerritoryStatusRequest) error
+	// RevertCarPassage отменяет последнюю отметку проезда машины (#2437).
+	RevertCarPassage(ctx context.Context, carID int, req RevertPassageRequest) error
 	// DeactivateCar деактивирует автомобиль (мягкое удаление).
 	DeactivateCar(ctx context.Context, carID int, req DeactivateCarRequest) error
 	// ActivateCar вводит автомобиль в работу.
@@ -287,6 +289,9 @@ type CarHistoryItemResponse struct {
 	Company       *string          `json:"company"`
 	TableID       *int             `json:"table_id"`
 	TableName     *string          `json:"table_name"`
+	// Reverted - отметка прохода отменена как ошибочная (#2437). Запись остаётся в
+	// журнале и показывается с пометкой, но в цифрах не участвует.
+	Reverted bool `json:"reverted"`
 }
 
 // AllCarsHistoryItem -- элемент общей истории (только entry/exit).
@@ -304,6 +309,7 @@ type AllCarsHistoryItem struct {
 	Company      *string `json:"company"`
 	TableID      *int    `json:"table_id"`
 	TableName    *string `json:"table_name"`
+	Reverted     bool    `json:"reverted"`
 }
 
 // CarCurrentStatus -- текущий территориальный статус автомобиля.

@@ -133,6 +133,17 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 	return nil
 }
 
+// RevertCarPassage отменяет последнюю отметку проезда машины и откатывает её
+// территориальный статус (#2437). Сигнал таблицам шлём тем же способом, что и при
+// самой отметке: строка изменилась, и посты обязаны увидеть это без перезагрузки.
+func (s *carService) RevertCarPassage(ctx context.Context, carID int, req RevertPassageRequest) error {
+	if err := revertPassage(ctx, s.db, s.recorder, time.Now, models.AuditEntityCar, carID, req); err != nil {
+		return err
+	}
+	s.tablesProducer.NotifyCarsChanged(ctx, carID)
+	return nil
+}
+
 // DeactivateCar деактивирует автомобиль и записывает удаление в историю.
 func (s *carService) DeactivateCar(ctx context.Context, carID int, req DeactivateCarRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

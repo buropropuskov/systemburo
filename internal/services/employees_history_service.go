@@ -45,6 +45,9 @@ type EmployeeHistoryItem struct {
 	EmployeeMiddleName *string `json:"employee_middle_name"`
 	Organization       *string `json:"organization"`
 	Company            *string `json:"company"`
+	// Reverted - отметка прохода отменена как ошибочная (#2437): в журнале видна с
+	// пометкой, в цифрах не участвует.
+	Reverted bool `json:"reverted"`
 }
 
 // EmployeeCurrentStatus -- текущий территориальный статус сотрудника.
@@ -87,6 +90,7 @@ type employeeHistoryRow struct {
 	EmployeeMiddleName *string
 	Organization       *string
 	Company            *string
+	Reverted           bool
 }
 
 // baseSelectSQL -- общая часть SELECT для всех запросов истории сотрудников.
@@ -110,7 +114,8 @@ const baseSelectSQL = `
 		e.first_name AS employee_first_name,
 		e.middle_name AS employee_middle_name,
 		COALESCE(org.name, '') AS organization,
-		COALESCE(comp.name, '') AS company
+		COALESCE(comp.name, '') AS company,
+		eh.reverted
 	FROM ` + employeesHistoryUnion + ` eh
 	LEFT JOIN users u ON eh.user_id = u.id
 	LEFT JOIN system_tables st ON eh.table_id = st.id
@@ -266,6 +271,7 @@ func mapEmployeeHistoryRows(rows []employeeHistoryRow) []EmployeeHistoryItem {
 			EmployeeMiddleName: r.EmployeeMiddleName,
 			Organization:       r.Organization,
 			Company:            r.Company,
+			Reverted:           r.Reverted,
 		})
 	}
 	return items
