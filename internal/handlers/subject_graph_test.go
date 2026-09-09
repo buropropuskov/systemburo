@@ -96,9 +96,26 @@ func TestCollectSubject_IgnoresNamesakes(t *testing.T) {
 		}
 	}
 
+	// По имени однофамилец обязан быть виден - решает человек, а не система. Строки
+	// при этом склеены по документу: у цели запись реестра и строка заявки с одним
+	// паспортом дают ОДИН пункт, у однофамильца с другим паспортом - свой.
 	candidates, err := entityarchive.FindSubjectCandidatesByFIO(context.Background(), db, "Субъектов", "Пётр", "")
 	require.NoError(t, err)
-	assert.Len(t, candidates, 3, "по имени однофамилец обязан быть виден - решает человек, а не система")
+	require.Len(t, candidates, 2, "два человека с одним именем и разными паспортами")
+
+	var subject, namesake entityarchive.SubjectCandidate
+	for _, c := range candidates {
+		if c.RegistryRows > 0 {
+			subject = c
+			continue
+		}
+		namesake = c
+	}
+	assert.Equal(t, 1, subject.RegistryRows, "запись реестра цели")
+	assert.Equal(t, 1, subject.ApplicationRows, "и её же строка в заявке - тот же паспорт")
+	assert.Equal(t, 1, namesake.ApplicationRows, "однофамилец живёт только в заявке")
+	assert.Zero(t, namesake.RegistryID, "записи реестра у него нет: собирать придётся от строки заявки")
+	assert.NotZero(t, namesake.EmployeeID)
 }
 
 // TestSubjectTarget_EmptyDocumentMatchesNothing - цель без документов ничего не

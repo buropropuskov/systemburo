@@ -39,12 +39,18 @@ func New(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-// Candidate - запись, похожая по имени.
+// Candidate - один человек из поиска по имени: строки склеены по документу, поэтому
+// в списке столько пунктов, сколько разных людей, а не сколько строк в базе.
 type Candidate struct {
-	Source      string `json:"source"`
-	ID          int    `json:"id"`
-	FullName    string `json:"full_name"`
-	HasDocument bool   `json:"has_document"`
+	FullName string `json:"full_name"`
+	// RegistryID / EmployeeID - от чего собирать сведения. Записи реестра может не
+	// быть вовсе: человек, встречающийся только в заявках, тоже обязан находиться -
+	// именно о нём и приходит запрос государственного органа.
+	RegistryID      int  `json:"registry_id"`
+	EmployeeID      int  `json:"employee_id"`
+	RegistryRows    int  `json:"registry_rows"`
+	ApplicationRows int  `json:"application_rows"`
+	HasDocument     bool `json:"has_document"`
 }
 
 // FindByName ищет кандидатов по имени. Склейка по имени не делается: решает человек.
@@ -65,7 +71,12 @@ func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, erro
 	out := make([]Candidate, 0, len(found))
 	for _, c := range found {
 		out = append(out, Candidate{
-			Source: c.Source, ID: c.ID, FullName: c.FullName, HasDocument: c.HasDocument,
+			FullName:        c.FullName,
+			RegistryID:      c.RegistryID,
+			EmployeeID:      c.EmployeeID,
+			RegistryRows:    c.RegistryRows,
+			ApplicationRows: c.ApplicationRows,
+			HasDocument:     c.HasDocument,
 		})
 	}
 	return out, nil
@@ -87,8 +98,8 @@ type ReportResponse struct {
 }
 
 // Report собирает сведения о человеке по записи реестра.
-func (s *Service) Report(ctx context.Context, registryID int) (*ReportResponse, error) {
-	rep, err := s.buildReport(ctx, registryID)
+func (s *Service) Report(ctx context.Context, registryID, employeeID int) (*ReportResponse, error) {
+	rep, err := s.buildReport(ctx, registryID, employeeID)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +124,10 @@ func (s *Service) Report(ctx context.Context, registryID int) (*ReportResponse, 
 // ExportRequest - выгрузка справки файлом. Получатель и реквизиты запроса
 // обязательны: без них выдачу нечем обосновать перед проверяющим.
 type ExportRequest struct {
-	RegistryID int    `json:"registry_id" validate:"required,gt=0"`
+	// Указывают одно из двух: запись реестра или строку заявки (у человека без
+	// записи реестра второй путь единственный).
+	RegistryID int    `json:"registry_id" validate:"omitempty,gt=0"`
+	EmployeeID int    `json:"employee_id" validate:"omitempty,gt=0"`
 	Format     string `json:"format" validate:"omitempty,oneof=xlsx pdf"`
 	Recipient  string `json:"recipient" validate:"required,max=300"`
 	RequestRef string `json:"request_ref" validate:"required,max=300"`
@@ -125,11 +139,11 @@ type ExportRequest struct {
 // Порядок важен: сперва журнал, потом файл. Выдача, не попавшая в журнал, при
 // проверке неотличима от утечки, поэтому файла без записи не бывает.
 func (s *Service) Export(ctx context.Context, req ExportRequest, actor Actor) ([]byte, string, string, error) {
-	rep, err := s.buildReport(ctx, req.RegistryID)
+	target, err := s.resolveTarget(ctx, req.RegistryID, req.EmployeeID)
 	if err != nil {
 		return nil, "", "", err
 	}
-	target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, req.RegistryID)
+	rep, err := entityarchive.BuildSubjectReport(ctx, s.db, target)
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -180,10 +194,10 @@ type Actor struct {
 }
 
 // Disclosures - журнал выдач: весь или по одному человеку.
-func (s *Service) Disclosures(ctx context.Context, registryID, limit int) ([]models.PDDisclosure, error) {
+func (s *Service) Disclosures(ctx context.Context, registryID, employeeID, limit int) ([]models.PDDisclosure, error) {
 	key := ""
-	if registryID > 0 {
-		target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, registryID)
+	if registryID > 0 || employeeID > 0 {
+		target, err := s.resolveTarget(ctx, registryID, employeeID)
 		if err != nil {
 			return nil, err
 		}
@@ -192,18 +206,41 @@ func (s *Service) Disclosures(ctx context.Context, registryID, limit int) ([]mod
 	return entityarchive.ListDisclosures(ctx, s.db, key, limit)
 }
 
-// buildReport - общий шаг Report и Export: цель по записи реестра и сбор разделов.
-func (s *Service) buildReport(ctx context.Context, registryID int) (entityarchive.SubjectReport, error) {
-	if registryID <= 0 {
-		return entityarchive.SubjectReport{}, fmt.Errorf("не указана запись реестра")
+// resolveTarget - цель по записи реестра ИЛИ по строке заявки. Второе нужно тем, у
+// кого записи реестра нет вовсе: человек живёт только в заявке, а ответить о нём
+// государственному органу всё равно обязаны.
+func (s *Service) resolveTarget(ctx context.Context, registryID, employeeID int) (entityarchive.SubjectTarget, error) {
+	switch {
+	case registryID > 0:
+		target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, registryID)
+		if err != nil {
+			return target, err
+		}
+		if target.Empty() {
+			return target, fmt.Errorf(
+				"у записи %d нет ни паспорта, ни патента: собрать сведения о человеке не по чему", registryID)
+		}
+		return target, nil
+	case employeeID > 0:
+		target, err := entityarchive.SubjectTargetFromEmployee(ctx, s.db, employeeID)
+		if err != nil {
+			return target, err
+		}
+		if target.Empty() {
+			return target, fmt.Errorf(
+				"у строки заявки %d нет ни паспорта, ни патента: собрать сведения не по чему", employeeID)
+		}
+		return target, nil
+	default:
+		return entityarchive.SubjectTarget{}, fmt.Errorf("не указано, о ком собирать сведения")
 	}
-	target, err := entityarchive.SubjectTargetFromRegistry(ctx, s.db, registryID)
+}
+
+// buildReport - общий шаг Report и Export.
+func (s *Service) buildReport(ctx context.Context, registryID, employeeID int) (entityarchive.SubjectReport, error) {
+	target, err := s.resolveTarget(ctx, registryID, employeeID)
 	if err != nil {
 		return entityarchive.SubjectReport{}, err
-	}
-	if target.Empty() {
-		return entityarchive.SubjectReport{}, fmt.Errorf(
-			"у записи %d нет ни паспорта, ни патента: собрать сведения о человеке не по чему", registryID)
 	}
 	return entityarchive.BuildSubjectReport(ctx, s.db, target)
 }

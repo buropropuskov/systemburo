@@ -46,7 +46,7 @@ describe('api/pdSubject', () => {
   it('fetchSubjectReport отдаёт разделы справки', async () => {
     apiRequest.mockResolvedValue(okJson({ total: 3, sections: [{ title: 'Сведения', rows: [] }] }))
 
-    const report = await fetchSubjectReport(4)
+    const report = await fetchSubjectReport({ registryId: 4 })
 
     expect(report.total).toBe(3)
     expect(report.sections[0].title).toBe('Сведения')
@@ -55,7 +55,13 @@ describe('api/pdSubject', () => {
 
   it('ошибка сервера доходит до экрана текстом, а не пустым списком', async () => {
     apiRequest.mockResolvedValue(errJson('у записи нет документа'))
-    await expect(fetchSubjectReport(9)).rejects.toThrow('у записи нет документа')
+    await expect(fetchSubjectReport({ registryId: 9 })).rejects.toThrow('у записи нет документа')
+  })
+
+  it('цель без записи реестра идёт строкой заявки: такой человек тоже обязан находиться', async () => {
+    apiRequest.mockResolvedValue(okJson({ total: 1, sections: [] }))
+    await fetchSubjectReport({ registryId: 0, employeeId: 42 })
+    expect(apiRequest).toHaveBeenCalledWith('/pd-subject/report?employee_id=42')
   })
 
   it('fetchSubjectDisclosures без записи запрашивает весь журнал', async () => {
