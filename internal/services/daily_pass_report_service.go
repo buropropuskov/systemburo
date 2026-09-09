@@ -179,6 +179,7 @@ func (s *dailyPassReportService) aggregateWindow(ctx context.Context, from, to t
 		Select("(a.details->>'table_id')::int AS table_id, "+passAggSelect).
 		Where("a.entity_type IN ('car', 'employee')").
 		Where("a.action IN ('entry', 'exit')").
+		Where(passageRevertNotExists("a")).
 		Where("a.created_at >= ? AND a.created_at < ?", from, to).
 		Where("a.details->>'table_id' IS NOT NULL").
 		Group("1, 2")
@@ -282,6 +283,7 @@ func (s *dailyPassReportService) backfillAll(ctx context.Context, upTo time.Time
 		Select(sel).
 		Where("a.entity_type IN ('car', 'employee')").
 		Where("a.action IN ('entry', 'exit')").
+		Where(passageRevertNotExists("a")).
 		Where("a.created_at < ?", upTo).
 		Where("a.details->>'table_id' IS NOT NULL").
 		Group("1, 2, 3").
