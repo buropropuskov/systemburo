@@ -188,7 +188,7 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]Emplo
 			(
 				SELECT created_at
 				FROM ` + employeesHistoryUnion + ` eh
-				WHERE eh.employee_id = e.id AND eh.action_type = 'exit'
+				WHERE eh.employee_id = e.id AND eh.action_type = 'exit' AND NOT eh.reverted
 				ORDER BY eh.created_at DESC
 				LIMIT 1
 			) AS last_exit_time

@@ -192,7 +192,24 @@ const (
 	// (/employees/:id/history). Эта запись не заменяет их, а даёт заявке одну строку в
 	// её собственной ленте вместо необходимости открыть каждого сотрудника по отдельности.
 	AuditActionEmployeesBulkAdded = "employees_bulk_added"
+	// AuditActionEntryRevert / AuditActionExitRevert - отмена ошибочной отметки прохода
+	// (#2437). Охранник промахнулся строкой, и до этой пары единственным способом
+	// «снять» отметку было нажать «Выход»: у человека, который на территорию не заходил,
+	// появлялась настоящая пара вход-выход и уезжала в суточный отчёт.
+	//
+	// Сама отметка остаётся в журнале нетронутой - отмена это отдельная запись, чей
+	// details.reverts_id указывает на аннулированную, а details.comment несёт причину.
+	// Признак «отменено» читатели берут из carsHistoryUnion/employeesHistoryUnion, а не
+	// собирают сами: в цифрах отменённая отметка не участвует, в истории видна с пометкой.
+	AuditActionEntryRevert = "entry_revert"
+	AuditActionExitRevert  = "exit_revert"
 )
+
+// AuditPassageRevertActions - действия отмены отметки прохода одним списком: их
+// перечисляют и запрос-источник истории, и частичный индекс под него. Порядок и
+// состав обязаны совпадать с индексом idx_audit_passage_revert, иначе join уйдёт
+// в seq scan по всему журналу.
+var AuditPassageRevertActions = []string{AuditActionEntryRevert, AuditActionExitRevert}
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
 // (LEFT JOIN users). Унифицирует поле актора: старые модели отдавали то actor_name,
