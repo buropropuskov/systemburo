@@ -45,7 +45,13 @@
           Найденные записи
         </h3>
         <p class="pds__note">
-          Это не обязательно один человек. Сведения собираются по записи с документом.
+          <template v-if="fuzzyFound">
+            Точных совпадений нет, показаны похожие по написанию - проверьте, тот ли это
+            человек: сведения о постороннем уйдут в ответ государственному органу.
+          </template>
+          <template v-else>
+            Это не обязательно один человек. Сведения собираются по записи с документом.
+          </template>
         </p>
         <ul class="pds__list">
           <li
@@ -55,6 +61,10 @@
             :class="{ 'pds__item--active': isSelected(c) }"
           >
             <span class="pds__item-name">{{ c.full_name }}</span>
+            <span
+              v-if="c.fuzzy"
+              class="pds__item-fuzzy"
+            >похожее написание</span>
             <span class="pds__item-marks">{{ marksOf(c) }}</span>
             <span class="pds__item-source">{{ whereFound(c) }}</span>
             <button
@@ -209,6 +219,7 @@ const disclosures = ref([]);
 const selected = ref({ registryId: 0, employeeId: 0 });
 const reportBlock = ref(null);
 
+const fuzzyFound = computed(() => candidates.value.some((c) => c.fuzzy));
 const canExport = computed(() => permissions.hasPermission('action.pd_subject.export'));
 
 // Раздел без строк приходит с rows: null - Go отдаёт пустой срез как null. Обращение
@@ -385,6 +396,15 @@ function refresh() {
 .pds__item-name {
   font-weight: 500;
   min-width: 220px;
+}
+
+.pds__item-fuzzy {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .pds__item-marks {

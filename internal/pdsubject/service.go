@@ -51,6 +51,8 @@ type Candidate struct {
 	RegistryRows    int  `json:"registry_rows"`
 	ApplicationRows int  `json:"application_rows"`
 	HasDocument     bool `json:"has_document"`
+	// Fuzzy - найдено по похожему написанию, а не точному совпадению имени.
+	Fuzzy bool `json:"fuzzy"`
 	// Чем однофамильцы отличаются друг от друга. Без этого список трёх людей с одним
 	// ФИО выглядит как три одинаковые строки.
 	Organization string `json:"organization,omitempty"`
@@ -82,6 +84,7 @@ func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, erro
 			RegistryRows:    c.RegistryRows,
 			ApplicationRows: c.ApplicationRows,
 			HasDocument:     c.HasDocument,
+			Fuzzy:           c.Fuzzy,
 			Organization:    c.Organization,
 			Position:        c.Position,
 			DocumentTail:    c.DocumentTail,

@@ -137,6 +137,10 @@ type SubjectCandidate struct {
 	// RegistryRows/ApplicationRows - сколько строк за этим человеком.
 	RegistryRows    int
 	ApplicationRows int
+	// Fuzzy - запись найдена по ПОХОЖЕМУ написанию, а не точному совпадению имени.
+	// Показывать это обязательно: оператор должен знать, что система домыслила за
+	// него, иначе в ответ государственному органу уедет однофамилец с другой фамилией.
+	Fuzzy bool
 	// HasDocument - есть ли документ. Без него склеить человека не по чему, и такая
 	// строка остаётся в списке лишь затем, чтобы человек увидел: запись есть, но
 	// собрать по ней нечего.
@@ -233,6 +237,108 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 		}
 		if c.DocumentTail == "" {
 			c.DocumentTail = documentTail(r.Document)
+		}
+		if r.Source == "registry" {
+			c.RegistryRows++
+			if c.RegistryID == 0 {
+				c.RegistryID = r.ID
+			}
+			continue
+		}
+		c.ApplicationRows++
+		if c.EmployeeID == 0 {
+			c.EmployeeID = r.ID
+		}
+	}
+
+	out := make([]SubjectCandidate, 0, len(order))
+	for _, key := range order {
+		out = append(out, *byKey[key])
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+
+	// Точных совпадений нет - пробуем похожее написание. Опечатка в фамилии («Мякотних»
+	// вместо «Мякотных») иначе означает «человека в системе нет», а он есть, и запрос
+	// государственного органа остаётся без ответа. Домысливать молча нельзя: у каждой
+	// такой записи стоит признак Fuzzy, и интерфейс говорит об этом прямо.
+	return findSubjectCandidatesFuzzy(ctx, db, last, first, middle)
+}
+
+// findSubjectCandidatesFuzzy ищет по похожему написанию имени.
+//
+// Порог тот же, что у сквозного поиска (0.3): ниже начинают проходить общие триграммы,
+// выше перестают ловиться настоящие опечатки в короткой фамилии.
+func findSubjectCandidatesFuzzy(ctx context.Context, db *gorm.DB, last, first, middle string) ([]SubjectCandidate, error) {
+	similar := func(alias string) string {
+		return fmt.Sprintf("(@last %%>> %[1]s.last_name AND @first %%>> %[1]s.first_name)", alias)
+	}
+
+	type row struct {
+		Source       string
+		ID           int
+		FullName     string
+		DocKey       string
+		Document     *string
+		Organization *string
+		Position     *string
+	}
+	var rows []row
+	q := fmt.Sprintf(`
+		SELECT 'registry' AS source, ue.id,
+			TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)) AS full_name,
+			COALESCE(NULLIF(ue.passport_series_number_hmac, ''), NULLIF(ue.patent_number_hmac, ''), '') AS doc_key,
+			COALESCE(ue.passport_series_number, ue.patent_number) AS document,
+			o.name AS organization, ue."position" AS position
+		FROM unique_employees ue
+		LEFT JOIN organizations o ON o.id = ue.organization_id
+		WHERE %[1]s
+		UNION ALL
+		SELECT 'application', e.id,
+			TRIM(CONCAT_WS(' ', e.last_name, e.first_name, e.middle_name)),
+			COALESCE(NULLIF(e.passport_series_number_hmac, ''), NULLIF(e.patent_number_hmac, ''), ''),
+			COALESCE(e.passport_series_number, e.patent_number),
+			o2.name, e."position"
+		FROM employees e
+		LEFT JOIN attachments a ON a.id = e.attachment_id
+		LEFT JOIN applications app ON app.id = a.application_id
+		LEFT JOIN organizations o2 ON o2.id = app.organization_id
+		WHERE %[2]s
+		ORDER BY 1, 2
+		LIMIT 50`, similar("ue"), similar("e"))
+
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Порог ставится на транзакцию: значение из postgresql.conf не подействует на
+		// уже открытые соединения пула, и поиск вёл бы себя по-разному.
+		if err := tx.Exec("SET LOCAL pg_trgm.strict_word_similarity_threshold = 0.3").Error; err != nil {
+			return fmt.Errorf("выставить порог нечёткого поиска: %w", err)
+		}
+		return tx.Raw(q, sql.Named("last", last), sql.Named("first", first)).Scan(&rows).Error
+	})
+	if err != nil {
+		return nil, fmt.Errorf("поиск по похожему имени: %w", err)
+	}
+
+	order := make([]string, 0, len(rows))
+	byKey := make(map[string]*SubjectCandidate, len(rows))
+	for _, r := range rows {
+		key := r.DocKey
+		if key == "" {
+			key = fmt.Sprintf("%s-%d", r.Source, r.ID)
+		}
+		c, ok := byKey[key]
+		if !ok {
+			c = &SubjectCandidate{
+				FullName:     r.FullName,
+				HasDocument:  r.DocKey != "",
+				Fuzzy:        true,
+				Organization: derefOrEmpty(r.Organization),
+				Position:     derefOrEmpty(r.Position),
+				DocumentTail: documentTail(r.Document),
+			}
+			byKey[key] = c
+			order = append(order, key)
 		}
 		if r.Source == "registry" {
 			c.RegistryRows++
