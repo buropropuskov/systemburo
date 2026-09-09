@@ -124,8 +124,10 @@ func TestBuildSubjectReport_CollectsSections(t *testing.T) {
 
 	t.Run("основание обработки в каждом разделе", func(t *testing.T) {
 		for _, s := range rep.Sections {
-			assert.Contains(t, s.Subtitle, "п. 7 ч. 1 ст. 6 152-ФЗ",
-				"раздел %q без основания обработки: получатель справки не поймёт, на чём она стоит", s.Title)
+			assert.Contains(t, s.Subtitle, "Основание обработки",
+				"раздел %q без основания: получатель справки не поймёт, на чём она стоит", s.Title)
+			assert.NotContains(t, s.Subtitle, "152-ФЗ",
+				"ссылок на статьи закона в справке быть не должно")
 		}
 	})
 }

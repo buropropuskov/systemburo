@@ -66,7 +66,9 @@ func TestPDSubjectAPI_ReportAndExport(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-		assert.Contains(t, resp.Data.Basis, "п. 7 ч. 1 ст. 6 152-ФЗ")
+		assert.Contains(t, resp.Data.Basis, "пропускного режима")
+		assert.NotContains(t, resp.Data.Basis, "152-ФЗ",
+			"ссылок на статьи закона в справке быть не должно: квалификацию даёт тот, кто готовит ответ")
 		require.Len(t, resp.Data.Sections, 4, "разделы справки: сведения, заявки, проходы, посты")
 
 		// Раздел без строк обязан приходить пустым массивом, а не null: nil-срез

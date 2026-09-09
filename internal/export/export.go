@@ -284,7 +284,8 @@ func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 	pdf.Ln(2)
 
 	if len(t.Headers) > 0 {
-		colW := usableW / float64(len(t.Headers))
+		pdf.SetFont(pdfFontFamily, "", 8)
+		widths := pdfColWidths(pdf, t, usableW)
 		const rowH = 6.0
 		_, pageH := pdf.GetPageSize()
 		_, _, _, bottomM := pdf.GetMargins()
@@ -294,7 +295,7 @@ func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 		drawHeader := func() {
 			pdf.SetFont(pdfFontFamily, "", 8)
 			pdf.SetFillColor(230, 230, 230)
-			drawPDFRow(pdf, t.Headers, colW, rowH, true)
+			drawPDFRow(pdf, t.Headers, widths, rowH, true)
 		}
 		drawHeader()
 		for _, r := range t.Rows {
@@ -302,7 +303,7 @@ func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 				pdf.AddPage()
 				drawHeader()
 			}
-			drawPDFRow(pdf, r, colW, rowH, false)
+			drawPDFRow(pdf, r, widths, rowH, false)
 		}
 	}
 	return nil
@@ -310,11 +311,87 @@ func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 
 // drawPDFRow рисует одну строку таблицы фиксированной высоты; значения, не влезающие
 // в колонку, усекаются с многоточием. fill=true - заливка (для шапки).
-func drawPDFRow(pdf *fpdf.Fpdf, cells []string, colW, rowH float64, fill bool) {
-	for _, c := range cells {
-		pdf.CellFormat(colW, rowH, truncateToWidth(pdf, c, colW-2), "1", 0, "L", fill, 0, "")
+func drawPDFRow(pdf *fpdf.Fpdf, cells []string, widths []float64, rowH float64, fill bool) {
+	for i, c := range cells {
+		w := 0.0
+		if i < len(widths) {
+			w = widths[i]
+		}
+		pdf.CellFormat(w, rowH, truncateToWidth(pdf, c, w-2), "1", 0, "L", fill, 0, "")
 	}
 	pdf.Ln(rowH)
+}
+
+// pdfColWidths раздаёт ширину колонок по фактическому содержимому, а не поровну.
+//
+// Поровну - значит «Патент» и «-» получают столько же, сколько ФИО с организацией, и
+// длинные значения режутся многоточием при пустом месте рядом («Мякотных С…» в справке
+// из двенадцати колонок, половина которых занята прочерками). Считаем, сколько нужно
+// каждой колонке, и делим доступную ширину пропорционально этой потребности.
+//
+// Минимум держится, чтобы узкая колонка не схлопнулась в нечитаемую полоску; если
+// суммы всё равно не хватает, лишнее срезается у самых широких - им многоточие
+// повредит меньше, чем дате или числу.
+func pdfColWidths(pdf *fpdf.Fpdf, t Table, usableW float64) []float64 {
+	const (
+		padding = 3.0
+		minW    = 12.0
+	)
+
+	need := make([]float64, len(t.Headers))
+	for i, h := range t.Headers {
+		need[i] = pdf.GetStringWidth(h) + padding
+	}
+	for _, row := range t.Rows {
+		for i, cell := range row {
+			if i >= len(need) {
+				break
+			}
+			if w := pdf.GetStringWidth(cell) + padding; w > need[i] {
+				need[i] = w
+			}
+		}
+	}
+
+	total := 0.0
+	for i := range need {
+		if need[i] < minW {
+			need[i] = minW
+		}
+		total += need[i]
+	}
+	if total <= 0 {
+		return need
+	}
+
+	// Влезает как есть - оставляем: тогда ничего не режется вовсе.
+	if total <= usableW {
+		return need
+	}
+
+	// Не влезает: сжимаем пропорционально, но не ниже минимума. Недостачу добираем с
+	// колонок, которые после сжатия остались шире минимума.
+	scale := usableW / total
+	out := make([]float64, len(need))
+	fixed := 0.0
+	flexible := 0.0
+	for i, w := range need {
+		if w*scale < minW {
+			out[i] = minW
+			fixed += minW
+			continue
+		}
+		flexible += w
+	}
+	if flexible > 0 {
+		rest := usableW - fixed
+		for i, w := range need {
+			if out[i] == 0 {
+				out[i] = w / flexible * rest
+			}
+		}
+	}
+	return out
 }
 
 // truncateToWidth усекает строку до ширины maxW (в единицах документа), добавляя

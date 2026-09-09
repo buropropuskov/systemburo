@@ -241,3 +241,38 @@ func TestFindSubjectCandidates_MiddleNameOptional(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, found, "чужое отчество - другой человек")
 }
+
+// TestFindSubjectCandidates_TypoInSurname - опечатка в фамилии не должна означать
+// «человека в системе нет». Запрос государственного органа приходит с чужих слов, и
+// «Мякотних» вместо «Мякотных» там обычное дело. Найденное по похожему написанию
+// помечается: домысливать за оператора молча нельзя, иначе в ответ уедет посторонний.
+func TestFindSubjectCandidates_TypoInSurname(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	org := models.Organization{Name: "Опечатка-эксперимент"}
+	require.NoError(t, db.Create(&org).Error)
+	last, first := "Мякотных", "Сергей"
+	passport := "4510 121212"
+	require.NoError(t, db.Create(&models.UniqueEmployee{
+		LastName: &last, FirstName: &first, PassportSeriesNumber: &passport,
+		OrganizationID: &org.ID,
+	}).Error)
+
+	ctx := context.Background()
+
+	exact, err := entityarchive.FindSubjectCandidatesByFIO(ctx, db, "Мякотных", "Сергей", "")
+	require.NoError(t, err)
+	require.Len(t, exact, 1)
+	assert.False(t, exact[0].Fuzzy, "точное совпадение не помечается похожим")
+
+	typo, err := entityarchive.FindSubjectCandidatesByFIO(ctx, db, "Мякотних", "Сергей", "")
+	require.NoError(t, err)
+	require.Len(t, typo, 1, "опечатка в одной букве не должна прятать человека")
+	assert.True(t, typo[0].Fuzzy, "найденное по похожему написанию обязано быть помечено")
+
+	far, err := entityarchive.FindSubjectCandidatesByFIO(ctx, db, "Кузнецов", "Сергей", "")
+	require.NoError(t, err)
+	assert.Empty(t, far, "другая фамилия - не опечатка")
+}
