@@ -1048,7 +1048,7 @@ export default {
       try {
         const response = await markPassage({
           kind: 'cars', id: item.id, direction: territory_status === 1 ? 'entry' : 'exit',
-          userId: this.currentUserId, tableId: this.tableId, pass,
+          tableId: this.tableId, pass,
         });
         if (!response.ok) {
           const errorText = await response.text();
