@@ -176,6 +176,7 @@ func (h *CarHandler) AddCarHistoryEntry(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.AddCarHistoryEntry(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -251,6 +252,7 @@ func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.UpdateCarTerritoryStatus(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -303,6 +305,7 @@ func (h *CarHandler) DeactivateCar(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.DeactivateCar(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -328,6 +331,7 @@ func (h *CarHandler) ActivateCar(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.ActivateCar(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -353,6 +357,7 @@ func (h *CarHandler) RestoreCar(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.RestoreCar(c.Request().Context(), id, req); err != nil {
 		return err
 	}
