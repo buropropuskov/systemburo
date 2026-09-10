@@ -16,30 +16,49 @@ import (
 )
 
 // GetCarsCurrentStatus возвращает текущий территориальный статус активных автомобилей.
-func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStatus, error) {
+func (s *carService) GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]CarCurrentStatus, error) {
 	type statusRow struct {
 		ID                 int
 		TerritoryStatus    *int
 		TerritoryEntryTime *time.Time
 		LastExitTime       *time.Time
+		CanRevert          bool
+		LastMarkTableID    *int
+	}
+
+	admin, err := isPassageRevertAdmin(ctx, s.db, viewerID)
+	if err != nil {
+		return nil, err
 	}
 
 	rows := make([]statusRow, 0)
-	err := s.db.WithContext(ctx).Raw(`
+	err = s.db.WithContext(ctx).Raw(`
 		SELECT
 			c.id,
 			c.territory_status,
 			c.territory_entry_time,
 			(
 				SELECT created_at
-				FROM ` + carsHistoryUnion + ` ch
+				FROM `+carsHistoryUnion+` ch
 				WHERE car_id = c.id AND action_type = 'exit' AND NOT ch.reverted
 				ORDER BY created_at DESC
 				LIMIT 1
-			) AS last_exit_time
+			) AS last_exit_time,
+			lm.table_id AS last_mark_table_id,
+			lm.created_at IS NOT NULL
+				AND (? OR (lm.user_id = ? AND lm.created_at > NOW() - ?::interval)) AS can_revert
 		FROM cars c
+		-- Последняя действительная отметка нужна целиком (кто, когда, где), поэтому
+		-- LATERAL, а не три коррелированных подзапроса подряд.
+		LEFT JOIN LATERAL (
+			SELECT ch.user_id, ch.created_at, ch.table_id
+			FROM `+carsHistoryUnion+` ch
+			WHERE ch.car_id = c.id AND ch.action_type IN ('entry', 'exit') AND NOT ch.reverted
+			ORDER BY ch.created_at DESC, ch.id DESC
+			LIMIT 1
+		) lm ON TRUE
 		WHERE c.status = 1
-	`).Scan(&rows).Error
+	`, admin, viewerID, passageRevertWindowSQL()).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars status")
 	}
@@ -55,6 +74,8 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStat
 			TerritoryStatus: ts,
 			EntryTime:       FormatUTCPtr(r.TerritoryEntryTime),
 			LastExitTime:    FormatUTCPtr(r.LastExitTime),
+			CanRevert:       r.CanRevert,
+			LastMarkTableID: r.LastMarkTableID,
 		})
 	}
 	return items, nil

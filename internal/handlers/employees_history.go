@@ -86,7 +86,7 @@ func (h *EmployeesHistoryHandler) GetAll(c echo.Context) error {
 // @Success 200 {array} services.EmployeeCurrentStatus
 // @Router /employees/history/current-status [get]
 func (h *EmployeesHistoryHandler) GetCurrentStatus(c echo.Context) error {
-	items, err := h.service.GetCurrentStatus(c.Request().Context())
+	items, err := h.service.GetCurrentStatus(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
 	}

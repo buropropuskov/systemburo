@@ -374,11 +374,11 @@
                 >
                   <button
                     class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked }"
-                    :disabled="preview || item.entry_checked"
-                    @click="preview ? null : handleEntryExit(item, 'entry')"
+                    :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
+                    :disabled="preview || (item.entry_checked && !canRevertMark(item, 'entry'))"
+                    @click="preview ? null : onPassButton(item, 'entry')"
                   >
-                    Вход
+                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Вход' }}
                   </button>
                 </div>
                 <div
@@ -389,11 +389,11 @@
                 >
                   <button
                     class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked }"
-                    :disabled="preview || !item.entry_checked || item.exit_checked"
-                    @click="preview ? null : handleEntryExit(item, 'exit')"
+                    :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
+                    :disabled="preview || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
+                    @click="preview ? null : onPassButton(item, 'exit')"
                   >
-                    Выход
+                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выход' }}
                   </button>
                 </div>
                 <div
@@ -645,6 +645,10 @@ import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePassageRevertStore } from '@/stores/passageRevert';
+import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
+import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
+import { readEnlarged, writeEnlarged } from '@/utils/enlargedRows';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useOrientation } from '@/composables/useOrientation';
 import { useRowSelection } from '@/composables/useRowSelection';
@@ -1219,6 +1223,8 @@ export default {
               item.territory_status = status.territory_status;
               item.entry_checked = status.territory_status === 1;
               item.exit_checked = status.territory_status === 2;
+              item.can_revert = status.can_revert;
+              item.last_mark_table_id = status.last_mark_table_id;
             }
           });
         }
@@ -1227,16 +1233,7 @@ export default {
       }
     },
 
-    formatDate(dateString) {
-      if (!dateString) return '';
-      try {
-        const [year, month, day] = dateString.split('-');
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('ru-RU');
-      } catch {
-        return '';
-      }
-    },
+    formatDate: formatDateRu,
 
     formatPassTime(passTime) {
       if (!passTime) return '-';
@@ -1254,17 +1251,7 @@ export default {
       return `${formattedFrom} - ${formattedTo}`;
     },
 
-    extractPassTime(passTime) {
-      if (!passTime || passTime === '-') return 0;
-      const startTime = passTime.split('-')[0];
-      const parts = startTime.split(':');
-      if (parts.length >= 2) {
-        const hours = parseInt(parts[0]) || 0;
-        const minutes = parseInt(parts[1]) || 0;
-        return hours * 60 + minutes;
-      }
-      return 0;
-    },
+    extractPassTime: passTimeMinutes,
 
     sortBy(field) {
       if (this.sortField === field) {
@@ -1277,25 +1264,39 @@ export default {
 
     async handleEntryExit(item, type) {
       if (!this.currentUserId || !this.currentTableId) return;
-      const territory_status = type === 'entry' ? 1 : 2;
       try {
-        const response = await apiRequest(`/employees/${item.id}/territory-status`, {
-          method: "PUT",
-          body: JSON.stringify({
-            territory_status,
-            user_id: this.currentUserId,
-            table_id: this.currentTableId
-          })
+        const response = await markPassage({
+          kind: 'employees', id: item.id, direction: type,
+          userId: this.currentUserId, tableId: this.currentTableId,
         });
-        if (response.ok) {
-          item.entry_checked = type === 'entry';
-          item.exit_checked = type === 'exit';
-        } else {
-          console.error('Ошибка при обновлении статуса');
+        if (!response.ok) {
+          useDeletionsStore().notify({ prefix: 'Не удалось отметить проход: ', bold: 'повторите', type: 'error' });
+          return;
         }
+        item.entry_checked = type === 'entry';
+        item.exit_checked = type === 'exit';
+        item.territory_status = type === 'entry' ? 1 : 2;
+        // Отметка своя и свежая - отмена доступна сразу, не дожидаясь опроса статусов.
+        item.can_revert = true;
+        item.last_mark_table_id = this.currentTableId;
       } catch (error) {
         console.error('Ошибка сети:', error);
       }
+    },
+
+    /** Клик по кнопке прохода: отмечает либо предлагает отменить свою отметку (#2437). */
+    onPassButton(item, type) {
+      if (!this.canRevertMark(item, type)) return this.handleEntryExit(item, type);
+      return usePassageRevertStore().ask({
+        kind: 'employees', id: item.id, direction: type, tableId: this.currentTableId,
+        subject: `${item.last_name || ''} ${item.first_name || ''}`.trim() || 'сотрудник',
+        onDone: () => this.fetchEmployeesStatus(),
+      });
+    },
+
+    /** Отменяется только последняя отметка, поэтому направление обязано совпасть. */
+    canRevertMark(item, type) {
+      return lastMarkDirection(item) === type && canRevertMark(item, this.currentTableId);
     },
 
     removeItemWithNotification(item) {
@@ -1552,19 +1553,11 @@ export default {
     },
 
     loadEnlargedFromStorage() {
-      try {
-        this.enlarged = localStorage.getItem(this.enlargedStorageKey()) === '1';
-      } catch {
-        this.enlarged = false;
-      }
+      this.enlarged = readEnlarged(this.enlargedStorageKey());
     },
 
     saveEnlargedToStorage(value) {
-      try {
-        localStorage.setItem(this.enlargedStorageKey(), value ? '1' : '0');
-      } catch {
-        /* localStorage недоступен - игнорируем */
-      }
+      writeEnlarged(this.enlargedStorageKey(), value);
     },
 
     isFieldVisible(fieldName) {

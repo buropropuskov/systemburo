@@ -209,3 +209,21 @@ export function formatDuration(seconds) {
   // До часа секунды ещё информативны, на часах и сутках — уже шум.
   return secs > 0 ? `${sign}${minutes} мин ${secs} с` : `${sign}${minutes} мин`;
 }
+
+/**
+ * Минуты от полуночи по началу интервала прохода ("08:30-17:00" -> 510).
+ *
+ * Живёт здесь, потому что таблицы прохода сортируют по этому значению, и копий
+ * было две: у людей с разбором через parseInt и запасным нулём, у машин «по факту»
+ * через Number, который на пустой строке отдавал NaN и рассыпал сортировку.
+ * Оставлена устойчивая версия.
+ *
+ * @param {string|null|undefined} passTime
+ * @returns {number}
+ */
+export function passTimeMinutes(passTime) {
+  if (!passTime || passTime === '-') return 0;
+  const parts = String(passTime).split('-')[0].split(':');
+  if (parts.length < 2) return 0;
+  return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+}
