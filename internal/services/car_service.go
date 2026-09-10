@@ -152,7 +152,8 @@ type CheckActiveCarResponse struct {
 
 // AddCarHistoryRequest -- тело запроса на добавление записи в историю автомобиля.
 type AddCarHistoryRequest struct {
-	UserID     *int             `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID     *int             `json:"-"`
 	ActionType string           `json:"action_type"`
 	FieldName  *string          `json:"field_name"`
 	OldValue   *string          `json:"old_value"`
@@ -164,7 +165,8 @@ type AddCarHistoryRequest struct {
 // UpdateTerritoryStatusRequest -- тело запроса обновления территориального статуса.
 type UpdateTerritoryStatusRequest struct {
 	TerritoryStatus int  `json:"territory_status"`
-	UserID          *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID          *int `json:"-"`
 	// TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,
 	// чтобы в карточке истории было видно, где произошло событие.
 	TableID *int `json:"table_id"`
@@ -195,18 +197,21 @@ type UpdateCarTerritoryStatusRequest struct {
 // DeactivateCarRequest -- тело запроса деактивации автомобиля.
 type DeactivateCarRequest struct {
 	Status  int  `json:"status"`
-	UserID  *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID  *int `json:"-"`
 	TableID *int `json:"table_id"`
 }
 
 // ActivateCarRequest -- тело запроса активации автомобиля.
 type ActivateCarRequest struct {
-	UserID *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID *int `json:"-"`
 }
 
 // RestoreCarRequest -- тело запроса восстановления автомобиля.
 type RestoreCarRequest struct {
-	UserID *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID *int `json:"-"`
 }
 
 // UnifiedCarHistoryQuery -- параметры запроса объединённой истории.
