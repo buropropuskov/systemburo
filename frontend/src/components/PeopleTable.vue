@@ -1267,7 +1267,7 @@ export default {
       try {
         const response = await markPassage({
           kind: 'employees', id: item.id, direction: type,
-          userId: this.currentUserId, tableId: this.currentTableId,
+          tableId: this.currentTableId,
         });
         if (!response.ok) {
           useDeletionsStore().notify({ prefix: 'Не удалось отметить проход: ', bold: 'повторите', type: 'error' });

@@ -54,19 +54,19 @@ describe('utils/passageMarks', () => {
   })
 
   describe('markPassage', () => {
-    it('шлёт направление, автора и пост', async () => {
+    it('шлёт направление и пост, но НЕ автора - его ставит сервер из токена (#2443)', async () => {
       apiRequest.mockResolvedValue(ok())
-      await markPassage({ kind: 'employees', id: 5, direction: 'entry', userId: 3, tableId: 7 })
+      await markPassage({ kind: 'employees', id: 5, direction: 'entry', tableId: 7 })
 
       const [url, options] = apiRequest.mock.calls[0]
       expect(url).toBe('/employees/5/territory-status')
       expect(options.method).toBe('PUT')
-      expect(JSON.parse(options.body)).toEqual({ territory_status: 1, user_id: 3, table_id: 7 })
+      expect(JSON.parse(options.body)).toEqual({ territory_status: 1, table_id: 7 })
     })
 
     it('выезд «по факту» довозит данные пропуска', async () => {
       apiRequest.mockResolvedValue(ok())
-      await markPassage({ kind: 'cars', id: 9, direction: 'exit', userId: 3, tableId: 7, pass: { number: 'А1' } })
+      await markPassage({ kind: 'cars', id: 9, direction: 'exit', tableId: 7, pass: { number: 'А1' } })
 
       const [, options] = apiRequest.mock.calls[0]
       expect(JSON.parse(options.body)).toMatchObject({ territory_status: 2, pass: { number: 'А1' } })

@@ -1268,7 +1268,7 @@ export default {
       try {
         const response = await markPassage({
           kind: 'cars', id: item.id, direction: type,
-          userId: this.currentUserId, tableId: this.tableId,
+          tableId: this.tableId,
         });
         if (response.ok) {
           const index = this.itemsData.findIndex(i => i.id === item.id);

@@ -53,13 +53,15 @@ export function lastMarkDirection(item) {
 /**
  * Ставит отметку прохода.
  *
- * @param {{kind: 'employees'|'cars', id: number, direction: 'entry'|'exit', userId: number, tableId: number, pass?: object}} params
+ * Автора не передаём: сервер берёт его из токена (#2443). Раньше клиент присылал
+ * `user_id`, и через консоль браузера проход записывался на чужую фамилию.
+ *
+ * @param {{kind: 'employees'|'cars', id: number, direction: 'entry'|'exit', tableId: number, pass?: object}} params
  * @returns {Promise<Response>}
  */
-export function markPassage({ kind, id, direction, userId, tableId, pass }) {
+export function markPassage({ kind, id, direction, tableId, pass }) {
   const body = {
     territory_status: PASSAGE_STATUS[direction],
-    user_id: userId,
     table_id: tableId,
   };
   if (pass) body.pass = pass;
