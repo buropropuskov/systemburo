@@ -61,3 +61,44 @@ func TestPDFColWidths_KeepsMinimumForNarrowColumns(t *testing.T) {
 		t.Errorf("колонки вышли за ширину страницы: %.1f", sum)
 	}
 }
+
+// Широкая таблица не должна терять данные: справка о человеке идёт в официальный
+// ответ, и «Мякотных С…» вместо фамилии там недопустимо. Проверяем всю лестницу -
+// ширина по содержимому, подбор шрифта, перенос внутри ячейки.
+func TestPDFFitFontSize_ShrinksForWideTable(t *testing.T) {
+	wide := Table{
+		Headers: []string{"Источник", "Запись", "ФИО", "Должность", "Гражданство", "Организация",
+			"Паспорт", "Патент", "Иное разрешение", "Хранится с", "Уведомление", "Возражение"},
+		Rows: [][]string{{
+			"Реестр сотрудников", "4", "Мякотных Сергей Михайлович", "Работник",
+			"Российская Федерация", "Отдел контроля доступа", "532512352135", "-", "-",
+			"05.05.2026", "-", "-",
+		}},
+	}
+	narrow := Table{
+		Headers: []string{"Дата", "Событие"},
+		Rows:    [][]string{{"01.01.2026", "вход"}},
+	}
+
+	pdf := newTestPDF()
+	const usableW = 277.0 // A4 альбомная минус поля
+
+	wideSize := pdfFitFontSize(pdf, wide, usableW)
+	narrowSize := pdfFitFontSize(pdf, narrow, usableW)
+
+	if wideSize >= narrowSize {
+		t.Errorf("широкая таблица обязана печататься мельче: %.1f против %.1f", wideSize, narrowSize)
+	}
+	if wideSize < 6 {
+		t.Errorf("мельче шести пунктов уходить нельзя - дальше не читается: %.1f", wideSize)
+	}
+
+	// При подобранном шрифте содержимое обязано помещаться целиком.
+	pdf.SetFont(pdfFontFamily, "", wideSize)
+	widths := pdfColWidths(pdf, wide, usableW)
+	for i, cell := range wide.Rows[0] {
+		if pdf.GetStringWidth(cell) > widths[i] {
+			t.Errorf("колонка %d режет %q при ширине %.1f", i, cell, widths[i])
+		}
+	}
+}

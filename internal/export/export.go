@@ -284,7 +284,11 @@ func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 	pdf.Ln(2)
 
 	if len(t.Headers) > 0 {
-		pdf.SetFont(pdfFontFamily, "", 8)
+		// Шрифт подбираем под таблицу: у справки из двенадцати колонок при 8 пунктах
+		// заголовки переносятся по слогам, а при 6 помещаются целиком. Мельче не
+		// уходим - дальше страдает читаемость, и лучше уже перенос.
+		fontSize := pdfFitFontSize(pdf, t, usableW)
+		pdf.SetFont(pdfFontFamily, "", fontSize)
 		widths := pdfColWidths(pdf, t, usableW)
 		const rowH = 6.0
 		_, pageH := pdf.GetPageSize()
@@ -292,18 +296,27 @@ func writePDFSection(pdf *fpdf.Fpdf, t Table) error {
 
 		// Шапку колонок повторяем на каждой странице - иначе на 2-й+ странице крупной
 		// таблицы (700-1500 строк) непонятно, что за колонки.
+		// Шапку тоже переносим, а не режем: «Иное разреш…» вместо «Иное разрешение»
+		// оставляет получателя гадать, что в колонке.
+		headerLines := pdfRowLines(pdf, t.Headers, widths)
 		drawHeader := func() {
-			pdf.SetFont(pdfFontFamily, "", 8)
+			pdf.SetFont(pdfFontFamily, "", fontSize)
 			pdf.SetFillColor(230, 230, 230)
-			drawPDFRow(pdf, t.Headers, widths, rowH, true)
+			drawPDFWrappedRow(pdf, t.Headers, widths, rowH, headerLines, true)
 		}
 		drawHeader()
 		for _, r := range t.Rows {
-			if pdf.GetY()+rowH > pageH-bottomM {
+			// Высота строки считается заранее: длинное значение переносится внутри
+			// ячейки, и такая строка занимает несколько линий. Без этого справка из
+			// двенадцати колонок резала ФИО и организацию многоточием - данные, ради
+			// которых её и составляют (#2356).
+			lines := pdfRowLines(pdf, r, widths)
+			h := rowH * float64(lines)
+			if pdf.GetY()+h > pageH-bottomM {
 				pdf.AddPage()
 				drawHeader()
 			}
-			drawPDFRow(pdf, r, widths, rowH, false)
+			drawPDFWrappedRow(pdf, r, widths, rowH, lines, false)
 		}
 	}
 	return nil
@@ -333,25 +346,9 @@ func drawPDFRow(pdf *fpdf.Fpdf, cells []string, widths []float64, rowH float64, 
 // суммы всё равно не хватает, лишнее срезается у самых широких - им многоточие
 // повредит меньше, чем дате или числу.
 func pdfColWidths(pdf *fpdf.Fpdf, t Table, usableW float64) []float64 {
-	const (
-		padding = 3.0
-		minW    = 12.0
-	)
+	const minW = 12.0
 
-	need := make([]float64, len(t.Headers))
-	for i, h := range t.Headers {
-		need[i] = pdf.GetStringWidth(h) + padding
-	}
-	for _, row := range t.Rows {
-		for i, cell := range row {
-			if i >= len(need) {
-				break
-			}
-			if w := pdf.GetStringWidth(cell) + padding; w > need[i] {
-				need[i] = w
-			}
-		}
-	}
+	need := pdfContentWidths(pdf, t)
 
 	total := 0.0
 	for i := range need {
@@ -411,4 +408,93 @@ func truncateToWidth(pdf *fpdf.Fpdf, s string, maxW float64) string {
 		}
 	}
 	return ""
+}
+
+// pdfRowLines - сколько строк займёт самая высокая ячейка ряда.
+func pdfRowLines(pdf *fpdf.Fpdf, cells []string, widths []float64) int {
+	lines := 1
+	for i, c := range cells {
+		if i >= len(widths) {
+			break
+		}
+		if n := len(pdf.SplitText(c, widths[i]-2)); n > lines {
+			lines = n
+		}
+	}
+	return lines
+}
+
+// drawPDFWrappedRow рисует ряд, перенося длинные значения внутри ячейки.
+//
+// Рисуем ячейку за ячейкой, возвращая курсор в начало ряда: MultiCell сам сдвигает
+// курсор на следующую строку, и без возврата колонки уехали бы лесенкой.
+func drawPDFWrappedRow(pdf *fpdf.Fpdf, cells []string, widths []float64, rowH float64, lines int, fill bool) {
+	x, y := pdf.GetX(), pdf.GetY()
+	h := rowH * float64(lines)
+	for i, c := range cells {
+		if i >= len(widths) {
+			break
+		}
+		w := widths[i]
+		// Рамку рисуем на всю высоту ряда, текст - переносом внутри неё: иначе у
+		// короткого значения рамка была бы в одну строку, а у длинного в три.
+		style := "D"
+		if fill {
+			style = "FD"
+		}
+		pdf.Rect(x, y, w, h, style)
+		pdf.SetXY(x, y)
+		pdf.MultiCell(w, rowH, c, "", "L", false)
+		x += w
+		pdf.SetXY(x, y)
+	}
+	pdf.SetXY(pdf.GetX()-x+10, y+h)
+	pdf.SetX(10)
+}
+
+// pdfFitFontSize подбирает размер шрифта так, чтобы таблица уместилась по ширине.
+//
+// Начинаем с обычных 8 пунктов и спускаемся до 6: за этой границей текст становится
+// нечитаемым, и переносить строки лучше, чем мельчить дальше.
+func pdfFitFontSize(pdf *fpdf.Fpdf, t Table, usableW float64) float64 {
+	const (
+		maxSize = 8.0
+		minSize = 6.0
+	)
+	for size := maxSize; size > minSize; size -= 0.5 {
+		pdf.SetFont(pdfFontFamily, "", size)
+		if pdfNeededWidth(pdf, t) <= usableW {
+			return size
+		}
+	}
+	return minSize
+}
+
+// pdfContentWidths - сколько ширины просит каждая колонка по своему содержимому.
+func pdfContentWidths(pdf *fpdf.Fpdf, t Table) []float64 {
+	const padding = 3.0
+	need := make([]float64, len(t.Headers))
+	for i, h := range t.Headers {
+		need[i] = pdf.GetStringWidth(h) + padding
+	}
+	for _, row := range t.Rows {
+		for i, cell := range row {
+			if i >= len(need) {
+				break
+			}
+			if w := pdf.GetStringWidth(cell) + padding; w > need[i] {
+				need[i] = w
+			}
+		}
+	}
+	return need
+}
+
+// pdfNeededWidth - сколько ширины просит таблица при текущем шрифте.
+func pdfNeededWidth(pdf *fpdf.Fpdf, t Table) float64 {
+	total := 0.0
+	for _, w := range pdfContentWidths(pdf, t) {
+		total += w
+	}
+	return total
 }
