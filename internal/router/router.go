@@ -716,6 +716,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.GET("/history/table/:table_id", cars.GetCarsHistoryByTable)
 	carsGroup.GET("/history/current-status", cars.GetCarsCurrentStatus)
 	carsGroup.PUT("/:id/territory-status", cars.UpdateCarTerritoryStatus, d.TablePassGate)
+	// Отмена ошибочной отметки (#2437) идёт под тем же гейтом: направление и пост
+	// приходят телом, и правом отмену закрывает то же table.<name>.entry|exit.
+	carsGroup.PUT("/:id/territory-status/revert", cars.RevertCarPassage, d.TablePassGate)
 	carsGroup.PUT("/:id/deactivate", cars.DeactivateCar)
 	carsGroup.PUT("/:id/activate", cars.ActivateCar)
 	carsGroup.GET("/history/unified", cars.GetUnifiedCarHistory)
@@ -735,6 +738,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesManualAdd))
 	empGroup.GET("/active-for-table/:table_id", employees.GetActiveEmployeesForTable)
 	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus, d.TablePassGate)
+	empGroup.PUT("/:id/territory-status/revert", employees.RevertEmployeePassage, d.TablePassGate)
 	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee)
 	empGroup.PUT("/:id/activate", employees.ActivateEmployee)
 	empGroup.PUT("/:id/restore", employees.RestoreEmployee)

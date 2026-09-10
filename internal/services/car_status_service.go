@@ -33,7 +33,7 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStat
 			(
 				SELECT created_at
 				FROM ` + carsHistoryUnion + ` ch
-				WHERE car_id = c.id AND action_type = 'exit'
+				WHERE car_id = c.id AND action_type = 'exit' AND NOT ch.reverted
 				ORDER BY created_at DESC
 				LIMIT 1
 			) AS last_exit_time
@@ -130,6 +130,17 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 	// обновиться live (#840 V2.3, scoped #1036).
 	s.tablesProducer.NotifyCarsChanged(ctx, carID)
 
+	return nil
+}
+
+// RevertCarPassage отменяет последнюю отметку проезда машины и откатывает её
+// территориальный статус (#2437). Сигнал таблицам шлём тем же способом, что и при
+// самой отметке: строка изменилась, и посты обязаны увидеть это без перезагрузки.
+func (s *carService) RevertCarPassage(ctx context.Context, carID int, req RevertPassageRequest) error {
+	if err := revertPassage(ctx, s.db, s.recorder, time.Now, models.AuditEntityCar, carID, req); err != nil {
+		return err
+	}
+	s.tablesProducer.NotifyCarsChanged(ctx, carID)
 	return nil
 }
 

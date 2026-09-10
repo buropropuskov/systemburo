@@ -282,6 +282,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := createSupplementOpenIndex(db); err != nil {
 		return err
 	}
+	if err := createPassageRevertIndex(db); err != nil {
+		return err
+	}
 	slog.Info("AutoMigrate completed")
 	return nil
 }
@@ -907,6 +910,22 @@ func createBlankExportPathIndex(db *gorm.DB) error {
 			ON blank_exports (rel_dir, file_name)
 			WHERE rel_dir <> ''
 	`).Error
+}
+
+// createPassageRevertIndex обслуживает признак «отметка отменена» (#2437). Отмена
+// живёт обычной записью audit_log, чей details.reverts_id указывает на аннулированную
+// отметку, а источник истории подмешивает признак самоджойном по этому полю. Без
+// индекса join уходил бы в seq scan по всему журналу на каждом чтении истории.
+//
+// Индекс уникальный, и это не украшение: он же запрещает отменить одну отметку
+// дважды. Иначе вторая запись отмены размножила бы строку в источнике истории, и
+// одна отметка показалась бы в журнале и в отчётах двумя.
+func createPassageRevertIndex(db *gorm.DB) error {
+	return db.Exec(fmt.Sprintf(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_passage_revert
+			ON audit_log ((details->>'reverts_id'))
+			WHERE action IN ('%s', '%s')
+	`, models.AuditActionEntryRevert, models.AuditActionExitRevert)).Error
 }
 
 // createSupplementOpenIndex держит на заявке не больше одного незакрытого дополнения

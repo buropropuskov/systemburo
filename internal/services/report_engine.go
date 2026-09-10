@@ -107,7 +107,7 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 	"car_entries_count": {
 		base:      carsHistoryUnion + " ch",
 		aggExpr:   "COUNT(*)",
-		baseWhere: "ch.action_type = 'entry'",
+		baseWhere: "ch.action_type = 'entry' AND " + passageNotReverted("ch"),
 		tsColumn:  "ch.created_at",
 		tsJoin:    jNone,
 		unit:      "шт",
@@ -138,7 +138,7 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 	"people_entries_count": {
 		base:      employeesHistoryUnion + " eh",
 		aggExpr:   "COUNT(*)",
-		baseWhere: "eh.action_type = 'entry'",
+		baseWhere: "eh.action_type = 'entry' AND " + passageNotReverted("eh"),
 		tsColumn:  "eh.created_at",
 		tsJoin:    jNone,
 		unit:      "шт",
@@ -168,7 +168,7 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 	"avg_cars_per_day": {
 		base:      carsHistoryUnion + " ch",
 		aggExpr:   "COUNT(*)",
-		baseWhere: "ch.action_type = 'entry'",
+		baseWhere: "ch.action_type = 'entry' AND " + passageNotReverted("ch"),
 		tsColumn:  "ch.created_at",
 		tsJoin:    jNone,
 		unit:      "шт/день",

@@ -222,6 +222,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	if err := s.db.WithContext(ctx).
 		Table(carsHistoryUnion+" ch").
 		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
+		Where(passageNotReverted("ch")).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
 	}
@@ -231,6 +232,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	if err := s.db.WithContext(ctx).
 		Table(employeesHistoryUnion+" eh").
 		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).
+		Where(passageNotReverted("eh")).
 		Count(&summary.PeopleEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: people_entered: %w", err)
 	}
@@ -475,8 +477,8 @@ type timelineSource struct {
 func resolveTimelineSource(metric, granularity string) (src timelineSource, unit string, err error) {
 	metricMap := map[string]timelineSource{
 		"applications":   {table: "applications", tsColumn: "sending_datetime", filter: ""},
-		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "ch.created_at", filter: "ch.action_type='entry'"},
-		"people_entries": {table: employeesHistoryUnion + " eh", tsColumn: "eh.created_at", filter: "eh.action_type='entry'"},
+		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "ch.created_at", filter: "ch.action_type='entry' AND " + passageNotReverted("ch")},
+		"people_entries": {table: employeesHistoryUnion + " eh", tsColumn: "eh.created_at", filter: "eh.action_type='entry' AND " + passageNotReverted("eh")},
 	}
 	granularityMap := map[string]string{
 		"day":   "day",
@@ -558,6 +560,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 		Joins("LEFT JOIN companies comp ON comp.id = app.company_id").
 		Joins("LEFT JOIN system_tables st ON st.id = eh.table_id").
 		Where("eh.action_type IN ?", []string{"entry", "exit"}).
+		Where(passageNotReverted("eh")).
 		Select("eh.action_type AS action_type, eh.created_at AS created_at, " +
 			"TRIM(CONCAT(e.last_name, ' ', e.first_name, ' ', COALESCE(e.middle_name, ''))) AS subject, " +
 			"'' AS mark, " +
@@ -578,6 +581,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 		Joins("LEFT JOIN companies comp ON comp.id = app.company_id").
 		Joins("LEFT JOIN system_tables st ON st.id = ch.table_id").
 		Where("ch.action_type IN ?", []string{"entry", "exit"}).
+		Where(passageNotReverted("ch")).
 		Select("ch.action_type AS action_type, ch.created_at AS created_at, " +
 			"c.car_number AS subject, " +
 			// mark_name - актуальное поле, car_brand - устаревший fallback (как в trash/blacklist).

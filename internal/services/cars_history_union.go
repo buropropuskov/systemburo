@@ -44,7 +44,8 @@ type carAuditDetails struct {
 // audit_log лежат внутри details jsonb, metadata - вложенным объектом
 // details->'metadata'. Колонки результата совпадают с cars_history:
 // id, car_id, user_id, action_type, field_name, old_value, new_value, comment,
-// metadata(jsonb), table_id, created_at.
+// metadata(jsonb), table_id, created_at - плюс reverted (#2437): признак
+// отменённой отметки прохода, см. passage_revert_sql.go.
 //
 // Подставлять как `FROM ` + carsHistoryUnion + ` <alias>` вместо `FROM cars_history <alias>`.
 const carsHistoryUnion = `(
@@ -56,7 +57,8 @@ const carsHistoryUnion = `(
 		a.details->>'comment' AS comment,
 		a.details->'metadata' AS metadata,
 		(a.details->>'table_id')::int AS table_id,
-		a.created_at
-	FROM audit_log a
+		a.created_at,
+		` + passageRevertColumn + `
+	FROM audit_log a` + passageRevertJoin + `
 	WHERE a.entity_type = '` + models.AuditEntityCar + `'
 )`
