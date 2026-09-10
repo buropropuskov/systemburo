@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -18,6 +19,17 @@ type AvailableAttachmentDetail struct {
 	Cars       []services.CarWithPlaces      `json:"cars,omitempty"`
 	Employees  []services.EmployeeWithTables `json:"employees,omitempty"`
 	Items      []services.ItemInfo           `json:"items,omitempty"`
+	// ExecutionMarkedUntil - момент, до которого действует чужая недавняя отметка
+	// "исполнено" (#2446); nil - отмечать можно. Считает бэк, чтобы окно в 5 минут не
+	// разъехалось копией на фронте.
+	ExecutionMarkedUntil *time.Time `json:"execution_marked_until,omitempty"`
+}
+
+// AttachmentExecutionMarkResponse - ответ отметки "вложение исполнено" (#2446): момент,
+// до которого действует свежая отметка, в том же формате, что execution_marked_until
+// в детали - фронту не нужен повторный запрос, чтобы обновить кнопку.
+type AttachmentExecutionMarkResponse struct {
+	ExecutionMarkedUntil time.Time `json:"execution_marked_until"`
 }
 
 // requireSecurityOrAdmin - гейт вкладки "Доступные мне" (#706, #976). Доступ имеют: супер-админ,
@@ -174,5 +186,51 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 	if err != nil {
 		return err
 	}
+	detail.ExecutionMarkedUntil, err = h.service.GetAttachmentExecutionMark(ctx, id)
+	if err != nil {
+		return err
+	}
 	return RespondSuccess(c, detail)
+}
+
+// MarkAttachmentExecuted godoc
+// @Summary      Отметить вложение исполненным
+// @Description  Охранник подтверждает, что по заявке во вкладке "Доступные мне" приехали/пришли (#2446). Отметка не копится состоянием - только запись в журнале; повтор в течение 5 минут отклоняется (409), дальше можно отметить заново. Доступ - как у детали вложения.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID вложения"
+// @Success      200 {object} handlers.AttachmentExecutionMarkResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/available-attachments/{id}/mark-executed [post]
+func (h *ApplicationHandler) MarkAttachmentExecuted(c echo.Context) error {
+	userID, unrestricted, err := h.requireSecurityOrAdmin(c)
+	if err != nil {
+		return err
+	}
+
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	ctx := c.Request().Context()
+	canView, err := h.service.CanSecurityViewAttachment(ctx, userID, unrestricted, id)
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	until, err := h.service.MarkAttachmentExecuted(ctx, userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, AttachmentExecutionMarkResponse{ExecutionMarkedUntil: until})
 }

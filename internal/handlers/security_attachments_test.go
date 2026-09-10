@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -69,12 +70,13 @@ type secMetaEnvelope struct {
 	} `json:"meta"`
 }
 
-// secDetailResponse зеркалит handlers.availableAttachmentDetail (тип хендлера неэкспортируемый).
+// secDetailResponse зеркалит handlers.AvailableAttachmentDetail (тип хендлера неэкспортируемый).
 type secDetailResponse struct {
-	Attachment services.AvailableAttachment  `json:"attachment"`
-	Cars       []services.CarWithPlaces      `json:"cars"`
-	Employees  []services.EmployeeWithTables `json:"employees"`
-	Items      []services.ItemInfo           `json:"items"`
+	Attachment           services.AvailableAttachment  `json:"attachment"`
+	Cars                 []services.CarWithPlaces      `json:"cars"`
+	Employees            []services.EmployeeWithTables `json:"employees"`
+	Items                []services.ItemInfo           `json:"items"`
+	ExecutionMarkedUntil *time.Time                    `json:"execution_marked_until"`
 }
 
 func secGetDetail(t *testing.T, h secHTTPWorld, attID int, token string) secDetailResponse {

@@ -312,6 +312,17 @@ type ApplicationService interface {
 	// вызывать после CanSecurityViewAttachment.
 	GetAvailableAttachmentByID(ctx context.Context, attachmentID int) (*AvailableAttachment, error)
 
+	// MarkAttachmentExecuted отмечает вложение исполненным сегодня (#2446): охранник
+	// подтвердил во вкладке "Доступные мне", что по заявке приехали/пришли. Возвращает
+	// момент, до которого действует отметка; повтор в пределах окна - 409. Доступ - как
+	// у детали (CanSecurityViewAttachment), отдельного права нет.
+	MarkAttachmentExecuted(ctx context.Context, actorUserID, attachmentID int) (time.Time, error)
+
+	// GetAttachmentExecutionMark возвращает момент, до которого действует последняя
+	// отметка "исполнено" по вложению (#2446), либо nil - отмечать можно. Для детального
+	// эндпоинта, вызывать после CanSecurityViewAttachment.
+	GetAttachmentExecutionMark(ctx context.Context, attachmentID int) (*time.Time, error)
+
 	// GetApplicationQuestions возвращает вопросы к заявке (#973) с вложенными ответами,
 	// вложениями и ФИО авторов; вопросы новые сверху, ответы в хронологии треда.
 	// forwardViewerID (#680): вложения вопроса скрываются, если недоступны читателю по
