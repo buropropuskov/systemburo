@@ -99,7 +99,7 @@ func TestDestructionAct_SummaryMatchesList(t *testing.T) {
 	// Основания разнесены по своим строкам, а не свалены в одну.
 	bases := []string{summary.Rows[0][0], summary.Rows[1][0]}
 	assert.ElementsMatch(t,
-		[]string{"истёк срок хранения", "требование субъекта персональных данных"}, bases)
+		[]string{"истёк срок хранения", "требование субъекта"}, bases)
 }
 
 func TestDestructionAct_WritesFilesWithoutPersonalData(t *testing.T) {

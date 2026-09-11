@@ -94,7 +94,7 @@ func actListTable(a DestructionAct) export.Table {
 	for _, r := range a.Records {
 		t.Rows = append(t.Rows, []string{
 			r.CreatedAt.Format(actDateLayout),
-			actTargetName(r),
+			DestructionTargetName(r),
 			DestructionActionName(r.Action),
 			DestructionBasisName(r.Basis),
 			r.ActorNote,
@@ -162,9 +162,11 @@ func appendUnique(list []string, v string) []string {
 	return append(list, v)
 }
 
-// actTargetName - что уничтожено, словами. Номер заявки предпочтительнее
-// идентификатора: акт читает человек, и «№ 20260101/500» говорит ему больше, чем 417.
-func actTargetName(r models.DestructionRecord) string {
+// DestructionTargetName - что уничтожено, словами. Номер заявки предпочтительнее
+// идентификатора: и акт, и перечень читает человек, и «№ 20260101/500» говорит ему
+// больше, чем 417. Общая на оба вывода: разойдись они, человек в акте назывался бы
+// «Сведения о человеке», а в перечне - «unique_employee».
+func DestructionTargetName(r models.DestructionRecord) string {
 	switch {
 	case r.ApplicationNumber != "":
 		return "Заявка " + r.ApplicationNumber

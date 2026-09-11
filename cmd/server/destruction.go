@@ -117,23 +117,18 @@ func destructionShow(args []string) int {
 		return 0
 	}
 	// Свежие раньше: перечень читают, чтобы посмотреть последнее.
-	fmt.Println(" ", padRight("Когда", 12), padRight("Что", 22), padRight("Действие", 12),
-		padRight("Основание", 24), padLeft("Строк", 8), padLeft("Повторов", 9))
+	fmt.Println(" ", padRight("Когда", 11), padRight("Что уничтожено", 28),
+		padRight("Действие", 11), padRight("Основание", 21),
+		padLeft("Строк", 7), padLeft("Повторов", 9))
 	shown := 0
 	for i := len(records) - 1; i >= 0 && shown < *limit; i-- {
 		r := records[i]
-		what := r.EntityType
-		if r.ApplicationNumber != "" {
-			what = r.ApplicationNumber
-		} else if r.EntityID != nil {
-			what = fmt.Sprintf("%s #%d", r.EntityType, *r.EntityID)
-		}
 		fmt.Println(" ",
-			padRight(r.CreatedAt.Format("02.01.2006"), 12),
-			padRight(what, 22),
-			padRight(entityarchive.DestructionActionName(r.Action), 12),
-			padRight(entityarchive.DestructionBasisName(r.Basis), 24),
-			padLeft(strconv.Itoa(r.Rows), 8),
+			padRight(r.CreatedAt.Format("02.01.2006"), 11),
+			padRight(entityarchive.DestructionTargetName(r), 28),
+			padRight(entityarchive.DestructionActionName(r.Action), 11),
+			padRight(entityarchive.DestructionBasisName(r.Basis), 21),
+			padLeft(strconv.Itoa(r.Rows), 7),
 			padLeft(strconv.Itoa(r.Replays), 9))
 		shown++
 	}

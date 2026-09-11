@@ -54,7 +54,7 @@ const (
 var destructionBasisNames = map[string]string{
 	BasisRetention:      "истёк срок хранения",
 	BasisOperator:       "решение оператора",
-	BasisSubjectRequest: "требование субъекта персональных данных",
+	BasisSubjectRequest: "требование субъекта",
 }
 
 // destructionActionNames - человеческие названия действий для акта.
