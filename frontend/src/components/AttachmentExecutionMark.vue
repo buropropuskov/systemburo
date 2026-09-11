@@ -5,7 +5,7 @@
   >
     <button
       type="button"
-      class="lk-button lk-button--primary execution-mark__button"
+      class="lk-button lk-button--secondary execution-mark__button"
       :disabled="!canMark"
       data-testid="aa-mark-executed"
       @click="mark"
@@ -46,7 +46,7 @@
 
 <script setup>
 /**
- * Кнопка "Отметить как исполненное" во вкладке "Доступные мне" (#2446) плюс след
+ * Кнопка "Отметить исполнение" во вкладке "Доступные мне" (#2446) плюс след
  * отметок под ней: сколько раз сегодня и кем (доп. запрос владельца после первого
  * PR). Вынесена отдельным компонентом - AccessibleAttachmentsView.vue уже за
  * порогом размера template/style, а такой объём разметки в него бы не поместился.
@@ -112,9 +112,9 @@ const label = computed(() => {
   if (secondsLeft.value > 0) {
     const m = Math.floor(secondsLeft.value / 60);
     const s = String(secondsLeft.value % 60).padStart(2, '0');
-    return `Отмечено, повтор через ${m}:${s}`;
+    return `Отмечено · ${m}:${s}`;
   }
-  return 'Отметить как исполненное';
+  return 'Отметить исполнение';
 });
 
 const marksSummary = computed(() => props.attachment?.execution_marks ?? null);
@@ -155,17 +155,40 @@ async function mark() {
 </script>
 
 <style scoped>
-/* Компонент стоит СНАРУЖИ .detail-actions отдельным блоком (не в общем флекс-ряду с
-   "Посмотреть файл"): со сводкой и списком под кнопкой он не помещается в строку
-   без искажения высоты соседней кнопки, а трогать style .detail-actions нельзя -
-   он в AccessibleAttachmentsView.vue уже за порогом размера. Свой отступ несёт сам. */
+/* Компонент стоит СНАРУЖИ .detail-actions отдельным блоком: там флекс-ряд, а здесь
+   кнопка со строкой-сводкой под ней. Свой отступ несёт сам, чужой style не трогает -
+   он в AccessibleAttachmentsView.vue за порогом размера. */
 .execution-mark {
-  margin-top: 8px;
+  margin-top: 10px;
 }
+/* Сводка - это <button> ради доступности (раскрывает список, слушает Enter), но
+   выглядеть она должна текстом: без сброса браузерных стилей отрисовывалась серой
+   прямоугольной плашкой с системным фоном. */
 .execution-mark__summary {
-  margin: 8px 0 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--text-muted);
+  font: inherit;
   font-size: 13px;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .execution-mark__summary:hover {
+    color: var(--text);
+  }
+}
+
+/* Подпись меняется каждую секунду, а вместе с ней прыгала бы ширина кнопки: цифры
+   одинаковой ширины и минимум по ширине держат её на месте. */
+.execution-mark__button {
+  min-width: 180px;
+  font-variant-numeric: tabular-nums;
 }
 .execution-mark__list {
   display: flex;

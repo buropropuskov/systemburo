@@ -323,7 +323,7 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
     expect(wrapper.find('[data-testid="aa-preview-blank"]').exists()).toBe(false);
   });
 
-  it('кнопка "Отметить как исполненное" (#2446) видна вне зависимости от has_blank и шлёт id вложения', async () => {
+  it('кнопка отметки (#2446) видна вне зависимости от has_blank и шлёт id вложения', async () => {
     wrapper = mountWithDetail({ has_blank: false });
     markAccessibleAttachmentExecuted.mockResolvedValue({ seconds_left: 300 });
     await openDetail();
