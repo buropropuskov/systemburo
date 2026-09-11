@@ -53,6 +53,11 @@ func restoreApplicationWithPeople(t *testing.T, db *gorm.DB, appID, attID int, n
 func attachmentOf(t *testing.T, db *gorm.DB, appID int) int {
 	t.Helper()
 	var id int
+	if appID == 0 {
+		require.NoError(t, db.Raw(`SELECT id FROM attachments ORDER BY id LIMIT 1`).Scan(&id).Error)
+		require.Positive(t, id)
+		return id
+	}
 	require.NoError(t, db.Raw(`SELECT id FROM attachments WHERE application_id = ?`, appID).Scan(&id).Error)
 	return id
 }
@@ -140,48 +145,104 @@ func TestReplay_PurgedApplicationCameBack(t *testing.T) {
 	assert.Equal(t, 1, records[0].Replays)
 }
 
-func TestReplay_SubjectFoundByDocumentDigest(t *testing.T) {
+func TestReplay_SubjectFoundByAnchorRow(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 
-	passport, _ := anonymizeSubjectFixture(t, db)
+	passport, namesakeID := anonymizeSubjectFixture(t, db)
 	recorder := services.NewAuditRecorder(db)
+
+	// Запоминаем строки человека ДО обезличивания: восстановление вернёт их под теми
+	// же идентификаторами, и по ним же лежат якоря в журнале.
+	var anchorEmpID int
+	require.NoError(t, db.Raw(`SELECT id FROM employees WHERE passport_series_number = ?`,
+		passport).Scan(&anchorEmpID).Error)
+	require.Positive(t, anchorEmpID)
+	attID := attachmentOf(t, db, 0)
 
 	_, err := entityarchive.AnonymizeSubject(context.Background(), db, recorder,
 		entityarchive.SubjectTargetFromDocuments(passport, ""),
 		entityarchive.DestructionOptions{Basis: entityarchive.BasisSubjectRequest, Apply: true})
 	require.NoError(t, err)
 
-	// Человек вернулся из копии: у него нет своего идентификатора, и единственная
-	// зацепка - отпечаток документа, записанный в журнал.
-	var attID int
-	require.NoError(t, db.Raw(`SELECT id FROM attachments ORDER BY id LIMIT 1`).Scan(&attID).Error)
-	restored := models.Employee{
+	// Якорь вернулся обезличенным - штатный исход «снимать нечего», а не сбой прохода:
+	// копия могла быть снята уже ПОСЛЕ уничтожения.
+	quiet, err := entityarchive.ReplayDestructions(context.Background(), db, recorder,
+		entityarchive.FilePaths{}, true)
+	require.NoError(t, err)
+	assert.Zero(t, quiet.Failed, "пустая свёртка у якоря - не ошибка")
+	assert.Zero(t, quiet.Manual)
+	assert.Equal(t, 1, quiet.Gone)
+
+	// Восстановление из копии: строка якоря вернулась со своими данными под тем же
+	// идентификатором - именно так её и возвращает pg_restore.
+	require.NoError(t, db.Exec(`UPDATE employees
+		SET last_name = 'Стираев', first_name = 'Артём', passport_series_number = ?
+		WHERE id = ?`, passport, anchorEmpID).Error)
+	require.NoError(t, db.Exec(`UPDATE employees SET passport_series_number_hmac = ?
+		WHERE id = ?`, entityarchive.SubjectTargetFromDocuments(passport, "").PassportHMAC,
+		anchorEmpID).Error)
+
+	// И вместе с ней вернулась строка того же человека, которой в момент уничтожения
+	// уже не было, - поэтому её нет и среди якорей. Найтись она обязана: ключ поиска
+	// берётся из якоря, а ищет дальше обычный поиск по документу.
+	elsewhere := models.Employee{
 		AttachmentID: &attID, PassportSeriesNumber: &passport,
 		LastName: testutil.Ptr("Стираев"), FirstName: testutil.Ptr("Артём"),
 	}
-	require.NoError(t, db.Create(&restored).Error)
+	require.NoError(t, db.Create(&elsewhere).Error)
 
 	res, err := entityarchive.ReplayDestructions(context.Background(), db, recorder,
 		entityarchive.FilePaths{}, true)
 	require.NoError(t, err)
-	require.Equal(t, 1, res.Applied, "человек обязан найтись по отпечатку документа")
+	require.Equal(t, 1, res.Applied, "человек обязан найтись по якорю")
 
-	// Проверяем ту самую строку, а не поиск по фамилии: в фикстуре есть однофамилец с
-	// другим документом, и счёт по имени спутал бы «не обезличили» с «правильно не
-	// тронули чужого».
-	var name *string
-	require.NoError(t, db.Raw(`SELECT last_name FROM employees WHERE id = ?`, restored.ID).
-		Scan(&name).Error)
-	assert.Nil(t, name, "вернувшийся человек обязан быть обезличен заново")
+	for _, id := range []int{anchorEmpID, elsewhere.ID} {
+		var name *string
+		require.NoError(t, db.Raw(`SELECT last_name FROM employees WHERE id = ?`, id).
+			Scan(&name).Error)
+		assert.Nil(t, name, "строка %d обязана быть обезличена заново", id)
+	}
 
 	// Однофамилец с другим документом остаётся нетронутым: склейка идёт по документу,
 	// а не по имени, - иначе проход обезличил бы чужого человека.
-	var other int64
-	require.NoError(t, db.Raw(`SELECT count(*) FROM employees
-		WHERE passport_series_number = ? AND last_name IS NOT NULL`, "4510 606060").Scan(&other).Error)
-	assert.EqualValues(t, 1, other)
+	var namesake *string
+	require.NoError(t, db.Raw(`SELECT last_name FROM employees WHERE id = ?`, namesakeID).
+		Scan(&namesake).Error)
+	require.NotNil(t, namesake)
+	assert.Equal(t, "Стираев", *namesake)
+}
+
+// Якорь, вернувшийся без свёртки документа, проход ронять не должен: это ровно тот
+// случай, когда копия свежее уничтожения и снимать нечего.
+func TestReplay_SubjectAnchorWithoutDocumentIsNotAFailure(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	passport, _ := anonymizeSubjectFixture(t, db)
+	recorder := services.NewAuditRecorder(db)
+	_, err := entityarchive.AnonymizeSubject(context.Background(), db, recorder,
+		entityarchive.SubjectTargetFromDocuments(passport, ""),
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisSubjectRequest, Apply: true})
+	require.NoError(t, err)
+
+	// Имя вернулось, а документ нет - строка восстановлена частично. Снимать по
+	// такой строке нечего: ключа поиска в ней нет.
+	require.NoError(t, db.Exec(`UPDATE employees SET last_name = 'Стираев'
+		WHERE passport_series_number_hmac IS NULL`).Error)
+
+	res, err := entityarchive.ReplayDestructions(context.Background(), db, recorder,
+		entityarchive.FilePaths{}, true)
+	require.NoError(t, err)
+	assert.Zero(t, res.Failed, "нечего снимать - это не сбой")
+	assert.Zero(t, res.Manual, "и не повод звать человека")
+	assert.Equal(t, 1, res.Gone)
+
+	records := destructionRecords(t, db)
+	require.Len(t, records, 1)
+	assert.Zero(t, records[0].Replays, "повтора не было - отмечать нечего")
 }
 
 func TestReplay_AnonymizedOrganizationCameBack(t *testing.T) {

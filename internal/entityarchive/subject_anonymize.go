@@ -98,6 +98,7 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		res.Warnings = warnings
 
 		var anchorID int
+		var anchors []subjectAnchor
 		total := 0
 		for i := range res.Tables {
 			table := res.Tables[i].Table
@@ -107,6 +108,11 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 			}
 			if table == "unique_employees" && len(ids) > 0 {
 				anchorID = ids[0]
+			}
+			// Якоря собираются ДО затирания: после него строки по свёртке уже не
+			// отбираются, и записать в журнал будет нечего.
+			for _, id := range ids {
+				anchors = append(anchors, subjectAnchor{Table: table, ID: id})
 			}
 			n, err := anonymizeRows(ctx, tx, table, ids)
 			if err != nil {
@@ -138,12 +144,12 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		}
 
 		// Свидетельство для повторного применения после восстановления (#2357).
-		// Идентификатор здесь ненадёжен - записи реестра у человека может не быть
-		// вовсе, - поэтому цель опознаётся отпечатками документов: вернувшегося из
-		// копии человека находят пересчётом того же отпечатка.
+		// Одного идентификатора мало - записи реестра у человека может не быть
+		// вовсе, - поэтому запоминаются все затёртые строки. Ни документа, ни его
+		// свёртки в журнал не идёт: ключ поиска берут из самой вернувшейся строки,
+		// см. SubjectAnchors у модели.
 		rec := opt.destructionRecord(models.AuditEntityUniqueEmployee, entityID, DestructionAnonymized)
-		rec.PassportDigest = documentDigest(target.PassportHMAC)
-		rec.PatentDigest = documentDigest(target.PatentHMAC)
+		rec.SubjectAnchors = formatSubjectAnchors(anchors)
 		rec.Rows = total
 		return writeDestruction(ctx, tx, opt, rec)
 	})

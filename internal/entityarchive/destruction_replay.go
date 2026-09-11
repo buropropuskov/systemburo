@@ -24,7 +24,8 @@ import (
 //
 // Опора прохода - устойчивость идентификаторов: pg_restore возвращает строки с теми же
 // id, что были, поэтому заявка и организация опознаются по идентификатору. У человека
-// своего идентификатора нет, и он опознаётся отпечатком документа (subjectByDigests).
+// своего идентификатора нет, и он опознаётся по якорям обезличенных строк
+// (subjectTargetFromAnchors).
 //
 // Записи журнала проход НЕ удаляет: следующая копия может оказаться ещё старше, и то же
 // самое придётся снимать ещё раз. Растёт только счётчик повторов.
@@ -226,22 +227,25 @@ func replayApplicationPurge(ctx context.Context, db *gorm.DB, recorder services.
 
 func replaySubjectAnonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder,
 	rec models.DestructionRecord, opt DestructionOptions, out ReplayOutcome) ReplayOutcome {
-	if rec.PassportDigest == "" && rec.PatentDigest == "" {
+	anchors := parseSubjectAnchors(rec.SubjectAnchors)
+	if len(anchors) == 0 {
 		out.Status = ReplayManual
-		out.Detail = "обезличивание человека без отпечатка документа - найти его нечем"
+		out.Detail = "обезличивание человека без якорей - найти его в восстановленной базе нечем"
 		return out
 	}
 
-	target, err := subjectByDigests(ctx, db, rec.PassportDigest, rec.PatentDigest)
+	target, err := subjectTargetFromAnchors(ctx, db, anchors)
 	if err != nil {
 		return replayFailed(out, err)
 	}
+	// Пустая цель - штатный исход, а не сбой: якорь вернулся уже обезличенным (копия
+	// свежее уничтожения) либо не вернулся вовсе. Снимать в обоих случаях нечего.
 	if target.Empty() {
 		return out
 	}
 
 	out.Status = ReplayApplied
-	out.Detail = "человек вернулся из копии, найден по отпечатку документа"
+	out.Detail = "человек вернулся из копии, найден по якорю обезличенной строки"
 	if !opt.Apply {
 		return out
 	}
@@ -310,51 +314,53 @@ func organizationHasLivePD(ctx context.Context, db *gorm.DB, id int) (bool, erro
 	return live, nil
 }
 
-// subjectDigestTables - где искать вернувшегося человека по отпечатку. Тот же перечень,
-// что затирает обезличивание субъекта: искать надо там же, где затирали.
-var subjectDigestTables = []string{"unique_employees", "employees", "application_employees"}
+// subjectTargetFromAnchors восстанавливает цель обезличивания по якорям из журнала.
+//
+// Ключ поиска берётся не из журнала, а из самой вернувшейся строки: она приезжает из
+// копии вместе со своей свёрткой документа. Журналу поэтому не нужно хранить ни
+// документ, ни свёртку, ни отпечаток свёртки - серия и номер паспорта это десять
+// цифр, и любой их отпечаток перебирается за минуты, а журнал переживает и данные, и
+// сами копии.
+//
+// Свёртки достаточно одного якоря: дальше AnonymizeSubject ищет по ней человека во
+// всех трёх таблицах и снимет в том числе строки, которых в момент уничтожения уже не
+// существовало, а из копии они вернулись. Якоря перебираются по порядку, потому что
+// часть из них могла вернуться уже обезличенной или не вернуться вовсе.
+func subjectTargetFromAnchors(ctx context.Context, db *gorm.DB, anchors []subjectAnchor) (SubjectTarget, error) {
+	for _, a := range anchors {
+		if !subjectAnchorTables[a.Table] {
+			// Таблица из записи, сделанной другой версией. Пропускаем молча: это не
+			// повод уронить проход, остальные якоря ещё не проверены.
+			continue
+		}
+		var row struct {
+			PassportSeriesNumberHMAC *string
+			PatentNumberHMAC         *string
+		}
+		q := fmt.Sprintf(`SELECT passport_series_number_hmac, patent_number_hmac
+			FROM %s WHERE id = ?`, a.Table)
+		if err := db.WithContext(ctx).Raw(q, a.ID).Scan(&row).Error; err != nil {
+			return SubjectTarget{}, fmt.Errorf("чтение якоря %s:%d: %w", a.Table, a.ID, err)
+		}
 
-// subjectByDigests восстанавливает цель обезличивания по отпечаткам документов из
-// журнала. Пустая цель означает, что человек из копии не вернулся.
-func subjectByDigests(ctx context.Context, db *gorm.DB, passportDigest, patentDigest string) (SubjectTarget, error) {
-	t := SubjectTarget{Origin: "по отпечатку документа из журнала уничтожения"}
-	if passportDigest != "" {
-		hmac, err := hmacByDigest(ctx, db, "passport_series_number_hmac", passportDigest)
-		if err != nil {
-			return SubjectTarget{}, err
+		t := SubjectTarget{Origin: fmt.Sprintf("по якорю %s:%d из журнала уничтожения", a.Table, a.ID)}
+		if row.PassportSeriesNumberHMAC != nil {
+			t.PassportHMAC = *row.PassportSeriesNumberHMAC
 		}
-		t.PassportHMAC = hmac
-	}
-	if patentDigest != "" {
-		hmac, err := hmacByDigest(ctx, db, "patent_number_hmac", patentDigest)
-		if err != nil {
-			return SubjectTarget{}, err
+		if row.PatentNumberHMAC != nil {
+			t.PatentHMAC = *row.PatentNumberHMAC
 		}
-		t.PatentHMAC = hmac
+		if !t.Empty() {
+			return t, nil
+		}
 	}
-	return t, nil
+	return SubjectTarget{}, nil
 }
 
-// hmacByDigest ищет живую свёртку документа, дающую записанный в журнале отпечаток.
-//
-// Отпечаток пересчитывается в базе тем же sha256 поверх свёртки, что считает
-// documentDigest. Индексом это не пользуется и читает таблицу целиком - сознательно:
-// индекс по выражению пришлось бы держать ради одной команды, которая запускается при
-// восстановлении, а обратное (класть в журнал саму свёртку) означало бы хранить там
-// открытый паспорт на установке с выключенным шифрованием.
-func hmacByDigest(ctx context.Context, db *gorm.DB, column, digest string) (string, error) {
-	for _, table := range subjectDigestTables {
-		q := fmt.Sprintf(`SELECT %[1]s FROM %[2]s
-			WHERE %[1]s IS NOT NULL
-			  AND encode(sha256(convert_to(%[1]s, 'UTF8')), 'hex') = ?
-			LIMIT 1`, column, table)
-		var found []string
-		if err := db.WithContext(ctx).Raw(q, digest).Scan(&found).Error; err != nil {
-			return "", fmt.Errorf("поиск по отпечатку в %s: %w", table, err)
-		}
-		if len(found) > 0 {
-			return found[0], nil
-		}
-	}
-	return "", nil
+// subjectAnchorTables - таблицы, в которых якорь может лежать. Имя подставляется в
+// запрос, поэтому берётся только из этого перечня, а не из записи журнала как есть.
+var subjectAnchorTables = map[string]bool{
+	"unique_employees":      true,
+	"employees":             true,
+	"application_employees": true,
 }

@@ -2,6 +2,8 @@ package entityarchive
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -116,7 +118,8 @@ func DisclosureSubjectKey(target SubjectTarget) string {
 	if raw == "" {
 		return ""
 	}
-	return documentDigest(raw)
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }
 
 // ListDisclosures возвращает журнал выдач, свежие раньше. Пустой ключ - весь журнал,

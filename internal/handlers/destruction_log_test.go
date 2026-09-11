@@ -16,6 +16,9 @@ package handlers_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -106,11 +109,22 @@ func TestDestructionLog_ApplicationPurge(t *testing.T) {
 	assert.Zero(t, history)
 }
 
-func TestDestructionLog_SubjectAnonymizeKeepsDocumentDigest(t *testing.T) {
+// Человек опознаётся якорями обезличенных строк, а не документом и не его отпечатком:
+// серия и номер паспорта - это десять цифр, отпечаток от них перебирается за минуты, а
+// журнал переживает и данные, и резервные копии.
+func TestDestructionLog_SubjectAnonymizeKeepsAnchorsNotDocuments(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	passport, _ := anonymizeSubjectFixture(t, db)
+
+	var uniqueID, employeeID int
+	require.NoError(t, db.Raw(`SELECT id FROM unique_employees WHERE passport_series_number = ?`,
+		passport).Scan(&uniqueID).Error)
+	require.NoError(t, db.Raw(`SELECT id FROM employees WHERE passport_series_number = ?`,
+		passport).Scan(&employeeID).Error)
+	require.Positive(t, uniqueID)
+	require.Positive(t, employeeID)
 
 	target := entityarchive.SubjectTargetFromDocuments(passport, "")
 	_, err := entityarchive.AnonymizeSubject(context.Background(), db,
@@ -123,11 +137,19 @@ func TestDestructionLog_SubjectAnonymizeKeepsDocumentDigest(t *testing.T) {
 	rec := records[0]
 	assert.Equal(t, models.AuditEntityUniqueEmployee, rec.EntityType)
 	assert.Equal(t, entityarchive.BasisSubjectRequest, rec.Basis)
-	require.NotEmpty(t, rec.PassportDigest, "без отпечатка вернувшегося человека не найти")
-	assert.Len(t, rec.PassportDigest, 64, "отпечаток - sha256 в шестнадцатеричном виде")
-	assert.NotContains(t, rec.PassportDigest, "505050",
-		"в журнал уходит отпечаток, а не сам документ")
-	assert.Empty(t, rec.PatentDigest, "патента у цели не было")
+
+	// Якоря указывают на те самые строки, которые были затёрты: после восстановления
+	// они вернутся под этими же идентификаторами.
+	require.NotEmpty(t, rec.SubjectAnchors, "без якорей вернувшегося человека не найти")
+	assert.Contains(t, rec.SubjectAnchors, fmt.Sprintf("unique_employees:%d", uniqueID))
+	assert.Contains(t, rec.SubjectAnchors, fmt.Sprintf("employees:%d", employeeID))
+
+	// И ни документа, ни свёртки, ни отпечатка свёртки.
+	digest := sha256.Sum256([]byte(target.PassportHMAC))
+	assert.NotContains(t, rec.SubjectAnchors, hex.EncodeToString(digest[:]),
+		"отпечаток свёртки в журнале - тот же обратимый паспорт")
+	assert.NotContains(t, rec.SubjectAnchors, target.PassportHMAC)
+	assert.NotContains(t, rec.SubjectAnchors, "505050")
 }
 
 func TestDestructionLog_OrganizationAnonymize(t *testing.T) {
@@ -222,10 +244,17 @@ func TestDestructionLog_KeepsNoPersonalData(t *testing.T) {
 
 	require.Len(t, destructionRecords(t, db), 2)
 	dump := destructionDump(t, db)
+	// Отпечаток свёртки проверяется наравне с открытым документом: серия и номер - это
+	// десять цифр, и sha256 от них перебирается за минуты, то есть журнал, переживающий
+	// и данные, и копии, стал бы последним местом, где паспорт восстановим.
+	target := entityarchive.SubjectTargetFromDocuments(passport, "")
+	digest := sha256.Sum256([]byte(target.PassportHMAC))
 	for _, secret := range []string{
 		"Хранимов", "Олег", "Монтажник", "4510 300300", // участник заявки
 		"Стираев", "Артём", passport, // субъект
 		"505050", "300300", // номера документов без пробела: свёртка не должна их нести
+		target.PassportHMAC,           // свёртка (при выключенном ключе это сам документ)
+		hex.EncodeToString(digest[:]), // и отпечаток свёртки
 	} {
 		assert.NotContains(t, dump, secret,
 			"персональные данные в журнале уничтожения: %q", secret)

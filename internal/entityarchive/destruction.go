@@ -2,10 +2,9 @@ package entityarchive
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -201,22 +200,6 @@ func markReplayed(ctx context.Context, tx *gorm.DB, id int) error {
 	return nil
 }
 
-// documentDigest - отпечаток свёртки документа для журналов.
-//
-// Класть в журнал саму свёртку нельзя: при выключенном шифровании crypto.ComputeHMAC
-// работает passthrough и возвращает исходное значение, то есть журнал стал бы вторым
-// хранилищем паспортов. Отпечаток считается всегда - при включённом шифровании это
-// свёртка от свёртки, при выключенном от значения; в обоих случаях детерминированно
-// и без открытого документа в записи. Обратный ход (найти вернувшегося человека по
-// отпечатку) делает subjectTargetFromDigests пересчётом того же sha256 в базе.
-func documentDigest(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:])
-}
-
 // CountDestructionRecords - сколько всего записей в журнале.
 func CountDestructionRecords(ctx context.Context, db *gorm.DB) (int64, error) {
 	var n int64
@@ -241,6 +224,45 @@ func RecentDestructionRecords(ctx context.Context, db *gorm.DB, limit int) ([]mo
 		return nil, fmt.Errorf("чтение журнала уничтожения: %w", err)
 	}
 	return out, nil
+}
+
+// subjectAnchor - одна строка, обезличенная у человека: где она лежит и под каким
+// идентификатором. После pg_restore идентификаторы те же, поэтому по якорю строку
+// находят в восстановленной базе.
+type subjectAnchor struct {
+	Table string
+	ID    int
+}
+
+// formatSubjectAnchors сворачивает якоря в «таблица:идентификатор» через запятую.
+// Текстом, а не json: перечень читают глазами в psql при разборе, и городить ради
+// пары полей структуру незачем.
+func formatSubjectAnchors(anchors []subjectAnchor) string {
+	parts := make([]string, 0, len(anchors))
+	for _, a := range anchors {
+		parts = append(parts, fmt.Sprintf("%s:%d", a.Table, a.ID))
+	}
+	return strings.Join(parts, ",")
+}
+
+// parseSubjectAnchors разбирает то, что записал formatSubjectAnchors. Непонятная
+// часть пропускается молча: запись журнала переживает версии, и уронить весь проход
+// повторного применения из-за одного якоря, которого эта версия не понимает, хуже,
+// чем снять остальное.
+func parseSubjectAnchors(s string) []subjectAnchor {
+	var out []subjectAnchor
+	for _, part := range strings.Split(s, ",") {
+		table, rawID, ok := strings.Cut(strings.TrimSpace(part), ":")
+		if !ok {
+			continue
+		}
+		id, err := strconv.Atoi(rawID)
+		if err != nil || id <= 0 || table == "" {
+			continue
+		}
+		out = append(out, subjectAnchor{Table: table, ID: id})
+	}
+	return out
 }
 
 // ListDestructionRecords возвращает записи журнала уничтожения за период, старые
