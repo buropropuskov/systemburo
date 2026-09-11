@@ -136,6 +136,11 @@ type Dependencies struct {
 	// продления сеанса, потому что тег <img> заголовок Authorization не шлёт.
 	JWTRefreshSecret []byte
 	UploadPath       string
+	// ApplicationScans - проверка принадлежности скана заявки в раздаче статики
+	// (#2465). НЕ опционален при заданном UploadPath (main и testutil обязаны
+	// заполнять): без него знание имени файла на диске снова заменяло бы проверку
+	// доступа к заявке. nil не открывает дыру - каталог сканов тогда не раздаётся.
+	ApplicationScans mw.ApplicationScanGuard
 }
 
 // Setup регистрирует все маршруты. См. Dependencies для описания полей.
@@ -240,6 +245,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// отдельного location и правок nginx. Доступ закрыт mw.FileAccess: тег <img>
 	// не отправляет Authorization, поэтому пропуском служит cookie продления
 	// сеанса (#2133). До этого каталог раздавался всем, кто знает адрес файла.
+	// Подкаталог сканов заявок закрыт сверх этого проверкой принадлежности
+	// (#2465): одного факта входа для персональных данных мало.
 	// Роут регистрируется вручную, а не через api.Group("/uploads").Static: группа
 	// echo заводит себе fallback RouteNotFound("/*"), он оказывается точнее
 	// статического "/uploads*" и перехватывает запросы файлов на 404.
@@ -248,7 +255,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 			http.MethodGet,
 			"/uploads*",
 			echo.StaticDirectoryHandler(echo.MustSubFS(e.Filesystem, d.UploadPath), false),
-			mw.FileAccess(d.JWTSecret, d.JWTRefreshSecret),
+			mw.FileAccess(d.JWTSecret, d.JWTRefreshSecret, d.ApplicationScans),
 		)
 	}
 

@@ -590,6 +590,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		JWTSecret:           []byte(TestJWTSecret),
 		JWTRefreshSecret:    []byte(TestJWTRefreshSecret),
 		UploadPath:          uploadDir,
+		ApplicationScans:    services.NewApplicationScanAccess(db, applicationService),
 	})
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.

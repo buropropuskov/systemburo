@@ -68,11 +68,16 @@ type applicationFileService struct {
 	recorder AuditRecorder
 }
 
+// ApplicationFilesDir -- подкаталог UPLOAD_PATH, где лежат приложенные к заявкам
+// сканы. Вынесено в константу: то же имя нужно гейту принадлежности в раздаче
+// статики, и разъехаться эти два места не должны.
+const ApplicationFilesDir = "application_files"
+
 // NewApplicationFileService создаёт сервис поверх каталога uploads/application_files.
 func NewApplicationFileService(db *gorm.DB, uploadPath string, recorder AuditRecorder) ApplicationFileService {
 	return &applicationFileService{
 		db:       db,
-		dir:      filepath.Join(uploadPath, "application_files"),
+		dir:      filepath.Join(uploadPath, ApplicationFilesDir),
 		recorder: recorder,
 	}
 }
