@@ -12,7 +12,8 @@
  * активной отметки: на посту важно с одного взгляда отличить «человек внутри» от
  * «клик отменит запись».
  */
-.action-btn.revertable {
+.action-btn.entry-btn.revertable,
+.action-btn.exit-btn.revertable {
   background: var(--warning-bg);
   color: var(--warning-text);
   border-color: var(--warning);
@@ -20,7 +21,8 @@
 }
 
 @media (hover: hover) {
-  .action-btn.revertable:hover:not(:disabled) {
+  .action-btn.entry-btn.revertable:hover:not(:disabled),
+  .action-btn.exit-btn.revertable:hover:not(:disabled) {
     filter: brightness(0.97);
   }
 }

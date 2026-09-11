@@ -101,3 +101,34 @@ describe('PassageRevertModal (#2437)', () => {
     expect(wrapper.find('[data-testid="passage-revert-reason"]').element.value).toBe('');
   });
 });
+
+// На стенде окно писало «Вход» над отменой ВЪЕЗДА машины: кнопка в таблице проезда
+// называется иначе, чем подпись в окне.
+describe('PassageRevertModal - направление называется как в таблице', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    apiRequest.mockReset();
+  });
+
+  it('у машин это въезд и выезд', async () => {
+    const wrapper = mountModal();
+    const store = usePassageRevertStore();
+    ask(store, { kind: 'cars', direction: 'entry', subject: 'А111АА' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Въезд');
+    expect(wrapper.text()).not.toContain('Вход');
+
+    store.close();
+    ask(store, { kind: 'cars', direction: 'exit', subject: 'А111АА' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Выезд');
+  });
+
+  it('у людей - вход и выход', async () => {
+    const wrapper = mountModal();
+    ask(usePassageRevertStore(), { kind: 'employees', direction: 'entry' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Вход');
+    expect(wrapper.text()).not.toContain('Въезд');
+  });
+});
