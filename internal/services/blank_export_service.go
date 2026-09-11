@@ -53,6 +53,12 @@ const (
 // причину, а не пустой результат.
 var ErrArchiveDisabled = errors.New("file archive is disabled")
 
+// ErrArchivePurged - файлы заявки уничтожены вместе с обезличиванием по сроку
+// хранения (#2355), и заводить их заново нельзя. Без этого гейта ночная сверка или
+// кнопка «пересоздать» вернули бы на диск бланк и слепок заявки, которую срок
+// хранения велел уничтожить, - пусть и собранные уже из затёртых полей.
+var ErrArchivePurged = errors.New("application files were purged by retention")
+
 // BlankExportService пишет заполненные бланки заявки в файловый архив (#1615).
 //
 // Единица обработки - заявка целиком: папка принадлежит ей, и переименование,
@@ -165,6 +171,14 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 	}
 	if !settings.Enabled {
 		return nil, ErrArchiveDisabled
+	}
+
+	purged, err := s.applicationPurged(ctx, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	if purged {
+		return nil, ErrArchivePurged
 	}
 
 	appValues, err := s.paths.Values(ctx, applicationID, 0)
@@ -841,6 +855,20 @@ func currentDir(registry map[int]*models.BlankExport) string {
 		}
 	}
 	return ""
+}
+
+// applicationPurged - остались ли от заявки в реестре следы уничтожения по сроку.
+// Достаточно одной такой строки: уничтожение идёт по всей заявке разом, а частично
+// уничтоженной заявке в архиве делать нечего тем более.
+func (s *BlankExportService) applicationPurged(ctx context.Context, applicationID int) (bool, error) {
+	var n int64
+	err := s.db.WithContext(ctx).Model(&models.BlankExport{}).
+		Where("application_id = ? AND status = ?", applicationID, models.BlankExportPurged).
+		Count(&n).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to check purged archive rows: %w", err)
+	}
+	return n > 0, nil
 }
 
 // frozenDir возвращает каталог замороженных файлов заявки, если такие есть.

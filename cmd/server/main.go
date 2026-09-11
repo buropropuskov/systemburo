@@ -20,6 +20,7 @@ import (
 	"systemburo/internal/config"
 	"systemburo/internal/crypto"
 	"systemburo/internal/database"
+	"systemburo/internal/entityarchive"
 	"systemburo/internal/handlers"
 	"systemburo/internal/httpx"
 	mw "systemburo/internal/middleware"
@@ -704,7 +705,13 @@ func main() {
 	// подписки Web Push без единой успешной доставки (#974) и разрешившиеся письма
 	// из очереди (#2351). Остальные журналы чистятся только вручную подкомандой
 	// cleanup - там решение за оператором.
-	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, cfg.PushSubscriptionRetentionDays, cfg.MailMessageRetentionDays, 24*time.Hour)
+	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, cfg.PushSubscriptionRetentionDays, cfg.MailMessageRetentionDays, cfg.AuditRetentionMonths, 24*time.Hour)
+	// Обезличивание заявок по сроку хранения (#2355). Отдельной задачей, а не внутри
+	// уборки: та удаляет обесценившийся мусор, а здесь необратимая операция над
+	// персональными данными, и выключена она по умолчанию.
+	go startApplicationRetentionWorker(ctxSig, db,
+		entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath},
+		cfg.ApplicationRetentionMonths, 24*time.Hour)
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
@@ -798,9 +805,9 @@ func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precr
 // разных срока), подписки Web Push без единой успешной доставки (#974) и
 // разрешившиеся письма из очереди (#2351). Первый прогон сразу - после долгого
 // простоя мусор копится, ждать сутки незачем.
-func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays int, interval time.Duration) {
+func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays, auditMonths int, interval time.Duration) {
 	run := func() {
-		database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays)
+		database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays, auditMonths)
 	}
 	run()
 	ticker := time.NewTicker(interval)
@@ -809,6 +816,51 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 		select {
 		case <-ctx.Done():
 			slog.Info("retention worker stopped")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
+// startApplicationRetentionWorker раз в сутки обезличивает заявки, чей срок хранения
+// истёк (#2355).
+//
+// Нулевой срок означает «оператор его не задавал»: работа не начинается вовсе, и об
+// этом говорится один раз при старте. Молча затирать данные установки, которая о сроке
+// не просила, нельзя - операция необратима.
+//
+// Порция ограничена: на базе, где срок включили впервые, под обезличивание попадут
+// сразу все старые заявки, и одним заходом это была бы долгая транзакция на всю
+// таблицу. Остаток возьмёт следующий прогон.
+func startApplicationRetentionWorker(ctx context.Context, db *gorm.DB, paths entityarchive.FilePaths, months int, interval time.Duration) {
+	if months <= 0 {
+		slog.Info("обезличивание заявок по сроку выключено: APPLICATION_RETENTION_MONTHS не задан")
+		return
+	}
+
+	const batch = 200
+	recorder := services.NewAuditRecorder(db)
+	run := func() {
+		cutoff := time.Now().UTC().AddDate(0, -months, 0)
+		res, err := entityarchive.SweepApplicationRetention(ctx, db, recorder, paths, cutoff, batch, true)
+		if err != nil {
+			slog.Error("обезличивание по сроку не выполнено", "error", err)
+			return
+		}
+		if res.Applied > 0 {
+			slog.Info("заявки обезличены по сроку хранения",
+				"заявок", res.Applied, "строк", res.Rows, "файлов", res.Files,
+				"старше", cutoff.Format(time.DateOnly))
+		}
+	}
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("application retention worker stopped")
 			return
 		case <-ticker.C:
 			run()

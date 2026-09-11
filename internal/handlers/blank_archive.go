@@ -56,6 +56,9 @@ func (h *BlankArchiveHandler) Reexport(c echo.Context) error {
 	switch {
 	case errors.Is(err, services.ErrArchiveDisabled):
 		return echo.NewHTTPError(http.StatusConflict, "Выгрузка бланков выключена в настройках файлового архива")
+	case errors.Is(err, services.ErrArchivePurged):
+		return echo.NewHTTPError(http.StatusConflict,
+			"Файлы заявки уничтожены по сроку хранения - пересоздать их нельзя")
 	case err != nil:
 		return err
 	}

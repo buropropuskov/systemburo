@@ -36,7 +36,7 @@ const entityHelp = `Работа с данными по идентификато
   server entity import    -pkg=<путь> [-apply]                          Развернуть пакет на этот стенд
   server entity retire    -type=organization -id=N [-apply]             Погасить организацию и её пользователей
   server entity restore   -type=organization -id=N [-apply]             Откатить последний retire
-  server entity anonymize -type=organization -id=N [-apply]             Необратимо затереть персональные поля
+  server entity anonymize -type=organization|application -id=N [-apply] Необратимо затереть персональные поля
   server entity purge     -type=organization -id=N -pkg=<путь> [-apply] Снести данные по пакету
 
 Общие флаги (show, export, retire, restore, anonymize, purge):
@@ -96,7 +96,13 @@ retire без -apply показывает, что погасло бы (is_active
 предшествующего retire (или если он уже откачен) restore отказывает - подряд включать всё
 неактивное он не умеет и не должен.
 
-anonymize необратимо затирает ФИО, документы (паспорт, патент - вместе с их отпечатками) и
+anonymize работает по организации и по ОДНОЙ ЗАЯВКЕ (-type=application): у заявки затираются
+ФИО, документы и контакты её участников плюс имя и телефон инициатора из шапки, а сама
+заявка, её даты, статусы, решения согласующих и факт прохода остаются - обезличенная
+заявка перестаёт быть персональными данными, и хранить её можно дальше. Журнал истории и
+проходов не трогается: он доказывает, кто и когда был на объекте, и уходит по своему сроку.
+
+По организации anonymize необратимо затирает ФИО, документы (паспорт, патент - вместе с их отпечатками) и
 контакты сотрудников и пользователей организации, ФИО и телефон инициатора из шапки подачи
 каждой заявки (initiator_name/contact_phone - там может быть указан не отправитель, а другой
 человек), а также нормализованное ФИО своего сотрудника в предупреждениях о совпадении с
@@ -691,7 +697,22 @@ func entityAnonymize(args []string) int {
 		return 1
 	}
 
-	res, err := entityarchive.Anonymize(context.Background(), db, services.NewAuditRecorder(db), entityType, id, nil, apply)
+	// Заявка - своя цель: у неё обезличиваются участники и шапка, а не организация
+	// целиком (#2355). Механизм затирания общий, меняется отбор строк.
+	var res entityarchive.AnonymizeResult
+	if entityType == entityarchive.TypeApplication {
+		// Каталоги нужны только заявке: вместе с полями у неё уничтожаются файлы -
+		// приложенные документы и корпоративная копия бланка со слепком.
+		cfg, cfgErr := config.Load()
+		if cfgErr != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", cfgErr)
+			return 1
+		}
+		paths := entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath}
+		res, err = entityarchive.AnonymizeApplication(context.Background(), db, services.NewAuditRecorder(db), paths, id, nil, apply)
+	} else {
+		res, err = entityarchive.Anonymize(context.Background(), db, services.NewAuditRecorder(db), entityType, id, nil, apply)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
@@ -729,6 +750,20 @@ func printAnonymizeResult(res entityarchive.AnonymizeResult, applied bool) {
 	}
 	fmt.Println()
 	fmt.Printf("Всего строк: %d\n", res.Total())
+
+	// Файлы идут отдельным счётом: они не затираются по полям, а уничтожаются целиком,
+	// и оператор обязан видеть объём этой части до -apply так же, как объём затирания.
+	if res.Files.Total() > 0 {
+		fmt.Println()
+		if applied {
+			fmt.Println("Уничтожено файлов:")
+		} else {
+			fmt.Println("Будет уничтожено файлов:")
+		}
+		fmt.Println(" ", padRight("Приложено к заявке", 34), padLeft(strconv.Itoa(res.Files.Attached), 10))
+		fmt.Println(" ", padRight("В файловом архиве", 34), padLeft(strconv.Itoa(res.Files.Archive), 10))
+		fmt.Printf("  Освобождается места: %s\n", humanBytes(res.Files.Bytes()))
+	}
 
 	// Молчать нельзя: без этой строки обезличивание выглядит полным, а супер-администратор
 	// организации на самом деле сохраняет и ФИО, и прежний логин (тот же приём, что у

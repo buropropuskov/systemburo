@@ -499,7 +499,7 @@ func measureRetentionTable(ctx context.Context, db *gorm.DB, table string, res *
 // unreadNotificationDays), подписки Web Push без единой успешной доставки (#974) и
 // разрешившиеся письма из очереди (#2351). Ошибка одной группы не отменяет остальные:
 // это обслуживание, а не транзакция.
-func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays int) {
+func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays, auditMonths int) {
 	now := time.Now().UTC()
 	plan := []struct {
 		target RetentionTarget
@@ -510,6 +510,15 @@ func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays,
 		{TargetUnreadNotifications, now.AddDate(0, 0, -unreadNotificationDays)},
 		{TargetPushSubscriptions, now.AddDate(0, 0, -pushSubscriptionDays)},
 		{TargetEmailMessages, now.AddDate(0, 0, -mailMessageDays)},
+	}
+	// История сущностей чистится, только когда срок назначен явно (#2355). Прежде он
+	// был описан в правиле группы, но применялся лишь вручную командой cleanup - и
+	// записи с ФИО в пояснениях к проходам копились бессрочно.
+	if auditMonths > 0 {
+		plan = append(plan, struct {
+			target RetentionTarget
+			cutoff time.Time
+		}{TargetAudit, now.AddDate(0, -auditMonths, 0)})
 	}
 	for _, p := range plan {
 		res, err := SweepRetention(ctx, db, p.target, SweepOptions{Cutoff: p.cutoff, Apply: true})

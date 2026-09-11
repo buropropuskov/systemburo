@@ -118,9 +118,13 @@ type AnonymizeResult struct {
 	// обезличил. Непустое значение оператор обязан увидеть, а не узнать постфактум, что
 	// офбординг персональных данных выглядел полным, а владелец системы лишился входа.
 	SkippedSuperAdmins []int
+	// Files - файлы заявки, уничтоженные вместе с затиранием полей (#2355). Заполняется
+	// только у цели «заявка»: у организации файлы снимает Purge по проверенному пакету,
+	// а обезличивание организации оставляет её работать дальше.
+	Files FilePurgeResult
 	// Warnings - то, что оператор обязан увидеть, но что anonymize сознательно не делает:
-	// application_files (сканы документов) и слепки бланков в архиве (заявка.json,
-	// ARCHIVE_PATH) в этот срез не входят и остаются читаемыми; matched_value/matched_reason/
+	// у организации application_files (сканы документов) и слепки бланков в архиве
+	// (заявка.json, ARCHIVE_PATH) остаются читаемыми; matched_value/matched_reason/
 	// comment в blacklist-таблицах не затираются (чужая запись) и могут текстуально
 	// совпадать с только что обезличенным именем.
 	Warnings []string
@@ -145,8 +149,19 @@ type anonymizeAuditTable struct {
 	Rows  int    `json:"rows"`
 }
 
+// anonymizeAuditFiles - файловая часть записи журнала: счётчики по двум хранилищам.
+type anonymizeAuditFiles struct {
+	Attached int   `json:"attached"`
+	Archive  int   `json:"archive"`
+	Bytes    int64 `json:"bytes"`
+}
+
 type anonymizeDetails struct {
 	Tables []anonymizeAuditTable `json:"tables"`
+	// Files - сколько файлов уничтожено на диске и сколько места освободилось.
+	// Имён файлов здесь нет намеренно: в имени бланка стоит фамилия заявителя, и
+	// журнал уничтожения не должен становиться местом, где она пережила уничтожение.
+	Files *anonymizeAuditFiles `json:"files,omitempty"`
 	// SkippedSuperAdmins - тот же список, что и в AnonymizeResult, зафиксированный на
 	// момент действия: история обязана описывать ровно то, что реально произошло,
 	// включая то, что было сознательно пропущено (см. retireDetails в retire.go).

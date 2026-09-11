@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -90,6 +91,12 @@ func (s *BlankExportService) ProcessQueue(ctx context.Context) (processed, faile
 
 	for id, reason := range pending {
 		if _, err := s.ExportApplication(ctx, id, reason); err != nil {
+			// Уничтоженная по сроку заявка - не сбой прогона, а его штатный исход:
+			// файлов у неё быть не должно. Считать это ошибкой значило бы красить
+			// ленту архива каждую ночь после включения срока хранения.
+			if errors.Is(err, ErrArchivePurged) {
+				continue
+			}
 			failed++
 			slog.Error("выгрузка заявки из очереди файлового архива завершилась ошибкой",
 				"application_id", id, "reason", reason, "error", err)

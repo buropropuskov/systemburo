@@ -56,6 +56,23 @@ describe('ArchiveFailuresList', () => {
     expect(api.listArchiveItems).toHaveBeenCalledWith({ status: 'no_template', page: 1, perPage: 20 })
   })
 
+  it('уничтоженная по сроку строка объясняет себя и не предлагает повтор', async () => {
+    api.listArchiveItems.mockResolvedValue({
+      items: [ROW({ status: 'purged', last_error: '' })],
+      meta: { total: 1, page: 1, per_page: 20 },
+    })
+    const w = mountList()
+    await flushPromises()
+
+    // Пустая строка без подписи читалась бы как сбой выгрузки, а файла нет намеренно:
+    // заявку обезличили по сроку хранения и копии уничтожили вместе с полями.
+    expect(w.text()).toContain('Уничтожено по сроку')
+    expect(w.text()).toContain('заявка обезличена по сроку хранения, файлы уничтожены')
+    // Кнопка повтора у такой строки была бы предложением вернуть на диск то, что срок
+    // хранения велел уничтожить.
+    expect(w.find('[data-testid="afl-retry-row"]').exists()).toBe(false)
+  })
+
   it('пустой список показывает сообщение об отсутствии строк', async () => {
     api.listArchiveItems.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 20 } })
     const w = mountList()
