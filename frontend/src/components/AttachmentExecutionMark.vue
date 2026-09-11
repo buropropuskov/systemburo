@@ -12,15 +12,18 @@
     >
       {{ label }}
     </button>
-    <p
+    <button
       v-if="todayCount > 0"
+      type="button"
       class="execution-mark__summary"
+      :aria-expanded="expanded"
       data-testid="aa-mark-summary"
+      @click="expanded = !expanded"
     >
-      Сегодня отмечено {{ todayCount }} {{ timesLabel }}<template v-if="listTrimmed">, показаны последние {{ marksSummary.recent.length }}</template>
-    </p>
+      {{ summaryLabel }}
+    </button>
     <ul
-      v-if="todayCount > 0"
+      v-if="expanded"
       class="execution-mark__list"
       data-testid="aa-mark-list"
     >
@@ -29,11 +32,13 @@
         :key="i"
         class="execution-mark__item"
       >
-        <span class="execution-mark__time">{{ formatMarkTime(entry.created_at) }}</span>
-        <span
-          v-if="entry.actor_name"
-          class="execution-mark__actor"
-        >{{ entry.actor_name }}</span>
+        {{ formatMarkTime(entry.created_at) }}<span v-if="entry.actor_name"> - {{ entry.actor_name }}</span>
+      </li>
+      <li
+        v-if="listTrimmed"
+        class="execution-mark__item execution-mark__item--more"
+      >
+        показаны последние {{ marksSummary.recent.length }}
       </li>
     </ul>
   </div>
@@ -68,11 +73,11 @@ const emit = defineEmits(['marked']);
 
 const deletions = useDeletionsStore();
 
-// localUntil - свежий срок после успешного клика. До первого клика источник - поле с
-// бэка: деталь вложения уже несёт текущее состояние окна при открытии.
-const localUntil = ref(null);
+// Остаток до повтора отсчитываем от ЧИСЛА СЕКУНД, присланного сервером, а не от
+// разницы с часами браузера: отстающие на пару секунд часы показывали «повтор через
+// 5:02» при окне в пять минут.
+const secondsLeft = ref(0);
 const submitting = ref(false);
-const now = ref(Date.now());
 let ticker = null;
 
 function stopTicker() {
@@ -82,32 +87,31 @@ function stopTicker() {
   }
 }
 
-const markedUntilMs = computed(() => {
-  const raw = localUntil.value ?? props.attachment?.execution_marked_until ?? null;
-  const ms = raw ? new Date(raw).getTime() : NaN;
-  return Number.isNaN(ms) ? null : ms;
-});
+function startCountdown(seconds) {
+  stopTicker();
+  secondsLeft.value = Math.max(0, Math.floor(seconds || 0));
+  if (secondsLeft.value <= 0) return;
+  ticker = setInterval(() => {
+    secondsLeft.value -= 1;
+    if (secondsLeft.value <= 0) stopTicker();
+  }, 1000);
+}
 
-// Тикер живёт, только пока есть что отсчитывать - на пустом вложении/до отметки
-// компонент не занимает таймер впустую.
+// Свежая деталь приносит свой остаток - перезапускаем отсчёт с него.
 watch(
-  markedUntilMs,
-  (until) => {
-    stopTicker();
-    if (until) ticker = setInterval(() => { now.value = Date.now(); }, 1000);
-  },
+  () => props.attachment?.execution_marks?.seconds_left ?? 0,
+  (seconds) => startCountdown(seconds),
   { immediate: true },
 );
 onBeforeUnmount(stopTicker);
 
-const canMark = computed(() => !submitting.value && (!markedUntilMs.value || now.value >= markedUntilMs.value));
+const canMark = computed(() => !submitting.value && secondsLeft.value <= 0);
 
 const label = computed(() => {
   if (submitting.value) return 'Отмечаю...';
-  if (!canMark.value) {
-    const left = Math.max(0, Math.ceil((markedUntilMs.value - now.value) / 1000));
-    const m = Math.floor(left / 60);
-    const s = String(left % 60).padStart(2, '0');
+  if (secondsLeft.value > 0) {
+    const m = Math.floor(secondsLeft.value / 60);
+    const s = String(secondsLeft.value % 60).padStart(2, '0');
     return `Отмечено, повтор через ${m}:${s}`;
   }
   return 'Отметить как исполненное';
@@ -115,7 +119,16 @@ const label = computed(() => {
 
 const marksSummary = computed(() => props.attachment?.execution_marks ?? null);
 const todayCount = computed(() => marksSummary.value?.today_count ?? 0);
-const timesLabel = computed(() => pluralRu(todayCount.value, ['раз', 'раза', 'раз']));
+const timesLabel = computed(() => pluralRu(todayCount.value, ['отметка', 'отметки', 'отметок']));
+const expanded = ref(false);
+
+// Одна строка вместо перечня: раньше под кнопкой висело по две строки на каждую
+// отметку, и карточка превращалась в простыню. Подробности - по клику.
+const summaryLabel = computed(() => {
+  const last = marksSummary.value?.recent?.[0];
+  const time = last ? formatMarkTime(last.created_at) : '';
+  return `Сегодня ${todayCount.value} ${timesLabel.value}${time ? `, последняя в ${time}` : ''}`;
+});
 // Список ограничен сверху, а счётчик точный: без оговорки «показаны последние N» их
 // расхождение читается как потерянные отметки.
 const listTrimmed = computed(() => todayCount.value > (marksSummary.value?.recent?.length ?? 0));
@@ -130,8 +143,7 @@ async function mark() {
   submitting.value = true;
   try {
     const data = await markAccessibleAttachmentExecuted(props.attachment.attachment_id);
-    localUntil.value = data.execution_marked_until;
-    now.value = Date.now();
+    startCountdown(data.seconds_left);
     deletions.notify({ prefix: 'Вложение отмечено исполненным', type: 'success' });
     emit('marked');
   } catch (e) {
