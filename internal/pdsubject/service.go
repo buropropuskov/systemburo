@@ -60,6 +60,21 @@ type Candidate struct {
 	DocumentTail string `json:"document_tail,omitempty"`
 }
 
+// Find ищет человека по имени или по номеру документа.
+//
+// Документ точнее: в запросе государственного органа он есть чаще, чем верное
+// написание фамилии, и находит ровно одного человека - без списка однофамильцев.
+func (s *Service) Find(ctx context.Context, fio, document string) ([]Candidate, error) {
+	if strings.TrimSpace(document) != "" {
+		found, err := entityarchive.FindSubjectCandidatesByDocument(ctx, s.db, document)
+		if err != nil {
+			return nil, err
+		}
+		return toCandidates(found), nil
+	}
+	return s.FindByName(ctx, fio)
+}
+
 // FindByName ищет кандидатов по имени. Склейка по имени не делается: решает человек.
 func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, error) {
 	parts := strings.Fields(fio)
@@ -75,6 +90,11 @@ func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, erro
 	if err != nil {
 		return nil, err
 	}
+	return toCandidates(found), nil
+}
+
+// toCandidates переводит находки в ответ интерфейса.
+func toCandidates(found []entityarchive.SubjectCandidate) []Candidate {
 	out := make([]Candidate, 0, len(found))
 	for _, c := range found {
 		out = append(out, Candidate{
@@ -90,7 +110,7 @@ func (s *Service) FindByName(ctx context.Context, fio string) ([]Candidate, erro
 			DocumentTail:    c.DocumentTail,
 		})
 	}
-	return out, nil
+	return out
 }
 
 // Section - раздел справки для показа на экране.

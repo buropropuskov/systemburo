@@ -29,7 +29,7 @@ describe('api/pdSubject', () => {
   it('findSubjectCandidates отдаёт массив записей, а не Response', async () => {
     apiRequest.mockResolvedValue(okJson([{ id: 4, full_name: 'Мякотных Сергей', has_document: true }]))
 
-    const found = await findSubjectCandidates('Мякотных Сергей')
+    const found = await findSubjectCandidates({ fio: 'Мякотных Сергей' })
 
     expect(Array.isArray(found)).toBe(true)
     expect(found).toHaveLength(1)
@@ -38,9 +38,17 @@ describe('api/pdSubject', () => {
     )
   })
 
+  it('поиск по документу уходит параметром document', async () => {
+    apiRequest.mockResolvedValue(okJson([]))
+    await findSubjectCandidates({ document: '4510 123456' })
+    expect(apiRequest).toHaveBeenCalledWith(
+      `/pd-subject/candidates?document=${encodeURIComponent('4510 123456')}`,
+    )
+  })
+
   it('пустой ответ превращается в пустой массив, а не в null', async () => {
     apiRequest.mockResolvedValue(okJson(null))
-    await expect(findSubjectCandidates('Иванов Иван')).resolves.toEqual([])
+    await expect(findSubjectCandidates({ fio: 'Иванов Иван' })).resolves.toEqual([])
   })
 
   it('fetchSubjectReport отдаёт разделы справки', async () => {

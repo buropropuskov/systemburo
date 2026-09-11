@@ -276,3 +276,27 @@ func TestFindSubjectCandidates_TypoInSurname(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, far, "другая фамилия - не опечатка")
 }
+
+// TestFindSubjectCandidatesByDocument - поиск по номеру документа. В запросе
+// государственного органа он есть чаще, чем верное написание фамилии, и однозначен:
+// находит того, о ком спрашивают, без списка однофамильцев.
+func TestFindSubjectCandidatesByDocument(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	passport, _ := subjectFixture(t, db)
+
+	found, err := entityarchive.FindSubjectCandidatesByDocument(context.Background(), db, passport)
+	require.NoError(t, err)
+	require.Len(t, found, 1, "по документу находится ровно один человек, однофамилец не в счёт")
+	assert.Contains(t, found[0].FullName, "Субъектов")
+	assert.Equal(t, 1, found[0].RegistryRows)
+	assert.Equal(t, 1, found[0].ApplicationRows)
+
+	none, err := entityarchive.FindSubjectCandidatesByDocument(context.Background(), db, "0000 000000")
+	require.NoError(t, err)
+	assert.Empty(t, none, "чужой документ не должен находить никого")
+
+	_, err = entityarchive.FindSubjectCandidatesByDocument(context.Background(), db, "  ")
+	require.Error(t, err, "пустой документ - это не поиск по всем подряд")
+}
