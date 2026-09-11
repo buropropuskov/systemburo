@@ -325,3 +325,55 @@ func TestGetAvailableAttachments_ManualCarriesOwnFlag(t *testing.T) {
 	require.True(t, flags[manual], "ручное вложение обязано прийти с признаком")
 	require.False(t, flags[fromApp], "заявочное - без признака")
 }
+
+// TestGetAttachmentCars_ManualAttachmentShowsCars - состав ручного вложения «Автомобили»
+// обязан открываться (#2453).
+//
+// Соединение с заявкой было внутренним, а у ручного вложения заявки нет - выборка
+// отсекала все строки разом, и карточка открывалась пустой при любом числе машин.
+// Именно с этого («внутри просто пусто») начался разбор жалобы владельца.
+func TestGetAttachmentCars_ManualAttachmentShowsCars(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	attID := w.newManualAttachment(t, "cars")
+
+	cars, err := w.svc.GetAttachmentCars(ctx, attID, services.SupplementScopeAdmitted)
+	require.NoError(t, err)
+	require.Len(t, cars, 1, "машина ручного вложения обязана быть видна в карточке")
+	require.NotNil(t, cars[0].Organization)
+	require.Equal(t, "Test Organization", *cars[0].Organization,
+		"организация у сироты берётся с самого вложения, а не из отсутствующей заявки")
+}
+
+// TestGetAttachmentCars_ApplicationAttachmentUnchanged - заявочные вложения читаются
+// как прежде: внешнее соединение не должно было ничего им поменять.
+func TestGetAttachmentCars_ApplicationAttachmentUnchanged(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	attID := w.newAttachment(t, w.newApp(t, models.ConfirmationApproved), "cars")
+	number := "В002ВВ777"
+	require.NoError(t, w.db.Create(&models.Car{AttachmentID: attID, CarNumber: &number}).Error)
+
+	cars, err := w.svc.GetAttachmentCars(ctx, attID, services.SupplementScopeAdmitted)
+	require.NoError(t, err)
+	require.Len(t, cars, 1)
+	require.Equal(t, number, cars[0].CarNumber)
+	require.NotNil(t, cars[0].Organization)
+}
+
+// TestGetAttachmentEmployees_ManualAttachmentHasOrganization - у людей соединение и так
+// было внешним, но организация читалась только из заявки: у сироты выходила пустой.
+func TestGetAttachmentEmployees_ManualAttachmentHasOrganization(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	attID := w.newManualAttachment(t, "people")
+
+	emps, err := w.svc.GetAttachmentEmployees(ctx, attID, services.SupplementScopeAdmitted)
+	require.NoError(t, err)
+	require.Len(t, emps, 1)
+	require.NotNil(t, emps[0].Organization)
+	require.Equal(t, "Test Organization", *emps[0].Organization)
+}
