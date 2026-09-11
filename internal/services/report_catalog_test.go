@@ -1,6 +1,7 @@
 package services
 
 import (
+	"reflect"
 	"testing"
 
 	"systemburo/internal/models"
@@ -41,8 +42,8 @@ func TestBuildReportCatalog_Structure(t *testing.T) {
 // каждый разрез метрики, фильтр сущности и т.п. должен существовать.
 func TestReportRegistries_Consistency(t *testing.T) {
 	for key, m := range reportMetricRegistry {
-		if m.baseTable == "" || m.aggExpr == "" {
-			t.Errorf("metric %q: пустой baseTable/aggExpr", key)
+		if m.label == "" || m.group == "" {
+			t.Errorf("metric %q: пустая подпись или группа — карточка в гиде будет безымянной", key)
 		}
 		for _, dim := range m.dimensions {
 			if _, ok := reportDimensionRegistry[dim]; !ok {
@@ -163,5 +164,27 @@ func TestBuildReportCatalog_DynamicOptions(t *testing.T) {
 	}
 	if byKey["date_range"].Type != models.ReportFieldDate {
 		t.Errorf("date_range: тип %q, ожидался date", byKey["date_range"].Type)
+	}
+}
+
+// TestMetricDef_NoSQLFields — замок против возврата дубля SQL в каталог. Таблицу,
+// условие и агрегат метрики знает только aggMetricSchema (report_engine.go); копия
+// в metricDef не читалась никем, зато тихо протухала: у проходов там до #2468
+// годами стояли cars_history и employees_history, дропнутые в #870. Поле, добавленное
+// в metricDef, обязано уходить клиенту в models.ReportMetricInfo — иначе это снова
+// мёртвая копия, и тест просит вписать его сюда осознанно.
+func TestMetricDef_NoSQLFields(t *testing.T) {
+	published := map[string]bool{
+		"label":      true,
+		"unit":       true,
+		"group":      true,
+		"dimensions": true,
+	}
+	typ := reflect.TypeOf(metricDef{})
+	for i := 0; i < typ.NumField(); i++ {
+		name := typ.Field(i).Name
+		if !published[name] {
+			t.Errorf("metricDef.%s: каталог хранит только то, что отдаёт наружу; SQL метрики живёт в aggMetricSchema (report_engine.go)", name)
+		}
 	}
 }
