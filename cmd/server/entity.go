@@ -701,7 +701,15 @@ func entityAnonymize(args []string) int {
 	// целиком (#2355). Механизм затирания общий, меняется отбор строк.
 	var res entityarchive.AnonymizeResult
 	if entityType == entityarchive.TypeApplication {
-		res, err = entityarchive.AnonymizeApplication(context.Background(), db, services.NewAuditRecorder(db), id, nil, apply)
+		// Каталоги нужны только заявке: вместе с полями у неё уничтожаются файлы -
+		// приложенные документы и корпоративная копия бланка со слепком.
+		cfg, cfgErr := config.Load()
+		if cfgErr != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", cfgErr)
+			return 1
+		}
+		paths := entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath}
+		res, err = entityarchive.AnonymizeApplication(context.Background(), db, services.NewAuditRecorder(db), paths, id, nil, apply)
 	} else {
 		res, err = entityarchive.Anonymize(context.Background(), db, services.NewAuditRecorder(db), entityType, id, nil, apply)
 	}
@@ -742,6 +750,20 @@ func printAnonymizeResult(res entityarchive.AnonymizeResult, applied bool) {
 	}
 	fmt.Println()
 	fmt.Printf("Всего строк: %d\n", res.Total())
+
+	// Файлы идут отдельным счётом: они не затираются по полям, а уничтожаются целиком,
+	// и оператор обязан видеть объём этой части до -apply так же, как объём затирания.
+	if res.Files.Total() > 0 {
+		fmt.Println()
+		if applied {
+			fmt.Println("Уничтожено файлов:")
+		} else {
+			fmt.Println("Будет уничтожено файлов:")
+		}
+		fmt.Println(" ", padRight("Приложено к заявке", 34), padLeft(strconv.Itoa(res.Files.Attached), 10))
+		fmt.Println(" ", padRight("В файловом архиве", 34), padLeft(strconv.Itoa(res.Files.Archive), 10))
+		fmt.Printf("  Освобождается места: %s\n", humanBytes(res.Files.Bytes()))
+	}
 
 	// Молчать нельзя: без этой строки обезличивание выглядит полным, а супер-администратор
 	// организации на самом деле сохраняет и ФИО, и прежний логин (тот же приём, что у

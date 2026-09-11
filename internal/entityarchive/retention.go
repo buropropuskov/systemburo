@@ -75,13 +75,18 @@ type RetentionSweepResult struct {
 	Checked int
 	Applied int
 	Rows    int
+	// Files - сколько файлов заявок уничтожено на диске: приложенные документы и
+	// корпоративные копии бланков. Затирание полей их не касается, и без этого
+	// счётчика прогон отчитывался бы о полном обезличивании, оставив на диске
+	// читаемые паспорта (#2355).
+	Files int
 }
 
 // SweepApplicationRetention обезличивает заявки, чей срок истёк.
 //
 // apply=false - только подсчёт: оператор обязан увидеть объём до того, как необратимая
 // операция пройдёт по всей базе.
-func SweepApplicationRetention(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, cutoff time.Time, limit int, apply bool) (RetentionSweepResult, error) {
+func SweepApplicationRetention(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, paths FilePaths, cutoff time.Time, limit int, apply bool) (RetentionSweepResult, error) {
 	candidates, err := FindApplicationsForRetention(ctx, db, cutoff, limit)
 	if err != nil {
 		return RetentionSweepResult{}, err
@@ -89,7 +94,7 @@ func SweepApplicationRetention(ctx context.Context, db *gorm.DB, recorder servic
 
 	res := RetentionSweepResult{Checked: len(candidates)}
 	for _, c := range candidates {
-		out, err := AnonymizeApplication(ctx, db, recorder, c.ID, nil, apply)
+		out, err := AnonymizeApplication(ctx, db, recorder, paths, c.ID, nil, apply)
 		if err != nil {
 			// Одна сбойная заявка не должна останавливать весь прогон: остальные
 			// обезличить всё равно надо, а о сбое говорим вслух.
@@ -102,6 +107,7 @@ func SweepApplicationRetention(ctx context.Context, db *gorm.DB, recorder servic
 		for _, t := range out.Tables {
 			res.Rows += t.Rows
 		}
+		res.Files += out.Files.Total()
 	}
 	return res, nil
 }

@@ -81,7 +81,7 @@ func TestAnonymizeApplication_DryRunChangesNothing(t *testing.T) {
 	appID, _ := applicationWithPeople(t, db, "№ 20260101/001")
 
 	res, err := entityarchive.AnonymizeApplication(context.Background(), db,
-		services.NewAuditRecorder(db), appID, nil, false)
+		services.NewAuditRecorder(db), entityarchive.FilePaths{}, appID, nil, false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, res.Warnings, "оператор обязан узнать, что остаётся после затирания")
 
@@ -100,7 +100,7 @@ func TestAnonymizeApplication_WipesPeopleKeepsApplication(t *testing.T) {
 	appID, otherAppID := applicationWithPeople(t, db, "№ 20260101/002")
 
 	_, err := entityarchive.AnonymizeApplication(context.Background(), db,
-		services.NewAuditRecorder(db), appID, nil, true)
+		services.NewAuditRecorder(db), entityarchive.FilePaths{}, appID, nil, true)
 	require.NoError(t, err)
 
 	t.Run("ФИО и документ участника стёрты", func(t *testing.T) {
@@ -158,6 +158,6 @@ func TestAnonymizeApplication_NotFound(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	_, err := entityarchive.AnonymizeApplication(context.Background(), db,
-		services.NewAuditRecorder(db), 999999, nil, false)
+		services.NewAuditRecorder(db), entityarchive.FilePaths{}, 999999, nil, false)
 	require.Error(t, err, "несуществующая заявка - отказ, а не отчёт об успешном затирании нуля строк")
 }

@@ -84,13 +84,19 @@ const (
 	// BlankExportOrphan - вложение исчезло, а файл на диске остался. Докладывается,
 	// но не удаляется автоматически.
 	BlankExportOrphan = "orphan"
+	// BlankExportPurged - файл уничтожен вместе с обезличиванием заявки по сроку
+	// хранения (#2355). Строка остаётся пустой оболочкой без пути и хэша: она
+	// доказывает, что копия была и убрана намеренно, и запрещает выгрузке записать
+	// файл заново - иначе следующий прогон вернул бы на диск то, что срок хранения
+	// велел уничтожить.
+	BlankExportPurged = "purged"
 )
 
 // AllBlankExportStatuses - перечень известных статусов. Нужен там, где статус приходит
 // снаружи (фильтр списка ошибок): опечатку надо поймать, а не отдать пустую выборку.
 var AllBlankExportStatuses = []string{
 	BlankExportPending, BlankExportOK, BlankExportFailed, BlankExportSkipped,
-	BlankExportNoTemplate, BlankExportBlocked, BlankExportOrphan,
+	BlankExportNoTemplate, BlankExportBlocked, BlankExportOrphan, BlankExportPurged,
 }
 
 // ArchiveSettings - настройки файлового архива. Живут в system_settings под ключами
@@ -138,7 +144,6 @@ type UpdateArchiveSettingsRequest struct {
 	FreezeAfterDays *int    `json:"freeze_after_days"`
 	ZipMaxBytes     *int64  `json:"zip_max_bytes"`
 }
-
 
 // ArchivePreviewResponse - результат превью: разложенный путь и претензии к шаблонам.
 // Претензии отдаются отдельно от ошибки, чтобы конструктор подсвечивал конкретный

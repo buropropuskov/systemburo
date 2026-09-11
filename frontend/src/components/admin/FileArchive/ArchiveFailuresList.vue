@@ -154,6 +154,7 @@ const STATUS_OPTIONS = [
   { value: 'blocked', label: 'Остановлено местом' },
   { value: 'skipped', label: 'Пропущено' },
   { value: 'orphan', label: 'Вложение удалено' },
+  { value: 'purged', label: 'Уничтожено по сроку' },
 ];
 const STATUS_LABELS = Object.fromEntries(
   STATUS_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label]),
@@ -222,6 +223,7 @@ const REASON_BY_STATUS = {
   blocked: 'запись остановлена нехваткой места',
   skipped: 'файл не изменился, перезапись не потребовалась',
   orphan: 'вложение удалено, файл остался на диске',
+  purged: 'заявка обезличена по сроку хранения, файлы уничтожены',
 };
 
 function reasonLabel(item) {

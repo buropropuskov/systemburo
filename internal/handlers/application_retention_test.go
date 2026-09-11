@@ -85,7 +85,7 @@ func TestApplicationRetention_SweepWipesAndDoesNotRepeat(t *testing.T) {
 	recorder := services.NewAuditRecorder(db)
 
 	// Без применения база не меняется.
-	dry, err := entityarchive.SweepApplicationRetention(context.Background(), db, recorder, cutoff, 100, false)
+	dry, err := entityarchive.SweepApplicationRetention(context.Background(), db, recorder, entityarchive.FilePaths{}, cutoff, 100, false)
 	require.NoError(t, err)
 	assert.Equal(t, 1, dry.Checked)
 	assert.Equal(t, 0, dry.Applied)
@@ -96,7 +96,7 @@ func TestApplicationRetention_SweepWipesAndDoesNotRepeat(t *testing.T) {
 	require.NotNil(t, last)
 
 	// С применением - обезличивает.
-	applied, err := entityarchive.SweepApplicationRetention(context.Background(), db, recorder, cutoff, 100, true)
+	applied, err := entityarchive.SweepApplicationRetention(context.Background(), db, recorder, entityarchive.FilePaths{}, cutoff, 100, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied.Applied)
 
@@ -110,7 +110,7 @@ func TestApplicationRetention_SweepWipesAndDoesNotRepeat(t *testing.T) {
 
 	// Повторный прогон не должен брать её снова: иначе каждый день копились бы
 	// записи в истории об обезличивании одного и того же.
-	again, err := entityarchive.SweepApplicationRetention(context.Background(), db, recorder, cutoff, 100, true)
+	again, err := entityarchive.SweepApplicationRetention(context.Background(), db, recorder, entityarchive.FilePaths{}, cutoff, 100, true)
 	require.NoError(t, err)
 	assert.Equal(t, 0, again.Checked, "уже обезличенная заявка повторно не берётся")
 }

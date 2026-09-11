@@ -51,9 +51,14 @@ func applicationAnonymizeTargets() []AnonymizeTableResult {
 	}
 }
 
-// AnonymizeApplication затирает персональные поля одной заявки.
-// apply=false - только подсчёт, база не меняется.
-func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, id int, actorID *int, apply bool) (AnonymizeResult, error) {
+// AnonymizeApplication затирает персональные поля одной заявки и уничтожает её файлы.
+// apply=false - только подсчёт, ни база, ни диск не меняются.
+//
+// Файлы уходят ПЕРЕД транзакцией затирания: удаление с диска откатить нечем, и порядок
+// выбран так, чтобы сбой посередине чинился сам собой. Упало после диска - файлов уже
+// нет, повторный прогон уберёт остальное; упади оно наоборот, на диске остался бы
+// читаемый паспорт заявки, которая в базе выглядит обезличенной.
+func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, paths FilePaths, id int, actorID *int, apply bool) (AnonymizeResult, error) {
 	if id <= 0 {
 		return AnonymizeResult{}, fmt.Errorf("не указана заявка")
 	}
@@ -74,12 +79,32 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 			}
 			res.Tables[i].Rows = len(ids)
 		}
-		res.Warnings = applicationAnonymizeWarnings()
+		files, err := purgeApplicationFiles(ctx, db, paths, id, false)
+		if err != nil {
+			return AnonymizeResult{}, err
+		}
+		res.Files = files
+		res.Warnings = applicationAnonymizeWarnings(files)
 		return res, nil
 	}
 
+	// Существование проверяется до уничтожения файлов: ошибиться идентификатором
+	// заявки можно, а вернуть снятый с диска скан паспорта - нет.
+	exists, err := applicationExists(ctx, db, id)
+	if err != nil {
+		return AnonymizeResult{}, err
+	}
+	if !exists {
+		return AnonymizeResult{}, errApplicationNotFound
+	}
+
 	res := AnonymizeResult{Type: TypeApplication, ID: id, Tables: applicationAnonymizeTargets()}
-	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	res.Files, err = purgeApplicationFiles(ctx, db, paths, id, true)
+	if err != nil {
+		return AnonymizeResult{}, err
+	}
+
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Существование проверяем внутри той же транзакции: снаружи заявка могла бы
 		// исчезнуть между проверкой и записью.
 		exists, err := applicationExists(ctx, tx, id)
@@ -102,7 +127,7 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 			}
 			res.Tables[i].Rows = n
 		}
-		res.Warnings = applicationAnonymizeWarnings()
+		res.Warnings = applicationAnonymizeWarnings(res.Files)
 
 		details := make([]anonymizeAuditTable, len(res.Tables))
 		for i, t := range res.Tables {
@@ -111,7 +136,14 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 		// Запись в историю последним шагом транзакции: не выполнилось затирание - не
 		// появится и метка «сделано».
 		return recorder.Record(ctx, tx, models.AuditEntityApplication, &id,
-			models.OrganizationActionAnonymized, actorID, anonymizeDetails{Tables: details})
+			models.OrganizationActionAnonymized, actorID, anonymizeDetails{
+				Tables: details,
+				Files: &anonymizeAuditFiles{
+					Attached: res.Files.Attached,
+					Archive:  res.Files.Archive,
+					Bytes:    res.Files.Bytes(),
+				},
+			})
 	})
 	switch {
 	case errors.Is(err, errApplicationNotFound):
@@ -156,15 +188,23 @@ func applicationRowIDs(ctx context.Context, exec *gorm.DB, table string, id int)
 	return ids, nil
 }
 
-// applicationAnonymizeWarnings - что остаётся после затирания.
-func applicationAnonymizeWarnings() []string {
-	return []string{
+// applicationAnonymizeWarnings - что происходит с данными за пределами затираемых полей.
+func applicationAnonymizeWarnings(files FilePurgeResult) []string {
+	out := []string{
 		"журнал истории и проходов не трогается: он доказывает, кто и когда был на " +
 			"объекте, и уходит по собственному сроку хранения (группа audit в уборке)",
-		"файлы, приложенные к заявке, и слепок заявка.json рядом с выпущенным бланком " +
-			"в файловом архиве остаются как есть - это те же данные в другом виде, " +
-			"решение по ним отдельное",
 		"записи журнала выдач по людям этой заявки остаются с именами: журнал " +
 			"доказывает законность уже состоявшегося раскрытия",
 	}
+	if files.Total() > 0 {
+		out = append(out, fmt.Sprintf(
+			"файлы заявки уничтожаются, а не затираются: приложенных документов %d, "+
+				"файлов архива (бланки и слепок заявка.json) %d - скан паспорта "+
+				"обезличить по полям нельзя",
+			files.Attached, files.Archive))
+	}
+	// Непустой Skipped означает, что каталог установке не настроен: оператор обязан
+	// узнать, что часть копий осталась лежать, а не считать уничтожение полным.
+	out = append(out, files.Skipped...)
+	return out
 }

@@ -709,7 +709,9 @@ func main() {
 	// Обезличивание заявок по сроку хранения (#2355). Отдельной задачей, а не внутри
 	// уборки: та удаляет обесценившийся мусор, а здесь необратимая операция над
 	// персональными данными, и выключена она по умолчанию.
-	go startApplicationRetentionWorker(ctxSig, db, cfg.ApplicationRetentionMonths, 24*time.Hour)
+	go startApplicationRetentionWorker(ctxSig, db,
+		entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath},
+		cfg.ApplicationRetentionMonths, 24*time.Hour)
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
@@ -831,7 +833,7 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 // Порция ограничена: на базе, где срок включили впервые, под обезличивание попадут
 // сразу все старые заявки, и одним заходом это была бы долгая транзакция на всю
 // таблицу. Остаток возьмёт следующий прогон.
-func startApplicationRetentionWorker(ctx context.Context, db *gorm.DB, months int, interval time.Duration) {
+func startApplicationRetentionWorker(ctx context.Context, db *gorm.DB, paths entityarchive.FilePaths, months int, interval time.Duration) {
 	if months <= 0 {
 		slog.Info("обезличивание заявок по сроку выключено: APPLICATION_RETENTION_MONTHS не задан")
 		return
@@ -841,14 +843,15 @@ func startApplicationRetentionWorker(ctx context.Context, db *gorm.DB, months in
 	recorder := services.NewAuditRecorder(db)
 	run := func() {
 		cutoff := time.Now().UTC().AddDate(0, -months, 0)
-		res, err := entityarchive.SweepApplicationRetention(ctx, db, recorder, cutoff, batch, true)
+		res, err := entityarchive.SweepApplicationRetention(ctx, db, recorder, paths, cutoff, batch, true)
 		if err != nil {
 			slog.Error("обезличивание по сроку не выполнено", "error", err)
 			return
 		}
 		if res.Applied > 0 {
 			slog.Info("заявки обезличены по сроку хранения",
-				"заявок", res.Applied, "строк", res.Rows, "старше", cutoff.Format(time.DateOnly))
+				"заявок", res.Applied, "строк", res.Rows, "файлов", res.Files,
+				"старше", cutoff.Format(time.DateOnly))
 		}
 	}
 	run()
