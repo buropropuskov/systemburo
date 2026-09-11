@@ -42,6 +42,13 @@ func passageNotReverted(alias string) string {
 	return fmt.Sprintf("NOT %s.reverted", alias)
 }
 
+// passageRevertWindowSQL отдаёт окно охранника в виде интервала для SQL: признак
+// «отменить можно» считается в запросе текущего статуса, и повторять там число
+// пятнадцать нельзя - разъедется с проверкой в самом механизме отмены.
+func passageRevertWindowSQL() string {
+	return fmt.Sprintf("%d minutes", int(passageRevertWindow.Minutes()))
+}
+
 // passageRevertNotExists - то же условие для читателей, идущих в audit_log напрямую,
 // мимо union. Такой ровно один: суточный отчёт считает машины и людей одним
 // COUNT(*) FILTER по entity_type, а union-проекции этот столбец стирают.

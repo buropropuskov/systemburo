@@ -82,6 +82,7 @@ func (h *EmployeeHandler) UpdateEmployeeTerritoryStatus(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.UpdateEmployeeTerritoryStatus(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -155,6 +156,7 @@ func (h *EmployeeHandler) DeactivateEmployee(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.DeactivateEmployee(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -180,6 +182,7 @@ func (h *EmployeeHandler) ActivateEmployee(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.ActivateEmployee(c.Request().Context(), id, req); err != nil {
 		return err
 	}
@@ -205,6 +208,7 @@ func (h *EmployeeHandler) RestoreEmployee(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+	req.UserID = actorUserID(c)
 	if err := h.service.RestoreEmployee(c.Request().Context(), id, req); err != nil {
 		return err
 	}

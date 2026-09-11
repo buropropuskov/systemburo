@@ -252,7 +252,7 @@ func TestPassageRevert_LastExitIgnoresRevoked(t *testing.T) {
 	svc := services.NewCarService(db, nil)
 	ctx := context.Background()
 
-	before, err := svc.GetCarsCurrentStatus(ctx)
+	before, err := svc.GetCarsCurrentStatus(ctx, userID)
 	require.NoError(t, err)
 	require.Len(t, before, 1)
 	require.Equal(t, services.FormatUTCPtr(&wrong.CreatedAt), before[0].LastExitTime,
@@ -260,7 +260,7 @@ func TestPassageRevert_LastExitIgnoresRevoked(t *testing.T) {
 
 	require.NoError(t, seedPassRevert(db, wrong, &userID, day.Add(90*time.Minute)))
 
-	after, err := svc.GetCarsCurrentStatus(ctx)
+	after, err := svc.GetCarsCurrentStatus(ctx, userID)
 	require.NoError(t, err)
 	require.Len(t, after, 1)
 	assert.Equal(t, services.FormatUTCPtr(&real.CreatedAt), after[0].LastExitTime,
@@ -296,7 +296,7 @@ func TestPassageRevert_LastExitIgnoresRevokedForPeople(t *testing.T) {
 	svc := services.NewEmployeesHistoryService(db)
 	ctx := context.Background()
 
-	before, err := svc.GetCurrentStatus(ctx)
+	before, err := svc.GetCurrentStatus(ctx, userID)
 	require.NoError(t, err)
 	require.Len(t, before, 1)
 	require.Equal(t, services.FormatUTCPtr(&wrong.CreatedAt), before[0].LastExitTime,
@@ -304,7 +304,7 @@ func TestPassageRevert_LastExitIgnoresRevokedForPeople(t *testing.T) {
 
 	require.NoError(t, seedPassRevert(db, wrong, &userID, day.Add(90*time.Minute)))
 
-	after, err := svc.GetCurrentStatus(ctx)
+	after, err := svc.GetCurrentStatus(ctx, userID)
 	require.NoError(t, err)
 	require.Len(t, after, 1)
 	assert.Equal(t, services.FormatUTCPtr(&real.CreatedAt), after[0].LastExitTime,

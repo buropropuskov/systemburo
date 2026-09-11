@@ -33,6 +33,7 @@
     </div>
     <ConfirmDialog />
     <DirtyConfirmModal />
+    <PassageRevertModal />
     <DeleteNotifications />
     <OnboardingTour v-if="isAuthenticated && !consentBlocking && !passwordChangeBlocking" />
     <GlobalSearchPanel
@@ -74,6 +75,7 @@ import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
+import PassageRevertModal from './components/PassageRevertModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
 import GlobalSearchPanel from './components/GlobalSearchPanel.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
@@ -90,6 +92,7 @@ export default {
     ScrollTopButton,
     ConfirmDialog,
     DirtyConfirmModal,
+    PassageRevertModal,
     DeleteNotifications,
     GlobalSearchPanel,
     OnboardingTour,

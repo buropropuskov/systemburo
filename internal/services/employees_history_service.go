@@ -19,7 +19,8 @@ type EmployeesHistoryService interface {
 	// GetAll возвращает историю въездов/выходов всех сотрудников.
 	GetAll(ctx context.Context) ([]EmployeeHistoryItem, error)
 	// GetCurrentStatus возвращает текущий территориальный статус всех сотрудников.
-	GetCurrentStatus(ctx context.Context) ([]EmployeeCurrentStatus, error)
+	// viewerID - кто спрашивает: от него зависит признак «отметку можно отменить».
+	GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error)
 	// GetByTable возвращает историю сотрудников для конкретной таблицы (места).
 	GetByTable(ctx context.Context, tableID int) ([]EmployeeHistoryItem, error)
 }
@@ -56,6 +57,13 @@ type EmployeeCurrentStatus struct {
 	TerritoryStatus int     `json:"territory_status"`
 	EntryTime       *string `json:"entry_time"`
 	LastExitTime    *string `json:"last_exit_time"`
+	// CanRevert - спрашивающий может отменить последнюю отметку прямо сейчас (#2437):
+	// либо она его и свежая, либо он администратор. Считает бэк, чтобы правило и его
+	// окно жили в одном месте, а не повторялись в трёх таблицах на фронте.
+	CanRevert bool `json:"can_revert"`
+	// LastMarkTableID - пост, на котором поставлена последняя отметка. Таблица прячет
+	// кнопку отмены у чужих постов: отменять отметку можно только там, где её поставили.
+	LastMarkTableID *int `json:"last_mark_table_id"`
 }
 
 // --- Реализация ---
@@ -176,30 +184,48 @@ func (s *employeesHistoryService) GetAll(ctx context.Context) ([]EmployeeHistory
 	return mapEmployeeHistoryRows(rows), nil
 }
 
-func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]EmployeeCurrentStatus, error) {
+func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error) {
 	type statusRow struct {
 		ID                 int
 		TerritoryStatus    *int
 		TerritoryEntryTime *time.Time
 		LastExitTime       *time.Time
+		CanRevert          bool
+		LastMarkTableID    *int
+	}
+
+	admin, err := isPassageRevertAdmin(ctx, s.db, viewerID)
+	if err != nil {
+		return nil, err
 	}
 
 	rows := make([]statusRow, 0)
-	err := s.db.WithContext(ctx).Raw(`
+	err = s.db.WithContext(ctx).Raw(`
 		SELECT
 			e.id,
 			e.territory_status,
 			e.territory_entry_time,
 			(
 				SELECT created_at
-				FROM ` + employeesHistoryUnion + ` eh
+				FROM `+employeesHistoryUnion+` eh
 				WHERE eh.employee_id = e.id AND eh.action_type = 'exit' AND NOT eh.reverted
 				ORDER BY eh.created_at DESC
 				LIMIT 1
-			) AS last_exit_time
+			) AS last_exit_time,
+			lm.table_id AS last_mark_table_id,
+			lm.created_at IS NOT NULL
+				AND (? OR (lm.user_id = ? AND lm.created_at > NOW() - ?::interval)) AS can_revert
 		FROM employees e
+		-- Последняя действительная отметка целиком (кто, когда, где), см. машины.
+		LEFT JOIN LATERAL (
+			SELECT eh.user_id, eh.created_at, eh.table_id
+			FROM `+employeesHistoryUnion+` eh
+			WHERE eh.employee_id = e.id AND eh.action_type IN ('entry', 'exit') AND NOT eh.reverted
+			ORDER BY eh.created_at DESC, eh.id DESC
+			LIMIT 1
+		) lm ON TRUE
 		WHERE e.status = 1
-	`).Scan(&rows).Error
+	`, admin, viewerID, passageRevertWindowSQL()).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees current status")
 	}
@@ -215,6 +241,8 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]Emplo
 			TerritoryStatus: ts,
 			EntryTime:       FormatUTCPtr(r.TerritoryEntryTime),
 			LastExitTime:    FormatUTCPtr(r.LastExitTime),
+			CanRevert:       r.CanRevert,
+			LastMarkTableID: r.LastMarkTableID,
 		})
 	}
 	return items, nil

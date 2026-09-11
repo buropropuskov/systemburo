@@ -210,12 +210,12 @@
                 >
                   <button
                     class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked }"
-                    :disabled="item.entry_checked"
+                    :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
+                    :disabled="item.entry_checked && !canRevertMark(item, 'entry')"
                     data-testid="ob-fact-entry"
                     @click="handleEntryExit(item, 'entry')"
                   >
-                    Въезд
+                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Въезд' }}
                   </button>
                 </div>
                 <div
@@ -227,12 +227,12 @@
                 >
                   <button
                     class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked }"
-                    :disabled="!item.entry_checked || item.exit_checked"
+                    :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
+                    :disabled="(!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-fact-exit"
                     @click="handleEntryExit(item, 'exit')"
                   >
-                    Выезд
+                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выезд' }}
                   </button>
                 </div>
                 <!-- Конфигурируемые столбцы -->
@@ -428,6 +428,10 @@ import FactPassModal from './FactPassModal.vue';
 import ExcelJS from 'exceljs';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
+import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
+import { formatUnloadPlaces as unloadPlacesLabel } from '@/utils/unloadPlaces';
+import { usePassageRevertStore } from '@/stores/passageRevert';
+import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import AppIcon from '@/components/icons/AppIcon.vue';
@@ -921,6 +925,9 @@ export default {
             if (status) {
               item.entry_checked = status.territory_status === 1;
               item.exit_checked = status.territory_status === 2;
+              item.territory_status = status.territory_status;
+              item.can_revert = status.can_revert;
+              item.last_mark_table_id = status.last_mark_table_id;
             }
           });
         }
@@ -961,26 +968,10 @@ export default {
     },
 
     formatUnloadPlaces(item) {
-      if (item.unload_place_ids && item.unload_place_ids.length > 0) {
-        const placeNames = item.unload_place_ids
-          .map(id => {
-            const place = this.allUnloadingPlaces.find(p => p.id === id);
-            return place ? place.name : null;
-          })
-          .filter(name => name);
-        if (placeNames.length === 0) return '-';
-        if (placeNames.length === 1) return placeNames[0];
-        return `${placeNames[0]} и др.`;
-      }
-      return item.unload_place || '-';
+      return unloadPlacesLabel(item, this.allUnloadingPlaces);
     },
 
-    formatDate(dateString) {
-      if (!dateString) return '';
-      const [year, month, day] = dateString.split('-');
-      const date = new Date(year, month - 1, day);
-      return date.toLocaleDateString('ru-RU');
-    },
+    formatDate: formatDateRu,
 
     formatTimeRange(timeFrom, timeTo) {
       if (!timeFrom && !timeTo) return '-';
@@ -997,9 +988,22 @@ export default {
     },
 
     formatPassTime(passTime) { return passTime || '-'; },
+
+    /** Отменяется только последняя отметка, поэтому направление обязано совпасть (#2437). */
+    canRevertMark(item, type) {
+      return lastMarkDirection(item) === type && canRevertMark(item, this.tableId);
+    },
     
     async handleEntryExit(item, type) {
       if (!this.currentUserId) return;
+      if (this.canRevertMark(item, type)) {
+        usePassageRevertStore().ask({
+          kind: 'cars', id: item.id, direction: type, tableId: this.tableId,
+          subject: item.car_number || 'машина',
+          onDone: () => this.fetchCarHistoryStatus(),
+        });
+        return;
+      }
       // Въезд "по факту" (#1132): сначала модалка ввода данных, статус ставим только
       // после успешного сохранения (onPassConfirm). Выезд - как прежде, сразу.
       if (type === 'entry') {
@@ -1042,11 +1046,9 @@ export default {
     // pass != null (только при въезде) добавляет данные пропуска "по факту" (#1132).
     async applyTerritoryStatus(item, territory_status, pass) {
       try {
-        const body = { territory_status, user_id: this.currentUserId, table_id: this.tableId };
-        if (pass) body.pass = pass;
-        const response = await apiRequest(`/cars/${item.id}/territory-status`, {
-          method: "PUT",
-          body: JSON.stringify(body)
+        const response = await markPassage({
+          kind: 'cars', id: item.id, direction: territory_status === 1 ? 'entry' : 'exit',
+          tableId: this.tableId, pass,
         });
         if (!response.ok) {
           const errorText = await response.text();
@@ -1058,6 +1060,10 @@ export default {
           const updatedItem = { ...this.factData[index] };
           updatedItem.entry_checked = territory_status === 1;
           updatedItem.exit_checked = territory_status === 2;
+          updatedItem.territory_status = territory_status;
+          // Своя свежая отметка - отмена доступна сразу, до опроса статусов (#2437).
+          updatedItem.can_revert = true;
+          updatedItem.last_mark_table_id = this.tableId;
           this.factData.splice(index, 1, updatedItem);
         }
         return true;
@@ -1099,19 +1105,9 @@ export default {
       }
     },
     
-    extractStartTime(timeString) {
-      if (!timeString || timeString === '-') return 0;
-      const timeWithoutSeconds = timeString.split(':').slice(0, 2).join(':');
-      const [hours, minutes] = timeWithoutSeconds.split(':').map(Number);
-      return hours * 60 + minutes;
-    },
+    extractStartTime: passTimeMinutes,
 
-    extractPassTime(passTime) {
-      if (!passTime || passTime === '-') return 0;
-      const startTime = passTime.split('-')[0];
-      const [hours, minutes] = startTime.split(':').map(Number);
-      return hours * 60 + minutes;
-    },
+    extractPassTime: passTimeMinutes,
 
     openItemDetails(item) {
       if (this.tableType !== 'cars') return;

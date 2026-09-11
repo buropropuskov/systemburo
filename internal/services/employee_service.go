@@ -77,18 +77,21 @@ type EmployeeBulkUnbindTableRequest struct {
 // DeactivateEmployeeRequest -- тело запроса деактивации сотрудника.
 type DeactivateEmployeeRequest struct {
 	Status  int  `json:"status"`
-	UserID  *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID  *int `json:"-"`
 	TableID *int `json:"table_id"`
 }
 
 // ActivateEmployeeRequest -- тело запроса активации сотрудника.
 type ActivateEmployeeRequest struct {
-	UserID *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID *int `json:"-"`
 }
 
 // RestoreEmployeeRequest -- тело запроса восстановления сотрудника.
 type RestoreEmployeeRequest struct {
-	UserID *int `json:"user_id"`
+	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
+	UserID *int `json:"-"`
 }
 
 // --- DTO запросов ---
