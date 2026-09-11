@@ -114,6 +114,7 @@ func TestEntityPurge_ExportsAndDeletesCascadeOnlyTables(t *testing.T) {
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
 		entityarchive.PurgeOptions{
+			Basis:      entityarchive.BasisOperator,
 			UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true,
 		})
 	require.NoError(t, err, "tables: %+v", res.Tables)
@@ -160,6 +161,7 @@ func TestEntityPurge_DeletesGraphAndFiles(t *testing.T) {
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
 		entityarchive.PurgeOptions{
+			Basis:      entityarchive.BasisOperator,
 			UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true,
 		})
 	require.NoError(t, err, "tables: %+v", res.Tables)
@@ -212,7 +214,7 @@ func TestEntityPurge_AuditHistorySurvivesPurge(t *testing.T) {
 	require.NoError(t, rec.Record(context.Background(), nil, models.AuditEntityOrganization, &f.org.ID, "created", nil, nil))
 
 	_, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: rec, Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: rec, Apply: true})
 	require.NoError(t, err)
 	require.False(t, orgExistsInDB(t, db, f.org.ID))
 
@@ -241,7 +243,7 @@ func TestEntityPurge_RejectsUnverifiedPackage(t *testing.T) {
 	require.NoError(t, os.WriteFile(target, corrupted, 0o600))
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
 	require.Error(t, err)
 	require.NotEmpty(t, res.Package)
 	require.True(t, orgExistsInDB(t, db, f.org.ID), "битый пакет не должен был ничего удалить")
@@ -265,7 +267,7 @@ func TestEntityPurge_RejectsPlaintextPackage(t *testing.T) {
 	require.False(t, eres.Manifest.Encrypted, "фикстура обязана дать открытый пакет без Crypto")
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Apply: true})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "открытым текстом")
 	require.Empty(t, res.ManifestSHA256, "отпечаток не считается для отклонённого на этом шаге пакета")
@@ -286,7 +288,7 @@ func TestEntityPurge_RejectsCoverageMismatch(t *testing.T) {
 	require.NoError(t, db.Create(&extra).Error, "новая заявка появилась ПОСЛЕ снятия пакета")
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "не покрывает текущее состояние")
 	require.Empty(t, res.Tables, "отказ по покрытию не должен был дойти до удаления")
@@ -308,7 +310,7 @@ func TestEntityPurge_RejectsWrongOrganizationPackage(t *testing.T) {
 	f, dir, crypt := purgeFixture(t, db, uploadDir)
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.otherOrg.ID, dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
 	require.Error(t, err)
 	require.Empty(t, res.Tables)
 
@@ -349,7 +351,7 @@ func TestEntityPurge_RejectsWrongOrganizationPackage_SameShape(t *testing.T) {
 	require.NoError(t, err)
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, orgB.ID, eres.Dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
 	require.Error(t, err)
 	require.Empty(t, res.Tables)
 	require.True(t, orgExistsInDB(t, db, orgA.ID), "пакет своей организации не тронут")
@@ -367,7 +369,7 @@ func TestEntityPurge_DryRunDeletesNothing(t *testing.T) {
 	diskPath := filepath.Join(uploadDir, "application_files", f.file.StoredName)
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: false})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: false})
 	require.NoError(t, err)
 	require.False(t, res.Apply)
 	require.Positive(t, res.TotalRows())
@@ -394,7 +396,7 @@ func TestEntityPurge_RequiresRecorder(t *testing.T) {
 	f, dir, crypt := purgeFixture(t, db, uploadDir)
 
 	_, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Apply: true})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "аудита")
 	require.True(t, orgExistsInDB(t, db, f.org.ID))
@@ -424,7 +426,7 @@ func TestEntityPurge_RejectsForgedEncryptedFlag(t *testing.T) {
 	mutateManifest(t, eres.Dir, func(m *entityarchive.Manifest) { m.Encrypted = true })
 
 	res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
-		entityarchive.PurgeOptions{UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Apply: true})
+		entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Apply: true})
 	require.Error(t, err)
 	require.Empty(t, res.ManifestSHA256, "отпечаток не считается для пакета, отклонённого на проверке")
 	require.True(t, orgExistsInDB(t, db, f.org.ID), "поддельный флаг шифрования не должен был снести организацию")
@@ -473,14 +475,14 @@ func TestEntityPurge_SharedReportTemplatesSurviveDetached(t *testing.T) {
 		require.NoError(t, err)
 
 		dry, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
-			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
+			entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
 		require.NoError(t, err, "tables: %+v", dry.Tables)
 		require.Len(t, dry.Warnings, 1)
 		require.Contains(t, dry.Warnings[0], "report_templates")
 		require.True(t, orgExistsInDB(t, db, f.org.ID), "пробный прогон не должен был удалить организацию")
 
 		res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
-			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
+			entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
 		require.NoError(t, err, "tables: %+v", res.Tables)
 		require.Len(t, res.Warnings, 1)
 		require.Contains(t, res.Warnings[0], "report_templates")
@@ -536,7 +538,7 @@ func TestEntityPurge_SharedReportTemplatesSurviveDetached(t *testing.T) {
 		f, dir, crypt := purgeFixture(t, db, uploadDir)
 
 		res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
-			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
+			entityarchive.PurgeOptions{Basis: entityarchive.BasisOperator, UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
 		require.NoError(t, err, "tables: %+v", res.Tables)
 		require.Empty(t, res.Warnings)
 		require.Zero(t, res.DetachedReportTemplates)

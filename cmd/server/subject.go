@@ -54,6 +54,10 @@ const subjectHelp = `Данные одного человека - субъект
 
 Флаги anonymize (человек указывается так же, как в show):
   -apply         Выполнить затирание. Без него команда только показывает, что затрёт
+  -basis         Основание уничтожения для журнала уничтожения. Одно из фиксированных
+                 значений: retention (истёк срок хранения), operator (решение оператора),
+                 subject-request (требование субъекта). По умолчанию operator. Это НЕ тот
+                 -basis, что у export: там основание выдачи пишется своими словами
 
 Флаги disclosures:
   -registry-id   Показать выдачи по одному человеку. Без него - весь журнал
@@ -467,7 +471,14 @@ func subjectAnonymize(args []string) int {
 	patent := fs.String("patent", "", "номер патента")
 	registryID := fs.Int("registry-id", 0, "идентификатор записи реестра")
 	apply := fs.Bool("apply", false, "выполнить затирание, а не только показать")
+	basisFlag := fs.String("basis", entityarchive.BasisOperator,
+		"основание уничтожения: "+strings.Join(entityarchive.DestructionBases(), ", "))
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	basis, err := entityarchive.ParseDestructionBasis(*basisFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 2
 	}
 
@@ -488,7 +499,8 @@ func subjectAnonymize(args []string) int {
 		return code
 	}
 
-	res, err := entityarchive.AnonymizeSubject(ctx, db, services.NewAuditRecorder(db), target, nil, *apply)
+	res, err := entityarchive.AnonymizeSubject(ctx, db, services.NewAuditRecorder(db), target,
+		entityarchive.DestructionOptions{Basis: basis, Apply: *apply})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1

@@ -42,6 +42,19 @@ const applicationAnchor = "COALESCE(completed_at, withdrawn_at, sending_datetime
 // действующего пропуска нельзя. Отбираем только те, чья жизнь закончилась.
 const applicationFinishedStatuses = `('Завершено', 'Отозвана', 'Отказано')`
 
+// applicationLivePeople - признак того, что заявка ещё НЕ обезличена: у неё остались
+// участники с именем или документом. Идентификатор заявки подставляется вместо %s -
+// у отбора по сроку это ссылка на внешний запрос (a.id), у повторного применения
+// после восстановления (#2357) именованный параметр. Предикат один на оба: разойдись
+// они, повторное применение считало бы обезличенной заявку, которую суточный прогон
+// обезличивать ещё собирается.
+const applicationLivePeople = `EXISTS (
+	SELECT 1 FROM employees e
+	JOIN attachments att ON att.id = e.attachment_id
+	WHERE att.application_id = %s
+	  AND (e.last_name IS NOT NULL OR e.passport_series_number IS NOT NULL)
+)`
+
 // FindApplicationsForRetention возвращает заявки, чей срок хранения истёк.
 //
 // Уже обезличенные в выборку не попадают: признак - отсутствие живых участников с
@@ -54,14 +67,10 @@ func FindApplicationsForRetention(ctx context.Context, db *gorm.DB, cutoff time.
 		WHERE status IN %[2]s
 		  AND %[1]s IS NOT NULL
 		  AND %[1]s < ?
-		  AND EXISTS (
-			SELECT 1 FROM employees e
-			JOIN attachments att ON att.id = e.attachment_id
-			WHERE att.application_id = a.id
-			  AND (e.last_name IS NOT NULL OR e.passport_series_number IS NOT NULL)
-		  )
+		  AND %[3]s
 		ORDER BY %[1]s
-		LIMIT ?`, applicationAnchor, applicationFinishedStatuses)
+		LIMIT ?`, applicationAnchor, applicationFinishedStatuses,
+		fmt.Sprintf(applicationLivePeople, "a.id"))
 
 	var out []ApplicationRetentionCandidate
 	if err := db.WithContext(ctx).Raw(q, cutoff, limit).Scan(&out).Error; err != nil {
@@ -94,7 +103,8 @@ func SweepApplicationRetention(ctx context.Context, db *gorm.DB, recorder servic
 
 	res := RetentionSweepResult{Checked: len(candidates)}
 	for _, c := range candidates {
-		out, err := AnonymizeApplication(ctx, db, recorder, paths, c.ID, nil, apply)
+		out, err := AnonymizeApplication(ctx, db, recorder, c.ID,
+			DestructionOptions{Files: paths, Basis: BasisRetention, Apply: apply})
 		if err != nil {
 			// Одна сбойная заявка не должна останавливать весь прогон: остальные
 			// обезличить всё равно надо, а о сбое говорим вслух.

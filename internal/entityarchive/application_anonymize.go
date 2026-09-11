@@ -58,12 +58,15 @@ func applicationAnonymizeTargets() []AnonymizeTableResult {
 // выбран так, чтобы сбой посередине чинился сам собой. Упало после диска - файлов уже
 // нет, повторный прогон уберёт остальное; упади оно наоборот, на диске остался бы
 // читаемый паспорт заявки, которая в базе выглядит обезличенной.
-func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, paths FilePaths, id int, actorID *int, apply bool) (AnonymizeResult, error) {
+func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, id int, opt DestructionOptions) (AnonymizeResult, error) {
 	if id <= 0 {
 		return AnonymizeResult{}, fmt.Errorf("не указана заявка")
 	}
+	if err := opt.validate(); err != nil {
+		return AnonymizeResult{}, err
+	}
 
-	if !apply {
+	if !opt.Apply {
 		exists, err := applicationExists(ctx, db, id)
 		if err != nil {
 			return AnonymizeResult{}, err
@@ -79,7 +82,7 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 			}
 			res.Tables[i].Rows = len(ids)
 		}
-		files, err := purgeApplicationFiles(ctx, db, paths, id, false)
+		files, err := purgeApplicationFiles(ctx, db, opt.Files, id, false)
 		if err != nil {
 			return AnonymizeResult{}, err
 		}
@@ -99,20 +102,18 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 	}
 
 	res := AnonymizeResult{Type: TypeApplication, ID: id, Tables: applicationAnonymizeTargets()}
-	res.Files, err = purgeApplicationFiles(ctx, db, paths, id, true)
+	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true)
 	if err != nil {
 		return AnonymizeResult{}, err
 	}
 
 	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Существование проверяем внутри той же транзакции: снаружи заявка могла бы
-		// исчезнуть между проверкой и записью.
-		exists, err := applicationExists(ctx, tx, id)
+		// Номер читается внутри той же транзакции и заодно проверяет существование:
+		// снаружи заявка могла бы исчезнуть между проверкой и записью. Нужен он
+		// журналу уничтожения - по идентификатору заявку в акте не опознать.
+		number, err := applicationNumber(ctx, tx, id)
 		if err != nil {
 			return err
-		}
-		if !exists {
-			return errApplicationNotFound
 		}
 
 		for i := range res.Tables {
@@ -135,15 +136,26 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 		}
 		// Запись в историю последним шагом транзакции: не выполнилось затирание - не
 		// появится и метка «сделано».
-		return recorder.Record(ctx, tx, models.AuditEntityApplication, &id,
-			models.OrganizationActionAnonymized, actorID, anonymizeDetails{
+		if err := recorder.Record(ctx, tx, models.AuditEntityApplication, &id,
+			models.OrganizationActionAnonymized, opt.ActorID, anonymizeDetails{
 				Tables: details,
 				Files: &anonymizeAuditFiles{
 					Attached: res.Files.Attached,
 					Archive:  res.Files.Archive,
 					Bytes:    res.Files.Bytes(),
 				},
-			})
+			}); err != nil {
+			return err
+		}
+
+		// Свидетельство для повторного применения после восстановления из копии
+		// (#2357). Идёт той же транзакцией: восстановленная заявка вернётся с тем же
+		// идентификатором, и снять её будет по чему.
+		rec := opt.destructionRecord(models.AuditEntityApplication, &id, DestructionAnonymized)
+		rec.ApplicationNumber = number
+		rec.Rows = res.Total()
+		rec.Files = res.Files.Total()
+		return writeDestruction(ctx, tx, opt, rec)
 	})
 	switch {
 	case errors.Is(err, errApplicationNotFound):

@@ -155,7 +155,8 @@ func TestEntityAnonymize_DryRunChangesNothing(t *testing.T) {
 	rec := services.NewAuditRecorder(db)
 	ctx := context.Background()
 
-	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, false)
+	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, dry, "employees"))
 	assert.Equal(t, 1, tableRows(t, dry, "unique_employees"))
@@ -194,7 +195,8 @@ func TestEntityAnonymize_ClearsValuesAndHMACTogether(t *testing.T) {
 	rec := services.NewAuditRecorder(db)
 	ctx := context.Background()
 
-	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, res, "employees"))
 	assert.Equal(t, 1, tableRows(t, res, "unique_employees"))
@@ -253,7 +255,8 @@ func TestEntityAnonymize_ClearsValuesAndHMACTogether(t *testing.T) {
 	// Повторный apply на уже обезличенных строках безопасен: значения остаются nil,
 	// новая запись в audit_log появляется (это отдельный факт "команда была запущена"),
 	// ошибки нет.
-	res2, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	res2, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, res2, "employees"))
 	emp2 := loadEmployee(t, db, f.employee.ID)
@@ -284,7 +287,8 @@ func TestEntityAnonymize_PreservesRelationsAndHistory(t *testing.T) {
 
 	rec := services.NewAuditRecorder(db)
 	ctx := context.Background()
-	_, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	_, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	// Вложение и сотрудник не удалены, связь между ними цела.
@@ -326,7 +330,8 @@ func TestEntityAnonymize_UsernamePseudonymUnique(t *testing.T) {
 	require.NoError(t, db.Create(&userB).Error)
 
 	rec := services.NewAuditRecorder(db)
-	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, td.OrgID, nil, true)
+	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, td.OrgID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	a := loadUser(t, db, userA.ID)
@@ -346,7 +351,8 @@ func TestEntityAnonymize_DoesNotTouchOtherOrganization(t *testing.T) {
 	other := setupAnonymizeFixture(t, db, "other-org")
 	rec := services.NewAuditRecorder(db)
 
-	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, target.org.ID, nil, true)
+	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, target.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	targetEmp := loadEmployee(t, db, target.employee.ID)
@@ -381,11 +387,13 @@ func TestEntityAnonymize_RejectsMissingOrganization(t *testing.T) {
 	ctx := context.Background()
 	const missingID = 999999
 
-	_, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, missingID, nil, false)
+	_, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, missingID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "не найдена")
 
-	_, err = entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, missingID, nil, true)
+	_, err = entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, missingID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "не найдена")
 
@@ -417,7 +425,8 @@ func TestEntityAnonymize_WarnsAboutApplicationFiles(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&file).Error)
 
-	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, false)
+	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	require.Len(t, dry.Warnings, 3, "обязаны быть все три предупреждения - файлы заявок, слепки бланков, снимок ЧС")
 	assert.Contains(t, dry.Warnings[0], "application_files")
@@ -427,7 +436,8 @@ func TestEntityAnonymize_WarnsAboutApplicationFiles(t *testing.T) {
 	assert.Contains(t, dry.Warnings[2], "matched_value")
 	assert.Contains(t, dry.Warnings[2], "application_blacklist_flags")
 
-	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 3)
 	assert.Contains(t, res.Warnings[0], "application_files")
@@ -472,12 +482,14 @@ func TestEntityAnonymize_SkipsSuperAdmin(t *testing.T) {
 	rec := services.NewAuditRecorder(db)
 	ctx := context.Background()
 
-	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID, nil, false)
+	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, dry, "users"), "dry-run считает только обычного пользователя")
 	assert.Equal(t, []int{super.ID}, dry.SkippedSuperAdmins, "dry-run уже показывает пропуск супер-админа")
 
-	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID, nil, true)
+	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, res, "users"))
 	assert.Equal(t, []int{super.ID}, res.SkippedSuperAdmins)
@@ -515,12 +527,14 @@ func TestEntityAnonymize_TreatsNullSuperAdminAsRegularUser(t *testing.T) {
 	rec := services.NewAuditRecorder(db)
 	ctx := context.Background()
 
-	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID, nil, false)
+	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, dry, "users"), "NULL в is_super_admin - обычный пользователь, попадает под обезличивание")
 	assert.NotContains(t, dry.SkippedSuperAdmins, u.ID)
 
-	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID, nil, true)
+	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, td.OrgID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.NotContains(t, res.SkippedSuperAdmins, u.ID)
 
@@ -544,7 +558,8 @@ func TestEntityAnonymize_RevokesActiveRefreshTokens(t *testing.T) {
 	require.NoError(t, db.Create(&token).Error)
 
 	rec := services.NewAuditRecorder(db)
-	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, td.OrgID, nil, true)
+	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, td.OrgID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	var revoked bool
@@ -569,7 +584,8 @@ func TestEntityAnonymize_ClearsApplicationInitiatorFields(t *testing.T) {
 		Update("message", message).Error)
 
 	rec := services.NewAuditRecorder(db)
-	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	app := loadApplication(t, db, f.application.ID)
@@ -598,7 +614,8 @@ func TestEntityAnonymize_DoesNotTouchPDAuditLogs(t *testing.T) {
 	require.NoError(t, db.Create(&entry).Error)
 
 	rec := services.NewAuditRecorder(db)
-	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	_, err := entityarchive.Anonymize(context.Background(), db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	var after models.PDAuditLog
@@ -647,13 +664,15 @@ func TestEntityAnonymize_ClearsBlacklistElementNormalizedForEmployeeOnly(t *test
 	rec := services.NewAuditRecorder(db)
 	ctx := context.Background()
 
-	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, false)
+	dry, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, dry, "application_blacklist_flags"),
 		"dry-run считает только employee-строку, не car")
 	assert.Equal(t, 1, tableRows(t, dry, "application_blacklist_overrides"))
 
-	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID, nil, true)
+	res, err := entityarchive.Anonymize(ctx, db, rec, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableRows(t, res, "application_blacklist_flags"))
 	assert.Equal(t, 1, tableRows(t, res, "application_blacklist_overrides"))

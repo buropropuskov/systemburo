@@ -60,6 +60,11 @@ var tables = []string{
 	"user_online_peaks",
 	"report_templates",
 	"pd_audit_logs", "pd_consents", "pd_disclosures",
+	// destruction_log живёт без внешних ключей намеренно (#2357): перечень
+	// уничтоженного обязан пережить и сущности, о которых в нём написано, и сами
+	// резервные копии. Значит, и чистка соседних таблиц его не снимает - тот же
+	// класс, что blank_exports и fake_batches выше.
+	"destruction_log",
 	"access_denials", "access_denial_archives",
 	"user_permission_overrides", "user_groups", "permission_group_grants",
 	"role_default_groups", "permission_groups",
