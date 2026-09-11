@@ -15,9 +15,15 @@ async function readJson(response) {
   return response.json();
 }
 
-/** Записи с таким же именем. Склейки по имени нет - решает оператор. */
-export async function findSubjectCandidates(fio) {
-  const response = await apiRequest(`/pd-subject/candidates?fio=${encodeURIComponent(fio)}`);
+/**
+ * Поиск человека по имени или по номеру документа. По имени склейки нет - решает
+ * оператор; по документу находится ровно один человек.
+ */
+export async function findSubjectCandidates({ fio, document }) {
+  const q = document
+    ? `document=${encodeURIComponent(document)}`
+    : `fio=${encodeURIComponent(fio)}`;
+  const response = await apiRequest(`/pd-subject/candidates?${q}`);
   return (await readJson(response)) || [];
 }
 

@@ -26,15 +26,16 @@ func NewPDSubjectHandler(s *pdsubject.Service) *PDSubjectHandler {
 
 // Find godoc
 // @Summary      Поиск человека по имени
-// @Description  Записи реестра и участники заявок с таким же ФИО. Склейки по имени нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.
+// @Description  Поиск человека по имени или по номеру документа. Склейки по имени нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.
 // @Tags         pd-subject
 // @Produce      json
 // @Security     BearerAuth
-// @Param        fio query string true "Фамилия Имя Отчество"
+// @Param        fio query string false "Фамилия Имя Отчество"
+// @Param        document query string false "Номер паспорта или патента"
 // @Success      200 {array} pdsubject.Candidate
 // @Router       /pd-subject/candidates [get]
 func (h *PDSubjectHandler) Find(c echo.Context) error {
-	found, err := h.service.FindByName(c.Request().Context(), c.QueryParam("fio"))
+	found, err := h.service.Find(c.Request().Context(), c.QueryParam("fio"), c.QueryParam("document"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

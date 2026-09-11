@@ -21,12 +21,34 @@
         class="pds__search"
         @submit.prevent="search"
       >
+        <div class="pds__modes">
+          <button
+            v-for="m in modes"
+            :key="m.value"
+            type="button"
+            class="lk-button lk-button--sm"
+            :class="mode === m.value ? 'lk-button--primary' : 'lk-button--ghost'"
+            :data-testid="`pds-mode-${m.value}`"
+            @click="mode = m.value"
+          >
+            {{ m.label }}
+          </button>
+        </div>
         <input
+          v-if="mode === 'fio'"
           v-model="fio"
           class="lk-input pds__search-input"
           type="text"
           placeholder="Фамилия Имя Отчество"
           data-testid="pds-fio"
+        >
+        <input
+          v-else
+          v-model="document"
+          class="lk-input pds__search-input"
+          type="text"
+          placeholder="Серия и номер паспорта или патента"
+          data-testid="pds-document"
         >
         <button
           class="lk-button lk-button--primary"
@@ -36,6 +58,19 @@
           Найти
         </button>
       </form>
+
+      <!-- Памятка нужна потому, что раздел открывают несколько раз в год: порядок
+           с реквизитами запроса к следующему разу забывается. Уходит, как только
+           начали работать. -->
+      <ol
+        v-if="!candidates.length && !report"
+        class="pds__steps"
+      >
+        <li>Найдите человека по документу из запроса или по фамилии.</li>
+        <li>Соберите сведения: что о нём хранится, где и с какого времени.</li>
+        <li>Выгрузите справку, указав получателя и реквизиты запроса.</li>
+        <li>Выдача попадёт в журнал - им подтверждают законность раскрытия.</li>
+      </ol>
 
       <div
         v-if="candidates.length"
@@ -210,6 +245,12 @@ const deletions = useDeletionsStore();
 const permissions = usePermissionsStore();
 
 const fio = ref('');
+const document = ref('');
+const mode = ref('fio');
+const modes = [
+  { value: 'fio', label: 'По имени' },
+  { value: 'document', label: 'По документу' },
+];
 const loading = ref(false);
 const exporting = ref(false);
 const exportOpen = ref(false);
@@ -229,13 +270,21 @@ function rowsOf(section) {
 }
 
 async function search() {
-  if (fio.value.trim().split(/\s+/).length < 2) {
+  const byDocument = mode.value === 'document';
+  if (byDocument && !document.value.trim()) {
+    deletions.notify({ bold: 'Укажите номер документа', type: 'error' });
+    return;
+  }
+  if (!byDocument && fio.value.trim().split(/\s+/).length < 2) {
     deletions.notify({ bold: 'Укажите хотя бы фамилию и имя', type: 'error' });
     return;
   }
   loading.value = true;
   try {
-    candidates.value = await findSubjectCandidates(fio.value);
+    candidates.value = await findSubjectCandidates({
+      fio: fio.value,
+      document: byDocument ? document.value : '',
+    });
     report.value = null;
     selected.value = { registryId: 0, employeeId: 0 };
     if (!candidates.value.length) deletions.notify({ bold: 'Записей с таким именем не найдено' });
@@ -319,7 +368,7 @@ function refresh() {
     collect({ registry_id: registryId, employee_id: employeeId });
     return;
   }
-  if (fio.value.trim()) search();
+  if (fio.value.trim() || document.value.trim()) search();
 }
 </script>
 
@@ -357,8 +406,22 @@ function refresh() {
 
 .pds__search {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 24px;
+}
+
+.pds__modes {
+  display: flex;
+  gap: 4px;
+}
+
+.pds__steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.8;
 }
 
 .pds__search-input {

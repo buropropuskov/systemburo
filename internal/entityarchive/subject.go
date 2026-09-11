@@ -168,16 +168,7 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 
 	whereFor := func(alias string) string { return nameWhere(alias, middle != "") }
 
-	type row struct {
-		Source       string
-		ID           int
-		FullName     string
-		DocKey       string
-		Document     *string
-		Organization *string
-		Position     *string
-	}
-	var rows []row
+	var rows []candidateRow
 	q := fmt.Sprintf(`
 		SELECT 'registry' AS source, ue.id,
 			TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)) AS full_name,
@@ -206,56 +197,7 @@ func FindSubjectCandidatesByFIO(ctx context.Context, db *gorm.DB, last, first, m
 		return nil, fmt.Errorf("поиск по имени: %w", err)
 	}
 
-	// Ключ склейки - свёртка документа. Строку без документа склеивать не по чему,
-	// поэтому она остаётся сама по себе.
-	order := make([]string, 0, len(rows))
-	byKey := make(map[string]*SubjectCandidate, len(rows))
-	for _, r := range rows {
-		key := r.DocKey
-		if key == "" {
-			key = fmt.Sprintf("%s-%d", r.Source, r.ID)
-		}
-		c, ok := byKey[key]
-		if !ok {
-			c = &SubjectCandidate{
-				FullName:     r.FullName,
-				HasDocument:  r.DocKey != "",
-				Organization: derefOrEmpty(r.Organization),
-				Position:     derefOrEmpty(r.Position),
-				DocumentTail: documentTail(r.Document),
-			}
-			byKey[key] = c
-			order = append(order, key)
-		}
-		// Организацию и должность берём у первой строки, где они есть: у записи
-		// реестра их может не быть, а у строки заявки они всегда от самой заявки.
-		if c.Organization == "" {
-			c.Organization = derefOrEmpty(r.Organization)
-		}
-		if c.Position == "" {
-			c.Position = derefOrEmpty(r.Position)
-		}
-		if c.DocumentTail == "" {
-			c.DocumentTail = documentTail(r.Document)
-		}
-		if r.Source == "registry" {
-			c.RegistryRows++
-			if c.RegistryID == 0 {
-				c.RegistryID = r.ID
-			}
-			continue
-		}
-		c.ApplicationRows++
-		if c.EmployeeID == 0 {
-			c.EmployeeID = r.ID
-		}
-	}
-
-	out := make([]SubjectCandidate, 0, len(order))
-	for _, key := range order {
-		out = append(out, *byKey[key])
-	}
-	if len(out) > 0 {
+	if out := groupCandidateRows(rows, false); len(out) > 0 {
 		return out, nil
 	}
 
@@ -275,16 +217,7 @@ func findSubjectCandidatesFuzzy(ctx context.Context, db *gorm.DB, last, first, m
 		return fmt.Sprintf("(@last %%>> %[1]s.last_name AND @first %%>> %[1]s.first_name)", alias)
 	}
 
-	type row struct {
-		Source       string
-		ID           int
-		FullName     string
-		DocKey       string
-		Document     *string
-		Organization *string
-		Position     *string
-	}
-	var rows []row
+	var rows []candidateRow
 	q := fmt.Sprintf(`
 		SELECT 'registry' AS source, ue.id,
 			TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)) AS full_name,
@@ -320,6 +253,23 @@ func findSubjectCandidatesFuzzy(ctx context.Context, db *gorm.DB, last, first, m
 		return nil, fmt.Errorf("поиск по похожему имени: %w", err)
 	}
 
+	return groupCandidateRows(rows, true), nil
+}
+
+// candidateRow - строка человека из реестра или заявки, как её отдаёт запрос поиска.
+type candidateRow struct {
+	Source       string
+	ID           int
+	FullName     string
+	DocKey       string
+	Document     *string
+	Organization *string
+	Position     *string
+}
+
+// groupCandidateRows склеивает строки по документу: один человек - один пункт списка.
+// Строку без документа склеивать не по чему, поэтому она остаётся сама по себе.
+func groupCandidateRows(rows []candidateRow, fuzzy bool) []SubjectCandidate {
 	order := make([]string, 0, len(rows))
 	byKey := make(map[string]*SubjectCandidate, len(rows))
 	for _, r := range rows {
@@ -330,15 +280,24 @@ func findSubjectCandidatesFuzzy(ctx context.Context, db *gorm.DB, last, first, m
 		c, ok := byKey[key]
 		if !ok {
 			c = &SubjectCandidate{
-				FullName:     r.FullName,
-				HasDocument:  r.DocKey != "",
-				Fuzzy:        true,
-				Organization: derefOrEmpty(r.Organization),
-				Position:     derefOrEmpty(r.Position),
-				DocumentTail: documentTail(r.Document),
+				FullName:    r.FullName,
+				HasDocument: r.DocKey != "",
+				Fuzzy:       fuzzy,
 			}
 			byKey[key] = c
 			order = append(order, key)
+		}
+		// Организацию, должность и хвост документа берём у первой строки, где они
+		// есть: у записи реестра организации может не быть, а у строки заявки она
+		// всегда от самой заявки.
+		if c.Organization == "" {
+			c.Organization = derefOrEmpty(r.Organization)
+		}
+		if c.Position == "" {
+			c.Position = derefOrEmpty(r.Position)
+		}
+		if c.DocumentTail == "" {
+			c.DocumentTail = documentTail(r.Document)
 		}
 		if r.Source == "registry" {
 			c.RegistryRows++
@@ -357,7 +316,50 @@ func findSubjectCandidatesFuzzy(ctx context.Context, db *gorm.DB, last, first, m
 	for _, key := range order {
 		out = append(out, *byKey[key])
 	}
-	return out, nil
+	return out
+}
+
+// FindSubjectCandidatesByDocument ищет человека по номеру документа.
+//
+// В запросе государственного органа номер паспорта есть чаще, чем точное написание
+// фамилии, и он однозначен: по нему находится ровно тот человек, о ком спрашивают,
+// без списка однофамильцев и без риска взять чужого. Поиск идёт по свёртке - само
+// значение документа при этом не хранится и не сравнивается открытым текстом.
+func FindSubjectCandidatesByDocument(ctx context.Context, db *gorm.DB, document string) ([]SubjectCandidate, error) {
+	target := SubjectTargetFromDocuments(document, document)
+	if target.Empty() {
+		return nil, fmt.Errorf("укажите номер документа")
+	}
+
+	var rows []candidateRow
+	q := `
+		SELECT 'registry' AS source, ue.id,
+			TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)) AS full_name,
+			COALESCE(NULLIF(ue.passport_series_number_hmac, ''), NULLIF(ue.patent_number_hmac, ''), '') AS doc_key,
+			COALESCE(ue.passport_series_number, ue.patent_number) AS document,
+			o.name AS organization, ue."position" AS position
+		FROM unique_employees ue
+		LEFT JOIN organizations o ON o.id = ue.organization_id
+		WHERE ` + subjectDocsFor("ue") + `
+		UNION ALL
+		SELECT 'application', e.id,
+			TRIM(CONCAT_WS(' ', e.last_name, e.first_name, e.middle_name)),
+			COALESCE(NULLIF(e.passport_series_number_hmac, ''), NULLIF(e.patent_number_hmac, ''), ''),
+			COALESCE(e.passport_series_number, e.patent_number),
+			o2.name, e."position"
+		FROM employees e
+		LEFT JOIN attachments a ON a.id = e.attachment_id
+		LEFT JOIN applications app ON app.id = a.application_id
+		LEFT JOIN organizations o2 ON o2.id = app.organization_id
+		WHERE ` + subjectDocsFor("e") + `
+		ORDER BY 1, 2`
+
+	err := db.WithContext(ctx).Raw(q,
+		sql.Named("pass", target.PassportHMAC), sql.Named("patent", target.PatentHMAC)).Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("поиск по документу: %w", err)
+	}
+	return groupCandidateRows(rows, false), nil
 }
 
 // Условие принадлежности строки субъекту. Пустая свёртка отсекается явно: без
