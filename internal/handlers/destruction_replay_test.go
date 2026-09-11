@@ -184,6 +184,47 @@ func TestReplay_SubjectFoundByDocumentDigest(t *testing.T) {
 	assert.EqualValues(t, 1, other)
 }
 
+func TestReplay_AnonymizedOrganizationCameBack(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	f := setupAnonymizeFixture(t, db, "Возврат-организация")
+	recorder := services.NewAuditRecorder(db)
+	_, err := entityarchive.Anonymize(context.Background(), db, recorder,
+		entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
+	require.NoError(t, err)
+
+	// Ничего не возвращалось - проход молчит. Иначе каждый прогон гонял бы затирание
+	// по уже пустой организации, плодя записи в истории.
+	quiet, err := entityarchive.ReplayDestructions(context.Background(), db, recorder,
+		entityarchive.FilePaths{}, true)
+	require.NoError(t, err)
+	assert.Zero(t, quiet.Applied)
+	assert.Equal(t, 1, quiet.Gone)
+
+	// Восстановление из копии: имена пользователя и сотрудника организации вернулись.
+	require.NoError(t, db.Exec(`UPDATE users SET last_name = 'Иванов' WHERE id = ?`, f.user.ID).Error)
+	require.NoError(t, db.Exec(`UPDATE employees SET last_name = 'Иванов' WHERE id = ?`, f.employee.ID).Error)
+
+	res, err := entityarchive.ReplayDestructions(context.Background(), db, recorder,
+		entityarchive.FilePaths{}, true)
+	require.NoError(t, err)
+	require.Equal(t, 1, res.Applied, "организация с вернувшимися именами обязана быть найдена")
+	assert.Zero(t, res.Failed)
+
+	var userName, empName *string
+	require.NoError(t, db.Raw(`SELECT last_name FROM users WHERE id = ?`, f.user.ID).Scan(&userName).Error)
+	require.NoError(t, db.Raw(`SELECT last_name FROM employees WHERE id = ?`, f.employee.ID).Scan(&empName).Error)
+	assert.Nil(t, userName, "вернувшееся имя пользователя обязано быть затёрто заново")
+	assert.Nil(t, empName, "вернувшееся имя сотрудника обязано быть затёрто заново")
+
+	records := destructionRecords(t, db)
+	require.Len(t, records, 1)
+	assert.Equal(t, 1, records[0].Replays)
+}
+
 // Снос организации идёт только по проверенному пакету выгрузки, и повторить его
 // автоматически нечем. Такая запись обязана быть названа вслух: пропусти её проход
 // молча, и оператор решит, что после восстановления всё снято.
