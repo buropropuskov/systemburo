@@ -53,8 +53,27 @@ func expiryMessages(t *testing.T, db *gorm.DB, userID int) []string {
 }
 
 // daysFromNow - дата через n дней в формате entry_date_to.
+//
+// Считается от МОСКОВСКОЙ даты, потому что от неё же считает сервис
+// (moscowTodaySQL в expiry_notify.go). Раннер CI и контейнеры живут в UTC, и с
+// 21:00 до 23:59 UTC московская дата уже следующая: вложение, заведённое здесь как
+// "через три дня", сервис видел как "через два", уведомление не приходило и шесть
+// тестов падали каждую ночь независимо от того, что правил коммит (#2470).
 func daysFromNow(n int) string {
-	return time.Now().AddDate(0, 0, n).Format("2006-01-02")
+	return moscowToday().AddDate(0, 0, n).Format("2006-01-02")
+}
+
+// moscowToday - сегодняшняя дата в рабочей зоне бюро. Отдельной функцией, а не
+// time.Now().In(loc) по месту: зона грузится один раз и одинаково у всех тестов,
+// иначе расхождение вернётся через первый же новый тест на сроки.
+func moscowToday() time.Time {
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		// Базы зон нет - работаем по UTC, как и раньше: лучше прежний флак, чем
+		// падение всего файла на разборе зоны.
+		return time.Now()
+	}
+	return time.Now().In(loc)
 }
 
 // TestExpiryNotify_OneNotificationPerApplication - заявка с двумя вложениями,
@@ -103,7 +122,7 @@ func TestExpiryNotify_ThreeDaysAhead(t *testing.T) {
 	messages := expiryMessages(t, db, senderID)
 	require.Len(t, messages, 1, "за три дня до конца срока приходит одно предупреждение")
 	assert.Contains(t, messages[0], "через 3 дня")
-	assert.Contains(t, messages[0], time.Now().AddDate(0, 0, 3).Format("02.01.2006"))
+	assert.Contains(t, messages[0], moscowToday().AddDate(0, 0, 3).Format("02.01.2006"))
 }
 
 // TestExpiryNotify_NoDuplicateOnRepeatRun - повторный прогон в те же сутки (задача
@@ -301,4 +320,3 @@ func newPassageAttachment(t *testing.T, db *gorm.DB, appID int, attachmentType s
 	require.NoError(t, db.Create(&att).Error)
 	return att.ID
 }
-
