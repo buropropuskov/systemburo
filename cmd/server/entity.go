@@ -45,6 +45,12 @@ const entityHelp = `Работа с данными по идентификато
   -id     Идентификатор сущности (> 0)
   -apply  Для retire/restore/anonymize/purge: выполнить изменение. Без флага - только показ
 
+Флаги anonymize и purge:
+  -basis  Основание уничтожения для журнала уничтожения (server destruction): retention
+          (истёк срок хранения), operator (решение оператора), subject-request
+          (требование субъекта). По умолчанию operator - консольную команду запускает
+          человек, и его решение и есть основание
+
 Флаги export:
   -apply       Записать пакет. Без него команда только считает
   -plaintext   Разрешить запись без шифрования, когда ключи не заданы
@@ -131,6 +137,12 @@ refresh-токены обезличенных пользователей - вх�
 паспорт/патент, а также ФИО и телефон инициатора открытым текстом на момент выпуска бланка)
 anonymize не трогает физически и явно предупреждает об обоих - это тоже персональные данные,
 но решение по ним отдельное, за владельцем системы.
+
+Всё, что anonymize и purge уничтожают, попадает в журнал уничтожения (server destruction):
+перечень «что уничтожено, по какому основанию, когда, по чьему решению» без персональных
+данных. Он переживает уборку журналов и сами резервные копии - по нему удаления
+применяются заново после восстановления, иначе копия вернёт то, что оператор обязан был
+уничтожить.
 
 purge - необратимый физический снос: удаляет строки графа из базы и файлы заявок с диска.
 Сначала сам вызывает verify по тому же пакету С УКАЗАНИЕМ -type/-id - пакет для другой
@@ -653,6 +665,34 @@ func parseEntityMutationFlags(name string, args []string) (entityType string, id
 	return *t, *idFlag, *applyFlag, -1
 }
 
+// parseDestructionFlags разбирает флаги операций, уничтожающих персональные данные:
+// к общим -type/-id/-apply добавляется -basis. Умолчание «решение оператора» здесь не
+// лазейка, а правда: консольную команду запускает человек, и его решение и есть
+// основание. Срок хранения и требование субъекта задаются флагом явно.
+func parseDestructionFlags(name string, args []string) (entityType string, id int, apply bool, basis string, code int) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, entityHelp) }
+	t := fs.String("type", entityarchive.TypeOrganization, "тип сущности")
+	idFlag := fs.Int("id", 0, "идентификатор сущности")
+	applyFlag := fs.Bool("apply", false, "выполнить изменение")
+	basisFlag := fs.String("basis", entityarchive.BasisOperator,
+		"основание уничтожения: "+strings.Join(entityarchive.DestructionBases(), ", "))
+	if err := fs.Parse(args); err != nil {
+		return "", 0, false, "", 2
+	}
+	if *idFlag <= 0 {
+		fmt.Fprintln(os.Stderr, "Ошибка: укажите -id больше нуля")
+		return "", 0, false, "", 2
+	}
+	parsed, err := entityarchive.ParseDestructionBasis(*basisFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return "", 0, false, "", 2
+	}
+	return *t, *idFlag, *applyFlag, parsed, -1
+}
+
 func printRetireResult(res entityarchive.RetireResult, applied bool) {
 	fmt.Println()
 	if applied {
@@ -691,10 +731,14 @@ func printRestoreResult(res entityarchive.RestoreResult, applied bool) {
 	fmt.Printf("Всего строк: %d\n", res.Total())
 }
 
-// entityAnonymize необратимо затирает персональные поля организации. Флаги общие с
-// retire/restore (-type/-id/-apply) - тот же parseEntityMutationFlags.
+// entityAnonymize необратимо затирает персональные поля организации или заявки.
+//
+// Флаги -type/-id/-apply общие с retire/restore, но разбираются здесь своим набором:
+// у обезличивания есть ещё -basis (основание для журнала уничтожения, #2357), а
+// retire/restore персональных данных не уничтожают, и лишний флаг у них только сбивал
+// бы с толку.
 func entityAnonymize(args []string) int {
-	entityType, id, apply, code := parseEntityMutationFlags("entity anonymize", args)
+	entityType, id, apply, basis, code := parseDestructionFlags("entity anonymize", args)
 	if code >= 0 {
 		return code
 	}
@@ -717,9 +761,11 @@ func entityAnonymize(args []string) int {
 			return 1
 		}
 		paths := entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath}
-		res, err = entityarchive.AnonymizeApplication(context.Background(), db, services.NewAuditRecorder(db), paths, id, nil, apply)
+		res, err = entityarchive.AnonymizeApplication(context.Background(), db, services.NewAuditRecorder(db), id,
+			entityarchive.DestructionOptions{Files: paths, Basis: basis, Apply: apply})
 	} else {
-		res, err = entityarchive.Anonymize(context.Background(), db, services.NewAuditRecorder(db), entityType, id, nil, apply)
+		res, err = entityarchive.Anonymize(context.Background(), db, services.NewAuditRecorder(db), entityType, id,
+			entityarchive.DestructionOptions{Basis: basis, Apply: apply})
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
@@ -793,7 +839,7 @@ func printAnonymizeResult(res entityarchive.AnonymizeResult, applied bool) {
 // entityarchive.Purge - здесь только разбор флагов, подключение ключей и печать результата.
 // entityPurgeApplication уничтожает одну заявку целиком. Отдельно от сноса организации:
 // там снос идёт по проверенному пакету и сверке покрытия, здесь пакета нет.
-func entityPurgeApplication(id int, apply bool) int {
+func entityPurgeApplication(id int, apply bool, basis string) int {
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", err)
@@ -807,7 +853,8 @@ func entityPurgeApplication(id int, apply bool) int {
 
 	paths := entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath}
 	res, err := entityarchive.PurgeApplication(context.Background(), db,
-		services.NewAuditRecorder(db), paths, id, nil, apply)
+		services.NewAuditRecorder(db), id,
+		entityarchive.DestructionOptions{Files: paths, Basis: basis, Apply: apply})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
@@ -857,11 +904,18 @@ func entityPurge(args []string) int {
 	id := fs.Int("id", 0, "идентификатор сущности")
 	pkg := fs.String("pkg", "", "путь к каталогу пакета")
 	apply := fs.Bool("apply", false, "физически удалить данные, а не только проверить")
+	basisFlag := fs.String("basis", entityarchive.BasisOperator,
+		"основание уничтожения: "+strings.Join(entityarchive.DestructionBases(), ", "))
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *id <= 0 {
 		fmt.Fprintln(os.Stderr, "Ошибка: укажите -id больше нуля")
+		return 2
+	}
+	basis, err := entityarchive.ParseDestructionBasis(*basisFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 2
 	}
 	// Заявка уничтожается без пакета: пакет выгрузки снимается с графа организации и
@@ -870,7 +924,7 @@ func entityPurge(args []string) int {
 	// после этой ветки: граф заявки живёт своим перечнем, а не реестром узлов графа
 	// организации, и CheckSupportedType о нём не знает.
 	if *entityType == entityarchive.TypeApplication {
-		return entityPurgeApplication(*id, *apply)
+		return entityPurgeApplication(*id, *apply, basis)
 	}
 	if err := entityarchive.CheckSupportedType(*entityType); err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
@@ -908,6 +962,7 @@ func entityPurge(args []string) int {
 		UploadPath: cfg.UploadPath,
 		Decrypt:    dec,
 		Recorder:   services.NewAuditRecorder(db),
+		Basis:      basis,
 		Apply:      *apply,
 	}
 	res, err := entityarchive.Purge(context.Background(), db, *entityType, *id, *pkg, opt)

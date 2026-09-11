@@ -68,6 +68,9 @@ type PurgeOptions struct {
 	// ActorID - кто инициировал снос. Для консольного доступа обычно nil: доступ к консоли
 	// сервера уже равнозначен доступу оператора, как и у retire/restore.
 	ActorID *int
+	// Basis - основание уничтожения для журнала уничтожения (#2357), одно из Basis*.
+	// Обязательно при Apply: запись без основания не является свидетельством.
+	Basis string
 	// Apply - удалить по-настоящему. Без него команда только проверяет пакет, сверяет
 	// покрытие текущего состояния и считает, что удалилось бы - не трогая ни базу, ни диск.
 	Apply bool
@@ -139,6 +142,14 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		return PurgeResult{}, fmt.Errorf("тип %q не поддерживается (v1: только %s)", entityType, TypeOrganization)
 	}
 	res := PurgeResult{Type: entityType, ID: id, Package: dir, Apply: opt.Apply}
+
+	// Основание проверяется до первого действия: отказать оператору после того, как он
+	// прождал проверку пакета на десятках тысяч строк, - плохой способ сообщить, что в
+	// команде не хватает флага.
+	destruction := DestructionOptions{ActorID: opt.ActorID, Basis: opt.Basis, Apply: opt.Apply}
+	if err := destruction.validate(); err != nil {
+		return res, err
+	}
 
 	v, err := Verify(ctx, db, dir, opt.Decrypt, entityType, id)
 	if err != nil {
@@ -247,7 +258,18 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 			Package: dir, ManifestSHA256: fingerprint, Tables: deleted, Rows: sumRows(deleted), Files: len(files),
 			DetachedReportTemplates: detachedTemplates,
 		}
-		return opt.Recorder.Record(ctx, tx, entityType, &entityID, models.OrganizationActionPurged, opt.ActorID, details)
+		if err := opt.Recorder.Record(ctx, tx, entityType, &entityID, models.OrganizationActionPurged, opt.ActorID, details); err != nil {
+			return err
+		}
+
+		// Свидетельство для повторного применения после восстановления (#2357).
+		// Автоматически повторить такой снос нельзя - он идёт только по проверенному
+		// пакету, - и повторное применение печатает такую запись отдельным
+		// предупреждением, а не пропускает молча.
+		rec := destruction.destructionRecord(entityType, &entityID, DestructionPurged)
+		rec.Rows = int(sumRows(deleted))
+		rec.Files = len(files)
+		return recordDestruction(ctx, tx, rec)
 	})
 	if txErr != nil {
 		return res, fmt.Errorf("снос %s #%d: %w", entityType, id, txErr)

@@ -31,7 +31,8 @@ func TestPurgeApplication_RemovesEverything(t *testing.T) {
 	recorder := services.NewAuditRecorder(db)
 	paths := entityarchive.FilePaths{}
 
-	dry, err := entityarchive.PurgeApplication(context.Background(), db, recorder, paths, appID, nil, false)
+	dry, err := entityarchive.PurgeApplication(context.Background(), db, recorder, appID,
+		entityarchive.DestructionOptions{Files: paths, Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, "№ 20260101/500", dry.Number)
 	assert.NotEmpty(t, dry.Warnings, "оператор обязан прочитать, что откат не предусмотрен")
@@ -41,7 +42,8 @@ func TestPurgeApplication_RemovesEverything(t *testing.T) {
 	require.NoError(t, db.Raw(`SELECT count(*) FROM applications WHERE id = ?`, appID).Scan(&stillThere).Error)
 	require.EqualValues(t, 1, stillThere, "показ без -apply базу не меняет")
 
-	out, err := entityarchive.PurgeApplication(context.Background(), db, recorder, paths, appID, nil, true)
+	out, err := entityarchive.PurgeApplication(context.Background(), db, recorder, appID,
+		entityarchive.DestructionOptions{Files: paths, Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.Positive(t, out.TotalRows())
 
@@ -110,8 +112,8 @@ func TestPurgeApplication_TakesArchiveRowsWithIt(t *testing.T) {
 	require.FileExists(t, snapPath)
 
 	_, err := entityarchive.PurgeApplication(context.Background(), w.db,
-		services.NewAuditRecorder(w.db), entityarchive.FilePaths{ArchivePath: w.root},
-		appID, nil, true)
+		services.NewAuditRecorder(w.db), appID,
+		entityarchive.DestructionOptions{Files: entityarchive.FilePaths{ArchivePath: w.root}, Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 
 	assert.NoFileExists(t, snapPath, "слепок с паспортом остался на диске")
@@ -127,7 +129,7 @@ func TestPurgeApplication_NotFound(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	_, err := entityarchive.PurgeApplication(context.Background(), db,
-		services.NewAuditRecorder(db), entityarchive.FilePaths{}, 999999, nil, true)
+		services.NewAuditRecorder(db), 999999, entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.Error(t, err)
 }
 

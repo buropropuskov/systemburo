@@ -109,9 +109,12 @@ func (r ApplicationPurgeResult) TotalRows() int64 {
 // PurgeApplication уничтожает заявку целиком.
 // apply=false - только подсчёт: ни база, ни диск не меняются.
 func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder,
-	paths FilePaths, id int, actorID *int, apply bool) (ApplicationPurgeResult, error) {
+	id int, opt DestructionOptions) (ApplicationPurgeResult, error) {
 	if id <= 0 {
 		return ApplicationPurgeResult{}, fmt.Errorf("не указана заявка")
+	}
+	if err := opt.validate(); err != nil {
+		return ApplicationPurgeResult{}, err
 	}
 
 	res := ApplicationPurgeResult{ID: id}
@@ -135,8 +138,8 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 	}
 	res.Warnings = applicationPurgeWarnings(passages)
 
-	if !apply {
-		files, err := purgeApplicationFiles(ctx, db, paths, id, false)
+	if !opt.Apply {
+		files, err := purgeApplicationFiles(ctx, db, opt.Files, id, false)
 		if err != nil {
 			return ApplicationPurgeResult{}, err
 		}
@@ -147,7 +150,7 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 
 	// Диск первым, по тому же доводу, что и у обезличивания: удаление файла откатить
 	// нечем, и сбой посередине чинится повторным прогоном.
-	res.Files, err = purgeApplicationFiles(ctx, db, paths, id, true)
+	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true)
 	if err != nil {
 		return ApplicationPurgeResult{}, err
 	}
@@ -183,13 +186,25 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 
 		// Запись журнала - последним шагом и уже после удаления: она единственное, что
 		// остаётся от заявки, и появиться обязана только если уничтожение состоялось.
-		return recorder.Record(ctx, tx, models.AuditEntityApplication, &id,
-			models.OrganizationActionPurged, actorID, applicationPurgeDetails{
+		if err := recorder.Record(ctx, tx, models.AuditEntityApplication, &id,
+			models.OrganizationActionPurged, opt.ActorID, applicationPurgeDetails{
 				Number:  res.Number,
 				Rows:    res.TotalRows(),
 				History: res.History,
 				Files:   res.Files.Total(),
-			})
+			}); err != nil {
+			return err
+		}
+
+		// Свидетельство для повторного применения после восстановления (#2357).
+		// Отдельно от audit_log намеренно: историю самой заявки этот же шаг удаляет,
+		// и запись об уничтожении в ней не пережила бы восстановление из копии,
+		// снятой до уничтожения.
+		rec := opt.destructionRecord(models.AuditEntityApplication, &id, DestructionPurged)
+		rec.ApplicationNumber = res.Number
+		rec.Rows = int(res.TotalRows())
+		rec.Files = res.Files.Total()
+		return recordDestruction(ctx, tx, rec)
 	})
 	switch {
 	case errors.Is(err, errApplicationNotFound):

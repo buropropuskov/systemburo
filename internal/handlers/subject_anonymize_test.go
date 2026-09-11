@@ -61,7 +61,7 @@ func TestAnonymizeSubject_DryRunChangesNothing(t *testing.T) {
 
 	target := entityarchive.SubjectTargetFromDocuments(passport, "")
 	res, err := entityarchive.AnonymizeSubject(context.Background(), db,
-		services.NewAuditRecorder(db), target, nil, false)
+		services.NewAuditRecorder(db), target, entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, 2, res.Total(), "две строки: запись реестра и участник заявки")
 	assert.NotEmpty(t, res.Warnings, "оператор обязан узнать, что остаётся после затирания")
@@ -80,7 +80,7 @@ func TestAnonymizeSubject_WipesNameAndDocumentWithHash(t *testing.T) {
 
 	target := entityarchive.SubjectTargetFromDocuments(passport, "")
 	res, err := entityarchive.AnonymizeSubject(context.Background(), db,
-		services.NewAuditRecorder(db), target, nil, true)
+		services.NewAuditRecorder(db), target, entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	require.Equal(t, 2, res.Total())
 
@@ -133,6 +133,6 @@ func TestAnonymizeSubject_NotFound(t *testing.T) {
 
 	target := entityarchive.SubjectTargetFromDocuments("0000 000000", "")
 	_, err := entityarchive.AnonymizeSubject(context.Background(), db,
-		services.NewAuditRecorder(db), target, nil, false)
+		services.NewAuditRecorder(db), target, entityarchive.DestructionOptions{Basis: entityarchive.BasisOperator})
 	require.Error(t, err)
 }

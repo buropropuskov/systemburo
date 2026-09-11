@@ -210,16 +210,19 @@ func anonymizeTargets() []AnonymizeTableResult {
 }
 
 // Anonymize необратимо затирает персональные поля сотрудников и пользователей
-// организации. apply=false - только подсчёт того, что попало бы под затирание, база не
-// меняется. Связи между записями, audit_log/pd_audit_logs и любая история, должности,
+// организации. Без opt.Apply - только подсчёт того, что попало бы под затирание, база
+// не меняется. Связи между записями, audit_log/pd_audit_logs и любая история, должности,
 // номера машин, счётчики и даты сущностей не трогаются - меняются только перечисленные
 // в anonymizeTargets колонки.
-func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, entityType string, id int, actorID *int, apply bool) (AnonymizeResult, error) {
+func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, entityType string, id int, opt DestructionOptions) (AnonymizeResult, error) {
 	if entityType != TypeOrganization {
 		return AnonymizeResult{}, fmt.Errorf("тип %q не поддерживается (v1: только %s)", entityType, TypeOrganization)
 	}
+	if err := opt.validate(); err != nil {
+		return AnonymizeResult{}, err
+	}
 
-	if !apply {
+	if !opt.Apply {
 		exists, err := orgExists(ctx, db, id)
 		if err != nil {
 			return AnonymizeResult{}, err
@@ -295,8 +298,15 @@ func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder
 		}
 		// Запись аудита - последним шагом транзакции, тем же приёмом, что и Retire: если
 		// затирание не выполнилось, метка "сделано" не появится вовсе.
-		return recorder.Record(ctx, tx, models.AuditEntityOrganization, &id, models.OrganizationActionAnonymized, actorID,
-			anonymizeDetails{Tables: details, SkippedSuperAdmins: res.SkippedSuperAdmins})
+		if err := recorder.Record(ctx, tx, models.AuditEntityOrganization, &id, models.OrganizationActionAnonymized, opt.ActorID,
+			anonymizeDetails{Tables: details, SkippedSuperAdmins: res.SkippedSuperAdmins}); err != nil {
+			return err
+		}
+
+		// Свидетельство для повторного применения после восстановления (#2357).
+		rec := opt.destructionRecord(models.AuditEntityOrganization, &id, DestructionAnonymized)
+		rec.Rows = res.Total()
+		return recordDestruction(ctx, tx, rec)
 	})
 	switch {
 	case errors.Is(err, errOrgNotFound):

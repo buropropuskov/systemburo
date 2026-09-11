@@ -94,7 +94,8 @@ func SweepApplicationRetention(ctx context.Context, db *gorm.DB, recorder servic
 
 	res := RetentionSweepResult{Checked: len(candidates)}
 	for _, c := range candidates {
-		out, err := AnonymizeApplication(ctx, db, recorder, paths, c.ID, nil, apply)
+		out, err := AnonymizeApplication(ctx, db, recorder, c.ID,
+			DestructionOptions{Files: paths, Basis: BasisRetention, Apply: apply})
 		if err != nil {
 			// Одна сбойная заявка не должна останавливать весь прогон: остальные
 			// обезличить всё равно надо, а о сбое говорим вслух.

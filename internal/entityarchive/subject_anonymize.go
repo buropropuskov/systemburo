@@ -59,12 +59,15 @@ func subjectAnonymizeTargets() []AnonymizeTableResult {
 
 // AnonymizeSubject затирает персональные поля человека во всех трёх таблицах.
 // apply=false - только подсчёт, база не меняется.
-func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, target SubjectTarget, actorID *int, apply bool) (SubjectAnonymizeResult, error) {
+func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, target SubjectTarget, opt DestructionOptions) (SubjectAnonymizeResult, error) {
 	if target.Empty() {
 		return SubjectAnonymizeResult{}, fmt.Errorf("цель не задана: нужен паспорт или патент")
 	}
+	if err := opt.validate(); err != nil {
+		return SubjectAnonymizeResult{}, err
+	}
 
-	if !apply {
+	if !opt.Apply {
 		res := SubjectAnonymizeResult{Origin: target.Origin, Tables: subjectAnonymizeTargets()}
 		for i := range res.Tables {
 			ids, err := subjectRowIDs(ctx, db, res.Tables[i].Table, target)
@@ -128,9 +131,21 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		if anchorID > 0 {
 			entityID = &anchorID
 		}
-		return recorder.Record(ctx, tx, models.AuditEntityUniqueEmployee, entityID,
-			models.OrganizationActionAnonymized, actorID,
-			anonymizeDetails{Tables: details})
+		if err := recorder.Record(ctx, tx, models.AuditEntityUniqueEmployee, entityID,
+			models.OrganizationActionAnonymized, opt.ActorID,
+			anonymizeDetails{Tables: details}); err != nil {
+			return err
+		}
+
+		// Свидетельство для повторного применения после восстановления (#2357).
+		// Идентификатор здесь ненадёжен - записи реестра у человека может не быть
+		// вовсе, - поэтому цель опознаётся отпечатками документов: вернувшегося из
+		// копии человека находят пересчётом того же отпечатка.
+		rec := opt.destructionRecord(models.AuditEntityUniqueEmployee, entityID, DestructionAnonymized)
+		rec.PassportDigest = documentDigest(target.PassportHMAC)
+		rec.PatentDigest = documentDigest(target.PatentHMAC)
+		rec.Rows = total
+		return recordDestruction(ctx, tx, rec)
 	})
 	switch {
 	case errors.Is(err, errSubjectNotFound):

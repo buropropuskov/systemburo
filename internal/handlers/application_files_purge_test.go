@@ -66,14 +66,16 @@ func TestAnonymizeApplication_PurgesFilesFromDisk(t *testing.T) {
 	paths := entityarchive.FilePaths{UploadPath: uploadRoot, ArchivePath: w.root}
 	recorder := services.NewAuditRecorder(w.db)
 
-	dry, err := entityarchive.AnonymizeApplication(context.Background(), w.db, recorder, paths, appID, nil, false)
+	dry, err := entityarchive.AnonymizeApplication(context.Background(), w.db, recorder, appID,
+		entityarchive.DestructionOptions{Files: paths, Basis: entityarchive.BasisOperator})
 	require.NoError(t, err)
 	assert.Equal(t, 1, dry.Files.Attached, "приложенный документ обязан попасть в счёт")
 	assert.GreaterOrEqual(t, dry.Files.Archive, 1, "слепок заявки обязан попасть в счёт")
 	require.FileExists(t, snapPath, "показ без -apply диска не касается")
 	require.FileExists(t, attachedPath, "показ без -apply диска не касается")
 
-	out, err := entityarchive.AnonymizeApplication(context.Background(), w.db, recorder, paths, appID, nil, true)
+	out, err := entityarchive.AnonymizeApplication(context.Background(), w.db, recorder, appID,
+		entityarchive.DestructionOptions{Files: paths, Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	assert.Equal(t, dry.Files.Total(), out.Files.Total(), "показ обязан совпасть с делом")
 
@@ -115,7 +117,7 @@ func TestAnonymizeApplication_ArchiveDoesNotResurrect(t *testing.T) {
 
 	paths := entityarchive.FilePaths{ArchivePath: w.root}
 	_, err := entityarchive.AnonymizeApplication(context.Background(), w.db,
-		services.NewAuditRecorder(w.db), paths, appID, nil, true)
+		services.NewAuditRecorder(w.db), appID, entityarchive.DestructionOptions{Files: paths, Basis: entityarchive.BasisOperator, Apply: true})
 	require.NoError(t, err)
 	require.NoFileExists(t, snapPath)
 
