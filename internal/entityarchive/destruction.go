@@ -217,6 +217,32 @@ func documentDigest(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// CountDestructionRecords - сколько всего записей в журнале.
+func CountDestructionRecords(ctx context.Context, db *gorm.DB) (int64, error) {
+	var n int64
+	if err := db.WithContext(ctx).Model(&models.DestructionRecord{}).Count(&n).Error; err != nil {
+		return 0, fmt.Errorf("подсчёт записей журнала уничтожения: %w", err)
+	}
+	return n, nil
+}
+
+// RecentDestructionRecords возвращает последние записи журнала, свежие раньше.
+//
+// Отдельно от ListDestructionRecords с отбором в памяти: журнал по замыслу не чистится
+// ничем и растёт бессрочно, поэтому вычитывать его целиком ради двадцати последних
+// строк нельзя - через пару лет эксплуатации это будет вся многолетняя история.
+func RecentDestructionRecords(ctx context.Context, db *gorm.DB, limit int) ([]models.DestructionRecord, error) {
+	q := db.WithContext(ctx).Model(&models.DestructionRecord{}).Order("created_at DESC, id DESC")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	var out []models.DestructionRecord
+	if err := q.Find(&out).Error; err != nil {
+		return nil, fmt.Errorf("чтение журнала уничтожения: %w", err)
+	}
+	return out, nil
+}
+
 // ListDestructionRecords возвращает записи журнала уничтожения за период, старые
 // раньше. Нулевые границы означают «без ограничения с этой стороны».
 func ListDestructionRecords(ctx context.Context, db *gorm.DB, from, to time.Time) ([]models.DestructionRecord, error) {

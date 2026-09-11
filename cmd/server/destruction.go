@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"systemburo/internal/config"
 	"systemburo/internal/entityarchive"
@@ -32,6 +31,12 @@ const destructionHelp = `Журнал уничтожения персональ�
 
 Флаги replay:
   -apply  Снять данные, вернувшиеся из копии. Без флага - только показ
+
+Коды возврата replay:
+  0  всё снято (или снимать было нечего)
+  1  сбой
+  3  из копии вернулись данные, которые автоматически снять нельзя. Открывать систему
+     пользователям до разбора нельзя - на этот код опирается шаг восстановления
 
 Флаги act:
   -from   Начало периода, включительно (вид 01.01.2026)
@@ -105,24 +110,28 @@ func destructionShow(args []string) int {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
 	}
-	records, err := entityarchive.ListDestructionRecords(context.Background(), db, time.Time{}, time.Time{})
+	ctx := context.Background()
+	// Свежие раньше: перечень читают, чтобы посмотреть последнее.
+	records, err := entityarchive.RecentDestructionRecords(ctx, db, *limit)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	total, err := entityarchive.CountDestructionRecords(ctx, db)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
 	}
 
 	fmt.Println()
-	if len(records) == 0 {
+	if total == 0 {
 		fmt.Println("Журнал уничтожения пуст: ничего не уничтожалось.")
 		return 0
 	}
-	// Свежие раньше: перечень читают, чтобы посмотреть последнее.
 	fmt.Println(" ", padRight("Когда", 11), padRight("Что уничтожено", 28),
 		padRight("Действие", 11), padRight("Основание", 21),
 		padLeft("Строк", 7), padLeft("Повторов", 9))
-	shown := 0
-	for i := len(records) - 1; i >= 0 && shown < *limit; i-- {
-		r := records[i]
+	for _, r := range records {
 		fmt.Println(" ",
 			padRight(r.CreatedAt.Format("02.01.2006"), 11),
 			padRight(entityarchive.DestructionTargetName(r), 28),
@@ -130,9 +139,8 @@ func destructionShow(args []string) int {
 			padRight(entityarchive.DestructionBasisName(r.Basis), 21),
 			padLeft(strconv.Itoa(r.Rows), 7),
 			padLeft(strconv.Itoa(r.Replays), 9))
-		shown++
 	}
-	fmt.Printf("\nВсего записей: %d\n", len(records))
+	fmt.Printf("\nПоказано %d из %d записей.\n", len(records), total)
 	return 0
 }
 
@@ -166,14 +174,23 @@ func destructionReplay(args []string) int {
 	}
 
 	printReplayResult(res, *apply)
-	// Ненулевой код только на настоящих сбоях: запись, требующая рук оператора, - это
-	// ожидаемый исход, и валить им шаг восстановления значило бы приучить пропускать
-	// его вывод.
-	if res.Failed > 0 {
+	// Коды возврата разнесены, потому что вызывающему нужны разные действия, а
+	// разбирать текст вывода - способ, который молча ломается при первой же правке
+	// формулировки. 1 - сбой; 3 - данные вернулись, но снять их автоматически нельзя,
+	// и открывать систему пользователям до разбора нельзя тоже (на этот код опирается
+	// шаг восстановления в scripts/restore.sh).
+	switch {
+	case res.Failed > 0:
 		return 1
+	case res.Manual > 0:
+		return replayNeedsHandsCode
+	default:
+		return 0
 	}
-	return 0
 }
+
+// replayNeedsHandsCode - код возврата «вернулось то, что нужно снять руками».
+const replayNeedsHandsCode = 3
 
 func printReplayResult(res entityarchive.ReplayResult, applied bool) {
 	fmt.Println()

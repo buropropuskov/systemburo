@@ -220,4 +220,37 @@ func TestReplay_OrganizationPurgeNeedsHands(t *testing.T) {
 	records := destructionRecords(t, db)
 	require.Len(t, records, 1)
 	assert.Zero(t, records[0].Replays, "повтора не было - отмечать нечего")
+
+	// На это число опирается шаг восстановления в scripts/restore.sh: увидев запись,
+	// которую сам снять не может, он останавливает восстановление и не открывает
+	// систему пользователям. Считать такие записи по тексту вывода нельзя - он
+	// меняется, а гарантия «вернувшиеся данные не увидят» меняться не должна.
+	assert.Positive(t, res.Manual,
+		"шаг восстановления различает этот исход по счётчику, а не по тексту вывода")
+}
+
+// Показ и применение обязаны давать один и тот же ответ на вопрос «есть ли записи,
+// которые придётся снять руками». Разойдись они - оператор, посмотревший показ перед
+// восстановлением, получил бы остановку там, где её не ждал.
+func TestReplay_DryRunSeesTheSameManualRecords(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	f, dir, crypt := purgeFixture(t, db, uploadDir)
+	orgID := f.org.ID
+	recorder := services.NewAuditRecorder(db)
+	_, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, orgID, dir,
+		entityarchive.PurgeOptions{
+			Basis:      entityarchive.BasisOperator,
+			UploadPath: uploadDir, Decrypt: crypt, Recorder: recorder, Apply: true,
+		})
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(`INSERT INTO organizations (id, name) VALUES (?, ?)`,
+		orgID, "Вернувшаяся из копии").Error)
+
+	dry, err := entityarchive.ReplayDestructions(context.Background(), db, recorder,
+		entityarchive.FilePaths{UploadPath: uploadDir}, false)
+	require.NoError(t, err)
+	assert.Equal(t, 1, dry.Manual, "показ обязан назвать ту же запись, что и применение")
 }
