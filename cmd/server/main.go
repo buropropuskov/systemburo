@@ -705,7 +705,7 @@ func main() {
 	// подписки Web Push без единой успешной доставки (#974) и разрешившиеся письма
 	// из очереди (#2351). Остальные журналы чистятся только вручную подкомандой
 	// cleanup - там решение за оператором.
-	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, cfg.PushSubscriptionRetentionDays, cfg.MailMessageRetentionDays, 24*time.Hour)
+	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, cfg.PushSubscriptionRetentionDays, cfg.MailMessageRetentionDays, cfg.AuditRetentionMonths, 24*time.Hour)
 	// Обезличивание заявок по сроку хранения (#2355). Отдельной задачей, а не внутри
 	// уборки: та удаляет обесценившийся мусор, а здесь необратимая операция над
 	// персональными данными, и выключена она по умолчанию.
@@ -803,9 +803,9 @@ func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precr
 // разных срока), подписки Web Push без единой успешной доставки (#974) и
 // разрешившиеся письма из очереди (#2351). Первый прогон сразу - после долгого
 // простоя мусор копится, ждать сутки незачем.
-func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays int, interval time.Duration) {
+func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays, auditMonths int, interval time.Duration) {
 	run := func() {
-		database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays)
+		database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays, mailMessageDays, auditMonths)
 	}
 	run()
 	ticker := time.NewTicker(interval)

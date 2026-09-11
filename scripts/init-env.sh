@@ -321,6 +321,11 @@ LOG_COMPRESS=true
 REQUEST_LOG_DETAIL_DAYS=30
 REQUEST_LOG_PARTITION_PRECREATE_DAYS=7
 
+# Срок хранения истории сущностей (audit_log), месяцев. В пояснениях к отметкам
+# прохода лежат ФИО, поэтому срок здесь - тоже про персональные данные. 0 - уборка
+# только вручную командой server cleanup audit.
+AUDIT_RETENTION_MONTHS=0
+
 # Срок хранения аудита обращений к персональным данным, месяцев.
 PD_AUDIT_RETENTION_MONTHS=36
 
