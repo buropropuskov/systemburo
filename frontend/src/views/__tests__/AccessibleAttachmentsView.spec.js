@@ -339,6 +339,32 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
     expect(wrapper.find('[data-testid="aa-mark-executed"]').attributes('disabled')).toBeDefined();
   });
 
+  it('после отметки деталь перечитывается без флеша скелетона и показывает свежую сводку', async () => {
+    wrapper = mountWithDetail({ execution_marks: { today_count: 0, recent: [] } });
+    getAccessibleAttachmentDetail.mockResolvedValueOnce({
+      attachment: { ...makeItem(1), application_id: 42, attachment_id: 1, execution_marks: { today_count: 0, recent: [] } },
+      cars: [],
+    }).mockResolvedValueOnce({
+      attachment: {
+        ...makeItem(1), application_id: 42, attachment_id: 1,
+        execution_marked_until: new Date(Date.now() + 300000).toISOString(),
+        execution_marks: { today_count: 1, recent: [{ created_at: new Date().toISOString(), actor_name: 'Иванов И.И.' }] },
+      },
+      cars: [],
+    });
+    markAccessibleAttachmentExecuted.mockResolvedValue({ execution_marked_until: new Date(Date.now() + 300000).toISOString() });
+    await openDetail();
+
+    expect(wrapper.find('[data-testid="aa-mark-summary"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="aa-mark-executed"]').trigger('click');
+    await flushPromises();
+
+    expect(getAccessibleAttachmentDetail).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('[data-testid="aa-detail-loading"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="aa-mark-summary"]').text()).toBe('Сегодня отмечено 1 раз');
+  });
+
   it('деталь, открытая с уже действующей отметкой, сразу рисует кнопку заблокированной', async () => {
     wrapper = mountWithDetail({ execution_marked_until: new Date(Date.now() + 120000).toISOString() });
     await openDetail();

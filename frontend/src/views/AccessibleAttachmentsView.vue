@@ -5,8 +5,7 @@
         <h3 class="management-title">
           Доступные мне
         </h3>
-        <!-- Счётчик записей рядом с заголовком - только на мобилке: на десктопе то же
-             число уже стоит в подвале списка («Всего: N»). -->
+        <!-- Счётчик записей рядом с заголовком - только на мобилке: на десктопе то же число уже стоит в подвале списка («Всего: N»). -->
         <span
           v-if="isNarrow"
           class="management-count"
@@ -213,9 +212,7 @@
                   {{ typeLabel(a.attachment_type) }}
                 </Badge>
                 <span class="attachment-card__org">{{ orgLine(a) }}</span>
-                <!-- Срок и статус живут в шапке только на десктопе. На телефоне они
-                     делили строку с организацией, ряд ломался на три и высоты
-                     разъезжались - срок ушёл в мету, статус в подвал (мокап). -->
+                <!-- Срок и статус живут в шапке только на десктопе. На телефоне они делили строку с организацией, ряд ломался на три и высоты разъезжались - срок ушёл в мету, статус в подвал (мокап). -->
                 <template v-if="!isNarrow">
                   <span
                     v-if="dateRange(a)"
@@ -376,9 +373,11 @@
                 </div>
               </div>
 
-              <div class="detail-actions">
+              <div
+                v-if="detail.attachment.has_blank"
+                class="detail-actions"
+              >
                 <button
-                  v-if="detail.attachment.has_blank"
                   type="button"
                   class="lk-button lk-button--primary"
                   :disabled="previewLoading"
@@ -387,11 +386,13 @@
                 >
                   {{ previewLoading ? 'Загрузка...' : 'Посмотреть файл' }}
                 </button>
-                <AttachmentExecutionMark :attachment="detail.attachment" />
               </div>
+              <AttachmentExecutionMark
+                :attachment="detail.attachment"
+                @marked="refreshDetail(detail.attachment.attachment_id)"
+              />
 
-              <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
-                   эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
+              <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values - эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
               <!-- Карточку машины/сотрудника здесь не открываем: обработчиков нет,
                    поэтому строка не должна выглядеть кликабельной (#1392). -->
               <ApplicationAttachmentDetail
@@ -762,6 +763,21 @@ async function selectAttachment(id) {
       bold: 'Не удалось открыть',
       suffix: 'вложение',
     });
+  }
+}
+
+// После отметки "исполнено" (#2446 доп.) перечитывает деталь, не сбрасывая её в null:
+// selectAttachment на месте кнопки дал бы заметный флеш "скелетон - контент" ради
+// обновления одной сводки. Отказ тихий - сама отметка уже прошла и подтверждена
+// тостом кнопки, устаревшая сводка на экране до следующего открытия не критична.
+async function refreshDetail(id) {
+  const seq = ++detailSeq;
+  try {
+    const data = await getAccessibleAttachmentDetail(id);
+    if (seq !== detailSeq || selectedId.value !== id) return;
+    detail.value = data;
+  } catch {
+    // см. комментарий выше
   }
 }
 

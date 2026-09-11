@@ -1,36 +1,70 @@
 <template>
-  <button
+  <div
     v-if="attachment"
-    type="button"
-    class="lk-button lk-button--primary execution-mark"
-    :disabled="!canMark"
-    data-testid="aa-mark-executed"
-    @click="mark"
+    class="execution-mark"
   >
-    {{ label }}
-  </button>
+    <button
+      type="button"
+      class="lk-button lk-button--primary execution-mark__button"
+      :disabled="!canMark"
+      data-testid="aa-mark-executed"
+      @click="mark"
+    >
+      {{ label }}
+    </button>
+    <p
+      v-if="todayCount > 0"
+      class="execution-mark__summary"
+      data-testid="aa-mark-summary"
+    >
+      Сегодня отмечено {{ todayCount }} {{ timesLabel }}
+    </p>
+    <ul
+      v-if="todayCount > 0"
+      class="execution-mark__list"
+      data-testid="aa-mark-list"
+    >
+      <li
+        v-for="(entry, i) in marksSummary.recent"
+        :key="i"
+        class="execution-mark__item"
+      >
+        <span class="execution-mark__time">{{ formatMarkTime(entry.created_at) }}</span>
+        <span
+          v-if="entry.actor_name"
+          class="execution-mark__actor"
+        >{{ entry.actor_name }}</span>
+      </li>
+    </ul>
+  </div>
 </template>
 
 <script setup>
 /**
- * Кнопка "Отметить как исполненное" во вкладке "Доступные мне" (#2446): охранник
- * подтверждает, что по заявке приехали/пришли. Вынесена отдельным компонентом -
- * AccessibleAttachmentsView.vue уже за порогом размера template/style, а логика
- * отметки в него бы не поместилась.
+ * Кнопка "Отметить как исполненное" во вкладке "Доступные мне" (#2446) плюс след
+ * отметок под ней: сколько раз сегодня и кем (доп. запрос владельца после первого
+ * PR). Вынесена отдельным компонентом - AccessibleAttachmentsView.vue уже за
+ * порогом размера template/style, а такой объём разметки в него бы не поместился.
  *
- * Окно повтора (5 минут) считает бэк - здесь только отображение готового значения
- * (execution_marked_until из детали вложения либо из ответа самой отметки) и тиканье
- * локального "сейчас", чтобы кнопка сама разблокировалась без повторного открытия
- * вложения.
+ * Окно повтора (5 минут) и сводка за сегодня считает бэк - здесь только отображение
+ * готовых значений и тиканье локального "сейчас", чтобы кнопка сама разблокировалась
+ * без повторного открытия вложения.
  */
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { markAccessibleAttachmentExecuted } from '@/api/applications';
 import { useDeletionsStore } from '@/stores/deletions';
+import { pluralRu } from '@/utils/entityCount';
+import { formatMoscow } from '@/utils/serverTime';
 
 const props = defineProps({
-  /** Заголовок вложения (detail.attachment) - attachment_id и execution_marked_until. */
+  /** Заголовок вложения (detail.attachment) - attachment_id, execution_marked_until, execution_marks. */
   attachment: { type: Object, default: null },
 });
+
+// marked (#2446 доп.) - сигнал наверх после успешной отметки: сама сводка живёт в
+// detail.attachment, а его перечитывает родитель (свежий execution_marks одним
+// запросом вместе с остальной деталью, отдельного эндпоинта под сводку не заводили).
+const emit = defineEmits(['marked']);
 
 const deletions = useDeletionsStore();
 
@@ -79,6 +113,15 @@ const label = computed(() => {
   return 'Отметить как исполненное';
 });
 
+const marksSummary = computed(() => props.attachment?.execution_marks ?? null);
+const todayCount = computed(() => marksSummary.value?.today_count ?? 0);
+const timesLabel = computed(() => pluralRu(todayCount.value, ['раз', 'раза', 'раз']));
+
+/** Время отметки без даты - весь список и так за сегодня (см. GetAttachmentExecutionMarksSummary). */
+function formatMarkTime(iso) {
+  return formatMoscow(new Date(iso), { hour: '2-digit', minute: '2-digit' });
+}
+
 async function mark() {
   if (!canMark.value || !props.attachment) return;
   submitting.value = true;
@@ -87,6 +130,7 @@ async function mark() {
     localUntil.value = data.execution_marked_until;
     now.value = Date.now();
     deletions.notify({ prefix: 'Вложение отмечено исполненным', type: 'success' });
+    emit('marked');
   } catch (e) {
     deletions.notify({ prefix: e.message || 'Не удалось отметить вложение', type: 'error' });
   } finally {
@@ -96,14 +140,34 @@ async function mark() {
 </script>
 
 <style scoped>
-/* margin, не gap родителя: .detail-actions (AccessibleAttachmentsView) уже за порогом
-   размера style-блока и не может прирасти ни на строку - отступ между кнопками несёт
-   на себе тот, кто добавился вторым. */
+/* Компонент стоит СНАРУЖИ .detail-actions отдельным блоком (не в общем флекс-ряду с
+   "Посмотреть файл"): со сводкой и списком под кнопкой он не помещается в строку
+   без искажения высоты соседней кнопки, а трогать style .detail-actions нельзя -
+   он в AccessibleAttachmentsView.vue уже за порогом размера. Свой отступ несёт сам. */
 .execution-mark {
-  margin-left: 12px;
-  white-space: nowrap;
+  margin-top: 8px;
 }
-.execution-mark:first-child {
-  margin-left: 0;
+.execution-mark__summary {
+  margin: 8px 0 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.execution-mark__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.execution-mark__item {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.execution-mark__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 </style>
