@@ -163,4 +163,30 @@ describe('AttachmentExecutionMark (#2446)', () => {
 
     expect(wrapper.emitted('marked')).toBeFalsy();
   });
+
+  // Счётчик точный, а список ограничен сверху: без оговорки их расхождение читается
+  // как потерянные отметки.
+  it('обрезанный список объясняет себя', () => {
+    const wrapper = mountMark({
+      attachment_id: 5,
+      execution_marks: {
+        today_count: 14,
+        recent: Array(10).fill({ created_at: '2026-01-15T10:15:00.000Z', actor_name: 'Иванов И.И.' }),
+      },
+    });
+    const summary = wrapper.find('[data-testid="aa-mark-summary"]').text();
+    expect(summary).toContain('14');
+    expect(summary).toContain('показаны последние 10');
+  });
+
+  it('полный список оговорки не несёт', () => {
+    const wrapper = mountMark({
+      attachment_id: 5,
+      execution_marks: {
+        today_count: 2,
+        recent: Array(2).fill({ created_at: '2026-01-15T10:15:00.000Z', actor_name: null }),
+      },
+    });
+    expect(wrapper.find('[data-testid="aa-mark-summary"]').text()).not.toContain('показаны последние');
+  });
 });

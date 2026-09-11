@@ -17,7 +17,7 @@
       class="execution-mark__summary"
       data-testid="aa-mark-summary"
     >
-      Сегодня отмечено {{ todayCount }} {{ timesLabel }}
+      Сегодня отмечено {{ todayCount }} {{ timesLabel }}<template v-if="listTrimmed">, показаны последние {{ marksSummary.recent.length }}</template>
     </p>
     <ul
       v-if="todayCount > 0"
@@ -116,6 +116,9 @@ const label = computed(() => {
 const marksSummary = computed(() => props.attachment?.execution_marks ?? null);
 const todayCount = computed(() => marksSummary.value?.today_count ?? 0);
 const timesLabel = computed(() => pluralRu(todayCount.value, ['раз', 'раза', 'раз']));
+// Список ограничен сверху, а счётчик точный: без оговорки «показаны последние N» их
+// расхождение читается как потерянные отметки.
+const listTrimmed = computed(() => todayCount.value > (marksSummary.value?.recent?.length ?? 0));
 
 /** Время отметки без даты - весь список и так за сегодня (см. GetAttachmentExecutionMarksSummary). */
 function formatMarkTime(iso) {
