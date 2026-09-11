@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"systemburo/internal/config"
@@ -24,12 +25,18 @@ const destructionHelp = `Журнал уничтожения персональ�
 Использование:
   server destruction show   [-limit=N]                      Показать перечень уничтоженного
   server destruction replay [-apply]                        Применить уничтожения заново после восстановления
+  server destruction act    -from=ДД.ММ.ГГГГ -to=ДД.ММ.ГГГГ  Собрать акт уничтожения за период
 
 Флаги show:
   -limit  Сколько записей показать, свежие раньше. По умолчанию 50
 
 Флаги replay:
   -apply  Снять данные, вернувшиеся из копии. Без флага - только показ
+
+Флаги act:
+  -from   Начало периода, включительно (вид 01.01.2026)
+  -to     Конец периода, включительно (вид 31.03.2026)
+  -out    Каталог для файлов акта. По умолчанию ENTITY_EXPORT_PATH
 
 Зачем журнал. Удаление данных из работающей системы не удаляет их из ранее снятых
 резервных копий: восстановление вернёт всё как было, вместе с записями, которые оператор
@@ -49,10 +56,16 @@ replay проходит по журналу и снимает то, что ве�
 восстановлением базы и запуском системы. Отдельно командой он запускается тогда, когда
 базу восстанавливали мимо скрипта.
 
+act собирает печатную форму за период: что уничтожено, по какому основанию, когда, по
+чьему решению и в каком объёме, плюс свод по основаниям. Два файла - .xlsx для работы и
+.pdf для приложения к официальному ответу. Персональных данных в акте нет: документ,
+подтверждающий уничтожение сведений о человеке, сам этих сведений нести не должен.
+
 Примеры:
   server destruction show -limit=20
   server destruction replay
   server destruction replay -apply
+  server destruction act -from=01.01.2026 -to=31.03.2026
 `
 
 // runDestruction разбирает подкоманду и возвращает код возврата процесса.
@@ -69,6 +82,8 @@ func runDestruction(args []string) int {
 		return destructionShow(args[1:])
 	case "replay":
 		return destructionReplay(args[1:])
+	case "act":
+		return destructionAct(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "неизвестная подкоманда %q\n\n", args[0])
 		fmt.Print(destructionHelp)
@@ -200,4 +215,74 @@ func printReplayResult(res entityarchive.ReplayResult, applied bool) {
 	if !applied && res.Applied > 0 {
 		fmt.Println("\nНичего не изменено: добавьте -apply.")
 	}
+}
+
+// destructionAct собирает печатную форму акта уничтожения за период.
+func destructionAct(args []string) int {
+	fs := flag.NewFlagSet("destruction act", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, destructionHelp) }
+	from := fs.String("from", "", "начало периода, вид 01.01.2026")
+	to := fs.String("to", "", "конец периода, вид 31.03.2026")
+	out := fs.String("out", "", "каталог для файлов акта")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if strings.TrimSpace(*from) == "" || strings.TrimSpace(*to) == "" {
+		fmt.Fprintln(os.Stderr, "Ошибка: укажите -from и -to в виде 01.01.2026")
+		return 2
+	}
+	fromDate, err := entityarchive.ParseActDate(*from)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 2
+	}
+	toDate, err := entityarchive.ParseActDate(*to)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 2
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", err)
+		return 1
+	}
+	root := strings.TrimSpace(*out)
+	if root == "" {
+		root = cfg.EntityExportPath
+	}
+
+	db, err := openCleanupDB()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	act, err := entityarchive.BuildDestructionAct(context.Background(), db, fromDate, toDate)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	fmt.Println()
+	fmt.Printf("Акт уничтожения за период с %s по %s\n\n",
+		fromDate.Format("02.01.2006"), toDate.Format("02.01.2006"))
+	if len(act.Records) == 0 {
+		// Пустой акт - тоже ответ проверяющему, но файлами его отдавать незачем:
+		// подтверждать нечего, а документ на ноль строк выглядит как ошибка сборки.
+		fmt.Println("За этот период ничего не уничтожалось - акт не собран.")
+		return 0
+	}
+	fmt.Printf("Записей: %d, строк базы: %d, файлов: %d\n", len(act.Records), act.Rows, act.Files)
+
+	written, err := entityarchive.WriteDestructionAct(root, act)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	fmt.Println("\nФайлы акта:")
+	for _, f := range written {
+		fmt.Println("  -", f)
+	}
+	return 0
 }
