@@ -58,6 +58,7 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      PUSH_ALLOWED_HOSTS: ${PUSH_ALLOWED_HOSTS:-}
       PUSH_SUBSCRIPTION_RETENTION_DAYS: ${PUSH_SUBSCRIPTION_RETENTION_DAYS:-180}
       # Почтовая рассылка (#1906, #1936). Тот же класс, что и с ключами доставки
       # уведомлений выше: параметры лежали в файле параметров и в приложении Б, а
