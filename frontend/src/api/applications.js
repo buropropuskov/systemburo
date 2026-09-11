@@ -1,10 +1,37 @@
 import { apiRequest, apiRequestRaw } from './client';
 import { useAuthStore } from '@/stores/auth';
 
+/**
+ * Разворачивает сырой ответ apiRequestRaw: при неуспехе бросает текстом бэка
+ * (envelope.error) либо fallback-сообщением, иначе отдаёт envelope целиком - вызывающий
+ * сам решает, брать ли meta рядом с data.
+ * @param {Response} res
+ * @param {string} fallback текст ошибки, если бэк не прислал свой
+ * @returns {Promise<{success: boolean, data: *, meta?: object, error?: string}>}
+ */
+async function unwrapRaw(res, fallback) {
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || fallback);
+  }
+  return body;
+}
+
+/** GET-запрос с уже снятым envelope (apiRequest.json()) - повторяется на простых читалках. */
+async function getJSON(path) {
+  const res = await apiRequest(path);
+  return res.json();
+}
+
+/** POST без тела с уже снятым envelope - повторяется на простых действиях-переключателях. */
+async function postJSON(path) {
+  const res = await apiRequest(path, { method: 'POST' });
+  return res.json();
+}
+
 export async function getApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
-  const res = await apiRequest(`/applications${query ? '?' + query : ''}`);
-  return res.json();
+  return getJSON(`/applications${query ? '?' + query : ''}`);
 }
 
 /**
@@ -18,10 +45,7 @@ export async function getApplications(params = {}) {
 export async function getApplicationsPaginated(params = {}) {
   const query = new URLSearchParams(params).toString();
   const res = await apiRequestRaw(`/applications${query ? '?' + query : ''}`);
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось загрузить заявки');
-  }
+  const body = await unwrapRaw(res, 'Не удалось загрузить заявки');
   return {
     items: body.data || [],
     meta: body.meta || { total: 0, page: 1, per_page: 30 },
@@ -30,8 +54,7 @@ export async function getApplicationsPaginated(params = {}) {
 
 export async function getUserApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
-  const res = await apiRequest(`/applications/user${query ? '?' + query : ''}`);
-  return res.json();
+  return getJSON(`/applications/user${query ? '?' + query : ''}`);
 }
 
 /**
@@ -45,10 +68,7 @@ export async function getUserApplications(params = {}) {
 export async function getUserApplicationsPaginated(params = {}) {
   const query = new URLSearchParams(params).toString();
   const res = await apiRequestRaw(`/applications/user${query ? '?' + query : ''}`);
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось загрузить заявки');
-  }
+  const body = await unwrapRaw(res, 'Не удалось загрузить заявки');
   return {
     items: body.data || [],
     meta: body.meta || { total: 0, page: 1, per_page: 30 },
@@ -64,13 +84,11 @@ export async function getUserApplicationsPaginated(params = {}) {
  */
 export async function getAttachableApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
-  const res = await apiRequest(`/applications/attachable${query ? '?' + query : ''}`);
-  return res.json();
+  return getJSON(`/applications/attachable${query ? '?' + query : ''}`);
 }
 
 export async function getApplicationById(id) {
-  const res = await apiRequest(`/applications/${id}`);
-  return res.json();
+  return getJSON(`/applications/${id}`);
 }
 
 export async function createApplication(data) {
@@ -114,17 +132,11 @@ export async function approveApplication(id, data) {
 }
 
 export async function takeToWork(id) {
-  const res = await apiRequest(`/applications/${id}/take-to-work`, {
-    method: 'POST',
-  });
-  return res.json();
+  return postJSON(`/applications/${id}/take-to-work`);
 }
 
 export async function revokeFromWork(id) {
-  const res = await apiRequest(`/applications/${id}/revoke-from-work`, {
-    method: 'POST',
-  });
-  return res.json();
+  return postJSON(`/applications/${id}/revoke-from-work`);
 }
 
 export async function markAsRead(id) {
@@ -132,8 +144,7 @@ export async function markAsRead(id) {
 }
 
 export async function getUnreadCount() {
-  const res = await apiRequest('/applications/unread-count');
-  return res.json();
+  return getJSON('/applications/unread-count');
 }
 
 /**
@@ -147,24 +158,19 @@ export async function getUnreadCount() {
  */
 export async function getUserStatusUpdatesCount(params = {}) {
   const res = await apiRequest(`/applications/user/status-updates-count?${new URLSearchParams(params)}`);
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить счётчик обновлений');
-  return body;
+  return unwrapSupplement(res, 'Не удалось загрузить счётчик обновлений');
 }
 
 export async function getApplicationHistory(id) {
-  const res = await apiRequest(`/applications/${id}/history`);
-  return res.json();
+  return getJSON(`/applications/${id}/history`);
 }
 
 export async function getForwardMessages(id) {
-  const res = await apiRequest(`/applications/${id}/forward-messages`);
-  return res.json();
+  return getJSON(`/applications/${id}/forward-messages`);
 }
 
 export async function getApplicationDetails(id) {
-  const res = await apiRequest(`/applications/${id}/details`);
-  return res.json();
+  return getJSON(`/applications/${id}/details`);
 }
 
 /**
@@ -179,18 +185,11 @@ export async function setBureauNote(id, note) {
     method: 'PUT',
     body: JSON.stringify({ note }),
   });
-  const body = await res.json();
-  if (!res.ok) {
-    const error = new Error(body?.message || 'Не удалось сохранить заметку');
-    error.status = res.status;
-    throw error;
-  }
-  return body;
+  return unwrapSupplement(res, 'Не удалось сохранить заметку');
 }
 
 export async function getApplicationAttachments(id) {
-  const res = await apiRequest(`/applications/${id}/attachments`);
-  return res.json();
+  return getJSON(`/applications/${id}/attachments`);
 }
 
 /**
@@ -209,13 +208,7 @@ export async function createSupplement(id, data) {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  const body = await res.json();
-  if (!res.ok) {
-    const error = new Error(body?.message || 'Не удалось отправить дополнение');
-    error.status = res.status;
-    throw error;
-  }
-  return body;
+  return unwrapSupplement(res, 'Не удалось отправить дополнение');
 }
 
 /**
@@ -225,9 +218,7 @@ export async function createSupplement(id, data) {
  */
 export async function getApplicationSupplements(id) {
   const res = await apiRequest(`/applications/${id}/supplements`);
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить дополнения заявки');
-  return body;
+  return unwrapSupplement(res, 'Не удалось загрузить дополнения заявки');
 }
 
 /**
@@ -239,14 +230,13 @@ export async function getApplicationSupplements(id) {
  */
 export async function getApplicationParticipants(id) {
   const res = await apiRequest(`/applications/${id}/participants`);
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить получателей заявки');
-  return body || [];
+  return (await unwrapSupplement(res, 'Не удалось загрузить получателей заявки')) || [];
 }
 
 /**
- * Разбор ответа по раунду дополнения (#1685). Код держим на ошибке рядом с текстом:
- * 409 («голосование закрыто», «заявка в статусе X») отличается от 403 только им.
+ * Разворачивает ответ apiRequest с кодом ошибки на самом Error (#1685: 409 «голосование
+ * закрыто»/«заявка в статусе X» отличается от 403 только им). Общий разбор для дополнений
+ * заявки и соседних PUT/POST-действий, читающих ошибку через body.message.
  * @param {Response} res
  * @param {string} fallback
  */
@@ -332,10 +322,7 @@ export async function cancelSupplement(id, supplementId, data = {}) {
 export async function getAccessibleAttachments(params = {}) {
   const query = new URLSearchParams(params).toString();
   const res = await apiRequestRaw(`/applications/available-attachments${query ? '?' + query : ''}`);
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось загрузить доступные вложения');
-  }
+  const body = await unwrapRaw(res, 'Не удалось загрузить доступные вложения');
   return {
     items: body.data || [],
     meta: body.meta || { total: 0, page: 1, per_page: 20 },
@@ -351,10 +338,20 @@ export async function getAccessibleAttachments(params = {}) {
  */
 export async function getAccessibleAttachmentDetail(id) {
   const res = await apiRequestRaw(`/applications/available-attachments/${id}`);
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось загрузить вложение');
-  }
+  const body = await unwrapRaw(res, 'Не удалось загрузить вложение');
+  return body.data;
+}
+
+/**
+ * Отмечает вложение исполненным сегодня (#2446): охранник подтверждает, что по заявке
+ * приехали/пришли. Окно повтора (5 минут) считает бэк - ответ несёт свежий
+ * execution_marked_until, повторный запрос детали не нужен.
+ * @param {number} id ID вложения
+ * @returns {Promise<{execution_marked_until: string}>}
+ */
+export async function markAccessibleAttachmentExecuted(id) {
+  const res = await apiRequestRaw(`/applications/available-attachments/${id}/mark-executed`, { method: 'POST' });
+  const body = await unwrapRaw(res, 'Не удалось отметить вложение');
   return body.data;
 }
 
@@ -364,8 +361,7 @@ export async function getAccessibleAttachmentDetail(id) {
  * @returns {Promise<Array>}
  */
 export async function getQuestions(id) {
-  const res = await apiRequest(`/applications/${id}/questions`);
-  return res.json();
+  return getJSON(`/applications/${id}/questions`);
 }
 
 /**
@@ -379,10 +375,7 @@ export async function createQuestion(id, data) {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось начать обсуждение');
-  }
+  const body = await unwrapRaw(res, 'Не удалось начать обсуждение');
   return body.data;
 }
 
@@ -398,10 +391,7 @@ export async function createAnswer(applicationId, questionId, data) {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || 'Не удалось отправить ответ');
-  }
+  const body = await unwrapRaw(res, 'Не удалось отправить ответ');
   return body.data;
 }
 

@@ -71,6 +71,12 @@ const (
 	// уносит адреса обращений сотен пользователей разом, поэтому оставляет след
 	// наравне с выгрузкой реестра заявок.
 	AuditEntityRequestLogExport = "request_log_export"
+	// AuditEntityAttachment - вложение заявки (#2446, отметка "исполнено сегодня" во
+	// вкладке "Доступные мне"). EntityID = attachments.id, а не id заявки: у ручного
+	// вложения-сироты (#1049, is_manual) заявки нет вовсе, а сама привязка к посту
+	// или месту разгрузки живёт на вложении - отметка тоже должна пережить оба случая
+	// одним предикатом.
+	AuditEntityAttachment = "attachment"
 )
 
 // RequestLogExportActionExported - журнал обращений выгружен файлом.
@@ -100,6 +106,7 @@ var AllAuditEntities = []string{
 	AuditEntitySystemTableTrash, AuditEntityMark, AuditEntityCar, AuditEntityUniqueCar,
 	AuditEntityEmployee, AuditEntityUniqueEmployee, AuditEntityApplication,
 	AuditEntityArchiveSettings, AuditEntityArchiveQuota, AuditEntityRequestLogExport,
+	AuditEntityAttachment,
 }
 
 // AuditAction* - значения AuditLog.Action, вынесенные в константы там, где значение
@@ -203,6 +210,13 @@ const (
 	// собирают сами: в цифрах отменённая отметка не участвует, в истории видна с пометкой.
 	AuditActionEntryRevert = "entry_revert"
 	AuditActionExitRevert  = "exit_revert"
+	// AuditActionAttachmentExecuted - охранник отметил вложение исполненным сегодня
+	// (#2446, вкладка "Доступные мне"): люди/машины по заявке приехали и пропущены.
+	// Отметка не хранится состоянием сущности - только событие в журнале; повтор в
+	// пределах attachmentExecutionMarkWindow отклоняется, за окном - обычная новая
+	// запись. За день по одному вложению таких записей может быть несколько (заезд
+	// утром и вечером), это ожидаемо и не считается дублем.
+	AuditActionAttachmentExecuted = "attachment_executed"
 )
 
 // AuditPassageRevertActions - действия отмены отметки прохода одним списком: их

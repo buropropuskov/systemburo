@@ -69,7 +69,9 @@ type secMetaEnvelope struct {
 	} `json:"meta"`
 }
 
-// secDetailResponse зеркалит handlers.availableAttachmentDetail (тип хендлера неэкспортируемый).
+// secDetailResponse зеркалит handlers.AvailableAttachmentDetail (тип хендлера неэкспортируемый).
+// execution_marked_until/execution_marks (#2446) читаются через Attachment - бэк кладёт их
+// туда же, куда фронт ждёт их в :attachment.
 type secDetailResponse struct {
 	Attachment services.AvailableAttachment  `json:"attachment"`
 	Cars       []services.CarWithPlaces      `json:"cars"`
