@@ -159,13 +159,17 @@ async function mark() {
    кнопка со строкой-сводкой под ней. Свой отступ несёт сам, чужой style не трогает -
    он в AccessibleAttachmentsView.vue за порогом размера. */
 .execution-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin-top: 10px;
 }
 /* Сводка - это <button> ради доступности (раскрывает список, слушает Enter), но
    выглядеть она должна текстом: без сброса браузерных стилей отрисовывалась серой
    прямоугольной плашкой с системным фоном. */
 .execution-mark__summary {
-  margin: 6px 0 0;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
