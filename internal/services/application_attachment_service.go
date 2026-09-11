@@ -371,9 +371,14 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 			) AS is_blacklisted
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies comp ON app.company_id = comp.id
+		-- Соединение с заявкой ВНЕШНЕЕ (#2453): у ручного вложения (#1049) заявки нет,
+		-- и внутреннее отсекало весь состав разом - карточка машин ручного вложения
+		-- открывалась пустой, сколько бы машин в нём ни лежало. Организация и компания
+		-- у сироты хранятся на самом вложении, отсюда COALESCE - ровно как в листинге
+		-- «Доступные мне».
+		LEFT JOIN applications app ON a.application_id = app.id
+		LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+		LEFT JOIN companies comp ON comp.id = COALESCE(app.company_id, a.company_id)
 		LEFT JOIN application_supplements sup ON sup.id = c.supplement_id
 		WHERE c.attachment_id = ?`+supplementScopeWhere(scope, "c"),
 		attachmentID).Scan(&cars).Error; err != nil {
@@ -489,8 +494,10 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		JOIN attachments a ON e.attachment_id = a.id
 		LEFT JOIN citizenships ci ON e.citizenship_id = ci.id
 		LEFT JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies comp ON app.company_id = comp.id
+		-- COALESCE по той же причине, что у машин (#2453): у ручного вложения
+		-- организация и компания лежат на нём самом, а не на отсутствующей заявке.
+		LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+		LEFT JOIN companies comp ON comp.id = COALESCE(app.company_id, a.company_id)
 		LEFT JOIN application_supplements sup ON sup.id = e.supplement_id
 		WHERE e.attachment_id = ?`+supplementScopeWhere(scope, "e"),
 		attachmentID).Scan(&employees).Error; err != nil {
