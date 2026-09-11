@@ -10,6 +10,7 @@ import { createPinia, setActivePinia } from 'pinia';
 vi.mock('@/api/applications', () => ({
   getAccessibleAttachments: vi.fn(),
   getAccessibleAttachmentDetail: vi.fn(),
+  markAccessibleAttachmentExecuted: vi.fn(),
 }));
 
 vi.mock('@/api/organizations', () => ({
@@ -55,7 +56,9 @@ vi.mock('vue-router', () => ({
 import AccessibleAttachmentsView from '@/views/AccessibleAttachmentsView.vue';
 import eventStream from '@/services/eventStream';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
+import {
+  getAccessibleAttachments, getAccessibleAttachmentDetail, markAccessibleAttachmentExecuted,
+} from '@/api/applications';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { previewBlank } from '@/api/attachment-templates';
 
@@ -318,6 +321,29 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
     wrapper = mountWithDetail({ has_blank: false });
     await openDetail();
     expect(wrapper.find('[data-testid="aa-preview-blank"]').exists()).toBe(false);
+  });
+
+  it('кнопка "Отметить как исполненное" (#2446) видна вне зависимости от has_blank и шлёт id вложения', async () => {
+    wrapper = mountWithDetail({ has_blank: false });
+    markAccessibleAttachmentExecuted.mockResolvedValue({ execution_marked_until: new Date(Date.now() + 300000).toISOString() });
+    await openDetail();
+
+    const btn = wrapper.find('[data-testid="aa-mark-executed"]');
+    expect(btn.exists()).toBe(true);
+    expect(btn.attributes('disabled')).toBeUndefined();
+
+    await btn.trigger('click');
+    await flushPromises();
+
+    expect(markAccessibleAttachmentExecuted).toHaveBeenCalledWith(1);
+    expect(wrapper.find('[data-testid="aa-mark-executed"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('деталь, открытая с уже действующей отметкой, сразу рисует кнопку заблокированной', async () => {
+    wrapper = mountWithDetail({ execution_marked_until: new Date(Date.now() + 120000).toISOString() });
+    await openDetail();
+
+    expect(wrapper.find('[data-testid="aa-mark-executed"]').attributes('disabled')).toBeDefined();
   });
 
   it('показывает ошибку, если бланк не загрузился', async () => {

@@ -376,11 +376,9 @@
                 </div>
               </div>
 
-              <div
-                v-if="detail.attachment.has_blank"
-                class="detail-actions"
-              >
+              <div class="detail-actions">
                 <button
+                  v-if="detail.attachment.has_blank"
                   type="button"
                   class="lk-button lk-button--primary"
                   :disabled="previewLoading"
@@ -389,6 +387,7 @@
                 >
                   {{ previewLoading ? 'Загрузка...' : 'Посмотреть файл' }}
                 </button>
+                <AttachmentExecutionMark :attachment="detail.attachment" />
               </div>
 
               <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
@@ -473,6 +472,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
 import eventStream from '@/services/eventStream';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import AttachmentExecutionMark from '@/components/AttachmentExecutionMark.vue';
 
 const PER_PAGE = 30;
 const SEARCH_DEBOUNCE_MS = 300;
