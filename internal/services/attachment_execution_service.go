@@ -133,6 +133,10 @@ type ExecutionMarkEntry struct {
 type ExecutionMarksSummary struct {
 	TodayCount int                  `json:"today_count"`
 	Recent     []ExecutionMarkEntry `json:"recent"`
+	// SecondsLeft - сколько секунд осталось до повтора. Отдаём ЧИСЛО, а не только
+	// момент окончания: фронт раньше вычитал `until` из своих часов, и браузер,
+	// отстающий на пару секунд, показывал «повтор через 5:02» при окне в пять минут.
+	SecondsLeft int `json:"seconds_left"`
 }
 
 // GetAttachmentExecutionMarksSummary возвращает сводку отметок "исполнено" вложения
@@ -162,6 +166,12 @@ func (s *applicationService) GetAttachmentExecutionMarksSummary(ctx context.Cont
 	summary := &ExecutionMarksSummary{TodayCount: len(entries), Recent: entries}
 	if len(summary.Recent) > attachmentExecutionRecentLimit {
 		summary.Recent = summary.Recent[:attachmentExecutionRecentLimit]
+	}
+	if len(entries) > 0 {
+		left := attachmentExecutionMarkWindow - time.Since(entries[0].CreatedAt)
+		if left > 0 {
+			summary.SecondsLeft = int(left.Seconds())
+		}
 	}
 	return summary, nil
 }
