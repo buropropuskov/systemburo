@@ -563,8 +563,12 @@ function typeVariant(type) {
   return TYPE_VARIANTS[type] || 'neutral';
 }
 
+// Ручному вложению (#1049) имени никто не задаёт, и заявки с номером за ним нет -
+// «Без названия» не сообщало охране ничего. Показываем тип и происхождение (#2450).
 function displayName(a) {
-  return a.attachment_display_name || a.attachment_name || 'Без названия';
+  const own = a.attachment_display_name || a.attachment_name;
+  if (own) return own;
+  return a.is_manual ? `${typeLabel(a.attachment_type)} · добавлено вручную` : 'Без названия';
 }
 
 function senderName(a) {

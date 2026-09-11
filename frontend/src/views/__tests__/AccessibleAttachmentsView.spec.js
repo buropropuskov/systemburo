@@ -536,3 +536,50 @@ describe('AccessibleAttachmentsView - real-time available.new (#840 V3)', () => 
     expect(eventStream.disconnect).toHaveBeenCalledTimes(1);
   });
 });
+
+// #2450: ручному вложению имени никто не задаёт, заявки за ним нет, и карточка
+// подписывалась «Без названия» - строкой, которая ничего не сообщает охране.
+describe('AccessibleAttachmentsView - подпись ручного вложения (#2450)', () => {
+  it('ручное вложение подписано типом и происхождением', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1, {
+        attachment_display_name: null, attachment_name: null,
+        application_number: null, is_manual: true, attachment_type: 'cars',
+      })],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Автомобили · добавлено вручную');
+    expect(wrapper.text()).not.toContain('Без названия');
+  });
+
+  it('безымянное ЗАЯВОЧНОЕ вложение подписи не меняет', async () => {
+    // Пометка про ручное происхождение на заявочном вложении была бы враньём:
+    // у него есть номер и отправитель, просто имя не заполнено.
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(2, {
+        attachment_display_name: null, attachment_name: null, is_manual: false,
+      })],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Без названия');
+    expect(wrapper.text()).not.toContain('добавлено вручную');
+  });
+
+  it('своё имя вложения всегда сильнее пометки', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(3, { attachment_display_name: 'Разовый пропуск', is_manual: true })],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Разовый пропуск');
+    expect(wrapper.text()).not.toContain('добавлено вручную');
+  });
+});
