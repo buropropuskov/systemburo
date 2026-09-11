@@ -55,6 +55,11 @@ jobs:
       E2E_SUPERADMIN_USER: buropropuskov
       E2E_SUPERADMIN_PASSWORD: 'BuroAdmin2026!'
       E2E_API_BASE_URL: 'http://localhost:8080/api'
+      # Шифрование персональных данных обязательно по умолчанию (#2464), и сервер
+      # без ключа не стартует: в прогоне заводятся паспорта, и режим должен
+      # совпадать с боевым. Ключ тестовый и одноразовый - база прогона живёт
+      # минуты и удаляется вместе с раннером.
+      DATA_ENCRYPTION_KEY: '3f1c9a7d2e5b8046c1d3a5f709b2e4c68d0a1f3b5d7e9012a4c6e8b0d2f4a6c8'
       LOGIN_RATE_LIMIT_MAX: '1000'
       LOGIN_RATE_LIMIT_WINDOW_SEC: '60'
       # API rate-limit повышаем для параллельных e2e shards - 4 worker'а
