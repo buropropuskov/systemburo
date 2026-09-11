@@ -306,7 +306,7 @@ func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder
 		// Свидетельство для повторного применения после восстановления (#2357).
 		rec := opt.destructionRecord(models.AuditEntityOrganization, &id, DestructionAnonymized)
 		rec.Rows = res.Total()
-		return recordDestruction(ctx, tx, rec)
+		return writeDestruction(ctx, tx, opt, rec)
 	})
 	switch {
 	case errors.Is(err, errOrgNotFound):

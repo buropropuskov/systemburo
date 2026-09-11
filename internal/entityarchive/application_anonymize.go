@@ -155,7 +155,7 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 		rec.ApplicationNumber = number
 		rec.Rows = res.Total()
 		rec.Files = res.Files.Total()
-		return recordDestruction(ctx, tx, rec)
+		return writeDestruction(ctx, tx, opt, rec)
 	})
 	switch {
 	case errors.Is(err, errApplicationNotFound):

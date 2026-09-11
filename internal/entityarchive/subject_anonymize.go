@@ -145,7 +145,7 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		rec.PassportDigest = documentDigest(target.PassportHMAC)
 		rec.PatentDigest = documentDigest(target.PatentHMAC)
 		rec.Rows = total
-		return recordDestruction(ctx, tx, rec)
+		return writeDestruction(ctx, tx, opt, rec)
 	})
 	switch {
 	case errors.Is(err, errSubjectNotFound):

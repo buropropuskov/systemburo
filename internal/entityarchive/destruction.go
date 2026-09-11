@@ -114,6 +114,12 @@ type DestructionOptions struct {
 	ActorID *int
 	// Basis - основание уничтожения, одно из Basis*. Обязательно при Apply.
 	Basis string
+	// ReplayOf - запись журнала, которую повторяет эта операция после восстановления
+	// из копии. Задана - нового свидетельства не заводится, растёт счётчик повторов у
+	// прежнего: повторное применение не новое уничтожение, а исполнение того же
+	// решения над теми же данными, вернувшимися из копии. Иначе акт за период
+	// показывал бы каждое восстановление как новую волну уничтожений.
+	ReplayOf *int
 	// Apply - выполнить. Без него операция только считает объём.
 	Apply bool
 }
@@ -160,15 +166,37 @@ func (o DestructionOptions) destructionRecord(entityType string, entityID *int, 
 	}
 }
 
-// recordDestruction кладёт свидетельство в журнал уничтожения.
+// writeDestruction кладёт свидетельство в журнал уничтожения - или отмечает повтор у
+// уже лежащей там записи, если это повторное применение после восстановления.
 //
 // Вызывается ВНУТРИ той же транзакции, что и само уничтожение, тем же приёмом, что и
 // запись в audit_log: не выполнилось действие - не появилось и свидетельство, а
 // свидетельства без действия не бывает вовсе.
-func recordDestruction(ctx context.Context, tx *gorm.DB, rec models.DestructionRecord) error {
+func writeDestruction(ctx context.Context, tx *gorm.DB, opt DestructionOptions, rec models.DestructionRecord) error {
+	if opt.ReplayOf != nil {
+		return markReplayed(ctx, tx, *opt.ReplayOf)
+	}
 	rec.CreatedAt = time.Now().UTC()
 	if err := tx.WithContext(ctx).Create(&rec).Error; err != nil {
 		return fmt.Errorf("запись в журнал уничтожения: %w", err)
+	}
+	return nil
+}
+
+// markReplayed отмечает, что уничтожение по этой записи применено заново. Сама запись
+// не удаляется намеренно: следующая копия может оказаться ещё старше, и снимать по ней
+// придётся то же самое ещё раз.
+func markReplayed(ctx context.Context, tx *gorm.DB, id int) error {
+	out := tx.WithContext(ctx).Model(&models.DestructionRecord{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"replays":     gorm.Expr("replays + 1"),
+			"replayed_at": time.Now().UTC(),
+		})
+	if out.Error != nil {
+		return fmt.Errorf("отметка о повторном применении: %w", out.Error)
+	}
+	if out.RowsAffected == 0 {
+		return fmt.Errorf("запись журнала уничтожения %d не найдена", id)
 	}
 	return nil
 }

@@ -269,7 +269,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		rec := destruction.destructionRecord(entityType, &entityID, DestructionPurged)
 		rec.Rows = int(sumRows(deleted))
 		rec.Files = len(files)
-		return recordDestruction(ctx, tx, rec)
+		return writeDestruction(ctx, tx, destruction, rec)
 	})
 	if txErr != nil {
 		return res, fmt.Errorf("снос %s #%d: %w", entityType, id, txErr)
