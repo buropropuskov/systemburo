@@ -187,6 +187,19 @@ type Config struct {
 	// единого успеха, заведомо больше типового цикла смены браузера или устройства.
 	PushSubscriptionRetentionDays int `env:"PUSH_SUBSCRIPTION_RETENTION_DAYS" envDefault:"180"`
 
+	// PushAllowedHosts - белый список узлов служб доставки уведомлений (#2466). Адрес
+	// службы присылает браузер вместе с подпиской, и сервер шлёт туда запрос: без
+	// ограничений это способ заставить сервер стучаться внутрь сети, где он стоит.
+	// Диапазоны (петля, частные сети, адреса метаданных) закрыты всегда и этим
+	// параметром не управляются - здесь только сужение круга наружных узлов.
+	// Умолчание пустое намеренно: адрес выбирает браузер пользователя, и жёсткий
+	// список по умолчанию молча лишил бы уведомлений всех, чья сборка браузера ходит
+	// через службу не из списка. Ключевое слово known раскрывается в список известных
+	// служб (Google, Mozilla, Microsoft, Apple), к нему можно дописать свои узлы через
+	// запятую: PUSH_ALLOWED_HOSTS=known,push.corp.example. Совпадение считается по
+	// узлу целиком или по его поддомену.
+	PushAllowedHosts []string `env:"PUSH_ALLOWED_HOSTS" envDefault:"" envSeparator:","`
+
 	// Почтовая рассылка (#1906). Система не поднимает свой почтовый сервер, а
 	// подключается клиентом к чужому: Джино, Яндекс 360, почтовый сервер
 	// организации - параметры одни и те же. Пустой SMTP_HOST - штатный режим
@@ -390,6 +403,9 @@ func (c *Config) Validate() error {
 	}
 	if c.PushSubscriptionRetentionDays <= 0 {
 		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
+	}
+	if err := validatePushAllowedHosts(c.PushAllowedHosts); err != nil {
+		return err
 	}
 	// Не внутри validateMail: строки очереди переживают выключение почты, и срок
 	// хранения обязан быть верным даже при пустом SMTP_HOST.
@@ -610,6 +626,27 @@ func (c *Config) validateMail() error {
 	}
 	if c.MailWorkerTick <= 0 {
 		return fmt.Errorf("MAIL_WORKER_TICK must be positive (got %s)", c.MailWorkerTick)
+	}
+	return nil
+}
+
+// validatePushAllowedHosts ловит опечатку в белом списке служб доставки (#2466) на
+// старте, а не в рантайме: запись со схемой или путём ("https://fcm.googleapis.com",
+// "fcm.googleapis.com/fcm/send") не совпадёт ни с одним узлом никогда, и уведомления
+// молча перестанут доходить до всех - самый неприятный вид поломки, потому что
+// выглядит он как "push просто не работает".
+func validatePushAllowedHosts(hosts []string) error {
+	for _, raw := range hosts {
+		h := strings.ToLower(strings.TrimSpace(raw))
+		if h == "" {
+			continue
+		}
+		if strings.ContainsAny(h, ":/?#@ ") {
+			return fmt.Errorf("PUSH_ALLOWED_HOSTS must list bare hostnames without scheme, port or path (got %q)", raw)
+		}
+		if strings.HasPrefix(h, ".") || strings.HasPrefix(h, "-") || strings.HasSuffix(h, "-") {
+			return fmt.Errorf("PUSH_ALLOWED_HOSTS entry is not a hostname (got %q)", raw)
+		}
 	}
 	return nil
 }

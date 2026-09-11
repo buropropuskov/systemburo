@@ -897,3 +897,29 @@ func TestValidate_ZeroPoolAndLimitsAllowed(t *testing.T) {
 
 	require.NoError(t, cfg.Validate())
 }
+
+// TestValidate_PushAllowedHostsAreBareHostnames (#2466) - белый список служб доставки
+// перечисляет узлы, а не ссылки. Запись со схемой или путём не совпадёт ни с одним
+// узлом никогда: уведомления молча перестанут доходить до всех, и выглядеть это будет
+// как "push просто не работает", а не как опечатка в параметрах. Поэтому отказ на
+// старте.
+func TestValidate_PushAllowedHostsAreBareHostnames(t *testing.T) {
+	cfg := validConfig()
+
+	cfg.PushAllowedHosts = []string{"https://fcm.googleapis.com"}
+	require.ErrorContains(t, cfg.Validate(), "PUSH_ALLOWED_HOSTS")
+
+	cfg.PushAllowedHosts = []string{"fcm.googleapis.com/fcm/send"}
+	require.ErrorContains(t, cfg.Validate(), "PUSH_ALLOWED_HOSTS")
+
+	cfg.PushAllowedHosts = []string{".apple.com"}
+	require.ErrorContains(t, cfg.Validate(), "PUSH_ALLOWED_HOSTS")
+
+	// Умолчание - пустой список: круг узлов не сужен, проверяются только схема и
+	// диапазоны адресов.
+	cfg.PushAllowedHosts = nil
+	require.NoError(t, cfg.Validate())
+
+	cfg.PushAllowedHosts = []string{"known", "push.corp.example"}
+	require.NoError(t, cfg.Validate())
+}

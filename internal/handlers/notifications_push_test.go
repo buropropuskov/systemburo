@@ -152,3 +152,60 @@ func TestPushStatus_ListsOwnDevices(t *testing.T) {
 	statusB := testutil.ParseResponse[models.PushStatusResponse](t, testutil.GET(t, e, "/notifications/push/status", testutil.AuthHeader(tokenB)))
 	assert.Empty(t, statusB.Devices, "чужие устройства не должны попадать в список")
 }
+
+// TestPushSubscribe_RejectsInternalEndpoint (#2466): адрес службы уведомлений приходит
+// от браузера и уходит в исходящий запрос сервера, поэтому подписку внутрь сети
+// сохранять нельзя - иначе любой пользователь системы заставляет сервер, стоящий
+// внутри сети заказчика, обращаться к соседям. Отказ должен быть внятным: строка в
+// ответе идёт человеку в уведомление интерфейса.
+func TestPushSubscribe_RejectsInternalEndpoint(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "push_ssrf", "pass123", 1, td.OrgID, td.CompanyID)
+
+	cases := []struct {
+		name     string
+		endpoint string
+		wantText string
+	}{
+		{"частная сеть", "https://192.168.0.15:8080/ep-internal", "частная сеть"},
+		{"петля", "https://127.0.0.1:5432/ep-loopback", "петля самой машины"},
+		{"служба метаданных", "https://169.254.169.254/latest/meta-data/", "метаданных"},
+		{"имя самой машины", "https://localhost/ep-localhost", "имя самой машины"},
+		{"сосед по docker-сети", "https://db/ep-docker", "имя без домена"},
+		{"без шифрования", "http://push.example.com/ep-plain", "https://"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := testutil.POST(t, e, "/notifications/push/subscribe", subscribeBody(tc.endpoint, "p256dh-key", "auth-key"), testutil.AuthHeader(token))
+			require.Equal(t, http.StatusBadRequest, rec.Code, "подписка на внутренний адрес не должна приниматься")
+			assert.Contains(t, rec.Body.String(), tc.wantText, "причина отказа обязана быть внятной - её показывают человеку")
+
+			var count int64
+			require.NoError(t, db.Model(&models.PushSubscription{}).Where("endpoint = ?", tc.endpoint).Count(&count).Error)
+			assert.Equal(t, int64(0), count, "отвергнутый адрес не должен оседать в базе")
+		})
+	}
+}
+
+// TestPushSubscribe_AcceptsExternalEndpoint (#2466): обычная подписка настоящей службы
+// доставки принимается как раньше - проверка адреса не должна ломать рабочий сценарий.
+func TestPushSubscribe_AcceptsExternalEndpoint(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "push_ext", "pass123", 1, td.OrgID, td.CompanyID)
+	endpoint := "https://fcm.googleapis.com/fcm/send/ep-external-ok"
+
+	rec := testutil.POST(t, e, "/notifications/push/subscribe", subscribeBody(endpoint, "p256dh-key", "auth-key"), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var count int64
+	require.NoError(t, db.Model(&models.PushSubscription{}).Where("endpoint = ?", endpoint).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+}
