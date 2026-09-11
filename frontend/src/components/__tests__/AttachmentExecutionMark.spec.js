@@ -37,7 +37,7 @@ describe('AttachmentExecutionMark (#2446)', () => {
     const btn = wrapper.find(BTN);
     expect(btn.exists()).toBe(true);
     expect(btn.attributes('disabled')).toBeUndefined();
-    expect(btn.text()).toBe('Отметить как исполненное');
+    expect(btn.text()).toBe('Отметить исполнение');
   });
 
   // Отсчёт идёт от числа секунд с сервера: по разнице с часами браузера кнопка
@@ -49,7 +49,7 @@ describe('AttachmentExecutionMark (#2446)', () => {
     });
     const btn = wrapper.find(BTN);
     expect(btn.attributes('disabled')).toBeDefined();
-    expect(btn.text()).toBe('Отмечено, повтор через 4:30');
+    expect(btn.text()).toBe('Отмечено · 4:30');
   });
 
   it('остаток никогда не превышает окна - часы браузера в счёте не участвуют', () => {
@@ -57,14 +57,14 @@ describe('AttachmentExecutionMark (#2446)', () => {
       attachment_id: 5,
       execution_marks: { today_count: 1, recent: [], seconds_left: 300 },
     });
-    expect(wrapper.find(BTN).text()).toBe('Отмечено, повтор через 5:00');
+    expect(wrapper.find(BTN).text()).toBe('Отмечено · 5:00');
   });
 
   it('отметка старше окна кнопку не блокирует', () => {
     const wrapper = mountMark({ attachment_id: 5, execution_marks: { today_count: 0, recent: [], seconds_left: 0 } });
     const btn = wrapper.find(BTN);
     expect(btn.attributes('disabled')).toBeUndefined();
-    expect(btn.text()).toBe('Отметить как исполненное');
+    expect(btn.text()).toBe('Отметить исполнение');
   });
 
   it('клик отмечает вложение: запрос уходит по attachment_id, кнопка блокируется, приходит тост', async () => {
@@ -77,7 +77,7 @@ describe('AttachmentExecutionMark (#2446)', () => {
     expect(markAccessibleAttachmentExecuted).toHaveBeenCalledWith(5);
     const btn = wrapper.find(BTN);
     expect(btn.attributes('disabled')).toBeDefined();
-    expect(btn.text()).toBe('Отмечено, повтор через 5:00');
+    expect(btn.text()).toBe('Отмечено · 5:00');
     expect(JSON.stringify(useDeletionsStore().items)).toContain('исполненным');
   });
 
@@ -90,7 +90,7 @@ describe('AttachmentExecutionMark (#2446)', () => {
 
     const btn = wrapper.find(BTN);
     expect(btn.attributes('disabled')).toBeUndefined();
-    expect(btn.text()).toBe('Отметить как исполненное');
+    expect(btn.text()).toBe('Отметить исполнение');
     expect(JSON.stringify(useDeletionsStore().items)).toContain('Уже отмечено недавно');
   });
 
@@ -105,7 +105,7 @@ describe('AttachmentExecutionMark (#2446)', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find(BTN).attributes('disabled')).toBeUndefined();
-    expect(wrapper.find(BTN).text()).toBe('Отметить как исполненное');
+    expect(wrapper.find(BTN).text()).toBe('Отметить исполнение');
   });
 
   const SUMMARY = '[data-testid="aa-mark-summary"]';
@@ -221,5 +221,41 @@ describe('AttachmentExecutionMark (#2446)', () => {
     });
     await wrapper.find(SUMMARY).trigger('click');
     expect(wrapper.find(LIST).text()).not.toContain('показаны последние');
+  });
+});
+
+// Строка-сводка сделана <button> ради клавиатуры, но браузерные стили превращали её
+// в серую системную плашку посреди карточки - за это и прилетело от владельца.
+describe('AttachmentExecutionMark - вид (#2446)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    markAccessibleAttachmentExecuted.mockReset();
+  });
+
+  it('сводка не выглядит кнопкой: свои стили, а не браузерные', () => {
+    const wrapper = mountMark({
+      attachment_id: 5,
+      execution_marks: { today_count: 1, recent: [], seconds_left: 0 },
+    });
+    const summary = wrapper.find('[data-testid="aa-mark-summary"]');
+    expect(summary.element.tagName).toBe('BUTTON');
+    expect(summary.classes()).toContain('execution-mark__summary');
+  });
+
+  it('отметка - рядовое действие, а не главный акцент карточки', () => {
+    const wrapper = mountMark({ attachment_id: 5 });
+    const cls = wrapper.find('[data-testid="aa-mark-executed"]').classes();
+    expect(cls).toContain('lk-button--secondary');
+    expect(cls).not.toContain('lk-button--primary');
+  });
+
+  it('подпись с отсчётом короткая - ширина кнопки не гуляет', () => {
+    const wrapper = mountMark({
+      attachment_id: 5,
+      execution_marks: { today_count: 1, recent: [], seconds_left: 125 },
+    });
+    const text = wrapper.find('[data-testid="aa-mark-executed"]').text();
+    expect(text).toBe('Отмечено · 2:05');
+    expect(text.length).toBeLessThanOrEqual(20);
   });
 });
