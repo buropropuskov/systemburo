@@ -323,6 +323,11 @@ type ApplicationService interface {
 	// эндпоинта, вызывать после CanSecurityViewAttachment.
 	GetAttachmentExecutionMark(ctx context.Context, attachmentID int) (*time.Time, error)
 
+	// GetAttachmentExecutionMarksSummary возвращает сводку отметок "исполнено" за
+	// сегодня (#2446 доп.) - сколько раз и кем, для показа под кнопкой отметки. Для
+	// детального эндпоинта, вызывать после CanSecurityViewAttachment.
+	GetAttachmentExecutionMarksSummary(ctx context.Context, attachmentID int) (*ExecutionMarksSummary, error)
+
 	// GetApplicationQuestions возвращает вопросы к заявке (#973) с вложенными ответами,
 	// вложениями и ФИО авторов; вопросы новые сверху, ответы в хронологии треда.
 	// forwardViewerID (#680): вложения вопроса скрываются, если недоступны читателю по

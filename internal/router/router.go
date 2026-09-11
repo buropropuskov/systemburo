@@ -893,10 +893,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК
 	apg.GET("/unread-count", app.GetUnreadCount)
-	apg.GET("/available-attachments", app.GetAvailableAttachments)          // #706 - "Доступные мне" для охранников
-	apg.GET("/available-attachments/:id", app.GetAvailableAttachmentDetail) // #706 - деталь вложения
+	apg.GET("/available-attachments", app.GetAvailableAttachments)                   // #706 - "Доступные мне" для охранников
+	apg.GET("/available-attachments/:id", app.GetAvailableAttachmentDetail)          // #706 - деталь вложения
 	apg.POST("/available-attachments/:id/mark-executed", app.MarkAttachmentExecuted) // #2446 - отметка "исполнено", окно 5 минут
-	apg.GET("/attachable", app.GetAttachableApplications, requireAdmin)     // #1049 - заявки для привязки ручного вложения (super/admin)
+	apg.GET("/attachable", app.GetAttachableApplications, requireAdmin)              // #1049 - заявки для привязки ручного вложения (super/admin)
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)

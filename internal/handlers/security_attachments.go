@@ -19,10 +19,6 @@ type AvailableAttachmentDetail struct {
 	Cars       []services.CarWithPlaces      `json:"cars,omitempty"`
 	Employees  []services.EmployeeWithTables `json:"employees,omitempty"`
 	Items      []services.ItemInfo           `json:"items,omitempty"`
-	// ExecutionMarkedUntil - момент, до которого действует чужая недавняя отметка
-	// "исполнено" (#2446); nil - отмечать можно. Считает бэк, чтобы окно в 5 минут не
-	// разъехалось копией на фронте.
-	ExecutionMarkedUntil *time.Time `json:"execution_marked_until,omitempty"`
 }
 
 // AttachmentExecutionMarkResponse - ответ отметки "вложение исполнено" (#2446): момент,
@@ -186,7 +182,14 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 	if err != nil {
 		return err
 	}
-	detail.ExecutionMarkedUntil, err = h.service.GetAttachmentExecutionMark(ctx, id)
+	// Оба поля - на detail.Attachment, не сбоку в detail: фронт разбирает деталь одним
+	// пропом (:attachment="detail.attachment"), и поле снаружи объекта attachment было
+	// бы для него невидимо (тихо ушло бы в другую ветку JSON).
+	detail.Attachment.ExecutionMarkedUntil, err = h.service.GetAttachmentExecutionMark(ctx, id)
+	if err != nil {
+		return err
+	}
+	detail.Attachment.ExecutionMarks, err = h.service.GetAttachmentExecutionMarksSummary(ctx, id)
 	if err != nil {
 		return err
 	}

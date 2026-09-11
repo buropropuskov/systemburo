@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -71,12 +70,13 @@ type secMetaEnvelope struct {
 }
 
 // secDetailResponse зеркалит handlers.AvailableAttachmentDetail (тип хендлера неэкспортируемый).
+// execution_marked_until/execution_marks (#2446) читаются через Attachment - бэк кладёт их
+// туда же, куда фронт ждёт их в :attachment.
 type secDetailResponse struct {
-	Attachment           services.AvailableAttachment  `json:"attachment"`
-	Cars                 []services.CarWithPlaces      `json:"cars"`
-	Employees            []services.EmployeeWithTables `json:"employees"`
-	Items                []services.ItemInfo           `json:"items"`
-	ExecutionMarkedUntil *time.Time                    `json:"execution_marked_until"`
+	Attachment services.AvailableAttachment  `json:"attachment"`
+	Cars       []services.CarWithPlaces      `json:"cars"`
+	Employees  []services.EmployeeWithTables `json:"employees"`
+	Items      []services.ItemInfo           `json:"items"`
 }
 
 func secGetDetail(t *testing.T, h secHTTPWorld, attID int, token string) secDetailResponse {

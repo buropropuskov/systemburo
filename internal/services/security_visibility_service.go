@@ -49,6 +49,19 @@ type AvailableAttachment struct {
 	// полем, а не выводим из пустого application_id: на карточке такому вложению
 	// вместо имени пишут тип и пометку «добавлено вручную» (#2450).
 	IsManual bool `json:"is_manual"`
+
+	// ExecutionMarkedUntil / ExecutionMarks (#2446) - заполняются ТОЛЬКО детальным
+	// эндпоинтом (GetAvailableAttachmentDetail), не листингом: считать их для каждой
+	// строки списка означало бы лишний запрос на карточку, а кнопка отметки живёт
+	// только в открытой детали. Поля лежат здесь, а не сбоку в ответе хендлера, чтобы
+	// фронт получил их тем же :attachment, каким уже передаёт detail.attachment в
+	// дочерние компоненты - без этого разбор ответа тихо не находит их вовсе (ушли бы
+	// в другую ветку JSON). gorm:"-" на ExecutionMarks обязателен: без тега плоский
+	// Raw(...).Scan листинга падает 500 - GORM видит указатель на struct со срезом
+	// внутри и пытается резолвить его как связь (belongs-to/has-many), а не как
+	// обычное поле. На ExecutionMarkedUntil тег для симметрии и той же гарантии.
+	ExecutionMarkedUntil *time.Time             `gorm:"-" json:"execution_marked_until,omitempty"`
+	ExecutionMarks       *ExecutionMarksSummary `gorm:"-" json:"execution_marks,omitempty"`
 }
 
 // availableAttachmentFilters - опциональные пользовательские фильтры вкладки "Доступные мне"
