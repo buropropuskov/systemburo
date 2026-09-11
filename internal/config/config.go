@@ -131,6 +131,15 @@ type Config struct {
 	RequestLogDetailDays             int `env:"REQUEST_LOG_DETAIL_DAYS" envDefault:"30"`
 	RequestLogPartitionPrecreateDays int `env:"REQUEST_LOG_PARTITION_PRECREATE_DAYS" envDefault:"7"`
 
+	// ApplicationRetentionMonths - срок хранения персональных данных в заявках
+	// (#2355). По истечении участники заявки обезличиваются: сама заявка, её даты,
+	// статус и факт прохода остаются, ФИО и документы затираются необратимо.
+	//
+	// По умолчанию 0 - выключено. Молча начать затирать данные установки, которая о
+	// сроке не просила, нельзя: решение о сроке принимает владелец системы, и оно
+	// зависит от того, какие запросы к нему приходят (налоговые документы хранят
+	// пять лет, то есть 60).
+	ApplicationRetentionMonths int `env:"APPLICATION_RETENTION_MONTHS" envDefault:"0"`
 	// PdAuditRetentionMonths - срок хранения аудита ПД (152-ФЗ): партиции старше
 	// дропаются. По умолчанию 36 месяцев (3 года).
 	PdAuditRetentionMonths int `env:"PD_AUDIT_RETENTION_MONTHS" envDefault:"36"`
