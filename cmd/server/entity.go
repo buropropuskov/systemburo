@@ -38,6 +38,7 @@ const entityHelp = `Работа с данными по идентификато
   server entity restore   -type=organization -id=N [-apply]             Откатить последний retire
   server entity anonymize -type=organization|application -id=N [-apply] Необратимо затереть персональные поля
   server entity purge     -type=organization -id=N -pkg=<путь> [-apply] Снести данные по пакету
+  server entity purge     -type=application -id=N [-apply]              Уничтожить ошибочно заведённую заявку
 
 Общие флаги (show, export, retire, restore, anonymize, purge):
   -type   Тип сущности. Пока поддерживается только organization
@@ -54,9 +55,16 @@ const entityHelp = `Работа с данными по идентификато
   -id     Необязательно: сверить идентификатор сущности в манифесте. Несовпадение - отказ
 
 Флаги purge:
-  -pkg    Путь к каталогу пакета - обязан быть зашифрован и проверен под теми же -type/-id
+  -pkg    Путь к каталогу пакета - обязан быть зашифрован и проверен под теми же -type/-id.
+          Для -type=application не нужен и не спрашивается
   -apply  Физически удалить строки графа и файлы заявок. Без него команда только проверяет
           пакет и сверяет покрытие текущего состояния
+
+purge заявки - редкий ручной инструмент для записей, которых не должно было быть: заявку
+завели по ошибке, не на того человека или дважды. Уничтожается всё - вложения, участники,
+согласования, файлы и собственная история заявки; остаётся одна запись в журнале о самом
+уничтожении. По истечении срока хранения заявки не уничтожаются, а обезличиваются
+(anonymize): там заявка, даты и факт прохода остаются, затираются только ФИО и документы.
 
 Флаги import:
   -pkg     Путь к каталогу пакета
@@ -783,6 +791,64 @@ func printAnonymizeResult(res entityarchive.AnonymizeResult, applied bool) {
 // entityPurge физически сносит данные цели по проверенному пакету. Гейты (Verify по
 // -type/-id, обязательность шифрования, сверка покрытия текущего состояния) живут внутри
 // entityarchive.Purge - здесь только разбор флагов, подключение ключей и печать результата.
+// entityPurgeApplication уничтожает одну заявку целиком. Отдельно от сноса организации:
+// там снос идёт по проверенному пакету и сверке покрытия, здесь пакета нет.
+func entityPurgeApplication(id int, apply bool) int {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", err)
+		return 1
+	}
+	db, err := openCleanupDB()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	paths := entityarchive.FilePaths{UploadPath: cfg.UploadPath, ArchivePath: cfg.ArchivePath}
+	res, err := entityarchive.PurgeApplication(context.Background(), db,
+		services.NewAuditRecorder(db), paths, id, nil, apply)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	printApplicationPurgeResult(res, apply)
+	return 0
+}
+
+// printApplicationPurgeResult печатает предупреждения ПЕРЕД счётчиками: решение
+// принимается по ним, а не по числу строк, и увидеть их надо до того, как взгляд
+// уйдёт на таблицу.
+func printApplicationPurgeResult(res entityarchive.ApplicationPurgeResult, applied bool) {
+	fmt.Println()
+	number := res.Number
+	if number == "" {
+		number = "без номера"
+	}
+	if applied {
+		fmt.Printf("Уничтожена заявка #%d (%s)\n\n", res.ID, number)
+	} else {
+		fmt.Printf("Будет уничтожена заявка #%d (%s) - показ, повторите с -apply\n\n", res.ID, number)
+	}
+	for _, w := range res.Warnings {
+		fmt.Println("Внимание:", w)
+	}
+	fmt.Println()
+
+	fmt.Println(" ", padRight("Таблица", 34), padLeft("Строк", 10))
+	for _, t := range res.Tables {
+		fmt.Println(" ", padRight(t.Table, 34), padLeft(strconv.FormatInt(t.Rows, 10), 10))
+	}
+	fmt.Println(" ", padRight("audit_log (история заявки)", 34), padLeft(strconv.FormatInt(res.History, 10), 10))
+	fmt.Println(" ", padRight("applications", 34), padLeft("1", 10))
+	fmt.Println()
+	fmt.Printf("Всего строк: %d\n", res.TotalRows())
+	if res.Files.Total() > 0 {
+		fmt.Printf("Файлов: приложено к заявке %d, в файловом архиве %d (%s)\n",
+			res.Files.Attached, res.Files.Archive, humanBytes(res.Files.Bytes()))
+	}
+}
+
 func entityPurge(args []string) int {
 	fs := flag.NewFlagSet("entity purge", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -794,12 +860,20 @@ func entityPurge(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if err := entityarchive.CheckSupportedType(*entityType); err != nil {
-		fmt.Fprintln(os.Stderr, "Ошибка:", err)
-		return 2
-	}
 	if *id <= 0 {
 		fmt.Fprintln(os.Stderr, "Ошибка: укажите -id больше нуля")
+		return 2
+	}
+	// Заявка уничтожается без пакета: пакет выгрузки снимается с графа организации и
+	// служит доказательством «данные вынесены, снос безопасен». Ошибочно заведённой
+	// заявке выносить нечего - её не должно было существовать вовсе. Проверка типа идёт
+	// после этой ветки: граф заявки живёт своим перечнем, а не реестром узлов графа
+	// организации, и CheckSupportedType о нём не знает.
+	if *entityType == entityarchive.TypeApplication {
+		return entityPurgeApplication(*id, *apply)
+	}
+	if err := entityarchive.CheckSupportedType(*entityType); err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 2
 	}
 	if strings.TrimSpace(*pkg) == "" {
