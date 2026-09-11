@@ -156,4 +156,22 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     expect(row.last_mark_table_id).toBe(TABLE_ID);
     expect(passButtons(wrapper).entry.text()).toBe('Отменить');
   });
+
+// На стенде подпись у кнопки менялась, а зелёная заливка «отмечено» оставалась:
+// правило `.action-btn.revertable` проигрывало по специфичности уже стоящему
+// `.action-btn.entry-btn.active`. Класс на кнопке проверяем здесь, сам селектор -
+// в passage.css (jsdom стили из отдельного файла не применяет).
+it('кнопка отмены несёт собственный класс поверх активного состояния', async () => {
+  const wrapper = mountTable();
+  await flushPromises();
+  await wrapper.setData({
+    itemsData: [baseItem({
+      entry_checked: true, territory_status: 1, can_revert: true, last_mark_table_id: TABLE_ID,
+    })],
+  });
+
+  const cls = passButtons(wrapper).entry.classes();
+  expect(cls).toContain('active');
+  expect(cls).toContain('revertable');
+});
 });

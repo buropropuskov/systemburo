@@ -89,7 +89,14 @@ export default {
       if (value) reason.value = '';
     });
 
-    const directionLabel = computed(() => (request.value?.direction === 'entry' ? 'Вход' : 'Выход'));
+    // Люди ходят, машины ездят: в таблице проезда кнопки называются «Въезд» и «Выезд»,
+    // и окно обязано повторять ту же пару - иначе охранник читает про вход там, где
+    // только что нажал въезд.
+    const directionLabel = computed(() => {
+      const entry = request.value?.direction === 'entry';
+      if (request.value?.kind === 'cars') return entry ? 'Въезд' : 'Выезд';
+      return entry ? 'Вход' : 'Выход';
+    });
 
     function close() {
       if (saving.value) return;
