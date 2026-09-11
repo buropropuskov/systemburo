@@ -48,9 +48,11 @@ func TestAggregateEngine_DimsPublishedInCatalog(t *testing.T) {
 	}
 }
 
-// TestAggregateEngine_AggExprMatchesCatalog сверяет источники агрегата: каждая
-// метрика каталога (B1) должна иметь схему исполнения (B2) и наоборот.
-func TestAggregateEngine_AggExprMatchesCatalog(t *testing.T) {
+// TestAggregateEngine_MetricsMatchCatalog сверяет реестры: каждая метрика каталога
+// (B1) должна иметь схему исполнения (B2) и наоборот. Это единственный мост между
+// ними после #2468 — SQL метрики каталог больше не дублирует, поэтому метрика-призрак
+// в гиде или неопубликованная схема ловятся только здесь.
+func TestAggregateEngine_MetricsMatchCatalog(t *testing.T) {
 	for _, metric := range reportMetricOrder {
 		if _, ok := aggMetricRegistry[metric]; !ok {
 			t.Errorf("метрика каталога %q без схемы исполнения", metric)

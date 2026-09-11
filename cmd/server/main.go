@@ -84,7 +84,11 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("failed to load config", "error", err)
+		// Печатаем в поток ошибок, а не через slog: отказ разбора параметров читает
+		// человек у консоли, а slog заворачивает многострочный текст в кавычки и
+		// превращает переводы строк в \n - инструкция становится нечитаемой ровно
+		// там, где она и нужна.
+		fmt.Fprintln(os.Stderr, "Параметры не приняты:", err)
 		os.Exit(1)
 	}
 
@@ -483,6 +487,20 @@ func main() {
 		slog.Info("файловый архив шифруется", "recipient", cfg.ArchiveAgeRecipient)
 	} else {
 		slog.Warn("файловый архив пишется без шифрования: ключи не заданы")
+	}
+	// Обязательное шифрование спрашивает ключи архива здесь, а не в проверке
+	// параметров: включён архив или нет, знает только база. Выключенному архиву ключи
+	// не нужны, включённый без них разложил бы по каталогу читаемые паспорта - на
+	// staging он так и писал месяц, пока не хватились.
+	if cfg.RequireEncryption && !archiveCrypto.Enabled() {
+		if settings, err := settingsService.GetArchiveSettings(context.Background()); err != nil {
+			slog.Error("настройки файлового архива не прочитаны", "error", err)
+			os.Exit(1)
+		} else if settings.Enabled {
+			slog.Error("файловый архив включён, а его ключи не заданы, при обязательном шифровании это запрещено: " +
+				"задайте ARCHIVE_AGE_RECIPIENT и ARCHIVE_AGE_IDENTITY (age-keygen) либо выключите архив командой server archive off")
+			os.Exit(1)
+		}
 	}
 	if archiveWriter, err := services.NewArchiveWriter(cfg.ArchivePath); err != nil {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)

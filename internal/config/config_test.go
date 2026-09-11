@@ -59,7 +59,10 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("UPLOAD_MAX_FILE_SIZE", "")
 	t.Setenv("UPLOAD_ALLOWED_IMAGE_TYPES", "")
 	t.Setenv("UPLOAD_ALLOWED_DOC_TYPES", "")
-	t.Setenv("DATA_ENCRYPTION_KEY", "")
+	// Ключ задан, потому что шифрование обязательно по умолчанию: рабочее окружение
+	// без него не поднимается, и помощник обязан отражать это, а не обходить
+	// выключением проверки.
+	t.Setenv("DATA_ENCRYPTION_KEY", strings.Repeat("ab", 32))
 	t.Setenv("REQUIRE_ENCRYPTION", "")
 	t.Setenv("RATE_LIMIT_PER_MINUTE", "")
 	t.Setenv("RATE_LIMIT_WINDOW_SEC", "")
@@ -215,10 +218,28 @@ func TestValidate_UploadMaxFileSize_Zero(t *testing.T) {
 	assert.Contains(t, err.Error(), "UPLOAD_MAX_FILE_SIZE")
 }
 
-func TestLoad_DataEncryptionKey_Empty(t *testing.T) {
+// Прежде этот тест держал обратное - что пустой ключ это нормальное состояние
+// загрузки. Умолчание сменилось: работа с читаемыми паспортами больше не считается
+// рабочим режимом, и загрузка без ключа обязана падать, а не отдавать конфиг.
+func TestLoad_DataEncryptionKey_EmptyIsRefused(t *testing.T) {
 	setValidEnv(t)
+	t.Setenv("DATA_ENCRYPTION_KEY", "")
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DATA_ENCRYPTION_KEY")
+}
+
+// Осознанный отказ от шифрования остаётся возможным - это нужно стенду и разбору
+// аварии, где базу поднимают из копии без ключа.
+func TestLoad_EncryptionCanBeTurnedOffExplicitly(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("DATA_ENCRYPTION_KEY", "")
+	t.Setenv("REQUIRE_ENCRYPTION", "false")
+
 	cfg, err := Load()
 	require.NoError(t, err)
+	assert.False(t, cfg.RequireEncryption)
 	assert.Empty(t, cfg.DataEncryptionKey)
 }
 
@@ -247,20 +268,41 @@ func TestValidate_RequireEncryption_NoKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "REQUIRE_ENCRYPTION")
 }
 
-// Требование шифрования распространяется и на файловый архив: без ключей он пишет
-// открытым текстом, а заметить это можно только по именам файлов в каталоге.
-func TestValidate_RequireEncryption_NoArchiveKeys(t *testing.T) {
+// Ключи файлового архива проверка параметров НЕ спрашивает, хотя требование
+// шифрования на архив распространяется: включён архив или нет, записано в базе, а
+// параметры разбираются до подключения к ней. Установка, которой архив не нужен,
+// обязана стартовать без его ключей - требование перенесено в подъём писателя
+// (cmd/server/main.go), где видно настройку.
+func TestValidate_RequireEncryption_ArchiveKeysNotDemandedHere(t *testing.T) {
 	cfg := validConfig()
 	cfg.RequireEncryption = true
 	cfg.DataEncryptionKey = strings.Repeat("ab", 32)
+	cfg.ArchiveAgeRecipient = ""
+	cfg.ArchiveAgeIdentity = ""
+
+	assert.NoError(t, cfg.Validate())
+}
+
+// Умолчание безопасное: установка, поднятая мимо scripts/init-env.sh, не должна
+// молча работать с читаемыми паспортами. Отказ приходит с готовой командой.
+func TestLoad_RequireEncryptionDefaultsToTrue(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.RequireEncryption)
+}
+
+func TestValidate_RequireEncryption_NoKeyTellsWhatToDo(t *testing.T) {
+	cfg := validConfig()
+	cfg.RequireEncryption = true
+	cfg.DataEncryptionKey = ""
 
 	err := cfg.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "ARCHIVE_AGE_RECIPIENT")
-
-	cfg.ArchiveAgeRecipient = "age1qqqq"
-	cfg.ArchiveAgeIdentity = "AGE-SECRET-KEY-1QQQQ"
-	assert.NoError(t, cfg.Validate())
+	require.Error(t, err)
+	// Человек у консоли должен получить команду, а не название параметра: отказ
+	// старта без подсказки лечится выключением проверки, а не ключом.
+	assert.Contains(t, err.Error(), "openssl rand -hex 32")
+	assert.Contains(t, err.Error(), "REQUIRE_ENCRYPTION=false")
 }
 
 func TestLoad_RateLimitDefaults(t *testing.T) {

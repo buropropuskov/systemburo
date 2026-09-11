@@ -53,10 +53,16 @@ type Config struct {
 	ApplicationFileImageMaxSide int `env:"APPLICATION_FILE_IMAGE_MAX_SIDE" envDefault:"2000"`
 	ApplicationFileJPEGQuality  int `env:"APPLICATION_FILE_JPEG_QUALITY" envDefault:"82"`
 
-	DataEncryptionKey  string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
-	RequireEncryption  bool   `env:"REQUIRE_ENCRYPTION" envDefault:"false"`
-	RateLimitPerMinute int    `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
-	RateLimitWindowSec int64  `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
+	DataEncryptionKey string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
+	// RequireEncryption - запрет работать с персональными данными открытым текстом.
+	// Включено по умолчанию: прежнее умолчание означало, что установка, поднятая мимо
+	// scripts/init-env.sh, штатно работает и хранит паспорта читаемыми, а узнать об
+	// этом можно было только заглянув в базу. Отказ при пустом ключе лучше тихой
+	// работы без шифрования; ключ генерирует сам скрипт установки, а на открытой базе
+	// он доводится дошифровкой при старте (EncryptPlaintextValues).
+	RequireEncryption  bool  `env:"REQUIRE_ENCRYPTION" envDefault:"true"`
+	RateLimitPerMinute int   `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
+	RateLimitWindowSec int64 `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
 
 	// LoginRateLimit ограничивает попытки /login per-IP (защита от brute-force).
 	// Дефолт 10/5м: лояльно к опечаткам пароля живых юзеров, но всё ещё
@@ -350,15 +356,17 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("APPLICATION_FILE_JPEG_QUALITY must be within 1..100 (got %d)", c.ApplicationFileJPEGQuality)
 	}
 	if c.RequireEncryption && c.DataEncryptionKey == "" {
-		return fmt.Errorf("REQUIRE_ENCRYPTION=true but DATA_ENCRYPTION_KEY is empty")
+		return fmt.Errorf("DATA_ENCRYPTION_KEY не задан, а шифрование персональных данных обязательно.\n" +
+			"Сгенерировать ключ: openssl rand -hex 32, значение положить в DATA_ENCRYPTION_KEY файла .env.\n" +
+			"Ключ хранить отдельно от сервера и от резервных копий: без него данные не читаются.\n" +
+			"Осознанный отказ от шифрования (стенд, разбор) - REQUIRE_ENCRYPTION=false")
 	}
-	// Тот же рубильник закрывает и файловый архив. Пустые ключи означают запись
-	// открытым текстом, и узнать об этом можно только по именам файлов в каталоге:
-	// на staging архив так и писался месяц, пока не хватились. Требование заявлено
-	// один раз - выполняться оно должно везде, где данные ложатся на диск.
-	if c.RequireEncryption && (c.ArchiveAgeRecipient == "" || c.ArchiveAgeIdentity == "") {
-		return fmt.Errorf("REQUIRE_ENCRYPTION=true but ARCHIVE_AGE_RECIPIENT/ARCHIVE_AGE_IDENTITY are empty: archive files would be written unencrypted")
-	}
+	// Тот же рубильник закрывает и файловый архив, но спрашивать его ключи на старте
+	// нельзя: включён архив или нет, записано в базе (system_settings), а проверка
+	// параметров идёт до подключения к ней. Требование ключей перенесено туда, где
+	// архив реально начинает писать на диск - в подъём писателя и во включение
+	// настройки. Иначе установка, которой архив не нужен вовсе, не стартует из-за
+	// ключей для выключенной возможности.
 	if c.DataEncryptionKey != "" {
 		if _, err := crypto.ParseHexKey(c.DataEncryptionKey); err != nil {
 			return fmt.Errorf("DATA_ENCRYPTION_KEY: %w", err)
