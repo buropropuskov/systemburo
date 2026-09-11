@@ -26,6 +26,10 @@ type AvailableAttachmentDetail struct {
 // в детали - фронту не нужен повторный запрос, чтобы обновить кнопку.
 type AttachmentExecutionMarkResponse struct {
 	ExecutionMarkedUntil time.Time `json:"execution_marked_until"`
+	// SecondsLeft - тот же срок числом секунд. Кнопка отсчитывает по нему, а не по
+	// разнице с часами браузера: отстающие на пару секунд часы показывали «повтор
+	// через 5:02» при окне в пять минут.
+	SecondsLeft int `json:"seconds_left"`
 }
 
 // requireSecurityOrAdmin - гейт вкладки "Доступные мне" (#706, #976). Доступ имеют: супер-админ,
@@ -235,5 +239,8 @@ func (h *ApplicationHandler) MarkAttachmentExecuted(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, AttachmentExecutionMarkResponse{ExecutionMarkedUntil: until})
+	return RespondSuccess(c, AttachmentExecutionMarkResponse{
+		ExecutionMarkedUntil: until,
+		SecondsLeft:          int(time.Until(until).Seconds()),
+	})
 }

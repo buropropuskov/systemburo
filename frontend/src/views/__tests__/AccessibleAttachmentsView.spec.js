@@ -325,7 +325,7 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
 
   it('кнопка "Отметить как исполненное" (#2446) видна вне зависимости от has_blank и шлёт id вложения', async () => {
     wrapper = mountWithDetail({ has_blank: false });
-    markAccessibleAttachmentExecuted.mockResolvedValue({ execution_marked_until: new Date(Date.now() + 300000).toISOString() });
+    markAccessibleAttachmentExecuted.mockResolvedValue({ seconds_left: 300 });
     await openDetail();
 
     const btn = wrapper.find('[data-testid="aa-mark-executed"]');
@@ -347,12 +347,15 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
     }).mockResolvedValueOnce({
       attachment: {
         ...makeItem(1), application_id: 42, attachment_id: 1,
-        execution_marked_until: new Date(Date.now() + 300000).toISOString(),
-        execution_marks: { today_count: 1, recent: [{ created_at: new Date().toISOString(), actor_name: 'Иванов И.И.' }] },
+        execution_marks: {
+          today_count: 1,
+          recent: [{ created_at: '2026-01-15T10:15:00.000Z', actor_name: 'Иванов И.И.' }],
+          seconds_left: 300,
+        },
       },
       cars: [],
     });
-    markAccessibleAttachmentExecuted.mockResolvedValue({ execution_marked_until: new Date(Date.now() + 300000).toISOString() });
+    markAccessibleAttachmentExecuted.mockResolvedValue({ seconds_left: 300 });
     await openDetail();
 
     expect(wrapper.find('[data-testid="aa-mark-summary"]').exists()).toBe(false);
@@ -362,11 +365,11 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
 
     expect(getAccessibleAttachmentDetail).toHaveBeenCalledTimes(2);
     expect(wrapper.find('[data-testid="aa-detail-loading"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="aa-mark-summary"]').text()).toBe('Сегодня отмечено 1 раз');
+    expect(wrapper.find('[data-testid="aa-mark-summary"]').text()).toBe('Сегодня 1 отметка, последняя в 13:15');
   });
 
   it('деталь, открытая с уже действующей отметкой, сразу рисует кнопку заблокированной', async () => {
-    wrapper = mountWithDetail({ execution_marked_until: new Date(Date.now() + 120000).toISOString() });
+    wrapper = mountWithDetail({ execution_marks: { today_count: 1, recent: [], seconds_left: 120 } });
     await openDetail();
 
     expect(wrapper.find('[data-testid="aa-mark-executed"]').attributes('disabled')).toBeDefined();
