@@ -56,8 +56,8 @@ func approverFilters() map[string]aggColumn {
 
 var approverDimensions = []string{dimByApprover, "status", "organization", "company", "period"}
 
-// init регистрирует метрики согласующих в движке и каталоге (как и остальные
-// метрики #1240 — выражение агрегата считается один раз на оба реестра).
+// init регистрирует метрики согласующих в движке (aggMetricRegistry — SQL) и в
+// каталоге (reportMetricRegistry — подписи для гида).
 func init() {
 	// Время реакции: от назначения согласующим (aru.created_at) до его голоса
 	// (aru.approval_datetime), по РАБОЧЕМУ времени Бюро (#1251 S2): ночь и выходные
@@ -86,9 +86,6 @@ func init() {
 		label:      "Среднее время реакции согласующего",
 		unit:       "",
 		group:      metricGroupApprovers,
-		baseTable:  "application_responsible_users",
-		aggExpr:    responseAgg,
-		baseFilter: "approval_datetime IS NOT NULL AND approval_datetime >= created_at",
 		dimensions: approverDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "avg_approver_response_time")
@@ -109,8 +106,6 @@ func init() {
 		label:      "Нагрузка согласующего",
 		unit:       "шт",
 		group:      metricGroupApprovers,
-		baseTable:  "application_responsible_users",
-		aggExpr:    "COUNT(*)",
 		dimensions: approverDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "approver_votes_count")
