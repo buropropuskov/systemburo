@@ -289,8 +289,6 @@ export default {
     font-size: 13px;
     color: var(--text-muted);
     cursor: pointer;
-    text-decoration: underline dotted;
-    text-underline-offset: 3px;
     transition: color 0.15s ease;
 }
 

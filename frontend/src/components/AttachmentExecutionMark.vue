@@ -167,7 +167,9 @@ async function mark() {
 }
 /* Сводка - это <button> ради доступности (раскрывает список, слушает Enter), но
    выглядеть она должна текстом: без сброса браузерных стилей отрисовывалась серой
-   прямоугольной плашкой с системным фоном. */
+   прямоугольной плашкой с системным фоном. Никаких пунктирных подчёркиваний -
+   владелец забраковал их и здесь, и в заметке бюро; нажимаемость показывают цвет
+   на наведении и курсор. */
 .execution-mark__summary {
   margin: 0;
   padding: 0;
@@ -177,8 +179,6 @@ async function mark() {
   font: inherit;
   font-size: 13px;
   text-align: left;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
   cursor: pointer;
 }
 
