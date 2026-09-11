@@ -45,6 +45,10 @@ type AvailableAttachment struct {
 	// SenderUserID нужен маскировке ФИО подавшего, не давшего согласия на обработку
 	// персональных данных: без него строку не с чем сопоставить.
 	SenderUserID *int `json:"sender_user_id"`
+	// IsManual - вложение заведено вручную (#1049), заявки за ним нет. Отдаём явным
+	// полем, а не выводим из пустого application_id: на карточке такому вложению
+	// вместо имени пишут тип и пометку «добавлено вручную» (#2450).
+	IsManual bool `json:"is_manual"`
 }
 
 // availableAttachmentFilters - опциональные пользовательские фильтры вкладки "Доступные мне"
@@ -106,6 +110,7 @@ const availableAttachmentFrom = `
 var availableAttachmentSelect = `
 	a.id as attachment_id,
 	a.attachment_type,
+	a.is_manual,
 	a.attachment_name,
 	a.attachment_display_name,
 	a.entry_date_from, a.entry_date_to,
@@ -164,10 +169,30 @@ var availableAttachmentSelect = `
 // шире (охранник без назначения места ручное не увидит). У сироты app.* при LEFT JOIN NULL:
 // ветка a.is_manual=TRUE сама делает OR истинной, а заведомо-NULL app-предикат
 // сироту не отсекает (three-valued logic: TRUE OR NULL = TRUE, запрос не падает).
+// manualAttachmentNotEmpty отсеивает ручное вложение (#1049), в котором не осталось ни
+// одной допущенной строки (#2450). Такая карточка бесполезна охране: заявки за ней нет,
+// имени нет, и пропускать по ней некого - на стенде таких набралось двое из пяти.
+//
+// Условие состава повторяет то, по которому деталь вложения собирает строки
+// (GetAttachmentCars/Employees/Items со SupplementScopeAdmitted). Иначе список и
+// карточка разъедутся: в списке запись есть, внутри пусто - ровно то, на что и
+// пожаловались.
+//
+// Заявочных не касается: у них свой жизненный цикл, номер и отправитель, и скрывать их
+// по составу - это менять видимость шире, чем просили.
+var manualAttachmentNotEmpty = `(NOT a.is_manual OR EXISTS (
+	SELECT 1 FROM cars mc WHERE mc.attachment_id = a.id AND ` + admittedSupplementCond("mc") + `
+	UNION ALL
+	SELECT 1 FROM employees me WHERE me.attachment_id = a.id AND ` + admittedSupplementCond("me") + `
+	UNION ALL
+	SELECT 1 FROM items mi WHERE mi.attachment_id = a.id AND ` + admittedSupplementCond("mi") + `
+))`
+
 func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface{}) {
 	// Заявочные: confirmation='Согласовано' И статус активного допуска ('В работе'/'Завершено').
 	// Ручные (a.is_manual) минуют весь app-гейт - заявки нет.
-	confirm := "(a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))"
+	confirm := "(a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))" +
+		" AND " + manualAttachmentNotEmpty
 	args := []interface{}{models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted}
 	if unrestricted {
 		return confirm, args
