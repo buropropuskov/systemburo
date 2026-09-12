@@ -30,23 +30,23 @@
 
   /* Заголовок в две-три строки съедал экран до начала списка: «Управление
      организациями / отделами» занимало 96px из 844. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .management-title {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .management-title {
     font-size: 16px !important;
     line-height: 1.25 !important;
   }
 
   /* Контролы шапки: два ряда вместо перебора по одному. Первый - фильтры, второй -
      поиск с кнопками действий. Тот же порядок, что в шапке Центра заявок. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .header-controls,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .management-header__actions {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .header-controls,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .management-header__actions {
     flex-wrap: wrap !important;
     gap: 8px !important;
     width: 100% !important;
   }
 
   /* Дропдауны фильтров делят первый ряд пополам, а не жмутся к краю. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .header-controls .archive-dropdown,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .header-controls > .base-dropdown {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .header-controls .archive-dropdown,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .header-controls > .base-dropdown {
     min-width: 0 !important;
     flex: 1 1 calc(50% - 4px) !important;
     order: 1;
@@ -55,8 +55,8 @@
   /* Поиск занимает остаток второго ряда. При 220px фиксированной ширины он делил
      строку с двумя дропдаунами и кнопками, оставаясь шириной 110px: плейсхолдер
      обрезался на середине слова, а введённый текст не было видно целиком. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .header-controls .search,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .management-header__actions .search {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .header-controls .search,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .management-header__actions .search {
     width: auto !important;
     flex: 1 1 140px !important;
     height: 36px !important;
@@ -64,10 +64,10 @@
   }
 
   /* Кнопки действий - в конце второго ряда, рядом с поиском. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .header-controls .add-header-button,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .header-controls .refresh-btn,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .management-header__actions .add-header-button,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .management-header__actions .refresh-btn {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .header-controls .add-header-button,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .header-controls .refresh-btn,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .management-header__actions .add-header-button,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .management-header__actions .refresh-btn {
     flex: 0 0 auto !important;
     order: 6;
   }
@@ -75,7 +75,7 @@
   /* Дропдауны фильтров дорастают до тач-нормы (36px против штатных 30). Правило
      скоуплено на админку намеренно: в шапке Центра заявок высота дропдауна 34px
      согласована с соседними контролами, и трогать её здесь нечего. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .base-dropdown__button {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .base-dropdown__button {
     min-height: 36px !important;
   }
 
@@ -85,11 +85,11 @@
      ширину: получается пустая строка с одиноким квадратом по центру. Уводим его в
      угол карточки, оставляя тач-зону 44px, а первой ячейке даём место справа, чтобы
      значение не заезжало под чекбокс. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .rt-row {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .rt-row {
     position: relative !important;
   }
 
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .rt-row .check-col {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .rt-row .check-col {
     position: absolute !important;
     top: 2px !important;
     right: 4px !important;
@@ -104,10 +104,7 @@
     border: none !important;
   }
 
-  /* Соседняя ячейка резервирует место под чекбокс. Селектор по «любому следующему»,
-     а не по `.table-col`: у пользователей ячейки называются `.user-col`, и правило
-     мимо них проходило - логин уезжал под чекбокс («@buropropusk☐»). */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .rt-row .check-col + * {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .rt-row .check-col + .table-col {
     padding-right: 44px !important;
   }
 
@@ -117,8 +114,8 @@
      список, и эти проценты оставляли текст-подсказку шире экрана - её начало
      уходило за левый край (замер: «Выберите роль для просмотра и редактирования»
      начиналось на -18px при вьюпорте 390). */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .no-selection-message,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .detail-panel--empty {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .no-selection-message,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .detail-panel--empty {
     width: 100% !important;
     min-width: 0 !important;
     padding: 20px 16px !important;
@@ -135,22 +132,14 @@
      разделов названы по-своему - гасим и их.
      Именно так дефект возвращался в волне 3 эпика #1097: области гасили по именам
      классов, а соседние с другим именем оставались нетронутыми. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .table-section,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .table-container,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .details-column,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .details-section,
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .items-list {
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .table-section,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .table-container,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .details-column,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .details-section,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .items-list {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
-  }
-
-  /* Боковые поля страницы. Аудит персональных данных прижимал карточки вплотную к
-     краю экрана (замер: левый край карточки на 1px при вьюпорте 390), системный
-     контроль держал 24px против принятых 10-12. Приводим к общему gutter. */
-  :is(.pda, .sc, .denials) {
-    padding-left: var(--gutter, 12px) !important;
-    padding-right: var(--gutter, 12px) !important;
   }
 
   /* Чёрный список держит контролы в своём `.bl-header-controls`: на телефоне они
@@ -166,5 +155,13 @@
   .bl-header-controls .search {
     flex: 1 1 140px !important;
     width: auto !important;
+  }
+
+  /* Боковые поля страницы. Аудит персональных данных прижимал карточки вплотную к
+     краю экрана (замер: левый край карточки на 1px при вьюпорте 390), системный
+     контроль держал 24px против принятых 10-12. Приводим к общему gutter. */
+  :is(.pda, .sc, .denials) {
+    padding-left: var(--gutter, 12px) !important;
+    padding-right: var(--gutter, 12px) !important;
   }
 }

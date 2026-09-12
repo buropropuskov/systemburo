@@ -519,6 +519,21 @@ body.nav-drawer-open {
     font-size: 16px !important;
   }
 
+  /* Тач-таргеты внутри окон. Скоупить их на раздел нельзя: окно телепортируется в
+     <body> и вне корня раздела оказывается, поэтому правило висит на самом окне.
+     Обход находил «Отмену» 34px и крестики 22-30px - по ним трудно попасть пальцем.
+     Значение минимальное (36px, норма компактного контрола проекта), высоту кнопок
+     оно не выравнивает и раскладку футера не трогает. */
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay, .base-modal-overlay) .lk-button,
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay, .base-modal-overlay) .base-dropdown__button {
+    min-height: 36px !important;
+  }
+
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay, .base-modal-overlay) .modal-close {
+    min-width: 36px !important;
+    min-height: 36px !important;
+  }
+
   /* Футер окна прав: подпись про 30 секунд ужималась в колонку из пяти слов, потому
      что делила строку с двумя кнопками. Разрешаем перенос. */
   .rpm-foot,
