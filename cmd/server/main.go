@@ -267,7 +267,8 @@ func main() {
 	// подключается опцией конструктора, как и real-time паблишер. Пустые
 	// VAPID-ключи в параметрах не мешают подняться - Send() тогда молча ничего не
 	// отправляет (push выключен).
-	pushService := services.NewPushService(db, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
+	pushService := services.NewPushService(db, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject,
+		services.WithPushAllowedHosts(cfg.PushAllowedHosts))
 	notificationServiceEarly := services.NewNotificationService(db,
 		services.WithNotificationRealtimePublisher(eventsHub),
 		services.WithNotificationPermissionResolver(permissionResolver),
