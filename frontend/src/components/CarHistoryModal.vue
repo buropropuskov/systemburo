@@ -255,10 +255,10 @@ import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import DateFilter from './DateFilter.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import ExcelJS from 'exceljs';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
@@ -427,25 +427,6 @@ export default {
         dateMap.get(dateKey).push(item);
       }
       return groups;
-    },
-
-    exportData() {
-      return this.filteredHistory.map(item => ({
-        'Дата и время': this.formatDateTime(item.created_at),
-        'Пользователь': item.user_name || 'Система',
-        'Действие': this.getActionText(item),
-        'Комментарий': this.getActionComment(item),
-        'Тип действия': item.action_type,
-        'Старое значение': item.old_value || '',
-        'Новое значение': item.new_value || '',
-        'Поле': item.field_name || '',
-        'ID записи': item.car_id,
-        'Номер': item.car_number || '',
-        'Марка': item.car_brand || '',
-        'Организация': item.organization || '',
-        'Компания': item.company || '',
-        'Место': item.table_name || ''
-      }));
     },
 
     formattedCurrentDateTime() {
@@ -625,161 +606,40 @@ export default {
 
     async exportToExcel() {
       if (this.filteredHistory.length === 0) return;
-      
+
       this.isExporting = true;
-      
       try {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet(`Istoriya_${this.safeCarNumber}`);
-        
-        const headers = [
-          'Дата и время',
-          'Пользователь',
-          'Действие',
-          'Комментарий',
-          'Тип действия',
-          'Старое значение',
-          'Новое значение',
-          'Поле',
-          'ID записи',
-          'Номер',
-          'Марка',
-          'Организация',
-          'Компания',
-          'Место'
-        ];
-        
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4F5BDF' }
-          };
-          cell.font = {
-            name: 'Verdana',
-            size: 11,
-            bold: true,
-            color: { argb: 'FFFFFFFF' }
-          };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-          };
-        });
-        
-        this.exportData.forEach((item, index) => {
-          const row = worksheet.addRow([
-            item['Дата и время'],
-            item['Пользователь'],
-            item['Действие'],
-            item['Комментарий'],
-            item['Тип действия'],
-            item['Старое значение'],
-            item['Новое значение'],
-            item['Поле'],
-            item['ID записи'],
-            item['Номер'],
-            item['Марка'],
-            item['Организация'],
-            item['Компания'],
-            item['Место']
-          ]);
-          
-          row.height = 20;
-          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          
-          row.eachCell((cell) => {
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: fillColor }
-            };
-            cell.font = {
-              name: 'Verdana',
-              size: 9,
-              color: { argb: 'FF333333' }
-            };
-            cell.alignment = { vertical: 'middle' };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-            };
-          });
-        });
-        
-        const lastDataRow = this.exportData.length;
-        
-        for (let row = 1; row <= lastDataRow + 1; row++) {
-          const rightCell = worksheet.getCell(row, 14);
-          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
-          const leftCell = worksheet.getCell(row, 1);
-          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        
-        for (let col = 1; col <= 14; col++) {
-          const topCell = worksheet.getCell(1, col);
-          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        
-        for (let col = 1; col <= 14; col++) {
-          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
-          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        
-        worksheet.addRow([]);
-        
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
-        
-        [infoRow1, infoRow2].forEach(row => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-            };
-          });
-        });
-        
-        worksheet.columns = [
-          { width: 25 },
-          { width: 40 },
-          { width: 30 },
-          { width: 60 },
-          { width: 20 },
-          { width: 25 },
-          { width: 25 },
-          { width: 20 },
-          { width: 15 },
-          { width: 20 },
-          { width: 20 },
-          { width: 30 },
-          { width: 30 },
-          { width: 30 }
-        ];
-        
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        
-        a.download = `Istoriya_avtomobilya_${this.safeCarNumber}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        
-      } catch (error) {
-        console.error('Error exporting to Excel:', error);
+        await downloadExcelSheet({
+          sheetName: `Istoriya_${this.safeCarNumber}`,
+          header: [
+            'Дата и время', 'Пользователь', 'Действие', 'Комментарий', 'Тип действия',
+            'Старое значение', 'Новое значение', 'Поле', 'ID записи', 'Номер', 'Марка',
+            'Организация', 'Компания', 'Место',
+          ],
+          rows: this.filteredHistory.map(item => [
+            this.formatDateTime(item.created_at),
+            item.user_name || 'Система',
+            this.getActionText(item),
+            this.getActionComment(item),
+            item.action_type,
+            item.old_value || '',
+            item.new_value || '',
+            item.field_name || '',
+            item.car_id,
+            item.car_number || '',
+            item.car_brand || '',
+            item.organization || '',
+            item.company || '',
+            item.table_name || '',
+          ]),
+          widths: [25, 40, 30, 60, 20, 25, 25, 20, 15, 20, 20, 30, 30, 30],
+          info: [
+            ['Отчёт сформировал:', this.currentUserDisplayName],
+            ['Дата формирования:', this.formattedCurrentDateTime],
+          ],
+          outerBorder: true,
+        }, `Istoriya_avtomobilya_${this.safeCarNumber}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`);
+      } catch {
         useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;

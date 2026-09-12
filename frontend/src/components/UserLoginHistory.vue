@@ -223,8 +223,8 @@
 </template>
 
 <script>
-import ExcelJS from 'exceljs'
 import BaseDropdown from './ui/BaseDropdown.vue'
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import Pager from './ui/Pager.vue'
 import DateFilter from './DateFilter.vue'
 import { getUserAuthEvents } from '@/api/users'
@@ -504,76 +504,29 @@ export default {
       }
     },
     async buildWorkbook(rows) {
-      const workbook = new ExcelJS.Workbook()
-      const worksheet = workbook.addWorksheet(`Vhody_${this.safeUsername()}`)
-
-      const headers = ['Дата и время', 'Событие', 'Результат', 'IP-адрес', 'Устройство', 'Детали']
-      const headerRow = worksheet.addRow(headers)
-      headerRow.height = 25
-      headerRow.eachCell((cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } }
-        cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
-        cell.alignment = { vertical: 'middle', horizontal: 'center' }
-        cell.border = thinBorder()
-      })
-
-      rows.forEach((item, index) => {
-        const row = worksheet.addRow([
+      // Внешней рамки у истории входов не было и нет: файл читают как ленту событий.
+      await downloadExcelSheet({
+        sheetName: `Vhody_${this.safeUsername()}`,
+        header: ['Дата и время', 'Событие', 'Результат', 'IP-адрес', 'Устройство', 'Детали'],
+        rows: rows.map(item => [
           formatDateTime(item.created_at),
           this.eventBadge(item.event_type).label,
           item.success ? 'Успешно' : 'Отказ',
           item.ip_address || '—',
           formatDevice(item.user_agent),
           this.formatDetail(item.detail),
-        ])
-        row.height = 20
-        const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF'
-        row.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } }
-          cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } }
-          cell.alignment = { vertical: 'middle', wrapText: true }
-          cell.border = thinBorder()
-        })
-      })
-
-      worksheet.addRow([])
-      const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserName || 'Пользователь'])
-      const infoRow2 = worksheet.addRow(['Дата формирования:', formatDateTime(new Date().toISOString())])
-      ;[infoRow1, infoRow2].forEach((row) => {
-        row.eachCell((cell) => {
-          cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } }
-          cell.alignment = { vertical: 'middle' }
-          cell.border = thinBorder()
-        })
-      })
-
-      worksheet.columns = [
-        { width: 20 },
-        { width: 22 },
-        { width: 12 },
-        { width: 18 },
-        { width: 26 },
-        { width: 40 },
-      ]
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.download = `Istoriya_vhodov_${this.safeUsername()}.xlsx`
-      a.href = url
-      a.click()
-      window.URL.revokeObjectURL(url)
+        ]),
+        widths: [20, 22, 12, 18, 26, 40],
+        info: [
+          ['Отчёт сформировал:', this.currentUserName || 'Пользователь'],
+          ['Дата формирования:', formatDateTime(new Date().toISOString())],
+        ],
+      }, `Istoriya_vhodov_${this.safeUsername()}.xlsx`)
     },
     safeUsername() {
       return (this.username || 'user').replace(/[\\/:"*?<>|]/g, '_').replace(/\s+/g, '_')
     },
   },
-}
-
-function thinBorder() {
-  const side = { style: 'thin', color: { argb: 'FFE6E6E6' } }
-  return { top: side, bottom: side, left: side, right: side }
 }
 </script>
 

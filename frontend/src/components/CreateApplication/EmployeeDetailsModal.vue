@@ -523,9 +523,9 @@ import Badge from '@/components/ui/Badge.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { checkPersonBlacklist, createPersonBlacklist } from '@/api/blacklist';
-import ExcelJS from 'exceljs';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatDateTime } from '@/utils/datetime';
 import { formatMoscowDateTime } from '@/utils/serverTime';
@@ -1015,111 +1015,36 @@ export default {
         },
 
         async exportHistory() {
-            if (this.entryExitHistory.length === 0) return;
+            const dataToExport = this.entryExitHistory;
+            if (dataToExport.length === 0) return;
+
             this.isExporting = true;
             try {
-                const workbook = new ExcelJS.Workbook();
-                const worksheet = workbook.addWorksheet('Istoriya_prokhodov');
-                
-                const headers = ['Дата и время', 'Пользователь', 'Действие', 'Комментарий', 'Место'];
-                const headerRow = worksheet.addRow(headers);
-                headerRow.height = 25;
-                headerRow.eachCell((cell) => {
-                    cell.fill = {
-                        type: 'pattern',
-                        pattern: 'solid',
-                        fgColor: { argb: 'FF4F5BDF' }
-                    };
-                    cell.font = {
-                        name: 'Verdana',
-                        size: 11,
-                        bold: true,
-                        color: { argb: 'FFFFFFFF' }
-                    };
-                    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                    cell.border = {
-                        top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                        bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                        left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                        right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-                    };
-                });
-
-                this.entryExitHistory.forEach((item, index) => {
-                    const row = worksheet.addRow([
+                const stamp = formatMoscowDateTime();
+                const fullName = [this.employee?.last_name, this.employee?.first_name, this.employee?.middle_name]
+                    .filter(Boolean).join('_').replace(/[^\wа-яА-ЯёЁ-]+/gu, '_') || 'sotrudnik';
+                await downloadExcelSheet({
+                    sheetName: 'Istoriya_prokhodov',
+                    header: ['Дата и время', 'Пользователь', 'Действие', 'Комментарий', 'Место'],
+                    rows: dataToExport.map(item => [
                         this.formatDateTime(item.created_at),
                         item.user_name || 'Система',
                         this.getActionText(item),
                         item.comment || this.getActionComment(item),
-                        item.table_name || ''
-                    ]);
-                    
-                    row.height = 20;
-                    const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-                    
-                    row.eachCell((cell) => {
-                        cell.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: fillColor }
-                        };
-                        cell.font = {
-                            name: 'Verdana',
-                            size: 9,
-                            color: { argb: 'FF333333' }
-                        };
-                        cell.alignment = { vertical: 'middle' };
-                        cell.border = {
-                            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-                        };
-                    });
-                });
-
-                const lastDataRow = this.entryExitHistory.length;
-                for (let row = 1; row <= lastDataRow + 1; row++) {
-                    const rightCell = worksheet.getCell(row, 5);
-                    rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
-                    const leftCell = worksheet.getCell(row, 1);
-                    leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
-                }
-                for (let col = 1; col <= 5; col++) {
-                    const topCell = worksheet.getCell(1, col);
-                    topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
-                    const bottomCell = worksheet.getCell(lastDataRow + 1, col);
-                    bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
-                }
-
-                worksheet.addRow([]);
-                const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserName || 'Пользователь']);
-                const infoRow2 = worksheet.addRow(['Дата формирования:', formatMoscowDateTime()]);
-                [infoRow1, infoRow2].forEach(row => {
-                    row.eachCell((cell) => {
-                        cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-                        cell.alignment = { vertical: 'middle' };
-                        cell.border = {
-                            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-                        };
-                    });
-                });
-
-                worksheet.columns = [ { width: 25 }, { width: 40 }, { width: 30 }, { width: 60 }, { width: 30 } ];
-
-                const buffer = await workbook.xlsx.writeBuffer();
-                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                const fullName = `${this.employee.last_name}_${this.employee.first_name}`.replace(/[^a-zA-Z0-9]/g, '_');
-                a.download = `Istoriya_${fullName}.xlsx`;
-                a.href = url;
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } catch (e) { console.error(e); useDeletionsStore().notify({ bold: 'Ошибка экспорта в Excel', type: 'error' }); } finally { this.isExporting = false; }
+                        item.table_name || '',
+                    ]),
+                    widths: [25, 40, 30, 60, 30],
+                    info: [
+                        ['Отчёт сформировал:', this.currentUserName || 'Пользователь'],
+                        ['Дата формирования:', stamp],
+                    ],
+                    outerBorder: true,
+                }, `Istoriya_${fullName}.xlsx`);
+            } catch {
+                useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
+            } finally {
+                this.isExporting = false;
+            }
         },
 
         openFullHistory() {

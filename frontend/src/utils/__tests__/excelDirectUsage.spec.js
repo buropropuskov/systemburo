@@ -29,16 +29,9 @@ const PENDING = [
   'components/admin/blacklist/BlacklistHistoryModalBase.vue',
   'components/admin/DataProcessingSettings.vue',
   'components/ApplicationApproverHistoryModal.vue',
-  'components/ApplicationDetail/ApplicationHistory.vue',
-  'components/CarDetailsModal.vue',
-  'components/CarHistoryModal.vue',
   'components/CreateApplication/BlankImportResult.vue',
-  'components/CreateApplication/EmployeeDetailsModal.vue',
-  'components/CreateApplication/EmployeeHistoryModal.vue',
-  'components/CreateApplication/VehicleDetailsModal.vue',
   'components/SystemTableHistoryModal.vue',
   'components/TrashHistoryModal.vue',
-  'components/UserLoginHistory.vue',
   'views/TrashView.vue',
 ];
 
