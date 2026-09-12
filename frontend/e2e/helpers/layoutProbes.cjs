@@ -72,4 +72,42 @@ function clippedText(root) {
   return out.slice(0, 5);
 }
 
-module.exports = { pageMetrics, oversizedRows, clippedText };
+/**
+ * Геометрия открытого окна против контракта из эталона адаптивности (§3.2).
+ *
+ * На телефоне окно обязано быть листом: во всю ширину, прижатым к низу, не выше 90%
+ * экрана, с верхними углами 16px и прокруткой внутри тела. Возвращаем измеренное и
+ * список нарушений - решать, что из этого чинить, всё равно человеку.
+ */
+function modalGeometry() {
+  // Половина окон проекта названа своим классом (.role-modal, .nf-modal, окна
+  // историй), поэтому ищем и просто прямого потомка затемнения.
+  const el = document.querySelector('.base-modal, .modal-content, [role="dialog"], .modal-overlay > *');
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const mobile = window.innerWidth <= 767.98;
+  const header = el.querySelector('.base-modal__header, .modal-header');
+  const out = {
+    w: Math.round(r.width),
+    h: Math.round(r.height),
+    vw: window.innerWidth,
+    vh: window.innerHeight,
+    radiusTop: cs.borderTopLeftRadius,
+    headerH: header ? Math.round(header.getBoundingClientRect().height) : null,
+    issues: [],
+  };
+  if (r.width > window.innerWidth + 1) out.issues.push('шире экрана');
+  if (r.height > window.innerHeight + 1) out.issues.push('выше экрана');
+  if (r.left < -1 || r.right > window.innerWidth + 1) out.issues.push('вылезает по горизонтали');
+  if (mobile) {
+    // Лист прижат к низу: щель между окном и краем экрана означает, что глобальные
+    // правила листа до этого окна не достали.
+    if (Math.abs(window.innerHeight - r.bottom) > 2) out.issues.push(`не прижат к низу (${Math.round(window.innerHeight - r.bottom)}px)`);
+    if (r.width < window.innerWidth - 2) out.issues.push(`уже экрана на ${Math.round(window.innerWidth - r.width)}px`);
+    if (out.headerH && out.headerH > 60) out.issues.push(`шапка окна ${out.headerH}px`);
+  }
+  return out;
+}
+
+module.exports = { pageMetrics, oversizedRows, clippedText, modalGeometry };

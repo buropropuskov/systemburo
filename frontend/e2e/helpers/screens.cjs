@@ -12,7 +12,14 @@
  * `open` - клики после загрузки, раскрывающие второе состояние экрана (деталь
  * мастер-детейла, модалка). Без них аудит видит только пустой список и молчит про
  * окна, а половина претензий пользователя как раз про окна.
+ *
+ * Кнопка создания у разделов админки называется одинаково (`.add-header-button`),
+ * поэтому окно создания раскрывается общим селектором - перечислять его у каждого
+ * раздела не нужно, достаточно `openByDefault`.
  */
+
+/** Клик, раскрывающий окно создания в разделе администрирования. */
+const ADMIN_CREATE = ['.add-header-button'];
 
 // Имя таблицы для /table/:tableName. На стенде существует `auto_blank`; для другого
 // окружения подменяется переменной окружения, чтобы аудит не падал на 404.
@@ -71,10 +78,19 @@ const SCREENS = [...USER_SCREENS, ...ADMIN_SCREENS];
  * через запятую. Нужен срезам эпика - каждый гоняет свои экраны за секунды вместо
  * полного обхода на четверть часа.
  */
+/**
+ * Экран со списком кликов, раскрывающих его второе состояние. Разделу админки без
+ * собственного `open` подставляется кнопка создания.
+ */
+function withOpen(screen) {
+  if (screen.open || screen.area !== 'admin') return screen;
+  return { ...screen, open: ADMIN_CREATE };
+}
+
 function selectScreens(filter = process.env.AUDIT_SCREENS) {
-  if (!filter) return SCREENS;
+  if (!filter) return SCREENS.map(withOpen);
   const wanted = filter.split(',').map((s) => s.trim()).filter(Boolean);
-  return SCREENS.filter((s) => wanted.includes(s.slug) || wanted.includes(s.area));
+  return SCREENS.filter((s) => wanted.includes(s.slug) || wanted.includes(s.area)).map(withOpen);
 }
 
 module.exports = { SCREENS, USER_SCREENS, ADMIN_SCREENS, selectScreens, TABLE_NAME };
