@@ -27,6 +27,11 @@ const MD = path.join(ROOT, 'reports', 'viewport-audit.md');
 // Планшетные ширины в гейт не входят - там находки как раз и правятся по ходу эпика.
 const GUARDED_WIDTHS = [390, 1440, 1920];
 
+// Сравнение идёт по КОЛИЧЕСТВУ находок в ключе «экран|ширина|вид», не по их составу:
+// точный дифф ломался бы от любой смены класса или текста. Значит подмена одной
+// находки другой того же вида гейт не заметит - «регрессий нет» означает «не стало
+// больше», а не «ничего не изменилось».
+
 const KINDS = [
   ['docOverflow', 'страница шире экрана'],
   ['overflow', 'узлы за правым краем'],
@@ -138,6 +143,15 @@ function main() {
 
   const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
   const regressions = [];
+
+  // Защищённая ширина, которой нет в отчёте, - это не «чисто», а непроверенная
+  // ширина: молча пропустив её, гейт соврал бы про главное своё обещание.
+  const measured = new Set(report.widths);
+  const missing = GUARDED_WIDTHS.filter((w) => !measured.has(w));
+  if (missing.length) {
+    console.error(`защищённые ширины не сняты: ${missing.join(', ')} - прогнать аудит с ними`);
+    process.exit(1);
+  }
   for (const [key, count] of Object.entries(current)) {
     const [screen, width, kind] = key.split('|');
     if (!GUARDED_WIDTHS.includes(Number(width))) continue;

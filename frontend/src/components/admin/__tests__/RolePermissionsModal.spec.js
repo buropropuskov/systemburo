@@ -38,6 +38,17 @@ const save = (w) => w.find('[data-testid="role-permissions-save"]').trigger('cli
 const lastSave = (w) => w.emitted('save')[0][0];
 
 describe('RolePermissionsModal', () => {
+  it('во время сохранения кнопка держит ширину и сообщает о процессе', () => {
+    // Подпись раньше подменялась на «Сохранение...», из-за чего кнопка становилась
+    // шире и футер дёргался. Теперь состояние показывает класс, а подпись не меняется:
+    // замок на то, чтобы подмену текста не вернули (#2473).
+    const w = mountModal({ saving: true });
+    const btn = w.find('[data-testid="role-permissions-save"]');
+    expect(btn.classes()).toContain('is-busy');
+    expect(btn.attributes('aria-busy')).toBe('true');
+    expect(btn.text()).toBe('Сохранить');
+  });
+
   it('собственные точечные права роли показаны редактируемым тумблером с бейджем "роль"', () => {
     const w = mountModal();
     const row = w.get('[data-key="entity.cars.read"]');

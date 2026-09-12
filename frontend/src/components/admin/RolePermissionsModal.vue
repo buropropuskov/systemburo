@@ -110,6 +110,7 @@
                 :disabled="saving"
                 data-testid="role-permissions-save"
                 :class="{ 'is-busy': saving }"
+                :aria-busy="saving"
                 @click="emitSave"
               >
                 Сохранить
