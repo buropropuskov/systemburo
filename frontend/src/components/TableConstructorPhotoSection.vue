@@ -154,6 +154,7 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 export default {
   name: 'TableConstructorPhotoSection',
@@ -170,7 +171,22 @@ export default {
       isDragging: false,
     };
   },
+  watch: {
+    showPhotoModal(open) {
+      setBodyScrollLock(this, open);
+    },
+  },
+  mounted() {
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
+  },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.showPhotoModal) this.showPhotoModal = false;
+    },
     async uploadPhotos(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;

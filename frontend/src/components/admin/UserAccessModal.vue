@@ -270,6 +270,7 @@ import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 // Ключ, которым бэкенд закрывает PUT /users/:id/admin (services.KeyActionGrantAdmin).
 const GRANT_ADMIN_KEY = 'action.grant.admin';
@@ -411,10 +412,12 @@ export default {
   },
   mounted() {
     document.addEventListener('keydown', this.onKeydown);
+    setBodyScrollLock(this, true);
     this.load();
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
   },
   methods: {
     onKeydown(e) {
