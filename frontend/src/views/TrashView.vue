@@ -360,9 +360,9 @@
 </template>
 
 <script>
-import ExcelJS from 'exceljs';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
@@ -778,64 +778,22 @@ export default {
       this.isExporting = true;
       try {
         const isCars = this.tableType === 'cars';
-        const headers = isCars
-          ? ['Номер заявки', 'Дата и время удаления', 'Номер Т/С', 'Марка', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил']
-          : ['Номер заявки', 'Дата и время удаления', 'Фамилия', 'Имя', 'Отчество', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил'];
-
         const status = isCars ? 'Удалена' : 'Удалён';
-        const dataRows = this.sortedItems.map((item) => (isCars
-          ? [item.application_number || '', this.formatDateTime(item.deleted_at), item.car_number || '', item.mark_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']
-          : [item.application_number || '', this.formatDateTime(item.deleted_at), item.last_name || '', item.first_name || '', item.middle_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']));
-
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Korzina');
-
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        });
-
-        dataRows.forEach((row, index) => {
-          const r = worksheet.addRow(row);
-          r.height = 20;
-          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          r.eachCell((cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-            cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-          });
-        });
-
-        // Авто-ширина по содержимому (через getColumn - применяется после addRow).
-        headers.forEach((h, i) => {
-          const maxLen = Math.max(h.length, ...dataRows.map(row => String(row[i] ?? '').length));
-          worksheet.getColumn(i + 1).width = Math.min(Math.max(maxLen + 6, 16), 80);
-        });
-        // Первый столбец должен вмещать подписи футера.
-        worksheet.getColumn(1).width = Math.max(worksheet.getColumn(1).width || 0, 22);
-
-        worksheet.addRow([]);
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedExportDateTime]);
-        [infoRow1, infoRow2].forEach((row) => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-          });
-        });
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.download = `korzina_${this.displayName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      } catch (e) {
-        console.error('Ошибка экспорта корзины', e);
+        // Внешней рамки у выгрузки корзины не было - вид оставляем прежним.
+        await downloadExcelSheet({
+          sheetName: 'Korzina',
+          header: isCars
+            ? ['Номер заявки', 'Дата и время удаления', 'Номер Т/С', 'Марка', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил']
+            : ['Номер заявки', 'Дата и время удаления', 'Фамилия', 'Имя', 'Отчество', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил'],
+          rows: this.sortedItems.map(item => (isCars
+            ? [item.application_number || '', this.formatDateTime(item.deleted_at), item.car_number || '', item.mark_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']
+            : [item.application_number || '', this.formatDateTime(item.deleted_at), item.last_name || '', item.first_name || '', item.middle_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || ''])),
+          info: [
+            ['Отчёт сформировал:', this.currentUserDisplayName],
+            ['Дата формирования:', this.formattedExportDateTime],
+          ],
+        }, `korzina_${this.displayName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      } catch {
         useDeletionsStore().notify({ prefix: 'Ошибка при экспорте', type: 'error' });
       } finally {
         this.isExporting = false;

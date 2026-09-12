@@ -22,18 +22,20 @@ const ALLOWED = [
   // Читают чужой файл, а не собирают свой: просмотрщик вложения и разбор текста.
   'components/admin/XlsxViewer.vue',
   'utils/documentTextExtract.js',
+  // Две служебные таблицы без оформления: список ошибок разбора бланка и перечень тех,
+  // кто не подтвердил согласие. У них нет ни чередования строк, ни рамок, ни подписи
+  // «кто сформировал» - это рабочие списки на один взгляд, а не отчёты наружу. Общий лист
+  // нарисовал бы им чередование и рамки, то есть изменил бы файл, который человек уже
+  // привык видеть, - поэтому они остаются со своей книгой осознанно.
+  'components/CreateApplication/BlankImportResult.vue',
+  'components/admin/DataProcessingSettings.vue',
 ];
 
-/** Ещё не переведённые на общий лист. Каждый срез #2418 вычёркивает отсюда строки. */
-const PENDING = [
-  'components/admin/blacklist/BlacklistHistoryModalBase.vue',
-  'components/admin/DataProcessingSettings.vue',
-  'components/ApplicationApproverHistoryModal.vue',
-  'components/CreateApplication/BlankImportResult.vue',
-  'components/SystemTableHistoryModal.vue',
-  'components/TrashHistoryModal.vue',
-  'views/TrashView.vue',
-];
+/**
+ * Ещё не переведённые на общий лист. Список пуст: #2418 закрыт, и теперь проверка работает
+ * как запрет - своя книга допустима только у перечисленных выше файлов.
+ */
+const PENDING = [];
 
 function sourceFiles(dir) {
   const found = [];

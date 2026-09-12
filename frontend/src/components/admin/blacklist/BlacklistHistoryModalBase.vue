@@ -227,10 +227,10 @@
 <script>
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import { formatDateTime } from '@/utils/datetime';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import ExcelJS from 'exceljs';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 const ACTION_DOT_CLASS = {
@@ -247,6 +247,17 @@ const ACTION_DOT_CLASS = {
  * ExcelJS-экспорт). Сущность-специфика (заголовок, тексты действий, лейблы полей
  * details, загрузчик) приходит через props - так машины и люди делят один layout.
  */
+/** Ширины колонок истории чёрного списка: набор колонок зависит от раздела. */
+const BLACKLIST_HISTORY_WIDTHS = {
+  'Дата и время': 22,
+  Пользователь: 30,
+  Объект: 32,
+  Действие: 26,
+  Детали: 60,
+  'Тип действия': 18,
+  'ID записи': 12,
+};
+
 export default {
   name: 'BlacklistHistoryModalBase',
   components: { LoaderSpinner, AppIcon },
@@ -531,93 +542,22 @@ export default {
       if (this.filteredHistory.length === 0) return;
       this.isExporting = true;
       try {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('История');
-
-        const headers = Object.keys(this.exportData[0]);
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          };
-        });
-
-        this.exportData.forEach((item, index) => {
-          const row = worksheet.addRow(headers.map((h) => item[h]));
-          row.height = 20;
-          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          row.eachCell((cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-            cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle', wrapText: true };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            };
-          });
-        });
-
-        const lastDataRow = this.exportData.length;
-        const cols = headers.length;
-        for (let row = 1; row <= lastDataRow + 1; row++) {
-          const rightCell = worksheet.getCell(row, cols);
-          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
-          const leftCell = worksheet.getCell(row, 1);
-          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        for (let col = 1; col <= cols; col++) {
-          const topCell = worksheet.getCell(1, col);
-          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
-          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
-          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-
-        worksheet.addRow([]);
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
-        [infoRow1, infoRow2].forEach((row) => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            };
-          });
-        });
-
-        const colWidths = {
-          'Дата и время': 22,
-          Пользователь: 30,
-          Объект: 32,
-          Действие: 26,
-          Детали: 60,
-          'Тип действия': 18,
-          'ID записи': 12,
-        };
-        worksheet.columns = headers.map((h) => ({ width: colWidths[h] || 20 }));
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.download = `Istoriya_chs_${this.safeEntityLabel}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Error exporting blacklist history to Excel:', error);
+        // Колонки здесь не постоянные: «Объект» появляется только у разделов, которым
+        // передана подпись сущности, поэтому заголовки берём из самих строк.
+        const data = this.exportData;
+        const header = Object.keys(data[0]);
+        await downloadExcelSheet({
+          sheetName: 'История',
+          header,
+          rows: data.map(row => header.map(column => row[column])),
+          widths: header.map(column => BLACKLIST_HISTORY_WIDTHS[column] || 20),
+          info: [
+            ['Отчёт сформировал:', this.currentUserDisplayName],
+            ['Дата формирования:', this.formattedCurrentDateTime],
+          ],
+          outerBorder: true,
+        }, `Istoriya_chs_${this.safeEntityLabel}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`);
+      } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'выгрузить историю', type: 'error' });
       } finally {
         this.isExporting = false;

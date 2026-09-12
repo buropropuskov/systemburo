@@ -36,7 +36,10 @@ const COL_MAX = 60;
  * @property {string} sheetName имя листа (обрежется до 31 знака)
  * @property {string[]} header заголовки колонок
  * @property {Array<Array<string|number|null>>} rows строки данных
- * @property {number[]} [widths] ширины колонок; без них считаются по содержимому
+ * @property {number[]} [widths] ширины колонок в символах
+ * @property {boolean} [autoWidths] посчитать ширины по содержимому, если своих нет.
+ *   Без флага и без widths ширины не задаются вовсе - у части выгрузок их и не было, а
+ *   «посчитать всем на всякий случай» изменило бы файл, который человек привык видеть
  * @property {Array<string|number>} [totalsRow] строка итогов под данными
  * @property {Array<[string, string|number]>} [info] подписи под таблицей: пары «метка, значение»
  * @property {boolean} [outerBorder] жирная внешняя рамка вокруг таблицы
@@ -127,7 +130,10 @@ export async function buildExcelSheetBlob(spec) {
     }
   }
 
-  sheet.columns = (spec.widths && spec.widths.length ? spec.widths : autoWidths(spec)).map(width => ({ width }));
+  const widths = spec.widths && spec.widths.length
+    ? spec.widths
+    : (spec.autoWidths ? autoWidths(spec) : null);
+  if (widths) sheet.columns = widths.map(width => ({ width }));
 
   if (spec.info && spec.info.length) {
     sheet.addRow([]);
