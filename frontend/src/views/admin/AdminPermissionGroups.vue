@@ -224,6 +224,7 @@
                 <button
                   class="lk-button lk-button--primary"
                   :class="{ 'is-busy': isSaving }"
+                  :aria-busy="isSaving"
                   :disabled="!isDetailsDirty || isSaving"
                   data-testid="group-save"
                   @click="saveSelected"
