@@ -24,3 +24,6 @@ pnpm-debug.log*
 
 # Site smoke crawler reports
 site-crawl-reports/
+
+# Layout audit reports
+e2e/reports/
