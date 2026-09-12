@@ -4,6 +4,11 @@ import { createPinia, setActivePinia } from 'pinia';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }),
+  // Журнал проходов читает страницу через apiRequestRaw: ему нужен meta.total (#2469).
+  apiRequestRaw: vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, page: 1, per_page: 50 } }),
+  }),
 }));
 vi.mock('exceljs', () => ({ default: { Workbook: class {} } }));
 

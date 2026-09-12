@@ -1,5 +1,16 @@
 basePath: /
 definitions:
+  handlers.AttachmentExecutionMarkResponse:
+    properties:
+      execution_marked_until:
+        type: string
+      seconds_left:
+        description: |-
+          SecondsLeft - тот же срок числом секунд. Кнопка отсчитывает по нему, а не по
+          разнице с часами браузера: отстающие на пару секунд часы показывали «повтор
+          через 5:02» при окне в пять минут.
+        type: integer
+    type: object
   handlers.AvailableAttachmentDetail:
     properties:
       attachment:
@@ -3016,20 +3027,43 @@ definitions:
     type: object
   pdsubject.Candidate:
     properties:
+      application_rows:
+        type: integer
+      document_tail:
+        type: string
+      employee_id:
+        type: integer
       full_name:
         type: string
+      fuzzy:
+        description: Fuzzy - найдено по похожему написанию, а не точному совпадению
+          имени.
+        type: boolean
       has_document:
         type: boolean
-      id:
-        type: integer
-      source:
+      organization:
+        description: |-
+          Чем однофамильцы отличаются друг от друга. Без этого список трёх людей с одним
+          ФИО выглядит как три одинаковые строки.
         type: string
+      position:
+        type: string
+      registry_id:
+        description: |-
+          RegistryID / EmployeeID - от чего собирать сведения. Записи реестра может не
+          быть вовсе: человек, встречающийся только в заявках, тоже обязан находиться -
+          именно о нём и приходит запрос государственного органа.
+        type: integer
+      registry_rows:
+        type: integer
     type: object
   pdsubject.ExportRequest:
     properties:
       basis:
         maxLength: 1000
         type: string
+      employee_id:
+        type: integer
       format:
         enum:
         - xlsx
@@ -3039,13 +3073,15 @@ definitions:
         maxLength: 300
         type: string
       registry_id:
+        description: |-
+          Указывают одно из двух: запись реестра или строку заявки (у человека без
+          записи реестра второй путь единственный).
         type: integer
       request_ref:
         maxLength: 300
         type: string
     required:
     - recipient
-    - registry_id
     - request_ref
     type: object
   pdsubject.ReportResponse:
@@ -3077,14 +3113,8 @@ definitions:
         type: string
     type: object
   services.ActivateCarRequest:
-    properties:
-      user_id:
-        type: integer
     type: object
   services.ActivateEmployeeRequest:
-    properties:
-      user_id:
-        type: integer
     type: object
   services.AddCarHistoryRequest:
     properties:
@@ -3100,8 +3130,6 @@ definitions:
         type: string
       old_value:
         type: string
-      user_id:
-        type: integer
     type: object
   services.AddHistoryEntryRequest:
     properties:
@@ -3125,37 +3153,6 @@ definitions:
         type: integer
     required:
     - action_type
-    type: object
-  services.AllCarsHistoryItem:
-    properties:
-      action_type:
-        type: string
-      car_brand:
-        type: string
-      car_id:
-        type: integer
-      car_number:
-        type: string
-      comment:
-        type: string
-      company:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: integer
-      organization:
-        type: string
-      reverted:
-        type: boolean
-      table_id:
-        type: integer
-      table_name:
-        type: string
-      user_id:
-        type: integer
-      user_name:
-        type: string
     type: object
   services.AnswerItem:
     properties:
@@ -3576,10 +3573,31 @@ definitions:
         type: string
       entry_time_to:
         type: string
+      execution_marked_until:
+        description: |-
+          ExecutionMarkedUntil / ExecutionMarks (#2446) - заполняются ТОЛЬКО детальным
+          эндпоинтом (GetAvailableAttachmentDetail), не листингом: считать их для каждой
+          строки списка означало бы лишний запрос на карточку, а кнопка отметки живёт
+          только в открытой детали. Поля лежат здесь, а не сбоку в ответе хендлера, чтобы
+          фронт получил их тем же :attachment, каким уже передаёт detail.attachment в
+          дочерние компоненты - без этого разбор ответа тихо не находит их вовсе (ушли бы
+          в другую ветку JSON). gorm:"-" на ExecutionMarks обязателен: без тега плоский
+          Raw(...).Scan листинга падает 500 - GORM видит указатель на struct со срезом
+          внутри и пытается резолвить его как связь (belongs-to/has-many), а не как
+          обычное поле. На ExecutionMarkedUntil тег для симметрии и той же гарантии.
+        type: string
+      execution_marks:
+        $ref: '#/definitions/services.ExecutionMarksSummary'
       has_blank:
         description: |-
           HasBlank - у типа вложения (unique_attachment) есть активный Excel-шаблон, значит для этого
           вложения генерируется заполненный бланк (#706 S4). По нему фронт показывает "Посмотреть файл".
+        type: boolean
+      is_manual:
+        description: |-
+          IsManual - вложение заведено вручную (#1049), заявки за ним нет. Отдаём явным
+          полем, а не выводим из пустого application_id: на карточке такому вложению
+          вместо имени пишут тип и пометку «добавлено вручную» (#2450).
         type: boolean
       organization_name:
         type: string
@@ -3798,12 +3816,17 @@ definitions:
     type: object
   services.CarCurrentStatus:
     properties:
+      can_revert:
+        description: CanRevert и LastMarkTableID - см. EmployeeCurrentStatus (#2437).
+        type: boolean
       car_id:
         type: integer
       entry_time:
         type: string
       last_exit_time:
         type: string
+      last_mark_table_id:
+        type: integer
       territory_status:
         type: integer
     type: object
@@ -4312,16 +4335,12 @@ definitions:
         type: integer
       table_id:
         type: integer
-      user_id:
-        type: integer
     type: object
   services.DeactivateEmployeeRequest:
     properties:
       status:
         type: integer
       table_id:
-        type: integer
-      user_id:
         type: integer
     type: object
   services.DirectoryEntry:
@@ -4429,12 +4448,23 @@ definitions:
     type: object
   services.EmployeeCurrentStatus:
     properties:
+      can_revert:
+        description: |-
+          CanRevert - спрашивающий может отменить последнюю отметку прямо сейчас (#2437):
+          либо она его и свежая, либо он администратор. Считает бэк, чтобы правило и его
+          окно жили в одном месте, а не повторялись в трёх таблицах на фронте.
+        type: boolean
       employee_id:
         type: integer
       entry_time:
         type: string
       last_exit_time:
         type: string
+      last_mark_table_id:
+        description: |-
+          LastMarkTableID - пост, на котором поставлена последняя отметка. Таблица прячет
+          кнопку отмены у чужих постов: отменять отметку можно только там, где её поставили.
+        type: integer
       territory_status:
         type: integer
     type: object
@@ -4608,6 +4638,28 @@ definitions:
         items:
           $ref: '#/definitions/services.TableInfoRef'
         type: array
+    type: object
+  services.ExecutionMarkEntry:
+    properties:
+      actor_name:
+        type: string
+      created_at:
+        type: string
+    type: object
+  services.ExecutionMarksSummary:
+    properties:
+      recent:
+        items:
+          $ref: '#/definitions/services.ExecutionMarkEntry'
+        type: array
+      seconds_left:
+        description: |-
+          SecondsLeft - сколько секунд осталось до повтора. Отдаём ЧИСЛО, а не только
+          момент окончания: фронт раньше вычитал `until` из своих часов, и браузер,
+          отстающий на пару секунд, показывал «повтор через 5:02» при окне в пять минут.
+        type: integer
+      today_count:
+        type: integer
     type: object
   services.FactPassData:
     properties:
@@ -5198,14 +5250,8 @@ definitions:
         type: string
     type: object
   services.RestoreCarRequest:
-    properties:
-      user_id:
-        type: integer
     type: object
   services.RestoreEmployeeRequest:
-    properties:
-      user_id:
-        type: integer
     type: object
   services.RevertPassageRequest:
     properties:
@@ -5995,8 +6041,6 @@ definitions:
         type: integer
       territory_status:
         type: integer
-      user_id:
-        type: integer
     type: object
   services.UpdateCompanyTablesRequest:
     properties:
@@ -6048,8 +6092,6 @@ definitions:
           чтобы в карточке истории было видно, где произошло событие.
         type: integer
       territory_status:
-        type: integer
-      user_id:
         type: integer
     type: object
   services.UpdateTimeSlotRequest:
@@ -8738,6 +8780,54 @@ paths:
       summary: Деталь доступного вложения
       tags:
       - applications
+  /applications/available-attachments/{id}/mark-executed:
+    post:
+      description: Охранник подтверждает, что по заявке во вкладке "Доступные мне"
+        приехали/пришли (#2446). Отметка не копится состоянием - только запись в журнале;
+        повтор в течение 5 минут отклоняется (409), дальше можно отметить заново.
+        Доступ - как у детали вложения.
+      parameters:
+      - description: ID вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AttachmentExecutionMarkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Отметить вложение исполненным
+      tags:
+      - applications
   /applications/export:
     get:
       description: |-
@@ -10501,18 +10591,55 @@ paths:
       - cars
   /cars/history/all:
     get:
+      parameters:
+      - description: Кто отметил проход
+        in: query
+        name: user_id
+        type: integer
+      - description: Конкретная машина
+        in: query
+        name: car_id
+        type: integer
+      - description: Начало периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_from
+        type: string
+      - description: Конец периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_to
+        type: string
+      - description: Поиск по номеру, марке, организации, компании и ФИО отметившего
+        in: query
+        name: search
+        type: string
+      - default: desc
+        description: Порядок по времени отметки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
+      - default: 1
+        description: Страница
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Записей на странице (максимум 200)
+        in: query
+        name: per_page
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/services.AllCarsHistoryItem'
-            type: array
+            $ref: '#/definitions/handlers.Response'
       security:
       - BearerAuth: []
-      summary: Получение истории въездов/выездов всех автомобилей
+      summary: Получение страницы истории въездов/выездов всех автомобилей
       tags:
       - cars
   /cars/history/current-status:
@@ -10531,6 +10658,25 @@ paths:
       summary: Получение текущего территориального статуса активных автомобилей
       tags:
       - cars
+  /cars/history/filter-options:
+    get:
+      parameters:
+      - description: Сузить до таблицы проходной
+        in: query
+        name: table_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Значения выпадающих списков журнала проходов машин
+      tags:
+      - cars
   /cars/history/table/{table_id}:
     get:
       parameters:
@@ -10539,15 +10685,51 @@ paths:
         name: table_id
         required: true
         type: integer
+      - description: Кто отметил проход
+        in: query
+        name: user_id
+        type: integer
+      - description: Конкретная машина
+        in: query
+        name: car_id
+        type: integer
+      - description: Начало периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_from
+        type: string
+      - description: Конец периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_to
+        type: string
+      - description: Поиск по номеру, марке, организации, компании и ФИО отметившего
+        in: query
+        name: search
+        type: string
+      - default: desc
+        description: Порядок по времени отметки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
+      - default: 1
+        description: Страница
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Записей на странице (максимум 200)
+        in: query
+        name: per_page
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/services.AllCarsHistoryItem'
-            type: array
+            $ref: '#/definitions/handlers.Response'
       security:
       - BearerAuth: []
       summary: Получение истории въездов/выездов таблицы проходной
@@ -15495,13 +15677,16 @@ paths:
       - pd-audit
   /pd-subject/candidates:
     get:
-      description: 'Записи реестра и участники заявок с таким же ФИО. Склейки по имени
+      description: 'Поиск человека по имени или по номеру документа. Склейки по имени
         нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.'
       parameters:
       - description: Фамилия Имя Отчество
         in: query
         name: fio
-        required: true
+        type: string
+      - description: Номер паспорта или патента
+        in: query
+        name: document
         type: string
       produces:
       - application/json
