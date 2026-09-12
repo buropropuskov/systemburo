@@ -21,9 +21,11 @@
 /** Клик, раскрывающий окно создания в разделе администрирования. */
 const ADMIN_CREATE = ['.add-header-button'];
 
-// Имя таблицы для /table/:tableName. На стенде существует `auto_blank`; для другого
-// окружения подменяется переменной окружения, чтобы аудит не падал на 404.
-const TABLE_NAME = process.env.AUDIT_TABLE || 'auto_blank';
+// Имя таблицы для /table/:tableName - это имя ТАБЛИЦЫ ПОСТА (`/api/system-tables`),
+// не бланка: с именем бланка страница отдаёт 404, и обход снимал бы замеры со
+// страницы «не найдено». На стенде это `kpp_4`; для другого окружения подменяется
+// переменной окружения.
+const TABLE_NAME = process.env.AUDIT_TABLE || 'kpp_4';
 
 /** @typedef {{slug:string,name:string,path:string,area:'user'|'admin',card?:string,open?:string[]}} Screen */
 

@@ -682,7 +682,7 @@ export default {
         // На ровно 768 таблицы оставались десктопными, а шапка страницы уже уезжала в
         // мобильный режим - экран собирался гибридом (свёрнутые фильтры над обычной
         // таблицей). CSS-медиа этого компонента переведены на тот же порог.
-        const { isNarrow } = useNarrowScreen(767.98);
+        const { isNarrow } = useNarrowScreen(899.98);
 
         const onboardingStore = useOnboardingStore();
         return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore, onboardingStore, isNarrow };
@@ -1984,7 +1984,32 @@ export default {
    responsive-tables.css с тем же порогом, и JS-гейт isNarrow переведён туда же.
    На ровно 768 (портретный iPad) правила расходились, и экран собирался гибридом -
    эталон §1.2. */
-@media (max-width: 767.98px) {
+/* Планшет в ландшафте и iPad Pro в портрете (900-1024). Ряд фильтров здесь ещё
+   десктопный, но места ему уже не хватает: `clamp(120px, 14vw, 200px)` вместе с
+   `flex-shrink: 1` ужимал дропдауны до 30px, и вместо «Все организации» оставалось
+   «Е∨». Разрешаем перенос и держим читаемый минимум. */
+@media (min-width: 900px) and (max-width: 1024px) {
+    .tables__filters,
+    .filters__fields {
+        flex-wrap: wrap;
+    }
+
+    .filters__control {
+        width: auto;
+        flex: 1 1 150px;
+        min-width: 150px;
+    }
+
+    /* Подсказка при 35% ширины обрезала последнюю строку текста: он лежит в
+       absolute-слое, а высоту секции диктует соседняя таблица. На планшете отдаём
+       ей целую строку под таблицей - текст виден полностью. */
+    .fact-hint-card {
+        flex: 1 1 100%;
+        order: 2;
+    }
+}
+
+@media (max-width: 899.98px) {
     /* Модель прокрутки телефона (четвёртый круг замечаний владельца): "скроллится
        вся страница, кроме шапки" - панель фиксированной высоты с внутренней
        прокруткой (волна 13) владелец забраковал вместе с той, что была до неё
