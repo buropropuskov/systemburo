@@ -736,12 +736,12 @@ export default {
     pinLeavingElement,
     /**
      * Мобильный брейкпоинт: тот же 767.98, что у card-правил responsive-tables.css.
-     * Порог держим равным CSS @media, иначе на ровно 768px (iPad-портрет) иконка
+     * Порог держим равным CSS @media (899.98 - граница карточек), иначе на стыке иконка
      * появилась бы без своих стилей оверлея (урок S8 про рассинхрон 768/767.98).
      */
     initMobileWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-      this._mobileMql = window.matchMedia('(max-width: 767.98px)');
+      this._mobileMql = window.matchMedia('(max-width: 899.98px)');
       this.isMobileHeader = this._mobileMql.matches;
       this._onMobileChange = (e) => {
         this.isMobileHeader = e.matches;
@@ -1978,7 +1978,7 @@ export default {
   }
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
   /* Панель заявок edge-to-edge: без боковой рамки и скругления, чтобы список писем
      шёл от края до края экрана (боковой padding дашборда гасит AccountComponent).
      overflow:visible - чтобы sticky-шапка ниже прилипала к вьюпорту, а не клипалась

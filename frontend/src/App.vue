@@ -393,10 +393,11 @@ html, body {
 /*
  * Контент на desktop заходит на 25px под рельс NavMenu. Переменную --nav-ml
  * выставляет NavMenu по персистентному состоянию (свёрнут 25 / пин 120 / hide 0);
- * hover-разворот оверлеит контент и margin не меняет. На мобильном (<768px)
- * NavMenu - burger-drawer, margin не нужен.
+ * hover-разворот оверлеит контент и margin не меняет. До 1024 включительно
+ * NavMenu - burger-drawer, margin не нужен: рельс разворачивается по наведению,
+ * а на планшете наведения нет, поэтому там та же навигация, что на телефоне.
  */
-@media (min-width: 768px) {
+@media (min-width: 1025px) {
   body.auth-active #app {
     margin-left: var(--nav-ml, 25px);
     transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -457,12 +458,12 @@ body.nav-drawer-open {
 
 /*
  * Mobile bottom-sheet паттерн для всех модалок с классами
- * .modal-overlay > .modal-content. На <768px модалка прилипает к низу
+ * .modal-overlay > .modal-content. До 900px модалка прилипает к низу
  * экрана, ширина 100%, высота - по контенту (короткие confirmations
  * не тянутся на весь экран). Длинные модалки получают internal scroll
  * до 90dvh. !important нужен потому что большинство использует scoped.
  */
-@media (max-width: 768px) {
+@media (max-width: 899.98px) {
   .modal-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
@@ -487,6 +488,31 @@ body.nav-drawer-open {
        и перебивает inline-transform свайпа (лист не тянется за пальцем). backwards даёт
        кадр 'from' до старта (без мигания) и отпускает transform после - свайп работает. */
     animation: app-sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  }
+
+  /* Окна со своим классом вместо .modal-content (.role-modal, .nf-modal, .group-modal,
+     окна историй справочников - таких в проекте больше тридцати) прижимаются к низу
+     правилом оверлея выше, но геометрию листа не получают: на телефоне у них
+     оставался десктопный радиус 30px там, где у соседей 16. Скругление задаём всем
+     прямым потомкам затемнения - ширину и высоту не трогаем, их окна считают сами.
+     Полноэкранные карточки (`.modal-wrapper` - Т/С, сотрудник, транспорт) исключены
+     намеренно: они занимают экран целиком, и скруглённые углы у самого края читаются
+     как брак - именно это в эпике #1097 звучало от владельца словом «уголки». */
+  .modal-overlay > *:not(.modal-content):not(.modal-wrapper) {
+    border-radius: 16px 16px 0 0 !important;
+    max-width: 100vw !important;
+  }
+
+  /* Шапка листа компактная. У окон админки она рисуется по десктопным меркам и
+     съедает до 79px высоты (замер на «Типах пользователей»), тогда как эталонная
+     шапка листа занимает 53. На маленьком экране это разница в две строки формы. */
+  .modal-overlay .modal-header {
+    padding: 10px 16px !important;
+  }
+
+  .modal-overlay .modal-header h3,
+  .modal-overlay .modal-header .modal-title {
+    font-size: 16px !important;
   }
 
   /* Для inputs и textarea внутри модалок - font-size 16px предотвращает

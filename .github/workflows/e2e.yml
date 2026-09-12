@@ -55,11 +55,6 @@ jobs:
       E2E_SUPERADMIN_USER: buropropuskov
       E2E_SUPERADMIN_PASSWORD: 'BuroAdmin2026!'
       E2E_API_BASE_URL: 'http://localhost:8080/api'
-      # Шифрование персональных данных обязательно по умолчанию (#2464), и сервер
-      # без ключа не стартует: в прогоне заводятся паспорта, и режим должен
-      # совпадать с боевым. Ключ тестовый и одноразовый - база прогона живёт
-      # минуты и удаляется вместе с раннером.
-      DATA_ENCRYPTION_KEY: '3f1c9a7d2e5b8046c1d3a5f709b2e4c68d0a1f3b5d7e9012a4c6e8b0d2f4a6c8'
       LOGIN_RATE_LIMIT_MAX: '1000'
       LOGIN_RATE_LIMIT_WINDOW_SEC: '60'
       # API rate-limit повышаем для параллельных e2e shards - 4 worker'а
@@ -74,6 +69,17 @@ jobs:
       - uses: ./.github/actions/playwright-cache
         with:
           browser: chromium
+
+      # Шифрование персональных данных обязательно по умолчанию (#2464): без ключа
+      # сервер не стартует, а выключать шифрование для прогона нельзя - в сценариях
+      # заводятся заявки с паспортами, и режим обязан совпадать с боевым.
+      #
+      # Ключ генерируется здесь, а не лежит в файле: записанный в репозиторий, он
+      # ловится сканером секретов как ключ доступа (#2464), и прятать его списком
+      # исключений значило бы учить сканер молчать. Одного прогона ему и хватает -
+      # база и раннер живут минуты.
+      - name: Generate data encryption key
+        run: echo "DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
       - name: Build backend
         run: go build -o ./bin/server ./cmd/server

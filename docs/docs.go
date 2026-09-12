@@ -9876,15 +9876,69 @@ const docTemplate = `{
                 "tags": [
                     "employees-history"
                 ],
-                "summary": "Получение истории въездов/выходов всех сотрудников",
+                "summary": "Получение страницы истории входов/выходов всех сотрудников",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Кто отметил проход",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Конкретный сотрудник",
+                        "name": "employee_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по ФИО сотрудника, организации, компании и ФИО отметившего",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Порядок по времени отметки",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Записей на странице (максимум 200)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.EmployeeHistoryItem"
-                            }
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -9917,6 +9971,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/employees/history/filter-options": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees-history"
+                ],
+                "summary": "Значения выпадающих списков журнала проходов людей",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Сузить до таблицы проходной",
+                        "name": "table_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/employees/history/table/{table_id}": {
             "get": {
                 "security": [
@@ -9938,16 +10024,68 @@ const docTemplate = `{
                         "name": "table_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Кто отметил проход",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Конкретный сотрудник",
+                        "name": "employee_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по ФИО сотрудника, организации, компании и ФИО отметившего",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Порядок по времени отметки",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Записей на странице (максимум 200)",
+                        "name": "per_page",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.EmployeeHistoryItem"
-                            }
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }

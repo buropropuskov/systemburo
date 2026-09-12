@@ -113,12 +113,14 @@ describe('NavMenu: переключатель темы (#1415)', () => {
     expect(rule[1]).toMatch(/transition:[^;]*transform[^;]*!important/);
   });
 
-  it('в drawer на телефоне ползунок видим и стоит справа', () => {
+  it('в drawer на телефоне и планшете ползунок видим и стоит справа', () => {
     // Индикатор проявляется правилом .nav-menu.expanded, а drawer этот класс
     // никогда не получает (expandMenu гейтит разворот на мобилке), поэтому
-    // мобильный медиа-блок обязан показать ползунок сам.
+    // тач-медиа-блок обязан показать ползунок сам.
+    // Порог блока - 1024: на планшете рельс с разворотом по наведению бесполезен,
+    // поэтому drawer работает до 1024 включительно (#2473).
     const sfc = readFileSync(resolve(__dirname, '../NavMenu.vue'), 'utf8');
-    const start = sfc.indexOf('@media (max-width: 768px)');
+    const start = sfc.indexOf('@media (max-width: 1024px)');
     expect(start, 'нет мобильного медиа-блока').toBeGreaterThan(-1);
 
     let depth = 0;

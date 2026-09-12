@@ -154,7 +154,7 @@
                 </p>
                 <button
                   type="button"
-                  class="lk-button lk-button--secondary ban-box__btn"
+                  class="lk-button lk-button--primary ban-box__btn"
                   data-testid="unban-button"
                   :disabled="banActionLoading"
                   @click="handleUnban"
@@ -171,7 +171,7 @@
                 />
                 <button
                   type="button"
-                  class="lk-button lk-button--danger ban-box__btn"
+                  class="lk-button lk-button--danger-solid ban-box__btn"
                   data-testid="ban-button"
                   :disabled="isSuper || banActionLoading"
                   :title="isSuper ? 'Супер-администратора заблокировать нельзя' : ''"
@@ -270,6 +270,7 @@ import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 // Ключ, которым бэкенд закрывает PUT /users/:id/admin (services.KeyActionGrantAdmin).
 const GRANT_ADMIN_KEY = 'action.grant.admin';
@@ -411,10 +412,12 @@ export default {
   },
   mounted() {
     document.addEventListener('keydown', this.onKeydown);
+    setBodyScrollLock(this, true);
     this.load();
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
   },
   methods: {
     onKeydown(e) {
@@ -975,6 +978,8 @@ export default {
 
 .ban-box__btn {
   width: 100%;
+  /* Тач-норма проекта - 44px (эталон адаптивности §18), базовый padding даёт 32px. */
+  min-height: 44px;
 }
 
 /* --- Поиск по правам --- */
@@ -1049,31 +1054,10 @@ export default {
   opacity: 0.7;
 }
 
-/* --- Кнопки (.lk-button pill) --- */
-.lk-button {
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 9px 20px;
-  border-radius: var(--radius-pill);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.lk-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.lk-button--primary { background: var(--color-primary); color: #fff; }
-.lk-button--primary:not(:disabled):hover { background: var(--color-primary-hover); }
-.lk-button--ghost { background: transparent; color: var(--color-text); border-color: var(--color-border); }
-.lk-button--ghost:not(:disabled):hover { border-color: var(--accent); color: var(--accent-text); }
-.lk-button--secondary { background: #fff; color: var(--color-text); border-color: var(--color-border); }
-.lk-button--secondary:not(:disabled):hover { border-color: var(--accent); color: var(--accent-text); }
-.lk-button--danger { background: #fff; color: var(--danger-text); border-color: #fecaca; }
-.lk-button--danger:not(:disabled):hover { background: var(--color-danger); color: #fff; border-color: var(--danger); }
+/* Своего оформления кнопок здесь нет намеренно: локальная копия жила на устаревших
+   токенах с хардкодом #fff (в тёмной теме это давало белую кнопку), совпадала по
+   специфичности с общими правилами из forms.css и грузилась позже - ленивым чанком
+   раздела. Оформление берём общее. */
 
 /* --- Футер --- */
 .access-modal__foot {

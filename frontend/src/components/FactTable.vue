@@ -468,7 +468,7 @@ export default {
   setup() {
     // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
     // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
-    const { isNarrow } = useNarrowScreen(767.98);
+    const { isNarrow } = useNarrowScreen(899.98);
     return { isNarrow };
   },
   data() {
@@ -1626,7 +1626,7 @@ export default {
   transition: transform 0.5s ease;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
   /* Высота - по содержимому в обе стороны. `min-height: 222px` из базовых стилей
      держит на десктопе ряд с карточкой-подсказкой; на телефоне подсказка стоит
      отдельным блоком, а резерв высоты остаётся резервом под список, которого может

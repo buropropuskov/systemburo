@@ -1,0 +1,138 @@
+/* Мобильная раскладка админки (эпик #2473).
+ *
+ * Разделы /admin/* писались под десктоп: шапка в одну строку, поиск фиксированной
+ * ширины, мастер-детейл в две колонки. Карточный вид строк они получили от
+ * `responsive-tables.css`, но всё, что вокруг таблицы, осталось десктопным - на 390
+ * поиск обрезается до «Поиск орг», чекбокс строки висит одиноким квадратом по центру
+ * карточки, а подсказка «Выберите роль» вылезает за левый край панели.
+ *
+ * Здесь общий слой для всех разделов сразу: правило пишется один раз и достаётся
+ * двадцати шести страницам, а не копируется в каждый компонент управления.
+ *
+ * `!important` по той же причине, что и в `responsive-tables.css`: глобальный
+ * селектор (0,1,0) проигрывает scoped-селектору компонента (0,2,0), а компоненты
+ * админки - ленивые чанки, чей CSS грузится позже общего бандла.
+ *
+ * Порог 899.98 совпадает с порогом карточных правил (`responsive-tables.css`): иначе
+ * собирается гибрид - карточки уже включились, а шапка ещё десктопная. Это та самая
+ * ловушка из эталона §1.2, ради которой брейкпоинт компонента обязан совпадать с
+ * брейкпоинтом инфраструктуры, которой он пользуется.
+ */
+
+@media (max-width: 899.98px) {
+  /* --- Шапка раздела ------------------------------------------------------- */
+
+  /* Заголовок в две-три строки съедал экран до начала списка: «Управление
+     организациями / отделами» занимало 96px из 844. */
+  .admin-page .management-title {
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+  }
+
+  /* Контролы шапки: два ряда вместо перебора по одному. Первый - фильтры, второй -
+     поиск с кнопками действий. Тот же порядок, что в шапке Центра заявок. */
+  .admin-page .header-controls,
+  .admin-page .management-header__actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  /* Дропдауны фильтров делят первый ряд пополам, а не жмутся к краю. */
+  .admin-page .header-controls .archive-dropdown,
+  .admin-page .header-controls > .base-dropdown {
+    min-width: 0 !important;
+    flex: 1 1 calc(50% - 4px) !important;
+    order: 1;
+  }
+
+  /* Поиск занимает остаток второго ряда. При 220px фиксированной ширины он делил
+     строку с двумя дропдаунами и кнопками, оставаясь шириной 110px: плейсхолдер
+     обрезался на середине слова, а введённый текст не было видно целиком. */
+  .admin-page .header-controls .search,
+  .admin-page .management-header__actions .search {
+    width: auto !important;
+    flex: 1 1 140px !important;
+    height: 36px !important;
+    order: 5;
+  }
+
+  /* Кнопки действий - в конце второго ряда, рядом с поиском. */
+  .admin-page .header-controls .add-header-button,
+  .admin-page .header-controls .refresh-btn,
+  .admin-page .management-header__actions .add-header-button,
+  .admin-page .management-header__actions .refresh-btn {
+    flex: 0 0 auto !important;
+    order: 6;
+  }
+
+  /* Дропдауны фильтров дорастают до тач-нормы (36px против штатных 30). Правило
+     скоуплено на админку намеренно: в шапке Центра заявок высота дропдауна 34px
+     согласована с соседними контролами, и трогать её здесь нечего. */
+  .admin-page .base-dropdown__button {
+    min-height: 36px !important;
+  }
+
+  /* --- Строка списка ------------------------------------------------------- */
+
+  /* Чекбокс выбора - ячейка без подписи, и карточные правила растягивают её на всю
+     ширину: получается пустая строка с одиноким квадратом по центру. Уводим его в
+     угол карточки, оставляя тач-зону 44px, а первой ячейке даём место справа, чтобы
+     значение не заезжало под чекбокс. */
+  .admin-page .rt-row {
+    position: relative !important;
+  }
+
+  .admin-page .rt-row .check-col {
+    position: absolute !important;
+    top: 2px !important;
+    right: 4px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+  }
+
+  .admin-page .rt-row .check-col + .table-col {
+    padding-right: 44px !important;
+  }
+
+  /* --- Мастер-детейл ------------------------------------------------------- */
+
+  /* Панель детали на десктопе занимает 60% ширины; на мобилке она встаёт под
+     список, и эти проценты оставляли текст-подсказку шире экрана - её начало
+     уходило за левый край (замер: «Выберите роль для просмотра и редактирования»
+     начиналось на -18px при вьюпорте 390). */
+  .admin-page .no-selection-message,
+  .admin-page .detail-panel--empty {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 20px 16px !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+  }
+
+  /* --- Один скроллпорт на экран ------------------------------------------- */
+
+  /* Список внутри раздела зажимался фиксированной высотой (у организаций и компаний
+     - 255px в медиазапросе на 968), и на телефоне получался экран из двух-трёх
+     вложенных прокруток: палец попадал то в список, то в страницу. AdminPageShell
+     снимает высоту у content-container, table-body и tab-content, но секции у
+     разделов названы по-своему - гасим и их.
+     Именно так дефект возвращался в волне 3 эпика #1097: области гасили по именам
+     классов, а соседние с другим именем оставались нетронутыми. */
+  .admin-page .table-section,
+  .admin-page .table-container,
+  .admin-page .details-column,
+  .admin-page .details-section,
+  .admin-page .items-list {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
