@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -16,13 +18,18 @@ type EmployeesHistoryService interface {
 	GetByEmployee(ctx context.Context, employeeID int) ([]EmployeeHistoryItem, error)
 	// GetUnified возвращает объединённую историю по ФИО (все сотрудники с таким именем).
 	GetUnified(ctx context.Context, lastName, firstName, middleName string) ([]EmployeeHistoryItem, error)
-	// GetAll возвращает историю въездов/выходов всех сотрудников.
-	GetAll(ctx context.Context) ([]EmployeeHistoryItem, error)
+	// GetAll возвращает страницу истории входов/выходов всех сотрудников по фильтру и
+	// общее число подходящих строк.
+	GetAll(ctx context.Context, q models.PassageHistoryQuery) ([]EmployeeHistoryItem, int64, error)
 	// GetCurrentStatus возвращает текущий территориальный статус всех сотрудников.
 	// viewerID - кто спрашивает: от него зависит признак «отметку можно отменить».
 	GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error)
-	// GetByTable возвращает историю сотрудников для конкретной таблицы (места).
-	GetByTable(ctx context.Context, tableID int) ([]EmployeeHistoryItem, error)
+	// GetByTable возвращает страницу истории сотрудников таблицы (места) по фильтру и
+	// общее число подходящих строк.
+	GetByTable(ctx context.Context, tableID int, q models.PassageHistoryQuery) ([]EmployeeHistoryItem, int64, error)
+	// GetFilterOptions отдаёт значения выпадающих списков журнала людей; tableID
+	// сужает до одной таблицы проходной, nil берёт весь журнал.
+	GetFilterOptions(ctx context.Context, tableID *int) (EmployeesHistoryFilterOptions, error)
 }
 
 // EmployeeHistoryItem -- DTO элемента истории сотрудника.
@@ -110,7 +117,7 @@ const baseSelectSQL = `
 		eh.user_id,
 		eh.table_id,
 		st.display_name AS table_name,
-		COALESCE(CONCAT(u.last_name, ' ', u.first_name), 'Система') AS user_name,
+		` + employeesHistoryUserNameSQL + ` AS user_name,
 		eh.action_type,
 		eh.field_name,
 		eh.old_value,
@@ -124,6 +131,19 @@ const baseSelectSQL = `
 		COALESCE(org.name, '') AS organization,
 		COALESCE(comp.name, '') AS company,
 		eh.reverted
+	` + employeesHistoryFromSQL
+
+// employeesHistoryUserNameSQL - ФИО отметившего. Выражение нужно и выборке, и поиску.
+const employeesHistoryUserNameSQL = `COALESCE(CONCAT(u.last_name, ' ', u.first_name), 'Система')`
+
+// employeesHistoryFromSQL - источник истории сотрудников со всеми соединениями. Один и
+// тот же FROM читают страница, счётчик для meta.total и списки фильтра, иначе «показано
+// 50 из 431» разошлось бы с самой выборкой.
+//
+// Своего WHERE здесь нет намеренно: журнал проходов берёт только entry/exit, а история
+// таблицы - все события сотрудников этой таблицы (урок #1085), и базовое условие у них
+// разное.
+const employeesHistoryFromSQL = `
 	FROM ` + employeesHistoryUnion + ` eh
 	LEFT JOIN users u ON eh.user_id = u.id
 	LEFT JOIN system_tables st ON eh.table_id = st.id
@@ -134,6 +154,34 @@ const baseSelectSQL = `
 	-- application_id пустой), поэтому org/company берём через COALESCE с самого вложения.
 	LEFT JOIN organizations org ON org.id = COALESCE(app.organization_id, a.organization_id)
 	LEFT JOIN companies comp ON comp.id = COALESCE(app.company_id, a.company_id)`
+
+// employeesHistoryCountSQL - число строк журнала по тем же условиям, что и страница.
+const employeesHistoryCountSQL = `SELECT COUNT(*)` + employeesHistoryFromSQL
+
+// employeesHistoryPassageWhereSQL - базовое условие журнала проходов людей.
+const employeesHistoryPassageWhereSQL = ` WHERE eh.action_type IN ('entry', 'exit')`
+
+// employeesHistoryTableWhereSQL - скоуп таблицы (места). Кроме entry/exit с прямым
+// table_id сюда входят все события сотрудников, привязанных к таблице через
+// employee_target_tables: общая история места показывает контекст, а не только проходы.
+const employeesHistoryTableWhereSQL = `
+	WHERE eh.table_id = ?
+	   OR (
+	     eh.table_id IS NULL
+	     AND eh.employee_id IN (
+	       SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
+	     )
+	   )`
+
+// employeesHistorySearchExprs - по чему ищет строка поиска в журнале людей.
+var employeesHistorySearchExprs = []string{
+	"e.last_name",
+	"e.first_name",
+	"e.middle_name",
+	"org.name",
+	"comp.name",
+	employeesHistoryUserNameSQL,
+}
 
 func (s *employeesHistoryService) GetByEmployee(ctx context.Context, employeeID int) ([]EmployeeHistoryItem, error) {
 	rows := make([]employeeHistoryRow, 0)
@@ -172,16 +220,13 @@ func (s *employeesHistoryService) GetUnified(ctx context.Context, lastName, firs
 	return mapEmployeeHistoryRows(rows), nil
 }
 
-func (s *employeesHistoryService) GetAll(ctx context.Context) ([]EmployeeHistoryItem, error) {
-	rows := make([]employeeHistoryRow, 0)
-	err := s.db.WithContext(ctx).Raw(baseSelectSQL + `
-		WHERE eh.action_type IN ('entry', 'exit')
-		ORDER BY eh.created_at DESC
-	`).Scan(&rows).Error
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching all employees history")
-	}
-	return mapEmployeeHistoryRows(rows), nil
+// GetAll возвращает страницу журнала входов и выходов и общее число строк по фильтру.
+//
+// До #2469 метод отдавал всю историю проходов сразу. Фронт им не пользуется - журнал
+// людей открывается от таблицы проходной, - но границы нужны и здесь: метод открыт в
+// API, и «отдай всё» остаётся «отдай всё» независимо от того, кто спрашивает.
+func (s *employeesHistoryService) GetAll(ctx context.Context, q models.PassageHistoryQuery) ([]EmployeeHistoryItem, int64, error) {
+	return s.queryHistoryPage(ctx, q, employeesHistoryPassageWhereSQL, nil)
 }
 
 func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error) {
@@ -253,22 +298,88 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID
 // update, delete, data_changed) сотрудников, привязанных к этой таблице через
 // employee_target_tables - чтобы общая история таблицы показывала полный контекст,
 // а не только проходы.
-func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int) ([]EmployeeHistoryItem, error) {
-	rows := make([]employeeHistoryRow, 0)
-	err := s.db.WithContext(ctx).Raw(baseSelectSQL+`
-		WHERE eh.table_id = ?
-		   OR (
-		     eh.table_id IS NULL
-		     AND eh.employee_id IN (
-		       SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
-		     )
-		   )
-		ORDER BY eh.created_at DESC
-	`, tableID, tableID).Scan(&rows).Error
+func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int, q models.PassageHistoryQuery) ([]EmployeeHistoryItem, int64, error) {
+	return s.queryHistoryPage(ctx, q, employeesHistoryTableWhereSQL, []any{tableID, tableID})
+}
+
+// queryHistoryPage - общая механика журнала людей: базовое условие (проходы или скоуп
+// таблицы), фильтры, счётчик и страница.
+//
+// Порядок аргументов важен: базовое условие, затем фильтры, затем страница - в этой же
+// последовательности `?` встречаются в собранном запросе.
+func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models.PassageHistoryQuery, baseWhere string, baseArgs []any) ([]EmployeeHistoryItem, int64, error) {
+	filterSQL, filterArgs, err := passageHistoryConditions(q, passageFilterSpec{
+		alias:        "eh",
+		entityColumn: "eh.employee_id",
+		entityID:     q.EmployeeID,
+		searchExprs:  employeesHistorySearchExprs,
+	})
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee history by table")
+		return nil, 0, err
 	}
-	return mapEmployeeHistoryRows(rows), nil
+
+	// Базовое условие таблицы - это OR-ветка, поэтому фильтр приклеивается к ней
+	// скобками: без них «И фамилия» относилось бы только к последней ветке OR и
+	// история чужих сотрудников просочилась бы в отфильтрованную выдачу.
+	where := "(" + strings.TrimPrefix(strings.TrimSpace(baseWhere), "WHERE") + ")"
+	where = " WHERE " + where + filterSQL
+	whereArgs := append(append([]any{}, baseArgs...), filterArgs...)
+
+	var total int64
+	if err := s.db.WithContext(ctx).Raw(employeesHistoryCountSQL+where, whereArgs...).Scan(&total).Error; err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting employees history")
+	}
+
+	limitSQL, limitArgs := passageHistoryLimitSQL(q)
+	rows := make([]employeeHistoryRow, 0, q.PerPage)
+	err = s.db.WithContext(ctx).Raw(
+		baseSelectSQL+where+passageHistoryOrderSQL(q, "eh")+limitSQL,
+		append(append([]any{}, whereArgs...), limitArgs...)...,
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees history")
+	}
+
+	return mapEmployeeHistoryRows(rows), total, nil
+}
+
+// GetFilterOptions отдаёт значения выпадающих списков журнала людей: кто отмечал
+// проходы и кого в журнале отмечали. tableID сужает до таблицы проходной.
+//
+// Списки собираются отдельным методом, а не из первой страницы: собранные из 50
+// загруженных строк, они предлагали бы выбрать не то, что есть в журнале.
+func (s *employeesHistoryService) GetFilterOptions(ctx context.Context, tableID *int) (EmployeesHistoryFilterOptions, error) {
+	options := EmployeesHistoryFilterOptions{
+		Users:     make([]PassageFilterUser, 0),
+		Employees: make([]PassageFilterEmployee, 0),
+	}
+
+	where := employeesHistoryPassageWhereSQL
+	var args []any
+	if tableID != nil {
+		where = " WHERE (" + strings.TrimPrefix(strings.TrimSpace(employeesHistoryTableWhereSQL), "WHERE") + ")"
+		args = []any{*tableID, *tableID}
+	}
+
+	err := s.db.WithContext(ctx).Raw(
+		`SELECT DISTINCT eh.user_id AS id, `+employeesHistoryUserNameSQL+` AS name`+
+			employeesHistoryFromSQL+where+` AND eh.user_id IS NOT NULL ORDER BY name`,
+		args...,
+	).Scan(&options.Users).Error
+	if err != nil {
+		return options, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees history users")
+	}
+
+	err = s.db.WithContext(ctx).Raw(
+		`SELECT DISTINCT e.id, e.last_name, e.first_name, e.middle_name`+
+			employeesHistoryFromSQL+where+` ORDER BY e.last_name, e.first_name`,
+		args...,
+	).Scan(&options.Employees).Error
+	if err != nil {
+		return options, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees history employees")
+	}
+
+	return options, nil
 }
 
 // mapEmployeeHistoryRows преобразует сырые строки истории в DTO.

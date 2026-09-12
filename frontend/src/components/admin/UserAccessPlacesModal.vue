@@ -109,6 +109,7 @@
 
 <script>
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
 import { apiRequest } from '@/api/client';
@@ -160,6 +161,7 @@ export default {
     this.overlay.close = () => this.close();
   },
   async mounted() {
+    setBodyScrollLock(this, true);
     document.addEventListener('keydown', this.onKeydown);
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
@@ -169,6 +171,7 @@ export default {
     await this.load();
   },
   beforeUnmount() {
+    releaseBodyScrollLock(this);
     document.removeEventListener('keydown', this.onKeydown);
     this._stopGuard?.();
   },

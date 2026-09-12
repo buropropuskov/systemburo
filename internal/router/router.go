@@ -751,6 +751,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	empGroup.GET("/:id/history", employeesHistory.GetByEmployee)
 	empGroup.GET("/history/unified", employeesHistory.GetUnified)
 	empGroup.GET("/history/all", employeesHistory.GetAll)
+	empGroup.GET("/history/filter-options", employeesHistory.GetFilterOptions)
 	empGroup.GET("/history/current-status", employeesHistory.GetCurrentStatus)
 	empGroup.GET("/history/table/:table_id", employeesHistory.GetByTable)
 

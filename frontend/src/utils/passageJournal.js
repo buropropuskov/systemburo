@@ -73,11 +73,13 @@ export async function fetchPassagePage(path, filters, options = {}) {
 }
 
 /**
- * Значения выпадающих списков журнала: кто отмечал проходы в этой области.
+ * Значения выпадающих списков журнала в этой области: кто отмечал проходы и, у людей,
+ * кого отмечали. У машин список сущностей не приходит - его модалка берёт от таблицы
+ * проходной, в которой открыта.
  *
  * @param {string} path
  * @param {number|null} [tableId] сузить до таблицы проходной
- * @returns {Promise<{users: object[]}>}
+ * @returns {Promise<{users: object[], employees: object[]}>}
  */
 export async function fetchPassageFilterOptions(path, tableId = null) {
   const response = await apiRequest(`${path}${tableId ? `?table_id=${tableId}` : ''}`, { method: 'GET' });
@@ -85,7 +87,7 @@ export async function fetchPassageFilterOptions(path, tableId = null) {
     throw new Error(`Фильтры журнала: ${response.status}`);
   }
   const data = await response.json();
-  return { users: data?.users || [] };
+  return { users: data?.users || [], employees: data?.employees || [] };
 }
 
 /**

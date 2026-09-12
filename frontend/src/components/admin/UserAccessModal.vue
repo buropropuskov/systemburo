@@ -154,7 +154,7 @@
                 </p>
                 <button
                   type="button"
-                  class="lk-button lk-button--secondary ban-box__btn"
+                  class="lk-button lk-button--primary ban-box__btn"
                   data-testid="unban-button"
                   :disabled="banActionLoading"
                   @click="handleUnban"
@@ -171,7 +171,7 @@
                 />
                 <button
                   type="button"
-                  class="lk-button lk-button--danger ban-box__btn"
+                  class="lk-button lk-button--danger-solid ban-box__btn"
                   data-testid="ban-button"
                   :disabled="isSuper || banActionLoading"
                   :title="isSuper ? 'Супер-администратора заблокировать нельзя' : ''"
@@ -270,6 +270,7 @@ import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 // Ключ, которым бэкенд закрывает PUT /users/:id/admin (services.KeyActionGrantAdmin).
 const GRANT_ADMIN_KEY = 'action.grant.admin';
@@ -411,10 +412,12 @@ export default {
   },
   mounted() {
     document.addEventListener('keydown', this.onKeydown);
+    setBodyScrollLock(this, true);
     this.load();
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
   },
   methods: {
     onKeydown(e) {
@@ -975,6 +978,8 @@ export default {
 
 .ban-box__btn {
   width: 100%;
+  /* Тач-норма: блок открывают и с планшета, а базовый padding даёт 32px. */
+  min-height: 36px;
 }
 
 /* --- Поиск по правам --- */
