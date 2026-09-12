@@ -669,6 +669,7 @@ func main() {
 		JWTSecret:           []byte(cfg.JWTSecret),
 		JWTRefreshSecret:    []byte(cfg.JWTRefreshSecret),
 		UploadPath:          cfg.UploadPath,
+		ApplicationScans:    services.NewApplicationScanAccess(db, applicationService),
 	})
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
