@@ -1477,13 +1477,13 @@ export default {
             el.style.height = `${height}px`;
         },
         /**
-         * Реактивно отслеживает мобильный брейкпоинт (совпадает с CSS @media 768,
+         * Реактивно отслеживает брейкпоинт карточек (совпадает с CSS @media 899.98,
          * тот же порог, что в TheHeader): на нём шапка Центра двухрядная, фильтры в
          * модалке, поиск раскрывается по иконке. На десктопе - инлайн-фильтры.
          */
         initMobileWatcher() {
             if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-            this._mobileMql = window.matchMedia('(max-width: 768px)');
+            this._mobileMql = window.matchMedia('(max-width: 899.98px)');
             this.isMobileHeader = this._mobileMql.matches;
             this._onMobileChange = (e) => {
                 this.isMobileHeader = e.matches;
@@ -2475,7 +2475,7 @@ export default {
    Ширина больше высоты и форма-пилюля (как у «Фильтра»): во время перезарядки
    кнопка показывает три точки шириной 27px, в кружке 34px они упирались в рамку.
    На десктопе кнопка живёт в шапке таблицы. */
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
     .header-row2 :deep(.refresh-btn) {
         /* Ширина 45px - как у кнопки-иконки «Обновить» на «Обзор и новости»
            (NewsAndReview): фиксирована под самое широкое состояние - три точки
@@ -3158,7 +3158,7 @@ export default {
 }
 /* На мобилке список - карточки на белом, серая полоса разделителя лишняя;
    фон/бордеры - десктопные, тут сбрасываем. */
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
     .applications-day-separator {
         background: transparent;
         border-top: none;
@@ -3511,7 +3511,7 @@ export default {
     display: none;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
     .center {
         /* Боковой отступ страницы вынесен в переменную: full-bleed блоки (шапка,
            список) гасят его отрицательным margin через ту же переменную. Иначе
@@ -3820,7 +3820,7 @@ export default {
     }
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
     /* Пара переключателей уходит на свою строку. Сама она туда и так не помещается
        (заголовок 133 + кнопки 216 + иконки 78 против 340-370 доступных), но перенос
        по flex-wrap раскладывался по длине счётчика: при коротких числах вниз уезжали

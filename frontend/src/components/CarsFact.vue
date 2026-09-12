@@ -842,7 +842,7 @@ export default {
   transition: transform 0.5s ease;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
   .cars-fact-card {
     width: 100%;
     height: auto;
