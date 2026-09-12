@@ -190,6 +190,7 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import TextConstructor from './TextConstructor.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
 export default {
   name: 'TableConstructorCreateModal',
@@ -203,6 +204,7 @@ export default {
   emits: ['created', 'close'],
   watch: {
     show(v) {
+      setBodyScrollLock(this, v)
       if (!v) {
         this.resetForm()
         this.typeDropdownOpen = false
@@ -231,11 +233,17 @@ export default {
   },
   mounted() {
     document.addEventListener('click', this.handleOutsideClick)
+    document.addEventListener('keydown', this.onKeydown)
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleOutsideClick)
+    document.removeEventListener('keydown', this.onKeydown)
+    releaseBodyScrollLock(this)
   },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.show) this.$emit('close')
+    },
     handleOutsideClick(e) {
       // Через Teleport this.$el остаётся anchor-узлом в исходном месте, а не
       // содержимым модалки в body - .contains() для него всегда false и любой

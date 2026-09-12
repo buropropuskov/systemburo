@@ -225,6 +225,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 // Подписи групп полей реестра. Порядок групп в ответе сохраняется (common впереди),
 // поэтому собираем группы в порядке появления полей.
@@ -315,9 +316,11 @@ export default {
     this.visible = true;
     this.load();
     document.addEventListener('keydown', this.onKeydown);
+    setBodyScrollLock(this, true);
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
   },
   methods: {
     onKeydown(e) {

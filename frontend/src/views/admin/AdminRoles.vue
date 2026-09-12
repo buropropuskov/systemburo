@@ -393,6 +393,7 @@ import {
   getPermissionCatalog,
 } from '@/api/permissions';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 export default {
   name: 'AdminRoles',
@@ -458,6 +459,13 @@ export default {
       return this.isMetaModalDirty || this.isDetailsDirty;
     },
   },
+  watch: {
+    // Окно создания живёт по флагу внутри Teleport и не размонтируется, поэтому
+    // блокировку фона вешаем на сам флаг, а не на жизненный цикл компонента.
+    showMetaModal(open) {
+      setBodyScrollLock(this, open);
+    },
+  },
   created() {
     this.overlay.close = () => { this.requestCloseMeta(); };
   },
@@ -490,6 +498,7 @@ export default {
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
+    releaseBodyScrollLock(this);
     this._stopGuard?.();
     document.removeEventListener('keydown', this.onKeydown);
   },
