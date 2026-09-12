@@ -56,6 +56,11 @@ type EmployeeHistoryItem struct {
 	// Reverted - отметка прохода отменена как ошибочная (#2437): в журнале видна с
 	// пометкой, в цифрах не участвует.
 	Reverted bool `json:"reverted"`
+	// Subject - снимок ФИО на момент отметки, EntityDeleted - сотрудника больше нет в
+	// справочнике (#2485). Вместе они дают журналу опознать проход удалённого человека:
+	// раньше такая строка не показывалась вовсе.
+	Subject       *string `json:"subject"`
+	EntityDeleted bool    `json:"entity_deleted"`
 }
 
 // EmployeeCurrentStatus -- текущий территориальный статус сотрудника.
@@ -106,6 +111,8 @@ type employeeHistoryRow struct {
 	Organization       *string
 	Company            *string
 	Reverted           bool
+	Subject            *string
+	EntityDeleted      bool
 }
 
 // baseSelectSQL -- общая часть SELECT для всех запросов истории сотрудников.
@@ -128,6 +135,8 @@ const baseSelectSQL = `
 		e.last_name AS employee_last_name,
 		e.first_name AS employee_first_name,
 		e.middle_name AS employee_middle_name,
+		eh.subject,
+		e.id IS NULL AS entity_deleted,
 		COALESCE(org.name, '') AS organization,
 		COALESCE(comp.name, '') AS company,
 		eh.reverted
@@ -147,7 +156,10 @@ const employeesHistoryFromSQL = `
 	FROM ` + employeesHistoryUnion + ` eh
 	LEFT JOIN users u ON eh.user_id = u.id
 	LEFT JOIN system_tables st ON eh.table_id = st.id
-	JOIN employees e ON eh.employee_id = e.id
+	-- LEFT JOIN, а не JOIN (#2485): сотрудника могут удалить безвозвратно, и прежний
+	-- INNER уносил его проходы из журнала - на стенде так пропадали 172 отметки из 193.
+	-- ФИО тогда берётся из снимка в самой отметке (details->>'subject').
+	LEFT JOIN employees e ON eh.employee_id = e.id
 	LEFT JOIN attachments a ON e.attachment_id = a.id
 	LEFT JOIN applications app ON a.application_id = app.id
 	-- Ручные сотрудники (#1049) висят на вложении-сироте без заявки (app.* NULL, метка
@@ -178,6 +190,9 @@ var employeesHistorySearchExprs = []string{
 	"e.last_name",
 	"e.first_name",
 	"e.middle_name",
+	// Снимок из отметки: у удалённого сотрудника справочника уже нет, и без него поиск
+	// по фамилии не находил бы его проходы (#2485).
+	"eh.subject",
 	"org.name",
 	"comp.name",
 	employeesHistoryUserNameSQL,
@@ -411,6 +426,8 @@ func mapEmployeeHistoryRows(rows []employeeHistoryRow) []EmployeeHistoryItem {
 			Organization:       r.Organization,
 			Company:            r.Company,
 			Reverted:           r.Reverted,
+			Subject:            r.Subject,
+			EntityDeleted:      r.EntityDeleted,
 		})
 	}
 	return items

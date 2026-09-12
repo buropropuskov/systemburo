@@ -66,3 +66,17 @@
   color: var(--text-primary);
   cursor: pointer;
 }
+
+/*
+ * Запись прохода, чью машину или человека удалили из справочника (#2485). Журнал их
+ * больше не теряет: номер и ФИО берутся из снимка в самой отметке, а пометка объясняет,
+ * почему строку нельзя открыть - карточки уже нет.
+ */
+.deleted-badge {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 11px;
+}

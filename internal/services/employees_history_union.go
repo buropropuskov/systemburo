@@ -33,6 +33,7 @@ const employeesHistoryUnion = `(
 		a.details->>'old_value' AS old_value,
 		a.details->>'new_value' AS new_value,
 		a.details->>'comment' AS comment,
+		a.details->>'subject' AS subject,
 		a.details->'metadata' AS metadata,
 		(a.details->>'table_id')::int AS table_id,
 		a.created_at,
