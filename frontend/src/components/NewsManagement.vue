@@ -6,22 +6,11 @@
         Новости и объявления
       </h2>
       <div class="management-header__actions header-controls">
-        <div class="tab-group">
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'news' }"
-            @click="switchTab('news')"
-          >
-            Новости
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'announcements' }"
-            @click="switchTab('announcements')"
-          >
-            Объявления
-          </button>
-        </div>
+        <FilterTabs
+          :model-value="activeTab"
+          :tabs="tabs"
+          @update:model-value="switchTab"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="activeTab === 'news' ? 'Поиск новостей...' : 'Поиск объявлений...'"
@@ -336,6 +325,7 @@ import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { sanitizeHtml } from '@/utils/sanitize.js';
@@ -344,7 +334,7 @@ import { formatDateTime } from '@/utils/datetime';
 
 export default {
   name: 'NewsManagement',
-  components: { BaseModal, RefreshButton, TextConstructor, SearchComponent },
+  components: { BaseModal, RefreshButton, TextConstructor, SearchComponent, FilterTabs },
   data() {
     return {
       loading: false,
@@ -361,6 +351,13 @@ export default {
     };
   },
   computed: {
+    tabs() {
+      return [
+        { key: 'news', label: 'Новости' },
+        { key: 'announcements', label: 'Объявления' },
+      ];
+    },
+
     // Поиск (#1157) - клиентский, по заголовку+описанию, отдельно для
     // каждой вкладки (общий util как в остальных справочниках проекта).
     filteredNewsItems() {
@@ -690,38 +687,6 @@ export default {
   gap: 10px;
 }
 
-/* Табы */
-.tab-group {
-  display: flex;
-  gap: 4px;
-  background: var(--surface-2);
-  border-radius: 20px;
-  padding: 3px;
-}
-
-.tab-btn {
-  background: none;
-  border: none;
-  padding: 5px 16px;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 17px;
-  transition: all 0.2s ease;
-}
-
-.tab-btn:hover {
-  color: var(--accent-text);
-}
-
-.tab-btn.active {
-  background: var(--surface);
-  color: var(--accent-text);
-  box-shadow: 0 1px 3px var(--shadow-drop);
-}
-
 /* Тело: список + детали */
 .management-body {
   display: flex;
@@ -925,7 +890,7 @@ export default {
 
 /* Кнопки */
 .add-btn {
-  min-width: 190px;
+  width: 212px;
 }
 
 .lk-button {

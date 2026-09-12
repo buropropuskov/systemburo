@@ -75,4 +75,12 @@ export default {
   color: var(--accent-contrast);
   border-color: var(--accent);
 }
+
+/* Тач-норма проекта - 36px (эталон адаптивности §18). Десктопные 30px оставляем:
+   там попадают курсором, а пилюли стоят в плотных шапках. */
+@media (max-width: 767.98px) {
+  .filter-tab {
+    height: 36px;
+  }
+}
 </style>
