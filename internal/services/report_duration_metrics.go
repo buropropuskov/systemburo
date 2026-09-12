@@ -196,9 +196,6 @@ func init() {
 				label:      k.label(s),
 				unit:       "",
 				group:      metricGroupProcessing,
-				baseTable:  "applications",
-				aggExpr:    aggExpr,
-				baseFilter: s.baseWhere,
 				dimensions: durationDimensions,
 			}
 			reportMetricOrder = append(reportMetricOrder, key)

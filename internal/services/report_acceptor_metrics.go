@@ -70,8 +70,8 @@ func acceptorFilters() map[string]aggColumn {
 
 var acceptorDimensions = []string{dimByAcceptor, "status", "organization", "company", "period"}
 
-// init регистрирует метрики принимающих в движке и каталоге (как и остальные
-// метрики обработки — выражение агрегата считается один раз на оба реестра).
+// init регистрирует метрики принимающих в движке (aggMetricRegistry — SQL) и в
+// каталоге (reportMetricRegistry — подписи для гида).
 func init() {
 	// Время принятия: рабочее время от согласования (app.confirmation_datetime) до
 	// первого принятия (app.accepted_at). Гард accepted_at >= confirmation_datetime
@@ -98,9 +98,6 @@ func init() {
 		label:      "Среднее время реакции принимающего",
 		unit:       "",
 		group:      metricGroupAcceptors,
-		baseTable:  "applications", // подпись в гиде; реальный источник — подзапрос acc
-		aggExpr:    responseAgg,
-		baseFilter: "confirmation_datetime IS NOT NULL AND accepted_at IS NOT NULL AND accepted_at >= confirmation_datetime",
 		dimensions: acceptorDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "avg_acceptor_response_time")
@@ -121,8 +118,6 @@ func init() {
 		label:      "Нагрузка принимающего",
 		unit:       "шт",
 		group:      metricGroupAcceptors,
-		baseTable:  "applications",
-		aggExpr:    "COUNT(*)",
 		dimensions: acceptorDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "acceptor_accepts_count")
