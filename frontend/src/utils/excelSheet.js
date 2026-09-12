@@ -40,6 +40,8 @@ const COL_MAX = 60;
  * @property {Array<string|number>} [totalsRow] строка итогов под данными
  * @property {Array<[string, string|number]>} [info] подписи под таблицей: пары «метка, значение»
  * @property {boolean} [outerBorder] жирная внешняя рамка вокруг таблицы
+ * @property {number[]} [boldRows] какие строки данных набрать полужирным - подытоги,
+ *   стоящие внутри данных, а не отдельной строкой в конце (отчёт по проходам)
  */
 
 function textLength(value) {
@@ -84,13 +86,14 @@ export async function buildExcelSheetBlob(spec) {
     cell.border = THIN_BORDER;
   });
 
+  const bold = new Set(spec.boldRows || []);
   spec.rows.forEach((cells, index) => {
     const row = sheet.addRow(cells);
     row.height = 20;
     const fgColor = { argb: index % 2 === 0 ? ROW_FILL_EVEN : ROW_FILL_ODD };
     row.eachCell((cell) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor };
-      cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
+      cell.font = { name: 'Verdana', size: 9, bold: bold.has(index), color: { argb: 'FF333333' } };
       cell.alignment = { vertical: 'middle' };
       cell.border = THIN_BORDER;
     });

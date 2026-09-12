@@ -136,6 +136,15 @@ describe('excelSheet - общий лист выгрузки', () => {
     expect(sheet.getCell(4, 1).border.bottom.style).toBe('medium');
   });
 
+  // Подытог внутри данных (отчёт по проходам): «Итого по посту» стоит после строк своего
+  // дня, а не отдельной строкой в конце, поэтому у листа есть список полужирных строк.
+  it('полужирными набирает только указанные строки данных', async () => {
+    await buildExcelSheetBlob({ ...spec(), boldRows: [1] });
+    const sheet = sheets[0];
+    expect(sheet.rows[1].cells[0].font.bold).toBe(false);
+    expect(sheet.rows[2].cells[0].font.bold).toBe(true);
+  });
+
   it('скачивание отдаёт файл через общую утилиту', async () => {
     await downloadExcelSheet(spec(), 'Istoriya_12-09-2026.xlsx');
     expect(downloadBlob).toHaveBeenCalledTimes(1);
