@@ -713,7 +713,7 @@ export default {
     const { isPortrait, isCompact } = useOrientation();
     // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
     // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
-    const { isNarrow } = useNarrowScreen(767.98);
+    const { isNarrow } = useNarrowScreen(899.98);
     const permissionsStore = usePermissionsStore();
     const rowSelection = useRowSelection();
     return { isPortrait, isCompact, isNarrow, permissionsStore, ...rowSelection };
@@ -2454,7 +2454,7 @@ export default {
   min-height: 36px;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
   /* Убирать рамку панели целиком владелец не просил - без неё "куда пропала
      таблица? почему нету границ таблицы?" (талон читается разрозненными строками,
      а не таблицей). Радиус тот же, что на десктопе (30px) и что у таблицы «по
@@ -2902,7 +2902,7 @@ export default {
 
 /* На мобилке строки показываются карточками - сетка не применяется, тумблер
    там не нужен. */
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
   .grid-toggle {
     display: none;
   }
