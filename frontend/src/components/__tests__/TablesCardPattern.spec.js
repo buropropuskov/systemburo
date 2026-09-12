@@ -76,7 +76,10 @@ const halfCols = ({ footCols }) => [
   ...footCols.filter((col) => col !== '.status-col'),
 ];
 
-const MOBILE = '(max-width: 767.98px)';
+// Порог карточек - 900 (#2473): на планшете в портрете таблица не помещается так же,
+// как на телефоне. Общая инфраструктура и компоненты талона обязаны говорить об одном
+// пороге, иначе на 810 собирается полукарточка.
+const MOBILE = '(max-width: 899.98px)';
 const TABLET_UP = '(min-width: 768px)';
 const SRC = path.resolve(__dirname, '../..');
 
