@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 
 // Все 4 модалки грузят историю через apiRequest(path).ok -> json().
 // Контракт закрытия (visible/requestClose/onAfterLeave/Escape/overlay) от истории
 // не зависит - мок отдаёт пустую историю, чтобы mounted не падал.
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
+  // Журнал проходов машин читается страницами через api/cars.js (#2469), и без этого
+  // мока монтирование падает необработанным отклонением: тесты при этом зелёные, а
+  // шаг прогона возвращает ошибку.
+  apiRequestRaw: vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, page: 1, per_page: 30 } }),
+  })),
 }));
 // exceljs тяжёлый и для теста закрытия не нужен.
 vi.mock('exceljs', () => ({ default: { Workbook: class {} } }));
@@ -38,6 +46,10 @@ async function mountModal(component, props) {
 describe('История-модалки: анимация закрытия (D-паттерн)', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    // Модалка журнала проходов сообщает об ошибке загрузки через стор уведомлений
+    // (#2469), и без активного Pinia падение загрузки превращается в ошибку самого
+    // прогона, а не в проверяемое поведение.
+    setActivePinia(createPinia());
   });
 
   MODALS.forEach(({ name, component, props }) => {

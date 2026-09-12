@@ -2,8 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
+// apiRequestRaw нужен потому, что журнал проходов читается страницами через
+// api/cars.js (#2469): без него монтирование модалки падает необработанным
+// отклонением, а vitest возвращает ошибку при зелёных тестах.
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
+  apiRequestRaw: vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ success: true, data: [], meta: { total: 0, page: 1, per_page: 30 } }),
+  }),
 }));
 vi.mock('exceljs', () => ({ default: { Workbook: class {} } }));
 

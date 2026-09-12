@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount, flushPromises } from '@vue/test-utils';
 
 // Все модалки грузят историю по-разному: 6 через apiRequest(@/api/client),
@@ -6,6 +7,13 @@ import { mount, flushPromises } from '@vue/test-utils';
 // дропдаунов-фильтров от данных не зависит - моки отдают пустую историю.
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
+  // Журнал проходов машин читается страницами через api/cars.js (#2469), и без этого
+  // мока монтирование падает необработанным отклонением: тесты зелёные, а шаг прогона
+  // возвращает ошибку.
+  apiRequestRaw: vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, page: 1, per_page: 30 } }),
+  })),
 }));
 vi.mock('@/api/licenseFormats', () => ({
   getLicenseFormatHistory: vi.fn(() => Promise.resolve([])),
@@ -53,6 +61,9 @@ async function mountModal(component, props) {
 describe('История-модалки: закрытие дропдаунов-фильтров по клику снаружи (refs при Teleport)', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    // Модалка журнала проходов сообщает об ошибке загрузки через стор уведомлений,
+    // и без активного Pinia падение загрузки становится ошибкой самого прогона.
+    setActivePinia(createPinia());
   });
 
   MODALS.forEach(({ name, component, props, refs }) => {
