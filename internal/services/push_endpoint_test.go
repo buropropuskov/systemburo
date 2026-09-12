@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -246,4 +250,33 @@ func TestPushGuardedClient_DoesNotFollowRedirects(t *testing.T) {
 
 	assert.Equal(t, http.StatusFound, resp.StatusCode, "перенаправление должно вернуться как есть")
 	assert.Equal(t, 0, internalHits, "клиент не должен был пойти по перенаправлению")
+}
+
+// TestPushLocalEndpoints_NotWiredIntoServer -- замок против недосмотра (#2466).
+// WithPushLocalEndpoints - единственное место, где проверка адреса снимается целиком,
+// и нужна она только тестам: подставная служба поднимается httptest-ом на 127.0.0.1.
+// Попади она в сборку сервера, защита исчезла бы вся, причём молча: уведомления
+// продолжили бы работать, и заметить это на глаз в ревью нечем. Поэтому проверяем
+// сборку сервера текстом, а не надеемся на внимательность.
+func TestPushLocalEndpoints_NotWiredIntoServer(t *testing.T) {
+	cmdRoot := filepath.Join("..", "..", "cmd")
+	var found []string
+	err := filepath.WalkDir(cmdRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(body), "WithPushLocalEndpoints") {
+			found = append(found, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Empty(t, found, "опция снимает проверку адреса службы уведомлений целиком - в сборке сервера её быть не должно")
 }
