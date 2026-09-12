@@ -109,9 +109,10 @@
                 class="lk-button lk-button--primary"
                 :disabled="saving"
                 data-testid="role-permissions-save"
+                :class="{ 'is-busy': saving }"
                 @click="emitSave"
               >
-                {{ saving ? 'Сохранение...' : 'Сохранить' }}
+                Сохранить
               </button>
             </div>
           </footer>
