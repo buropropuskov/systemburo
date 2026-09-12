@@ -682,7 +682,7 @@ export default {
         // На ровно 768 таблицы оставались десктопными, а шапка страницы уже уезжала в
         // мобильный режим - экран собирался гибридом (свёрнутые фильтры над обычной
         // таблицей). CSS-медиа этого компонента переведены на тот же порог.
-        const { isNarrow } = useNarrowScreen(767.98);
+        const { isNarrow } = useNarrowScreen(899.98);
 
         const onboardingStore = useOnboardingStore();
         return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore, onboardingStore, isNarrow };
@@ -1984,7 +1984,7 @@ export default {
    responsive-tables.css с тем же порогом, и JS-гейт isNarrow переведён туда же.
    На ровно 768 (портретный iPad) правила расходились, и экран собирался гибридом -
    эталон §1.2. */
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
     /* Модель прокрутки телефона (четвёртый круг замечаний владельца): "скроллится
        вся страница, кроме шапки" - панель фиксированной высоты с внутренней
        прокруткой (волна 13) владелец забраковал вместе с той, что была до неё
