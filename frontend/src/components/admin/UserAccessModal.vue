@@ -154,7 +154,7 @@
                 </p>
                 <button
                   type="button"
-                  class="lk-button lk-button--secondary ban-box__btn"
+                  class="lk-button lk-button--primary ban-box__btn"
                   data-testid="unban-button"
                   :disabled="banActionLoading"
                   @click="handleUnban"
@@ -171,7 +171,7 @@
                 />
                 <button
                   type="button"
-                  class="lk-button lk-button--danger ban-box__btn"
+                  class="lk-button lk-button--danger-solid ban-box__btn"
                   data-testid="ban-button"
                   :disabled="isSuper || banActionLoading"
                   :title="isSuper ? 'Супер-администратора заблокировать нельзя' : ''"
@@ -975,6 +975,8 @@ export default {
 
 .ban-box__btn {
   width: 100%;
+  /* Тач-норма: блок открывают и с планшета, а базовый padding даёт 32px. */
+  min-height: 36px;
 }
 
 /* --- Поиск по правам --- */

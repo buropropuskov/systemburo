@@ -119,6 +119,21 @@
   color: var(--fill-text);
 }
 
+/* Залитый вариант опасного действия. Нужен там, где кнопка лежит НА подложке своей
+   роли (блок блокировки, предупреждения): обычный danger белый, и на бледно-красном
+   фоне он читается дыркой в блоке, а не действием. На нейтральном фоне остаётся
+   белый вариант - залитый красный там кричит. */
+.lk-button--danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--fill-text);
+}
+
+.lk-button--danger-solid:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 82%, #000);
+  border-color: color-mix(in srgb, var(--danger) 82%, #000);
+}
+
 /* Компактный модификатор для inline-контекстов (retry у sentinel подгрузки #1173,
    кнопка вопроса #345). Компоненты с собственным scoped-размером (0,2,0) переопределяют. */
 .lk-button--sm {
