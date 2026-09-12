@@ -26,4 +26,27 @@
     flex: 0 0 auto !important;
     min-width: 104px !important;
   }
+
+  /* Страница таблицы поста. Ряд фильтров здесь ещё десктопный, но места ему уже не
+     хватает: `clamp(120px, 14vw, 200px)` вместе с `flex-shrink: 1` ужимал дропдауны
+     до 30px, и вместо «Все организации» оставалось «Е∨». Разрешаем перенос и держим
+     читаемый минимум. */
+  .tables__filters,
+  .filters__fields {
+    flex-wrap: wrap !important;
+  }
+
+  .filters__control {
+    width: auto !important;
+    flex: 1 1 150px !important;
+    min-width: 150px !important;
+  }
+
+  /* Подсказка поста при 35% ширины обрезала последнюю строку: текст лежит в
+     absolute-слое, а высоту секции диктует соседняя таблица. Отдаём ей целую
+     строку - текст виден полностью. */
+  .fact-hint-card {
+    flex: 1 1 100% !important;
+    order: 2;
+  }
 }
