@@ -688,6 +688,12 @@ onMounted(refresh);
 @media (hover: none), (max-width: 899.98px) {
   .flag-btn {
     opacity: 1;
+  }
+}
+
+/* Размер поднимаем только на планшете: на телефоне размеры контролов не меняем. */
+@media (min-width: 768.02px) and (max-width: 1024px) {
+  .flag-btn {
     width: 36px;
     height: 36px;
   }

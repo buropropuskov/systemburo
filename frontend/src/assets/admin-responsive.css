@@ -142,34 +142,6 @@
     overflow: visible !important;
   }
 
-  /* Тач-таргеты кнопок раздела. Общее правило в forms.css высоту намеренно не задаёт -
-     десятки кнопок объявляют свою, меньшую, и минимум на базовом классе раздул бы всё
-     разом. Здесь минимум скоуплен на разделы администрирования, где обход находил
-     кнопки 24 и 34px: «История» в чёрном списке, «Вперёд» в аудите, переключатели
-     режима поиска в субъекте персональных данных. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .lk-button {
-    min-height: 36px !important;
-  }
-
-  /* Компактный вариант остаётся компактным, но дотягивается до пальца. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .lk-button--sm {
-    min-height: 32px !important;
-  }
-
-  /* Стрелки пагинации в журналах: 28px - мимо пальца. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .pagination-btn {
-    min-width: 36px !important;
-    min-height: 36px !important;
-  }
-
-  /* Разделы со своей системой кнопок: настройки и обработка персональных данных
-     рисуют `.btn`, окна мест разгрузки - `.modal-btn`. Свести их к общему классу -
-     отдельная работа, а дотянуть до пальца можно сразу. */
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .btn,
-  :is(.modal-overlay, .rpm-overlay, .gpm-overlay, .base-modal-overlay) .modal-btn {
-    min-height: 36px !important;
-  }
-
   /* Чёрный список держит контролы в своём `.bl-header-controls`: на телефоне они
      собирались в три ряда, прижатых к правому краю, а слева оставалась пустота.
      Выравниваем по левому краю и растягиваем поиск, как в остальных разделах. */
