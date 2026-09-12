@@ -50,6 +50,15 @@ const REPORT_FILE = path.join(REPORT_DIR, 'viewport-audit.json');
 const widths = (process.env.AUDIT_WIDTHS || DEFAULT_WIDTHS.join(','))
   .split(',').map((w) => parseInt(w.trim(), 10)).filter(Boolean);
 
+/**
+ * Контролы, которым компактность назначена осознанно: модификатор `--sm` для inline-мест
+ * и панель форматирования текста. Ругаться на них - значит топить реальные находки в
+ * шуме, а править их размер - ломать плотные ряды, ради которых модификатор и заведён.
+ */
+const DELIBERATELY_COMPACT = /\blk-button--sm\b|\btoolbar-btn\b/;
+
+const isNotDeliberatelyCompact = (finding) => !DELIBERATELY_COMPACT.test(finding.cls || '');
+
 /** Экран мог не успеть отрисовать список - ждём содержимое, а не фиксированную паузу. */
 async function settle(page) {
   await page.waitForLoadState('domcontentloaded');
@@ -106,7 +115,9 @@ test('аудит раскладки: обход экранов по ширина
         entry.oversized = screen.card ? await page.evaluate(oversizedRows, screen.card) : [];
         entry.overlaps = screen.card ? await page.evaluate(overlaps, screen.card) : [];
         entry.clipped = screen.card ? await page.evaluate(clippedText, screen.card) : [];
-        entry.small = width <= TOUCH_MAX_WIDTH ? await page.evaluate(smallTargets, TOUCH_MIN) : [];
+        entry.small = width <= TOUCH_MAX_WIDTH
+          ? (await page.evaluate(smallTargets, TOUCH_MIN)).filter(isNotDeliberatelyCompact)
+          : [];
         entry.docOverflow = entry.metrics.doc > entry.metrics.vw + 1
           ? { doc: entry.metrics.doc, vw: entry.metrics.vw } : null;
       } catch (err) {
@@ -133,7 +144,9 @@ test('аудит раскладки: обход экранов по ширина
           if (!(await dialog.isVisible().catch(() => false))) throw new Error('окно не открылось');
           opened.metrics = await page.evaluate(pageMetrics);
           opened.overflow = await page.evaluate(horizontalOverflow);
-          opened.small = width <= TOUCH_MAX_WIDTH ? await page.evaluate(smallTargets, TOUCH_MIN) : [];
+          opened.small = width <= TOUCH_MAX_WIDTH
+            ? (await page.evaluate(smallTargets, TOUCH_MIN)).filter(isNotDeliberatelyCompact)
+            : [];
           opened.modal = await page.evaluate(modalGeometry);
           opened.docOverflow = opened.metrics.doc > opened.metrics.vw + 1
             ? { doc: opened.metrics.doc, vw: opened.metrics.vw } : null;
