@@ -104,6 +104,18 @@ describe('fetchPassageFilterOptions', () => {
     const options = await fetchPassageFilterOptions('/cars/history/filter-options', 42);
     expect(apiRequest).toHaveBeenCalledWith('/cars/history/filter-options?table_id=42', { method: 'GET' });
     expect(options.users).toHaveLength(1);
+    expect(options.employees).toEqual([]);
+  });
+
+  // Журнал людей отдаёт вторым списком тех, кого отмечали: у машин этот список берётся
+  // от таблицы проходной, а сотрудников таблица целиком не знает.
+  it('пробрасывает список людей, когда сервер его отдал', async () => {
+    apiRequest.mockResolvedValue({
+      ok: true,
+      json: async () => ({ users: [], employees: [{ id: 11, last_name: 'Петров' }] }),
+    });
+    const options = await fetchPassageFilterOptions('/employees/history/filter-options', 4);
+    expect(options.employees).toHaveLength(1);
   });
 
   it('без таблицы берёт весь журнал', async () => {
