@@ -162,8 +162,9 @@
 </template>
 
 <script>
-import ExcelJS from 'exceljs';
 import { getTrashHistory } from '@/api/trash';
+import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
@@ -310,55 +311,24 @@ export default {
       if (this.filteredHistory.length === 0) return;
       this.isExporting = true;
       try {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Istoriya_korziny');
-        const headers = ['Дата и время', 'Действие', 'Затронуто', 'Пользователь'];
-
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        });
-
-        this.filteredHistory.forEach((item, index) => {
-          const row = worksheet.addRow([
+        // Внешней рамки у истории корзины не было - не добавляем, файл читают как ленту.
+        await downloadExcelSheet({
+          sheetName: 'Istoriya_korziny',
+          header: ['Дата и время', 'Действие', 'Затронуто', 'Пользователь'],
+          rows: this.filteredHistory.map(item => [
             this.formatDateTime(item.created_at),
             this.getActionText(item),
             item.affected_count,
             item.user_name || 'Система',
-          ]);
-          row.height = 20;
-          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          row.eachCell((cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-            cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-          });
-        });
-
-        worksheet.addRow([]);
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
-        [infoRow1, infoRow2].forEach((row) => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-          });
-        });
-
-        worksheet.columns = [{ width: 22 }, { width: 40 }, { width: 14 }, { width: 32 }];
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.download = `istoriya_korziny_${this.tableDisplayName}_${this.formattedCurrentDateTime.replace(/[.:,\s]/g, '-')}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      } catch (e) {
-        console.error('Ошибка экспорта истории корзины', e);
+          ]),
+          widths: [22, 40, 14, 32],
+          info: [
+            ['Отчёт сформировал:', this.currentUserDisplayName],
+            ['Дата формирования:', this.formattedCurrentDateTime],
+          ],
+        }, `istoriya_korziny_${this.tableDisplayName}_${this.formattedCurrentDateTime.replace(/[.:,\s]/g, '-')}.xlsx`);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'выгрузить историю корзины', type: 'error' });
       } finally {
         this.isExporting = false;
       }

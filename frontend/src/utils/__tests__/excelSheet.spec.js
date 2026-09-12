@@ -110,9 +110,14 @@ describe('excelSheet - общий лист выгрузки', () => {
     await buildExcelSheetBlob(spec());
     expect(sheets[0].columns).toEqual([{ width: 25 }, { width: 40 }]);
 
+    // Без своих ширин и без флага лист их не задаёт вовсе: у части выгрузок ширин не
+    // было, и посчитать их «на всякий случай» значило бы изменить привычный файл.
     sheets.length = 0;
-    const auto = { ...spec(), widths: undefined };
-    await buildExcelSheetBlob(auto);
+    await buildExcelSheetBlob({ ...spec(), widths: undefined });
+    expect(sheets[0].columns).toEqual([]);
+
+    sheets.length = 0;
+    await buildExcelSheetBlob({ ...spec(), widths: undefined, autoWidths: true });
     const widths = sheets[0].columns.map(c => c.width);
     expect(widths).toHaveLength(2);
     // «Дата и время» под Verdana шире, чем 12 знаков, и не уже нижнего предела.

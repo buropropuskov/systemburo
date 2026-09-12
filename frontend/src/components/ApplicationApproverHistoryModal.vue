@@ -202,10 +202,10 @@
 import { ref } from 'vue';
 import { getApproverHistory } from '@/api/approvers';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import ExcelJS from 'exceljs';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 const ACTION_TEXTS = {
@@ -408,100 +408,28 @@ export default {
 
     async exportToExcel() {
       if (this.filteredHistory.length === 0) return;
+
       this.isExporting = true;
       try {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Istoriya_prinimayushchih');
-
-        const headers = ['Дата и время', 'Пользователь', 'Действие', 'Принимающий', 'Тип действия', 'ID записи'];
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          };
-        });
-
-        this.exportData.forEach((item, index) => {
-          const row = worksheet.addRow([
-            item['Дата и время'],
-            item['Пользователь'],
-            item['Действие'],
-            item['Принимающий'],
-            item['Тип действия'],
-            item['ID записи'],
-          ]);
-          row.height = 20;
-          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          row.eachCell((cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-            cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle', wrapText: true };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            };
-          });
-        });
-
-        const lastDataRow = this.exportData.length;
-        const cols = headers.length;
-        for (let row = 1; row <= lastDataRow + 1; row++) {
-          const rightCell = worksheet.getCell(row, cols);
-          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
-          const leftCell = worksheet.getCell(row, 1);
-          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        for (let col = 1; col <= cols; col++) {
-          const topCell = worksheet.getCell(1, col);
-          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
-          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
-          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-
-        worksheet.addRow([]);
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
-        [infoRow1, infoRow2].forEach((row) => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            };
-          });
-        });
-
-        worksheet.columns = [
-          { width: 22 },
-          { width: 30 },
-          { width: 26 },
-          { width: 30 },
-          { width: 16 },
-          { width: 12 },
-        ];
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.download = `Istoriya_prinimayushchih_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Error exporting approver history to Excel:', error);
+        await downloadExcelSheet({
+          sheetName: 'Istoriya_prinimayushchih',
+          header: ['Дата и время', 'Пользователь', 'Действие', 'Принимающий', 'Тип действия', 'ID записи'],
+          rows: this.filteredHistory.map(item => [
+            this.formatDateTime(item.created_at),
+            item.actor_name || 'Система',
+            this.getActionText(item),
+            item.approver_name || '',
+            item.action_type,
+            item.id,
+          ]),
+          widths: [22, 30, 26, 30, 16, 12],
+          info: [
+            ['Отчёт сформировал:', this.currentUserDisplayName],
+            ['Дата формирования:', this.formattedCurrentDateTime],
+          ],
+          outerBorder: true,
+        }, `Istoriya_prinimayushchih_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`);
+      } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'выгрузить историю', type: 'error' });
       } finally {
         this.isExporting = false;
