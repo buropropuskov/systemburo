@@ -313,8 +313,9 @@ textarea {
    */
   --bp-mobile-sm: 480px;  /* sm */
   --bp-mobile: 768px;     /* md */
-  --bp-tablet: 1024px;    /* lg */
-  --bp-desktop: 1280px;   /* legacy, планшетный диапазон схлопываем к md/lg */
+  --bp-tablet-narrow: 900px; /* граница «узкого планшета»: ниже - раскладка карточками */
+  --bp-tablet: 1024px;    /* lg: верх планшетного портрета (iPad Pro 12.9) */
+  --bp-desktop: 1280px;   /* legacy */
   --bp-wide: 1440px;      /* xl / эталон масштаба */
 }
 

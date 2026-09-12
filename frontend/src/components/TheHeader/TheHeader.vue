@@ -86,7 +86,7 @@
         />
       </div>
 
-      <!-- «Сообщить о проблеме»: на десктопе в шапке, на мобилке (<768) переезжает в
+      <!-- «Сообщить о проблеме»: на десктопе в шапке, на телефоне и планшете (<=1024) переезжает в
            бургер-drawer NavMenu (W3.3), поэтому из DOM шапки убрана - иначе тур нашёл бы
            скрытый дубль. Меню "⋯" и часы убраны совсем (правка волны 3). -->
       <button
@@ -195,7 +195,7 @@ export default {
       // Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ:СС) в шапке - только на десктопе, как было
       // до правки волны 3 (на мобилке шапка тесная).
       currentDateTime: '',
-      // <768: кнопка «Сообщить о проблеме» живёт в бургер-drawer, не в шапке (W3.3).
+      // <=1024: кнопка «Сообщить о проблеме» живёт в бургер-drawer, не в шапке (W3.3).
       isMobileHeader: false,
     };
   },
@@ -302,12 +302,12 @@ export default {
       this.showFeedbackModal = true;
     },
     /**
-     * Реактивно отслеживает мобильный брейкпоинт (совпадает с CSS @media 768):
+     * Реактивно отслеживает тач-брейкпоинт (совпадает с CSS @media 1024):
      * на нём кнопка «Сообщить о проблеме» показывается в drawer, а не в шапке.
      */
     initMobileWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-      this._mobileMql = window.matchMedia('(max-width: 768px)');
+      this._mobileMql = window.matchMedia('(max-width: 1024px)');
       this.isMobileHeader = this._mobileMql.matches;
       this._onMobileChange = (e) => { this.isMobileHeader = e.matches; };
       if (this._mobileMql.addEventListener) {
@@ -711,7 +711,7 @@ h3 {
 }
 
 /* Адаптивность */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   /* Шапка закреплена сверху при скролле - "Подать заявку" и колокольчик всегда доступны.
      Непрозрачный фон обязателен: контент уезжает под шапку.
 
