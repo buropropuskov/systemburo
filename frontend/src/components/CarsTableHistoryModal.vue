@@ -548,7 +548,7 @@ export default {
         if (seq !== this.loadSeq) return;
         this.history = append ? [...this.history, ...result.items] : result.items;
         this.total = result.total;
-      } catch (error) {
+      } catch {
         if (seq !== this.loadSeq) return;
         // Ошибка обработана здесь целиком: человек видит тост, список остаётся прежним.
         // Наружу её бросать некому - загрузку начинают mounted и обработчики фильтров,
@@ -582,7 +582,7 @@ export default {
       try {
         const options = await fetchPassageFilterOptions('/cars/history/filter-options', this.tableId);
         this.filterUsers = options.users.map(user => ({ id: user.id, name: user.name || 'Система' }));
-      } catch (error) {
+      } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'список пользователей фильтра', type: 'error' });
       }
     },
@@ -696,7 +696,7 @@ export default {
             type: 'warning',
           });
         }
-      } catch (error) {
+      } catch {
         useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
