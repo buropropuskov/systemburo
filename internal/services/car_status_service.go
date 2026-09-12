@@ -125,6 +125,12 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 		}
 
 		details := carAuditDetails{Comment: &comment, TableID: req.TableID}
+		// Снимок номера с маркой прямо в отметке (#2485): машину могут удалить, а факт
+		// прохода остаётся доказательством того, кто был на объекте, и терять его вместе
+		// со строкой справочника нельзя. Тот же приём, что в журнале реестра.
+		if subject := passageSubject(car.CarNumber, car.CarBrand); subject != "" {
+			details.Subject = &subject
+		}
 		// Данные пропуска "по факту" (#1132): при въезде и наличии введённого номера
 		// кладём снимок в details.metadata записи entry -> он доедет до карточки через
 		// carsHistoryUnion (details->'metadata'). Выезд/пустой номер снимок не пишут.

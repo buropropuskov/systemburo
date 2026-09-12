@@ -47,6 +47,9 @@ type passageRevertDetails struct {
 	RevertsID int     `json:"reverts_id"`
 	Comment   *string `json:"comment,omitempty"`
 	TableID   *int    `json:"table_id,omitempty"`
+	// Subject - снимок «о ком отметка» (номер с маркой или ФИО), как в самой отметке:
+	// сторно тоже остаётся в журнале после удаления строки справочника (#2485).
+	Subject *string `json:"subject,omitempty"`
 }
 
 // passageRow - отметка прохода в том виде, в каком её читает механизм отмены.
@@ -173,6 +176,9 @@ func revertPassage(ctx context.Context, db *gorm.DB, recorder AuditRecorder, now
 		}
 
 		details := passageRevertDetails{RevertsID: last.ID, Comment: &reason, TableID: req.TableID}
+		if subject := passageEntitySubject(ctx, tx, entityType, entityID); subject != "" {
+			details.Subject = &subject
+		}
 		if err := recorder.Record(ctx, tx, entityType, &entityID,
 			passageRevertActionFor(last.Action), &req.ActorUserID, details); err != nil {
 			// Уникальный индекс по reverts_id: параллельная отмена той же отметки

@@ -50,11 +50,16 @@ func fakeSubscriberKeys(t *testing.T) (p256dh, auth string) {
 
 // newTestPushService поднимает pushService с настоящей VAPID-парой (иначе подпись
 // запроса не соберётся) и синхронной отправкой, готовый писать в db из testutil.
+// WithPushLocalEndpoints снимает проверку адреса службы доставки (#2466) - подставной
+// push-сервис поднимается httptest-ом на http://127.0.0.1, в проде такой адрес
+// отвергается. Отказ на внутренний адрес проверяется отдельно, СТРОГИМ сервисом, см.
+// TestPushService_Send_RejectsStoredInternalEndpoint.
 func newTestPushService(t *testing.T, db *gorm.DB) services.PushService {
 	t.Helper()
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
-	return services.NewPushService(db, pub, priv, testPushSubject, services.WithPushSyncSend())
+	return services.NewPushService(db, pub, priv, testPushSubject,
+		services.WithPushSyncSend(), services.WithPushLocalEndpoints())
 }
 
 // testPushSubject -- адрес контакта в том виде, в каком он лежит в VAPID_SUBJECT: со
@@ -372,7 +377,9 @@ func TestPushService_Send_RespectsConcurrencyLimit(t *testing.T) {
 
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
-	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com") // без WithPushSyncSend - боевой асинхронный путь
+	// WithPushLocalEndpoints - адрес httptest-сервера внутренний (#2466), без опции
+	// доставка до него не дошла бы вовсе.
+	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com", services.WithPushLocalEndpoints()) // без WithPushSyncSend - боевой асинхронный путь
 
 	for i := 0; i < totalUsers; i++ {
 		uid := seedPushUser(t, db, td, fmt.Sprintf("push_concurrency_%d", i))
@@ -418,7 +425,7 @@ func TestPushService_Shutdown_WaitsForInFlightSend(t *testing.T) {
 
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
-	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com")
+	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com", services.WithPushLocalEndpoints())
 
 	userID := seedPushUser(t, db, td, "push_shutdown_wait")
 	seedSubscription(t, db, userID, srv.URL)
@@ -467,7 +474,7 @@ func TestPushService_Shutdown_GivesUpAfterGracePeriod(t *testing.T) {
 
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
-	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com")
+	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com", services.WithPushLocalEndpoints())
 
 	userID := seedPushUser(t, db, td, "push_shutdown_giveup")
 	seedSubscription(t, db, userID, srv.URL)
@@ -506,4 +513,41 @@ func TestPushService_ListDevices_ScopedToUser(t *testing.T) {
 	devicesB, err := svc.ListDevices(context.Background(), userB)
 	require.NoError(t, err)
 	assert.Len(t, devicesB, 1)
+}
+
+// TestPushService_Send_RejectsStoredInternalEndpoint (#2466): подписка с внутренним
+// адресом уже лежит в базе - сохранена до того, как проверка появилась, либо имя
+// переехало на внутренний адрес после подписки. Отправка по ней не должна уходить
+// вовсе, а причина обязана остаться видимой в разборе доставки (last_error), иначе
+// "уведомления не приходят" не разберёт никто. Сервис здесь СТРОГИЙ: без
+// WithPushLocalEndpoints, как в cmd/server/main.go.
+func TestPushService_Send_RejectsStoredInternalEndpoint(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	userID := seedPushUser(t, db, td, "push_internal_stored")
+	seedSubscription(t, db, userID, srv.URL) // httptest всегда поднимается на 127.0.0.1
+
+	priv, pub, err := webpush.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	svc := services.NewPushService(db, pub, priv, testPushSubject, services.WithPushSyncSend())
+	svc.Send(context.Background(), userID, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(&calls), "сервер не должен был обратиться по внутреннему адресу")
+
+	var sub models.PushSubscription
+	require.NoError(t, db.Where("user_id = ?", userID).First(&sub).Error)
+	assert.Nil(t, sub.LastSuccessAt)
+	assert.Equal(t, 1, sub.FailedCount, "отказ должен копиться как неудачная доставка")
+	require.NotNil(t, sub.LastError)
+	assert.Contains(t, *sub.LastError, "адрес отклонён проверкой", "причина обязана быть видна в разборе доставки")
 }

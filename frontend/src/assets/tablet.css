@@ -67,3 +67,50 @@
     gap: 16px 24px !important;
   }
 }
+
+/* Тач-режим планшета: 768-1024.
+ *
+ * В этом диапазоне пользователь работает пальцем, а размеры контролов остаются
+ * десктопными - обход находил 217 кнопок мельче нормы на 1024 и 72 на 810: «Обновить»
+ * 25px, вкладки фильтров 30px, быстрые периоды аналитики 26px, бейджи кабинета 28px.
+ * На десктопе те же 25-30px нормальны, там целятся курсором, поэтому диапазон закрыт
+ * сверху и правил отсюда на 1025 нет.
+ *
+ * Минимум, а не фиксированная высота: кнопка с большим собственным размером его
+ * сохраняет, ряды не разъезжаются.
+ */
+@media (min-width: 768.02px) and (max-width: 1024px) {
+  :is(
+    .lk-button, .refresh-btn, .filter-tab, .status-btn, .period-preset,
+    .base-dropdown__button, .add-header-button, .pagination-btn, .btn,
+    .notif-filter-tabs__btn, .tables__instruction, .recipients-add__btn,
+    .add-btn, .dashboard__seg-btn, .news-details-button, .modal-btn,
+    .card-button, .grp-pill, .doc-row__dl, .detail-badge, .download-btn,
+    .notifications__settings, .notifications__clear, .filter-btn, .history-btn,
+    .options__manual-add, .options__versions-link, .options__trash-link,
+    .options__export, .add-button, .log-button
+  ) {
+    min-height: 36px !important;
+  }
+
+  /* Иконочные кнопки строки и крестики окон. Им нужен квадрат, а не только высота:
+     кнопка удаления шириной 24px мимо пальца ровно так же, как и высотой. */
+  :is(.delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn) {
+    min-width: 36px !important;
+    min-height: 36px !important;
+  }
+
+  /* Мастер-детейл справочников: список занимает 40% ширины, и на 1024 строка не
+     помещалась в свою колонку - замер показывал строку 410px в контейнере 395px.
+     Собственный порог стека у разделов - 968px, то есть до 1024 они оставались в две
+     колонки. На планшете кладём список и деталь друг под друга. */
+  .content-container {
+    flex-direction: column !important;
+    height: auto !important;
+  }
+
+  .table-section,
+  .details-column {
+    width: 100% !important;
+  }
+}

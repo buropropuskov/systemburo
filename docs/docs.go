@@ -30630,6 +30630,9 @@ const docTemplate = `{
                 "employee_middle_name": {
                     "type": "string"
                 },
+                "entity_deleted": {
+                    "type": "boolean"
+                },
                 "field_name": {
                     "type": "string"
                 },
@@ -30651,6 +30654,10 @@ const docTemplate = `{
                 "reverted": {
                     "description": "Reverted - отметка прохода отменена как ошибочная (#2437): в журнале видна с\nпометкой, в цифрах не участвует.",
                     "type": "boolean"
+                },
+                "subject": {
+                    "description": "Subject - снимок ФИО на момент отметки, EntityDeleted - сотрудника больше нет в\nсправочнике (#2485). Вместе они дают журналу опознать проход удалённого человека:\nраньше такая строка не показывалась вовсе.",
+                    "type": "string"
                 },
                 "table_id": {
                     "type": "integer"

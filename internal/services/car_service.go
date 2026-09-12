@@ -172,9 +172,9 @@ type AddCarHistoryRequest struct {
 
 // UpdateTerritoryStatusRequest -- тело запроса обновления территориального статуса.
 type UpdateTerritoryStatusRequest struct {
-	TerritoryStatus int  `json:"territory_status"`
+	TerritoryStatus int `json:"territory_status"`
 	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
-	UserID          *int `json:"-"`
+	UserID *int `json:"-"`
 	// TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,
 	// чтобы в карточке истории было видно, где произошло событие.
 	TableID *int `json:"table_id"`
@@ -204,7 +204,7 @@ type UpdateCarTerritoryStatusRequest struct {
 
 // DeactivateCarRequest -- тело запроса деактивации автомобиля.
 type DeactivateCarRequest struct {
-	Status  int  `json:"status"`
+	Status int `json:"status"`
 	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
 	UserID  *int `json:"-"`
 	TableID *int `json:"table_id"`
@@ -321,6 +321,11 @@ type AllCarsHistoryItem struct {
 	TableID      *int    `json:"table_id"`
 	TableName    *string `json:"table_name"`
 	Reverted     bool    `json:"reverted"`
+	// Subject - снимок номера с маркой на момент отметки, EntityDeleted - машины больше
+	// нет в справочнике (#2485). Вместе они дают журналу опознать проход безвозвратно
+	// удалённой машины: раньше такая строка не показывалась вовсе.
+	Subject       *string `json:"subject"`
+	EntityDeleted bool    `json:"entity_deleted"`
 }
 
 // CarCurrentStatus -- текущий территориальный статус автомобиля.

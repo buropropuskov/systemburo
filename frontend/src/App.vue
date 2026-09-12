@@ -464,7 +464,9 @@ body.nav-drawer-open {
  * до 90dvh. !important нужен потому что большинство использует scoped.
  */
 @media (max-width: 899.98px) {
-  .modal-overlay {
+  .modal-overlay,
+  .rpm-overlay,
+  .gpm-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
     /* Нативный dvh: композитор прибивает высоту к видимой области без reflow-лага,
@@ -474,7 +476,9 @@ body.nav-drawer-open {
     bottom: auto !important;
   }
 
-  .modal-content {
+  .modal-content,
+  .rpm-modal,
+  .gpm-modal {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
@@ -498,7 +502,7 @@ body.nav-drawer-open {
      Полноэкранные карточки (`.modal-wrapper` - Т/С, сотрудник, транспорт) исключены
      намеренно: они занимают экран целиком, и скруглённые углы у самого края читаются
      как брак - именно это в эпике #1097 звучало от владельца словом «уголки». */
-  .modal-overlay > *:not(.modal-content):not(.modal-wrapper) {
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay) > *:not(.modal-content):not(.modal-wrapper) {
     border-radius: 16px 16px 0 0 !important;
     max-width: 100vw !important;
   }
@@ -506,12 +510,12 @@ body.nav-drawer-open {
   /* Шапка листа компактная. У окон админки она рисуется по десктопным меркам и
      съедает до 79px высоты (замер на «Типах пользователей»), тогда как эталонная
      шапка листа занимает 53. На маленьком экране это разница в две строки формы. */
-  .modal-overlay .modal-header {
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay) .modal-header {
     padding: 10px 16px !important;
   }
 
-  .modal-overlay .modal-header h3,
-  .modal-overlay .modal-header .modal-title {
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay) .modal-header h3,
+  :is(.modal-overlay, .rpm-overlay, .gpm-overlay) .modal-header .modal-title {
     font-size: 16px !important;
   }
 
@@ -528,6 +532,14 @@ body.nav-drawer-open {
   :is(.modal-overlay, .rpm-overlay, .gpm-overlay, .base-modal-overlay) .modal-close {
     min-width: 36px !important;
     min-height: 36px !important;
+  }
+
+  /* Футер окна прав: подпись про 30 секунд ужималась в колонку из пяти слов, потому
+     что делила строку с двумя кнопками. Разрешаем перенос. */
+  .rpm-foot,
+  .gpm-foot {
+    flex-wrap: wrap !important;
+    row-gap: 10px !important;
   }
 
   /* Для inputs и textarea внутри модалок - font-size 16px предотвращает

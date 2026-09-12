@@ -213,12 +213,12 @@
 </template>
 
 <script>
-import ExcelJS from 'exceljs';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import { getPassReportLive, listPassReports } from '@/api/pass-reports';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { moscowParts, serverNow } from '@/utils/serverTime';
 import { formatDateTime } from '@/utils/datetime';
@@ -382,59 +382,32 @@ export default {
       if (!this.days.length || this.isExporting) return;
       this.isExporting = true;
       try {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Otchet_po_prohodam');
-
-        const headers = ['Дата', 'Охранник', 'Машины: заехало', 'Машины: выехало', 'Люди: зашло', 'Люди: вышло'];
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        });
-
-        let stripe = 0;
-        const addDataRow = (values, bold = false) => {
-          const row = worksheet.addRow(values);
-          row.height = 20;
-          const fillColor = stripe % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          stripe += 1;
-          row.eachCell((cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-            cell.font = { name: 'Verdana', size: 9, bold, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-          });
-        };
-
+        // Подытог по посту стоит внутри данных, сразу за строками своего дня, поэтому
+        // собираем строки и отдельно отмечаем, какие из них полужирные.
+        const rows = [];
+        const boldRows = [];
         this.days.forEach((day) => {
           (day.rows || []).forEach((row) => {
-            addDataRow([this.formatDay(day.report_date), this.userLabel(row), row.car_entries, row.car_exits, row.people_entries, row.people_exits]);
+            rows.push([this.formatDay(day.report_date), this.userLabel(row), row.car_entries, row.car_exits, row.people_entries, row.people_exits]);
           });
-          addDataRow([this.formatDay(day.report_date), 'Итого по посту', day.totals.car_entries, day.totals.car_exits, day.totals.people_entries, day.totals.people_exits], true);
+          boldRows.push(rows.length);
+          rows.push([this.formatDay(day.report_date), 'Итого по посту', day.totals.car_entries, day.totals.car_exits, day.totals.people_entries, day.totals.people_exits]);
         });
 
-        worksheet.addRow([]);
         // Штамп выгрузки - московский и по серверным часам: файл уходит из бюро
         // наружу, и время в нём должно совпадать с временем отметок внутри отчёта.
         const stamp = formatDateTime(serverNow());
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', (this.currentUserName || '').trim() || 'Пользователь']);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', stamp]);
-        [infoRow1, infoRow2].forEach((row) => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-          });
-        });
-        worksheet.columns = [{ width: 14 }, { width: 34 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }];
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.download = `Otchet_po_prohodam_${stamp.replace(/[.:\s]/g, '-')}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
+        await downloadExcelSheet({
+          sheetName: 'Otchet_po_prohodam',
+          header: ['Дата', 'Охранник', 'Машины: заехало', 'Машины: выехало', 'Люди: зашло', 'Люди: вышло'],
+          rows,
+          boldRows,
+          widths: [14, 34, 16, 16, 14, 14],
+          info: [
+            ['Отчёт сформировал:', (this.currentUserName || '').trim() || 'Пользователь'],
+            ['Дата формирования:', stamp],
+          ],
+        }, `Otchet_po_prohodam_${stamp.replace(/[.:\s]/g, '-')}.xlsx`);
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Не удалось выгрузить отчёт: ', bold: e.message || 'ошибка', type: 'error' });
       } finally {

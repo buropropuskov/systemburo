@@ -645,6 +645,7 @@ import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import { usePassageRevertStore } from '@/stores/passageRevert';
 import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
@@ -663,7 +664,6 @@ import StatusBadge from './ui/StatusBadge.vue';
 import SwitchToggle from './ui/SwitchToggle.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AnimatedCounter from './ui/AnimatedCounter.vue';
-import ExcelJS from 'exceljs';
 import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable } from '@/api/employees';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
@@ -1780,33 +1780,22 @@ export default {
 
     // Общий билдер книги people-таблицы: набор строк и префикс имени файла -
     // единственное, что различается между полным экспортом и экспортом выбранных.
+    // Общий билдер книги people-таблицы: набор строк и префикс имени файла -
+    // единственное, что различается между полным экспортом и экспортом выбранных.
+    // Лист рисует общий excelSheet (#2418).
     async buildPeopleExcel(rows, filenamePrefix) {
       if (!rows.length) return;
 
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Lyudi');
-
-      const headers = [
-        'Въезд', 'Выезд', 'Фамилия', 'Имя', 'Отчество', 'Должность',
-        'Организация', 'Компания', 'Дата до', 'Время прохода', '№ заявки', 'Статус',
-      ];
-
-      const headerRow = worksheet.addRow(headers);
-      headerRow.height = 25;
-      headerRow.eachCell((cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-        cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-        };
-      });
-
-      rows.forEach((item, index) => {
-        const row = worksheet.addRow([
+      // Штамп выгрузки московский и по серверным часам (#2298): файл уходит наружу,
+      // время в нём должно совпадать с временем отметок в таблице.
+      const dateStr = formatMoscowDateTime();
+      await downloadExcelSheet({
+        sheetName: 'Lyudi',
+        header: [
+          'Въезд', 'Выезд', 'Фамилия', 'Имя', 'Отчество', 'Должность',
+          'Организация', 'Компания', 'Дата до', 'Время прохода', '№ заявки', 'Статус',
+        ],
+        rows: rows.map(item => [
           item.entry_checked ? 'Да' : 'Нет',
           item.exit_checked ? 'Да' : 'Нет',
           item.last_name || '-',
@@ -1819,71 +1808,14 @@ export default {
           item.pass_time || '-',
           item.applicationNumber || '-',
           item.status || '-',
-        ]);
-        row.height = 20;
-        const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-        row.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-          cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
-          cell.alignment = { vertical: 'middle' };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          };
-        });
-      });
-
-      const colCount = headers.length;
-      const lastDataRow = rows.length;
-      for (let r = 1; r <= lastDataRow + 1; r++) {
-        const rc = worksheet.getCell(r, colCount);
-        rc.border = { ...rc.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
-        const lc = worksheet.getCell(r, 1);
-        lc.border = { ...lc.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
-      }
-      for (let c = 1; c <= colCount; c++) {
-        const tc = worksheet.getCell(1, c);
-        tc.border = { ...tc.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
-        const bc = worksheet.getCell(lastDataRow + 1, c);
-        bc.border = { ...bc.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
-      }
-
-      worksheet.addRow([]);
-      // Штамп выгрузки московский и по серверным часам (#2298): файл уходит
-      // наружу, время в нём должно совпадать с временем отметок в таблице.
-      const dateStr = formatMoscowDateTime();
-      const userDisplay = (this.currentUserName || '').trim() || 'Пользователь';
-      [
-        worksheet.addRow(['Отчёт сформировал:', userDisplay]),
-        worksheet.addRow(['Дата формирования:', dateStr]),
-      ].forEach(row => {
-        row.eachCell((cell) => {
-          cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-          cell.alignment = { vertical: 'middle' };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-          };
-        });
-      });
-
-      worksheet.columns = [
-        { width: 10 }, { width: 10 }, { width: 22 }, { width: 18 }, { width: 18 }, { width: 22 },
-        { width: 35 }, { width: 25 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 20 },
-      ];
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.download = `${filenamePrefix}_${dateStr.replace(/[.:,\s]/g, '-')}.xlsx`;
-      a.href = url;
-      a.click();
-      window.URL.revokeObjectURL(url);
+        ]),
+        widths: [10, 10, 22, 18, 18, 22, 35, 25, 14, 16, 16, 20],
+        info: [
+          ['Отчёт сформировал:', (this.currentUserName || '').trim() || 'Пользователь'],
+          ['Дата формирования:', dateStr],
+        ],
+        outerBorder: true,
+      }, `${filenamePrefix}_${dateStr.replace(/[.:,\s]/g, '-')}.xlsx`);
     },
   }
 };

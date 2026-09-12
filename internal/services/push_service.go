@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"systemburo/internal/models"
@@ -144,6 +147,10 @@ type pushService struct {
 	// deliverySem -- общий на сервис семафор одновременных отправок, см.
 	// pushMaxConcurrentDeliveries.
 	deliverySem chan struct{}
+	// endpointGuard -- проверка адреса службы доставки (#2466): адрес приходит от
+	// браузера и без проверки уводил бы исходящий запрос сервера куда угодно, в том
+	// числе внутрь сети заказчика. Читать через guard(), не напрямую.
+	endpointGuard *pushEndpointGuard
 	// shuttingDown взводится в начале Shutdown: Send(), вызванный после этого момента,
 	// не встаёт в очередь - сервер уже останавливается, новая отправка не успеет уйти
 	// за отведённый Shutdown срок, а только продлит ожидание.
@@ -164,18 +171,98 @@ func WithPushHTTPClient(c webpush.HTTPClient) PushServiceOption {
 	return func(s *pushService) { s.httpClient = c }
 }
 
+// strictPushEndpointGuard -- страж по умолчанию: без белого списка и без поблажек
+// локальным адресам. Общий на процесс, состояние его методы не меняют.
+var strictPushEndpointGuard = newPushEndpointGuard(nil)
+
+// guard -- страж адреса, никогда не nil. pushService в паре тестов собирается литералом
+// структуры, минуя NewPushService, и запасной вариант тут закрытый, а не пропускающий:
+// забытый страж должен означать строгую проверку, а не отправку без проверки вовсе.
+func (s *pushService) guard() *pushEndpointGuard {
+	if s.endpointGuard == nil {
+		return strictPushEndpointGuard
+	}
+	return s.endpointGuard
+}
+
+// WithPushAllowedHosts сужает круг служб доставки до перечисленных узлов (#2466,
+// параметр PUSH_ALLOWED_HOSTS). Пустой список -- умолчание: проверяются только схема и
+// диапазоны адресов, а узел может быть любым наружным. Так сделано намеренно: адрес
+// службы выбирает не система, а браузер пользователя, и жёсткий список по умолчанию
+// молча выключил бы уведомления всем, чей браузер ходит через службу, которой в списке
+// нет (сборки Chromium и региональные браузеры заводят свои). Заполненный список -
+// осознанное сужение для установки, где известно, какими браузерами пользуются.
+func WithPushAllowedHosts(hosts []string) PushServiceOption {
+	return func(s *pushService) { s.endpointGuard.allowedHosts = normalizePushAllowedHosts(hosts) }
+}
+
+// WithPushLocalEndpoints разрешает подписки на петлю и частные сети, в том числе по
+// http. ТОЛЬКО для тестов: подставной push-сервис поднимается httptest-ом на
+// http://127.0.0.1. В cmd/server/main.go этой опции быть не должно - она снимает ровно
+// ту защиту, ради которой заведён pushEndpointGuard.
+func WithPushLocalEndpoints() PushServiceOption {
+	return func(s *pushService) { s.endpointGuard.allowLocal = true }
+}
+
 // NewPushService создаёт сервис Web Push. Пустые publicKey/privateKey -- штатный режим
 // "push выключен": Subscribe/Unsubscribe/ListDevices работают как обычно (подписка на
 // экране настроек сохраняется), а Send молча ничего не отправляет.
 func NewPushService(db *gorm.DB, publicKey, privateKey, subscriber string, opts ...PushServiceOption) PushService {
 	s := &pushService{
 		db: db, publicKey: publicKey, privateKey: privateKey, subscriber: normalizePushSubscriber(subscriber),
-		deliverySem: make(chan struct{}, pushMaxConcurrentDeliveries),
+		deliverySem:   make(chan struct{}, pushMaxConcurrentDeliveries),
+		endpointGuard: newPushEndpointGuard(nil),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
+	if s.httpClient == nil {
+		s.httpClient = s.newGuardedHTTPClient()
+	}
 	return s
+}
+
+// newGuardedHTTPClient -- клиент отправки с двумя добавками против ухода запроса
+// внутрь сети (#2466) поверх проверки адреса подписки.
+//
+// Первая: адрес проверяется ещё раз в момент соединения, когда имя уже разрешено. Без
+// этого остаётся окно между проверкой и запросом - имя отдаёт наружный адрес на
+// проверке и внутренний на самом запросе (подмена DNS). Проверка снимается, если
+// исходящий трафик идёт через прокси: тогда сервер соединяется с прокси, а его адрес
+// внутри сети - обычное дело, и проверка отрезала бы доставку целиком.
+//
+// Вторая: клиент не ходит по перенаправлениям (ErrUseLastResponse). Службы доставки
+// перенаправлений не шлют, а перенаправление на внутренний адрес - способ обойти
+// проверку самого адреса подписки. 3xx приезжает в deliver как обычный неуспешный
+// ответ и копится счётчиком неудач.
+func (s *pushService) newGuardedHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if proxyEnv := pushOutboundProxyEnv(); proxyEnv != "" {
+		slog.Info("push: проверка адреса в момент соединения выключена - исходящие запросы идут через прокси",
+			"proxy_env", proxyEnv)
+	} else {
+		dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+		dialer.Control = func(_, address string, _ syscall.RawConn) error {
+			return s.guard().checkDialAddress(address)
+		}
+		transport.DialContext = dialer.DialContext
+	}
+	return &http.Client{
+		Transport:     transport,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+}
+
+// pushOutboundProxyEnv -- имя переменной окружения, которая заворачивает исходящие
+// запросы на прокси, или пустая строка. Значение самого прокси не возвращаем: в нём
+// бывают учётные данные, а в журнал уходит только имя переменной.
+func pushOutboundProxyEnv() string {
+	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 // normalizePushSubscriber снимает схему mailto: с адреса контакта перед передачей в
@@ -204,6 +291,9 @@ func (s *pushService) Subscribe(ctx context.Context, userID int, endpoint, p256d
 	if endpoint == "" || p256dh == "" || auth == "" {
 		return fmt.Errorf("push subscribe: endpoint and keys are required")
 	}
+	if err := s.checkEndpointOnSubscribe(ctx, userID, endpoint); err != nil {
+		return err
+	}
 	sub := models.PushSubscription{
 		UserID:    userID,
 		Endpoint:  endpoint,
@@ -224,6 +314,33 @@ func (s *pushService) Subscribe(ctx context.Context, userID int, endpoint, p256d
 		return fmt.Errorf("upsert push subscription: %w", err)
 	}
 	return nil
+}
+
+// checkEndpointOnSubscribe проверяет адрес в момент сохранения подписки (#2466).
+// Проверять только перед отправкой было бы мало: негодные адреса копились бы в базе и
+// срабатывали при каждой следующей рассылке, а человек узнавал бы об отказе не тогда,
+// когда нажал "включить уведомления".
+//
+// Возвращаемая ошибка идёт пользователю в интерфейс как есть (PushHandler.Subscribe
+// отдаёт её текст в 400, фронт показывает его в уведомлении), поэтому технического
+// префикса "push subscribe:", как у соседних ошибок этого метода, здесь нет.
+func (s *pushService) checkEndpointOnSubscribe(ctx context.Context, userID int, endpoint string) error {
+	err := s.guard().check(ctx, endpoint)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, errPushEndpointUnresolved) {
+		// Имя не разрешилось - это не приговор: установка внутри сети заказчика
+		// может ходить наружу через прокси и не иметь наружного DNS вовсе. Запрос
+		// по неразрешимому имени всё равно никуда не уйдёт, а проверка повторится
+		// перед каждой отправкой, когда DNS заработает.
+		slog.Warn("push: адрес подписки не удалось проверить - имя не разрешается",
+			"user_id", userID, "endpoint", endpoint, "error", err)
+		return nil
+	}
+	slog.Warn("push: подписка отклонена - недопустимый адрес службы уведомлений",
+		"user_id", userID, "endpoint", endpoint, "error", err)
+	return err
 }
 
 func (s *pushService) Unsubscribe(ctx context.Context, userID int, endpoint string) error {
@@ -330,6 +447,20 @@ func (s *pushService) sendNow(ctx context.Context, userID int, payload PushPaylo
 }
 
 func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, message []byte) {
+	// Повторная проверка перед отправкой (#2466): в базе лежат подписки, сохранённые
+	// до того, как проверка появилась, а разрешение имени могло измениться с момента
+	// подписки. Неразрешимое имя пропускаем - запрос по нему и так никуда не уйдёт,
+	// а отказывать из-за молчания DNS значит наказывать подписку за сеть.
+	if err := s.guard().check(ctx, sub.Endpoint); err != nil && !errors.Is(err, errPushEndpointUnresolved) {
+		slog.Warn("push: отправка отменена - недопустимый адрес службы уведомлений",
+			"subscription_id", sub.ID, "user_id", sub.UserID, "endpoint", sub.Endpoint, "error", err)
+		// Через счётчик неудач, а не удалением на месте: причина остаётся видна
+		// администратору в разборе доставки (last_error), а сама строка всё равно
+		// уйдёт после pushSubscriptionFailureLimit попыток - годным такой адрес уже
+		// не станет.
+		s.recordFailure(ctx, sub, "адрес отклонён проверкой: "+err.Error())
+		return
+	}
 	resp, err := webpush.SendNotificationWithContext(ctx, message, &webpush.Subscription{
 		Endpoint: sub.Endpoint,
 		Keys:     webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
