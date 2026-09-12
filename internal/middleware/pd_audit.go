@@ -216,6 +216,11 @@ func isCarHistoryPath(path string) bool {
 	switch path {
 	case "/api/cars/history/all", "/api/cars/history/unified":
 		return true
+	// Значения выпадающих списков журнала (#2469) - это перечень тех, кто отмечал
+	// проходы, то есть те же ФИО охранников, что и в самой истории. Вход другой,
+	// данные те же, и без этой строки появился бы способ прочитать их мимо журнала.
+	case "/api/cars/history/filter-options":
+		return true
 	}
 	const prefix = "/api/cars/"
 	if !strings.HasPrefix(path, prefix) {

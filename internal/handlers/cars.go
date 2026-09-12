@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -184,18 +185,50 @@ func (h *CarHandler) AddCarHistoryEntry(c echo.Context) error {
 }
 
 // GetAllCarsHistory обрабатывает GET /cars/history/all.
-// @Summary Получение истории въездов/выездов всех автомобилей
+// @Summary Получение страницы истории въездов/выездов всех автомобилей
 // @Tags cars
 // @Security BearerAuth
 // @Produce json
-// @Success 200 {array} services.AllCarsHistoryItem
+// @Param user_id   query int    false "Кто отметил проход"
+// @Param car_id    query int    false "Конкретная машина"
+// @Param date_from query string false "Начало периода, YYYY-MM-DD (московские сутки включительно)"
+// @Param date_to   query string false "Конец периода, YYYY-MM-DD (московские сутки включительно)"
+// @Param search    query string false "Поиск по номеру, марке, организации, компании и ФИО отметившего"
+// @Param order     query string false "Порядок по времени отметки" Enums(asc, desc) default(desc)
+// @Param page      query int    false "Страница" default(1)
+// @Param per_page  query int    false "Записей на странице (максимум 200)" default(50)
+// @Success 200 {object} Response
 // @Router /cars/history/all [get]
 func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
-	items, err := h.service.GetAllCarsHistory(c.Request().Context())
+	q, err := bindPassageHistoryQuery(c)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	items, total, err := h.service.GetAllCarsHistory(c.Request().Context(), q)
+	if err != nil {
+		return err
+	}
+	return RespondPaginated(c, items, models.PaginationMeta{Total: total, Page: q.Page, PerPage: q.PerPage})
+}
+
+// GetCarsHistoryFilterOptions обрабатывает GET /cars/history/filter-options.
+// @Summary Значения выпадающих списков журнала проходов машин
+// @Tags cars
+// @Security BearerAuth
+// @Produce json
+// @Param table_id query int false "Сузить до таблицы проходной"
+// @Success 200 {object} Response
+// @Router /cars/history/filter-options [get]
+func (h *CarHandler) GetCarsHistoryFilterOptions(c echo.Context) error {
+	tableID, err := optionalIntQuery(c, "table_id")
+	if err != nil {
+		return err
+	}
+	options, err := h.service.GetCarsHistoryFilterOptions(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, options)
 }
 
 // GetCarsHistoryByTable обрабатывает GET /cars/history/table/:table_id.
@@ -204,18 +237,30 @@ func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
 // @Security BearerAuth
 // @Produce json
 // @Param table_id path int true "ID таблицы"
-// @Success 200 {array} services.AllCarsHistoryItem
+// @Param user_id   query int    false "Кто отметил проход"
+// @Param car_id    query int    false "Конкретная машина"
+// @Param date_from query string false "Начало периода, YYYY-MM-DD (московские сутки включительно)"
+// @Param date_to   query string false "Конец периода, YYYY-MM-DD (московские сутки включительно)"
+// @Param search    query string false "Поиск по номеру, марке, организации, компании и ФИО отметившего"
+// @Param order     query string false "Порядок по времени отметки" Enums(asc, desc) default(desc)
+// @Param page      query int    false "Страница" default(1)
+// @Param per_page  query int    false "Записей на странице (максимум 200)" default(50)
+// @Success 200 {object} Response
 // @Router /cars/history/table/{table_id} [get]
 func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
 	tableID, err := ParseID(c, "table_id")
 	if err != nil {
 		return err
 	}
-	items, err := h.service.GetCarsHistoryByTable(c.Request().Context(), tableID)
+	q, err := bindPassageHistoryQuery(c)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	items, total, err := h.service.GetCarsHistoryByTable(c.Request().Context(), tableID, q)
+	if err != nil {
+		return err
+	}
+	return RespondPaginated(c, items, models.PaginationMeta{Total: total, Page: q.Page, PerPage: q.PerPage})
 }
 
 // GetCarsCurrentStatus обрабатывает GET /cars/history/current-status.

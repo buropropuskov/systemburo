@@ -108,9 +108,8 @@ var (
 	avgForwardsDimensions = []string{"status", "organization", "company", "period"}
 )
 
-// init регистрирует метрики качества в движке (aggMetricRegistry) и каталоге
-// (reportMetricRegistry + reportMetricOrder). Выражение агрегата считается один
-// раз и кладётся в оба реестра — движок и каталог не разъедутся.
+// init регистрирует метрики качества в движке (aggMetricRegistry — SQL) и в
+// каталоге (reportMetricRegistry + reportMetricOrder — подписи для гида).
 func init() {
 	refusalAgg := rateScaled(refusalRateExpr)
 	aggMetricRegistry["refusal_rate"] = aggMetricSchema{
@@ -131,8 +130,6 @@ func init() {
 		label:      "Доля отказов и несогласований",
 		unit:       "%",
 		group:      metricGroupProcessing,
-		baseTable:  "applications",
-		aggExpr:    refusalAgg,
 		dimensions: refusalRateDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "refusal_rate")
@@ -167,8 +164,6 @@ func init() {
 			label:      m.label,
 			unit:       "%",
 			group:      metricGroupProcessing,
-			baseTable:  "applications",
-			aggExpr:    agg,
 			dimensions: m.dimensions,
 		}
 		reportMetricOrder = append(reportMetricOrder, m.key)
@@ -189,8 +184,6 @@ func init() {
 		label:      "Среднее число пересылок",
 		unit:       "раз/заявку",
 		group:      metricGroupProcessing,
-		baseTable:  "applications",
-		aggExpr:    forwardsAgg,
 		dimensions: avgForwardsDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "avg_forwards")

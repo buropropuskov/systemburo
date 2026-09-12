@@ -21,16 +21,16 @@ const (
 	srcUnloadPlaces    optionsSource = "unload_places"
 )
 
-// metricDef — агрегатная метрика. baseTable/aggExpr/baseFilter — безопасные
-// константы для сборки запроса движком B2; dimensions ограничивает разрезы.
-// group — тематическая группа карточек метрик в гиде (шаг "Что считаем").
+// metricDef — агрегатная метрика в том виде, в каком её отдаёт каталог: подпись,
+// единица, группа карточек в гиде (шаг "Что считаем") и допустимые разрезы. SQL
+// метрики здесь не живёт: запрос собирает aggMetricSchema в report_engine.go, и
+// дублировать его таблицу с условием в каталоге незачем — читать эту копию никто
+// не станет, а протухнет она молча (у проходов тут годами стояли cars_history и
+// employees_history, дропнутые ещё в #870).
 type metricDef struct {
 	label      string
 	unit       string
 	group      string
-	baseTable  string
-	aggExpr    string
-	baseFilter string
 	dimensions []string
 }
 
@@ -97,35 +97,24 @@ var reportMetricRegistry = map[string]metricDef{
 		label:      "Количество заявок",
 		unit:       "шт",
 		group:      metricGroupApplications,
-		baseTable:  "applications",
-		aggExpr:    "COUNT(*)",
 		dimensions: []string{"status", "organization", "company", "attachment_type", "period"},
 	},
 	"car_entries_count": {
 		label:      "Въезды машин",
 		unit:       "шт",
 		group:      metricGroupCars,
-		baseTable:  "cars_history",
-		aggExpr:    "COUNT(*)",
-		baseFilter: "action_type = 'entry'",
 		dimensions: []string{"period", "hour_of_day", "unload_place", "organization"},
 	},
 	"people_entries_count": {
 		label:      "Входы людей",
 		unit:       "шт",
 		group:      metricGroupPeople,
-		baseTable:  "employees_history",
-		aggExpr:    "COUNT(*)",
-		baseFilter: "action_type = 'entry'",
 		dimensions: []string{"period", "hour_of_day", "organization"},
 	},
 	"avg_cars_per_day": {
 		label:      "Среднее машин в день",
 		unit:       "шт/день",
 		group:      metricGroupCars,
-		baseTable:  "cars_history",
-		aggExpr:    "COUNT(*)",
-		baseFilter: "action_type = 'entry'",
 		// Только period (среднее в день имеет смысл только по времени) и none
 		// (общее среднее за весь период) — последний валидируется универсально.
 		dimensions: []string{"period"},
@@ -134,8 +123,6 @@ var reportMetricRegistry = map[string]metricDef{
 		label:      "Количество товаров",
 		unit:       "шт",
 		group:      metricGroupApplications,
-		baseTable:  "items",
-		aggExpr:    "COALESCE(SUM(items.count), 0)",
 		dimensions: []string{"organization", "company", "period"},
 	},
 }
