@@ -550,8 +550,13 @@ export default {
         this.total = result.total;
       } catch (error) {
         if (seq !== this.loadSeq) return;
+        // Ошибка обработана здесь целиком: человек видит тост, список остаётся прежним.
+        // Наружу её бросать некому - загрузку начинают mounted и обработчики фильтров,
+        // и необработанное отклонение только шумело бы в консоли.
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'историю проходов', type: 'error' });
-        throw error;
+        // Неудавшаяся подгрузка возвращает счётчик назад, иначе следующая попытка
+        // перескочит страницу и в списке появится дыра.
+        if (append) this.page = Math.max(1, this.page - 1);
       } finally {
         if (seq === this.loadSeq) {
           this.loading = false;
@@ -579,7 +584,6 @@ export default {
         this.filterUsers = options.users.map(user => ({ id: user.id, name: user.name || 'Система' }));
       } catch (error) {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'список пользователей фильтра', type: 'error' });
-        throw error;
       }
     },
 
@@ -694,7 +698,6 @@ export default {
         }
       } catch (error) {
         useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
-        throw error;
       } finally {
         this.isExporting = false;
       }
