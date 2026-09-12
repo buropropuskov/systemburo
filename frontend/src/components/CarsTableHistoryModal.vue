@@ -21,7 +21,7 @@
             <div class="header-actions">
               <button
                 class="export-btn"
-                :disabled="filteredHistory.length === 0 || isExporting"
+                :disabled="historyRows.length === 0 || isExporting"
                 @click="exportToExcel"
               >
                 <AppIcon
@@ -144,14 +144,14 @@
                   v-model="dateFrom" 
                   type="date" 
                   class="date-input"
-                  @change="applyFilters"
+                  @change="applyFilters({ immediate: true })"
                 >
                 <span class="date-separator">—</span>
                 <input 
                   v-model="dateTo" 
                   type="date" 
                   class="date-input"
-                  @change="applyFilters"
+                  @change="applyFilters({ immediate: true })"
                 >
               </div>
           
@@ -175,6 +175,7 @@
           <div
             ref="scrollContainer"
             class="modal-content"
+            @scroll.passive="onScroll"
           >
             <div
               v-if="loading"
@@ -184,7 +185,7 @@
             </div>
         
             <div
-              v-else-if="filteredHistory.length === 0"
+              v-else-if="historyRows.length === 0"
               class="history-empty"
             >
               История пуста
@@ -253,6 +254,21 @@
                   </div>
                 </div>
               </template>
+
+              <div class="history-footer">
+                <span>Показано {{ historyRows.length }} из {{ total }}</span>
+                <LoaderSpinner
+                  v-if="loadingMore"
+                  label="Загрузка ещё"
+                />
+                <button
+                  v-else-if="hasMore"
+                  class="load-more-btn"
+                  @click="loadMore"
+                >
+                  Показать ещё
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -263,12 +279,18 @@
 
 <script>
 import { ref } from 'vue';
-import { apiRequest } from '@/api/client'
+import {
+  PASSAGE_EXPORT_LIMIT,
+  PASSAGE_PAGE_SIZE,
+  collectPassageRows,
+  fetchPassageFilterOptions,
+  fetchPassagePage,
+} from '@/utils/passageJournal';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import ExcelJS from 'exceljs';
+import { buildPassageJournalBlob, saveJournalBlob } from '@/utils/passageJournalExport';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
@@ -323,21 +345,23 @@ export default {
       userDropdownOpen: false,
       carDropdownOpen: false,
       isExporting: false,
-      carsMap: {}
+      carsMap: {},
+      // Страница журнала и общее число строк по фильтру: журнал читается порциями,
+      // а не целиком (#2469).
+      page: 1,
+      total: 0,
+      loadingMore: false,
+      filterUsers: [],
+      searchTimer: null,
+      // Порядковый номер запроса: ответ отставшей загрузки не должен затирать свежую.
+      loadSeq: 0
     };
   },
   computed: {
+    // Кто отмечал проходы - отдельный запрос к журналу, а не разбор загруженной
+    // страницы: собранный из 50 строк список предлагал бы не тех, кто отмечал.
     uniqueUsers() {
-      const users = new Map();
-      this.history.forEach(item => {
-        if (item.user_id && !users.has(item.user_id)) {
-          users.set(item.user_id, {
-            id: item.user_id,
-            name: item.user_name || 'Система'
-          });
-        }
-      });
-      return Array.from(users.values()).sort((a, b) => a.name.localeCompare(b.name));
+      return this.filterUsers;
     },
 
     selectedUserName() {
@@ -351,61 +375,20 @@ export default {
       return this.getCarNameById(this.selectedCarId);
     },
 
-    filteredHistory() {
-      let filtered = [...this.history];
-      
-      // Фильтр по поисковому запросу
-      if (this.searchQuery && this.searchQuery.trim() !== '') {
-        const query = this.searchQuery.toLowerCase().trim();
-        filtered = filtered.filter(item => {
-          const carInfo = this.getCarInfo(item).toLowerCase();
-          const userName = (item.user_name || '').toLowerCase();
-          const actionText = this.getActionText(item).toLowerCase();
-          const comment = this.getActionComment(item).toLowerCase();
-          
-          return carInfo.includes(query) || 
-                 userName.includes(query) || 
-                 actionText.includes(query) || 
-                 comment.includes(query);
-        });
-      }
-      
-      if (this.selectedUserId) {
-        filtered = filtered.filter(item => item.user_id === this.selectedUserId);
-      }
-      
-      if (this.selectedCarId) {
-        filtered = filtered.filter(item => item.car_id == this.selectedCarId);
-      }
-      
-      if (this.dateFrom) {
-        const fromDate = new Date(this.dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(item => new Date(item.created_at) >= fromDate);
-      }
-      
-      if (this.dateTo) {
-        const toDate = new Date(this.dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        filtered = filtered.filter(item => new Date(item.created_at) <= toDate);
-      }
-      
-      // Оставляем только въезды и выезды
-      filtered = filtered.filter(item => 
-        item.action_type === 'entry' || item.action_type === 'exit'
-      );
-      
-      return filtered.sort((a, b) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
-      });
+    // Фильтры, поиск и порядок применяет сервер, поэтому показываем то, что пришло.
+    historyRows() {
+      return this.history;
+    },
+
+    // Загружено меньше, чем нашлось по фильтру - значит есть что подгружать.
+    hasMore() {
+      return this.history.length < this.total;
     },
 
     historyGroupedByDate() {
       const groups = [];
       const dateMap = new Map();
-      for (const item of this.filteredHistory) {
+      for (const item of this.historyRows) {
         const dateKey = formatMoscow(new Date(item.created_at), { day: 'numeric', month: 'long', year: 'numeric' });
         if (!dateMap.has(dateKey)) {
           dateMap.set(dateKey, []);
@@ -416,16 +399,7 @@ export default {
       return groups;
     },
 
-    exportData() {
-      return this.filteredHistory.map(item => ({
-        'Дата и время': this.formatDateTime(item.created_at),
-        'Автомобиль': this.getCarInfo(item),
-        'Пользователь': item.user_name || 'Система',
-        'Действие': this.getActionText(item),
-        'Комментарий': this.getActionComment(item),
-        'Место': item.table_name || ''
-      }));
-    },
+
 
     formattedCurrentDateTime() {
       return formatMoscowDateTime();
@@ -440,6 +414,7 @@ export default {
   mounted() {
     this.visible = true;
     this.loadHistory();
+    this.loadFilterUsers();
     document.addEventListener('click', this.handleClickOutside);
     document.addEventListener('keydown', this.onKeydown);
 
@@ -534,22 +509,81 @@ export default {
       return item.comment || '';
     },
 
-    async loadHistory() {
-      this.loading = true;
-      try {
-        const url = this.tableId
-          ? `/cars/history/table/${this.tableId}`
-          : '/cars/history/all';
-        const response = await apiRequest(url, {});
+    journalPath() {
+      return this.tableId ? `/cars/history/table/${this.tableId}` : '/cars/history/all';
+    },
 
-        if (response.ok) {
-          const data = await response.json();
-          this.history = data;
-        }
-      } catch (error) {
-        console.error("Error loading cars history:", error);
+    journalFilters() {
+      return {
+        search: this.searchQuery,
+        userId: this.selectedUserId,
+        entityId: this.selectedCarId,
+        dateFrom: this.dateFrom,
+        dateTo: this.dateTo,
+        order: this.sortOrder,
+      };
+    },
+
+    /**
+     * Читает страницу журнала. append дописывает её к уже показанным строкам,
+     * иначе список начинается заново с первой страницы.
+     *
+     * Ответ отставшего запроса отбрасывается по номеру: пока грузилась страница с
+     * прежним фильтром, человек успевает набрать в поиске ещё символ, и без этой
+     * проверки список показывал бы результат старого запроса.
+     */
+    async loadHistory({ append = false } = {}) {
+      const seq = ++this.loadSeq;
+      if (append) {
+        this.loadingMore = true;
+      } else {
+        this.loading = true;
+        this.page = 1;
+      }
+      try {
+        const result = await fetchPassagePage(this.journalPath(), this.journalFilters(), {
+          page: this.page,
+          perPage: PASSAGE_PAGE_SIZE,
+        });
+        if (seq !== this.loadSeq) return;
+        this.history = append ? [...this.history, ...result.items] : result.items;
+        this.total = result.total;
+      } catch {
+        if (seq !== this.loadSeq) return;
+        // Ошибка обработана здесь целиком: человек видит тост, список остаётся прежним.
+        // Наружу её бросать некому - загрузку начинают mounted и обработчики фильтров,
+        // и необработанное отклонение только шумело бы в консоли.
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'историю проходов', type: 'error' });
+        // Неудавшаяся подгрузка возвращает счётчик назад, иначе следующая попытка
+        // перескочит страницу и в списке появится дыра.
+        if (append) this.page = Math.max(1, this.page - 1);
       } finally {
-        this.loading = false;
+        if (seq === this.loadSeq) {
+          this.loading = false;
+          this.loadingMore = false;
+        }
+      }
+    },
+
+    async loadMore() {
+      if (this.loadingMore || this.loading || !this.hasMore) return;
+      this.page += 1;
+      await this.loadHistory({ append: true });
+    },
+
+    // Подгрузка на подходе к концу списка: 200 пикселей запаса, чтобы порция успела
+    // прийти до того, как человек доскроллит до пустоты.
+    onScroll(event) {
+      const el = event.target;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) this.loadMore();
+    },
+
+    async loadFilterUsers() {
+      try {
+        const options = await fetchPassageFilterOptions('/cars/history/filter-options', this.tableId);
+        this.filterUsers = options.users.map(user => ({ id: user.id, name: user.name || 'Система' }));
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'список пользователей фильтра', type: 'error' });
       }
     },
 
@@ -568,6 +602,7 @@ export default {
 
     toggleSortOrder() {
       this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+      this.applyFilters({ immediate: true });
     },
 
     toggleUserDropdown() {
@@ -583,14 +618,25 @@ export default {
     selectUser(userId) {
       this.selectedUserId = userId;
       this.userDropdownOpen = false;
+      this.applyFilters({ immediate: true });
     },
 
     selectCar(carId) {
       this.selectedCarId = carId;
       this.carDropdownOpen = false;
+      this.applyFilters({ immediate: true });
     },
 
-    applyFilters() {},
+    // Поиск перезагружает журнал с задержкой: без неё каждый символ уходил бы
+    // отдельным запросом. Остальные фильтры применяются сразу.
+    applyFilters({ immediate = false } = {}) {
+      clearTimeout(this.searchTimer);
+      if (immediate) {
+        this.loadHistory();
+        return;
+      }
+      this.searchTimer = setTimeout(() => this.loadHistory(), 300);
+    },
 
     handleClickOutside(event) {
       // refs, не this.$el.querySelectorAll: при <Teleport> $el - это якорный комментарий
@@ -605,139 +651,52 @@ export default {
       }
     },
 
+    exportRow(item) {
+      return [
+        this.formatDateTime(item.created_at),
+        this.getCarInfo(item),
+        item.user_name || 'Система',
+        this.getActionText(item),
+        this.getActionComment(item),
+        item.table_name || '',
+      ];
+    },
+
+    /**
+     * Выгружает журнал по текущему фильтру, а не то, что успело загрузиться в список:
+     * с подгрузкой страницами «экспорт видимого» отдавал бы первые 50 строк.
+     */
     async exportToExcel() {
-      if (this.filteredHistory.length === 0) return;
-      
+      if (this.historyRows.length === 0) return;
+
       this.isExporting = true;
-      
       try {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Istoriya_viezdov');
-        
-        const headers = [
-          'Дата и время',
-          'Автомобиль',
-          'Пользователь',
-          'Действие',
-          'Комментарий',
-          'Место'
-        ];
-        
-        const headerRow = worksheet.addRow(headers);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4F5BDF' }
-          };
-          cell.font = {
-            name: 'Verdana',
-            size: 11,
-            bold: true,
-            color: { argb: 'FFFFFFFF' }
-          };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-          };
+        const { rows, total, truncated } = await collectPassageRows(
+          this.journalPath(),
+          this.journalFilters(),
+          { entityKey: 'car_id' },
+        );
+        const blob = await buildPassageJournalBlob({
+          sheetName: 'Istoriya_viezdov',
+          headers: ['Дата и время', 'Автомобиль', 'Пользователь', 'Действие', 'Комментарий', 'Место'],
+          rows: rows.map(item => this.exportRow(item)),
+          columnWidths: [25, 50, 40, 30, 60, 30],
+          author: this.currentUserDisplayName,
+          formedAt: this.formattedCurrentDateTime,
+          // Обрезанная выгрузка обязана сказать об этом в самом файле: по нему считают
+          // итоги за период, и молчание превратило бы часть журнала в «всё, что было».
+          note: truncated ? `${rows.length} из ${total} (предел выгрузки ${PASSAGE_EXPORT_LIMIT})` : '',
         });
-        
-        this.exportData.forEach((item, index) => {
-          const row = worksheet.addRow([
-            item['Дата и время'],
-            item['Автомобиль'],
-            item['Пользователь'],
-            item['Действие'],
-            item['Комментарий'],
-            item['Место']
-          ]);
-          
-          row.height = 20;
-          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-          
-          row.eachCell((cell) => {
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: fillColor }
-            };
-            cell.font = {
-              name: 'Verdana',
-              size: 9,
-              color: { argb: 'FF333333' }
-            };
-            cell.alignment = { vertical: 'middle' };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-            };
+        saveJournalBlob(blob, `Istoriya_viezdov_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`);
+
+        if (truncated) {
+          useDeletionsStore().notify({
+            prefix: `В файл попали первые ${rows.length} строк из ${total}. `,
+            bold: 'Сузьте период или фильтр',
+            type: 'warning',
           });
-        });
-        
-        const lastDataRow = this.exportData.length;
-        
-        for (let row = 1; row <= lastDataRow + 1; row++) {
-          const rightCell = worksheet.getCell(row, 6);
-          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
-          const leftCell = worksheet.getCell(row, 1);
-          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
         }
-        
-        for (let col = 1; col <= 6; col++) {
-          const topCell = worksheet.getCell(1, col);
-          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        
-        for (let col = 1; col <= 6; col++) {
-          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
-          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
-        }
-        
-        worksheet.addRow([]);
-        
-        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
-        
-        [infoRow1, infoRow2].forEach(row => {
-          row.eachCell((cell) => {
-            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
-            cell.alignment = { vertical: 'middle' };
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-            };
-          });
-        });
-        
-        worksheet.columns = [
-          { width: 25 },
-          { width: 50 },
-          { width: 40 },
-          { width: 30 },
-          { width: 60 },
-          { width: 30 }
-        ];
-        
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        
-        a.download = `Istoriya_viezdov_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
-        a.href = url;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        
-      } catch (error) {
-        console.error('Error exporting to Excel:', error);
+      } catch {
         useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
@@ -1099,6 +1058,25 @@ export default {
 }
 
 .history-loading,
+.history-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.load-more-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
 .history-empty {
   display: flex;
   align-items: center;

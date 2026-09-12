@@ -121,28 +121,18 @@ type allCarsHistoryRow struct {
 	Reverted     bool
 }
 
-// allCarsHistorySelectSQL - общая часть выборки истории въездов/выездов;
-// вызывающий дописывает условия и сортировку.
-const allCarsHistorySelectSQL = `
-	SELECT
-		h.id,
-		h.car_id,
-		h.user_id,
-		CONCAT(
+// allCarsHistoryUserNameSQL - ФИО отметившего одной строкой. Выражение нужно и
+// выборке, и поиску, поэтому вынесено из SELECT.
+const allCarsHistoryUserNameSQL = `CONCAT(
 			COALESCE(u.last_name, ''),
 			CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
 			CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-		) AS user_name,
-		h.action_type,
-		h.comment,
-		h.created_at,
-		c.car_number,
-		c.car_brand,
-		COALESCE(o.name, '') AS organization,
-		COALESCE(c2.name, '') AS company,
-		h.table_id,
-		st.display_name AS table_name,
-		h.reverted
+		)`
+
+// allCarsHistoryFromSQL - источник истории въездов/выездов со всеми соединениями.
+// Один и тот же FROM читают страница, счётчик для meta.total и значения выпадающих
+// списков: иначе «показано 50 из 431» разошлось бы с самой выборкой на фильтре.
+const allCarsHistoryFromSQL = `
 	FROM ` + carsHistoryUnion + ` h
 	LEFT JOIN users u ON h.user_id = u.id
 	JOIN cars c ON h.car_id = c.id
@@ -156,39 +146,129 @@ const allCarsHistorySelectSQL = `
 	WHERE h.action_type IN ('entry', 'exit')
 `
 
-// GetAllCarsHistory возвращает историю въездов/выездов всех автомобилей.
-func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryItem, error) {
-	rows := make([]allCarsHistoryRow, 0)
-	err := s.db.WithContext(ctx).Raw(allCarsHistorySelectSQL + `
-		ORDER BY h.created_at DESC
-	`).Scan(&rows).Error
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching all cars history")
-	}
-	return mapAllCarsHistoryRows(rows), nil
-}
+// allCarsHistorySelectSQL - общая часть выборки истории въездов/выездов;
+// вызывающий дописывает условия, сортировку и страницу.
+const allCarsHistorySelectSQL = `
+	SELECT
+		h.id,
+		h.car_id,
+		h.user_id,
+		` + allCarsHistoryUserNameSQL + ` AS user_name,
+		h.action_type,
+		h.comment,
+		h.created_at,
+		c.car_number,
+		c.car_brand,
+		COALESCE(o.name, '') AS organization,
+		COALESCE(c2.name, '') AS company,
+		h.table_id,
+		st.display_name AS table_name,
+		h.reverted` + allCarsHistoryFromSQL
 
-// GetCarsHistoryByTable возвращает историю въездов/выездов таблицы проходной.
-// Запись с проставленным table_id принадлежит только своей таблице, иначе проезд
-// через один пост попал бы в историю всех постов, где числится машина. По
-// привязке подбираются лишь записи без table_id - те, что писались до её
-// появления (сейчас это большая часть журнала).
-func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int) ([]AllCarsHistoryItem, error) {
-	rows := make([]allCarsHistoryRow, 0)
-	err := s.db.WithContext(ctx).Raw(allCarsHistorySelectSQL+`
+// allCarsHistoryCountSQL - число строк журнала по тем же условиям, что и страница.
+const allCarsHistoryCountSQL = `SELECT COUNT(*)` + allCarsHistoryFromSQL
+
+// carsHistoryTableScopeSQL - скоуп таблицы проходной. Запись с проставленным
+// table_id принадлежит только своей таблице, иначе проезд через один пост попал бы
+// в историю всех постов, где числится машина. По привязке подбираются лишь записи
+// без table_id - те, что писались до её появления (сейчас это большая часть журнала).
+const carsHistoryTableScopeSQL = `
 		AND (
 			h.table_id = ?
 			OR (
 				h.table_id IS NULL
 				AND h.car_id IN (SELECT ctt.car_id FROM car_target_tables ctt WHERE ctt.table_id = ?)
 			)
-		)
-		ORDER BY h.created_at DESC
-	`, tableID, tableID).Scan(&rows).Error
+		)`
+
+// carsHistorySearchExprs - по чему ищет строка поиска в журнале машин. Подписи
+// действий («Прибытие», «Убытие») здесь нет намеренно: это текст интерфейса, а не
+// данные, и поле поиска его никогда не обещало.
+var carsHistorySearchExprs = []string{
+	"c.car_number",
+	"c.car_brand",
+	"o.name",
+	"c2.name",
+	allCarsHistoryUserNameSQL,
+}
+
+// GetAllCarsHistory возвращает страницу истории въездов/выездов всех автомобилей и
+// общее число строк по фильтру.
+func (s *carService) GetAllCarsHistory(ctx context.Context, q models.PassageHistoryQuery) ([]AllCarsHistoryItem, int64, error) {
+	return s.queryCarsHistory(ctx, q, "", nil)
+}
+
+// GetCarsHistoryByTable возвращает страницу истории въездов/выездов таблицы
+// проходной и общее число строк по фильтру.
+func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int, q models.PassageHistoryQuery) ([]AllCarsHistoryItem, int64, error) {
+	return s.queryCarsHistory(ctx, q, carsHistoryTableScopeSQL, []any{tableID, tableID})
+}
+
+// queryCarsHistory - общая механика журнала машин: скоуп (вся история или одна
+// таблица проходной), фильтры, счётчик и страница.
+//
+// До #2469 оба метода отдавали историю целиком, а искал и фильтровал фронт в
+// памяти. Порядок аргументов важен: скоуп, затем фильтры, затем страница - именно в
+// этой последовательности `?` встречаются в собранном запросе.
+func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHistoryQuery, scopeSQL string, scopeArgs []any) ([]AllCarsHistoryItem, int64, error) {
+	filterSQL, filterArgs, err := passageHistoryConditions(q, passageFilterSpec{
+		alias:        "h",
+		entityColumn: "h.car_id",
+		entityID:     q.CarID,
+		searchExprs:  carsHistorySearchExprs,
+	})
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars history by table")
+		return nil, 0, err
 	}
-	return mapAllCarsHistoryRows(rows), nil
+
+	where := scopeSQL + filterSQL
+	whereArgs := append(append([]any{}, scopeArgs...), filterArgs...)
+
+	var total int64
+	if err := s.db.WithContext(ctx).Raw(allCarsHistoryCountSQL+where, whereArgs...).Scan(&total).Error; err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting cars history")
+	}
+
+	limitSQL, limitArgs := passageHistoryLimitSQL(q)
+	rows := make([]allCarsHistoryRow, 0, q.PerPage)
+	err = s.db.WithContext(ctx).Raw(
+		allCarsHistorySelectSQL+where+passageHistoryOrderSQL(q, "h")+limitSQL,
+		append(append([]any{}, whereArgs...), limitArgs...)...,
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars history")
+	}
+
+	return mapAllCarsHistoryRows(rows), total, nil
+}
+
+// GetCarsHistoryFilterOptions отдаёт, кто отмечал проходы: значения выпадающего
+// списка «Пользователь». tableID сужает до одной таблицы проходной, nil берёт весь
+// журнал.
+//
+// Список собирается отдельным методом, а не из первой страницы: иначе выбор в фильтре
+// зависел бы от того, что попало в 50 загруженных строк. Записи без отметившего
+// (действия системы) в список не идут - выбирать «Систему» журнал и раньше не предлагал.
+func (s *carService) GetCarsHistoryFilterOptions(ctx context.Context, tableID *int) (CarsHistoryFilterOptions, error) {
+	options := CarsHistoryFilterOptions{Users: make([]PassageFilterUser, 0)}
+
+	scopeSQL := ""
+	var scopeArgs []any
+	if tableID != nil {
+		scopeSQL = carsHistoryTableScopeSQL
+		scopeArgs = []any{*tableID, *tableID}
+	}
+
+	err := s.db.WithContext(ctx).Raw(
+		`SELECT DISTINCT h.user_id AS id, `+allCarsHistoryUserNameSQL+` AS name`+
+			allCarsHistoryFromSQL+scopeSQL+` AND h.user_id IS NOT NULL ORDER BY name`,
+		scopeArgs...,
+	).Scan(&options.Users).Error
+	if err != nil {
+		return options, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars history users")
+	}
+
+	return options, nil
 }
 
 // mapAllCarsHistoryRows преобразует сырые строки истории в DTO.
