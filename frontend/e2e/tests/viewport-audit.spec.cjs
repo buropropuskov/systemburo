@@ -3,7 +3,7 @@ const path = require('path');
 const { test } = require('@playwright/test');
 const { loginAsSuperAdminUI } = require('../helpers/auth');
 const { horizontalOverflow, overlaps, smallTargets } = require('../helpers/mobileInvariants');
-const { pageMetrics, oversizedRows, clippedText } = require('../helpers/layoutProbes');
+const { pageMetrics, oversizedRows, clippedText, modalGeometry } = require('../helpers/layoutProbes');
 const { selectScreens } = require('../helpers/screens');
 
 /**
@@ -90,7 +90,7 @@ test('аудит раскладки: обход экранов по ширина
       // того, что увидит человек, открывший страницу с планшета.
       await visit(page, screen.path);
 
-      const entry = { screen: screen.slug, name: screen.name, area: screen.area, width };
+      const entry = { screen: screen.slug, name: screen.name, area: screen.area, width, state: 'list' };
       try {
         entry.metrics = await page.evaluate(pageMetrics);
         entry.overflow = await page.evaluate(horizontalOverflow);
@@ -106,6 +106,35 @@ test('аудит раскладки: обход экранов по ширина
         entry.error = String(err).slice(0, 200);
       }
       results.push(entry);
+
+      // Второй замер - с раскрытым окном. Окна проверять обязательно: список
+      // приводит в порядок карточная инфраструктура, а окно рисует себя само, и
+      // именно на окнах в админке накопились свои радиусы, свои шапки и своя
+      // прокрутка.
+      if (screen.open && !entry.error) {
+        const opened = { screen: screen.slug, name: screen.name, area: screen.area, width, state: 'open' };
+        try {
+          for (const selector of screen.open) {
+            const target = page.locator(selector).first();
+            if (!(await target.isVisible().catch(() => false))) throw new Error(`нет ${selector}`);
+            await target.click();
+          }
+          await page.waitForTimeout(700);
+          const dialog = page.locator('.base-modal, .modal-content, [role="dialog"], .modal-overlay > *').first();
+          if (!(await dialog.isVisible().catch(() => false))) throw new Error('окно не открылось');
+          opened.metrics = await page.evaluate(pageMetrics);
+          opened.overflow = await page.evaluate(horizontalOverflow);
+          opened.small = width <= TOUCH_MAX_WIDTH ? await page.evaluate(smallTargets, TOUCH_MIN) : [];
+          opened.modal = await page.evaluate(modalGeometry);
+          opened.docOverflow = opened.metrics.doc > opened.metrics.vw + 1
+            ? { doc: opened.metrics.doc, vw: opened.metrics.vw } : null;
+        } catch (err) {
+          // Раздел без кнопки создания или с окном за правами - не находка, а
+          // отсутствие второго состояния: помечаем и идём дальше.
+          opened.skipped = String(err.message || err).slice(0, 80);
+        }
+        results.push(opened);
+      }
     }
   }
 
