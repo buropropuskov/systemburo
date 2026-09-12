@@ -140,6 +140,7 @@
   :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .table-container,
   :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .details-column,
   :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .details-section,
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .types-section,
   :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .items-list {
     height: auto !important;
     max-height: none !important;
