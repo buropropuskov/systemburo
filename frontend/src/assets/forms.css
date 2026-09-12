@@ -72,6 +72,7 @@
 }
 
 .lk-button--primary {
+  --btn-busy-color: var(--accent-contrast);
   background: var(--accent);
   color: var(--accent-contrast);
   border-color: var(--accent);
@@ -83,6 +84,7 @@
 }
 
 .lk-button--secondary {
+  --btn-busy-color: var(--accent-text);
   background: var(--surface);
   color: var(--accent-text);
   border-color: var(--accent);
@@ -106,6 +108,7 @@
 }
 
 .lk-button--danger {
+  --btn-busy-color: var(--danger-text);
   background: var(--surface);
   color: var(--danger-text);
   /* Бледная рамка выводится из цвета темы: литерал #fecaca в тёмной теме
@@ -117,6 +120,33 @@
   background: var(--danger);
   border-color: var(--danger);
   color: var(--fill-text);
+}
+
+/* Кнопка в работе. Подпись остаётся на месте и держит ширину, а ход операции
+   показывают точки поверх неё: подмена текста на «Сохранение...» делала кнопку шире
+   на треть, и футер модалки дёргался при каждом сохранении. Тот же приём, что у
+   RefreshButton, где ширина зафиксирована под состояние с точками. */
+.lk-button.is-busy {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.lk-button.is-busy::after {
+  content: '•••';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 2px;
+  color: var(--btn-busy-color, var(--text));
+  animation: lk-button-busy 1.1s ease-in-out infinite;
+}
+
+@keyframes lk-button-busy {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* Компактный модификатор для inline-контекстов (retry у sentinel подгрузки #1173,
