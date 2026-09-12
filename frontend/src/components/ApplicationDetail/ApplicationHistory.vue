@@ -240,9 +240,9 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions';
+import { downloadExcelSheet } from '@/utils/excelSheet';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import ExcelJS from 'exceljs';
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useOnboardingStore } from '@/stores/onboarding';
@@ -384,18 +384,6 @@ export default {
         },
 
         // Данные для экспорта в формате таблицы
-        exportData() {
-            return this.filteredHistory.map(item => ({
-                'Дата и время': this.formatTime(item.created_at),
-                'Пользователь': !item.user_id ? 'Система' : item.user_name,
-                'Действие': this.getActionText(item),
-                'Старое значение': item.old_value || '',
-                'Новое значение': item.new_value || '',
-                'Комментарий': item.comment || '',
-                'Обязательно': item.metadata?.required_approval ? 'Да' : 'Нет',
-                'Кто переслал': item.metadata?.forwarded_by || ''
-            }));
-        },
 
         // Форматированная дата для подписи
         formattedCurrentDateTime() {
@@ -490,200 +478,38 @@ export default {
 
         async exportToExcel() {
             if (this.filteredHistory.length === 0) return;
-            
+
             this.isExporting = true;
-            
-            // Имитация процесса загрузки (2 секунды)
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
             try {
-                // Создаем рабочую книгу
-                const workbook = new ExcelJS.Workbook();
-                const worksheet = workbook.addWorksheet('История');
-                
-                // Заголовки
-                const headers = [
-                    'Дата и время',
-                    'Пользователь',
-                    'Действие',
-                    'Старое значение',
-                    'Новое значение',
-                    'Комментарий',
-                    'Обязательно',
-                    'Кто переслал'
-                ];
-                
-                // Добавляем заголовки
-                const headerRow = worksheet.addRow(headers);
-                
-                // Стиль для заголовков (без жирных границ)
-                headerRow.height = 25;
-                headerRow.eachCell((cell) => {
-                    cell.fill = {
-                        type: 'pattern',
-                        pattern: 'solid',
-                        fgColor: { argb: 'FF4F5BDF' }
-                    };
-                    cell.font = {
-                        name: 'Verdana',
-                        size: 11,
-                        bold: true,
-                        color: { argb: 'FFFFFFFF' }
-                    };
-                    cell.alignment = { 
-                        vertical: 'middle', 
-                        horizontal: 'center',
-                        wrapText: true
-                    };
-                    cell.border = {
-                        top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                        bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                        left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                        right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-                    };
-                });
-                
-                // Добавляем данные
-                this.exportData.forEach((item, index) => {
-                    const row = worksheet.addRow([
-                        item['Дата и время'],
-                        item['Пользователь'],
-                        item['Действие'],
-                        item['Старое значение'],
-                        item['Новое значение'],
-                        item['Комментарий'],
-                        item['Обязательно'],
-                        item['Кто переслал']
-                    ]);
-                    
-                    row.height = 20;
-                    
-                    // Чередование цветов строк
-                    const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
-                    
-                    row.eachCell((cell) => {
-                        cell.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: fillColor }
-                        };
-                        cell.font = {
-                            name: 'Verdana',
-                            size: 9,
-                            color: { argb: 'FF333333' }
-                        };
-                        cell.alignment = { 
-                            vertical: 'middle'
-                        };
-                        
-                        // Внутренние границы тонкие
-                        cell.border = {
-                            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-                        };
-                    });
-                });
-                
-                // Добавляем жирные внешние границы для таблицы с данными
-                const lastDataRow = this.exportData.length; // последняя строка данных
-                
-                // Левая и правая границы для всех строк данных
-                for (let row = 1; row <= lastDataRow + 1; row++) { // +1 для строки заголовков
-                    // Правая граница для последнего столбца
-                    const rightCell = worksheet.getCell(row, 8);
-                    rightCell.border = {
-                        ...rightCell.border,
-                        right: { style: 'medium', color: { argb: 'FF000000' } }
-                    };
-                    
-                    // Левая граница для первого столбца
-                    const leftCell = worksheet.getCell(row, 1);
-                    leftCell.border = {
-                        ...leftCell.border,
-                        left: { style: 'medium', color: { argb: 'FF000000' } }
-                    };
-                }
-                
-                // Верхняя граница для первой строки (заголовки)
-                for (let col = 1; col <= 8; col++) {
-                    const topCell = worksheet.getCell(1, col);
-                    topCell.border = {
-                        ...topCell.border,
-                        top: { style: 'medium', color: { argb: 'FF000000' } }
-                    };
-                }
-                
-                // Нижняя граница для последней строки данных
-                for (let col = 1; col <= 8; col++) {
-                    const bottomCell = worksheet.getCell(lastDataRow + 1, col);
-                    bottomCell.border = {
-                        ...bottomCell.border,
-                        bottom: { style: 'medium', color: { argb: 'FF000000' } }
-                    };
-                }
-                
-                // Добавляем пустую строку для отступа
-                worksheet.addRow([]);
-                
-                // Добавляем строки с информацией о формировании (в разных ячейках)
-                const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
-                const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
-                
-                // Стиль для информационных строк
-                [infoRow1, infoRow2].forEach(row => {
-                    row.eachCell((cell, colNumber) => {
-                        cell.font = {
-                            name: 'Verdana',
-                            size: 10,
-                            color: { argb: 'FF333333' }
-                        };
-                        cell.alignment = { 
-                            vertical: 'middle',
-                            horizontal: colNumber === 1 ? 'left' : 'left'
-                        };
-                        
-                        // Добавляем тонкие границы для информационных строк
-                        cell.border = {
-                            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
-                            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
-                        };
-                    });
-                });
-                
-                // Настраиваем ширину колонок
-                worksheet.columns = [
-                    { width: 25 }, // Дата и время
-                    { width: 40 }, // Пользователь
-                    { width: 50 }, // Действие
-                    { width: 30 }, // Старое значение
-                    { width: 30 }, // Новое значение
-                    { width: 40 }, // Комментарий
-                    { width: 20 }, // Обязательно
-                    { width: 35 }  // Переслано
-                ];
-                
-                // Генерируем и сохраняем файл
-                const buffer = await workbook.xlsx.writeBuffer();
-                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                
-                // Формируем имя файла: События_[Номер заявки]_[Организация заявки]
+                // Имя файла собирается ровно как раньше: те же поля и та же чистка
+                // недопустимых для файловой системы знаков.
                 const safeOrgName = this.fileOrganizationName.replace(/[\\/:"*?<>|]/g, '_').replace(/\s+/g, '_');
                 const safeAppNumber = this.applicationNumber.replace(/[\\/:"*?<>|]/g, '_').replace(/\s+/g, '_');
-                
-                a.download = `События_${safeAppNumber}_${safeOrgName}.xlsx`;
-                a.href = url;
-                a.click();
-                window.URL.revokeObjectURL(url);
-                
-            } catch (error) {
-                console.error('Error exporting to Excel:', error);
-                useDeletionsStore().notify({ prefix: 'Ошибка при экспорте в Excel', type: 'error' });
+                await downloadExcelSheet({
+                    sheetName: 'История',
+                    header: [
+                        'Дата и время', 'Пользователь', 'Действие', 'Старое значение',
+                        'Новое значение', 'Комментарий', 'Обязательно', 'Кто переслал',
+                    ],
+                    rows: this.filteredHistory.map(item => [
+                        this.formatTime(item.created_at),
+                        !item.user_id ? 'Система' : item.user_name,
+                        this.getActionText(item),
+                        item.old_value || '',
+                        item.new_value || '',
+                        item.comment || '',
+                        item.metadata?.required_approval ? 'Да' : 'Нет',
+                        item.metadata?.forwarded_by || '',
+                    ]),
+                    widths: [25, 40, 50, 30, 30, 40, 20, 35],
+                    info: [
+                        ['Отчёт сформировал:', this.currentUserDisplayName],
+                        ['Дата формирования:', this.formattedCurrentDateTime],
+                    ],
+                    outerBorder: true,
+                }, `События_${safeAppNumber}_${safeOrgName}.xlsx`);
+            } catch {
+                useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
             } finally {
                 this.isExporting = false;
             }
