@@ -1141,6 +1141,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/available-attachments/{id}/mark-executed": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Охранник подтверждает, что по заявке во вкладке \"Доступные мне\" приехали/пришли (#2446). Отметка не копится состоянием - только запись в журнале; повтор в течение 5 минут отклоняется (409), дальше можно отметить заново. Доступ - как у детали вложения.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Отметить вложение исполненным",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID вложения",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AttachmentExecutionMarkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/export": {
             "get": {
                 "security": [
@@ -6248,15 +6318,69 @@ const docTemplate = `{
                 "tags": [
                     "cars"
                 ],
-                "summary": "Получение истории въездов/выездов всех автомобилей",
+                "summary": "Получение страницы истории въездов/выездов всех автомобилей",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Кто отметил проход",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Конкретная машина",
+                        "name": "car_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по номеру, марке, организации, компании и ФИО отметившего",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Порядок по времени отметки",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Записей на странице (максимум 200)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.AllCarsHistoryItem"
-                            }
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -6289,6 +6413,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/cars/history/filter-options": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Значения выпадающих списков журнала проходов машин",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Сузить до таблицы проходной",
+                        "name": "table_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/cars/history/table/{table_id}": {
             "get": {
                 "security": [
@@ -6310,16 +6466,68 @@ const docTemplate = `{
                         "name": "table_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Кто отметил проход",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Конкретная машина",
+                        "name": "car_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода, YYYY-MM-DD (московские сутки включительно)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по номеру, марке, организации, компании и ФИО отметившего",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Порядок по времени отметки",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Записей на странице (максимум 200)",
+                        "name": "per_page",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.AllCarsHistoryItem"
-                            }
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -14335,7 +14543,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Записи реестра и участники заявок с таким же ФИО. Склейки по имени нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.",
+                "description": "Поиск человека по имени или по номеру документа. Склейки по имени нет: однофамильцы существуют, решает оператор. Право page.admin.pd_subject.",
                 "produces": [
                     "application/json"
                 ],
@@ -14348,8 +14556,13 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Фамилия Имя Отчество",
                         "name": "fio",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Номер паспорта или патента",
+                        "name": "document",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -23864,6 +24077,18 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "handlers.AttachmentExecutionMarkResponse": {
+            "type": "object",
+            "properties": {
+                "execution_marked_until": {
+                    "type": "string"
+                },
+                "seconds_left": {
+                    "description": "SecondsLeft - тот же срок числом секунд. Кнопка отсчитывает по нему, а не по\nразнице с часами браузера: отстающие на пару секунд часы показывали «повтор\nчерез 5:02» при окне в пять минут.",
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.AvailableAttachmentDetail": {
             "type": "object",
             "properties": {
@@ -28197,17 +28422,38 @@ const docTemplate = `{
         "pdsubject.Candidate": {
             "type": "object",
             "properties": {
+                "application_rows": {
+                    "type": "integer"
+                },
+                "document_tail": {
+                    "type": "string"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
                 "full_name": {
                     "type": "string"
+                },
+                "fuzzy": {
+                    "description": "Fuzzy - найдено по похожему написанию, а не точному совпадению имени.",
+                    "type": "boolean"
                 },
                 "has_document": {
                     "type": "boolean"
                 },
-                "id": {
+                "organization": {
+                    "description": "Чем однофамильцы отличаются друг от друга. Без этого список трёх людей с одним\nФИО выглядит как три одинаковые строки.",
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "registry_id": {
+                    "description": "RegistryID / EmployeeID - от чего собирать сведения. Записи реестра может не\nбыть вовсе: человек, встречающийся только в заявках, тоже обязан находиться -\nименно о нём и приходит запрос государственного органа.",
                     "type": "integer"
                 },
-                "source": {
-                    "type": "string"
+                "registry_rows": {
+                    "type": "integer"
                 }
             }
         },
@@ -28215,13 +28461,15 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "recipient",
-                "registry_id",
                 "request_ref"
             ],
             "properties": {
                 "basis": {
                     "type": "string",
                     "maxLength": 1000
+                },
+                "employee_id": {
+                    "type": "integer"
                 },
                 "format": {
                     "type": "string",
@@ -28235,6 +28483,7 @@ const docTemplate = `{
                     "maxLength": 300
                 },
                 "registry_id": {
+                    "description": "Указывают одно из двух: запись реестра или строку заявки (у человека без\nзаписи реестра второй путь единственный).",
                     "type": "integer"
                 },
                 "request_ref": {
@@ -28287,20 +28536,10 @@ const docTemplate = `{
             }
         },
         "services.ActivateCarRequest": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "integer"
-                }
-            }
+            "type": "object"
         },
         "services.ActivateEmployeeRequest": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "integer"
-                }
-            }
+            "type": "object"
         },
         "services.AddCarHistoryRequest": {
             "type": "object",
@@ -28322,9 +28561,6 @@ const docTemplate = `{
                 },
                 "old_value": {
                     "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -28359,53 +28595,6 @@ const docTemplate = `{
                 "user_id": {
                     "type": "integer",
                     "minimum": 1
-                }
-            }
-        },
-        "services.AllCarsHistoryItem": {
-            "type": "object",
-            "properties": {
-                "action_type": {
-                    "type": "string"
-                },
-                "car_brand": {
-                    "type": "string"
-                },
-                "car_id": {
-                    "type": "integer"
-                },
-                "car_number": {
-                    "type": "string"
-                },
-                "comment": {
-                    "type": "string"
-                },
-                "company": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "organization": {
-                    "type": "string"
-                },
-                "reverted": {
-                    "type": "boolean"
-                },
-                "table_id": {
-                    "type": "integer"
-                },
-                "table_name": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                },
-                "user_name": {
-                    "type": "string"
                 }
             }
         },
@@ -28999,8 +29188,19 @@ const docTemplate = `{
                 "entry_time_to": {
                     "type": "string"
                 },
+                "execution_marked_until": {
+                    "description": "ExecutionMarkedUntil / ExecutionMarks (#2446) - заполняются ТОЛЬКО детальным\nэндпоинтом (GetAvailableAttachmentDetail), не листингом: считать их для каждой\nстроки списка означало бы лишний запрос на карточку, а кнопка отметки живёт\nтолько в открытой детали. Поля лежат здесь, а не сбоку в ответе хендлера, чтобы\nфронт получил их тем же :attachment, каким уже передаёт detail.attachment в\nдочерние компоненты - без этого разбор ответа тихо не находит их вовсе (ушли бы\nв другую ветку JSON). gorm:\"-\" на ExecutionMarks обязателен: без тега плоский\nRaw(...).Scan листинга падает 500 - GORM видит указатель на struct со срезом\nвнутри и пытается резолвить его как связь (belongs-to/has-many), а не как\nобычное поле. На ExecutionMarkedUntil тег для симметрии и той же гарантии.",
+                    "type": "string"
+                },
+                "execution_marks": {
+                    "$ref": "#/definitions/services.ExecutionMarksSummary"
+                },
                 "has_blank": {
                     "description": "HasBlank - у типа вложения (unique_attachment) есть активный Excel-шаблон, значит для этого\nвложения генерируется заполненный бланк (#706 S4). По нему фронт показывает \"Посмотреть файл\".",
+                    "type": "boolean"
+                },
+                "is_manual": {
+                    "description": "IsManual - вложение заведено вручную (#1049), заявки за ним нет. Отдаём явным\nполем, а не выводим из пустого application_id: на карточке такому вложению\nвместо имени пишут тип и пометку «добавлено вручную» (#2450).",
                     "type": "boolean"
                 },
                 "organization_name": {
@@ -29335,6 +29535,10 @@ const docTemplate = `{
         "services.CarCurrentStatus": {
             "type": "object",
             "properties": {
+                "can_revert": {
+                    "description": "CanRevert и LastMarkTableID - см. EmployeeCurrentStatus (#2437).",
+                    "type": "boolean"
+                },
                 "car_id": {
                     "type": "integer"
                 },
@@ -29343,6 +29547,9 @@ const docTemplate = `{
                 },
                 "last_exit_time": {
                     "type": "string"
+                },
+                "last_mark_table_id": {
+                    "type": "integer"
                 },
                 "territory_status": {
                     "type": "integer"
@@ -30058,9 +30265,6 @@ const docTemplate = `{
                 },
                 "table_id": {
                     "type": "integer"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -30071,9 +30275,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "table_id": {
-                    "type": "integer"
-                },
-                "user_id": {
                     "type": "integer"
                 }
             }
@@ -30239,6 +30440,10 @@ const docTemplate = `{
         "services.EmployeeCurrentStatus": {
             "type": "object",
             "properties": {
+                "can_revert": {
+                    "description": "CanRevert - спрашивающий может отменить последнюю отметку прямо сейчас (#2437):\nлибо она его и свежая, либо он администратор. Считает бэк, чтобы правило и его\nокно жили в одном месте, а не повторялись в трёх таблицах на фронте.",
+                    "type": "boolean"
+                },
                 "employee_id": {
                     "type": "integer"
                 },
@@ -30247,6 +30452,10 @@ const docTemplate = `{
                 },
                 "last_exit_time": {
                     "type": "string"
+                },
+                "last_mark_table_id": {
+                    "description": "LastMarkTableID - пост, на котором поставлена последняя отметка. Таблица прячет\nкнопку отмены у чужих постов: отменять отметку можно только там, где её поставили.",
+                    "type": "integer"
                 },
                 "territory_status": {
                     "type": "integer"
@@ -30486,6 +30695,35 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/services.TableInfoRef"
                     }
+                }
+            }
+        },
+        "services.ExecutionMarkEntry": {
+            "type": "object",
+            "properties": {
+                "actor_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.ExecutionMarksSummary": {
+            "type": "object",
+            "properties": {
+                "recent": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ExecutionMarkEntry"
+                    }
+                },
+                "seconds_left": {
+                    "description": "SecondsLeft - сколько секунд осталось до повтора. Отдаём ЧИСЛО, а не только\nмомент окончания: фронт раньше вычитал ` + "`" + `until` + "`" + ` из своих часов, и браузер,\nотстающий на пару секунд, показывал «повтор через 5:02» при окне в пять минут.",
+                    "type": "integer"
+                },
+                "today_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -31326,20 +31564,10 @@ const docTemplate = `{
             }
         },
         "services.RestoreCarRequest": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "integer"
-                }
-            }
+            "type": "object"
         },
         "services.RestoreEmployeeRequest": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "integer"
-                }
-            }
+            "type": "object"
         },
         "services.RevertPassageRequest": {
             "type": "object",
@@ -32442,9 +32670,6 @@ const docTemplate = `{
                 },
                 "territory_status": {
                     "type": "integer"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -32522,9 +32747,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "territory_status": {
-                    "type": "integer"
-                },
-                "user_id": {
                     "type": "integer"
                 }
             }
