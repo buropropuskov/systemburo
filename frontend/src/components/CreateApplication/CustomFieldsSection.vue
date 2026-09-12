@@ -91,4 +91,16 @@ export default {
         width: 100%;
     }
 }
+
+/* Планшет: поля бланка по 260px в ряд сжимаются и режут значения - по два в ряд. */
+@media (min-width: 768.02px) and (max-width: 1024px) {
+    .custom-fields {
+        flex-wrap: wrap;
+    }
+
+    .custom-fields__item {
+        width: calc(50% - 12px);
+    }
+}
+
 </style>
