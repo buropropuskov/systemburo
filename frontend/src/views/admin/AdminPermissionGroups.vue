@@ -223,11 +223,12 @@
               <div class="details-actions">
                 <button
                   class="lk-button lk-button--primary"
+                  :class="{ 'is-busy': isSaving }"
                   :disabled="!isDetailsDirty || isSaving"
                   data-testid="group-save"
                   @click="saveSelected"
                 >
-                  {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
+                  Сохранить
                 </button>
               </div>
 
