@@ -207,7 +207,8 @@ func isUserHistoryPath(path string) bool {
 }
 
 // isCarHistoryPath - подпути истории машин, где CarHistoryItemResponse и
-// AllCarsHistoryItem несут ФИО охранника, менявшего территориальный статус. Текущий
+// AllCarsHistoryItem несут ФИО охранника, менявшего территориальный статус, а
+// filter-options - перечень этих же людей для фильтра. Текущий
 // статус (history/current-status) сюда НЕ входит - там только car_id/статус/время,
 // без единого имени, а сам номер и марка машины субъекта не идентифицируют (см.
 // комментарий у UniqueCar.PDConsentAt) - поэтому остальные пути /cars
@@ -215,6 +216,12 @@ func isUserHistoryPath(path string) bool {
 func isCarHistoryPath(path string) bool {
 	switch path {
 	case "/api/cars/history/all", "/api/cars/history/unified":
+		return true
+	// Перечень значений для фильтров журнала (#2469) отдаёт имена тех, кто ставил
+	// отметки: список операторов собирается из самих записей истории. Ручка выглядит
+	// справочной, но показывает тот же круг людей, что и сама история, поэтому идёт
+	// в журнал наравне с ней.
+	case "/api/cars/history/filter-options":
 		return true
 	}
 	const prefix = "/api/cars/"
