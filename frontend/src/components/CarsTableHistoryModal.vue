@@ -1058,25 +1058,6 @@ export default {
 }
 
 .history-loading,
-.history-footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 0 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.load-more-btn {
-  padding: 6px 16px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
 .history-empty {
   display: flex;
   align-items: center;

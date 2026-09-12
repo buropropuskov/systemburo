@@ -257,12 +257,18 @@
 
 <script>
 import { ref } from 'vue';
-import { apiRequest } from '@/api/client';
+import {
+  PASSAGE_EXPORT_LIMIT,
+  PASSAGE_PAGE_SIZE,
+  collectPassageRows,
+  fetchPassageFilterOptions,
+  fetchPassagePage,
+} from '@/utils/passageJournal';
+import { buildPassageJournalBlob, saveJournalBlob } from '@/utils/passageJournalExport';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
-import ExcelJS from 'exceljs';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
@@ -320,35 +326,27 @@ export default {
       dateTo: '',
       userDropdownOpen: false,
       employeeDropdownOpen: false,
-      isExporting: false
+      isExporting: false,
+      // Журнал читается порциями, а не целиком (#2469).
+      page: 1,
+      total: 0,
+      loadingMore: false,
+      filterUsers: [],
+      filterEmployees: [],
+      searchTimer: null,
+      // Порядковый номер запроса: ответ отставшей загрузки не должен затирать свежую.
+      loadSeq: 0
     };
   },
   computed: {
+    // Оба списка приходят отдельным запросом к журналу, а не собираются из
+    // загруженной страницы: из 50 строк они предлагали бы не тех, кто в журнале есть.
     uniqueUsers() {
-      const users = new Map();
-      this.history.forEach(item => {
-        if (item.user_id && !users.has(item.user_id)) {
-          users.set(item.user_id, {
-            id: item.user_id,
-            name: item.user_name || 'Система'
-          });
-        }
-      });
-      return Array.from(users.values()).sort((a, b) => a.name.localeCompare(b.name));
+      return this.filterUsers;
     },
 
     uniqueEmployees() {
-      const emps = new Map();
-      this.history.forEach(item => {
-        if (item.employee_id && !emps.has(item.employee_id)) {
-          const fullName = [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ');
-          emps.set(item.employee_id, {
-            id: item.employee_id,
-            name: fullName || `ID: ${item.employee_id}`
-          });
-        }
-      });
-      return Array.from(emps.values()).sort((a, b) => a.name.localeCompare(b.name));
+      return this.filterEmployees;
     },
 
     selectedUserName() {
@@ -363,55 +361,20 @@ export default {
       return emp ? emp.name : 'Все сотрудники';
     },
 
-    filteredHistory() {
-      let filtered = [...this.history];
-      
-      if (this.searchQuery && this.searchQuery.trim() !== '') {
-        const query = this.searchQuery.toLowerCase().trim();
-        filtered = filtered.filter(item => {
-          const employeeName = this.getEmployeeName(item).toLowerCase();
-          const userName = (item.user_name || '').toLowerCase();
-          const actionText = this.getActionText(item).toLowerCase();
-          const comment = (item.comment || '').toLowerCase();
-          
-          return employeeName.includes(query) || 
-                 userName.includes(query) || 
-                 actionText.includes(query) || 
-                 comment.includes(query);
-        });
-      }
-      
-      if (this.selectedUserId) {
-        filtered = filtered.filter(item => item.user_id === this.selectedUserId);
-      }
-      
-      if (this.selectedEmployeeId) {
-        filtered = filtered.filter(item => item.employee_id === this.selectedEmployeeId);
-      }
-      
-      if (this.dateFrom) {
-        const fromDate = new Date(this.dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(item => new Date(item.created_at) >= fromDate);
-      }
-      
-      if (this.dateTo) {
-        const toDate = new Date(this.dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        filtered = filtered.filter(item => new Date(item.created_at) <= toDate);
-      }
-      
-      return filtered.sort((a, b) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
-      });
+    // Фильтры, поиск и порядок применяет сервер, поэтому показываем то, что пришло.
+    historyRows() {
+      return this.history;
+    },
+
+    // Загружено меньше, чем нашлось по фильтру - значит есть что подгружать.
+    hasMore() {
+      return this.history.length < this.total;
     },
 
     historyGroupedByDate() {
       const groups = [];
       const dateMap = new Map();
-      for (const item of this.filteredHistory) {
+      for (const item of this.historyRows) {
         const dateKey = formatMoscow(new Date(item.created_at), { day: 'numeric', month: 'long', year: 'numeric' });
         if (!dateMap.has(dateKey)) {
           dateMap.set(dateKey, []);
@@ -422,15 +385,15 @@ export default {
       return groups;
     },
 
-    exportData() {
-      return this.filteredHistory.map(item => ({
-        'Дата и время': this.formatDateTime(item.created_at),
-        'Сотрудник': this.getEmployeeName(item),
-        'Пользователь': item.user_name || 'Система',
-        'Действие': this.getActionText(item),
-        'Комментарий': item.comment || this.getActionComment(item),
-        'Место': item.table_name || ''
-      }));
+    exportRow(item) {
+      return [
+        this.formatDateTime(item.created_at),
+        this.getEmployeeName(item),
+        item.user_name || 'Система',
+        this.getActionText(item),
+        item.comment || this.getActionComment(item),
+        item.table_name || '',
+      ];
     },
 
     formattedCurrentDateTime() {
