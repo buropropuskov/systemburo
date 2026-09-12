@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -110,4 +112,32 @@ func viewerUserID(c echo.Context) int {
 	}
 	id, _ := c.Get("user_id").(int)
 	return id
+}
+
+// optionalIntQuery читает необязательный числовой query-параметр. Отсутствие и
+// пустая строка - это «фильтр не задан» (nil), а мусор вместо числа - ошибка 400:
+// молча проигнорировать его нельзя, иначе фильтр «по таблице 7» с опечаткой вернёт
+// весь журнал и человек решит, что записи размножились.
+func optionalIntQuery(c echo.Context, param string) (*int, error) {
+	raw := c.QueryParam(param)
+	if raw == "" {
+		return nil, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid %s", param))
+	}
+	return &v, nil
+}
+
+// bindPassageHistoryQuery разбирает параметры страницы журнала проходов и приводит
+// их к допустимым значениям. Дальше фильтры применяет сервис - разбирать даты здесь
+// незачем, у машин и людей они одни и те же.
+func bindPassageHistoryQuery(c echo.Context) (models.PassageHistoryQuery, error) {
+	var q models.PassageHistoryQuery
+	if err := c.Bind(&q); err != nil {
+		return q, echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
+	}
+	q.Normalize()
+	return q, nil
 }

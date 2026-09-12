@@ -37,10 +37,15 @@ type CarService interface {
 	GetCarHistory(ctx context.Context, carID int) ([]CarHistoryItemResponse, error)
 	// AddCarHistoryEntry добавляет запись в историю автомобиля.
 	AddCarHistoryEntry(ctx context.Context, carID int, req AddCarHistoryRequest) error
-	// GetAllCarsHistory возвращает историю въездов/выездов всех автомобилей.
-	GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryItem, error)
-	// GetCarsHistoryByTable возвращает историю въездов/выездов таблицы проходной.
-	GetCarsHistoryByTable(ctx context.Context, tableID int) ([]AllCarsHistoryItem, error)
+	// GetAllCarsHistory возвращает страницу истории въездов/выездов всех автомобилей
+	// по фильтру и общее число подходящих строк.
+	GetAllCarsHistory(ctx context.Context, q models.PassageHistoryQuery) ([]AllCarsHistoryItem, int64, error)
+	// GetCarsHistoryByTable возвращает страницу истории въездов/выездов таблицы
+	// проходной по фильтру и общее число подходящих строк.
+	GetCarsHistoryByTable(ctx context.Context, tableID int, q models.PassageHistoryQuery) ([]AllCarsHistoryItem, int64, error)
+	// GetCarsHistoryFilterOptions отдаёт значения выпадающих списков журнала машин;
+	// tableID сужает до одной таблицы проходной, nil берёт весь журнал.
+	GetCarsHistoryFilterOptions(ctx context.Context, tableID *int) (CarsHistoryFilterOptions, error)
 	// GetCarsCurrentStatus возвращает текущий территориальный статус активных машин.
 	// viewerID - кто спрашивает, см. EmployeesHistoryService.GetCurrentStatus.
 	GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]CarCurrentStatus, error)
