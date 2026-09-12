@@ -6,6 +6,11 @@ import { mount, flushPromises } from '@vue/test-utils';
 // не зависит - мок отдаёт пустую историю, чтобы mounted не падал.
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
+  // Журнал проходов читает страницу через apiRequestRaw: ему нужен meta.total (#2469).
+  apiRequestRaw: vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, page: 1, per_page: 50 } }),
+  })),
 }));
 // exceljs тяжёлый и для теста закрытия не нужен.
 vi.mock('exceljs', () => ({ default: { Workbook: class {} } }));
