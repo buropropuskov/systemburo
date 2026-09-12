@@ -74,6 +74,7 @@
                 :disabled="saving"
                 data-testid="group-permissions-save"
                 :class="{ 'is-busy': saving }"
+                :aria-busy="saving"
                 @click="emitSave"
               >
                 Сохранить
@@ -273,38 +274,10 @@ export default {
   gap: 10px;
 }
 
-.lk-button {
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.lk-button--primary {
-  background: var(--color-primary);
-  color: var(--accent-contrast);
-}
-
-.lk-button--primary:hover {
-  background: var(--color-primary-hover);
-}
-
-.lk-button--primary:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.lk-button--ghost {
-  background: transparent;
-  color: var(--color-text-muted);
-}
-
-.lk-button--ghost:hover {
-  background: var(--color-bg-secondary);
-}
+/* Своего оформления кнопок здесь нет намеренно: оно жило локальной копией на
+   устаревших токенах и совпадало по специфичности с общими правилами из forms.css,
+   а грузилось позже (ленивый чанк раздела) - и побеждало. Из-за этого состояние
+   «в работе» не срабатывало: подпись оставалась видимой, а точки ложились поверх. */
 
 .gpm-fade-enter-active,
 .gpm-fade-leave-active {

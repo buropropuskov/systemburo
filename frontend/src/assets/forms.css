@@ -41,6 +41,8 @@
 }
 
 .lk-button {
+  /* Цвет точек состояния «в работе»; варианты ниже переопределяют его под свою заливку. */
+  --btn-busy-color: var(--text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -96,6 +98,7 @@
 }
 
 .lk-button--ghost {
+  --btn-busy-color: var(--text);
   background: transparent;
   color: var(--text);
   border-color: var(--border);
@@ -127,6 +130,7 @@
    фоне он читается дыркой в блоке, а не действием. На нейтральном фоне остаётся
    белый вариант - залитый красный там кричит. */
 .lk-button--danger-solid {
+  --btn-busy-color: var(--fill-text);
   background: var(--danger);
   border-color: var(--danger);
   color: var(--fill-text);

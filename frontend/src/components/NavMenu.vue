@@ -901,7 +901,7 @@ export default {
     // панелью на широком экране, а drawer-кнопка feedback (тот же testid, что в
     // шапке) осталась бы в DOM рядом с вернувшейся шапочной - тур нашёл бы дубль.
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      this._desktopMql = window.matchMedia('(min-width: 769px)');
+      this._desktopMql = window.matchMedia('(min-width: 1025px)');
       this._onDesktopChange = (e) => { if (e.matches) this.closeMobile(); };
       if (this._desktopMql.addEventListener) {
         this._desktopMql.addEventListener('change', this._onDesktopChange);
@@ -2223,13 +2223,13 @@ export default {
    (padding-left) не задето (урок #510). Ниже ~800px меню длиннее окна и честно
    скроллится - бар в зарезервированном жёлобе (scrollbar-gutter), не поверх
    пунктов. */
-@media (min-width: 769px) and (max-height: 880px) {
+@media (min-width: 1025px) and (max-height: 880px) {
   .nav-item {
     min-height: 36px;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .nav-menu {
     width: 280px;
     max-width: 85vw;
