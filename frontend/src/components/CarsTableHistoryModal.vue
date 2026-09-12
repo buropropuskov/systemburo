@@ -218,7 +218,10 @@
 
                   <div class="history-content">
                     <div class="history-header">
-                      <span class="car-info">{{ getCarInfo(item) }}</span>
+                      <span class="car-info">{{ getCarInfo(item) }}<span
+                        v-if="item.entity_deleted"
+                        class="deleted-badge"
+                      >запись удалена</span></span>
                       <span class="user-name">{{ item.user_name || 'Система' }}</span>
                       <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                     </div>
@@ -447,6 +450,11 @@ export default {
     },
 
     getCarInfo(item) {
+      // Машины уже нет в справочнике (#2485): показываем снимок из самой отметки, иначе
+      // строка осталась бы безымянной - раньше её просто не показывали вовсе.
+      if (item.entity_deleted) {
+        return item.subject || `Автомобиль ID: ${item.car_id}`;
+      }
       if (item.car_number || item.organization) {
         if (item.car_number && item.car_number.toLowerCase().includes('по факту')) {
           return `По факту (${item.organization || 'Не указана'})`;

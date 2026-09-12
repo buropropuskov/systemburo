@@ -1,12 +1,16 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"systemburo/internal/apperr"
 	"systemburo/internal/models"
+
+	"gorm.io/gorm"
 )
 
 // passageDateLayout - формат дат фильтра журнала проходов: календарный день без
@@ -88,4 +92,47 @@ func passageHistoryOrderSQL(q models.PassageHistoryQuery, alias string) string {
 // он и держит предел, за которым журнал снова стал бы выгрузкой всей истории.
 func passageHistoryLimitSQL(q models.PassageHistoryQuery) (string, []any) {
 	return " LIMIT ? OFFSET ?", []any{q.PerPage, q.Offset()}
+}
+
+// passageSubject собирает снимок «о ком отметка» из полей справочника: номер с маркой у
+// машины, ФИО у человека. Пустые части отбрасываются, лишние пробелы сжимаются.
+//
+// Снимок нужен потому, что строку справочника могут удалить, а отметка прохода остаётся
+// доказательством: без него в журнале оставался бы безымянный факт (#2485).
+func passageSubject(parts ...*string) string {
+	filled := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == nil {
+			continue
+		}
+		if v := strings.TrimSpace(*p); v != "" {
+			filled = append(filled, v)
+		}
+	}
+	return strings.Join(filled, " ")
+}
+
+// passageEntitySubject читает снимок «о ком отметка» из справочника по типу сущности.
+// Отдельно от passageSubject: отмене отметки исходные поля не передают, а лезть за ними
+// в свой запрос дешевле, чем тащить их через весь механизм сторно.
+//
+// Ошибка чтения не срывает отмену: снимок - удобство журнала, а не условие операции,
+// поэтому при сбое просто останется пустым (и запись всё равно опознаётся по reverts_id).
+func passageEntitySubject(ctx context.Context, tx *gorm.DB, entityType string, entityID int) string {
+	var subject string
+	switch entityType {
+	case models.AuditEntityCar:
+		if err := tx.WithContext(ctx).Raw(
+			`SELECT TRIM(CONCAT_WS(' ', car_number, car_brand)) FROM cars WHERE id = ?`, entityID,
+		).Scan(&subject).Error; err != nil {
+			slog.Warn("снимок машины для сторно не прочитан", "car_id", entityID, "error", err)
+		}
+	case models.AuditEntityEmployee:
+		if err := tx.WithContext(ctx).Raw(
+			`SELECT TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)) FROM employees WHERE id = ?`, entityID,
+		).Scan(&subject).Error; err != nil {
+			slog.Warn("снимок сотрудника для сторно не прочитан", "employee_id", entityID, "error", err)
+		}
+	}
+	return strings.TrimSpace(subject)
 }

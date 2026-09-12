@@ -225,7 +225,10 @@
 
                   <div class="history-content">
                     <div class="history-header">
-                      <span class="employee-info">{{ getEmployeeName(item) }}</span>
+                      <span class="employee-info">{{ getEmployeeName(item) }}<span
+                        v-if="item.entity_deleted"
+                        class="deleted-badge"
+                      >запись удалена</span></span>
                       <span
                         v-if="item.table_name"
                         class="table-name"
@@ -503,7 +506,9 @@ export default {
     },
 
     getEmployeeName(item) {
-      return [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ') || `ID: ${item.employee_id}`;
+      const fromDirectory = [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ');
+      // Сотрудника уже нет в справочнике (#2485): ФИО берём из снимка в самой отметке.
+      return fromDirectory || item.subject || `ID: ${item.employee_id}`;
     },
 
     getActionClass(actionType) {

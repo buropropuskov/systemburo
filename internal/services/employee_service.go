@@ -647,7 +647,15 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 			comment = fmt.Sprintf("Сотрудник %s вышел с территории", fullName)
 		}
 
-		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
+		details := carAuditDetails{Comment: &comment, TableID: req.TableID}
+		// Снимок ФИО прямо в отметке (#2485): сотрудника могут удалить, а журнал проходов
+		// доказывает, кто был на объекте, - его и не обезличивают по сроку намеренно
+		// (см. entityarchive/application_anonymize.go).
+		if subject := passageSubject(employee.LastName, employee.FirstName, employee.MiddleName); subject != "" {
+			details.Subject = &subject
+		}
+
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, details); err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
 		}

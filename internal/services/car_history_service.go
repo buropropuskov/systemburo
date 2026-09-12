@@ -105,20 +105,22 @@ func (s *carService) AddCarHistoryEntry(ctx context.Context, carID int, req AddC
 
 // allCarsHistoryRow - сырая строка выборки истории въездов/выездов.
 type allCarsHistoryRow struct {
-	ID           int
-	CarID        int
-	UserID       *int
-	UserName     string
-	ActionType   string
-	Comment      *string
-	CreatedAt    time.Time
-	CarNumber    *string
-	CarBrand     *string
-	Organization *string
-	Company      *string
-	TableID      *int
-	TableName    *string
-	Reverted     bool
+	ID            int
+	CarID         int
+	UserID        *int
+	UserName      string
+	ActionType    string
+	Comment       *string
+	CreatedAt     time.Time
+	CarNumber     *string
+	CarBrand      *string
+	Organization  *string
+	Company       *string
+	TableID       *int
+	TableName     *string
+	Reverted      bool
+	Subject       *string
+	EntityDeleted bool
 }
 
 // allCarsHistoryUserNameSQL - ФИО отметившего одной строкой. Выражение нужно и
@@ -135,7 +137,10 @@ const allCarsHistoryUserNameSQL = `CONCAT(
 const allCarsHistoryFromSQL = `
 	FROM ` + carsHistoryUnion + ` h
 	LEFT JOIN users u ON h.user_id = u.id
-	JOIN cars c ON h.car_id = c.id
+	-- LEFT JOIN, а не JOIN (#2485): машину могут удалить безвозвратно, и прежний INNER
+	-- уносил её проходы из журнала молча - на стенде так пропадали 156 отметок из 256.
+	-- Номер с маркой тогда берутся из снимка в самой отметке (details->>'subject').
+	LEFT JOIN cars c ON h.car_id = c.id
 	LEFT JOIN attachments a ON c.attachment_id = a.id
 	LEFT JOIN applications app ON a.application_id = app.id
 	-- Ручные машины (#1049) висят на вложении-сироте без заявки (app.* NULL),
@@ -159,6 +164,8 @@ const allCarsHistorySelectSQL = `
 		h.created_at,
 		c.car_number,
 		c.car_brand,
+		h.subject,
+		c.id IS NULL AS entity_deleted,
 		COALESCE(o.name, '') AS organization,
 		COALESCE(c2.name, '') AS company,
 		h.table_id,
@@ -187,6 +194,9 @@ const carsHistoryTableScopeSQL = `
 var carsHistorySearchExprs = []string{
 	"c.car_number",
 	"c.car_brand",
+	// Снимок из отметки: у удалённой машины справочника уже нет, и без него поиск по
+	// номеру не находил бы её проходы (#2485).
+	"h.subject",
 	"o.name",
 	"c2.name",
 	allCarsHistoryUserNameSQL,
@@ -280,20 +290,22 @@ func mapAllCarsHistoryRows(rows []allCarsHistoryRow) []AllCarsHistoryItem {
 			userName = "Система"
 		}
 		items = append(items, AllCarsHistoryItem{
-			ID:           r.ID,
-			CarID:        r.CarID,
-			UserID:       r.UserID,
-			UserName:     userName,
-			ActionType:   r.ActionType,
-			Comment:      r.Comment,
-			CreatedAt:    FormatUTC(r.CreatedAt),
-			CarNumber:    r.CarNumber,
-			CarBrand:     r.CarBrand,
-			Organization: r.Organization,
-			Company:      r.Company,
-			TableID:      r.TableID,
-			TableName:    r.TableName,
-			Reverted:     r.Reverted,
+			ID:            r.ID,
+			CarID:         r.CarID,
+			UserID:        r.UserID,
+			UserName:      userName,
+			ActionType:    r.ActionType,
+			Comment:       r.Comment,
+			CreatedAt:     FormatUTC(r.CreatedAt),
+			CarNumber:     r.CarNumber,
+			CarBrand:      r.CarBrand,
+			Organization:  r.Organization,
+			Company:       r.Company,
+			TableID:       r.TableID,
+			TableName:     r.TableName,
+			Reverted:      r.Reverted,
+			Subject:       r.Subject,
+			EntityDeleted: r.EntityDeleted,
 		})
 	}
 	return items

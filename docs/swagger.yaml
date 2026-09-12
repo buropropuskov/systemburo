@@ -4488,6 +4488,8 @@ definitions:
         type: string
       employee_middle_name:
         type: string
+      entity_deleted:
+        type: boolean
       field_name:
         type: string
       id:
@@ -4505,6 +4507,12 @@ definitions:
           Reverted - отметка прохода отменена как ошибочная (#2437): в журнале видна с
           пометкой, в цифрах не участвует.
         type: boolean
+      subject:
+        description: |-
+          Subject - снимок ФИО на момент отметки, EntityDeleted - сотрудника больше нет в
+          справочнике (#2485). Вместе они дают журналу опознать проход удалённого человека:
+          раньше такая строка не показывалась вовсе.
+        type: string
       table_id:
         type: integer
       table_name:
