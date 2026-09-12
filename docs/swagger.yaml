@@ -12845,18 +12845,55 @@ paths:
       - employees
   /employees/history/all:
     get:
+      parameters:
+      - description: Кто отметил проход
+        in: query
+        name: user_id
+        type: integer
+      - description: Конкретный сотрудник
+        in: query
+        name: employee_id
+        type: integer
+      - description: Начало периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_from
+        type: string
+      - description: Конец периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_to
+        type: string
+      - description: Поиск по ФИО сотрудника, организации, компании и ФИО отметившего
+        in: query
+        name: search
+        type: string
+      - default: desc
+        description: Порядок по времени отметки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
+      - default: 1
+        description: Страница
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Записей на странице (максимум 200)
+        in: query
+        name: per_page
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/services.EmployeeHistoryItem'
-            type: array
+            $ref: '#/definitions/handlers.Response'
       security:
       - BearerAuth: []
-      summary: Получение истории въездов/выходов всех сотрудников
+      summary: Получение страницы истории входов/выходов всех сотрудников
       tags:
       - employees-history
   /employees/history/current-status:
@@ -12875,6 +12912,25 @@ paths:
       summary: Получение текущего территориального статуса сотрудников
       tags:
       - employees-history
+  /employees/history/filter-options:
+    get:
+      parameters:
+      - description: Сузить до таблицы проходной
+        in: query
+        name: table_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Значения выпадающих списков журнала проходов людей
+      tags:
+      - employees-history
   /employees/history/table/{table_id}:
     get:
       parameters:
@@ -12883,15 +12939,51 @@ paths:
         name: table_id
         required: true
         type: integer
+      - description: Кто отметил проход
+        in: query
+        name: user_id
+        type: integer
+      - description: Конкретный сотрудник
+        in: query
+        name: employee_id
+        type: integer
+      - description: Начало периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_from
+        type: string
+      - description: Конец периода, YYYY-MM-DD (московские сутки включительно)
+        in: query
+        name: date_to
+        type: string
+      - description: Поиск по ФИО сотрудника, организации, компании и ФИО отметившего
+        in: query
+        name: search
+        type: string
+      - default: desc
+        description: Порядок по времени отметки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
+      - default: 1
+        description: Страница
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Записей на странице (максимум 200)
+        in: query
+        name: per_page
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/services.EmployeeHistoryItem'
-            type: array
+            $ref: '#/definitions/handlers.Response'
       security:
       - BearerAuth: []
       summary: Получение истории сотрудников для конкретной таблицы

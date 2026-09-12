@@ -21,6 +21,16 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify }),
 }));
 
+
+// collectPassageRows подменяем только там, где проверяется обрезка: честная сборка 20
+// тысяч строк упирается в таймаут теста, а сам предел и признак обрезки уже стережёт
+// passageJournal.spec.js на маленьком лимите.
+const collectPassageRowsMock = vi.fn();
+vi.mock('@/utils/passageJournal', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, collectPassageRows: (...args) => collectPassageRowsMock(...args) };
+});
+
 import CarsTableHistoryModal from '../CarsTableHistoryModal.vue';
 
 /** Отметки журнала: ровно то, что отдаёт сервер страницей. */
@@ -60,6 +70,12 @@ describe('CarsTableHistoryModal - страницы и серверные фил�
     apiRequest.mockImplementation(() => Promise.resolve({ ok: true, json: async () => ({ users: [{ id: 3, name: 'Иванов И.И.' }] }) }));
     apiRequestRaw.mockReset();
     apiRequestRaw.mockImplementation(() => Promise.resolve(pageResponse(marks(1, 2), 5)));
+    collectPassageRowsMock.mockReset();
+    collectPassageRowsMock.mockImplementation(async (path, filters, options) => {
+      const { fetchPassagePage } = await import('@/utils/passageJournal');
+      const page = await fetchPassagePage(path, filters, { ...options, page: 1, perPage: 200 });
+      return { rows: page.items, total: page.total, truncated: page.total > page.items.length };
+    });
     buildPassageJournalBlob.mockClear();
     saveJournalBlob.mockClear();
     notify.mockReset();
@@ -179,13 +195,14 @@ describe('CarsTableHistoryModal - страницы и серверные фил�
     const wrapper = mountModal();
     await flushPromises();
 
-    apiRequestRaw.mockImplementation(() => Promise.resolve(pageResponse(marks(1, 200), 100000)));
+    collectPassageRowsMock.mockResolvedValue({ rows: marks(1, 3), total: 100000, truncated: true });
     await wrapper.find('.export-btn').trigger('click');
     await flushPromises();
 
     const spec = buildPassageJournalBlob.mock.calls[0][0];
-    expect(spec.rows).toHaveLength(20000);
-    expect(spec.note).toContain('20000 из 100000');
+    expect(spec.rows).toHaveLength(3);
+    expect(spec.note).toContain('3 из 100000');
+    expect(spec.note).toContain('предел выгрузки');
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning' }));
   });
 });
