@@ -1009,7 +1009,7 @@ export default {
     display: none;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 899.98px) {
     .content-wrapper {
         flex-direction: column;
     }

@@ -41,7 +41,11 @@
   :is(.admin-page, .denials, .pda, .blacklist-page, .sc, .admin-settings) .management-header__actions {
     flex-wrap: wrap !important;
     gap: 8px !important;
-    width: 100% !important;
+    /* Ширину берём флексом от свободного места, а не `width: 100%`: у шапки
+       «Доступных мне» родитель с боковыми отступами, и сотня процентов давала
+       правый край 394 при вьюпорте 390. */
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
   }
 
   /* Дропдауны фильтров делят первый ряд пополам, а не жмутся к краю. */
