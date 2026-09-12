@@ -104,7 +104,10 @@
     border: none !important;
   }
 
-  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .rt-row .check-col + .table-col {
+  /* Соседняя ячейка резервирует место под чекбокс. Селектор по «любому следующему»,
+     а не по `.table-col`: у пользователей ячейки называются `.user-col`, и правило
+     мимо них проходило - логин уезжал под чекбокс («@buropropusk☐»). */
+  :is(.admin-page, .denials, .pda, .blacklist-page, .sc) .rt-row .check-col + * {
     padding-right: 44px !important;
   }
 
