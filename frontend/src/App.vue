@@ -393,10 +393,11 @@ html, body {
 /*
  * Контент на desktop заходит на 25px под рельс NavMenu. Переменную --nav-ml
  * выставляет NavMenu по персистентному состоянию (свёрнут 25 / пин 120 / hide 0);
- * hover-разворот оверлеит контент и margin не меняет. На мобильном (<768px)
- * NavMenu - burger-drawer, margin не нужен.
+ * hover-разворот оверлеит контент и margin не меняет. До 1024 включительно
+ * NavMenu - burger-drawer, margin не нужен: рельс разворачивается по наведению,
+ * а на планшете наведения нет, поэтому там та же навигация, что на телефоне.
  */
-@media (min-width: 768px) {
+@media (min-width: 1025px) {
   body.auth-active #app {
     margin-left: var(--nav-ml, 25px);
     transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -457,12 +458,12 @@ body.nav-drawer-open {
 
 /*
  * Mobile bottom-sheet паттерн для всех модалок с классами
- * .modal-overlay > .modal-content. На <768px модалка прилипает к низу
+ * .modal-overlay > .modal-content. До 900px модалка прилипает к низу
  * экрана, ширина 100%, высота - по контенту (короткие confirmations
  * не тянутся на весь экран). Длинные модалки получают internal scroll
  * до 90dvh. !important нужен потому что большинство использует scoped.
  */
-@media (max-width: 768px) {
+@media (max-width: 899.98px) {
   .modal-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
