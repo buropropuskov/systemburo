@@ -8,9 +8,11 @@ package handlers_test
 // выдачу нельзя провести мимо журнала.
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/entityarchive"
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -68,6 +70,9 @@ func TestDisclosure_RecordsScopeAndSubject(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	target, rep := disclosureFixture(t, db)
+	// Проверка смотрит на свёртку документа в записи, а она пишется только при
+	// заданном ключе шифрования (#2463) - тестовое окружение работает без него.
+	withEncryptionKey(t)
 
 	entry, err := entityarchive.RecordDisclosure(context.Background(), db, target, rep,
 		[]string{"/var/entity-export/subject-20260908-120000.xlsx"},
@@ -110,6 +115,14 @@ func TestDisclosure_ListsBySubject(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 
+	// Ключ шифрования задаётся на время проверки: без него ключ субъекта пустой
+	// (#2463), выборка «по одному человеку» выродилась бы в выборку всего журнала,
+	// и тест сравнивал бы сам с собой.
+	withEncryptionKey(t)
+	keyed, err := entityarchive.RecordDisclosure(ctx, db, target, rep, nil, req)
+	require.NoError(t, err)
+	require.NotEmpty(t, keyed.SubjectHMAC, "при заданном ключе выдача опознаётся")
+
 	mine, err := entityarchive.ListDisclosures(ctx, db, entityarchive.DisclosureSubjectKey(target), 50)
 	require.NoError(t, err)
 	require.Len(t, mine, 1)
@@ -117,4 +130,51 @@ func TestDisclosure_ListsBySubject(t *testing.T) {
 	other, err := entityarchive.ListDisclosures(ctx, db, "свёртка-другого-человека", 50)
 	require.NoError(t, err)
 	assert.Empty(t, other, "журнал по одному человеку не должен показывать чужие выдачи")
+}
+
+// withEncryptionKey включает шифрование на время одной проверки и возвращает всё как
+// было. Тестовое окружение работает без ключа (testutil ставит nil), а поведение
+// журнала выдач от него зависит - проверять надо оба режима.
+func withEncryptionKey(t *testing.T) {
+	t.Helper()
+	crypto.SetGlobalKey(bytes.Repeat([]byte{7}, 32))
+	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
+}
+
+// Без ключа шифрования свёртка документа в журнал не пишется (#2463). Причина не в
+// аккуратности: при выключенном шифровании в цель приходит сам номер документа, а
+// десять цифр перебираются за минуты - запись, которой доказывают законность
+// раскрытия, стала бы последним местом, где человек опознаётся. Факт выдачи при этом
+// фиксируется по-прежнему: он важнее склейки.
+func TestDisclosure_NoSubjectKeyWithoutEncryption(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	target, rep := disclosureFixture(t, db)
+
+	entry, err := entityarchive.RecordDisclosure(context.Background(), db, target, rep, nil,
+		entityarchive.DisclosureRequest{Recipient: "УМВД", RequestRef: "исх. 2", IssuedBy: "консоль сервера"})
+	require.NoError(t, err)
+
+	assert.Empty(t, entry.SubjectHMAC, "без ключа опознавать человека в журнале нечем")
+	assert.NotEmpty(t, entry.Recipient, "сама выдача записана")
+	assert.Empty(t, entityarchive.DisclosureSubjectKey(target))
+}
+
+// С ключом свёртка пишется и не содержит самого документа: она нужна, чтобы собрать
+// все выдачи по человеку спустя годы, когда его записей в системе уже нет.
+func TestDisclosure_SubjectKeyHidesDocument(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	target, rep := disclosureFixture(t, db)
+	withEncryptionKey(t)
+
+	entry, err := entityarchive.RecordDisclosure(context.Background(), db, target, rep, nil,
+		entityarchive.DisclosureRequest{Recipient: "УМВД", RequestRef: "исх. 3", IssuedBy: "консоль сервера"})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, entry.SubjectHMAC)
+	assert.Len(t, entry.SubjectHMAC, 64, "ключ - шестнадцатеричная свёртка sha256")
+	assert.NotContains(t, entry.SubjectHMAC, target.PassportHMAC)
 }
