@@ -17,6 +17,9 @@ function pageMetrics() {
     vw: window.innerWidth,
     scrollable: de.scrollHeight - de.clientHeight > 40,
     zoom: parseFloat(getComputedStyle(de).zoom) || 1,
+    // Способ ввода: часть поведения гейтится им, а не шириной. Пишем в замер, чтобы
+    // отчёт нельзя было прочитать не в том режиме.
+    noHover: window.matchMedia('(hover: none)').matches,
   };
 }
 

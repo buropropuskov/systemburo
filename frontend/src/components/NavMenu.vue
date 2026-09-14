@@ -642,6 +642,7 @@ import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useEdgeSwipeOpen } from '@/composables/useEdgeSwipeOpen'
+import { useRailExpand } from '@/composables/useRailExpand'
 import NavIcon from '@/components/icons/NavIcon.vue'
 import SwitchToggle from '@/components/ui/SwitchToggle.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
@@ -673,6 +674,8 @@ export default {
     // когда и поля, и методы на месте.
     const instance = getCurrentInstance()
     const { isNarrow } = useNarrowScreen()
+    // Разворот рельса: наведение, тап на планшете и пин - в одном месте.
+    const rail = useRailExpand(instance)
     const drawerSwipe = useEdgeSwipeOpen(() => instance.proxy.openMobile(), {
       width: DRAWER_WIDTH,
       // Открытая модалка блокирует прокрутку фона инлайн-стилем - там свайп вправо
@@ -685,6 +688,8 @@ export default {
       authStore, uiStore, soundStore, permissionsStore, themeStore, onboardingStore,
       swipeOffset: drawerSwipe.offset,
       swipeDragging: drawerSwipe.isDragging,
+      expandMenu: rail.expandMenu,
+      collapseMenu: rail.collapseMenu,
     }
   },
   data() {
@@ -695,7 +700,6 @@ export default {
       dropdowns: {
         tables: false
       },
-      hoverTimeout: null,
       systemTables: [],
       // Бейдж у "Центра заявок" = сумма непрочитанных + заявок с обновлённым статусом (#1349).
       newApplicationsCount: 0,
@@ -725,6 +729,7 @@ export default {
       sseConnected: false,
       unreadReadHandler: null,
       mobileOpen: false,
+
       // «Сообщить о проблеме» из drawer'а (W3.3): модалка та же, что в шапке.
       showFeedbackModal: false,
       isBanned: false,
@@ -901,7 +906,7 @@ export default {
     // панелью на широком экране, а drawer-кнопка feedback (тот же testid, что в
     // шапке) осталась бы в DOM рядом с вернувшейся шапочной - тур нашёл бы дубль.
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      this._desktopMql = window.matchMedia('(min-width: 1025px)');
+      this._desktopMql = window.matchMedia('(min-width: 1025px) and (hover: hover)');
       this._onDesktopChange = (e) => { if (e.matches) this.closeMobile(); };
       if (this._desktopMql.addEventListener) {
         this._desktopMql.addEventListener('change', this._onDesktopChange);
@@ -932,10 +937,6 @@ export default {
     document.body.classList.remove('auth-active');
     document.body.style.removeProperty('--nav-ml');
     this.stopApplicationsPolling();
-
-    if (this.hoverTimeout) {
-      clearTimeout(this.hoverTimeout);
-    }
 
     this.$bus.off('mobile-nav-toggle', this.toggleMobile);
     if (this._desktopMql && this._onDesktopChange) {
@@ -976,11 +977,9 @@ export default {
     },
     togglePin() {
       this.uiStore.toggleSidebarPinned();
-      // Снимаем временный hover-стейт, чтобы не конфликтовал с пином.
-      if (this.hoverTimeout) {
-        clearTimeout(this.hoverTimeout);
-        this.hoverTimeout = null;
-      }
+      // Отложенное сворачивание отменяем через тот же путь, что и наведение: иначе
+      // таймер из композабла схлопнет рельс сразу после закрепления пином.
+      this.expandMenu();
     },
     hideRail() {
       this.uiStore.hideSidebar();
@@ -1055,29 +1054,6 @@ export default {
       // Новое обращение -> обновляем бейдж непрочитанных у Администрирования
       // (метод сам гейтит по праву page.admin.feedback).
       this.fetchNewFeedbackCount();
-    },
-    expandMenu() {
-      // При открытой Админке рельс зафиксирован в иконках - hover не разворачивает.
-      if (this.adminOpen) return;
-      // Тап по бургеру на touch-устройстве синтезирует mouseenter на рельсе, как
-      // только drawer выезжает под пальцем (#1097) - без гейта рельс переключался
-      // в desktop-режим "expanded" (248px) вместо мобильных 280px/85vw.
-      if (this.mobileOpen) return;
-      if (this.hoverTimeout) {
-        clearTimeout(this.hoverTimeout);
-        this.hoverTimeout = null;
-      }
-      this.isExpanded = true;
-    },
-    collapseMenu() {
-      this.hoverTimeout = setTimeout(() => {
-        this.isExpanded = false;
-        // Если рельс реально схлопывается (не закреплён пином) - сворачиваем и
-        // раскрытые дропдауны, чтобы при следующем наведении они были закрыты.
-        // У закреплённого рельса (пин) состояние держится: он не сворачивается.
-        if (!this.uiStore.sidebarExpanded) this.closeAllDropdowns();
-        this.hoverTimeout = null;
-      }, 150);
     },
     // Таблицы и оформление: дропдаун раскрывается/сворачивается по клику (не hover).
     toggleDropdown(type) {
@@ -2223,13 +2199,13 @@ export default {
    (padding-left) не задето (урок #510). Ниже ~800px меню длиннее окна и честно
    скроллится - бар в зарезервированном жёлобе (scrollbar-gutter), не поверх
    пунктов. */
-@media (min-width: 1025px) and (max-height: 880px) {
+@media (min-width: 1025px) and (max-height: 880px) and (hover: hover) {
   .nav-item {
     min-height: 36px;
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
   .nav-menu {
     width: 280px;
     max-width: 85vw;
