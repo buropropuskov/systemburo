@@ -102,6 +102,52 @@ func TestFileAccess_BearerAllowed(t *testing.T) {
 	assert.Equal(t, http.StatusOK, serveFileAccess(t, req))
 }
 
+// Каталоги, не предназначенные для раздачи по адресу, закрыты перечнем (#2498):
+// прежде вошедшему был открыт любой файл, включая Excel-бланки массового ввода со
+// строками людей. Ответ тот же, что у несуществующего файла.
+func TestFileAccess_UnlistedDirsRefused(t *testing.T) {
+	closed := []string{
+		"imports/blank.xlsx",
+		"documents/rules.pdf",
+		"guide/guard.pdf",
+		"entity-export/package.json",
+		"secret.txt",
+	}
+	for _, name := range closed {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/uploads/"+name, nil)
+			req.Header.Set("Authorization", "Bearer "+signToken(t, fileAccessSecret, time.Hour))
+			assert.Equal(t, http.StatusNotFound, serveFileAccess(t, req),
+				"каталог вне перечня не раздаётся даже вошедшему")
+		})
+	}
+}
+
+// Обратная половина того же замка: перечисленные каталоги обязаны остаться
+// доступными, иначе фото мест разгрузки и шаблоны бланков перестанут открываться.
+func TestFileAccess_ListedDirsStillServed(t *testing.T) {
+	open := []string{
+		"unload_places/photo.png",
+		"system_tables/photo.png",
+		"templates/blank.xlsx",
+	}
+	for _, name := range open {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/uploads/"+name, nil)
+			req.Header.Set("Authorization", "Bearer "+signToken(t, fileAccessSecret, time.Hour))
+			assert.Equal(t, http.StatusOK, serveFileAccess(t, req))
+		})
+	}
+}
+
+// Перечень каталогов проверяется по нормализованному пути, иначе выход вверх из
+// разрешённого каталога открывал бы запрещённый (тот же приём, что и у гейта сканов).
+func TestFileAccess_UnlistedDirNotReachableByTraversal(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/unload_places/%2e%2e/imports/blank.xlsx", nil)
+	req.Header.Set("Authorization", "Bearer "+signToken(t, fileAccessSecret, time.Hour))
+	assert.Equal(t, http.StatusNotFound, serveFileAccess(t, req))
+}
+
 // Подпись чужим ключом и просроченный маркер - главное, ради чего middleware
 // разбирает маркер, а не проверяет наличие cookie.
 func TestFileAccess_ForgedAndExpiredRejected(t *testing.T) {

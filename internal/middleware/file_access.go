@@ -43,6 +43,9 @@ func FileAccess(accessSecret, refreshSecret []byte, scans ApplicationScanGuard) 
 			if err != nil {
 				return err
 			}
+			if err := guardUploadDir(c); err != nil {
+				return err
+			}
 			username, _ := claims.GetSubject()
 			if err := guardApplicationScan(c, username, scans); err != nil {
 				return err
@@ -73,6 +76,49 @@ func fileRequester(c echo.Context, accessSecret, refreshSecret []byte) (*service
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid token")
 	}
 	return claims, nil
+}
+
+// staticUploadDirs - каталоги uploads, которые раздаются по адресу файла. Перечень
+// закрытый: всё, чего в нём нет, не отдаётся вовсе (#2498).
+//
+// До этого раздавалось содержимое всего каталога загрузок, и вошедшему в систему был
+// открыт по прямому адресу любой файл - в том числе Excel-бланки массового ввода
+// (imports), где строки людей с ФИО и документами, и документы с материалами
+// руководства, у которых есть собственные ручки скачивания с проверкой прав.
+// Неугадываемое имя файла защитой не считается: адрес оседает в журнале запросов
+// администратора, в резервной копии и в пакете выгрузки организации.
+//
+// Перечень закрытый, а не список запретов, ровно по той причине, по которой эта
+// задача и появилась: каталог заводят под новую возможность, про раздачу при этом не
+// вспоминают, и он молча оказывается открытым. Теперь наоборот - молча закрытым.
+var staticUploadDirs = map[string]bool{
+	// Фото мест разгрузки и системных таблиц: показываются тегом img по ссылке из
+	// ответа API, персональных данных не несут.
+	"unload_places": true,
+	"system_tables": true,
+	// Excel-шаблоны бланков: file_path у шаблона указывает прямо сюда.
+	"templates": true,
+	// Сканы заявок остаются доступными по адресу, но под проверкой принадлежности
+	// (#2465): фронт качает их своей ручкой по идентификатору строки, а прямые
+	// ссылки могли разойтись раньше.
+	services.ApplicationFilesDir: true,
+}
+
+// guardUploadDir отсекает каталоги, не предназначенные для раздачи по адресу файла.
+// Ответ тот же, что у несуществующего файла: перечень каталогов - не секрет, но и
+// подсказывать, какие из них существуют, ни к чему.
+func guardUploadDir(c echo.Context) error {
+	name, ok := staticFileName(c)
+	if !ok {
+		return nil
+	}
+	dir, _, found := strings.Cut(name, "/")
+	// Файл в корне каталога загрузок не раздаётся: там лежит служебное, а не то, на
+	// что система выдаёт ссылки.
+	if !found || !staticUploadDirs[dir] {
+		return echo.ErrNotFound
+	}
+	return nil
 }
 
 // guardApplicationScan пускает к скану заявки только того, кому открыта сама заявка.
