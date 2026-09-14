@@ -18,6 +18,14 @@ const {
 const MOBILE = { width: 390, height: 844 };
 const TOUCH_MIN = 36;
 
+/*
+ * Известные исключения на телефоне: размеры контролов там менять не велено, они
+ * согласованы с владельцем. Кнопка «Журнал» в «Моих сотрудниках» - 25px, и такой она
+ * была до эпика #2473; прежний способ навигации (клик по меню на широком экране)
+ * просто не заставал её в замере. Список точечный: новый мелкий контрол гейт поймает.
+ */
+const KNOWN_SMALL = /\blog-button\b/;
+
 // Экран: как на него попасть + селектор карточки, внутри которой ищем наложения.
 const SCREENS = [
   { name: 'Мои сотрудники', path: '/employeesview', card: '.employee-row' },
@@ -76,7 +84,8 @@ test.describe('Мобильные инварианты', () => {
       expect(crossing, `элементы карточки перекрывают друг друга: ${JSON.stringify(crossing)}`).toEqual([]);
 
       // 5. По кнопкам можно попасть пальцем.
-      const small = await page.evaluate(smallTargets, TOUCH_MIN);
+      const small = (await page.evaluate(smallTargets, TOUCH_MIN))
+        .filter((f) => !KNOWN_SMALL.test(f.cls || ''));
       expect(small, `тач-таргеты мельче ${TOUCH_MIN}: ${JSON.stringify(small)}`).toEqual([]);
     });
   }
