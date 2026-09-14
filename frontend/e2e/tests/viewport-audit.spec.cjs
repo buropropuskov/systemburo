@@ -41,11 +41,14 @@ const HEIGHT_BY_WIDTH = { 390: 844, 810: 1080, 834: 1112, 1024: 1366, 1180: 820,
 // Норма тач-таргета проекта - 36px (эталон §18): компактные контролы `.rt-btn-compact`
 // и «Обновить» сделаны именно такими, и гейт на 44 ругался бы на принятую норму.
 const TOUCH_MIN = 36;
-// Выше этой ширины раскладка десктопная и по решению эпика не перевёрстывается, а
+// Выше этой ширины раскладка десктопная - если экран с мышью. На планшете в
+// альбомной ориентации (прогон с AUDIT_TOUCH=1) тач-таргеты проверяем до самого верха
+// набора ширин: там пальцем работают и на 1366.
+// Ниже - про обычный прогон с мышью:
 // её компактные контролы (пин рельса 28px, «Подать заявку» 26px) - принятая норма.
 // Проверять там тач-таргеты значит получать по восемь одинаковых находок на каждом
 // экране и утопить в них реальные.
-const TOUCH_MAX_WIDTH = 1024;
+const TOUCH_MAX_WIDTH = process.env.AUDIT_TOUCH ? 1366 : 1024;
 
 const REPORT_DIR = path.join(__dirname, '..', 'reports');
 const REPORT_FILE = path.join(REPORT_DIR, 'viewport-audit.json');
@@ -74,8 +77,13 @@ async function settle(page) {
  * не прошло (кука протухла), приложение показывает форму входа - логинимся ещё раз,
  * иначе весь дальнейший отчёт будет снят с экрана логина.
  */
-async function visit(page, screenPath) {
+async function visit(page, screenPath, touchEmulation) {
   await page.goto(screenPath);
+  // Эмуляцию способа ввода переустанавливаем после КАЖДОЙ навигации: Playwright на
+  // переходе применяет свои настройки медиа и затирает выставленные через CDP -
+  // замер тогда снимается с мышиной ветки поведения и врёт (проверено: экран
+  // сообщал hover:hover при включённой эмуляции).
+  if (touchEmulation) await touchEmulation();
   await settle(page);
   const onLogin = await page.locator('input[type="password"]').first().isVisible().catch(() => false);
   if (onLogin) {
@@ -92,9 +100,28 @@ async function visit(page, screenPath) {
   if (wrongScreen) throw new Error(`вместо ${screenPath} открылось ${url}`);
 }
 
-test('аудит раскладки: обход экранов по ширинам', async ({ page }) => {
+test('аудит раскладки: обход экранов по ширинам', async ({ page, context }) => {
   test.skip(!process.env.AUDIT_RUN, 'инструмент, запускается вручную с AUDIT_RUN=1');
   test.setTimeout(30 * 60 * 1000);
+
+  // AUDIT_TOUCH=1 - планшет в альбомной ориентации: ширина десктопная, а мыши нет.
+  // Часть поведения гейтится именно способом ввода (`hover: none` и `pointer: coarse`),
+  // и без эмуляции этих признаков такая ветка остаётся непроверенной: браузер по
+  // умолчанию сообщает мышь независимо от размера окна.
+  let touchEmulation = null;
+  if (process.env.AUDIT_TOUCH) {
+    const cdp = await context.newCDPSession(page);
+    touchEmulation = async () => {
+      // Без включённого тач-ввода браузер игнорирует подменённые hover/pointer:
+      // он сверяет их с возможностями устройства.
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      await cdp.send('Emulation.setEmulatedMedia', {
+        media: 'screen',
+        features: [{ name: 'hover', value: 'none' }, { name: 'pointer', value: 'coarse' }],
+      });
+    };
+    await touchEmulation();
+  }
 
   const screens = selectScreens();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -109,7 +136,7 @@ test('аудит раскладки: обход экранов по ширина
       // часть раскладки считается скриптом на старте (AdminPageShell меряет высоту,
       // viewportScale ставит корневой zoom), и «дорисованное» окно отличается от
       // того, что увидит человек, открывший страницу с планшета.
-      await visit(page, screen.path);
+      await visit(page, screen.path, touchEmulation);
 
       const entry = { screen: screen.slug, name: screen.name, area: screen.area, width, state: 'list' };
       try {

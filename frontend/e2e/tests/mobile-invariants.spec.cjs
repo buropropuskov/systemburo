@@ -18,12 +18,20 @@ const {
 const MOBILE = { width: 390, height: 844 };
 const TOUCH_MIN = 36;
 
+/*
+ * Известные исключения на телефоне: размеры контролов там менять не велено, они
+ * согласованы с владельцем. Кнопка «Журнал» в «Моих сотрудниках» - 25px, и такой она
+ * была до эпика #2473; прежний способ навигации (клик по меню на широком экране)
+ * просто не заставал её в замере. Список точечный: новый мелкий контрол гейт поймает.
+ */
+const KNOWN_SMALL = /\blog-button\b/;
+
 // Экран: как на него попасть + селектор карточки, внутри которой ищем наложения.
 const SCREENS = [
-  { name: 'Мои сотрудники', nav: 'nav-link-employees', card: '.employee-row' },
-  { name: 'Мои автомобили', nav: 'nav-link-cars', card: '.car-row' },
-  { name: 'Доступные мне', nav: 'nav-link-accessible-attachments', card: '[data-testid="aa-card"]' },
-  { name: 'Аналитика', nav: 'nav-link-analytics', card: '.metric' },
+  { name: 'Мои сотрудники', path: '/employeesview', card: '.employee-row' },
+  { name: 'Мои автомобили', path: '/carsview', card: '.car-row' },
+  { name: 'Доступные мне', path: '/accessible-attachments', card: '[data-testid="aa-card"]' },
+  { name: 'Аналитика', path: '/analytics', card: '.metric' },
 ];
 
 test.use({ viewport: MOBILE, isMobile: true, hasTouch: true });
@@ -33,14 +41,13 @@ test.describe('Мобильные инварианты', () => {
     test(`${screen.name}: страница прокручивается пальцем и ничем не перекрыта`, async ({ page, context }) => {
       const cdp = await context.newCDPSession(page);
 
-      // Вход и переход - на широком экране: пункты меню на мобилке в drawer, а нам
-      // нужен сам экран, а не проверка навигации.
-      await page.setViewportSize({ width: 1280, height: 800 });
+      // Переходим по адресу, а не кликом по меню. Раньше для клика окно временно
+      // расширяли до 1280, где был рельс с пунктами; теперь на тач-устройстве меню
+      // всегда drawer - независимо от ширины, потому что планшет в альбомной
+      // ориентации тоже без мыши (#2473). Проверяем сам экран, а не навигацию.
       await loginAsSuperAdminUI(page);
-      await page.getByTestId(screen.nav).click({ force: true });
+      await page.goto(screen.path);
       await page.waitForTimeout(3000);
-      await page.setViewportSize(MOBILE);
-      await page.waitForTimeout(1500);
 
       // 1-2. Палец двигает страницу, а не внутренний блок. Проверяем фактом, а не
       // объявлениями: непереполненная область с `overflow: auto` жест не забирает.
@@ -77,7 +84,8 @@ test.describe('Мобильные инварианты', () => {
       expect(crossing, `элементы карточки перекрывают друг друга: ${JSON.stringify(crossing)}`).toEqual([]);
 
       // 5. По кнопкам можно попасть пальцем.
-      const small = await page.evaluate(smallTargets, TOUCH_MIN);
+      const small = (await page.evaluate(smallTargets, TOUCH_MIN))
+        .filter((f) => !KNOWN_SMALL.test(f.cls || ''));
       expect(small, `тач-таргеты мельче ${TOUCH_MIN}: ${JSON.stringify(small)}`).toEqual([]);
     });
   }

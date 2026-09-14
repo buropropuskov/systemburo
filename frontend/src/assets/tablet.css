@@ -160,3 +160,48 @@
  * совпадает с границей карточек. Пояснение здесь, потому что бюджет строк того файла
  * исчерпан и комментарий в нём не помещается.
  */
+
+/* Планшет в альбомной ориентации: 1025-1366 (#2473).
+ *
+ * По ширине это десктоп, по способу ввода - планшет: iPad Air в ландшафте даёт 1180,
+ * Pro 12.9 - 1366. Раскладку здесь менять нечего, места хватает, а вот размеры
+ * контролов остаются десктопными: «Обновить» 25px, вкладки фильтров 30px, кнопки
+ * правки и удаления в строках 24px. Пальцем по ним попадать так же неудобно, как в
+ * портрете.
+ *
+ * Гейт по способу ввода, а не по ширине: `hover: none` вместе с `pointer: coarse`
+ * означает «мыши нет вовсе». Ноутбук с сенсорным экраном сюда не попадает - у него
+ * основное устройство ввода мышь, и он сообщает `hover: hover` с `pointer: fine`.
+ * Одного `pointer: coarse` мало: в эпике #1097 его уже признали слишком широким.
+ */
+@media (min-width: 1024.02px) and (max-width: 1366px) and (hover: none) and (pointer: coarse) {
+  :is(
+    .lk-button, .refresh-btn, .filter-tab, .status-btn, .period-preset,
+    .base-dropdown__button, .add-header-button, .pagination-btn, .btn,
+    .notif-filter-tabs__btn, .tables__instruction, .recipients-add__btn,
+    .add-btn, .dashboard__seg-btn, .news-details-button, .modal-btn,
+    .card-button, .grp-pill, .doc-row__dl, .detail-badge, .download-btn,
+    .notifications__settings, .notifications__clear, .filter-btn, .history-btn,
+    .options__manual-add, .options__versions-link, .options__trash-link,
+    .options__export, .add-button, .log-button
+  ) {
+    min-height: 36px !important;
+  }
+
+  :is(.delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn, .flag-btn) {
+    min-width: 36px !important;
+    min-height: 36px !important;
+  }
+
+  /* Номер заявки: та же компактная надпись, что в портрете - расширяем зону клика,
+     не трогая высоту строки. */
+  .application-number--copyable {
+    position: relative;
+  }
+
+  .application-number--copyable::before {
+    content: '';
+    position: absolute;
+    inset: -12px -8px;
+  }
+}
