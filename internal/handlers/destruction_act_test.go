@@ -147,8 +147,14 @@ func TestDestructionAct_WritesFilesWithoutPersonalData(t *testing.T) {
 	}
 	require.NotNil(t, subjectRow, "запись о человеке обязана попасть в акт")
 	joined := strings.Join(subjectRow, " | ")
-	for _, secret := range []string{"Стираев", "Артём", passport, "505050",
-		entityarchive.DisclosureSubjectKey(entityarchive.SubjectTargetFromDocuments(passport, ""))} {
+	// Ключ субъекта считается только при заданном шифровании (#2463), а без него он
+	// пуст - и проверка «не содержит пустую строку» всегда падала бы, ничего не
+	// проверяя. Включаем шифрование на время расчёта, чтобы сравнивать с настоящей
+	// свёрткой.
+	withEncryptionKey(t)
+	subjectKey := entityarchive.DisclosureSubjectKey(entityarchive.SubjectTargetFromDocuments(passport, ""))
+	require.NotEmpty(t, subjectKey)
+	for _, secret := range []string{"Стираев", "Артём", passport, "505050", subjectKey} {
 		assert.NotContains(t, joined, secret, "персональные данные в акте: %q", secret)
 	}
 }
