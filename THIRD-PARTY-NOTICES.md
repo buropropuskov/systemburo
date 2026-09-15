@@ -195,12 +195,12 @@
 | `pdfmake` | 0.3.11 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `picocolors` | 1.1.1 | ISC | Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov |
-| `picomatch` | 4.0.5 | MIT | Copyright (c) 2017-present, Jon Schlinkert |
+| `picomatch` | 4.0.7 | MIT | Copyright (c) 2017-present, Jon Schlinkert |
 | `pinia` | 4.0.3 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `pkg-types` | 1.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `pkg-types` | 2.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `png-js` | 1.1.0 | MIT | Copyright (c) 2017 Devon Govett |
-| `postcss` | 8.5.27 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
+| `postcss` | 8.5.28 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
 | `process` | 0.11.10 | MIT | Copyright (c) 2013 Roman Shtylman <shtylman@gmail.com> |
 | `process-nextick-args` | 2.0.1 | MIT | Copyright (c) 2015 Calvin Metcalf |
 | `prosemirror-changeset` | 2.4.1 | MIT | Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
@@ -259,9 +259,9 @@
 | `unzipper` | 0.12.5 | MIT | Copyright (c) 2012 - 2013 Near Infinity Corporation |
 | `util-deprecate` | 1.0.2 | MIT | Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net> |
 | `uuid` | 8.3.2 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
-| `vite` | 8.2.2 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
+| `vite` | 8.3.0 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
 | `vue` | 3.5.42 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `vue-router` | 5.3.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
+| `vue-router` | 5.3.1 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `vue-select` | 4.0.0-beta.6 | MIT | Copyright (c) 2016 Jeff Sagal & vue-select contributors |
 | `w3c-keyname` | 2.2.8 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `webpack-virtual-modules` | 0.6.2 | MIT | Copyright (c) 2017 SysGears |
@@ -291,10 +291,10 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `filippo.io/age` | v1.3.1 | BSD-3-Clause | Copyright 2019 The age Authors; Copyright 2019 Google LLC; Copyright 2022 Filippo Valsorda |
+| `filippo.io/age` | v1.3.2 | BSD-3-Clause | Copyright 2019 The age Authors; Copyright 2019 Google LLC; Copyright 2022 Filippo Valsorda |
 | `filippo.io/hpke` | v0.4.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `github.com/caarlos0/env/v11` | v11.4.0 | MIT | Copyright (c) 2015-2024 Carlos Alexandro Becker |
-| `github.com/gabriel-vasile/mimetype` | v1.4.13 | MIT | Copyright (c) 2018 Gabriel Vasile |
+| `github.com/gabriel-vasile/mimetype` | v1.4.15 | MIT | Copyright (c) 2018 Gabriel Vasile |
 | `github.com/go-openapi/jsonpointer` | v0.19.6 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/go-openapi/jsonreference` | v0.20.2 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/go-openapi/spec` | v0.20.9 | Apache-2.0 | Copyright 2015 go-swagger maintainers |
@@ -302,12 +302,12 @@
 | `github.com/go-pdf/fpdf` | v0.9.0 | MIT | Copyright (c) 2021 The Go-PDF authors; Copyright (c) 2020 David Barnes; Copyright (c) 2017 Kurt Jung and contributors acknowledged in the documentation |
 | `github.com/go-playground/locales` | v0.14.1 | MIT | Copyright (c) 2016 Go Playground |
 | `github.com/go-playground/universal-translator` | v0.18.1 | MIT | Copyright (c) 2016 Go Playground |
-| `github.com/go-playground/validator/v10` | v10.30.3 | MIT | Copyright (c) 2015 Dean Karn |
+| `github.com/go-playground/validator/v10` | v10.30.4 | MIT | Copyright (c) 2015 Dean Karn |
 | `github.com/golang-jwt/jwt/v5` | v5.3.1 | MIT | Copyright (c) 2012 Dave Grijalva; Copyright (c) 2021 golang-jwt maintainers |
 | `github.com/google/uuid` | v1.6.0 | BSD-3-Clause | Copyright (c) 2009,2014 Google Inc. All rights reserved |
 | `github.com/jackc/pgpassfile` | v1.0.0 | MIT | Copyright (c) 2019 Jack Christensen |
 | `github.com/jackc/pgservicefile` | v0.0.0-20240606120523-5a60cdf6a761 | MIT | Copyright (c) 2020 Jack Christensen |
-| `github.com/jackc/pgx/v5` | v5.10.0 | MIT | Copyright (c) 2013-2021 Jack Christensen |
+| `github.com/jackc/pgx/v5` | v5.11.0 | MIT | Copyright (c) 2013-2021 Jack Christensen |
 | `github.com/jackc/puddle/v2` | v2.2.2 | MIT | Copyright (c) 2018 Jack Christensen |
 | `github.com/jinzhu/inflection` | v1.0.0 | MIT | Copyright (c) 2015 - Jinzhu |
 | `github.com/jinzhu/now` | v1.1.5 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
@@ -315,7 +315,7 @@
 | `github.com/KyleBanks/depth` | v1.2.1 | MIT | Copyright (c) 2017 Kyle Banks |
 | `github.com/labstack/echo/v4` | v4.15.4 | MIT | Copyright (c) 2021 LabStack |
 | `github.com/labstack/gommon` | v0.5.0 | MIT | Copyright (c) 2018 labstack |
-| `github.com/leodido/go-urn` | v1.4.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
+| `github.com/leodido/go-urn` | v1.5.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
 | `github.com/mailru/easyjson` | v0.7.7 | MIT | Copyright (c) 2016 Mail.Ru Group |
 | `github.com/mattn/go-colorable` | v0.1.15 | MIT | Copyright (c) 2016 Yasuhiro Matsumoto |
 | `github.com/mattn/go-isatty` | v0.0.22 | MIT | Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com> |
@@ -335,13 +335,13 @@
 | `github.com/xuri/efp` | v0.0.1 | BSD-3-Clause | Copyright (c) 2017 - 2025 Ri Xu All rights reserved |
 | `github.com/xuri/excelize/v2` | v2.11.0 | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
 | `github.com/xuri/nfp` | v0.0.2-0.20250530014748-2ddeb826f9a9 | BSD-3-Clause | Copyright (c) 2022-2025 Ri Xu All rights reserved |
-| `golang.org/x/crypto` | v0.55.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/image` | v0.45.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/mod` | v0.40.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/mod` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/net` | v0.58.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/sync` | v0.22.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/sys` | v0.47.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/text` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/sync` | v0.23.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/sys` | v0.48.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/text` | v0.42.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/time` | v0.15.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/tools` | v0.49.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `gopkg.in/natefinch/lumberjack.v2` | v2.2.1 | MIT | Copyright (c) 2014 Nate Finch |
@@ -627,7 +627,7 @@ THE SOFTWARE.
 
 ### 7.4. BSD-3-Clause
 
-Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.55.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.40.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.22.0, `golang.org/x/sys` v0.47.0, `golang.org/x/text` v0.41.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
+Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.57.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.23.0, `golang.org/x/sys` v0.48.0, `golang.org/x/text` v0.42.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -1304,7 +1304,7 @@ THE SOFTWARE.
 
 ### 7.26. MIT
 
-Компоненты: `pinia` 4.0.3, `vue-router` 5.3.0
+Компоненты: `pinia` 4.0.3, `vue-router` 5.3.1
 
 ```text
 The MIT License (MIT)
@@ -4282,7 +4282,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.78. BSD-3-Clause
 
-Компоненты: `filippo.io/age` v1.3.1
+Компоненты: `filippo.io/age` v1.3.2
 
 ```text
 Copyright 2019 The age Authors
@@ -4368,7 +4368,7 @@ SOFTWARE.
 
 ### 7.81. MIT
 
-Компоненты: `github.com/gabriel-vasile/mimetype` v1.4.13
+Компоненты: `github.com/gabriel-vasile/mimetype` v1.4.15
 
 ```text
 MIT License
@@ -4743,7 +4743,7 @@ SOFTWARE.
 
 ### 7.84. MIT
 
-Компоненты: `github.com/go-playground/validator/v10` v10.30.3
+Компоненты: `github.com/go-playground/validator/v10` v10.30.4
 
 ```text
 The MIT License (MIT)
@@ -4878,7 +4878,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### 7.89. MIT
 
-Компоненты: `github.com/jackc/pgx/v5` v5.10.0
+Компоненты: `github.com/jackc/pgx/v5` v5.11.0
 
 ```text
 Copyright (c) 2013-2021 Jack Christensen
@@ -5076,7 +5076,7 @@ SOFTWARE.
 
 ### 7.96. MIT
 
-Компоненты: `github.com/leodido/go-urn` v1.4.0
+Компоненты: `github.com/leodido/go-urn` v1.5.0
 
 ```text
 MIT License
@@ -7913,7 +7913,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ### 7.147. MIT
 
-Компоненты: `picomatch` 4.0.5
+Компоненты: `picomatch` 4.0.7
 
 ```text
 The MIT License (MIT)
@@ -7969,7 +7969,7 @@ SOFTWARE.
 
 ### 7.149. MIT
 
-Компоненты: `postcss` 8.5.27
+Компоненты: `postcss` 8.5.28
 
 ```text
 The MIT License (MIT)
@@ -8948,7 +8948,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.175. MIT
 
-Компоненты: `vite` 8.2.2
+Компоненты: `vite` 8.3.0
 
 ```text
 # Vite core license
