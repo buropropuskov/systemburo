@@ -22,6 +22,8 @@ class AdminRolesPage {
     this.detailName = page.getByTestId('role-detail-name');
     this.detailDescription = page.getByTestId('role-detail-description');
     this.saveDetails = page.getByTestId('role-save');
+    // Уведомление о сохранении - признак, что запрос прошёл (для правок, не видных в списке).
+    this.savedToast = page.locator('.del-card', { hasText: 'Изменения сохранены' });
     this.deleteButton = page.getByTestId('role-delete');
 
     // Модалка «Права роли»: дефолтные группы (чекбоксы) + точечные права (тумблер-дерево).
@@ -74,12 +76,23 @@ class AdminRolesPage {
   /**
    * Редактирование имени/описания роли: в master-detail это inline в панели деталей
    * (выбрать строку -> заполнить поля -> «Сохранить»), а не отдельная модалка.
+   *
+   * После клика метод ждёт, пока новое имя появится в строке списка. Без ожидания тест
+   * читал состояние через API сразу за кликом и падал, когда сервер не успевал ответить
+   * до следующей строки: сохранение идёт запросом, а список перечитывается уже после
+   * него. Ждём то, что видит человек, - обновлённую строку, а не таймер.
    */
   async editMeta(code, { name, description }) {
     await this.select(code);
     if (name !== undefined) await this.detailName.fill(name);
     if (description !== undefined) await this.detailDescription.fill(description);
     await this.saveDetails.click();
+    if (name !== undefined) {
+      await this.card(code).filter({ hasText: name }).first().waitFor({ state: 'visible' });
+    } else {
+      // Правка только описания в списке не видна - ждём уведомление о сохранении.
+      await this.savedToast.waitFor({ state: 'visible' });
+    }
   }
 
   /** Выбрать роль и нажать «Удалить» (откроется ConfirmationModal). */
