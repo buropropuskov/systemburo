@@ -38,7 +38,7 @@
 | `@jridgewell/gen-mapping` | 0.3.13 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@jridgewell/remapping` | 2.3.5 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@jridgewell/resolve-uri` | 3.1.2 | MIT | Copyright 2019 Justin Ridgewell <jridgewell@google.com> |
-| `@jridgewell/sourcemap-codec` | 1.5.5 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
+| `@jridgewell/sourcemap-codec` | 1.6.0 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@jridgewell/trace-mapping` | 0.3.31 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@kurkle/color` | 0.3.4 | MIT | Copyright (c) 2018-2024 Jukka Kurkela |
 | `@napi-rs/canvas` | 1.0.8 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
@@ -743,7 +743,7 @@ IN THE SOFTWARE.
 
 ### 7.7. MIT
 
-Компоненты: `@jridgewell/gen-mapping` 0.3.13, `@jridgewell/remapping` 2.3.5, `@jridgewell/sourcemap-codec` 1.5.5, `@jridgewell/trace-mapping` 0.3.31
+Компоненты: `@jridgewell/gen-mapping` 0.3.13, `@jridgewell/remapping` 2.3.5, `@jridgewell/sourcemap-codec` 1.6.0, `@jridgewell/trace-mapping` 0.3.31
 
 ```text
 Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
