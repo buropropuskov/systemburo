@@ -77,3 +77,31 @@ describe('выгрузка отчёта по проходам (#2418)', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Кнопка выгрузки не должна жить внутри аккордеона «Прошлые дни» (#2517).
+ *
+ * Пока она стояла внутри, свёрнутая обёртка (нулевая высота, overflow: hidden) делала её
+ * недостижимой: человек открывал отчёт и не видел, что выгрузка вообще есть. Проверяем
+ * и структуру - кнопка вне обёртки, - и поведение при свёрнутом списке.
+ */
+describe('кнопка выгрузки видна сразу, а не внутри свёрнутого списка (#2517)', () => {
+  it('кнопка стоит вне аккордеона прошлых дней', async () => {
+    const wrapper = await open();
+    const accordion = wrapper.find('.pr-history-wrap');
+    expect(accordion.exists()).toBe(true);
+    expect(accordion.find('[data-testid="pass-report-export"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="pass-report-export"]').exists()).toBe(true);
+  });
+
+  it('при свёрнутом списке кнопка активна и выгружает', async () => {
+    const wrapper = await open();
+    // Аккордеон по умолчанию свёрнут - класса open на обёртке нет.
+    expect(wrapper.find('.pr-history-wrap').classes()).not.toContain('open');
+
+    await wrapper.find('[data-testid="pass-report-export"]').trigger('click');
+    await flushPromises();
+
+    expect(downloadExcelSheet).toHaveBeenCalledTimes(1);
+  });
+});
