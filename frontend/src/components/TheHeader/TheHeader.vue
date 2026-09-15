@@ -307,7 +307,7 @@ export default {
      */
     initMobileWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-      this._mobileMql = window.matchMedia('(max-width: 1024px), (hover: none) and (pointer: coarse)');
+      this._mobileMql = window.matchMedia('(max-width: 1366px), (hover: none) and (pointer: coarse)');
       this.isMobileHeader = this._mobileMql.matches;
       this._onMobileChange = (e) => { this.isMobileHeader = e.matches; };
       if (this._mobileMql.addEventListener) {
@@ -711,7 +711,7 @@ h3 {
 }
 
 /* Адаптивность */
-@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+@media (max-width: 1366px), (hover: none) and (pointer: coarse) {
   /* Шапка закреплена сверху при скролле - "Подать заявку" и колокольчик всегда доступны.
      Непрозрачный фон обязателен: контент уезжает под шапку.
 

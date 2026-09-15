@@ -397,7 +397,7 @@ html, body {
  * NavMenu - burger-drawer, margin не нужен: рельс разворачивается по наведению,
  * а на планшете наведения нет, поэтому там та же навигация, что на телефоне.
  */
-@media (min-width: 1025px) and (hover: hover) {
+@media (min-width: 1367px) and (hover: hover) {
   body.auth-active #app {
     margin-left: var(--nav-ml, 25px);
     transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
