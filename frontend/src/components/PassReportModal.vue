@@ -190,24 +190,28 @@
                   </div>
                 </div>
               </div>
-
-              <button
-                class="pr-export"
-                :disabled="isExporting || !days.length"
-                data-testid="pass-report-export"
-                @click="exportToExcel"
-              >
-                <AppIcon
-                  v-if="!isExporting"
-                  name="export"
-                  class="pr-export__icon"
-                />
-                <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
-              </button>
             </template>
           </div>
         </div>
       </div>
+
+      <!-- Выгрузка стоит вне аккордеона: внутри его свёрнутая обёртка имеет нулевую
+           высоту и overflow:hidden, поэтому кнопку было не видно и не нажать, пока
+           человек не раскроет прошлые дни (#2517). Блокировка при пустом списке дней
+           остаётся - но теперь видно, что выгрузка существует. -->
+      <button
+        class="pr-export"
+        :disabled="isExporting || !days.length"
+        data-testid="pass-report-export"
+        @click="exportToExcel"
+      >
+        <AppIcon
+          v-if="!isExporting"
+          name="export"
+          class="pr-export__icon"
+        />
+        <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
+      </button>
     </div>
   </BaseModal>
 </template>
