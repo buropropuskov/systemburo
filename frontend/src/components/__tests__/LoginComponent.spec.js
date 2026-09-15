@@ -13,14 +13,15 @@ import LoginComponent from '@/components/LoginComponent.vue'
 import { apiRequest } from '@/api/client'
 
 // Response-подобная заглушка: handleSubmit читает ok/status/headers.get/json.
-function resp(status, headers = {}, body = {}) {
+// rawBody нужен для ответа прокси: при 502 тело - страница nginx, не JSON.
+function resp(status, headers = {}, body = {}, rawBody = undefined) {
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: '',
     headers: { get: (k) => (Object.prototype.hasOwnProperty.call(headers, k) ? headers[k] : null) },
     json: async () => body,
-    text: async () => JSON.stringify(body),
+    text: async () => (rawBody === undefined ? JSON.stringify(body) : rawBody),
   }
 }
 
@@ -340,5 +341,46 @@ describe('LoginComponent: фон экрана', () => {
     expect(block, 'блок prefers-reduced-motion пропал').not.toBeNull()
     ;['.login-lines__group', '.floating-shape']
       .forEach((sel) => expect(block[0]).toContain(sel))
+  })
+})
+
+/**
+ * Ответ прокси в форме входа (#2525).
+ *
+ * Владелец показал экран, где под полем пароля напечатана страница nginx целиком -
+ * вместе с версией сервера. Разбор ошибки печатал тело как есть, если оно не JSON.
+ */
+describe('LoginComponent — ответ прокси вместо API', () => {
+  const NGINX_502 = '<html> <head><title>502 Bad Gateway</title></head> <body> <center><h1>502 Bad Gateway</h1></center> <hr><center>nginx/1.25.5</center> </body> </html> <!-- a padding to disable MSIE and Chrome friendly error page -->'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('на 502 объясняет словами, а не страницей nginx', async () => {
+    apiRequest.mockResolvedValue(resp(502, {}, {}, NGINX_502))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    const shown = wrapper.vm.errors.general
+    expect(shown).toBe('Сервер перезапускается или недоступен, повторите через минуту')
+    // Ни разметки, ни версии прокси на экране быть не должно.
+    expect(shown).not.toContain('<')
+    expect(shown).not.toContain('nginx')
+    expect(wrapper.text()).not.toContain('nginx')
+  })
+
+  it('объяснение бэка из конверта по-прежнему показывает', async () => {
+    apiRequest.mockResolvedValue(resp(403, {}, { success: false, error: 'Учётная запись заблокирована' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.errors.general).toBe('Учётная запись заблокирована')
   })
 })

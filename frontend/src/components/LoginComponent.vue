@@ -400,6 +400,7 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
 import { resolveLoginRedirect } from '@/utils/postLoginRedirect'
+import { capitalize, describeHttpStatus, readApiError } from '@/utils/apiError'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 
@@ -760,27 +761,13 @@ export default {
                     : 'Неверный логин или пароль';
             } else {
                 try {
+                    // Разбор общий с остальным интерфейсом: конверт {success:false, error}
+                    // разворачивается, страница прокси человеку не показывается - при 502
+                    // в форму попадал HTML nginx целиком, вместе с версией сервера (#2525).
                     const errorText = await response.text();
-                    if (errorText) {
-                        try {
-                            const errorData = JSON.parse(errorText);
-                            // Тело ошибки приходит конвертом {success:false, error}. Читали
-                            // только message - его в конверте нет, и на месте текста
-                            // оказывался сам объект, то есть "[object Object]" на экране.
-                            // Форму берём сырую: тут response.text(), а разворачивает конверт
-                            // client.js только у response.json().
-                            const message = typeof errorData === 'string'
-                                ? errorData
-                                : errorData?.error || errorData?.message;
-                            this.errors.general = message || "Произошла ошибка";
-                        } catch {
-                            this.errors.general = errorText || "Произошла ошибка";
-                        }
-                    } else {
-                        this.errors.general = `Ошибка ${response.status}: ${response.statusText}`;
-                    }
+                    this.errors.general = capitalize(readApiError(errorText, undefined, response.status));
                 } catch {
-                    this.errors.general = `Ошибка ${response.status}: ${response.statusText}`;
+                    this.errors.general = capitalize(describeHttpStatus(response.status));
                 }
             }
             this.isLoading = false;
