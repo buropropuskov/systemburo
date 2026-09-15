@@ -2,6 +2,15 @@ const { test, expect } = require('@playwright/test');
 const { loginAsUser, loginAsSuperAdminUI } = require('../helpers/auth');
 const { NavigationBar } = require('../pages/NavigationBar');
 
+/*
+ * Рельс с разворотом по наведению - десктопная история: с 1367px и при наличии мыши.
+ * Ниже этой границы меню собирается в бургер-drawer, потому что там планшет либо
+ * окно такого же размера (#2473), и `hover` по рельсу падает с «element is outside
+ * of the viewport»: рельс уехал за край экрана. Стандартные 1280 у Playwright как раз
+ * попадают в планшетную полосу, поэтому задаём ширину явно.
+ */
+test.use({ viewport: { width: 1440, height: 900 } });
+
 test.describe('Navigation & Authorization', () => {
   test('regular user cannot access admin pages', async ({ page }) => {
     await loginAsUser(page);
