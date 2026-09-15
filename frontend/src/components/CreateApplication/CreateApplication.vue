@@ -2885,7 +2885,7 @@ export default {
                     });
                     this.showSuccessModal = true;
                 } else {
-                    notifyApiError('Ошибка отправки заявки: ', await response.text());
+                    notifyApiError('Ошибка отправки заявки: ', await response.text(), undefined, response.status);
                 }
             } catch (error) {
                 console.error('Ошибка отправки заявки:', error);
