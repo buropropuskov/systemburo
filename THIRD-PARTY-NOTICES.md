@@ -293,7 +293,7 @@
 |---|---|---|---|
 | `filippo.io/age` | v1.3.2 | BSD-3-Clause | Copyright 2019 The age Authors; Copyright 2019 Google LLC; Copyright 2022 Filippo Valsorda |
 | `filippo.io/hpke` | v0.4.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `github.com/caarlos0/env/v11` | v11.4.0 | MIT | Copyright (c) 2015-2024 Carlos Alexandro Becker |
+| `github.com/caarlos0/env/v11` | v11.4.1 | MIT | Copyright (c) 2015-2024 Carlos Alexandro Becker |
 | `github.com/gabriel-vasile/mimetype` | v1.4.15 | MIT | Copyright (c) 2018 Gabriel Vasile |
 | `github.com/go-openapi/jsonpointer` | v0.19.6 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/go-openapi/jsonreference` | v0.20.2 | Apache-2.0 | не указан в поставке пакета |
@@ -336,7 +336,7 @@
 | `github.com/xuri/excelize/v2` | v2.11.0 | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
 | `github.com/xuri/nfp` | v0.0.2-0.20250530014748-2ddeb826f9a9 | BSD-3-Clause | Copyright (c) 2022-2025 Ri Xu All rights reserved |
 | `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/image` | v0.45.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/image` | v0.46.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/mod` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/net` | v0.58.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sync` | v0.23.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
@@ -627,7 +627,7 @@ THE SOFTWARE.
 
 ### 7.4. BSD-3-Clause
 
-Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.57.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.23.0, `golang.org/x/sys` v0.48.0, `golang.org/x/text` v0.42.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
+Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.57.0, `golang.org/x/image` v0.46.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.23.0, `golang.org/x/sys` v0.48.0, `golang.org/x/text` v0.42.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -4340,7 +4340,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 
 ### 7.80. MIT
 
-Компоненты: `github.com/caarlos0/env/v11` v11.4.0
+Компоненты: `github.com/caarlos0/env/v11` v11.4.1
 
 ```text
 The MIT License (MIT)
