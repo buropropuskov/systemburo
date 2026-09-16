@@ -11,7 +11,7 @@
 | Показатель | Значение |
 |---|---|
 | Компонентов интерфейса | 239 |
-| Сборок под конкретную платформу | 11 |
+| Сборок под конкретную платформу | 38 |
 | Компонентов серверной части | 59 |
 | Различных текстов лицензий | 179 |
 
@@ -21,9 +21,21 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `dompurify` | 3.4.13 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
-| `jszip` | 3.10.1 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
+| `dompurify` | 3.4.15 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
+| `jszip` | 3.10.2 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
 | `lightningcss` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `fsevents` | 2.3.3 | не указана | не указан в поставке пакета |
+| `lightningcss-android-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-darwin-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-darwin-x64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-freebsd-x64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-arm-gnueabihf` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-arm64-gnu` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-arm64-musl` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-x64-gnu` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-x64-musl` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-win32-arm64-msvc` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-win32-x64-msvc` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 
 ## 3. Компоненты интерфейса
 
@@ -132,8 +144,8 @@
 | `dayjs` | 1.11.19 | MIT | Copyright (c) 2018-present, iamkun |
 | `detect-libc` | 2.1.2 | Apache-2.0 | Copyright {yyyy} {name of copyright owner} |
 | `dfa` | 1.2.0 | MIT | Devon Govett |
-| `dompurify` | 3.4.13 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
-| `driver.js` | 1.4.0 | MIT | Copyright (c) Kamran Ahmed |
+| `dompurify` | 3.4.15 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
+| `driver.js` | 1.8.0 | MIT | Copyright (c) Kamran Ahmed |
 | `duplexer2` | 0.1.4 | BSD-3-Clause | Copyright (c) 2013, Deoxxa Development |
 | `entities` | 4.5.0 | BSD-2-Clause | Copyright (c) Felix Böhm |
 | `entities` | 7.0.1 | BSD-2-Clause | Copyright (c) Felix Böhm |
@@ -159,7 +171,7 @@
 | `isarray` | 1.0.0 | MIT | Julian Gruber |
 | `js-md5` | 0.8.3 | MIT | Copyright 2014-2023 Chen, Yi-Cyuan |
 | `jsonfile` | 6.2.1 | MIT | Copyright (c) 2012-2015, JP Richardson <jprichardson@gmail.com> |
-| `jszip` | 3.10.1 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
+| `jszip` | 3.10.2 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
 | `lazystream` | 1.0.1 | MIT | Copyright (c) 2013 J. Pommerening, contributors |
 | `lie` | 3.3.0 | MIT | Copyright (c) 2014-2018 Calvin Metcalf, Jordan Harband |
 | `lightningcss` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
@@ -190,7 +202,7 @@
 | `pako` | 0.2.9 | MIT | Copyright (C) 2014-2016 by Vitaly Puzrin |
 | `pako` | 1.0.11 | (MIT AND Zlib) | Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn |
 | `pathe` | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors; Copyright (c) 2023-present Fabio Spampinato |
-| `pdfjs-dist` | 6.2.108 | Apache-2.0 | не указан в поставке пакета |
+| `pdfjs-dist` | 6.3.289 | Apache-2.0 | не указан в поставке пакета |
 | `pdfkit` | 0.19.1 | MIT | Copyright (c) 2014 Devon Govett |
 | `pdfmake` | 0.3.11 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
@@ -286,6 +298,33 @@
 | `@napi-rs/canvas-linux-x64-musl` | 1.0.8 | MIT | не указан в поставке пакета |
 | `@napi-rs/canvas-win32-arm64-msvc` | 1.0.8 | MIT | не указан в поставке пакета |
 | `@napi-rs/canvas-win32-x64-msvc` | 1.0.8 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-android-arm-eabi` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-android-arm64` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-darwin-arm64` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-darwin-x64` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-freebsd-x64` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm64-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm64-musl` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-ppc64-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-s390x-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-x64-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-x64-musl` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-openharmony-arm64` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-win32-arm64-msvc` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-win32-x64-msvc` | 1.2.7 | MIT | не указан в поставке пакета |
+| `fsevents` | 2.3.3 | не указана | не указан в поставке пакета |
+| `lightningcss-android-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-darwin-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-darwin-x64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-freebsd-x64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-arm-gnueabihf` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-arm64-gnu` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-arm64-musl` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-x64-gnu` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-linux-x64-musl` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-win32-arm64-msvc` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
+| `lightningcss-win32-x64-msvc` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 
 ## 5. Компоненты серверной части
 
@@ -3378,7 +3417,7 @@ Apache License
 
 ### 7.68. (MPL-2.0 OR Apache-2.0)
 
-Компоненты: `dompurify` 3.4.13
+Компоненты: `dompurify` 3.4.15
 
 ```text
 ===== LICENSE =====
@@ -3962,7 +4001,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ### 7.69. MIT
 
-Компоненты: `driver.js` 1.4.0
+Компоненты: `driver.js` 1.8.0
 
 ```text
 The MIT License
@@ -6043,7 +6082,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 
 ### 7.123. (MIT OR GPL-3.0-or-later)
 
-Компоненты: `jszip` 3.10.1
+Компоненты: `jszip` 3.10.2
 
 ```text
 JSZip is dual licensed. At your choice you may use it under the MIT license *or* the GPLv3
@@ -7665,7 +7704,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### 7.143. Apache-2.0
 
-Компоненты: `pdfjs-dist` 6.2.108
+Компоненты: `pdfjs-dist` 6.3.289
 
 ```text
 Apache License
