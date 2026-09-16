@@ -5,7 +5,7 @@ go 1.26.6
 require (
 	filippo.io/age v1.3.2
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/caarlos0/env/v11 v11.4.0
+	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/go-playground/validator/v10 v10.30.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -18,7 +18,7 @@ require (
 	github.com/wneessen/go-mail v0.8.1
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/crypto v0.57.0
-	golang.org/x/image v0.45.0
+	golang.org/x/image v0.46.0
 	golang.org/x/text v0.42.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/driver/postgres v1.6.2
