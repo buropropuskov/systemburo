@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build package init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore health-check staging-health-check deploy-health-check sync-presets
+.PHONY: up down build test logs restart lint swagger notices bash db-shell frontend-dev prod-build package init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore health-check staging-health-check deploy-health-check sync-presets
 
 # Подтверждение перед разрушающими целями рабочего сервера.
 #
@@ -49,6 +49,12 @@ sync-presets:
 
 swagger:
 	docker compose exec go-backend swag init -g cmd/server/main.go -o docs
+
+# Перечень сторонних компонентов: собирается из репозитория и уходит заказчику.
+# Пересобирать после любого обновления зависимостей - иначе замки в internal/legal и
+# frontend/src/__tests__/thirdPartyNotices.spec.js честно краснеют (#2523).
+notices:
+	python3 scripts/gen-third-party-notices.py
 
 bash:
 	docker compose exec go-backend sh

@@ -11,12 +11,29 @@ updates:
     labels:
       - dependencies
       - backend
+    # Безопасные подъёмы собираются в один PR, мажоры приходят по одному.
+    #
+    # Так сделано по двум причинам (#2523). Первая: любой PR бота красный, пока не
+    # пересобран THIRD-PARTY-NOTICES.md - сам бот этого не умеет, а человеку проще
+    # дослать один коммит в одну ветку, чем в восемь. Вторая: мажор в общей группе
+    # держит в заложниках безопасную часть - так vitest 4 -> 5 месяц не давал влить
+    # минорный подъём vite.
     groups:
+      go-minor:
+        update-types:
+          - minor
+          - patch
       gorm-stack:
+        applies-to: version-updates
+        update-types:
+          - major
         patterns:
           - "gorm.io/*"
           - "github.com/jackc/*"
       echo-stack:
+        applies-to: version-updates
+        update-types:
+          - major
         patterns:
           - "github.com/labstack/echo/*"
 
@@ -31,19 +48,33 @@ updates:
     labels:
       - dependencies
       - frontend
+    # Тот же порядок, что и на сервере: безопасное - одним PR, мажоры - по одному.
     groups:
+      npm-minor:
+        update-types:
+          - minor
+          - patch
       vue-stack:
+        applies-to: version-updates
+        update-types:
+          - major
         patterns:
           - vue
           - vue-router
           - pinia
           - "@vue/*"
       vite-tooling:
+        applies-to: version-updates
+        update-types:
+          - major
         patterns:
           - vite
           - "@vitejs/*"
           - vitest
       playwright:
+        applies-to: version-updates
+        update-types:
+          - major
         patterns:
           - "@playwright/*"
           - playwright
