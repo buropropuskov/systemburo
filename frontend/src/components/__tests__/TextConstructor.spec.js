@@ -309,6 +309,62 @@ describe('TextConstructor', () => {
     expect(wrapper.vm.editor.getHTML()).toContain('img-align-center');
   });
 
+  /**
+   * Замки на поведение, которое обязано пережить подъём @tiptap до третьей ветки (#2521).
+   * Там StarterKit молча приносит Link и TrailingNode, а `setContent` меняет второй параметр
+   * с булева флага на объект опций - каждый из этих трёх пунктов меняет HTML, уезжающий в базу,
+   * или дёргает форму на пустом месте. Тесты зелены на второй ветке и краснеют на третьей,
+   * пока миграция не сделана правильно.
+   */
+  it('значение, пришедшее сверху, не порождает эхо update:modelValue', async () => {
+    const wrapper = mountConstructor({ modelValue: '<p>исходный</p>' });
+    await flushPromises();
+
+    await wrapper.setProps({ modelValue: '<p>пришло снаружи</p>' });
+    await flushPromises();
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+  });
+
+  it('набранный URL остаётся текстом и не превращается в ссылку', async () => {
+    const wrapper = mountConstructor();
+    await flushPromises();
+
+    wrapper.vm.editor.commands.insertContent('зайдите на https://example.com потом');
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('https://example.com');
+    expect(out).not.toContain('<a ');
+  });
+
+  it('опустошённый редактор отдаёт пустую строку, а не пустой абзац', async () => {
+    const wrapper = mountConstructor({ modelValue: '<p>текст</p>' });
+    await flushPromises();
+
+    wrapper.vm.editor.chain().selectAll().deleteSelection().run();
+    await flushPromises();
+
+    const emitted = wrapper.emitted('update:modelValue');
+    expect(emitted[emitted.length - 1][0]).toBe('');
+  });
+
+  it('картинка в конце документа не обрастает пустым абзацем', async () => {
+    const wrapper = mountConstructor({
+      modelValue: '<p>текст</p><img class="constructor-image" src="data:image/png;base64,ZmFrZQ==">',
+    });
+    await flushPromises();
+
+    expect(wrapper.vm.editor.getHTML()).not.toMatch(/<p><\/p>$/);
+  });
+
+  it('заголовок в конце документа не обрастает пустым абзацем', async () => {
+    const wrapper = mountConstructor({ modelValue: '<h1 class="heading-h1">Заголовок</h1>' });
+    await flushPromises();
+
+    expect(wrapper.vm.editor.getHTML()).toBe('<h1 class="heading-h1">Заголовок</h1>');
+  });
+
   it('round-trip: выравнивание и ширина картинки сохраняются вместе', async () => {
     const wrapper = mountConstructor({
       modelValue:
