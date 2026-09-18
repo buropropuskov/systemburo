@@ -908,7 +908,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
-import TextConstructor from './TextConstructor.vue';
+import { defineAsyncComponent } from 'vue';
 import WorkScheduleTab from './WorkScheduleTab.vue';
 import WarningWindowsEditor from './WarningWindowsEditor.vue';
 import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
@@ -921,6 +921,10 @@ import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
+
+// Редактор тянет за собой tiptap и весь prosemirror - около 200 КБ, нужных только
+// на экранах с текстом. Ленивый импорт держит их вне стартовой загрузки (#2521).
+const TextConstructor = defineAsyncComponent(() => import('./TextConstructor.vue'));
 
 export default {
   name: 'TableConstructor',

@@ -323,7 +323,7 @@
 import { apiRequest } from '@/api/client';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import TextConstructor from '@/components/TextConstructor.vue';
+import { defineAsyncComponent } from 'vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -331,6 +331,10 @@ import { useUiStore } from '@/stores/ui';
 import { sanitizeHtml } from '@/utils/sanitize.js';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { formatDateTime } from '@/utils/datetime';
+
+// Редактор тянет за собой tiptap и весь prosemirror - около 200 КБ, нужных только
+// на экранах с текстом. Ленивый импорт держит их вне стартовой загрузки (#2521).
+const TextConstructor = defineAsyncComponent(() => import('@/components/TextConstructor.vue'));
 
 export default {
   name: 'NewsManagement',

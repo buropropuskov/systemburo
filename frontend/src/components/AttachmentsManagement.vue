@@ -499,7 +499,7 @@ import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
-import TextConstructor from './TextConstructor.vue';
+import { defineAsyncComponent } from 'vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
@@ -521,6 +521,10 @@ import { getTemplate } from '@/api/attachment-templates';
 import { getArchiveSettings } from '@/api/fileArchive';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatMomentDate } from '@/utils/datetime';
+
+// Редактор тянет за собой tiptap и весь prosemirror - около 200 КБ, нужных только
+// на экранах с текстом. Ленивый импорт держит их вне стартовой загрузки (#2521).
+const TextConstructor = defineAsyncComponent(() => import('./TextConstructor.vue'));
 
 const SYSTEM_NAME_RE = /^[a-z0-9_]*$/;
 

@@ -367,11 +367,15 @@ import { stripHtml } from '@/utils/sanitize';
 import { formatLogin } from '@/utils/formatName';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
-import TextConstructor from '@/components/TextConstructor.vue';
+import { defineAsyncComponent } from 'vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { formatMomentDate } from '@/utils/datetime';
+
+// Редактор тянет за собой tiptap и весь prosemirror - около 200 КБ, нужных только
+// на экранах с текстом. Ленивый импорт держит их вне стартовой загрузки (#2521).
+const TextConstructor = defineAsyncComponent(() => import('@/components/TextConstructor.vue'));
 
 /**
  * Раздел «Обработка данных» отдельной страницей (/admin/data-processing): документ
