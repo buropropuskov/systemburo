@@ -442,8 +442,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Placeholder from '@tiptap/extension-placeholder';
+import { Placeholder } from '@tiptap/extensions';
 import { sanitizeHtml } from '@/utils/sanitize';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import {
@@ -500,8 +499,10 @@ const editor = useEditor({
   content: props.modelValue || '',
   editable: !props.disabled,
   extensions: [
-    StarterKit.configure({ heading: false }),
-    Underline,
+    // heading свой (ClassHeading рендерит класс heading-hN), link выключен намеренно:
+    // третья ветка включила его в набор, и набранный URL стал бы ссылкой, которой нет в
+    // уже сохранённых текстах и под которую у потребителей нет стилей (#2521).
+    StarterKit.configure({ heading: false, link: false }),
     ClassHeading,
     ColorClass,
     FontSizeClass,
@@ -526,7 +527,7 @@ watch(
     if (!instance) return;
     const current = instance.isEmpty ? '' : instance.getHTML();
     if ((value || '') !== current) {
-      instance.commands.setContent(value || '', false);
+      instance.commands.setContent(value || '', { emitUpdate: false });
     }
   }
 );
