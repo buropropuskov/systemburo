@@ -1,0 +1,318 @@
+{
+ "platform": {
+  "brand": "Paper",
+  "version": "26.3-16-71696fd",
+  "mc": "26.3"
+ },
+ "user": "CONSOLE",
+ "generated_ms": 1789741559035,
+ "uptime_ms": 201556,
+ "players": 1,
+ "tps": {
+  "1": 19.999803943255266,
+  "2": 19.901074526304846,
+  "3": 19.96691574625249,
+  "4": 20
+ },
+ "mspt_1m": {
+  "mean": 5.611517100833334,
+  "max": 39.575946,
+  "min": 3.667457,
+  "median": 5.314619,
+  "p95": 7.613472
+ },
+ "mspt_5m": {
+  "mean": 7.11833715122684,
+  "max": 647.414088,
+  "min": 0.113343,
+  "median": 5.570067,
+  "p95": 14.248952
+ },
+ "ping": [
+  {
+   "1": [
+    {
+     "1": [
+      101.3529411764706
+     ],
+     "2": [
+      951.0
+     ],
+     "3": [
+      44.0
+     ],
+     "4": [
+      45.0
+     ],
+     "5": [
+      951.0
+     ]
+    }
+   ]
+  }
+ ],
+ "gc": [
+  {
+   "name": "G1 Young Generation",
+   "total": 7,
+   "avg_time": 55.857142857142854,
+   "avg_freq": 28737.0
+  },
+  {
+   "name": "G1 Concurrent GC",
+   "total": 2,
+   "avg_time": 17.0,
+   "avg_freq": 100761.0
+  },
+  {
+   "name": "G1 Old Generation",
+   "total": null,
+   "avg_time": null,
+   "avg_freq": null
+  }
+ ],
+ "total_entities": 548,
+ "entities": {
+  "chicken": 56,
+  "sheep": 53,
+  "item": 37,
+  "cow": 32,
+  "skeleton": 27,
+  "bee": 22,
+  "zombie": 22,
+  "creeper": 20,
+  "bat": 17,
+  "chest_minecart": 12,
+  "villager": 12,
+  "glow_squid": 10,
+  "cushion": 9,
+  "cat": 9,
+  "rabbit": 8,
+  "wolf": 8,
+  "squid": 5,
+  "skeleton_horse": 3,
+  "drowned": 2,
+  "leash_knot": 2,
+  "spider": 2,
+  "cherry_boat": 1,
+  "zombie_nautilus": 1
+ },
+ "worlds_raw_keys": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "cpu": {
+  "threads": 2,
+  "model": "AMD EPYC 7402P 24-Core Processor",
+  "proc_usage": {
+   "mean": 0.15241666666666667,
+   "max": 0.19101664082070857,
+   "min": null,
+   "median": null,
+   "p95": null
+  },
+  "sys_usage": {
+   "mean": 0.15245896666666667,
+   "max": 0.19123718388405106,
+   "min": null,
+   "median": null,
+   "p95": null
+  }
+ },
+ "mem": {
+  "phys_used": 179084984320,
+  "phys_total": 270106681344,
+  "swap_used": null,
+  "swap_total": 2972712960
+ },
+ "disk": {
+  "used": 153985200128,
+  "total": 234090803200
+ },
+ "os": {
+  "arch": "amd64",
+  "name": "Ubuntu 26.04.1 LTS",
+  "kernel": "6.8.0-124-generic"
+ },
+ "java": {
+  "vendor": "Eclipse Adoptium",
+  "version": "25.0.4",
+  "vendor_version": "Temurin-25.0.4+7",
+  "flags": "-Xmx2070M -Xms1035M -XX:MaxMetaspaceSize=315M -XX:+UseCompactObjectHeaders"
+ },
+ "sys_uptime_ms": 218036,
+ "jvm": {
+  "name": "OpenJDK 64-Bit Server VM",
+  "vendor": "Eclipse Adoptium",
+  "version": "25.0.4+7-LTS"
+ },
+ "net": {
+  "lo": {
+   "1": null,
+   "2": null,
+   "3": null,
+   "4": null
+  },
+  "eth0": {
+   "1": {
+    "mean": 2711.6666666666665,
+    "max": 3007.0,
+    "min": 2544.0,
+    "median": 2584.0,
+    "p95": 3007.0
+   },
+   "2": {
+    "mean": 34769.333333333336,
+    "max": 77981.0,
+    "min": 9638.0,
+    "median": 16689.0,
+    "p95": 77981.0
+   },
+   "3": {
+    "mean": 36.666666666666664,
+    "max": 41.0,
+    "min": 34.0,
+    "median": 35.0,
+    "p95": 41.0
+   },
+   "4": {
+    "mean": 31.0,
+    "max": 33.0,
+    "min": 29.0,
+    "median": 31.0,
+    "p95": 33.0
+   }
+  }
+ },
+ "windows": [
+  {
+   "1": 1200,
+   "2": 0.09308333333333334,
+   "3": 0.09310171666666667,
+   "4": 19.99981004347086,
+   "5": 5.038049,
+   "6": 19.237871,
+   "7": 1,
+   "8": 550,
+   "9": 321,
+   "10": 841,
+   "11": 1789741477495,
+   "12": 1789741537508,
+   "13": 60013
+  },
+  {
+   "1": 1200,
+   "2": 0.11608333333333333,
+   "3": 0.1161611,
+   "4": 20.000285187066524,
+   "5": 5.898567,
+   "6": 15.734049,
+   "7": 1,
+   "8": 537,
+   "9": 321,
+   "10": 841,
+   "11": 1789741417518,
+   "12": 1789741477495,
+   "13": 59977
+  },
+  {
+   "1": 1169,
+   "2": 0.32158333333333333,
+   "3": 0.32226598333333334,
+   "4": 19.514928032454687,
+   "5": 6.220918,
+   "6": 647.414088,
+   "7": 1,
+   "8": 592,
+   "9": 321,
+   "10": 841,
+   "11": 1789741357485,
+   "12": 1789741417518,
+   "13": 60033
+  }
+ ],
+ "block3": {
+  "1": [
+   10
+  ],
+  "2": [
+   6,
+   4
+  ]
+ },
+ "configs": [
+  "server.properties",
+  "bukkit.yml",
+  "spigot.yml"
+ ],
+ "props": {
+  "enable-jmx-monitoring": true,
+  "management-server-port": 9900,
+  "rcon.port": 25575,
+  "gamemode": "survival",
+  "enable-query": true,
+  "chat-spam-threshold-seconds": 10,
+  "generator-settings": "{}",
+  "enforce-secure-profile": false,
+  "level-name": "world",
+  "text-filtering-version": 0,
+  "pause-when-empty-seconds": 60,
+  "management-server-host": "0.0.0.0",
+  "query.port": 9898,
+  "management-server-tls-enabled": false,
+  "management-server-tls-keystore": "",
+  "generate-structures": true,
+  "max-chained-neighbor-updates": 1000000,
+  "difficulty": "normal",
+  "network-compression-threshold": 256,
+  "max-tick-time": 600000,
+  "require-resource-pack": false,
+  "management-server-enabled": true,
+  "max-players": 20,
+  "use-native-transport": true,
+  "enable-status": true,
+  "online-mode": false,
+  "allow-flight": true,
+  "initial-disabled-packs": "",
+  "broadcast-rcon-to-ops": true,
+  "view-distance": 12,
+  "management-server-allowed-origins": "",
+  "resource-pack-prompt": "\"\"",
+  "bug-report-link": "",
+  "server-port": 19254,
+  "enable-rcon": false,
+  "sync-chunk-writes": false,
+  "resource-pack-id": "",
+  "op-permission-level": 4,
+  "accepts-transfers": true,
+  "prevent-proxy-connections": false,
+  "hide-online-players": false,
+  "entity-broadcast-range-percentage": 100,
+  "simulation-distance": 5,
+  "player-idle-timeout": 30,
+  "status-heartbeat-interval": 0,
+  "force-gamemode": false,
+  "debug": false,
+  "rate-limit": 0,
+  "hardcore": false,
+  "white-list": false,
+  "broadcast-console-to-ops": true,
+  "region-file-compression": "deflate",
+  "command-spam-threshold-seconds": 10,
+  "previews-chat": false,
+  "log-ips": true,
+  "function-permission-level": 2,
+  "initial-enabled-packs": "vanilla",
+  "level-type": "minecraft:normal",
+  "text-filtering-config": "",
+  "enforce-whitelist": false,
+  "resource-pack-sha1": "",
+  "spawn-protection": 0,
+  "enable-code-of-conduct": false,
+  "max-world-size": 29999984
+ },
+ "generated_iso": "18.09.2026 17:25:59 МСК"
+}
