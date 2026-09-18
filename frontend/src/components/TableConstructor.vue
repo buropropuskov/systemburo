@@ -908,7 +908,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
-import TextConstructor from './TextConstructor.vue';
+import TextConstructor from './text-constructor/TextConstructorLazy';
 import WorkScheduleTab from './WorkScheduleTab.vue';
 import WarningWindowsEditor from './WarningWindowsEditor.vue';
 import SystemTableColumnsTab from './SystemTableColumnsTab.vue';

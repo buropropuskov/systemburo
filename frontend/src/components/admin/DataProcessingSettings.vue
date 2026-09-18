@@ -367,7 +367,7 @@ import { stripHtml } from '@/utils/sanitize';
 import { formatLogin } from '@/utils/formatName';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
-import TextConstructor from '@/components/TextConstructor.vue';
+import TextConstructor from '@/components/text-constructor/TextConstructorLazy';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';

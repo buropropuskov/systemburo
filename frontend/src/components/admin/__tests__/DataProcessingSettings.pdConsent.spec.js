@@ -56,11 +56,15 @@ function fileEvent(name = 'soglasie.pdf', type = 'application/pdf') {
 // Разметка секции лежит в слоте SkeletonTransition, а shallowMount слоты
 // застабленных компонентов не рисует - подменяем его на прозрачную обёртку,
 // чтобы проверять реальный DOM секции. Остальные дети остаются заглушками.
+// Редактор грузится лениво (#2521), и у асинхронной обёртки нет имени - автоматическая
+// заглушка теряет его вместе с пропсами, по которым тесты ниже проверяют блокировку правки.
+const EDITOR_STUB = { name: 'TextConstructor', props: ['modelValue', 'disabled'], template: '<div />' };
+
 async function openSection() {
   // Раздел стал отдельной страницей (#1567): компонент грузит данные сам на
   // монтировании, выбирать секцию больше не надо.
   const wrapper = shallowMount(DataProcessingSettings, {
-    global: { stubs: { TextConstructor: true, RefreshButton: true } },
+    global: { stubs: { TextConstructor: EDITOR_STUB, RefreshButton: true } },
   });
   await flushPromises();
   return wrapper;
@@ -164,7 +168,7 @@ describe('Обработка данных - текст согласия при �
     getPDConsentSettings.mockReturnValue(new Promise((resolve) => { releaseSettings = resolve; }));
     extractDocumentHtml.mockResolvedValue('<p>Перенесённый</p>');
     const wrapper = shallowMount(DataProcessingSettings, {
-      global: { stubs: { TextConstructor: true, RefreshButton: true } },
+      global: { stubs: { TextConstructor: EDITOR_STUB, RefreshButton: true } },
     });
 
     const upload = wrapper.vm.onDpFileChange(fileEvent().event);

@@ -323,7 +323,7 @@
 import { apiRequest } from '@/api/client';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import TextConstructor from '@/components/TextConstructor.vue';
+import TextConstructor from '@/components/text-constructor/TextConstructorLazy';
 import SearchComponent from '@/components/SearchComponent.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import { useDeletionsStore } from '@/stores/deletions';

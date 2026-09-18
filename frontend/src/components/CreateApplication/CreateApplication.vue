@@ -451,7 +451,7 @@ import ItemsList from './ItemsList.vue';
 import UniversalBindingModal from './UniversalBindingModal.vue';
 import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
 import CustomFieldsSection from './CustomFieldsSection.vue';
-import TextConstructor from '@/components/TextConstructor.vue';
+import TextConstructor from '@/components/text-constructor/TextConstructorLazy';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';

@@ -499,7 +499,7 @@ import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
-import TextConstructor from './TextConstructor.vue';
+import TextConstructor from './text-constructor/TextConstructorLazy';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';

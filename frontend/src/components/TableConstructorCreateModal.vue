@@ -188,7 +188,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
-import TextConstructor from './TextConstructor.vue'
+import TextConstructor from './text-constructor/TextConstructorLazy'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
