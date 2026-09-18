@@ -188,13 +188,9 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
-import { defineAsyncComponent } from 'vue';
+import TextConstructor from './text-constructor/TextConstructorLazy'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
-
-// Редактор тянет за собой tiptap и весь prosemirror - около 200 КБ, нужных только
-// на экранах с текстом. Ленивый импорт держит их вне стартовой загрузки (#2521).
-const TextConstructor = defineAsyncComponent(() => import('./TextConstructor.vue'))
 
 export default {
   name: 'TableConstructorCreateModal',
