@@ -29,13 +29,27 @@ def tree(b, depth=0, maxdepth=14):
                     if t and all(c.isprintable() or c in '\n\t ' for c in t): s = t
                 except Exception: pass
                 sub = tree(chunk, depth+1, maxdepth) if depth < maxdepth else {}
-                out[f].append(s if (s is not None and not sub) else (sub or s))
+                if s is not None and sub:
+                    val = dict(sub); val['_s'] = [s]
+                elif s is not None:
+                    val = s
+                else:
+                    val = sub
+                out[f].append(val)
             elif wt == 5:
                 v = struct.unpack('<f', b[i:i+4])[0]; i += 4; out[f].append(v)
             else: break
         except Exception:
             break
     return dict(out)
+
+def as_str(v):
+    if isinstance(v, str): return v
+    if isinstance(v, dict):
+        x = v.get('_s')
+        if isinstance(x, list) and x and isinstance(x[0], str): return x[0]
+    return None
+
 
 t = tree(data)
 meta = t[1][0]
@@ -47,7 +61,7 @@ def g(d, *path, default=None):
     for p in path:
         if not isinstance(cur, dict) or p not in cur: return default
         cur = cur[p][0]
-    return cur
+    return as_str(cur) or cur
 
 facts = {}
 facts['platform'] = {'brand': g(meta,2,2), 'version': g(meta,2,3), 'mc': g(meta,2,4)}
@@ -69,7 +83,7 @@ facts['gc'] = []
 for e in plat_stats.get(2, []):
     if isinstance(e, dict):
         st = e.get(2,[{}])[0] or {}
-        facts['gc'].append({'name': e.get(1,[None])[0], 'total': st.get(1,[None])[0],
+        facts['gc'].append({'name': as_str(e.get(1,[None])[0]), 'total': st.get(1,[None])[0],
                             'avg_time': st.get(2,[None])[0], 'avg_freq': st.get(3,[None])[0]})
 # world
 w = plat_stats.get(8,[{}])[0]
@@ -77,13 +91,13 @@ facts['total_entities'] = w.get(1,[None])[0]
 ents = {}
 for e in w.get(2, []):
     if isinstance(e, dict):
-        nm = e.get(1,[None])[0]; ct = e.get(2,[None])[0]
-        if isinstance(nm, str) and isinstance(ct, int): ents[nm] = ct
+        nm = as_str(e.get(1,[None])[0]); ct = e.get(2,[None])[0]
+        if nm and isinstance(ct, int): ents[nm] = ct
 facts['entities'] = dict(sorted(ents.items(), key=lambda kv: -kv[1]))
 facts['worlds_raw_keys'] = sorted(w.keys())
 # system
 cpu = sys_stats[1][0]
-facts['cpu'] = {'threads': cpu.get(1,[None])[0], 'model': cpu.get(4,[None])[0],
+facts['cpu'] = {'threads': cpu.get(1,[None])[0], 'model': as_str(cpu.get(4,[None])[0]),
                 'proc_usage': roll(cpu.get(2,[{}])[0]), 'sys_usage': roll(cpu.get(3,[{}])[0])}
 mem = sys_stats[2][0]
 facts['mem'] = {'phys_used': (mem.get(1,[{}])[0] or {}).get(1,[None])[0], 'phys_total': (mem.get(1,[{}])[0] or {}).get(2,[None])[0],
@@ -98,7 +112,7 @@ facts['jvm'] = {'name': g(sys_stats,9,1), 'vendor': g(sys_stats,9,2), 'version':
 net = {}
 for e in sys_stats.get(8, []):
     if isinstance(e, dict):
-        nm = e.get(1,[None])[0]; st = e.get(2,[{}])[0] or {}
+        nm = as_str(e.get(1,[None])[0]); st = e.get(2,[{}])[0] or {}
         net[nm] = {k: roll(v[0]) if isinstance(v[0], dict) else v[0] for k, v in st.items()}
 facts['net'] = net
 # окна

@@ -73,12 +73,14 @@
  ],
  "total_entities": 548,
  "entities": {
+  "item_frame": 129,
   "chicken": 56,
   "sheep": 53,
   "item": 37,
   "cow": 32,
   "skeleton": 27,
   "bee": 22,
+  "pig": 22,
   "zombie": 22,
   "creeper": 20,
   "bat": 17,
@@ -89,13 +91,22 @@
   "cat": 9,
   "rabbit": 8,
   "wolf": 8,
+  "enderman": 8,
   "squid": 5,
+  "parrot": 5,
+  "pillager": 3,
+  "iron_golem": 3,
+  "happy_ghast": 3,
   "skeleton_horse": 3,
+  "armor_stand": 2,
   "drowned": 2,
   "leash_knot": 2,
   "spider": 2,
   "cherry_boat": 1,
-  "zombie_nautilus": 1
+  "armadillo": 1,
+  "player": 1,
+  "zombie_nautilus": 1,
+  "horse": 1
  },
  "worlds_raw_keys": [
   1,
@@ -141,7 +152,7 @@
   "vendor": "Eclipse Adoptium",
   "version": "25.0.4",
   "vendor_version": "Temurin-25.0.4+7",
-  "flags": "-Xmx2070M -Xms1035M -XX:MaxMetaspaceSize=315M -XX:+UseCompactObjectHeaders"
+  "flags": "-DbundlerRepoDir=bundler -Dlog4j2.formatMsgNoLookups=true -Dfile.encoding=UTF-8 -Dlog4j.configurationFile=log4j2.xml -XX:+UseCompactObjectHeaders -DgeyserUdpPort=server -DgeyserWebrtcPort=19132 -DgeyserSignalingMode=builtin -DgeyserTransport=both -DgeyserSignalingPort=19132 -Dorg.bukkit.plugin.java.LibraryLoader.centralURL=https://maven-central-eu.storage-download.googleapis.com/maven2/ -Dpaper.playerconnection.keepalive=60 -javaagent:/other/jolokia/jolokia.jar=host=0.0.0.0,port=9899,policyLocation=file:/other/jolokia/policy.xml,allowDnsReverseLookup=false -javaagent:/other/pipeblocker/pipeblocker.jar -Duser.timezone=Europe/Moscow -XX:MaxMetaspaceSize=315M -Xmx2070M -Xms1035M"
  },
  "sys_uptime_ms": 218036,
  "jvm": {
@@ -151,10 +162,34 @@
  },
  "net": {
   "lo": {
-   "1": null,
-   "2": null,
-   "3": null,
-   "4": null
+   "1": {
+    "mean": null,
+    "max": null,
+    "min": null,
+    "median": null,
+    "p95": null
+   },
+   "2": {
+    "mean": null,
+    "max": null,
+    "min": null,
+    "median": null,
+    "p95": null
+   },
+   "3": {
+    "mean": null,
+    "max": null,
+    "min": null,
+    "median": null,
+    "p95": null
+   },
+   "4": {
+    "mean": null,
+    "max": null,
+    "min": null,
+    "median": null,
+    "p95": null
+   }
   },
   "eth0": {
    "1": {
@@ -236,7 +271,8 @@
  ],
  "block3": {
   "1": [
-   10
+   10,
+   "_s"
   ],
   "2": [
    6,
@@ -313,6 +349,5 @@
   "spawn-protection": 0,
   "enable-code-of-conduct": false,
   "max-world-size": 29999984
- },
- "generated_iso": "18.09.2026 17:25:59 МСК"
+ }
 }
