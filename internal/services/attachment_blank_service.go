@@ -207,7 +207,7 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}
-	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
+	f, err := OpenSpreadsheet(templateBytes)
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}
@@ -323,7 +323,7 @@ func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueA
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}
-	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
+	f, err := OpenSpreadsheet(templateBytes)
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}
