@@ -113,7 +113,7 @@ func (s *attachmentImportService) ImportList(ctx context.Context, uniqueAttachme
 		return nil, err
 	}
 
-	f, err := excelize.OpenReader(bytes.NewReader(data))
+	f, err := OpenSpreadsheet(data)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusBadRequest,
 			"Файл повреждён или не является Excel-таблицей. Скачайте бланк заново и заполните его")
@@ -275,7 +275,7 @@ func (s *attachmentImportService) checkStructure(uploaded *excelize.File, templa
 		return apperr.Internal("Не удалось сверить структуру бланка",
 			fmt.Errorf("чтение эталонного шаблона %s: %w", template.FilePath, err))
 	}
-	ref, err := excelize.OpenReader(bytes.NewReader(refBytes))
+	ref, err := OpenSpreadsheet(refBytes)
 	if err != nil {
 		return apperr.Internal("Не удалось сверить структуру бланка",
 			fmt.Errorf("открытие эталонного шаблона %s: %w", template.FilePath, err))
