@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "dev.keeq0"
-version = "1.0.3"
+version = "1.2.0"
 
 repositories {
     mavenCentral()

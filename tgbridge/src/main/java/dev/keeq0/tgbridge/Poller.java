@@ -99,9 +99,9 @@ public final class Poller {
         JsonObject chat = msg.getAsJsonObject("chat");
         if (chat == null || chat.get("id").getAsLong() != cfg.chatId) return;
 
-        if (cfg.threadId > 0) {
+        if (cfg.chatThreadId > 0) {
             long thread = msg.has("message_thread_id") ? msg.get("message_thread_id").getAsLong() : -1;
-            if (thread != cfg.threadId) return;
+            if (thread != cfg.chatThreadId) return;
         }
         if (!msg.has("text")) return;
 
