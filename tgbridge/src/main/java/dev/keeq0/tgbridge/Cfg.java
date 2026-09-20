@@ -12,6 +12,7 @@ public final class Cfg {
     public final long threadId;
 
     public final int maxAgeSeconds;
+    public final int maxIncomingAgeSeconds;
     public final int maxSize;
     public final List<Integer> backoffSeconds;
 
@@ -30,6 +31,7 @@ public final class Cfg {
         threadId = c.getLong("bot.threadId", -1L);
 
         maxAgeSeconds = c.getInt("queue.maxAgeSeconds", 600);
+        maxIncomingAgeSeconds = c.getInt("queue.maxIncomingAgeSeconds", 120);
         maxSize = Math.max(10, c.getInt("queue.maxSize", 200));
         List<Integer> b = (List<Integer>) (List<?>) c.getIntegerList("queue.backoffSeconds");
         backoffSeconds = b.isEmpty() ? List.of(2, 5, 10, 30, 60) : List.copyOf(b);

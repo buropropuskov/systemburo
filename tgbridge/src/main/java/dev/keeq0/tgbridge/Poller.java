@@ -25,6 +25,7 @@ public final class Poller {
     private volatile boolean running;
     private volatile boolean online = true;
     private long offset = 0;
+    private boolean primed = false;
 
     public Poller(Cfg cfg, Telegram tg, Logger log, BiConsumer<String, String> onMessage) {
         this.cfg = cfg;
@@ -48,6 +49,10 @@ public final class Poller {
     private void loop() {
         while (running) {
             try {
+                if (!primed) {
+                    prime();
+                    continue;
+                }
                 JsonArray updates = tg.getUpdates(offset, 30);
                 if (!online) {
                     online = true;
@@ -62,11 +67,32 @@ public final class Poller {
             } catch (Exception e) {
                 if (online) {
                     online = false;
-                    log.warning("приём из Telegram прерван, повторяю: " + e.getMessage());
+                    log.warning("приём из Telegram прерван, повторяю: " + describe(e));
                 }
                 sleep(5000);
             }
         }
+    }
+
+    /**
+     * Telegram хранит непрочитанные обновления до суток и при нулевом смещении отдаёт их
+     * все разом. Без этого шага после простоя в игровой чат вываливается вчерашняя
+     * переписка целиком, что однажды и случилось.
+     */
+    private void prime() throws Exception {
+        JsonArray last = tg.getUpdates(-1, 0);
+        if (!last.isEmpty()) {
+            JsonObject newest = last.get(last.size() - 1).getAsJsonObject();
+            offset = newest.get("update_id").getAsLong() + 1;
+        }
+        primed = true;
+        online = true;
+        log.info("подключение к Telegram установлено, старые сообщения пропущены");
+    }
+
+    private static String describe(Exception e) {
+        String m = e.getMessage();
+        return (m == null || m.isBlank()) ? e.getClass().getSimpleName() : m;
     }
 
     private void handle(JsonObject msg) {
@@ -78,6 +104,12 @@ public final class Poller {
             if (thread != cfg.threadId) return;
         }
         if (!msg.has("text")) return;
+
+        // защита от старых сообщений, которые Telegram мог придержать во время обрыва
+        if (msg.has("date")) {
+            long ageSeconds = System.currentTimeMillis() / 1000L - msg.get("date").getAsLong();
+            if (ageSeconds > cfg.maxIncomingAgeSeconds) return;
+        }
 
         String text = msg.get("text").getAsString();
         String name = "неизвестный";
