@@ -42,12 +42,15 @@ public final class Telegram {
         return json;
     }
 
-    public void sendMessage(String text) throws Exception {
+    /** @return message_id отправленного сообщения: по нему потом сопоставляются реакции. */
+    public long sendMessage(String text) throws Exception {
         JsonObject b = new JsonObject();
         b.addProperty("chat_id", cfg.chatId);
         if (cfg.threadId > 0) b.addProperty("message_thread_id", cfg.threadId);
         b.addProperty("text", text);
-        call("sendMessage", b, Duration.ofSeconds(15));
+        JsonObject res = call("sendMessage", b, Duration.ofSeconds(15));
+        JsonObject msg = res.getAsJsonObject("result");
+        return msg != null && msg.has("message_id") ? msg.get("message_id").getAsLong() : 0L;
     }
 
     /** Длинный опрос: висит на стороне Telegram до timeoutSec секунд, если сообщений нет. */
@@ -57,6 +60,8 @@ public final class Telegram {
         b.addProperty("timeout", timeoutSec);
         JsonArray allowed = new JsonArray();
         allowed.add("message");
+        // реакции приходят только при явной подписке и только если бот администратор чата
+        allowed.add("message_reaction");
         b.add("allowed_updates", allowed);
         return call("getUpdates", b, Duration.ofSeconds(timeoutSec + 15L)).getAsJsonArray("result");
     }
