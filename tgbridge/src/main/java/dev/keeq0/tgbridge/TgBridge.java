@@ -25,11 +25,13 @@ public final class TgBridge extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         stampFile = getDataFolder().toPath().resolve("last-stop");
+        // слушатели вешаем до проверки конфига: иначе после /tgbridge reload мост живёт,
+        // а события игры до него не доходят
+        getServer().getPluginManager().registerEvents(new Listeners(this), this);
         if (!startBridge()) {
             getLogger().warning("токен или chatId не заданы, мост спит. Заполни config.yml и выполни /tgbridge reload");
             return;
         }
-        getServer().getPluginManager().registerEvents(new Listeners(this), this);
         announceStartup();
     }
 
@@ -132,7 +134,10 @@ public final class TgBridge extends JavaPlugin {
                 sender.sendMessage("TgBridge: не настроен (нет токена или chatId).");
                 return true;
             }
-            sender.sendMessage("TgBridge: отправка " + (queue.online() ? "работает" : "в offline")
+            String out = queue.online()
+                    ? (queue.sent() > 0 ? "работает" : "готова, сообщений ещё не было")
+                    : "в offline";
+            sender.sendMessage("TgBridge: отправка " + out
                     + ", приём " + (poller.online() ? "работает" : "восстанавливается"));
             sender.sendMessage("В очереди: " + queue.pending()
                     + ", отправлено: " + queue.sent()

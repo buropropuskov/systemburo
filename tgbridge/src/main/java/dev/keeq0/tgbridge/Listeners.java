@@ -19,8 +19,14 @@ public final class Listeners implements Listener {
         this.plugin = plugin;
     }
 
+    /** Мост может быть ещё не настроен: до заполнения config.yml события просто игнорируем. */
+    private boolean asleep() {
+        return plugin.cfg() == null || plugin.queue() == null;
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onChat(AsyncChatEvent e) {
+        if (asleep()) return;
         Cfg cfg = plugin.cfg();
         if (!cfg.evChat) return;
         String text = PLAIN.serialize(e.message());
@@ -29,6 +35,7 @@ public final class Listeners implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent e) {
+        if (asleep()) return;
         Cfg cfg = plugin.cfg();
         if (!cfg.evJoin) return;
         plugin.queue().enqueue(format(cfg.fJoin, e.getPlayer().getName(), ""));
@@ -36,6 +43,7 @@ public final class Listeners implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent e) {
+        if (asleep()) return;
         Cfg cfg = plugin.cfg();
         if (!cfg.evQuit) return;
         plugin.queue().enqueue(format(cfg.fQuit, e.getPlayer().getName(), ""));
@@ -43,6 +51,7 @@ public final class Listeners implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(PlayerDeathEvent e) {
+        if (asleep()) return;
         Cfg cfg = plugin.cfg();
         if (!cfg.evDeath || e.deathMessage() == null) return;
         String text = PLAIN.serialize(e.deathMessage());
