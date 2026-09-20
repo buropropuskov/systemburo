@@ -2,9 +2,7 @@ package dev.keeq0.tgbridge;
 
 import org.bukkit.configuration.file.FileConfiguration;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Снимок конфигурации. Пересоздаётся целиком при перезагрузке, поля неизменяемы. */
 public final class Cfg {
@@ -24,12 +22,6 @@ public final class Cfg {
     public final String fChat, fJoin, fQuit, fDeath, fStart, fRestart, fStop;
     public final int restartWindowSeconds;
     public final String mcFormat;
-
-    public final String inSticker, inPhoto, inVideo, inVoice, inAnimation, inDocument;
-    public final boolean showReactions;
-    public final String customEmojiLabel, mcReactionFormat, unknownQuote;
-    public final int quoteLength;
-    public final Map<String, String> emojiNames;
 
     @SuppressWarnings("unchecked")
     public Cfg(FileConfiguration c) {
@@ -64,33 +56,6 @@ public final class Cfg {
         restartWindowSeconds = c.getInt("telegramFormats.restartWindowSeconds", 300);
 
         mcFormat = c.getString("minecraftFormat", "<blue>[Telegram]</blue> <white>{name}</white>: {message}");
-
-        inSticker = c.getString("incoming.sticker", "[стикер {emoji}]");
-        inPhoto = c.getString("incoming.photo", "[фото]");
-        inVideo = c.getString("incoming.video", "[видео]");
-        inVoice = c.getString("incoming.voice", "[голосовое]");
-        inAnimation = c.getString("incoming.animation", "[гиф]");
-        inDocument = c.getString("incoming.document", "[файл]");
-
-        showReactions = c.getBoolean("reactions.enabled", true);
-        customEmojiLabel = c.getString("reactions.customEmojiLabel", "своим эмодзи");
-        mcReactionFormat = c.getString("reactions.minecraftFormat",
-                "<blue>[Telegram]</blue> <white>{name}</white> отреагировал: {emoji} на «{quote}»");
-        unknownQuote = c.getString("reactions.unknownQuote", "сообщение");
-        quoteLength = c.getInt("reactions.quoteLength", 40);
-
-        emojiNames = new HashMap<>();
-        var section = c.getConfigurationSection("emojiNames");
-        if (section != null) {
-            for (String key : section.getKeys(false)) {
-                emojiNames.put(key, section.getString(key, key));
-            }
-        }
-    }
-
-    /** Шрифт Minecraft не рисует эмодзи, поэтому знакомые заменяем словами. */
-    public String emojiLabel(String emoji) {
-        return emojiNames.getOrDefault(emoji, emoji);
     }
 
     public boolean usable() {

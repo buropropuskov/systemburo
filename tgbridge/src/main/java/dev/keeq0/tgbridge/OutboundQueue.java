@@ -2,7 +2,6 @@ package dev.keeq0.tgbridge;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.function.BiConsumer;
 import java.util.logging.Logger;
 
 /**
@@ -23,8 +22,6 @@ public final class OutboundQueue {
 
     private Thread worker;
     private volatile boolean running;
-    /** (message_id, текст) для каждого доставленного сообщения - нужно для показа реакций. */
-    private volatile BiConsumer<Long, String> onDelivered = (id, text) -> {};
     private volatile boolean online = true;
     private volatile String lastError = "";
     private int dropped = 0;
@@ -34,10 +31,6 @@ public final class OutboundQueue {
         this.cfg = cfg;
         this.tg = tg;
         this.log = log;
-    }
-
-    public void onDelivered(BiConsumer<Long, String> handler) {
-        this.onDelivered = handler;
     }
 
     public void start() {
@@ -84,9 +77,8 @@ public final class OutboundQueue {
             }
 
             try {
-                long id = tg.sendMessage(item.text());
+                tg.sendMessage(item.text());
                 synchronized (queue) { queue.pollFirst(); }
-                if (id != 0L) onDelivered.accept(id, item.text());
                 sent++;
                 attempt = 0;
                 if (!online) {

@@ -1,5 +1,5 @@
 name: TgBridge
-version: 1.1.0
+version: 1.0.3
 main: dev.keeq0.tgbridge.TgBridge
 api-version: '1.21'
 description: Мост между игровым чатом и топиком Telegram
