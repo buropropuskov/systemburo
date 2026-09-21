@@ -56,7 +56,12 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
 		// минуют это требование - у них заявки нет вовсе, гейт видимости берёт на себя
 		// принадлежность целевой таблице (car_target_tables) + security-видимость (S6).
 		Where("a.is_manual OR (app.confirmation = ? AND app.status IN ?)",
-			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted})
+			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted}).
+		// Заявка попадает на пост в свой срок, а не с момента согласования: машина из
+		// заявки на следующую неделю висела в таблице уже сегодня, и отличить её от той,
+		// которой въезд разрешён, охране было нечем. У людей это условие стоит с самого
+		// начала (#2552). Ручные строки срока не имеют и проверку минуют.
+		Where("a.is_manual OR " + moscowTodaySQL + " BETWEEN a.entry_date_from::date AND a.entry_date_to::date")
 	if tableID != nil {
 		q = q.Joins("JOIN car_target_tables ctt ON ctt.car_id = c.id").
 			Where("ctt.table_id = ?", *tableID)
@@ -104,12 +109,10 @@ func (s *carService) factCars(ctx context.Context, tableID *int) ([]TableCarResp
 	return s.enrichTableCars(ctx, rows)
 }
 
-
 // GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
 func (s *carService) GetActiveCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error) {
 	return s.activeCars(ctx, &tableID)
 }
-
 
 // GetFactCarsForTable возвращает машины «по факту» конкретной таблицы «Проезд» (#1036).
 func (s *carService) GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error) {

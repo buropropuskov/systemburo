@@ -135,9 +135,6 @@ func TestCars_Unauthorized(t *testing.T) {
 	}
 }
 
-
-
-
 // --- GET /cars/active-for-table/:table_id (scoped «Проезд», #1036) ---
 
 func TestGetActiveCarsForTable_ScopedByTargetTable(t *testing.T) {
@@ -269,8 +266,6 @@ func TestGetAttachmentCars_IncludesTargetTables(t *testing.T) {
 	assert.Equal(t, dn, table["display_name"])
 	assert.EqualValues(t, tbl.ID, table["id"])
 }
-
-
 
 // --- GET /cars/unload-places ---
 
@@ -718,4 +713,46 @@ func TestCarWithUnloadPlaces(t *testing.T) {
 	// Unload places may be empty if car_unload_places linking didn't occur
 	// This tests the endpoint returns 200, not necessarily populated data
 	testutil.ParseSlice(t, rec)
+}
+
+// Машина попадает на пост в свой срок, а не с момента согласования (#2552). До правки
+// условия по дате у машин не было вовсе: заявка на следующую неделю показывалась охране
+// уже сегодня, а у людей тот же запрос срок учитывал. Проверяем обе границы: заявка с
+// будущим сроком не видна, заявка с сегодняшним - видна.
+func TestGetActiveCarsForTable_RespectsEntryDates(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	dn := "Проезд срок"
+	tbl := models.SystemTable{Name: uniq("cars_dates_table"), DisplayName: &dn, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	token := testutil.RegisterAndLogin(t, e, uniq("cardates"), "pass123", 1, td.OrgID, td.CompanyID)
+	appID, attID, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tbl.ID).Error)
+	activateCarViaApp(t, e, db, appID, td)
+
+	видна := func() bool {
+		rec := testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tbl.ID), testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code)
+		return len(testutil.ParseSlice(t, rec)) > 0
+	}
+
+	require.True(t, видна(), "машина со сроком по умолчанию видна на посту")
+
+	// Срок целиком в будущем: въезд ещё не начался.
+	require.NoError(t, db.Exec(
+		"UPDATE attachments SET entry_date_from = ?, entry_date_to = ? WHERE id = ?",
+		"2099-01-01", "2099-01-05", attID).Error)
+	assert.False(t, видна(), "заявка на будущее не показывается на посту до начала срока")
+
+	// Срок включает сегодняшний день.
+	сегодня := time.Now().Format("2006-01-02")
+	require.NoError(t, db.Exec(
+		"UPDATE attachments SET entry_date_from = ?, entry_date_to = ? WHERE id = ?",
+		сегодня, "2099-12-31", attID).Error)
+	assert.True(t, видна(), "в свой срок машина снова на посту")
 }
