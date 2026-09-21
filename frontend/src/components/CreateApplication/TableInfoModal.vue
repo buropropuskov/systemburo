@@ -736,8 +736,10 @@ export default {
     padding: 16px 20px;
 }
 
+/* Отступ как у остальных секций: прижатое к краям фото обрезалось по скруглению
+   секции и выглядело как снимок в собственной скруглённой рамке (#2558). */
 .photo-body {
-    padding: 0;
+    padding: 16px 20px;
 }
 
 .info-grid {
@@ -776,13 +778,12 @@ export default {
     border-left: 3px solid var(--warning);
 }
 
+/* Ровно по левому краю «Наименования» и «Типа»: своя подложка с отступом сдвигала
+   описание вправо и делала его отдельной плашкой ни к чему не привязанной (#2558). */
 .location-description {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text);
     margin-top: 8px;
-    padding: 8px 12px;
-    background: var(--surface-2);
-    border-radius: 8px;
 }
 
 .status-badge {

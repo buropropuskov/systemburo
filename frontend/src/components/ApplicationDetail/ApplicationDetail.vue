@@ -2086,7 +2086,9 @@ export default {
                 companyId: car.company_id || null,
                 isExisting: true,
                 unloadPlaces: car.unload_places ? car.unload_places.map(p => p.id) : [],
-                target_tables: car.target_tables ? car.target_tables.map(t => t.id) : [],
+                // Посты передаём объектами: в них источник привязки, по которому карточка
+                // подписывает «из заявки» и «назначил принимающий» (#2558).
+                target_tables: car.target_tables || [],
                 entry_date_to: car.entry_date_to || null,
                 entry_time_from: car.entry_time_from || null,
                 entry_time_to: car.entry_time_to || null,
@@ -2116,7 +2118,7 @@ export default {
                 companyId: employee.company_id || null,
                 entry_date_to: employee.entry_date_to || null,
                 pass_time: employee.pass_time || null,
-                target_tables: employee.target_tables ? employee.target_tables.map(t => t.id) : [],
+                target_tables: employee.target_tables || [],
                 applicationId: this.applicationData.id,
                 territory_status: 0,
                 blacklist_similar: employee.blacklist_similar || null
