@@ -702,12 +702,13 @@ export default {
     gap: 16px;
 }
 
+/* Тот же вид, что у секций в карточках машины и сотрудника: рамка, скругление 20px,
+   подложка surface-2. Своя тень здесь выбивалась из соседних окон (#2549). */
 .details-section {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface-2);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
 }
 
 .section-header {
@@ -829,12 +830,13 @@ export default {
     color: var(--accent-contrast);
 }
 
+/* Рамки у самой фотографии нет: секция уже обведена и обрезает содержимое по своему
+   скруглению, вторая линия внутри читалась как двойное скругление (#2549). */
 .photo-container {
     position: relative;
     width: 100%;
     height: 200px;
     overflow: hidden;
-    border: 1px solid var(--border);
     background: var(--surface-2);
 }
 
@@ -915,7 +917,6 @@ export default {
     border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 6px var(--shadow-drop);
     transition: all 0.2s ease;
 }
 

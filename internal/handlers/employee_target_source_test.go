@@ -162,3 +162,67 @@ func TestEmployeeTargetTables_ActiveForTable_ReturnsTargetTablesList(t *testing.
 	require.Contains(t, byID, otherTableID)
 	assert.Equal(t, "manual", byID[otherTableID].Source)
 }
+
+// Карточка элемента заявки показывает, откуда взялся пост: указал заявитель при подаче
+// или назначил принимающий. До #2549 выдача отдавала только id и название поста, и по
+// списку мест прохода нельзя было отличить своё от назначенного - на стенде это и
+// заметили. Проверяем сквозь ручку вложения, а не по таблице: пропажа поля в SELECT
+// как раз и была дефектом.
+func TestAttachmentEmployees_TargetTablesCarrySource(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	citizenshipID := seedCitizenship(t, db)
+	tableID := seedPeopleTable(t, db, uniq("emp_src_view_table"), "Source View Table")
+	uaID := seedUniqueAttachment(t, db, "people", uniq("emp_src_view_tmpl"), "People Template")
+	lastName := uniq("SourceViewEmp")
+
+	token := testutil.RegisterAndLogin(t, e, uniq("emp_src_view_user"), "pass123", 1, td.OrgID, td.CompanyID)
+
+	body := fmt.Sprintf(`{
+		"message": "target table source view",
+		"organization": "Test Organization",
+		"responsible_person": "Source View",
+		"contact_phone": "+79001112233",
+		"data_approval": true,
+		"attachments": [
+			{
+				"attachment_type": "people",
+				"attachment_name": "%s",
+				"attachment_display_name": "People Template",
+				"unique_attachment_id": %d,
+				"entry_date_from": "2026-04-01",
+				"entry_date_to": "2099-12-31",
+				"data": {
+					"employees": [{
+						"last_name": "%s",
+						"first_name": "Ivan",
+						"citizenship_id": %d,
+						"position": "Engineer",
+						"passport_series_number": "1234 567890",
+						"target_tables": [%d]
+					}]
+				}
+			}
+		]
+	}`, uniq("emp_src_view_tmpl"), uaID, lastName, citizenshipID, tableID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
+	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+
+	var attID int
+	require.NoError(t, db.Raw("SELECT id FROM attachments WHERE application_id = ?", createResp.ApplicationID).Scan(&attID).Error)
+	require.NotZero(t, attID, "вложение заявки найдено")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/employees", attID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "employees: %s", rec.Body.String())
+
+	employees := testutil.ParseResponse[[]services.EmployeeWithTables](t, rec)
+	require.Len(t, employees, 1, "сотрудник вернулся")
+	require.Len(t, employees[0].TargetTables, 1, "место прохода вернулось")
+	assert.Equal(t, "application", employees[0].TargetTables[0].Source,
+		"пост из подачи помечен источником application")
+}

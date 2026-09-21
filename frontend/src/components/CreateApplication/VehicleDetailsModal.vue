@@ -301,8 +301,8 @@
                         {{ t.name }}
                         <Badge
                           v-if="t.source"
-                          :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
-                          :variant="t.source === 'manual' ? 'neutral' : 'primary'"
+                          :label="t.sourceLabel"
+                          :variant="t.sourceVariant"
                           size="sm"
                         />
                       </div>
@@ -526,6 +526,7 @@ import TableInfoModal from './TableInfoModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import Badge from '@/components/ui/Badge.vue';
+import { activePassageTables, removedPassageTables } from '@/constants/passageSource';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
@@ -722,44 +723,13 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
         },
-        // Бейдж источника и зачёркнутые снятые - фича карточки ИЗ ПРОХОДНОЙ (#1227): только там
-        // target_tables несут реальный source (объекты {id,name,source} от P1/P2) и история привязок
-        // осмысленна. В заявке (source='application') / списках / корзине target_tables - плоские ID
-        // БЕЗ source -> бейджа нет (иначе один элемент в проходной «добавлено», а в заявке дефолтно
-        // «из заявки» - каша). Признак проходной = у активных есть реальный source.
-        hasPassageSource() {
-            return this.passageActiveTables.some(t => t.source);
-        },
-        // Активные привязки «Проезд» (#1227 P3). Нормализует ОБЕ формы target_tables: контекст
-        // заявки - плоский массив ID (число, source=null -> без бейджа), проходной - объекты
-        // {id,name,source}. source НЕ фабрикуем - null значит «источник неизвестен, не показывать».
+        // Места прохода и снятые привязки - общий разбор для карточек машины и
+        // сотрудника: формы ответа и правила подписи у них одни (#2549).
         passageActiveTables() {
-            const raw = this.vehicle?.target_tables || [];
-            return raw.map(t => (typeof t === 'number'
-                ? { id: t, name: this.getTableName(t), source: null }
-                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || null }));
+            return activePassageTables(this.vehicle?.target_tables, (id) => this.getTableName(id));
         },
-        // Снятые/перенесённые таблицы (unbound_from_table/moved_between_tables из истории) -
-        // показываем зачёркнутыми, кроме тех, что сейчас снова активны (активная привязка
-        // перекрывает снятую). Дедуп по table_id - несколько снятий одной таблицы не дублируем.
         passageRemovedTables() {
-            // Зачёркнутые снятые - только когда карточка показывает реальные привязки проходной
-            // (hasPassageSource); в заявке/списках/корзине история привязок машины не показывается.
-            if (!this.hasPassageSource) return [];
-            const activeIds = new Set(this.passageActiveTables.map(t => t.id));
-            const seen = new Set();
-            const removed = [];
-            // history не гейтится правом (в отличие от entryExitHistory) - рендерится
-            // всегда, поэтому защищаемся от неожиданной формы ответа (не массив).
-            const items = Array.isArray(this.history) ? this.history : [];
-            items.forEach(item => {
-                if (item.action_type !== 'unbound_from_table' && item.action_type !== 'moved_between_tables') return;
-                const tableId = item.table_id;
-                if (tableId == null || activeIds.has(tableId) || seen.has(tableId)) return;
-                seen.add(tableId);
-                removed.push({ id: tableId, name: item.table_name || this.getTableName(tableId) });
-            });
-            return removed;
+            return removedPassageTables(this.history, this.passageActiveTables, (id) => this.getTableName(id));
         },
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
