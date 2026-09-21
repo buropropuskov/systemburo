@@ -1429,12 +1429,12 @@ export default {
   color: var(--accent-contrast);
 }
 
+/* Рамки нет: секция уже обведена и обрезает фото по своему скруглению. */
 .photo-container {
   position: relative;
   width: 100%;
   height: 200px;
   overflow: hidden;
-  border: 1px solid var(--border);
   background: var(--surface-2);
 }
 

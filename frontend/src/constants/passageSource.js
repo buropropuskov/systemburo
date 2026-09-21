@@ -64,3 +64,11 @@ export function removedPassageTables(history, active, getTableName) {
   });
   return снятые;
 }
+
+/**
+ * Подсказка к списку постов в ячейке карточки заявки: на подпись рядом с названием
+ * места нет, поэтому источник живёт в подсказке.
+ */
+export function passageChipHint(items, names) {
+  return items.map((item, i) => [names[i], passageSourceLabel(item.source)].filter(Boolean).join(' - ')).join(', ');
+}

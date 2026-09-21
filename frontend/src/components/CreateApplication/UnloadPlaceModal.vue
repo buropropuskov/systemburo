@@ -827,12 +827,13 @@ export default {
     color: var(--accent-contrast);
 }
 
+/* Рамки у самой фотографии нет: секция уже обведена и обрезает содержимое по своему
+   скруглению, вторая линия внутри читалась как двойная рамка со своими углами. */
 .photo-container {
     position: relative;
     width: 100%;
     height: 200px;
     overflow: hidden;
-    border: 1px solid var(--border);
     background: var(--surface-2);
 }
 
