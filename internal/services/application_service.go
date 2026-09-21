@@ -851,6 +851,11 @@ type TableInfoRef struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
+	// Source - откуда взялась привязка к посту: application (указано при подаче),
+	// approver (назначил принимающий), manual (добавили руками в таблице поста).
+	// Карточка показывает это подписью рядом с местом прохода: без источника человек
+	// видит только итог и не может отличить своё от назначенного (#2549).
+	Source string `json:"source,omitempty"`
 }
 
 // ItemInfo информация о ТМЦ.

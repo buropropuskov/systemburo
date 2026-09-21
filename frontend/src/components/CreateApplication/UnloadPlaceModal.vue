@@ -915,7 +915,6 @@ export default {
     border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 6px var(--shadow-drop);
     transition: all 0.2s ease;
 }
 

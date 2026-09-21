@@ -301,8 +301,8 @@
                         {{ t.name }}
                         <Badge
                           v-if="t.source"
-                          :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
-                          :variant="t.source === 'manual' ? 'neutral' : 'primary'"
+                          :label="passageSourceLabel(t.source)"
+                          :variant="passageSourceVariant(t.source)"
                           size="sm"
                         />
                       </div>
@@ -526,6 +526,7 @@ import TableInfoModal from './TableInfoModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import Badge from '@/components/ui/Badge.vue';
+import { passageSourceLabel, passageSourceVariant } from '@/constants/passageSource';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
@@ -832,6 +833,8 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         }
     },
     methods: {
+        passageSourceLabel,
+        passageSourceVariant,
         close() {
             this.$emit('close');
             this.closeUnloadPlaceDetails();

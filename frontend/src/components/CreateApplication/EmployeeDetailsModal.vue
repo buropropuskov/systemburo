@@ -335,8 +335,8 @@
                         {{ t.name }}
                         <Badge
                           v-if="t.source"
-                          :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
-                          :variant="t.source === 'manual' ? 'neutral' : 'primary'"
+                          :label="passageSourceLabel(t.source)"
+                          :variant="passageSourceVariant(t.source)"
                           size="sm"
                         />
                       </div>
@@ -520,6 +520,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import Badge from '@/components/ui/Badge.vue';
+import { passageSourceLabel, passageSourceVariant } from '@/constants/passageSource';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -799,6 +800,8 @@ export default {
         releaseBodyScrollLock(this);
     },
     methods: {
+        passageSourceLabel,
+        passageSourceVariant,
         /**
          * Закрытие по Escape (фон закрывается через @click.self на оверлее).
          *

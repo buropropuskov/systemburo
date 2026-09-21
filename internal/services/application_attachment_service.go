@@ -280,16 +280,17 @@ func (s *applicationService) carTargetTablesByCar(ctx context.Context, carIDs []
 		ID          int    `gorm:"column:id"`
 		Name        string `gorm:"column:name"`
 		DisplayName string `gorm:"column:display_name"`
+		Source      string `gorm:"column:source"`
 	}
 	s.db.WithContext(ctx).Raw(`
-		SELECT ctt.car_id, st.id, st.name, st.display_name
+		SELECT ctt.car_id, st.id, st.name, st.display_name, ctt.source
 		FROM car_target_tables ctt
 		JOIN system_tables st ON ctt.table_id = st.id
 		WHERE ctt.car_id IN ?
 		ORDER BY ctt.car_id, ctt.order_index
 	`, carIDs).Scan(&rows)
 	for _, r := range rows {
-		out[r.CarID] = append(out[r.CarID], TableInfoRef{ID: r.ID, Name: r.Name, DisplayName: r.DisplayName})
+		out[r.CarID] = append(out[r.CarID], TableInfoRef{ID: r.ID, Name: r.Name, DisplayName: r.DisplayName, Source: r.Source})
 	}
 	return out
 }
@@ -305,16 +306,17 @@ func (s *applicationService) employeeTargetTablesByEmployee(ctx context.Context,
 		ID          int    `gorm:"column:id"`
 		Name        string `gorm:"column:name"`
 		DisplayName string `gorm:"column:display_name"`
+		Source      string `gorm:"column:source"`
 	}
 	s.db.WithContext(ctx).Raw(`
-		SELECT ett.employee_id, st.id, st.name, st.display_name
+		SELECT ett.employee_id, st.id, st.name, st.display_name, ett.source
 		FROM employee_target_tables ett
 		JOIN system_tables st ON ett.table_id = st.id
 		WHERE ett.employee_id IN ?
 		ORDER BY ett.employee_id, ett.order_index
 	`, empIDs).Scan(&rows)
 	for _, r := range rows {
-		out[r.EmployeeID] = append(out[r.EmployeeID], TableInfoRef{ID: r.ID, Name: r.Name, DisplayName: r.DisplayName})
+		out[r.EmployeeID] = append(out[r.EmployeeID], TableInfoRef{ID: r.ID, Name: r.Name, DisplayName: r.DisplayName, Source: r.Source})
 	}
 	return out
 }
