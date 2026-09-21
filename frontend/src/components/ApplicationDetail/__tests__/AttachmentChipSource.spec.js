@@ -1,17 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { passageSourceLabel } from '@/constants/passageSource';
+import { passageChipHint as подсказка } from '@/constants/passageSource';
 
 /**
- * Подсказка к чипу поста в таблице вложения (#2551, замечание со стенда): в ячейке
- * места на подпись нет, поэтому источник уходит в подсказку. Считаем её тем же
- * способом, что и компонент, - иначе тест проверял бы собственную копию правила.
+ * Подсказка к чипу поста в таблице вложения: в ячейке места на подпись нет, поэтому
+ * источник уходит в подсказку - её и проверяем, той же функцией, что зовёт компонент.
  */
-function подсказка(items, names) {
-  return items.map((item, index) => {
-    const источник = passageSourceLabel(item.source);
-    return источник ? `${names[index]} - ${источник}` : names[index];
-  }).join(', ');
-}
 
 describe('подсказка к постам в карточке заявки', () => {
   it('называет источник у каждого поста', () => {
