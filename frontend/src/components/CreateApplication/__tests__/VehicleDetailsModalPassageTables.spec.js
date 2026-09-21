@@ -55,11 +55,11 @@ describe('VehicleDetailsModal - секция Проезд: источник и �
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.vm.passageActiveTables).toEqual([
+    expect(wrapper.vm.passageActiveTables).toMatchObject([
       { id: 10, name: 'Таблица А', source: 'manual' },
       { id: 11, name: 'Таблица Б', source: 'application' },
     ]);
-    expect(wrapper.text()).toContain('добавлено');
+    expect(wrapper.text()).toContain('добавлено вручную');
     expect(wrapper.text()).toContain('из заявки');
   });
 
@@ -68,11 +68,11 @@ describe('VehicleDetailsModal - секция Проезд: источник и �
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.vm.passageActiveTables).toEqual([
+    expect(wrapper.vm.passageActiveTables).toMatchObject([
       { id: 7, name: 'Неизвестное место (ID: 7)', source: null },
     ]);
     expect(wrapper.text()).not.toContain('из заявки');
-    expect(wrapper.text()).not.toContain('добавлено');
+    expect(wrapper.text()).not.toContain('добавлено вручную');
   });
 
   it('контекст заявки (source=application, плоские ID + история снятий): НЕТ бейджей и НЕТ зачёркнутых (#1227 fix - иначе каша с проходной)', async () => {
@@ -87,7 +87,7 @@ describe('VehicleDetailsModal - секция Проезд: источник и �
     // активные привязки видны как плоский список, но без бейджей источника
     expect(wrapper.vm.passageActiveTables.every(t => t.source === null)).toBe(true);
     expect(wrapper.text()).not.toContain('из заявки');
-    expect(wrapper.text()).not.toContain('добавлено');
+    expect(wrapper.text()).not.toContain('добавлено вручную');
     // зачёркнутых снятых в заявке нет, хотя в истории есть unbound
     expect(wrapper.vm.passageRemovedTables).toEqual([]);
     expect(wrapper.findAll('.place-item--removed')).toHaveLength(0);

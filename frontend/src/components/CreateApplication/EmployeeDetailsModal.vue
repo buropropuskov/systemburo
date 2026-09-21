@@ -335,8 +335,8 @@
                         {{ t.name }}
                         <Badge
                           v-if="t.source"
-                          :label="passageSourceLabel(t.source)"
-                          :variant="passageSourceVariant(t.source)"
+                          :label="t.sourceLabel"
+                          :variant="t.sourceVariant"
                           size="sm"
                         />
                       </div>
@@ -520,7 +520,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import Badge from '@/components/ui/Badge.vue';
-import { passageSourceLabel, passageSourceVariant } from '@/constants/passageSource';
+import { activePassageTables, removedPassageTables } from '@/constants/passageSource';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -660,40 +660,13 @@ export default {
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
         },
-        // Бейдж источника и зачёркнутые снятые - фича карточки ИЗ ПРОХОДНОЙ (#1227) - зеркало
-        // VehicleDetailsModal. Только в проходной target_tables несут реальный source; в заявке/
-        // списках/корзине - плоские ID БЕЗ source -> без бейджа (иначе каша: тот же элемент в
-        // проходной «добавлено», в заявке дефолтно «из заявки»).
-        hasPassageSource() {
-            return this.passageActiveTables.some(t => t.source);
-        },
-        // Активные привязки «Места прохода» (#1227 P3) - зеркало VehicleDetailsModal. Нормализует
-        // ОБЕ формы target_tables: заявка - плоский массив ID (число, source=null -> без бейджа),
-        // проходной - объекты {id,name,source}. source НЕ фабрикуем (null = не показывать бейдж).
+        // Места прохода и снятые привязки - общий разбор для карточек машины и
+        // сотрудника: формы ответа и правила подписи у них одни (#2549).
         passageActiveTables() {
-            const raw = this.employee?.target_tables || [];
-            return raw.map(t => (typeof t === 'number'
-                ? { id: t, name: this.getTableName(t), source: null }
-                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || null }));
+            return activePassageTables(this.employee?.target_tables, (id) => this.getTableName(id));
         },
-        // Снятые/перенесённые таблицы (unbound_from_table/moved_between_tables из истории) -
-        // зачёркнутыми, кроме тех, что сейчас снова активны. Дедуп по table_id. Только в проходной.
         passageRemovedTables() {
-            if (!this.hasPassageSource) return [];
-            const activeIds = new Set(this.passageActiveTables.map(t => t.id));
-            const seen = new Set();
-            const removed = [];
-            // history не гейтится правом (в отличие от entryExitHistory) - рендерится
-            // всегда, поэтому защищаемся от неожиданной формы ответа (не массив).
-            const items = Array.isArray(this.history) ? this.history : [];
-            items.forEach(item => {
-                if (item.action_type !== 'unbound_from_table' && item.action_type !== 'moved_between_tables') return;
-                const tableId = item.table_id;
-                if (tableId == null || activeIds.has(tableId) || seen.has(tableId)) return;
-                seen.add(tableId);
-                removed.push({ id: tableId, name: item.table_name || this.getTableName(tableId) });
-            });
-            return removed;
+            return removedPassageTables(this.history, this.passageActiveTables, (id) => this.getTableName(id));
         },
         getStatusClass() {
             const status = this.territoryStatus;
@@ -800,8 +773,6 @@ export default {
         releaseBodyScrollLock(this);
     },
     methods: {
-        passageSourceLabel,
-        passageSourceVariant,
         /**
          * Закрытие по Escape (фон закрывается через @click.self на оверлее).
          *
