@@ -76,6 +76,7 @@
               v-if="place.status !== 'active' && place.status_comment"
               class="comment-text"
             >
+              <span class="info-label">Почему закрыто:</span>
               {{ place.status_comment }}
             </div>
           </div>

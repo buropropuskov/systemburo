@@ -79,12 +79,14 @@
               v-if="table.table.status !== 'active' && table.table.status_comment"
               class="comment-text"
             >
+              <span class="info-label">Почему закрыт:</span>
               {{ table.table.status_comment }}
             </div>
             <div
               v-if="table.table.location_description"
               class="location-description"
             >
+              <span class="info-label">Описание местоположения:</span>
               {{ table.table.location_description }}
             </div>
           </div>
