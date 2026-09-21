@@ -661,7 +661,7 @@ export default {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
         },
         // Места прохода и снятые привязки - общий разбор для карточек машины и
-        // сотрудника: формы ответа и правила подписи у них одни (#2549).
+        // сотрудника: формы ответа и правила подписи у них одни (#2551).
         passageActiveTables() {
             return activePassageTables(this.employee?.target_tables, (id) => this.getTableName(id));
         },
