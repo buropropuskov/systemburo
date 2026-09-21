@@ -372,7 +372,7 @@
 | `gopkg.in/natefinch/lumberjack.v2` | v2.2.1 | MIT | Copyright (c) 2014 Nate Finch |
 | `gopkg.in/yaml.v2` | v2.4.0 | Apache-2.0 | Copyright {yyyy} {name of copyright owner}; Copyright (c) 2006 Kirill Simonov |
 | `gopkg.in/yaml.v3` | v3.0.1 | Apache-2.0 | Copyright (c) 2006-2010 Kirill Simonov; Copyright (c) 2006-2011 Kirill Simonov; Copyright (c) 2011-2019 Canonical Ltd |
-| `gorm.io/driver/postgres` | v1.6.2 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
+| `gorm.io/driver/postgres` | v1.6.3 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
 | `gorm.io/gorm` | v1.31.2 | MIT | Copyright (c) 2013-present  Jinzhu <wosmvp@gmail.com> |
 | `sigs.k8s.io/yaml` | v1.3.0 | BSD-3-Clause | Copyright (c) 2014 Sam Ghods; Copyright (c) 2012 The Go Authors. All rights reserved |
 
@@ -1173,7 +1173,7 @@ SOFTWARE.
 
 ### 7.21. MIT
 
-Компоненты: `github.com/jinzhu/now` v1.1.5, `gorm.io/driver/postgres` v1.6.2
+Компоненты: `github.com/jinzhu/now` v1.1.5, `gorm.io/driver/postgres` v1.6.3
 
 ```text
 The MIT License (MIT)
