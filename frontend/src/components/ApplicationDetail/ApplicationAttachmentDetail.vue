@@ -443,6 +443,7 @@ import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAss
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
+import { passageSourceLabel } from '@/constants/passageSource'
 import { formatNumberForDisplay } from '@/composables/useNumberFormat'
 import { useAnchoredMenu } from '@/composables/useAnchoredMenu'
 import {
@@ -1093,7 +1094,12 @@ export default {
             if (!items.length) return [];
 
             const names = items.map(item => this.chipName(item, col));
-            const hint = names.join(', ');
+            // В подсказке к посту пишем, откуда он взялся: в ячейке места на подпись нет,
+            // а по названию не отличить указанное заявителем от назначенного принимающим.
+            const hint = items.map((item, index) => {
+                const источник = passageSourceLabel(item.source);
+                return источник ? `${names[index]} - ${источник}` : names[index];
+            }).join(', ');
             const fits = this.fittingChipCount(names, col);
 
             if (!fits && names.length > 1) {

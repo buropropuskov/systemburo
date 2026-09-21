@@ -569,7 +569,7 @@
       v-if="!preview"
       :show="showVehicleDetails"
       :vehicle="selectedVehicle"
-      :all-unloading-places="allUnloadingPlaces"
+      :all-unloading-places="allUnloadingPlaces" :all-tables="allTables"
       :license-plate-formats="licensePlateFormats"
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
@@ -621,6 +621,8 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getSystemTables } from '@/api/system-tables'
+import { fetchJson } from '@/api/fetchJson'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { idFilterSet } from '@/utils/idFilter';
 import { readEnlarged, writeEnlarged } from '@/utils/enlargedRows';
@@ -736,6 +738,7 @@ export default {
       organizationsMap: {},
       carUnloadPlacesMap: {},
       allUnloadingPlaces: [],
+      allTables: [],
       licensePlateFormats: [],
       showVehicleDetails: false,
       selectedVehicle: null,
@@ -999,8 +1002,7 @@ export default {
       if (!silent && this.isLoading) return;
       if (!silent) this.isLoading = true;
       try {
-        await this.fetchUnloadingPlaces();
-        await this.fetchLicensePlateFormats();
+        await this.fetchReferences();
         await this.fetchCarsData(seq, silent);
         await this.fetchCarUnloadPlaces(seq);
         await this.fetchCarHistoryStatus(seq);
@@ -1038,22 +1040,18 @@ export default {
       await this._loadData(true);
     },
 
-    async fetchUnloadingPlaces() {
-      try {
-        const response = await apiRequest("/unload-places", {});
-        if (response.ok) this.allUnloadingPlaces = await response.json();
-      } catch (error) {
-        console.error("Ошибка при загрузке мест разгрузки:", error);
-      }
-    },
-
-    async fetchLicensePlateFormats() {
-      try {
-        const response = await apiRequest("/license-plate-formats", {});
-        if (response.ok) this.licensePlateFormats = await response.json();
-      } catch (error) {
-        console.error("Ошибка при загрузке форматов номеров:", error);
-      }
+    /**
+     * Справочники для строк и карточки машины. Список постов нужен карточке: без него
+     * клик по месту прохода отвечал «Информация о месте проезда недоступна» - карточка
+     * ищет пост в этом списке, а таблица машин его не загружала вовсе.
+     */
+    async fetchReferences() {
+      const [места, посты, форматы] = await Promise.all([
+        fetchJson("/unload-places"), getSystemTables().catch(() => []), fetchJson("/license-plate-formats"),
+      ]);
+      this.allUnloadingPlaces = места;
+      this.allTables = посты;
+      this.licensePlateFormats = форматы;
     },
 
     async fetchCarsData(seq, silent = false) {
