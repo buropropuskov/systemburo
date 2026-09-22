@@ -358,3 +358,42 @@ func buildMultipartDoc(t *testing.T, filename string, fileContent []byte, fields
 	w.Close()
 	return &buf, w.FormDataContentType()
 }
+
+// Пояснение бюро едет в публичную выдачу и правится вместе с остальными полями (#2560).
+// Раньше у документа было только короткое описание для строки списка; пояснение читают
+// в окне документа, и без него окно нечем наполнить - файл в нём не показывается.
+func TestDocuments_CommentSavedAndReturned(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	doc := models.Document{
+		Title: "Бланк заявки", FileName: "b.xlsx", StoredName: "b.xlsx",
+		FileExt: ".xlsx", MimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		FileSize: 100, IsVisible: true,
+	}
+	require.NoError(t, db.Create(&doc).Error)
+
+	admin := testutil.RegisterAndLogin(t, e, "docadmin1", "password123!ABCabc", 6, td.OrgID, td.CompanyID)
+	rec := testutil.PUT(t, e, fmt.Sprintf("/documents/%d", doc.ID),
+		`{"comment":"Заполнить оба листа и подписать у руководителя"}`, testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, "правка пояснения: %s", rec.Body.String())
+
+	var сохранено models.Document
+	require.NoError(t, db.First(&сохранено, doc.ID).Error)
+	require.NotNil(t, сохранено.Comment, "пояснение сохранилось")
+	assert.Equal(t, "Заполнить оба листа и подписать у руководителя", *сохранено.Comment)
+
+	token := testutil.RegisterAndLogin(t, e, "docreader1", "password123!ABCabc", 1, td.OrgID, td.CompanyID)
+	rec = testutil.GET(t, e, "/public/documents", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	groups := testutil.ParseSlice(t, rec)
+	require.NotEmpty(t, groups)
+	docs := groups[0]["documents"].([]interface{})
+	require.NotEmpty(t, docs)
+	видимый := docs[0].(map[string]interface{})
+	assert.Equal(t, "Заполнить оба листа и подписать у руководителя", видимый["comment"],
+		"пояснение видно читателю в публичной выдаче")
+}

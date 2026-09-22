@@ -88,7 +88,7 @@ func (s *documentService) selectQuery(db *gorm.DB) *gorm.DB {
 	return db.
 		Table("documents d").
 		Select(`d.id, d.group_id, dg.name AS group_name,
-			d.title, d.description, d.file_name, d.file_ext, d.file_size,
+			d.title, d.description, d.comment, d.file_name, d.file_ext, d.file_size,
 			d.published_at, d.is_visible, d.sort_order,
 			d.created_at, d.updated_at, d.created_by, d.updated_by`).
 		Joins("LEFT JOIN document_groups dg ON dg.id = d.group_id")
@@ -153,6 +153,7 @@ func (s *documentService) Upload(ctx context.Context, userID int, req models.Upl
 		GroupID:     req.GroupID,
 		Title:       title,
 		Description: req.Description,
+		Comment:     req.Comment,
 		FileName:    file.Filename,
 		StoredName:  storedName,
 		FileExt:     ext,
@@ -198,6 +199,9 @@ func (s *documentService) UpdateMeta(ctx context.Context, userID int, id int, re
 	}
 	if req.Description != nil {
 		updates["description"] = req.Description
+	}
+	if req.Comment != nil {
+		updates["comment"] = req.Comment
 	}
 	if req.GroupID != nil {
 		updates["group_id"] = req.GroupID
@@ -313,6 +317,7 @@ func (s *documentService) GetPublic(ctx context.Context) ([]models.PublicDocumen
 		GroupOrder  *int      `gorm:"column:group_order"`
 		Title       string    `gorm:"column:title"`
 		Description *string   `gorm:"column:description"`
+		Comment     *string   `gorm:"column:comment"`
 		FileName    string    `gorm:"column:file_name"`
 		FileExt     string    `gorm:"column:file_ext"`
 		FileSize    int64     `gorm:"column:file_size"`
@@ -324,7 +329,7 @@ func (s *documentService) GetPublic(ctx context.Context) ([]models.PublicDocumen
 	err := s.db.WithContext(ctx).
 		Table("documents d").
 		Select(`d.id, d.group_id, dg.name AS group_name, dg.sort_order AS group_order,
-			d.title, d.description, d.file_name, d.file_ext, d.file_size,
+			d.title, d.description, d.comment, d.file_name, d.file_ext, d.file_size,
 			d.published_at, d.sort_order`).
 		Joins("LEFT JOIN document_groups dg ON dg.id = d.group_id").
 		Where("d.is_visible = true").
@@ -377,6 +382,7 @@ func (s *documentService) GetPublic(ctx context.Context) ([]models.PublicDocumen
 			GroupID:     r.GroupID,
 			Title:       r.Title,
 			Description: r.Description,
+			Comment:     r.Comment,
 			FileName:    r.FileName,
 			FileExt:     r.FileExt,
 			FileSize:    r.FileSize,
