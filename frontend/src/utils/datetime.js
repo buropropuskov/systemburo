@@ -227,3 +227,30 @@ export function passTimeMinutes(passTime) {
   if (parts.length < 2) return 0;
   return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
 }
+
+/**
+ * Момент -> значение `<input type="date">` ПО МОСКВЕ. Срез ISO-строки здесь не
+ * годится: документ, опубликованный 20.06 по Москве, лежит как 19.06T21:00Z, и
+ * админ видел в поле дату на день раньше, чем пользователи на обзоре (#2563).
+ * @param {string|Date|null|undefined} value
+ * @returns {string} 'ГГГГ-ММ-ДД' или ''
+ */
+export function moscowDateInput(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const m = moscowParts(d);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${m.year}-${p(m.month)}-${p(m.day)}`;
+}
+
+/**
+ * Значение `<input type="date">` -> RFC3339 на полночь ПО МОСКВЕ. Бэкенд
+ * принимает только RFC3339 и отвечает 400 на голую дату, а зона нужна явная,
+ * иначе дата уезжает на день при обратном показе.
+ * @param {string|null|undefined} value
+ * @returns {string|null} RFC3339 или null
+ */
+export function dateInputToMoscowIso(value) {
+  return value ? `${value}T00:00:00+03:00` : null;
+}

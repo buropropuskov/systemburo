@@ -411,7 +411,7 @@ import {
   reorderDocuments,
   downloadDocument,
 } from '@/api/documents';
-import { formatMomentDate } from '@/utils/datetime';
+import { formatMomentDate, moscowDateInput, dateInputToMoscowIso } from '@/utils/datetime';
 
 function extFromName(name) {
   const m = name.match(/\.([^.]+)$/);
@@ -517,7 +517,7 @@ export default {
         description: doc.description || '',
         comment: doc.comment || '',
         group_id: doc.group_id ?? null,
-        published_at: doc.published_at ? doc.published_at.slice(0, 10) : '',
+        published_at: moscowDateInput(doc.published_at),
         is_visible: !!doc.is_visible,
       };
     },
@@ -537,7 +537,7 @@ export default {
           description: this.editForm.description.trim() || null,
           comment: this.editForm.comment.trim() || null,
           group_id: this.editForm.group_id ?? null,
-          published_at: this.editForm.published_at || null,
+          published_at: dateInputToMoscowIso(this.editForm.published_at),
           is_visible: this.editForm.is_visible,
         };
         const result = await updateDocument(this.selectedDoc.id, payload);
