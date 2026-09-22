@@ -2,230 +2,566 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Лендинг марафона «21 день гармонии»</title>
+<title>Страница услуги «Разработка сайтов»</title>
 <script src="./support.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-body { margin: 0; font-family: 'Manrope', system-ui, sans-serif; background: #F5F0E8; color: #22342C; -webkit-font-smoothing: antialiased; }
-a { color: #A0451F; text-decoration: none; }
-a:hover { color: #7E3415; }
-h1, h2, h3, p, figure, blockquote, ul, li { margin: 0; }
-ul { padding: 0; list-style: none; }
+body { margin: 0; font-family: 'Manrope', system-ui, sans-serif; background: #0D1117; color: #F4F1EC; -webkit-font-smoothing: antialiased; }
+a { color: #F4F1EC; text-decoration: none; }
+a:hover { color: #CDFF4F; }
+h1, h2, h3, p, figure, ul, ol, li, label, dl, dd, dt { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
 </style>
 </helmet>
 
-<div style="width: 1440px; height: 3956px; box-sizing: border-box; background: #F5F0E8; color: #22342C; display: flex; flex-direction: column; overflow: hidden;">
+<div style="width: 1440px; height: 5008px; box-sizing: border-box; background: #0D1117; color: #F4F1EC; display: flex; flex-direction: column; overflow: hidden;">
 
-  <header style="height: 96px; flex-shrink: 0; box-sizing: border-box; padding-inline: 120px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2D9CB;">
-    <a href="#hero" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 500; letter-spacing: 0.06em; color: #22342C;">гармония<span style="color: #A0451F;">.</span></a>
-    <nav style="display: flex; align-items: center; gap: 40px;">
-      <a href="#program" style="font-size: 16px; color: #5A6B61;">Программа</a>
-      <a href="#teacher" style="font-size: 16px; color: #5A6B61;">Ведущая</a>
-      <a href="#reviews" style="font-size: 16px; color: #5A6B61;">Отзывы</a>
-      <a href="#join" style="font-size: 16px; font-weight: 600; color: #FFFFFF; background: #B5502C; padding: 12px 24px; border-radius: 999px;">Записаться</a>
+  <header style="height: 88px; flex-shrink: 0; box-sizing: border-box; padding-inline: 120px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(244, 241, 236, 0.10);">
+    <a href="#hero" style="display: flex; align-items: center; gap: 12px;">
+      <span style="width: 32px; height: 32px; border-radius: 10px; background: #CDFF4F; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D1117" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5"></path><path d="M16 7l5 5-5 5"></path></svg>
+      </span>
+      <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.03em;">разряд</span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 36px;">
+      <a href="#types" style="font-size: 16px; font-weight: 500; color: rgba(244, 241, 236, 0.72);">Услуги и цены</a>
+      <a href="#process" style="font-size: 16px; font-weight: 500; color: rgba(244, 241, 236, 0.72);">Процесс</a>
+      <a href="#works" style="font-size: 16px; font-weight: 500; color: rgba(244, 241, 236, 0.72);">Работы</a>
+      <a href="#terms" style="font-size: 16px; font-weight: 500; color: rgba(244, 241, 236, 0.72);">Гарантии</a>
+      <a href="#form" style="font-size: 16px; font-weight: 700; color: #0D1117; background: #CDFF4F; padding: 13px 26px; border-radius: 999px;">Обсудить проект</a>
     </nav>
   </header>
 
-  <section id="hero" style="height: 780px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center;">
-    <div style="grid-column: span 7; display: flex; flex-direction: column; gap: 28px;">
-      <p style="font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #A0451F;">Онлайн-марафон · 21 день</p>
-      <h1 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 88px; line-height: 1.02; font-weight: 500; letter-spacing: -0.01em;">21 день<br>гармонии</h1>
-      <p style="font-size: 22px; line-height: 1.55; color: #5A6B61; max-width: 560px;">Мягкая практика для тех, кто начинает с нуля: спокойный сон, свободная спина и двадцать минут в день, которые принадлежат только вам.</p>
-      <div style="display: flex; align-items: center; gap: 48px; padding-top: 4px;">
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <p style="font-size: 16px; color: #5A6B61;">Даты</p>
-          <p style="font-size: 22px; font-weight: 600;">6 — 26 октября</p>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; border-left: 1px solid #D9CFC0; padding-left: 48px;">
-          <p style="font-size: 16px; color: #5A6B61;">Участие</p>
-          <p style="font-size: 22px; font-weight: 600;">4 900 ₽</p>
-        </div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 24px;">
-        <a href="#join" style="font-size: 22px; font-weight: 600; color: #FFFFFF; background: #B5502C; padding: 20px 40px; border-radius: 999px;">Записаться на марафон</a>
-        <p style="font-size: 16px; line-height: 1.4; color: #5A6B61;">Осталось 12 мест<br>из 40</p>
-      </div>
-    </div>
-    <figure style="grid-column: span 5; height: 604px; border-radius: 24px; background: #E8E0D2; border: 1px solid #D9CFC0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6E6253" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8.5" cy="10" r="1.5"></circle><path d="M21 16l-5-5-6 6-2-2-5 4"></path></svg>
-      <figcaption style="font-size: 16px; color: #6E6253;">Фото практики · 486 × 604</figcaption>
-    </figure>
-  </section>
+  <section id="hero" style="height: 740px; flex-shrink: 0; box-sizing: border-box; padding: 96px 120px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center;">
 
-  <section id="program" style="height: 480px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #EFE8DC; display: flex; flex-direction: column; gap: 40px;">
-    <div style="display: flex; flex-direction: column; gap: 16px;">
-      <p style="font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #A0451F;">Что внутри</p>
-      <h2 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1.15; font-weight: 500;">Четыре причины дойти до конца</h2>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px;">
-      <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 16px;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#B5502C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4c0 9-5.5 14.5-14 14.5C6 9.5 11.5 4 20 4z"></path><path d="M5 20c0-5.5 3-9.5 8-11.5"></path></svg>
-        <h3 style="font-size: 22px; font-weight: 600; line-height: 1.3;">Вход с нуля</h3>
-        <p style="font-size: 16px; line-height: 1.6; color: #5A6B61;">Никаких шпагатов на первой неделе. Каждое движение показано в двух вариантах — попроще и посложнее.</p>
+    <div style="grid-column: span 6; display: flex; flex-direction: column;">
+      <span style="align-self: flex-start; display: flex; align-items: center; gap: 10px; padding: 9px 18px; border: 1px solid rgba(244, 241, 236, 0.16); border-radius: 999px; background: rgba(244, 241, 236, 0.04); font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.78);">
+        <span style="width: 8px; height: 8px; border-radius: 999px; background: #CDFF4F;"></span>
+        Берём 3 проекта в месяц
+      </span>
+      <h1 style="margin-top: 32px; font-size: 80px; line-height: 1.04; font-weight: 800; letter-spacing: -0.045em;">Разработка<br>сайтов</h1>
+      <p style="margin-top: 24px; width: 540px; font-size: 20px; line-height: 1.6; color: rgba(244, 241, 236, 0.66);">Проектируем и собираем сайты, которые приносят заявки. Смета фиксируется до старта, срок записан в договоре, исходники и доступы остаются у вас.</p>
+      <div style="margin-top: 40px; display: flex; align-items: center; gap: 16px;">
+        <a href="#form" style="font-size: 16px; font-weight: 700; color: #0D1117; background: #CDFF4F; padding: 19px 36px; border-radius: 999px;">Оставить заявку</a>
+        <a href="#works" style="font-size: 16px; font-weight: 600; color: #F4F1EC; border: 1px solid rgba(244, 241, 236, 0.22); padding: 18px 36px; border-radius: 999px;">Смотреть работы</a>
       </div>
-      <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 16px;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#B5502C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5.5l3.5 2"></path></svg>
-        <h3 style="font-size: 22px; font-weight: 600; line-height: 1.3;">20 минут в день</h3>
-        <p style="font-size: 16px; line-height: 1.6; color: #5A6B61;">Короткие уроки, которые помещаются между работой и ужином. Заниматься можно в любое время суток.</p>
-      </div>
-      <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 16px;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#B5502C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8 8 0 0 1-8 8H7.5L3.5 22v-10.5a8 8 0 0 1 8-8h1.5a8 8 0 0 1 8 8z"></path></svg>
-        <h3 style="font-size: 22px; font-weight: 600; line-height: 1.3;">Разбор техники</h3>
-        <p style="font-size: 16px; line-height: 1.6; color: #5A6B61;">Присылаете видео своей позы в чат — получаете правки от преподавателя, а не общий совет из интернета.</p>
-      </div>
-      <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 16px;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#B5502C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.5-6 4.5z"></path></svg>
-        <h3 style="font-size: 22px; font-weight: 600; line-height: 1.3;">Записи на полгода</h3>
-        <p style="font-size: 16px; line-height: 1.6; color: #5A6B61;">Пропустили день — вернётесь позже. Доступ к урокам и материалам остаётся до 26 апреля.</p>
-      </div>
-    </div>
-  </section>
-
-  <section id="teacher" style="height: 580px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center;">
-    <figure style="grid-column: span 5; height: 404px; border-radius: 24px; background: #E8E0D2; border: 1px solid #D9CFC0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6E6253" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="4"></circle><path d="M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path></svg>
-      <figcaption style="font-size: 16px; color: #6E6253;">Портрет ведущей · 486 × 404</figcaption>
-    </figure>
-    <div style="grid-column: 7 / span 6; display: flex; flex-direction: column; gap: 24px;">
-      <p style="font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #A0451F;">Ведущая марафона</p>
-      <h2 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1.15; font-weight: 500;">Анна Ветрова</h2>
-      <p style="font-size: 22px; line-height: 1.5; color: #5A6B61;">Преподаватель хатха-йоги, сертификация Yoga Alliance RYT-500</p>
-      <p style="font-size: 16px; line-height: 1.7; color: #5A6B61;">Девять лет веду группы для тех, кто приходит с офисной спиной и уверенностью, что «йога не для меня». Марафон собран из тех занятий, после которых ученицы оставались в практике дольше года.</p>
-      <ul style="display: flex; gap: 48px; padding-top: 8px;">
-        <li style="display: flex; flex-direction: column; gap: 4px;">
-          <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1; font-weight: 500;">9</span>
-          <span style="font-size: 16px; color: #5A6B61;">лет практики</span>
+      <ul style="margin-top: 32px; display: flex; gap: 28px;">
+        <li style="display: flex; align-items: center; gap: 8px; font-size: 16px; color: rgba(244, 241, 236, 0.66);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+          Фиксированная смета
         </li>
-        <li style="display: flex; flex-direction: column; gap: 4px;">
-          <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1; font-weight: 500;">1 400</span>
-          <span style="font-size: 16px; color: #5A6B61;">учениц онлайн</span>
+        <li style="display: flex; align-items: center; gap: 8px; font-size: 16px; color: rgba(244, 241, 236, 0.66);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+          Срок в договоре
         </li>
-        <li style="display: flex; flex-direction: column; gap: 4px;">
-          <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1; font-weight: 500;">6</span>
-          <span style="font-size: 16px; color: #5A6B61;">потоков марафона</span>
+        <li style="display: flex; align-items: center; gap: 8px; font-size: 16px; color: rgba(244, 241, 236, 0.66);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+          Исходники ваши
         </li>
       </ul>
     </div>
+
+    <figure style="grid-column: 7 / span 6; border-radius: 18px; overflow: hidden; border: 1px solid rgba(244, 241, 236, 0.12); box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55);">
+      <div style="height: 40px; box-sizing: border-box; padding-inline: 16px; display: flex; align-items: center; gap: 8px; background: #E7E9ED; border-bottom: 1px solid #D5D9E0;">
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #C4C9D2;"></span>
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #C4C9D2;"></span>
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #C4C9D2;"></span>
+        <span style="margin-left: 12px; flex-grow: 1; height: 18px; border-radius: 999px; background: #F4F5F8;"></span>
+      </div>
+      <div style="box-sizing: border-box; padding: 20px; background: #FFFFFF; display: flex; flex-direction: column; gap: 14px;">
+        <div style="height: 160px; box-sizing: border-box; padding: 20px; border-radius: 12px; background: #0D1117; display: flex; flex-direction: column; justify-content: center; gap: 10px;">
+          <span style="width: 62%; height: 15px; border-radius: 4px; background: #CDFF4F;"></span>
+          <span style="width: 86%; height: 9px; border-radius: 4px; background: rgba(244, 241, 236, 0.28);"></span>
+          <span style="width: 70%; height: 9px; border-radius: 4px; background: rgba(244, 241, 236, 0.18);"></span>
+          <span style="margin-top: 8px; width: 118px; height: 28px; border-radius: 999px; background: #CDFF4F;"></span>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <div style="flex-grow: 1; flex-basis: 0; height: 80px; box-sizing: border-box; padding: 12px; border-radius: 10px; background: #F1F3F6; display: flex; flex-direction: column; gap: 8px;">
+            <span style="width: 24px; height: 24px; border-radius: 7px; background: #0D1117;"></span>
+            <span style="width: 80%; height: 7px; border-radius: 3px; background: #CBD1DA;"></span>
+            <span style="width: 55%; height: 7px; border-radius: 3px; background: #DDE1E7;"></span>
+          </div>
+          <div style="flex-grow: 1; flex-basis: 0; height: 80px; box-sizing: border-box; padding: 12px; border-radius: 10px; background: #F1F3F6; display: flex; flex-direction: column; gap: 8px;">
+            <span style="width: 24px; height: 24px; border-radius: 7px; background: #0D1117;"></span>
+            <span style="width: 70%; height: 7px; border-radius: 3px; background: #CBD1DA;"></span>
+            <span style="width: 45%; height: 7px; border-radius: 3px; background: #DDE1E7;"></span>
+          </div>
+          <div style="flex-grow: 1; flex-basis: 0; height: 80px; box-sizing: border-box; padding: 12px; border-radius: 10px; background: #F1F3F6; display: flex; flex-direction: column; gap: 8px;">
+            <span style="width: 24px; height: 24px; border-radius: 7px; background: #0D1117;"></span>
+            <span style="width: 85%; height: 7px; border-radius: 3px; background: #CBD1DA;"></span>
+            <span style="width: 50%; height: 7px; border-radius: 3px; background: #DDE1E7;"></span>
+          </div>
+        </div>
+        <div style="height: 90px; box-sizing: border-box; padding: 14px 16px; border-radius: 10px; border: 1px solid #E7E9ED; display: flex; flex-direction: column; justify-content: space-between;">
+          <span style="width: 40%; height: 8px; border-radius: 3px; background: #CBD1DA;"></span>
+          <span style="width: 92%; height: 7px; border-radius: 3px; background: #E2E5EA;"></span>
+          <span style="width: 78%; height: 7px; border-radius: 3px; background: #E2E5EA;"></span>
+          <span style="width: 86%; height: 7px; border-radius: 3px; background: #E2E5EA;"></span>
+        </div>
+      </div>
+    </figure>
   </section>
 
-  <section id="schedule" style="height: 760px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #EFE8DC; display: flex; flex-direction: column; gap: 48px;">
+  <section id="metrics" style="height: 200px; flex-shrink: 0; box-sizing: border-box; padding-inline: 120px; background: #F4F1EC; color: #0D1117; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center;">
+    <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">8 лет</span>
+      <span style="font-size: 16px; color: #55606E;">собираем сайты для бизнеса</span>
+    </div>
+    <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 6px; border-left: 1px solid #DED8CD; padding-left: 24px;">
+      <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">120</span>
+      <span style="font-size: 16px; color: #55606E;">проектов доведено до запуска</span>
+    </div>
+    <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 6px; border-left: 1px solid #DED8CD; padding-left: 24px;">
+      <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">94%</span>
+      <span style="font-size: 16px; color: #55606E;">клиентов возвращаются с новой задачей</span>
+    </div>
+    <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 6px; border-left: 1px solid #DED8CD; padding-left: 24px;">
+      <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">60 дней</span>
+      <span style="font-size: 16px; color: #55606E;">поддержки после запуска</span>
+    </div>
+  </section>
+
+  <section id="types" style="height: 940px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #F4F1EC; color: #0D1117; display: flex; flex-direction: column;">
     <div style="display: flex; align-items: flex-end; justify-content: space-between;">
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <p style="font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #A0451F;">Расписание</p>
-        <h2 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1.15; font-weight: 500;">Первая неделя, день за днём</h2>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: #55606E;">Услуги и цены</span>
+        <h2 style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">Четыре типа сайтов</h2>
       </div>
-      <p style="font-size: 16px; color: #5A6B61;">Дальше — ещё две недели<br>в том же ритме</p>
+      <p style="font-size: 16px; line-height: 1.5; color: #55606E; text-align: right;">Цены — нижняя граница вилки.<br>Точную смету считаем после брифа.</p>
     </div>
-    <ul style="display: flex; flex-direction: column;">
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 1</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Дыхание и опора</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">18 минут</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Знакомство</span>
-      </li>
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 2</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Разминка суставов</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">22 минуты</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Мягко</span>
-      </li>
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 3</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Спина, которая не ноет</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">25 минут</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Базовое</span>
-      </li>
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 4</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Растяжка после работы</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">20 минут</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Мягко</span>
-      </li>
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 5</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Баланс и стопы</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">24 минуты</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Тонус</span>
-      </li>
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 6</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Практика на вечер</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">30 минут</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Тонус</span>
-      </li>
-      <li style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-top: 1px solid #DED4C4; border-bottom: 1px solid #DED4C4;">
-        <span style="width: 72px; flex-shrink: 0; font-size: 16px; color: #8C7F6B;">День 7</span>
-        <span style="flex-grow: 1; font-size: 22px; font-weight: 600;">Тихое воскресенье</span>
-        <span style="width: 160px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">15 минут</span>
-        <span style="width: 132px; flex-shrink: 0; font-size: 16px; color: #5A6B61;">Восстановление</span>
-      </li>
-    </ul>
+
+    <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: start;">
+
+      <article style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="height: 140px; box-sizing: border-box; padding: 14px; border-radius: 12px; background: #F4F1EC; display: flex; flex-direction: column; gap: 8px;">
+          <span style="height: 34px; border-radius: 6px; background: #0D1117;"></span>
+          <span style="width: 70%; height: 8px; border-radius: 3px; background: #C9C3B7;"></span>
+          <span style="width: 88%; height: 8px; border-radius: 3px; background: #DBD6CB;"></span>
+          <div style="margin-top: auto; display: flex; gap: 6px;">
+            <span style="flex-grow: 1; height: 26px; border-radius: 6px; background: #DBD6CB;"></span>
+            <span style="flex-grow: 1; height: 26px; border-radius: 6px; background: #DBD6CB;"></span>
+            <span style="flex-grow: 1; height: 26px; border-radius: 6px; background: #DBD6CB;"></span>
+          </div>
+        </div>
+        <h3 style="margin-top: 20px; font-size: 20px; font-weight: 700;">Лендинг</h3>
+        <p style="margin-top: 8px; font-size: 16px; line-height: 1.5; color: #55606E;">Одна страница под продукт или рекламную кампанию.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #EBE6DD; display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap;">90 000 ₽</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">от · 2 недели</span>
+        </div>
+        <ul style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Прототип и текст</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Дизайн и вёрстка</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Формы и аналитика</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Мобильная версия</li>
+        </ul>
+        <a href="#form" style="margin-top: 24px; align-self: stretch; text-align: center; font-size: 16px; font-weight: 700; color: #0D1117; border: 1px solid #0D1117; padding: 14px 0; border-radius: 999px;">Рассчитать</a>
+      </article>
+
+      <article style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #0D1117; color: #F4F1EC; border: 1px solid #0D1117; border-radius: 20px; box-shadow: 0 20px 44px rgba(13, 17, 23, 0.22); display: flex; flex-direction: column;">
+        <div style="position: relative; height: 140px; box-sizing: border-box; padding: 14px; border-radius: 12px; background: #181E27; display: flex; flex-direction: column; gap: 8px;">
+          <span style="position: absolute; top: 12px; right: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #0D1117; background: #CDFF4F; padding: 3px 12px; border-radius: 999px;">Выбирают чаще всего</span>
+          <span style="height: 18px; border-radius: 5px; background: #CDFF4F;"></span>
+          <div style="flex-grow: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+            <span style="border-radius: 6px; background: rgba(244, 241, 236, 0.16);"></span>
+            <span style="border-radius: 6px; background: rgba(244, 241, 236, 0.16);"></span>
+            <span style="border-radius: 6px; background: rgba(244, 241, 236, 0.10);"></span>
+            <span style="border-radius: 6px; background: rgba(244, 241, 236, 0.10);"></span>
+          </div>
+        </div>
+        <h3 style="margin-top: 20px; font-size: 20px; font-weight: 700;">Корпоративный сайт</h3>
+        <p style="margin-top: 8px; font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62);">Восемь — двадцать страниц: услуги, команда, вакансии.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(244, 241, 236, 0.16); display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap;">240 000 ₽</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.62);">от · 4 — 6 недель</span>
+        </div>
+        <ul style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+          <li style="display: flex; gap: 10px; font-size: 16px; color: rgba(244, 241, 236, 0.62);"><span style="color: #CDFF4F;">·</span>Всё из лендинга</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: rgba(244, 241, 236, 0.62);"><span style="color: #CDFF4F;">·</span>Админка на правку</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: rgba(244, 241, 236, 0.62);"><span style="color: #CDFF4F;">·</span>Блог и вакансии</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: rgba(244, 241, 236, 0.62);"><span style="color: #CDFF4F;">·</span>Базовое SEO</li>
+        </ul>
+        <a href="#form" style="margin-top: 24px; align-self: stretch; text-align: center; font-size: 16px; font-weight: 700; color: #0D1117; background: #CDFF4F; padding: 15px 0; border-radius: 999px;">Рассчитать</a>
+      </article>
+
+      <article style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="height: 140px; box-sizing: border-box; padding: 14px; border-radius: 12px; background: #F4F1EC; display: flex; flex-direction: column; gap: 8px;">
+          <span style="height: 14px; border-radius: 5px; background: #0D1117;"></span>
+          <div style="flex-grow: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px;">
+            <span style="border-radius: 5px; background: #DBD6CB;"></span>
+            <span style="border-radius: 5px; background: #DBD6CB;"></span>
+            <span style="border-radius: 5px; background: #DBD6CB;"></span>
+            <span style="border-radius: 5px; background: #E5E1D8;"></span>
+            <span style="border-radius: 5px; background: #E5E1D8;"></span>
+            <span style="border-radius: 5px; background: #E5E1D8;"></span>
+          </div>
+        </div>
+        <h3 style="margin-top: 20px; font-size: 20px; font-weight: 700;">Интернет-магазин</h3>
+        <p style="margin-top: 8px; font-size: 16px; line-height: 1.5; color: #55606E;">Каталог, корзина, оплата и обмен данными с 1С.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #EBE6DD; display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap;">480 000 ₽</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">от · 8 — 10 недель</span>
+        </div>
+        <ul style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Каталог и фильтры</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Оплата и доставка</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Синхронизация с 1С</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Личный кабинет</li>
+        </ul>
+        <a href="#form" style="margin-top: 24px; align-self: stretch; text-align: center; font-size: 16px; font-weight: 700; color: #0D1117; border: 1px solid #0D1117; padding: 14px 0; border-radius: 999px;">Рассчитать</a>
+      </article>
+
+      <article style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="height: 140px; box-sizing: border-box; padding: 14px; border-radius: 12px; background: #F4F1EC; display: flex; gap: 10px;">
+          <span style="width: 44px; border-radius: 8px; background: #0D1117;"></span>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 8px;">
+            <span style="width: 60%; height: 10px; border-radius: 3px; background: #C9C3B7;"></span>
+            <span style="height: 22px; border-radius: 5px; background: #DBD6CB;"></span>
+            <span style="height: 22px; border-radius: 5px; background: #E5E1D8;"></span>
+            <span style="height: 22px; border-radius: 5px; background: #E5E1D8;"></span>
+          </div>
+        </div>
+        <h3 style="margin-top: 20px; font-size: 20px; font-weight: 700;">Сервис и кабинет</h3>
+        <p style="margin-top: 8px; font-size: 16px; line-height: 1.5; color: #55606E;">Веб-приложение с ролями, расчётами и отчётами.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #EBE6DD; display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap;">750 000 ₽</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">от · 12 недель</span>
+        </div>
+        <ul style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Проектирование ролей</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Интеграции по API</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Отчёты и выгрузки</li>
+          <li style="display: flex; gap: 10px; font-size: 16px; color: #55606E;"><span style="color: #0D1117;">·</span>Нагрузочные тесты</li>
+        </ul>
+        <a href="#form" style="margin-top: 24px; align-self: stretch; text-align: center; font-size: 16px; font-weight: 700; color: #0D1117; border: 1px solid #0D1117; padding: 14px 0; border-radius: 999px;">Рассчитать</a>
+      </article>
+
+    </div>
   </section>
 
-  <section id="reviews" style="height: 620px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; display: flex; flex-direction: column; gap: 48px;">
-    <div style="display: flex; flex-direction: column; gap: 16px;">
-      <p style="font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #A0451F;">Отзывы</p>
-      <h2 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1.15; font-weight: 500;">Что говорят те, кто уже прошёл</h2>
+  <section id="process" style="height: 600px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #0D1117; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: flex-end; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: #CDFF4F;">Процесс</span>
+        <h2 style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">27 рабочих дней от брифа до запуска</h2>
+      </div>
+      <p style="font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62); text-align: right;">Ширина полосы равна доле этапа<br>в общем сроке проекта</p>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px;">
-      <figure style="grid-column: span 6; box-sizing: border-box; padding: 40px; background: #FFFFFF; border: 1px solid #E5DCCD; border-radius: 24px; display: flex; flex-direction: column; gap: 32px;">
-        <blockquote style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; line-height: 1.55; font-style: italic;">«До этого я три раза начинала и бросала на четвёртый день. Здесь ролики короткие, и Анна в чате замечает, если пропадаешь. Дошла до двадцать первого дня впервые в жизни».</blockquote>
-        <figcaption style="display: flex; align-items: center; gap: 16px;">
-          <span style="width: 56px; height: 56px; flex-shrink: 0; border-radius: 999px; background: #E8E0D2; border: 1px solid #D9CFC0; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: #6E6253;">МК</span>
-          <span style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 16px; font-weight: 600;">Марина Кравцова</span>
-            <span style="font-size: 16px; color: #5A6B61;">34 года, Казань · поток 5</span>
-          </span>
-        </figcaption>
-      </figure>
-      <figure style="grid-column: span 6; box-sizing: border-box; padding: 40px; background: #FFFFFF; border: 1px solid #E5DCCD; border-radius: 24px; display: flex; flex-direction: column; gap: 32px;">
-        <blockquote style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; line-height: 1.55; font-style: italic;">«Работаю за монитором по десять часов. К концу второй недели поймала себя на том, что к вечеру спина молчит. Ради этого и шла, а спокойный сон оказался бонусом».</blockquote>
-        <figcaption style="display: flex; align-items: center; gap: 16px;">
-          <span style="width: 56px; height: 56px; flex-shrink: 0; border-radius: 999px; background: #E8E0D2; border: 1px solid #D9CFC0; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: #6E6253;">ОШ</span>
-          <span style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 16px; font-weight: 600;">Ольга Шевченко</span>
-            <span style="font-size: 16px; color: #5A6B61;">29 лет, Москва · поток 6</span>
-          </span>
-        </figcaption>
-      </figure>
+    <ol style="margin-top: 48px; display: flex; gap: 6px;">
+      <li style="width: 131px; display: flex; flex-direction: column; gap: 16px;">
+        <span style="height: 72px; border-radius: 10px; background: rgba(244, 241, 236, 0.12);"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.5);">01</span>
+        <span style="font-size: 20px; font-weight: 700;">Бриф</span>
+        <span style="flex-grow: 1; font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62);">Ниша, конкуренты, за чем к вам приходят</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #CDFF4F;">3 дня</span>
+      </li>
+      <li style="width: 218px; display: flex; flex-direction: column; gap: 16px;">
+        <span style="height: 72px; border-radius: 10px; background: rgba(244, 241, 236, 0.12);"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.5);">02</span>
+        <span style="font-size: 20px; font-weight: 700;">Прототип</span>
+        <span style="flex-grow: 1; font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62);">Структура страниц и тексты до дизайна</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #CDFF4F;">5 дней</span>
+      </li>
+      <li style="width: 306px; display: flex; flex-direction: column; gap: 16px;">
+        <span style="height: 72px; border-radius: 10px; background: rgba(244, 241, 236, 0.12);"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.5);">03</span>
+        <span style="font-size: 20px; font-weight: 700;">Дизайн</span>
+        <span style="flex-grow: 1; font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62);">Две концепции главной, затем внутренние экраны</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #CDFF4F;">7 дней</span>
+      </li>
+      <li style="width: 437px; display: flex; flex-direction: column; gap: 16px;">
+        <span style="height: 72px; border-radius: 10px; background: #CDFF4F;"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.5);">04</span>
+        <span style="font-size: 20px; font-weight: 700;">Разработка</span>
+        <span style="flex-grow: 1; font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62);">Вёрстка, админка, интеграции, тесты на устройствах</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #CDFF4F;">10 дней</span>
+      </li>
+      <li style="width: 88px; display: flex; flex-direction: column; gap: 16px;">
+        <span style="height: 72px; border-radius: 10px; background: rgba(244, 241, 236, 0.12);"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.5);">05</span>
+        <span style="font-size: 20px; font-weight: 700;">Запуск</span>
+        <span style="flex-grow: 1; font-size: 16px; line-height: 1.5; color: rgba(244, 241, 236, 0.62);">Перенос на ваш хостинг</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #CDFF4F;">2 дня</span>
+      </li>
+    </ol>
+  </section>
+
+  <section id="works" style="height: 980px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #F4F1EC; color: #0D1117; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: flex-end; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: #55606E;">Работы</span>
+        <h2 style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">Сделали за последний год</h2>
+      </div>
+      <a href="#works" style="font-size: 16px; font-weight: 700; color: #0D1117; border: 1px solid #0D1117; padding: 14px 28px; border-radius: 999px;">Все 40 проектов</a>
+    </div>
+
+    <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px 24px;">
+
+      <article style="grid-column: span 6; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E7E9ED;">
+          <div style="height: 32px; box-sizing: border-box; padding-inline: 14px; display: flex; align-items: center; gap: 6px; background: #EFF1F4;">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+          </div>
+          <div style="height: 168px; box-sizing: border-box; padding: 16px; background: #FFFFFF; display: flex; flex-direction: column; gap: 10px;">
+            <div style="height: 70px; box-sizing: border-box; padding: 14px; border-radius: 10px; background: #7A5C3E; display: flex; flex-direction: column; justify-content: center; gap: 7px;">
+              <span style="width: 45%; height: 11px; border-radius: 3px; background: #F0E4D4;"></span>
+              <span style="width: 65%; height: 7px; border-radius: 3px; background: rgba(240, 228, 212, 0.45);"></span>
+            </div>
+            <div style="flex-grow: 1; display: flex; gap: 10px;">
+              <span style="flex-grow: 1; border-radius: 8px; background: #F1EBE2;"></span>
+              <span style="flex-grow: 1; border-radius: 8px; background: #F1EBE2;"></span>
+              <span style="flex-grow: 1; border-radius: 8px; background: #F1EBE2;"></span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 20px; display: flex; align-items: flex-end; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">Производство мебели</span>
+            <h3 style="font-size: 20px; font-weight: 700;">«Северный лес»</h3>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">+64%</span>
+            <span style="font-size: 16px; color: #55606E;">заявок за квартал</span>
+          </div>
+        </div>
+      </article>
+
+      <article style="grid-column: span 6; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E7E9ED;">
+          <div style="height: 32px; box-sizing: border-box; padding-inline: 14px; display: flex; align-items: center; gap: 6px; background: #EFF1F4;">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+          </div>
+          <div style="height: 168px; box-sizing: border-box; padding: 16px; background: #FFFFFF; display: flex; gap: 10px;">
+            <div style="width: 150px; flex-shrink: 0; box-sizing: border-box; padding: 12px; border-radius: 10px; background: #1F7A57; display: flex; flex-direction: column; justify-content: flex-end; gap: 7px;">
+              <span style="width: 70%; height: 10px; border-radius: 3px; background: #D8F2E7;"></span>
+              <span style="width: 50%; height: 7px; border-radius: 3px; background: rgba(216, 242, 231, 0.5);"></span>
+            </div>
+            <div style="flex-grow: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px;">
+              <span style="border-radius: 8px; background: #E9F3EE;"></span>
+              <span style="border-radius: 8px; background: #E9F3EE;"></span>
+              <span style="border-radius: 8px; background: #E9F3EE;"></span>
+              <span style="border-radius: 8px; background: #F0F5F2;"></span>
+              <span style="border-radius: 8px; background: #F0F5F2;"></span>
+              <span style="border-radius: 8px; background: #F0F5F2;"></span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 20px; display: flex; align-items: flex-end; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">Аптечная сеть</span>
+            <h3 style="font-size: 20px; font-weight: 700;">«Аптека 24»</h3>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">3 200</span>
+            <span style="font-size: 16px; color: #55606E;">заказов в месяц</span>
+          </div>
+        </div>
+      </article>
+
+      <article style="grid-column: span 6; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E7E9ED;">
+          <div style="height: 32px; box-sizing: border-box; padding-inline: 14px; display: flex; align-items: center; gap: 6px; background: #EFF1F4;">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+          </div>
+          <div style="height: 168px; box-sizing: border-box; padding: 16px; background: #FFFFFF; display: flex; flex-direction: column; gap: 10px;">
+            <div style="height: 84px; box-sizing: border-box; padding: 14px; border-radius: 10px; background: #D2541F; display: flex; flex-direction: column; justify-content: center; gap: 7px;">
+              <span style="width: 55%; height: 11px; border-radius: 3px; background: #FBE8DC;"></span>
+              <span style="width: 38%; height: 20px; border-radius: 999px; background: #FBE8DC;"></span>
+            </div>
+            <div style="flex-grow: 1; display: flex; gap: 10px;">
+              <span style="flex-grow: 2; border-radius: 8px; background: #F6EBE4;"></span>
+              <span style="flex-grow: 1; border-radius: 8px; background: #F6EBE4;"></span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 20px; display: flex; align-items: flex-end; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">Ремонт квартир</span>
+            <h3 style="font-size: 20px; font-weight: 700;">«Лига ремонта»</h3>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">340 ₽</span>
+            <span style="font-size: 16px; color: #55606E;">цена заявки</span>
+          </div>
+        </div>
+      </article>
+
+      <article style="grid-column: span 6; box-sizing: border-box; padding: 24px; background: #FFFFFF; border: 1px solid #E4DFD6; border-radius: 20px; box-shadow: 0 14px 34px rgba(13, 17, 23, 0.05); display: flex; flex-direction: column;">
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E7E9ED;">
+          <div style="height: 32px; box-sizing: border-box; padding-inline: 14px; display: flex; align-items: center; gap: 6px; background: #EFF1F4;">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: #CBD1DA;"></span>
+          </div>
+          <div style="height: 168px; box-sizing: border-box; padding: 16px; background: #FFFFFF; display: flex; gap: 10px;">
+            <span style="width: 44px; flex-shrink: 0; border-radius: 10px; background: #24418F;"></span>
+            <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; gap: 8px;">
+                <span style="flex-grow: 1; height: 38px; border-radius: 8px; background: #E7EBF5;"></span>
+                <span style="flex-grow: 1; height: 38px; border-radius: 8px; background: #E7EBF5;"></span>
+              </div>
+              <span style="height: 12px; border-radius: 4px; background: #EDF0F7;"></span>
+              <span style="height: 12px; border-radius: 4px; background: #EDF0F7;"></span>
+              <span style="height: 12px; border-radius: 4px; background: #EDF0F7;"></span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 20px; display: flex; align-items: flex-end; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #55606E;">Логистика, b2b</span>
+            <h3 style="font-size: 20px; font-weight: 700;">«Точка маршрута»</h3>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">-19%</span>
+            <span style="font-size: 16px; color: #55606E;">цикл сделки</span>
+          </div>
+        </div>
+      </article>
+
     </div>
   </section>
 
-  <section id="join" style="height: 500px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #22342C; color: #F5F0E8; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center;">
-    <div style="grid-column: span 6; display: flex; flex-direction: column; gap: 24px;">
-      <h2 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; line-height: 1.15; font-weight: 500;">Старт 6 октября. Группа закрывается на сороковой участнице</h2>
-      <ul style="display: flex; flex-direction: column; gap: 12px;">
-        <li style="font-size: 16px; line-height: 1.6; color: #A9BCB1;">21 занятие с разбором техники в чате</li>
-        <li style="font-size: 16px; line-height: 1.6; color: #A9BCB1;">Поддержка преподавателя все три недели</li>
-        <li style="font-size: 16px; line-height: 1.6; color: #A9BCB1;">Записи и материалы остаются до 26 апреля</li>
+  <section id="terms" style="height: 560px; flex-shrink: 0; box-sizing: border-box; padding: 88px 120px; background: #0D1117; display: flex; flex-direction: column;">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: #CDFF4F;">Гарантии</span>
+      <h2 style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">Что записано в договоре</h2>
+    </div>
+    <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px;">
+      <div style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #161B23; border: 1px solid rgba(244, 241, 236, 0.10); border-radius: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <span style="width: 44px; height: 44px; border-radius: 12px; background: rgba(205, 255, 79, 0.14); display: flex; align-items: center; justify-content: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6.5c0 4.7-3.4 7.7-8 8.5-4.6-.8-8-3.8-8-8.5V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+        </span>
+        <h3 style="font-size: 20px; font-weight: 700;">Смета не растёт</h3>
+        <p style="font-size: 16px; line-height: 1.6; color: rgba(244, 241, 236, 0.62);">Цена из договора фиксированная. Новые требования оформляем допсоглашением.</p>
+      </div>
+      <div style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #161B23; border: 1px solid rgba(244, 241, 236, 0.10); border-radius: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <span style="width: 44px; height: 44px; border-radius: 12px; background: rgba(205, 255, 79, 0.14); display: flex; align-items: center; justify-content: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5.5l3.5 2"></path></svg>
+        </span>
+        <h3 style="font-size: 20px; font-weight: 700;">Срок со штрафом</h3>
+        <p style="font-size: 16px; line-height: 1.6; color: rgba(244, 241, 236, 0.62);">Срываем дату запуска по своей вине — возвращаем 5% сметы за неделю.</p>
+      </div>
+      <div style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #161B23; border: 1px solid rgba(244, 241, 236, 0.10); border-radius: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <span style="width: 44px; height: 44px; border-radius: 12px; background: rgba(205, 255, 79, 0.14); display: flex; align-items: center; justify-content: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 8L4 12l4.5 4"></path><path d="M15.5 8l4.5 4-4.5 4"></path></svg>
+        </span>
+        <h3 style="font-size: 20px; font-weight: 700;">Исходники ваши</h3>
+        <p style="font-size: 16px; line-height: 1.6; color: rgba(244, 241, 236, 0.62);">Отдаём код, макеты и доступы. Дальше сайт развивает любая команда.</p>
+      </div>
+      <div style="grid-column: span 3; box-sizing: border-box; padding: 24px; background: #161B23; border: 1px solid rgba(244, 241, 236, 0.10); border-radius: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <span style="width: 44px; height: 44px; border-radius: 12px; background: rgba(205, 255, 79, 0.14); display: flex; align-items: center; justify-content: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13a8 8 0 0 1 16 0"></path><path d="M4 13v3a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2z"></path><path d="M20 13v3a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2z"></path></svg>
+        </span>
+        <h3 style="font-size: 20px; font-weight: 700;">60 дней поддержки</h3>
+        <p style="font-size: 16px; line-height: 1.6; color: rgba(244, 241, 236, 0.62);">Правим ошибки и помогаем с контентом два месяца после запуска.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="form" style="height: 660px; flex-shrink: 0; box-sizing: border-box; padding: 72px 120px; background: #161B23; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-content: center;">
+    <div style="grid-column: span 7; display: flex; flex-direction: column;">
+      <h2 style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em;">Расскажите о проекте</h2>
+      <p style="margin-top: 14px; width: 520px; font-size: 16px; line-height: 1.6; color: rgba(244, 241, 236, 0.62);">Ответим в течение рабочего дня, предложим формат и назовём вилку ещё до созвона.</p>
+
+      <div style="margin-top: 40px; display: flex; gap: 20px;">
+        <div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; gap: 8px;">
+          <label for="name" style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.62);">Как вас зовут</label>
+          <input id="name" type="text" placeholder="Иван Петров" style="box-sizing: border-box; height: 56px; padding: 0 18px; font-family: 'Manrope', system-ui, sans-serif; font-size: 16px; color: #F4F1EC; background: #0D1117; border: 1px solid rgba(244, 241, 236, 0.14); border-radius: 12px;">
+        </div>
+        <div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; gap: 8px;">
+          <label for="phone" style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.62);">Телефон</label>
+          <input id="phone" type="tel" placeholder="+7 900 000-00-00" style="box-sizing: border-box; height: 56px; padding: 0 18px; font-family: 'Manrope', system-ui, sans-serif; font-size: 16px; color: #F4F1EC; background: #0D1117; border: 1px solid rgba(244, 241, 236, 0.14); border-radius: 12px;">
+        </div>
+      </div>
+
+      <div style="margin-top: 20px; display: flex; gap: 20px;">
+        <div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; gap: 8px;">
+          <label for="niche" style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.62);">Ниша или ссылка на сайт</label>
+          <input id="niche" type="text" placeholder="Производство окон" style="box-sizing: border-box; height: 56px; padding: 0 18px; font-family: 'Manrope', system-ui, sans-serif; font-size: 16px; color: #F4F1EC; background: #0D1117; border: 1px solid rgba(244, 241, 236, 0.14); border-radius: 12px;">
+        </div>
+        <div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; gap: 8px;">
+          <label for="budget" style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: rgba(244, 241, 236, 0.62);">Бюджет</label>
+          <select id="budget" style="box-sizing: border-box; height: 56px; padding: 0 18px; font-family: 'Manrope', system-ui, sans-serif; font-size: 16px; color: #F4F1EC; background: #0D1117; border: 1px solid rgba(244, 241, 236, 0.14); border-radius: 12px;">
+            <option>До 150 000 ₽</option>
+            <option>150 000 — 400 000 ₽</option>
+            <option>400 000 — 800 000 ₽</option>
+            <option>Больше 800 000 ₽</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; display: flex; align-items: center; gap: 12px;">
+        <input id="agree" type="checkbox" style="width: 20px; height: 20px; accent-color: #CDFF4F;">
+        <label for="agree" style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Согласен на обработку персональных данных</label>
+      </div>
+
+      <button type="button" style="margin-top: 28px; align-self: flex-start; font-family: 'Manrope', system-ui, sans-serif; font-size: 16px; font-weight: 700; color: #0D1117; background: #CDFF4F; padding: 19px 40px; border: 0; border-radius: 999px; cursor: pointer;">Отправить заявку</button>
+    </div>
+
+    <aside style="grid-column: 9 / span 4; box-sizing: border-box; padding: 28px; background: #0D1117; border: 1px solid rgba(244, 241, 236, 0.10); border-radius: 20px; display: flex; flex-direction: column; gap: 22px;">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: #CDFF4F;">Ваш менеджер</span>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <span style="width: 64px; height: 64px; flex-shrink: 0; border-radius: 999px; background: rgba(244, 241, 236, 0.10); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: rgba(244, 241, 236, 0.72);">ИП</span>
+        <span style="display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 20px; font-weight: 700;">Игорь Панов</span>
+          <span style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Руководитель проектов</span>
+        </span>
+      </div>
+      <ul style="display: flex; flex-direction: column; gap: 12px; padding-top: 22px; border-top: 1px solid rgba(244, 241, 236, 0.10);">
+        <li style="font-size: 20px; font-weight: 700;">+7 495 120-44-08</li>
+        <li style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">igor@razryad.ru</li>
+        <li><a href="#form" style="display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: #CDFF4F;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CDFF4F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4L3 11l6 2 2 6z"></path></svg>
+          Написать в телеграм
+        </a></li>
       </ul>
-    </div>
-    <div style="grid-column: 8 / span 5; display: flex; flex-direction: column; gap: 24px; align-items: flex-start;">
-      <div style="display: flex; align-items: baseline; gap: 16px;">
-        <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 88px; line-height: 1; font-weight: 500;">4 900 ₽</span>
-        <span style="font-size: 16px; color: #A9BCB1;">за весь марафон</span>
-      </div>
-      <a href="#hero" style="font-size: 22px; font-weight: 600; color: #22342C; background: #E08A5F; padding: 20px 48px; border-radius: 999px;">Записаться на марафон</a>
-      <p style="font-size: 16px; line-height: 1.5; color: #A9BCB1;">Оплата картой или частями. Вернём деньги, если после трёх занятий поймёте, что не ваше.</p>
-    </div>
+      <p style="font-size: 16px; line-height: 1.6; color: rgba(244, 241, 236, 0.62);">Будни с 10:00 до 19:00 по Москве. В выходные отвечаем в телеграме.</p>
+    </aside>
   </section>
 
-  <footer style="height: 140px; flex-shrink: 0; box-sizing: border-box; padding-inline: 120px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #E2D9CB;">
-    <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 500; letter-spacing: 0.06em;">гармония<span style="color: #A0451F;">.</span></span>
-    <div style="display: flex; align-items: center; gap: 40px;">
-      <a href="#hero" style="font-size: 16px; color: #5A6B61;">hello@garmonia.ru</a>
-      <a href="#hero" style="font-size: 16px; color: #5A6B61;">Телеграм-канал</a>
-      <span style="font-size: 16px; color: #8C7F6B;">© 2026 Студия «Гармония»</span>
+  <footer style="height: 240px; flex-shrink: 0; box-sizing: border-box; padding: 56px 120px; background: #0D1117; border-top: 1px solid rgba(244, 241, 236, 0.10); display: flex; flex-direction: column; justify-content: space-between;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px;">
+      <div style="grid-column: span 4; display: flex; flex-direction: column; gap: 12px;">
+        <span style="display: flex; align-items: center; gap: 12px;">
+          <span style="width: 28px; height: 28px; border-radius: 9px; background: #CDFF4F; display: flex; align-items: center; justify-content: center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0D1117" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5"></path><path d="M16 7l5 5-5 5"></path></svg>
+          </span>
+          <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.03em;">разряд</span>
+        </span>
+        <span style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Digital-агентство полного цикла, Москва</span>
+      </div>
+      <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 10px;">
+        <a href="#types" style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Услуги и цены</a>
+        <a href="#process" style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Процесс</a>
+      </div>
+      <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 10px;">
+        <a href="#works" style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Работы</a>
+        <a href="#terms" style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Гарантии</a>
+      </div>
+      <div style="grid-column: span 4; display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+        <span style="font-size: 20px; font-weight: 700;">+7 495 120-44-08</span>
+        <span style="font-size: 16px; color: rgba(244, 241, 236, 0.62);">Москва, Большая Новодмитровская, 36</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid rgba(244, 241, 236, 0.10);">
+      <span style="font-size: 16px; color: rgba(244, 241, 236, 0.45);">© 2026 Агентство «Разряд»</span>
+      <a href="#form" style="font-size: 16px; color: rgba(244, 241, 236, 0.45);">Политика обработки данных</a>
     </div>
   </footer>
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3956}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":5008}}'>
 class Component extends DCLogic {
   renderVals() {
     return {};
