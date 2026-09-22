@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu, weekdayName, formatDateTime } from '../datetime';
+import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu, weekdayName, formatDateTime, moscowDateInput, dateInputToMoscowIso } from '../datetime';
 import { syncServerTime } from '../serverTime';
 
 describe('formatMonthRu', () => {
@@ -244,5 +244,31 @@ describe('weekdayName', () => {
     expect(weekdayName('')).toBe('');
     expect(weekdayName(null)).toBe('');
     expect(weekdayName('не дата')).toBe('');
+  });
+});
+
+describe('moscowDateInput / dateInputToMoscowIso', () => {
+  it('поздний вечер по UTC даёт следующую дату - как показывает интерфейс', () => {
+    // Документ опубликован 20.06 по Москве, в базе лежит 19.06T21:00Z. Срез
+    // ISO-строки показывал админу 19.06, а пользователям на обзоре - 20.06.
+    expect(moscowDateInput('2026-06-19T21:00:00Z')).toBe('2026-06-20');
+    expect(moscowDateInput('2026-06-20T08:30:00Z')).toBe('2026-06-20');
+  });
+
+  it('пустое и невалидное возвращает пустую строку', () => {
+    expect(moscowDateInput('')).toBe('');
+    expect(moscowDateInput(null)).toBe('');
+    expect(moscowDateInput('не дата')).toBe('');
+  });
+
+  it('дата из поля уходит полуночью по Москве, пустая - как null', () => {
+    expect(dateInputToMoscowIso('2026-06-20')).toBe('2026-06-20T00:00:00+03:00');
+    expect(dateInputToMoscowIso('')).toBeNull();
+    expect(dateInputToMoscowIso(null)).toBeNull();
+  });
+
+  it('круговой проход не сдвигает дату', () => {
+    const iso = dateInputToMoscowIso('2026-01-01');
+    expect(moscowDateInput(iso)).toBe('2026-01-01');
   });
 });
