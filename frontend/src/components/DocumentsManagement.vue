@@ -102,124 +102,20 @@
       </div>
 
       <!-- Правая часть: панель деталей -->
-      <div
+      <DocumentEditPanel
         v-if="selectedDoc"
-        class="details-section"
-      >
-        <div class="doc-detail-preview">
-          <FileTypeIcon
-            :ext="selectedDoc.file_ext || 'file'"
-            :size="48"
-          />
-          <div>
-            <div class="doc-detail-filename">{{ selectedDoc.file_name }}</div>
-            <div class="doc-detail-meta">
-              {{ formatBytes(selectedDoc.file_size) }} &middot;
-              загружен {{ formatDate(selectedDoc.created_at) }}
-            </div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Наименование (видно на сайте)</label>
-          <input
-            v-model="editForm.title"
-            type="text"
-            maxlength="255"
-            class="lk-input"
-          >
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Описание (серый текст)</label>
-          <textarea
-            v-model="editForm.description"
-            rows="3"
-            class="lk-input lk-textarea"
-          />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Группа</label>
-          <select
-            v-model="editForm.group_id"
-            class="lk-select"
-          >
-            <option :value="null">— без группы (Прочее) —</option>
-            <option
-              v-for="g in groups"
-              :key="g.id"
-              :value="g.id"
-            >
-              {{ g.name }}
-            </option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Дата публикации</label>
-          <input
-            v-model="editForm.published_at"
-            type="date"
-            class="lk-input"
-            style="max-width: 200px"
-          >
-        </div>
-
-        <div class="switch-row">
-          <div>
-            <div class="switch-label">Показывать на «Обзор и новости»</div>
-            <div class="switch-desc">Скрытый документ остаётся в админке, но не виден пользователям</div>
-          </div>
-          <button
-            class="toggle-switch"
-            :class="{ 'toggle-switch--on': editForm.is_visible }"
-            :aria-pressed="editForm.is_visible"
-            @click="editForm.is_visible = !editForm.is_visible"
-          />
-        </div>
-
-        <div
-          v-if="editError"
-          class="form-error"
-        >
-          {{ editError }}
-        </div>
-
-        <div class="detail-actions">
-          <button
-            class="lk-button lk-button--ghost"
-            @click="downloadSelected"
-          >
-            Скачать
-          </button>
-          <label class="lk-button lk-button--ghost" style="cursor: pointer;">
-            Заменить файл
-            <input
-              ref="replaceFileInput"
-              type="file"
-              accept=".doc,.docx,.pdf,.xlsx,.pptx"
-              style="display: none"
-              @change="onReplaceFile"
-            >
-          </label>
-          <button
-            class="lk-button lk-button--primary"
-            :disabled="isSaving"
-            @click="saveDoc"
-          >
-            Сохранить
-          </button>
-          <button
-            class="lk-button lk-button--danger"
-            :disabled="isDeleting"
-            @click="confirmDelete"
-          >
-            Удалить
-          </button>
-        </div>
-      </div>
-
+        :doc="selectedDoc"
+        v-model:form="editForm"
+        :groups="groups"
+        :error="editError"
+        :is-saving="isSaving"
+        :is-deleting="isDeleting"
+        :is-replacing="isReplacing"
+        @save="saveDoc"
+        @delete="confirmDelete"
+        @download="downloadSelected"
+        @replace-file="onReplaceFile"
+      />
       <div
         v-else
         class="no-selection-message"
@@ -498,6 +394,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import FileTypeIcon from './ui/FileTypeIcon.vue';
+import DocumentEditPanel from './admin/DocumentEditPanel.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatBytes } from '@/utils/download';
 import {
@@ -527,7 +424,7 @@ function makeKey() {
 
 export default {
   name: 'DocumentsManagement',
-  components: { BaseModal, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, FileTypeIcon },
+  components: { BaseModal, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, FileTypeIcon, DocumentEditPanel },
   data() {
     return {
       documents: [],
@@ -544,6 +441,7 @@ export default {
       editForm: {
         title: '',
         description: '',
+        comment: '',
         group_id: null,
         published_at: '',
         is_visible: true,
@@ -617,6 +515,7 @@ export default {
       this.editForm = {
         title: doc.title || '',
         description: doc.description || '',
+        comment: doc.comment || '',
         group_id: doc.group_id ?? null,
         published_at: doc.published_at ? doc.published_at.slice(0, 10) : '',
         is_visible: !!doc.is_visible,
@@ -636,6 +535,7 @@ export default {
         const payload = {
           title: this.editForm.title.trim(),
           description: this.editForm.description.trim() || null,
+          comment: this.editForm.comment.trim() || null,
           group_id: this.editForm.group_id ?? null,
           published_at: this.editForm.published_at || null,
           is_visible: this.editForm.is_visible,

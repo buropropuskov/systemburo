@@ -79,8 +79,8 @@
       >
         <span
           class="doc-row__icon"
-          title="Скачать"
-          @click="download(doc)"
+          title="Открыть документ"
+          @click="open(doc)"
         >
           <FileTypeIcon
             :ext="doc.file_ext || 'file'"
@@ -89,7 +89,8 @@
         </span>
         <div
           class="doc-row__main"
-          @click="download(doc)"
+          data-testid="document-open"
+          @click="open(doc)"
         >
           <div class="doc-row__name">{{ doc.title }}</div>
           <div class="doc-row__desc">
@@ -121,10 +122,19 @@
       </div>
     </div>
   </div>
+
+    <DocumentPreviewModal
+      :show="previewOpen"
+      :doc="previewDoc"
+      :downloading="downloading"
+      @close="previewOpen = false"
+      @download="download"
+    />
 </template>
 
 <script>
 import FileTypeIcon from '@/components/ui/FileTypeIcon.vue';
+import DocumentPreviewModal from './DocumentPreviewModal.vue';
 import { listPublicDocuments, downloadDocument } from '@/api/documents';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatMomentDate } from '@/utils/datetime';
@@ -135,7 +145,7 @@ const VISIBLE_GROUPS_COUNT = 2;
 
 export default {
   name: 'DocumentsBlock',
-  components: { FileTypeIcon },
+  components: { FileTypeIcon, DocumentPreviewModal },
   data() {
     return {
       loading: false,
@@ -144,6 +154,9 @@ export default {
       shuffledGroups: [],
       activeGroupId: null,
       moreOpen: false,
+      previewOpen: false,
+      previewDoc: null,
+      downloading: false,
     };
   },
   computed: {
@@ -197,11 +210,19 @@ export default {
     setGroup(id) {
       this.activeGroupId = id;
     },
+    /** Клик по документу открывает окно: скачивание - уже оттуда, кнопкой. */
+    open(doc) {
+      this.previewDoc = doc;
+      this.previewOpen = true;
+    },
     async download(doc) {
+      this.downloading = true;
       try {
         await downloadDocument(doc.id, doc.file_name);
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Ошибка скачивания: ', bold: e?.message || 'сбой', type: 'error' });
+      } finally {
+        this.downloading = false;
       }
     },
     formatDate(dt) {

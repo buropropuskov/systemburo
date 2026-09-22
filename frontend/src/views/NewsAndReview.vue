@@ -670,9 +670,9 @@ export default {
     animation: slideInUp 0.5s ease forwards;
 }
 
+/* При наведении только подсветка рамки - как у блока «Режимы работы». Подъём с тенью
+   был лишь у части карточек обзора, и разница бросалась в глаза. */
 .news-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px var(--shadow-drop);
     border-color: var(--accent);
 }
 
@@ -758,8 +758,6 @@ export default {
 }
 
 .guide-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px var(--shadow-drop);
     border: 1px solid var(--accent);
 }
 

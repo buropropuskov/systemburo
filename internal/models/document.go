@@ -15,22 +15,25 @@ type DocumentGroup struct {
 
 // Document -- документ (файл) с метаданными.
 type Document struct {
-	ID          int        `json:"id"`
-	GroupID     *int       `gorm:"index" json:"group_id"`
-	Title       string     `gorm:"size:255" json:"title"`
-	Description *string    `gorm:"type:text" json:"description"`
-	FileName    string     `gorm:"size:255" json:"file_name"`
-	StoredName  string     `gorm:"size:255" json:"stored_name"`
-	FileExt     string     `gorm:"size:10" json:"file_ext"`
-	MimeType    string     `gorm:"size:120" json:"mime_type"`
-	FileSize    int64      `json:"file_size"`
-	PublishedAt time.Time  `json:"published_at"`
-	IsVisible   bool       `gorm:"default:true" json:"is_visible"`
-	SortOrder   int        `gorm:"default:0" json:"sort_order"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	CreatedBy   *int       `json:"created_by"`
-	UpdatedBy   *int       `json:"updated_by"`
+	ID          int     `json:"id"`
+	GroupID     *int    `gorm:"index" json:"group_id"`
+	Title       string  `gorm:"size:255" json:"title"`
+	Description *string `gorm:"type:text" json:"description"`
+	// Comment - пояснение бюро к документу: зачем он, как заполнять, куда нести.
+	// Описание короткое и стоит строкой в списке, пояснение читают в окне документа.
+	Comment     *string   `gorm:"type:text" json:"comment"`
+	FileName    string    `gorm:"size:255" json:"file_name"`
+	StoredName  string    `gorm:"size:255" json:"stored_name"`
+	FileExt     string    `gorm:"size:10" json:"file_ext"`
+	MimeType    string    `gorm:"size:120" json:"mime_type"`
+	FileSize    int64     `json:"file_size"`
+	PublishedAt time.Time `json:"published_at"`
+	IsVisible   bool      `gorm:"default:true" json:"is_visible"`
+	SortOrder   int       `gorm:"default:0" json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedBy   *int      `json:"created_by"`
+	UpdatedBy   *int      `json:"updated_by"`
 }
 
 // -- Request/Response DTO --
@@ -66,6 +69,7 @@ type DocumentGroupWithCount struct {
 type UploadDocumentRequest struct {
 	Title       string  `form:"title" validate:"required,max=255"`
 	Description *string `form:"description"`
+	Comment     *string `form:"comment"`
 	GroupID     *int    `form:"group_id"`
 	PublishedAt *string `form:"published_at"`
 	SortOrder   int     `form:"sort_order"`
@@ -75,6 +79,7 @@ type UploadDocumentRequest struct {
 type UpdateDocumentMetaRequest struct {
 	Title       *string `json:"title" validate:"omitempty,max=255"`
 	Description *string `json:"description"`
+	Comment     *string `json:"comment"`
 	GroupID     *int    `json:"group_id"`
 	PublishedAt *string `json:"published_at"`
 	IsVisible   *bool   `json:"is_visible"`
@@ -88,29 +93,30 @@ type ReorderDocumentsRequest struct {
 
 // DocumentListItem -- документ для списка в админке.
 type DocumentListItem struct {
-	ID          int        `json:"id"`
-	GroupID     *int       `json:"group_id"`
-	GroupName   *string    `json:"group_name"`
-	Title       string     `json:"title"`
-	Description *string    `json:"description"`
-	FileName    string     `json:"file_name"`
-	FileExt     string     `json:"file_ext"`
-	FileSize    int64      `json:"file_size"`
-	PublishedAt time.Time  `json:"published_at"`
-	IsVisible   bool       `json:"is_visible"`
-	SortOrder   int        `json:"sort_order"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	CreatedBy   *int       `json:"created_by"`
-	UpdatedBy   *int       `json:"updated_by"`
+	ID          int       `json:"id"`
+	GroupID     *int      `json:"group_id"`
+	GroupName   *string   `json:"group_name"`
+	Title       string    `json:"title"`
+	Description *string   `json:"description"`
+	Comment     *string   `json:"comment"`
+	FileName    string    `json:"file_name"`
+	FileExt     string    `json:"file_ext"`
+	FileSize    int64     `json:"file_size"`
+	PublishedAt time.Time `json:"published_at"`
+	IsVisible   bool      `json:"is_visible"`
+	SortOrder   int       `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedBy   *int      `json:"created_by"`
+	UpdatedBy   *int      `json:"updated_by"`
 }
 
 // PublicDocumentGroup -- группа с документами для публичного эндпоинта.
 type PublicDocumentGroup struct {
-	ID        int               `json:"id"`
-	Name      string            `json:"name"`
-	SortOrder int               `json:"sort_order"`
-	Documents []PublicDocument  `json:"documents"`
+	ID        int              `json:"id"`
+	Name      string           `json:"name"`
+	SortOrder int              `json:"sort_order"`
+	Documents []PublicDocument `json:"documents"`
 }
 
 // PublicDocument -- документ для публичного эндпоинта (без скрытых).
@@ -119,6 +125,7 @@ type PublicDocument struct {
 	GroupID     *int      `json:"group_id"`
 	Title       string    `json:"title"`
 	Description *string   `json:"description"`
+	Comment     *string   `json:"comment"`
 	FileName    string    `json:"file_name"`
 	FileExt     string    `json:"file_ext"`
 	FileSize    int64     `json:"file_size"`
