@@ -420,6 +420,9 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 	masks, consentActive := consentMasksWithState(ctx, s.db)
 	grants := loadConsentGrants(ctx, s.db)
 	for i := range result {
+		// Scan в чужую структуру идёт мимо User.AfterFind (#2566).
+		result[i].Email = crypto.DecryptOptional(result[i].Email)
+		result[i].Phone = crypto.DecryptOptional(result[i].Phone)
 		if at, ok := grants[result[i].ID]; ok {
 			result[i].ConsentGranted = true
 			granted := at
@@ -763,6 +766,10 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 		Where("username = ?", username).
 		Select("last_name", "first_name", "middle_name", "position", "email", "phone", "is_important").
 		Scan(&prev)
+	// Контакты лежат шифротекстом, а сравниваются ниже с открытым значением из запроса:
+	// без расшифровки каждое сохранение писало в историю «почта изменена» (#2566).
+	prev.Email = *crypto.DecryptOptional(&prev.Email)
+	prev.Phone = *crypto.DecryptOptional(&prev.Phone)
 
 	updates := map[string]interface{}{
 		"position": req.Position,

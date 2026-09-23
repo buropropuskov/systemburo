@@ -111,8 +111,10 @@ func EncryptOptional(val *string) (*string, error) {
 
 // DecryptOptional decrypts *string using global key. For GORM hooks.
 func DecryptOptional(val *string) *string {
-	if val == nil {
-		return nil
+	// Пустая строка - очищенное поле, а не шифротекст: считать её сбоем значило бы
+	// писать предупреждение о ключе на каждое чтение такой записи (#2566).
+	if val == nil || *val == "" {
+		return val
 	}
 	dec, err := Decrypt(*val, globalKey)
 	if err != nil {
