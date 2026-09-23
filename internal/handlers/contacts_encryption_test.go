@@ -123,3 +123,82 @@ func TestApplicationContacts_PhoneEncryptedNameNot(t *testing.T) {
 	require.NotNil(t, app.ContactPhone)
 	assert.Equal(t, "+7 (911) 222-33-44", *app.ContactPhone, "телефон расшифровывается при чтении")
 }
+
+// Карточка участника заявки читает контакты сырым запросом мимо модели, и хук
+// расшифровки на нём не срабатывает (#2566). Без ключа в тестах значения лежат
+// открытыми, поэтому основной тест участников этого не видел: на стенде вместо
+// адреса стоял шифротекст.
+func TestContacts_ParticipantsShowPlainContacts(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	crypto.SetGlobalKey(contactsKey())
+	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
+
+	senderToken := testutil.RegisterAndLogin(t, e, "contact_sender", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/users/contact_sender/info",
+		`{"email":"sender.box@example.com","phone":"+7 (900) 765-43-21"}`, h).Code)
+	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+
+	list := participantsList(t, e, senderToken, appID)
+	require.Len(t, list, 1)
+	assert.Equal(t, "sender.box@example.com", deref(list[0].Email), "почта участника расшифрована")
+	assert.Equal(t, "+7 (900) 765-43-21", deref(list[0].Phone), "телефон участника расшифрован")
+}
+
+// Список пользователей в администрировании - тот же сырой запрос мимо модели (#2566).
+func TestContacts_UsersListShowsPlainContacts(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	crypto.SetGlobalKey(contactsKey())
+	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
+
+	testutil.RegisterAndLogin(t, e, "contact_listed", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/users/contact_listed/info",
+		`{"email":"listed@example.com","phone":"+7 (900) 111-22-33"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/users/all", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	users := testutil.ParseResponse[[]models.UserInfoResponse](t, rec)
+	var found *models.UserInfoResponse
+	for i := range users {
+		if users[i].Username == "contact_listed" {
+			found = &users[i]
+		}
+	}
+	require.NotNil(t, found, "работник есть в списке")
+	assert.Equal(t, "listed@example.com", deref(found.Email), "почта в списке расшифрована")
+	assert.Equal(t, "+7 (900) 111-22-33", deref(found.Phone), "телефон в списке расшифрован")
+}
+
+// История правки карточки сравнивает новое значение со старым, прочитанным сырым
+// запросом (#2566). Старое приходило шифротекстом, поэтому любое сохранение карточки
+// записывало в журнал «почта изменена» и клало шифротекст в поле old.
+func TestContacts_HistoryDiffComparesPlainValues(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	crypto.SetGlobalKey(contactsKey())
+	t.Cleanup(func() { crypto.SetGlobalKey(nil) })
+
+	testutil.RegisterAndLogin(t, e, "contact_history", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/users/contact_history/info",
+		`{"email":"history@example.com","phone":"+7 (900) 444-55-66","position":"Инженер"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/users/contact_history/info",
+		`{"email":"history@example.com","phone":"+7 (900) 444-55-66","position":"Старший инженер"}`, h).Code)
+
+	var details string
+	require.NoError(t, db.Raw(`SELECT details::text FROM audit_log
+		WHERE entity_type = ? AND entity_id = (SELECT id FROM users WHERE username = ?)
+		ORDER BY id DESC LIMIT 1`, models.AuditEntityUser, "contact_history").Row().Scan(&details))
+	assert.Contains(t, details, "Старший инженер", "изменение должности записано")
+	assert.NotContains(t, details, `"email"`, "почта не менялась и в журнал не попадает")
+	assert.NotContains(t, details, `"phone"`, "телефон не менялся и в журнал не попадает")
+}

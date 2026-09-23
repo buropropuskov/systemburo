@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"systemburo/internal/crypto"
+
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -188,6 +190,12 @@ func (s *applicationService) GetApplicationParticipants(ctx context.Context, app
 		Scan(&rows).Error; err != nil {
 		slog.Error("не удалось получить участников заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application participants")
+	}
+	// Сырой Scan идёт мимо User.AfterFind: без явной расшифровки карточка показывала
+	// шифротекст вместо почты и телефона (#2566).
+	for i := range rows {
+		rows[i].Email = crypto.DecryptOptional(rows[i].Email)
+		rows[i].Phone = crypto.DecryptOptional(rows[i].Phone)
 	}
 
 	result := mergeParticipantRows(rows)

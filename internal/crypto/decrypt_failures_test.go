@@ -70,3 +70,22 @@ func TestDecryptOptional_PassthroughIsNotFailure(t *testing.T) {
 	require.Equal(t, value, *got)
 	require.EqualValues(t, 0, DecryptFailures())
 }
+
+// TestDecryptOptional_EmptyIsNotFailure - пустая строка значит «поле очищено», а не
+// «шифротекст не открылся». Правка карточки очищает почту пустой строкой, и каждое
+// чтение такого работника писало в журнал предупреждение о чужом ключе (#2566).
+func TestDecryptOptional_EmptyIsNotFailure(t *testing.T) {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	SetGlobalKey(key)
+	defer SetGlobalKey(nil)
+	ResetDecryptFailures()
+
+	empty := ""
+	got := DecryptOptional(&empty)
+	require.NotNil(t, got)
+	require.Equal(t, "", *got)
+	require.EqualValues(t, 0, DecryptFailures(), "пустое значение не сбой расшифровки")
+}
