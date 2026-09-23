@@ -281,6 +281,12 @@ jobs:
             docker pull "$FRONTEND_IMAGE"
             docker pull "$BACKEND_IMAGE"
             docker logout ghcr.io
+            # Compose без BACKEND_IMAGE берёт метку dev, а её здесь никто не тянул: ручной
+            # docker compose up поднимал образ многонедельной давности, и его миграция
+            # сузила столбцы телефонов, обрезав шифротекст (#2568). Метка dev на VPS
+            # обязана указывать на выкаченный код.
+            docker tag "$FRONTEND_IMAGE" "ghcr.io/${REPO_LOWER}-frontend:dev"
+            docker tag "$BACKEND_IMAGE" "ghcr.io/${REPO_LOWER}-backend:dev"
             # На VPS собирается только nginx: alpine плюс apk add openssl, секунды.
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build --pull nginx
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate
@@ -299,7 +305,10 @@ jobs:
             # 346 образов и больше четырёх гигабайт. Фильтр по возрасту здесь не
             # годится - он считает возраст от сборки образа, и заодно снёс бы
             # базовые golang/alpine/nginx, которые нужны для сборки на месте.
-            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | awk -v keep="$FRONTEND_IMAGE" '$1 ~ /systemburo-frontend/ && $1 != keep { print $2 }' | xargs -r docker rmi -f 2>/dev/null || true
+            # Метка dev висит на том же образе, что и текущий: сравнение по ID не даёт
+            # rmi -f снять метки с работающего образа через его второе имя.
+            KEEP_FRONTEND_ID=$(docker images --format '{{.ID}}' "$FRONTEND_IMAGE")
+            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | awk -v keep="$FRONTEND_IMAGE" -v keepid="$KEEP_FRONTEND_ID" '$1 ~ /systemburo-frontend/ && $1 != keep && $2 != keepid { print $2 }' | xargs -r docker rmi -f 2>/dev/null || true
             sleep 5
             wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
