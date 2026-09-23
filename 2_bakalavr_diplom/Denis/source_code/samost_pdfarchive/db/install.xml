@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="plagiarism/samost/db" VERSION="20260310" COMMENT="XMLDB file for plagiarism_samost"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="plagiarism_samost_files" COMMENT="Stores extracted text cache for submitted files">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cm" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Course module id"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="fileid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="mdl_files.id"/>
+        <FIELD NAME="textcontent" TYPE="text" NOTNULL="false" COMMENT="Extracted plain text"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cm_userid" UNIQUE="false" FIELDS="cm, userid"/>
+        <INDEX NAME="fileid" UNIQUE="false" FIELDS="fileid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="plagiarism_samost_results" COMMENT="Stores pairwise similarity results">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cm" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Course module id"/>
+        <FIELD NAME="userid1" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="userid2" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="similarity_code" TYPE="number" LENGTH="5" DECIMALS="2" NOTNULL="false" DEFAULT="0" COMMENT="Winnowing code similarity %"/>
+        <FIELD NAME="similarity_text" TYPE="number" LENGTH="5" DECIMALS="2" NOTNULL="false" DEFAULT="0" COMMENT="Jaccard text similarity %"/>
+        <FIELD NAME="timecalculated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cm" UNIQUE="false" FIELDS="cm"/>
+        <INDEX NAME="cm_users" UNIQUE="false" FIELDS="cm, userid1, userid2"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="plagiarism_samost_config" COMMENT="Per-assignment plugin configuration">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cm" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="value" TYPE="text" NOTNULL="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cm_name" UNIQUE="false" FIELDS="cm, name"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="plagiarism_samost_queue" COMMENT="Analysis queue — one row per user per cm waiting for processing">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cm" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Course module id"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="User whose submission should be processed"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="queued" COMMENT="queued | processing | done | error"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" COMMENT="Group filter: 0 = all, otherwise group id"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="20" NOTNULL="false" DEFAULT="within" COMMENT="within | cross — within=group vs itself, cross=group vs others"/>
+        <FIELD NAME="compare_userids" TYPE="text" NOTNULL="false" COMMENT="JSON array of userids to compare against (cross mode)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="status_timecreated" UNIQUE="false" FIELDS="status, timecreated"/>
+        <INDEX NAME="cm_userid" UNIQUE="false" FIELDS="cm, userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="plagiarism_samost_feedback" COMMENT="User feedback submitted from report or pair pages">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cm" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Course module id where feedback was left"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Who left the feedback"/>
+        <FIELD NAME="message" TYPE="text" NOTNULL="true" COMMENT="Feedback text"/>
+        <FIELD NAME="pair_userid1" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="First student of the pair (if sent from pair.php)"/>
+        <FIELD NAME="pair_userid2" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Second student of the pair (if sent from pair.php)"/>
+        <FIELD NAME="snap_similarity_code" TYPE="number" LENGTH="5" DECIMALS="2" NOTNULL="false" COMMENT="Snapshot of code similarity at the moment of feedback"/>
+        <FIELD NAME="snap_similarity_text" TYPE="number" LENGTH="5" DECIMALS="2" NOTNULL="false" COMMENT="Snapshot of text similarity at the moment of feedback"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="admin_comment" TYPE="text" NOTNULL="false" COMMENT="Admin private note on this feedback"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cm" UNIQUE="false" FIELDS="cm"/>
+        <INDEX NAME="userid" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="pair" UNIQUE="false" FIELDS="pair_userid1, pair_userid2"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

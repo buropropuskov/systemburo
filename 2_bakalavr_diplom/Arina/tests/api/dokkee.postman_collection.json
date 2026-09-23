@@ -1,0 +1,249 @@
+{
+  "info": {
+    "name": "Dokkee API",
+    "description": "Коллекция интеграционных тестов для REST API dokkee-backend. Содержит позитивные и негативные сценарии для всех реализованных и планируемых маршрутов.\n\n//возможны изменения// — маршруты /api/v1/documents, /api/v1/analysis и /api/v1/notes на момент составления коллекции находятся в разработке.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "authToken", "value": "" },
+    { "key": "docId",     "value": "" },
+    { "key": "otherUserToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Авторизация",
+      "item": [
+        {
+          "name": "POST /auth/sign-up — регистрация",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/auth/sign-up", "host": ["{{baseUrl}}"], "path": ["auth", "sign-up"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"api_tester_{{$timestamp}}\",\n  \"password\": \"StrongPass123!\",\n  \"first_name\": \"Иван\",\n  \"last_name\": \"Иванов\",\n  \"email\": \"api_{{$timestamp}}@example.com\",\n  \"phone\": \"+7999{{$randomInt}}\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Есть id пользователя', () => pm.expect(body.id).to.be.a('number'));",
+              "pm.environment.set('newUserId', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /auth/sign-up — повторная регистрация (негатив)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/auth/sign-up", "host": ["{{baseUrl}}"], "path": ["auth", "sign-up"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"username\":\"dup\",\"password\":\"p\",\"first_name\":\"F\",\"last_name\":\"L\",\"email\":\"dup@example.com\",\"phone\":\"+79991112233\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "// //возможны изменения// — после внедрения типизированных ошибок ожидать 409",
+              "pm.test('Ошибка на дубликат', () => pm.expect(pm.response.code).to.be.oneOf([400, 409, 500]));"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /auth/sign-in — вход",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/auth/sign-in", "host": ["{{baseUrl}}"], "path": ["auth", "sign-in"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"{{testEmail}}\",\"password\":\"{{testPassword}}\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Токен получен', () => pm.expect(body.token).to.be.a('string').and.match(/^eyJ/));",
+              "pm.collectionVariables.set('authToken', body.token);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /auth/sign-in — неверный пароль (негатив)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/auth/sign-in", "host": ["{{baseUrl}}"], "path": ["auth", "sign-in"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"{{testEmail}}\",\"password\":\"wrong\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('Ошибка авторизации', () => pm.expect(pm.response.code).to.be.oneOf([401, 500]));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Документы (планируемые маршруты)",
+      "description": "//возможны изменения// — маршруты /api/v1/documents находятся в разработке.",
+      "item": [
+        {
+          "name": "POST /api/v1/documents — загрузка PDF",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "./fixtures/sample-contract.pdf" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('id документа есть', () => pm.expect(body.id).to.be.a('number'));",
+              "pm.collectionVariables.set('docId', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /api/v1/documents — PNG отклоняется",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "./fixtures/photo.png" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 400 — unsupported format', () => pm.response.to.have.status(400));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /api/v1/documents/:id — чужой документ возвращает 403",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents/{{otherUserDocId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents", "{{otherUserDocId}}"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 403 — изоляция пользователей', () => pm.response.to.have.status(403));",
+              "pm.test('В теле нет содержимого чужого документа', () => {",
+              "  const body = pm.response.text();",
+              "  pm.expect(body.toLowerCase()).to.not.include('content');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "DELETE /api/v1/documents/:id",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents/{{docId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents", "{{docId}}"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Анализ (планируемые маршруты)",
+      "description": "//возможны изменения// — маршруты в разработке.",
+      "item": [
+        {
+          "name": "POST /api/v1/documents/:id/analyze — запуск анализа",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents/{{docId}}/analyze", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents", "{{docId}}", "analyze"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 200/202', () => pm.expect(pm.response.code).to.be.oneOf([200, 202]));",
+              "const body = pm.response.json();",
+              "pm.test('Результаты содержат массив risks', () => pm.expect(body.risks).to.be.an('array'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Безопасность",
+      "item": [
+        {
+          "name": "GET /api/v1/documents без токена — 401",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 401 без заголовка Authorization', () => pm.response.to.have.status(401));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /api/v1/documents с подменённым токеном — 401",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents"] },
+            "header": [{ "key": "Authorization", "value": "Bearer invalid.signature.here" }]
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 401 при невалидной подписи', () => pm.response.to.have.status(401));"
+            ]}
+          }]
+        },
+        {
+          "name": "SQL injection в поиске документов",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents?q='; DROP TABLE documents; --",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents"],
+              "query": [{ "key": "q", "value": "'; DROP TABLE documents; --" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('Запрос отклонён или безопасен', () => {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+              "});",
+              "pm.test('Таблица documents не удалена', () => {",
+              "  // Повторный запрос без payload должен по-прежнему работать",
+              "  pm.sendRequest({",
+              "    url: pm.variables.get('baseUrl') + '/api/v1/documents',",
+              "    method: 'GET',",
+              "    header: { Authorization: 'Bearer ' + pm.collectionVariables.get('authToken') }",
+              "  }, (err, res) => pm.expect(res.code).to.be.oneOf([200, 204]));",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    }
+  ]
+}

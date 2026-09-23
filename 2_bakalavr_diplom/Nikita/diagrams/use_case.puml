@@ -1,0 +1,66 @@
+@startuml
+' Use Case диаграмма веб-приложения управления ТОиР, UML 2.5
+!pragma layout smetana
+skinparam handwritten false
+skinparam shadowing false
+skinparam dpi 150
+skinparam defaultFontName Times New Roman
+skinparam defaultFontSize 14
+skinparam packageStyle rectangle
+skinparam ActorBackgroundColor #FFFFFF
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #000000
+skinparam UsecaseFontSize 13
+skinparam ArrowColor #000000
+skinparam ActorBorderColor #000000
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleBorderColor #000000
+left to right direction
+
+actor "Оператор" as op
+actor "Техник" as tech
+actor "Инженер" as eng
+actor "Администратор" as adm
+
+rectangle "Веб-приложение управления ТОиР" {
+  usecase "Создать заявку\nна ремонт" as UC_create
+  usecase "Выбрать\nоборудование" as UC_select
+  usecase "Просмотреть\nстатус заявки" as UC_status
+  usecase "Подтвердить\nремонт" as UC_confirm
+  usecase "Сканировать\nQR-код" as UC_qr
+
+  usecase "Принять\nв работу" as UC_take
+  usecase "Зафиксировать\nрезультат" as UC_fix
+  usecase "Запросить\nзапчасти" as UC_parts
+
+  usecase "Вести справочник\nоборудования" as UC_eq
+  usecase "Назначить\nисполнителя" as UC_assign
+  usecase "Настроить\nграфики ТО" as UC_sched
+  usecase "Просматривать\nдашборд" as UC_dash
+  usecase "Уведомление\nо приближении ТО" as UC_notify
+
+  usecase "Управлять\nучётными записями" as UC_users
+}
+
+op --> UC_create
+op --> UC_status
+op --> UC_confirm
+op --> UC_qr
+
+tech --> UC_take
+tech --> UC_fix
+tech --> UC_parts
+tech --> UC_qr
+
+eng --> UC_eq
+eng --> UC_assign
+eng --> UC_sched
+eng --> UC_dash
+
+adm --> UC_users
+
+UC_create ..> UC_select : <<include>>
+UC_take ..> UC_status : <<include>>
+UC_notify ..> UC_sched : <<extend>>
+
+@enduml

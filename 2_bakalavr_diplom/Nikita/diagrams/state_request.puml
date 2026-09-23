@@ -1,0 +1,38 @@
+@startuml
+' State Diagram жизненного цикла заявки на ремонт, UML 2.5
+!pragma layout smetana
+skinparam handwritten false
+skinparam shadowing false
+skinparam dpi 150
+skinparam defaultFontName Times New Roman
+skinparam defaultFontSize 13
+skinparam StateBackgroundColor #FFFFFF
+skinparam StateBorderColor #000000
+skinparam StateFontSize 14
+skinparam ArrowColor #000000
+skinparam ArrowFontSize 11
+
+[*] --> Новая
+
+state Новая
+state Назначена
+state "В работе" as InWork
+state "Ожидает запчастей" as WaitingParts
+state Выполнена
+state Закрыта
+
+Новая --> Назначена : инженер назначает\nтехника
+Назначена --> InWork : техник принимает\nв работу
+InWork --> WaitingParts : запрос\nзапчастей
+WaitingParts --> InWork : запчасти\nдоставлены
+InWork --> Выполнена : ремонт\nзавершён
+Выполнена --> Закрыта : инженер\nподтверждает
+Выполнена --> InWork : возврат\nна доработку
+Закрыта --> [*]
+
+note right of WaitingParts
+  таймер блокирует
+  истечение SLA
+end note
+
+@enduml

@@ -1,0 +1,63 @@
+@startuml
+skinparam shadowing false
+skinparam dpi 130
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam packageStyle rectangle
+skinparam ActorBackgroundColor #FFFFFF
+skinparam ActorBorderColor #000000
+skinparam ActorFontStyle bold
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #000000
+skinparam UsecaseBorderThickness 1.4
+skinparam UsecaseFontSize 13
+skinparam ArrowColor #000000
+skinparam ArrowThickness 1.4
+skinparam RectangleBorderColor #000000
+skinparam RectangleBorderThickness 1.4
+skinparam RectangleBackgroundColor #FFFFFF
+
+left to right direction
+
+actor "Оператор" as op
+actor "Техник" as tech
+actor "Инженер" as eng
+actor "Администратор" as adm
+
+rectangle "Веб-приложение управления ТОиР" {
+  usecase "Создать заявку\nна ремонт" as UC_create
+  usecase "Выбрать оборудование" as UC_select
+  usecase "Просмотреть\nстатус заявки" as UC_status
+  usecase "Подтвердить\nремонт" as UC_confirm
+  usecase "Сканировать QR-код" as UC_qr
+  usecase "Принять задание\nв работу" as UC_take
+  usecase "Зафиксировать\nрезультат" as UC_fix
+  usecase "Запросить запчасти" as UC_parts
+  usecase "Вести справочник\nоборудования" as UC_eq
+  usecase "Назначить\nисполнителя" as UC_assign
+  usecase "Настроить\nграфики ТО" as UC_sched
+  usecase "Просматривать\nдашборд" as UC_dash
+  usecase "Уведомление\nо приближении ТО" as UC_notify
+  usecase "Управлять\nучётными записями" as UC_users
+}
+
+op --> UC_create
+op --> UC_status
+op --> UC_confirm
+op --> UC_qr
+
+tech --> UC_take
+tech --> UC_fix
+tech --> UC_parts
+tech --> UC_qr
+
+eng --> UC_eq
+eng --> UC_assign
+eng --> UC_sched
+eng --> UC_dash
+
+adm --> UC_users
+
+UC_create ..> UC_select : <<include>>
+UC_notify ..> UC_sched : <<extend>>
+@enduml

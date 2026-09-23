@@ -1,0 +1,28 @@
+{
+  "_comment_1": "Листинг 3.4 — Фрагмент интеграционного теста изоляции данных (Postman)",
+  "_comment_2": "Файл: tests/api/dokkee.postman_collection.json (фрагмент)",
+  "_comment_3": "Проверяет, что чужой документ возвращает 403, а не 404 — не раскрывая факта существования ID.",
+  "name": "GET /api/v1/documents/:id — чужой документ возвращает 403",
+  "request": {
+    "method": "GET",
+    "url": {
+      "raw": "{{baseUrl}}/api/v1/documents/{{otherUserDocId}}",
+      "host": ["{{baseUrl}}"],
+      "path": ["api", "v1", "documents", "{{otherUserDocId}}"]
+    },
+    "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+  },
+  "event": [{
+    "listen": "test",
+    "script": {
+      "type": "text/javascript",
+      "exec": [
+        "pm.test('HTTP 403 — изоляция пользователей', () => pm.response.to.have.status(403));",
+        "pm.test('В теле нет содержимого чужого документа', () => {",
+        "  const body = pm.response.text();",
+        "  pm.expect(body.toLowerCase()).to.not.include('content');",
+        "});"
+      ]
+    }
+  }]
+}
