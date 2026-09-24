@@ -5,8 +5,10 @@
  * 1 - первое наполнение.
  * 2 - карточка заявки разобрана по частям, архив перенесён к отбору, добавлены
  *     колонки списка и открытие заявки; шаги про состав вложения ждут данные (#2584).
+ * 3 - отдельный шаг-анонс перед открытием карточки, шаги внутри карточки знают
+ *     свой контейнер данных и не держат тур, когда цели нет (#2590).
  */
-export const ACCEPT_ONBOARDING_VERSION = 2;
+export const ACCEPT_ONBOARDING_VERSION = 3;
 
 /**
  * Шаги тура принимающего (тур `accept` в реестре tours.js). Принимающий - тот, кто
@@ -35,7 +37,7 @@ export const ACCEPT_ONBOARDING_VERSION = 2;
  *
  * Поля шага и точки расширения - в JSDoc `onboardingSteps.js`.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, waitsData?: boolean, advanceWhen?: string, expandRail?: boolean, celebrate?: boolean, side?: string, align?: string, scrollTo?: string, reveal?: { mobile?: 'nav', open?: string } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, waitsData?: boolean, dataReady?: string, advanceWhen?: string, expandRail?: boolean, celebrate?: boolean, side?: string, align?: string, scrollTo?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const acceptOnboardingSteps = [
   // ── Сегмент /news: знакомство и дорога в Центр заявок ──
@@ -109,14 +111,24 @@ export const acceptOnboardingSteps = [
     optional: true,
     // Список длиннее экрана: по центру его верх уезжал за край.
     scrollTo: 'start',
-    // Призыв нажать обязан иметь переход, иначе подсветка останется под открытой
-    // карточкой; цель перехода - элемент следующего шага.
-    advanceWhen: '[data-testid="ob-detail-card"]',
     side: 'top',
     align: 'start',
     title: 'Строка заявки',
     description:
-      'В строке два разных признака: «Подтверждение» - про согласование, «Статус заявки» - про её судьбу («В работе», «Завершено», «Отказано», «Отозвана»). Непрочитанные строки подсвечены, точка у статуса значит, что он менялся после вашего просмотра. Нажмите на строку - заявка откроется карточкой поверх списка; если не хотите нажимать сами, идите «Далее», и мы откроем первую за вас.',
+      'В строке два разных признака: «Подтверждение» - про согласование, «Статус заявки» - про её судьбу («В работе», «Завершено», «Отказано», «Отозвана»). Непрочитанные строки подсвечены, точка у статуса значит, что он менялся после вашего просмотра.',
+  },
+  {
+    id: 'acc-center-open',
+    route: '/center',
+    // Без подсветки: шаг про то, что будет дальше, а не про элемент экрана. Список
+    // подсвечен предыдущим шагом, и вторая рамка на нём же ничего не добавляет.
+    element: null,
+    // Призыв нажать обязан иметь переход, иначе подсветка останется под открытой
+    // карточкой; цель перехода - элемент следующего шага.
+    advanceWhen: '[data-testid="ob-detail-card"]',
+    title: 'Сейчас откроем заявку',
+    description:
+      'Дальше разберём заявку изнутри: из чего она состоит, что вы в ней решаете и какими кнопками. Нажмите на любую строку - карточка откроется поверх списка. Не хотите нажимать сами - идите «Далее», мы откроем первую подходящую.',
   },
   // ── Сегмент /center: карточка заявки по частям ──
   {
@@ -155,6 +167,7 @@ export const acceptOnboardingSteps = [
   {
     id: 'acc-detail-places',
     route: '/center',
+    dataReady: '[data-testid="attachment-elements"]',
     element: '[data-testid="attachment-chip"]',
     optional: true,
     waitsData: true,
@@ -166,6 +179,7 @@ export const acceptOnboardingSteps = [
   {
     id: 'acc-detail-assign',
     route: '/center',
+    dataReady: '[data-testid="attachment-elements"]',
     element: '[data-testid="attachment-assign-open"]',
     optional: true,
     waitsData: true,
@@ -177,6 +191,7 @@ export const acceptOnboardingSteps = [
   {
     id: 'acc-detail-assign-all',
     route: '/center',
+    dataReady: '[data-testid="attachment-elements"]',
     element: '[data-testid="attachment-assign-all-open"]',
     optional: true,
     waitsData: true,
@@ -209,7 +224,7 @@ export const acceptOnboardingSteps = [
     optional: true,
     title: 'Согласование заявки',
     description:
-      'Здесь видно, чем закончилось согласование и кто в нём участвовал. Голосуют согласующие - это отдельная роль; вам важен итог, потому что принять в работу можно только согласованную заявку. Рядом кнопка истории: кто и когда менял заявку, включая правки срока и состава.',
+      'Здесь видно, чем закончилось согласование и кто в нём участвовал. Голосуют согласующие - это отдельная роль; вам важен итог, потому что принять в работу можно только согласованную заявку.',
     reveal: { open: 'first-application' },
   },
   {
@@ -219,12 +234,13 @@ export const acceptOnboardingSteps = [
     optional: true,
     title: 'Обсуждение заявки',
     description:
-      'Если чего-то не хватает - спросите прямо в заявке, не переходя в почту. Заявитель получит уведомление и ответит здесь же, переписка останется в карточке. Это короче, чем отказывать и ждать повторную подачу.',
+      'Если чего-то не хватает - спросите прямо в заявке. Заявитель получит уведомление и ответит здесь же, переписка останется в карточке. Это короче, чем отказывать и ждать повторную подачу.',
     reveal: { open: 'first-application' },
   },
   {
     id: 'acc-detail-supplement',
     route: '/center',
+    dataReady: '[data-testid="ob-detail-card"]',
     // Якорь - блок раундов, а не кнопка решения: она появляется в единственном
     // состоянии раунда (согласован, ждёт вашего слова), а блок стоит у любой
     // заявки с дополнением - на нём и видно, из-за чего решение принимается.
@@ -239,6 +255,7 @@ export const acceptOnboardingSteps = [
   {
     id: 'acc-detail-org-moderation',
     route: '/center',
+    dataReady: '[data-testid="ob-detail-card"]',
     element: '[data-testid="ob-org-moderation"]',
     optional: true,
     waitsData: true,
@@ -251,6 +268,7 @@ export const acceptOnboardingSteps = [
   {
     id: 'acc-detail-download',
     route: '/center',
+    dataReady: '[data-testid="ob-detail-card"]',
     element: '[data-testid="app-detail-button-download"]',
     optional: true,
     waitsData: true,

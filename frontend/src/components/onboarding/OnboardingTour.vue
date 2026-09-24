@@ -148,17 +148,16 @@ async function prepareStepInner(globalIndex) {
   const attachmentChanged = applyDemoAttachment(globalIndex);
   const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false });
   if (!step?.element) return true;
-  // Необязательный шаг ждём коротко (700 мс): форма отрисована на предыдущем
-  // шаге, и отсутствие цели значит «её тут нет» - иначе подряд идущие кнопки
-  // карточки давали по 4 с каждая и читались как «нажал Далее, а ничего не
-  // происходит» (#1771). Шагу с `waitsData` даём 2,5 с: его цель приезжает
-  // данными уже открытого узла и за 700 мс не поспевала (#2584). Полное
-  // ожидание - когда на шаге раскрывали узел, меняли бланк или шаг обязателен.
-  // Сперва даём странице договорить с сервером: иначе состав тура зависит от
-  // скорости сети и знаменатель «Шаг N из M» падает на глазах (57 -> 55 -> 48).
+  // Необязательный шаг ждём коротко (700 мс): нет цели - значит её тут нет
+  // (#1771). Шагу с `waitsData` даём 2,5 с - цель приезжает данными узла (#2584).
+  // Полное ожидание - когда раскрывали узел, меняли бланк или шаг обязателен.
+  // Сперва даём странице договорить с сервером - иначе состав зависит от сети.
   await waitForPageSettled(PAGE_SETTLE_TIMEOUT);
+  // `dataReady` - узел, приезжающий с данными, внутри которого живёт цель: есть
+  // он - цели ждать нечего. Иначе три неприменимых шага вешали тур на 8 с (#2590).
+  const ready = step.dataReady ? await waitForElement(step.dataReady, DATA_TARGET_TIMEOUT) : null;
   const needsLongWait = revealed || attachmentChanged || !step.optional;
-  const timeout = needsLongWait ? targetTimeoutFor(step) : (step.waitsData ? DATA_TARGET_TIMEOUT : 700);
+  const timeout = needsLongWait ? targetTimeoutFor(step) : (ready ? 300 : (step.waitsData ? DATA_TARGET_TIMEOUT : 700));
   const el = await waitForElement(waitSelectorOf(step), timeout);
   if (el) {
     // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
@@ -174,16 +173,17 @@ const startSegment = () => keys.busyWhile(startSegmentInner);
 
 async function startSegmentInner() {
   const myGen = ++driverGen;
-  // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг, а не обязательно начинающийся с него:
-  // при cross-page «Назад» мы попадаем на ПОСЛЕДНИЙ шаг предыдущей страницы, и
-  // нужно поднять весь её сегмент, чтобы внутри него работала навигация туда-сюда.
+  // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг: при cross-page «Назад» мы попадаем на
+  // последний шаг предыдущей страницы, и поднять надо весь её сегмент.
   let segmentStartIndex = store.currentIndex;
   while (segmentStartIndex > 0 && store.steps[segmentStartIndex - 1].route === route.path) {
     segmentStartIndex -= 1;
   }
   const segmentSteps = collectSegment(store.steps, segmentStartIndex, route.path);
   if (!segmentSteps.length) {
-    store.stop();
+    // Шаг продолжения на другой странице - идём туда, а не гасим тур (#2590).
+    const target = store.steps[store.currentIndex]?.route;
+    if (target && target !== route.path) advanceToSegment(target); else store.stop();
     return;
   }
   segmentRange = { start: segmentStartIndex, end: segmentStartIndex + segmentSteps.length - 1 };
