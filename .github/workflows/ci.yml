@@ -136,6 +136,11 @@ jobs:
       # мере распила мега-компонентов.
       - working-directory: frontend
         run: npm run lint:size
+      # Внутренние отступы окон: BaseModal отбивает шапку и кнопки, а тело
+      # оставляет на нуле. Окно без своего отступа прижимает текст к рамке -
+      # ловилось только глазами на экране.
+      - working-directory: frontend
+        run: npm run lint:modal
 
   frontend-test:
     name: Frontend Unit Tests

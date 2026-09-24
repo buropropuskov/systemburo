@@ -21,18 +21,22 @@ function смонтировать(props = {}) {
 }
 
 describe('окно документа', () => {
-  it('показывает файл, описание и пояснение бюро', () => {
+  it('показывает файл и описание от бюро', () => {
     const w = смонтировать();
     const текст = w.text();
     expect(текст).toContain('Автозаявка.xlsx');
-    expect(текст).toContain('Заполнить и подписать');
     expect(текст).toContain('Оба листа, подпись руководителя, нести в бюро');
   });
 
-  it('без пояснения говорит об этом прямо, а не оставляет пустоту', () => {
+  it('без описания от бюро показывает короткую подпись из списка', () => {
     const w = смонтировать({ doc: { ...документ, comment: null } });
+    expect(w.find('[data-testid="document-comment"]').text()).toBe('Заполнить и подписать');
+  });
+
+  it('когда описания нет совсем, говорит об этом прямо, а не оставляет пустоту', () => {
+    const w = смонтировать({ doc: { ...документ, comment: null, description: null } });
     expect(w.find('[data-testid="document-comment"]').exists()).toBe(false);
-    expect(w.find('[data-testid="document-comment-empty"]').text()).toContain('пока ничего не пояснило');
+    expect(w.find('[data-testid="document-comment-empty"]').text()).toBe('Описания нет');
   });
 
   it('сам файл не показывает - ни картинкой, ни встроенным просмотром', () => {
