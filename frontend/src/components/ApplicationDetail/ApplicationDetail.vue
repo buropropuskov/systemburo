@@ -4,7 +4,6 @@
        плавно. Родителю о закрытии сообщаем после leave - тогда unmount не обрывает
        анимацию на середине. -->
   <transition name="detail-close">
-    <!-- Внешний контейнер для модального окна -->
     <div
       v-if="visible"
       class="application-detail-overlay"
@@ -69,7 +68,6 @@
         class="sheet-handle"
         aria-hidden="true"
       />
-      <!-- Заголовок и кнопки -->
       <div
         class="detail-header"
         data-testid="ob-detail-header"
@@ -300,8 +298,11 @@
             <ApplicationAttachments
               :application-id="applicationData.id"
               :attachments="attachments"
+              :application="applicationData"
+              :is-approver="isApprover"
               :collapsed="isLeftColumnCollapsed"
               @attachment-selected="selectAttachment"
+              @dates-changed="refreshLiveDetail"
               @toggle-collapse="toggleLeftColumn"
             />
           </div>
@@ -425,7 +426,6 @@
 
         <!-- Правая колонка - информация о заявке и согласовании -->
         <div class="detail-right-column">
-          <!-- Основная информация -->
           <div class="basic-info-section">
             <h4>Основная информация</h4>
             <div class="info-grid">

@@ -258,6 +258,7 @@ type ApplicationService interface {
 	// RemoveApplicationElements убирает людей или машины из поданной заявки; доступно
 	// принимающему. Возвращает число реально убранных элементов.
 	RemoveApplicationElements(ctx context.Context, username string, applicationID int, req RemoveApplicationElementsRequest) (int, error)
+	ChangeApplicationDates(ctx context.Context, username string, applicationID int, req ChangeApplicationDatesRequest) (*ChangeApplicationDatesResult, error)
 	// UpdateApplicationItemsStatus активирует все машины и сотрудников заявки (status->1) и
 	// пишет историю попадания в таблицу проходной. username - актор истории.
 	UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error

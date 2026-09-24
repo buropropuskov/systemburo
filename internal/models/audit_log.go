@@ -184,6 +184,9 @@ const (
 	AuditActionBureauNoteCreated = "bureau_note_created"
 	AuditActionBureauNoteUpdated = "bureau_note_updated"
 	AuditActionBureauNoteCleared = "bureau_note_cleared"
+	// AuditActionDatesChanged - принимающий сдвинул срок действия заявки, пока она не
+	// принята (#2575). old_value/new_value - окно до и после, comment - причина.
+	AuditActionDatesChanged = "dates_changed"
 	// AuditActionImpersonateStart / AuditActionImpersonateStop - вход администратора в
 	// режим «войти как пользователь» и возврат в свою учётную запись (#1912). Пишутся на
 	// того, от чьего имени открыт сеанс (entity_type=user, entity_id - его id), актор -

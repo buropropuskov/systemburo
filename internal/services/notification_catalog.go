@@ -76,6 +76,9 @@ const (
 	NotificationTypeApplicationAnswer            = "application_answer"
 	NotificationTypeApplicationSupplementReady   = "application_supplement_ready"
 	NotificationTypeApplicationSupplementDecided = "application_supplement_decided"
+	// NotificationTypeApplicationDatesChanged -- принимающий сдвинул срок заявки до её
+	// принятия (#2575). Уходит всем участникам заявки, кроме автора правки.
+	NotificationTypeApplicationDatesChanged = "application_dates_changed"
 	// NotificationTypeApprovalReminder сохраняет исходное имя (без "Application" в
 	// середине) -- переносится из reminder_service.go, где на него уже ссылаются
 	// тесты через services.NotificationTypeApprovalReminder.
@@ -187,6 +190,12 @@ var notificationCatalog = map[string]NotificationMeta{
 		Label:       "Решение по дополнению",
 		Description: "Принимающий вынес решение по вашему дополнению к заявке.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 70,
+	},
+	NotificationTypeApplicationDatesChanged: {
+		Code: NotificationTypeApplicationDatesChanged, Category: NotificationCategoryApplication,
+		Label:       "Изменён срок заявки",
+		Description: "Принимающий изменил даты или время действия заявки до её принятия.",
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 35,
 	},
 	NotificationTypeApprovalReminder: {
 		Code: NotificationTypeApprovalReminder, Category: NotificationCategoryApplication,

@@ -291,7 +291,7 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 			tx.Rollback()
 			return nil, err
 		}
-	} else if err := s.mergeSupplementIntoApprovalRound(ctx, tx, applicationID, user.ID); err != nil {
+	} else if err := s.resetApprovalRound(ctx, tx, applicationID, user.ID); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -636,14 +636,14 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 	return vehicleFlags, employeeFlags, nil
 }
 
-// mergeSupplementIntoApprovalRound - ветка «заявка ещё не в работе»: сущности заявки не
-// активированы, на КПП терять нечего, поэтому добавка вливается в текущий круг. Голоса
-// ответственных сбрасываются (они согласовывали другой состав) и confirmation пересчитывается
-// штатным путём - тем же, что и после отзыва согласования.
-func (s *applicationService) mergeSupplementIntoApprovalRound(ctx context.Context, tx *gorm.DB, applicationID, actorID int) error {
+// resetApprovalRound сбрасывает голоса всех ответственных заявки и пересчитывает
+// confirmation штатным путём - тем же, что и после отзыва согласования. Зовут его, когда
+// заявка ещё не в работе, а согласованное содержимое поменялось: добавка вливается в
+// текущий круг (другой состав) или принимающий сдвинул срок (другое окно допуска).
+func (s *applicationService) resetApprovalRound(ctx context.Context, tx *gorm.DB, applicationID, actorID int) error {
 	var oldConfirmation *string
 	if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation).Error; err != nil {
-		slog.Error("дополнение: не удалось прочитать согласование", "application_id", applicationID, "error", err)
+		slog.Error("сброс голосов: не удалось прочитать согласование", "application_id", applicationID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to read confirmation")
 	}
 
@@ -652,7 +652,7 @@ func (s *applicationService) mergeSupplementIntoApprovalRound(ctx context.Contex
 		SET approval_status = 'pending', approval_comment = NULL, approval_datetime = NULL
 		WHERE application_id = ?
 	`, applicationID).Error; err != nil {
-		slog.Error("дополнение: не удалось сбросить голоса", "application_id", applicationID, "error", err)
+		slog.Error("сброс голосов: не удалось сбросить голоса", "application_id", applicationID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to reset approvals")
 	}
 
@@ -662,7 +662,7 @@ func (s *applicationService) mergeSupplementIntoApprovalRound(ctx context.Contex
 
 	var newConfirmation *string
 	if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation).Error; err != nil {
-		slog.Error("дополнение: не удалось перечитать согласование", "application_id", applicationID, "error", err)
+		slog.Error("сброс голосов: не удалось перечитать согласование", "application_id", applicationID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to read confirmation")
 	}
 
