@@ -219,10 +219,57 @@
  * выводится из самого номера, а остальное в строке нужно. Верхняя граница 1024, а не
  * 1366: выше места достаточно, а скрытая колонка меняла раскладку соседей и выносила
  * «Выезд» с действиями за край таблицы поста (замер на 1366: правый край 1446).
+ * Нижняя - 768: с этой ширины список снова таблица (`rt-keep-table`), и колонкам
+ * тесно ровно так же.
  */
-@media (min-width: 900px) and (max-width: 1024px) {
+@media (min-width: 768px) and (max-width: 1024px) {
   .car-row .format-col,
+  .cars-header .header-col.format-col,
   .cars-table .header-col.format-col {
     display: none !important;
+  }
+}
+
+
+/* Список и колонка подсказки стоят рядом - это десктопная сетка, и на планшете она
+ * не работает: подсказка забирает 25% ширины, список остаётся с 538px при строке в
+ * 631 (замер на 810), а под самой подсказкой висит полтысячи пикселей пустоты.
+ * До 1024 кладём подсказку под список - тот получает всю ширину, и таблица снова
+ * помещается целиком. Выше места хватает обоим.
+ */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .employeesview__container,
+  .carsview__container {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .employeesview__right-side,
+  .carsview__right-side {
+    width: 100% !important;
+  }
+
+  /* Сама карточка списка объявлена в 75% - долей от строки, где рядом стояла
+     подсказка. В колонке эта доля превращается в пустую четверть справа, а
+     таблица внутри режет «Статус» и «Действия». */
+  .employees-card,
+  .cars-card {
+    width: 100% !important;
+  }
+}
+
+
+/* Окно выбора существующих сотрудников. Колонка «Гражданство» держит min-width
+ * 200px, и на 768 строка выходит за край на 12px - «Статус» обрезается о рамку
+ * окна. Значение там у всех одно и то же и прекрасно читается с многоточием,
+ * поэтому на узком планшете отпускаем колонку сжиматься.
+ */
+@media (min-width: 768px) and (max-width: 899.98px) {
+  .employees-table .citizenship-col {
+    flex: 1 1 120px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 }

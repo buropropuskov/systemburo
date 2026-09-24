@@ -108,7 +108,7 @@
 
         <div
           v-else
-          class="el-table rt-table"
+          class="el-table rt-table rt-keep-table"
           data-testid="attachment-elements"
         >
           <div
