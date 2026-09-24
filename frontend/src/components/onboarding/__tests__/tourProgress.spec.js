@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { readProgress, saveProgress, clearProgress } from '../tourProgress';
+import { TOURS } from '../tours';
 
 /**
  * Обучение заявителя идёт под шестьдесят шагов. Раньше любой перерыв стоил всего
@@ -56,6 +57,24 @@ describe('позиция в туре', () => {
   it('битая запись читается как «начать сначала», а не роняет тур', () => {
     localStorage.setItem('ob:progress:7:user', '{это не json');
     expect(readProgress(7, 'user').index).toBe(0);
+  });
+
+  it('позиция из прошлой версии тура не читается', () => {
+    // Тур переписывают: шаги меняются местами, и старый индекс указывает не туда.
+    // Хуже того, если шаг жил на другой странице, продолжение с него гасило тур
+    // сразу после запуска - сегмента для чужого пути нет (#2584).
+    const версия = TOURS.find((t) => t.key === 'accept').version;
+    localStorage.setItem(
+      'ob:progress:7:accept',
+      JSON.stringify({ index: 11, at: Date.now(), onScreen: false, version: версия - 1 }),
+    );
+    expect(readProgress(7, 'accept').index).toBe(0);
+    expect(localStorage.getItem('ob:progress:7:accept'), 'протухшая запись убрана').toBe(null);
+  });
+
+  it('позиция текущей версии продолжается как раньше', () => {
+    saveProgress(7, 'accept', 5);
+    expect(readProgress(7, 'accept').index).toBe(5);
   });
 
   describe('хранилище недоступно (приватный режим)', () => {

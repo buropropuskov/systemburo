@@ -8,6 +8,17 @@ import { useOnboardingStore } from '@/stores/onboarding';
  */
 export const REVEAL_FIRST_APPLICATION = 'first-application';
 
+const WORKABLE_STATUSES = ['Непрочитано', 'В обработке', 'В работе'];
+
+/**
+ * @param {Array<object>} list
+ * @returns {object|undefined}
+ */
+function pickForTour(list) {
+  const items = list || [];
+  return items.find((a) => WORKABLE_STATUSES.includes(a?.status)) || items[0];
+}
+
 /**
  * Раскрытие карточки заявки по сигналу онбординг-тура (`reveal.open`).
  *
@@ -32,14 +43,20 @@ export const REVEAL_FIRST_APPLICATION = 'first-application';
  * `this` со списком и методами открытия/закрытия. Момент тот же, что у прежней
  * записи в `watch:`, так что сигнал между созданием и монтированием не теряется.
  *
+ * Какую заявку открываем: первую в рабочем статусе, а не просто верхнюю. У
+ * отозванной и завершённой нет ни кнопок приёма, ни назначения мест, и шаги тура
+ * про них выпадали молча - на стенде так терялась половина тура принимающего
+ * (#2584). Рабочей в списке нет - открываем верхнюю, чтобы показать карточку хоть
+ * на чём-то.
+ *
  * @param {object} handlers
- * @param {() => object|undefined} handlers.first первая заявка списка в порядке показа
+ * @param {() => Array<object>} handlers.list заявки в порядке показа
  * @param {() => boolean} handlers.isOpen открыта ли сейчас карточка
  * @param {(application: object) => void} handlers.open открыть карточку заявки
  * @param {() => void} handlers.close закрыть карточку
  * @returns {{ stop: () => void, release: () => void }}
  */
-export function useRevealFirstApplication({ first, isOpen, open, close }) {
+export function useRevealFirstApplication({ list, isOpen, open, close }) {
   const store = useOnboardingStore();
   let openedByTour = false;
   // Правило 3 в действии: человек закрыл карточку сам, и пока сигнал не сменится,
@@ -54,11 +71,11 @@ export function useRevealFirstApplication({ first, isOpen, open, close }) {
   // а закрытие идёт с анимацией - следующее «Далее» видело карточку ещё открытой,
   // не открывало её заново, и весь сегмент выбрасывался («на 22 вернуться не могу»).
   const stop = watch(
-    () => [store.revealOpen, first(), isOpen()],
+    () => [store.revealOpen, pickForTour(list()), isOpen()],
     ([target]) => {
       if (target === REVEAL_FIRST_APPLICATION) {
         if (releasedByUser) return;
-        const application = first();
+        const application = pickForTour(list());
         // Правила 1 и 2: открывать нечего либо карточка уже на экране.
         if (!application || isOpen()) return;
         openedByTour = true;
