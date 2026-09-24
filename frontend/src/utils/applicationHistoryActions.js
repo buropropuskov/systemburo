@@ -41,6 +41,7 @@ export const ACTION_DOT_CLASS = {
   status_change: 'dot-system',
   blacklist_override: 'dot-success',
   element_removed: 'dot-reject',
+  dates_changed: 'dot-warning',
   blacklist_override_revoke: 'dot-warning',
   question_created: 'dot-info',
   // Заметку бюро ведут принимающие; эти записи бэк отдаёт только им.
@@ -77,6 +78,7 @@ export const ACTION_TEXT = {
   blacklist_override: 'Подтвердил(-а) пропуск (возможный обход ЧС)',
   blacklist_override_revoke: 'Отменил(-а) подтверждение пропуска',
   element_removed: 'Убрал(-а) из заявки',
+  dates_changed: 'Изменил(-а) срок заявки',
   // Текста заметки в ленте нет и не будет: журнал читают мониторинг и выгрузки.
   bureau_note_created: 'Оставил(-а) заметку бюро',
   bureau_note_updated: 'Изменил(-а) заметку бюро',

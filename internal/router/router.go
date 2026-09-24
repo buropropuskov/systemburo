@@ -935,6 +935,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// когда пропустить помеченный элемент нельзя, а заявку провести надо.
 	apg.DELETE("/:id/elements", app.RemoveApplicationElements)
 	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
+	// Принимающий сдвигает срок заявки, пока она не принята и не согласована (#2575).
+	apg.PUT("/:id/dates", app.ChangeApplicationDates)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
 	apg.POST("/:id/withdraw", app.WithdrawApplication)

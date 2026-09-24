@@ -1,5 +1,11 @@
 <template>
   <div class="application-attachments">
+    <ApplicationDatesEditor
+      :application="application"
+      :attachments="attachments"
+      :is-approver="isApprover"
+      @changed="$emit('dates-changed')"
+    />
     <div
       v-if="attachments.length === 0"
       class="no-attachments"
@@ -56,8 +62,11 @@
 </template>
 
 <script>
+import ApplicationDatesEditor from './ApplicationDatesEditor.vue'
+
 export default {
     name: 'ApplicationAttachments',
+    components: { ApplicationDatesEditor },
     props: {
         applicationId: {
             type: Number,
@@ -66,9 +75,18 @@ export default {
         attachments: {
             type: Array,
             default: () => []
+        },
+        /** Заявка целиком: по статусу и итогу согласования решается, можно ли править срок. */
+        application: {
+            type: Object,
+            default: null
+        },
+        isApprover: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['attachment-selected'],
+    emits: ['attachment-selected', 'dates-changed'],
     data() {
         return {
             selectedAttachment: null

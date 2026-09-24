@@ -466,6 +466,41 @@ func (h *ApplicationHandler) RemoveApplicationElements(c echo.Context) error {
 	return RespondSuccess(c, map[string]any{"removed": removed})
 }
 
+// ChangeApplicationDates godoc
+// @Summary      Изменение срока действия заявки принимающим
+// @Description  Принимающий задаёт новые даты и время всем вложениям и машинам заявки, пока она не принята в работу и по ней нет итога согласования. Голоса согласующих сбрасываются, участники получают уведомление.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                       true "ID заявки"
+// @Param        request body services.ChangeApplicationDatesRequest    true "Новое окно и причина"
+// @Success      200 {object} services.ChangeApplicationDatesResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/dates [put]
+func (h *ApplicationHandler) ChangeApplicationDates(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.ChangeApplicationDatesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	result, err := h.service.ChangeApplicationDates(c.Request().Context(), username, id, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
 // AssignCarUnloadPlaces godoc
 // @Summary      Назначение мест разгрузки машинам заявки
 // @Description  Принимающий добавляет или снимает места разгрузки у машин заявки (#1393).

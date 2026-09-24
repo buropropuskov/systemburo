@@ -65,3 +65,18 @@ export async function removeApplicationElements(applicationId, { elementType, el
   });
   return unwrap(res, 'Не удалось убрать элемент из заявки');
 }
+
+/**
+ * Новый срок действия заявки от принимающего (#2575): одно окно на все вложения и
+ * машины. Доступно, пока заявка не принята и по ней нет итога согласования.
+ * @param {number} applicationId
+ * @param {{entry_date_from: string, entry_date_to: string, entry_time_from: string, entry_time_to: string, reason: string}} payload
+ * @returns {Promise<{old_period: string, new_period: string, approvals_reset: boolean}>}
+ */
+export async function changeApplicationDates(applicationId, payload) {
+  const res = await apiRequest(`/applications/${applicationId}/dates`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return unwrap(res, 'Не удалось изменить срок заявки');
+}
