@@ -165,7 +165,7 @@ describe('resolveReveal (чистая логика)', () => {
     });
   });
 
-  describe('applyReveal - drawer на мобилке (<=768)', () => {
+  describe('applyReveal - drawer там, где он и есть: до 1366', () => {
     it('sec-nav-rail: drawer открыт', async () => {
       setViewport(390);
       const i = idxOf(securityOnboardingSteps, 'sec-nav-rail');
@@ -200,7 +200,7 @@ describe('resolveReveal (чистая логика)', () => {
       expect(isNavDrawerOpen()).toBe(false);
     });
 
-    it('на 768 (граница CSS max-width:768px) reveal активен', async () => {
+    it('на 768 (портретный iPad - меню в drawer) reveal активен', async () => {
       setViewport(768);
       const i = idxOf(securityOnboardingSteps, 'sec-nav-rail');
       vi.useFakeTimers();
@@ -211,16 +211,28 @@ describe('resolveReveal (чистая логика)', () => {
     });
   });
 
-  describe('applyReveal - десктоп (>=769) не трогает drawer', () => {
-    it('на 1024 drawer не открывается', async () => {
-      setViewport(1024);
+  describe('applyReveal - десктоп (>1366) не трогает drawer', () => {
+    it('на 1440 drawer не открывается - там рельс, а не drawer', async () => {
+      setViewport(1440);
       const i = idxOf(securityOnboardingSteps, 'sec-nav-rail');
       await applyReveal(securityOnboardingSteps, i);
       expect(isNavDrawerOpen()).toBe(false);
     });
 
-    it('но ось open на десктопе работает - узел свёрнут на любой ширине', async () => {
+    // 1024 - планшет в ландшафте: меню там drawer, и тур обязан его открыть,
+    // иначе подсветка встаёт на пустое место рядом со свёрнутым меню.
+    it('на 1024 drawer открывается - планшетная ширина', async () => {
       setViewport(1024);
+      const i = idxOf(securityOnboardingSteps, 'sec-nav-rail');
+      vi.useFakeTimers();
+      const p = applyReveal(securityOnboardingSteps, i);
+      await vi.advanceTimersByTimeAsync(300);
+      await p;
+      expect(isNavDrawerOpen()).toBe(true);
+    });
+
+    it('но ось open на десктопе работает - узел свёрнут на любой ширине', async () => {
+      setViewport(1440);
       const steps = [{ id: 'a', route: '/x', reveal: { open: 'admin-column' } }];
       vi.useFakeTimers();
       const p = applyReveal(steps, 0);

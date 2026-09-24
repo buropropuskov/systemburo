@@ -1,5 +1,5 @@
 import bus from '@/eventBus';
-import { isMobileViewport } from '@/composables/useOnboarding';
+import { isDrawerViewport } from '@/constants/breakpoints';
 import { useOnboardingStore } from '@/stores/onboarding';
 
 /**
@@ -124,7 +124,7 @@ export async function applyReveal(steps, index, { closeOthers = true } = {}) {
   if (!keepCurrent) store.setRevealOpen(open);
 
   let drawerOpened = false;
-  if (isMobileViewport()) {
+  if (isDrawerViewport()) {
     const wantNav = mobile === 'nav';
     // Тот же порядок для drawer: закрываем его не раньше смены шага.
     if (wantNav || closeOthers) drawerOpened = setNavDrawerOpen(wantNav) && wantNav;

@@ -424,7 +424,7 @@ export default {
         initNarrowWatcher() {
             if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
             // Матчер держим вне data: реактивность ему не нужна, а ключи с _ в data запрещены линтом.
-            this._narrowMql = window.matchMedia('(max-width: 768px)');
+            this._narrowMql = window.matchMedia('(max-width: 767.98px)');
             this.isNarrow = this._narrowMql.matches;
             this._onNarrowChange = (e) => { this.isNarrow = e.matches; };
             if (this._narrowMql.addEventListener) {
@@ -1072,7 +1072,7 @@ export default {
 }
 
 /* ── Мобилка: выбор типа строкой + список созданных вложений ── */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .selector {
         width: 100%;
         height: auto;

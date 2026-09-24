@@ -813,7 +813,7 @@ export default {
 }
 
 /* Адаптивность */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .custom-datepicker {
         position: fixed;
         top: 50%;

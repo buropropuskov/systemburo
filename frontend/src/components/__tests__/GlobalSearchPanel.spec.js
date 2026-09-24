@@ -286,7 +286,7 @@ describe('GlobalSearchPanel', () => {
   // список находок. Проверяем по исходнику: scoped-CSS в jsdom не применяется.
   it('на мобилке подложка панели почти глухая - находки не сливаются со страницей', () => {
     const sfc = readFileSync(resolve(__dirname, '../GlobalSearchPanel.vue'), 'utf8');
-    const mobileBlock = sfc.match(/@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*?)\n\}/);
+    const mobileBlock = sfc.match(/@media\s*\(max-width:\s*767\.98px\)\s*\{([\s\S]*?)\n\}/);
     expect(mobileBlock).not.toBeNull();
 
     const surface = mobileBlock[1].match(/background:\s*color-mix\([^)]*var\(--surface\)\s*(\d+)%/);

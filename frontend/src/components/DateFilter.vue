@@ -390,7 +390,7 @@ export default {
             if (!open) this.resetSheetSwipe();
             // Под листом-модалкой фон не скроллится (как у прочих окон). На десктопе
             // календарь - попап у поля и репозиционируется на скролле: там не блокируем.
-            if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            if (typeof window !== 'undefined' && window.innerWidth < 768) {
                 setBodyScrollLock(this, open);
             }
             if (open) {
@@ -473,7 +473,7 @@ export default {
             // На мобильных вёрстка центрирует попап через @media - не навязываем inline-позицию.
             // Брейкпоинт по ФИЗИЧЕСКОЙ innerWidth (device-width на телефоне ~390, zoom=1);
             // на мониторах >1440 innerWidth>1440 - в эту ветку не попадаем.
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth < 768) {
                 this.calendarStyle = {};
                 return;
             }
@@ -860,7 +860,7 @@ export default {
 }
 
 /* Мобильный лист выезжает снизу, а не сползает сверху, как десктопный попап. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .calendar-slide-enter-from,
     .calendar-slide-leave-to {
         opacity: 1;
@@ -1259,7 +1259,7 @@ export default {
 }
 
 /* Адаптивность */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .date-filter {
         width: 100%;
     }

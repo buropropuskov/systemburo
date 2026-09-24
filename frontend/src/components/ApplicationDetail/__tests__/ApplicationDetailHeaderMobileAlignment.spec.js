@@ -107,7 +107,7 @@ describe('ApplicationActionBar - бейдж "Доп. №N" в ряду реше�
 // конец блока стилей и снятия min-width пара занимает 305px.
 describe('ApplicationActionBar - мобильные правила кнопок решения действуют (#4)', () => {
   const styleStart = ACTION_BAR_SFC.indexOf('<style');
-  const mobileBlockIndex = ACTION_BAR_SFC.indexOf('@media (max-width: 768px)', styleStart);
+  const mobileBlockIndex = ACTION_BAR_SFC.indexOf('@media (max-width: 767.98px)', styleStart);
   const baseButtonRuleIndex = ACTION_BAR_SFC.indexOf(
     '.confirm-btn, .reject-btn, .accept-btn {',
     styleStart

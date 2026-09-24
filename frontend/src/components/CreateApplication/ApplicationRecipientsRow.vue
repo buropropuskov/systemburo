@@ -353,7 +353,7 @@ export default {
 
     initNarrowWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-      this.narrowMql = window.matchMedia('(max-width: 768px)')
+      this.narrowMql = window.matchMedia('(max-width: 767.98px)')
       this.isNarrow = this.narrowMql.matches
       this.onNarrowChange = (e) => { this.isNarrow = e.matches }
       if (this.narrowMql.addEventListener) this.narrowMql.addEventListener('change', this.onNarrowChange)
@@ -697,7 +697,7 @@ export default {
   opacity: 0;
   transform: translateY(-6px);
 }
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Строка должна оставаться одной строкой: получатель, «Ещё N», плюс. */
   .recipients-row {
     flex-wrap: nowrap;

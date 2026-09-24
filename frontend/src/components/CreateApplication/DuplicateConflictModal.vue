@@ -276,7 +276,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   opacity: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Окно жило вне общего контракта: карточка 440px с радиусом 30px по центру.
      Приводим к листу снизу, как у остальных окон страницы. */
   .dup-conflict-overlay {

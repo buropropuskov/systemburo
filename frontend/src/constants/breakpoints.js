@@ -1,0 +1,47 @@
+/**
+ * Границы раскладки - одно число на границу, один источник для JS.
+ *
+ * До этого порог телефона был записан в проекте двумя числами: `768` в
+ * компонентах и вотчерах, `767.98` в карточном слое. Ровно на 768 - а это
+ * портретный iPad - включалась половина одного семейства правил и половина
+ * другого, и экран собирался гибридом. Теперь число одно, и живёт оно здесь.
+ *
+ * В сам `@media` подставить это нельзя (custom-property и импорт туда не
+ * проходят) - там пишется литерал, а таблица соответствия лежит в
+ * `assets/tokens.css`. Здесь - для JS, который гейтит поведение.
+ */
+
+/** Верх телефона. Планшет начинается с 768. */
+export const PHONE_MAX = 767.98;
+
+/** Верх узкого планшета: ниже списки с большим числом колонок идут карточками. */
+export const TABLET_NARROW_MAX = 899.98;
+
+/** Верх планшета. Столько же держит бургер-меню вместо рельса. */
+export const TABLET_MAX = 1366;
+
+/** Условие телефона для `matchMedia`. */
+export const PHONE_MEDIA = `(max-width: ${PHONE_MAX}px)`;
+
+/**
+ * Условие, при котором меню живёт в drawer, а не в рельсе: планшет по ширине
+ * ИЛИ тач-экран любой ширины. Одного `pointer: coarse` мало - он ловит и
+ * ноутбуки с сенсорным экраном, где мышь есть.
+ */
+export const DRAWER_MEDIA = `(max-width: ${TABLET_MAX}px), (hover: none) and (pointer: coarse)`;
+
+/** Телефонная раскладка: одна колонка, листы вместо окон, карточки вместо строк. */
+export function isPhoneViewport() {
+  return typeof window !== 'undefined' && window.innerWidth <= PHONE_MAX;
+}
+
+/**
+ * Меню сейчас в drawer. Отдельно от телефона: drawer держится до 1366, поэтому
+ * «открыть меню» на планшете нужно ровно так же, как на телефоне.
+ */
+export function isDrawerViewport() {
+  if (typeof window === 'undefined') return false;
+  if (window.innerWidth <= TABLET_MAX) return true;
+  return typeof window.matchMedia === 'function'
+    && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}

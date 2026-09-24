@@ -1529,7 +1529,7 @@ export default {
     }
 
     /* Mobile: <768px */
-    @media (max-width: 768px) {
+    @media (max-width: 767.98px) {
         .login {
             padding: 24px 16px;
         }

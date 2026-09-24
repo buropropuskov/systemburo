@@ -309,7 +309,7 @@ export default {
   color: var(--warning-text);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .participants {
     padding: 12px 16px 16px;
   }

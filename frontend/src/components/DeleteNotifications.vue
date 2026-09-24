@@ -206,7 +206,7 @@ function barColorFor(item) {
   right: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Карточка тянется во всю ширину экрана: при width:max-content замер на 390
      давал ширину 490px и правый край на 527. Перенос текста теперь базовый. */
   .del-stack {

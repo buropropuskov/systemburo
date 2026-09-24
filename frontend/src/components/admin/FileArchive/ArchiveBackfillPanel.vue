@@ -314,7 +314,7 @@ onBeforeUnmount(stopPolling);
 
 /* Тач-таргет поля периода - по брейкпоинту DateFilter (768), как в панели
    скачивания: на 768 его календарь уже лист, а поле осталось бы 35px. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .abp__controls :deep(.date-field) {
     min-height: 44px;
   }

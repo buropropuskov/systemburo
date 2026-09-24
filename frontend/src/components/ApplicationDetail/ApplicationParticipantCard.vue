@@ -404,7 +404,7 @@ export default {
   color: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .pcard {
     padding: 12px 16px 16px;
   }

@@ -1750,7 +1750,7 @@ export default {
     display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Bottom-sheet: wrapper центрировал контент (align-items:center + height:100%) и
        побеждал flex-end оверлея из App.vue - выравниваем к низу, модалка выезжает
        снизу (detail 4). Ширина/скругление приходят из App.vue (.modal-content). */

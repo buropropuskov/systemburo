@@ -80,7 +80,7 @@ export default {
 }
 
 /* Фикс-ширные (260px) поля в ряд не влезают на узком - стекаем в колонку. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .custom-fields {
         flex-direction: column;
         gap: 16px;

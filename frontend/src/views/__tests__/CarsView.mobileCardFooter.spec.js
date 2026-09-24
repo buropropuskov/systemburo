@@ -57,21 +57,32 @@ function rule(src, selector) {
 /** Содержимое @media-блока по маркеру начала (со сбалансированным подсчётом скобок -
  *  jsdom не считает медиазапросы вовсе, а rule() без этого нашёл бы ПЕРВОЕ совпадение
  *  селектора в файле, а не мобильный оверрайд. */
+/**
+ * Тела ВСЕХ блоков с таким условием, склеенные. Блок в файле не один: мобильные
+ * правила исторически лежали в двух местах, и после сведения порога к 767.98 у
+ * них совпало условие. Брать первый - значит проверять половину контракта.
+ */
 function mediaBlock(src, marker) {
-  const start = src.indexOf(marker);
-  if (start === -1) return null;
-  let i = src.indexOf('{', start) + 1;
-  let depth = 1;
-  const bodyStart = i;
-  while (depth > 0 && i < src.length) {
-    if (src[i] === '{') depth++;
-    else if (src[i] === '}') depth--;
-    i++;
+  const bodies = [];
+  let from = 0;
+  for (;;) {
+    const start = src.indexOf(marker, from);
+    if (start === -1) break;
+    let i = src.indexOf('{', start) + 1;
+    let depth = 1;
+    const bodyStart = i;
+    while (depth > 0 && i < src.length) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') depth--;
+      i++;
+    }
+    bodies.push(src.slice(bodyStart, i - 1));
+    from = i;
   }
-  return src.slice(bodyStart, i - 1);
+  return bodies.length ? bodies.join('\n') : null;
 }
 
-const MOBILE_768 = mediaBlock(SFC, '@media (max-width: 768px)');
+const MOBILE_768 = mediaBlock(SFC, '@media (max-width: 767.98px)');
 const MOBILE_76798 = mediaBlock(SFC, '@media (max-width: 767.98px)');
 
 let wrapper;

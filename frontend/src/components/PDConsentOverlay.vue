@@ -644,7 +644,7 @@ async function download() {
 /* Мобильный лист по эталону (.claude/ui-etalon, 3.2), с двумя отличиями:
    ползунка свайпа нет - окно намеренно не смахивается, и backdrop-filter снят
    (форсит compositing-слой и роняет кадры при слайде листа). */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .pdc-overlay {
     padding: 0;
     align-items: flex-end;

@@ -151,7 +151,7 @@ defineEmits(['close']);
   margin-left: 4px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .details-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;

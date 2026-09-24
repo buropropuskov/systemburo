@@ -217,7 +217,7 @@ export default {
     transform: scale(1) translateY(-20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Глобальный оверлей App.vue прижимает окно к низу - даём ему вид листа:
        раньше узкая карточка 300px висела у нижней кромки со щелями по бокам. */
     .modal {

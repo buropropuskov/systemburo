@@ -954,7 +954,7 @@ export default {
   transform: translateY(-10px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .time-fields {
     flex-direction: column;
     gap: 10px;

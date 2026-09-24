@@ -350,7 +350,7 @@ describe('ApplicationActionBar - отзыв своего решения при �
 // с "Принять" и "Отказать" рядом (120px каждая) её 140px выталкивают тройку за вьюпорт.
 describe('ApplicationActionBar - ширина отзыва решения на мобилке (#1550)', () => {
   const src = readFileSync(resolve(__dirname, '../ApplicationActionBar.vue'), 'utf8');
-  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+  const mobile = src.slice(src.indexOf('@media (max-width: 767.98px)'));
 
   it('мобильное правило снимает min-width', () => {
     const rule = mobile.match(/\.subtle-btn\.revoke-approval-btn\s*\{([\s\S]*?)\}/);

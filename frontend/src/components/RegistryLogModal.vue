@@ -360,7 +360,7 @@ export default {
     overflow-wrap: anywhere;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .reglog {
         padding: 4px 14px 16px;
     }

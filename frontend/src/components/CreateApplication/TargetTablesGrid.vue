@@ -213,7 +213,7 @@ export default {
     border-top-color: var(--hint-bg);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Сетка перестраивалась только с 480 - на 481-768 оставались три колонки
        по 135px, куда название места не влезало. */
     .passage__grid {

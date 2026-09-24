@@ -886,7 +886,7 @@ export default {
     background: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .modal-overlay {
         padding: 0;
         align-items: flex-end;
@@ -1115,7 +1115,7 @@ export default {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .sheet-handle {
         display: block;
     }

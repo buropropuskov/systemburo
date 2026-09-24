@@ -1395,7 +1395,7 @@ export default {
   margin: 0 0 12px 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .admin-settings__layout {
     flex-direction: column;
   }

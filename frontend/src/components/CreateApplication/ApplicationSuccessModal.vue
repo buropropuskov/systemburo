@@ -816,7 +816,7 @@ export default {
     border-color: var(--accent-hover);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Размеры листа приходят из глобального .modal-content (App.vue) с !important -
        локальные width/max-height/radius здесь были мёртвыми и вводили в заблуждение. */
 
@@ -887,7 +887,7 @@ export default {
     flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Лист выезжает снизу глобальным паттерном .modal-content (App.vue), здесь -
        ползунок и возврат листа на место после недотянутого свайпа. */
     .sheet-handle {

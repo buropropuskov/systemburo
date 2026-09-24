@@ -186,7 +186,7 @@ export default {
   opacity: 0;
 }
 
-@media (width <= 768px) {
+@media (width < 768px) {
   .impersonation-bar {
     flex-wrap: wrap;
     padding: 10px 14px;

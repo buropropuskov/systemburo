@@ -211,7 +211,7 @@ async function download() {
 /* Тач-таргет поля периода привязан к брейкпоинту самого DateFilter (768): на
    iPad-портрете его календарь уже открывается листом, значит и по полю попадают
    пальцем. Высота поля зашита в 35px, min-height её перебивает. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .adp__controls :deep(.date-field) {
     min-height: 44px;
   }

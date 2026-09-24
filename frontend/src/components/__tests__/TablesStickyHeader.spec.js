@@ -9,7 +9,7 @@ import path from 'node:path';
  * Прилипание ломается тихо и не ловится ни одним поведенческим тестом: вернули
  * предку `overflow: hidden` - он снова стал скроллпортом, и sticky замер на
  * месте; убрали фон - строки поехали сквозь полосу; уронили правило ниже 768 -
- * полоса всплыла над карточками на мобилке, где заголовков нет вовсе. Проверяем
+ * полоса всплыла над карточками на телефоне, где заголовков нет вовсе. Проверяем
  * поэтому сам контракт в исходнике.
  */
 
@@ -20,7 +20,6 @@ const TABLES = [
 ];
 
 const TABLET_UP = '(min-width: 768px)';
-const TABLET_EXACT = '(min-width: 768px) and (max-width: 768px)';
 
 const SRC = path.resolve(__dirname, '../..');
 
@@ -87,11 +86,6 @@ describe.each(TABLES)('Закреплённая шапка столбцов: $fi
     expect(cardDecls.some((d) => /overflow:\s*hidden/.test(d))).toBe(false);
   });
 
-  it('на 768 полоса встаёт под шапку приложения - там она ещё закреплена', () => {
-    const exact = mediaBlocks(src, TABLET_EXACT).join('\n');
-    const decls = declarationsFor(exact, head);
-    expect(decls.join('\n')).toMatch(/top:\s*var\(--mobile-header-height\)/);
-  });
 });
 
 it('--surface непрозрачен во всех палитрах - под полосой не должно просвечивать', () => {

@@ -317,7 +317,7 @@ function toggle(key) {
 }
 
 /* Мобилка: колонка шага без левого отступа, карточки плотнее, на 480 - в один столбец. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .rb__metrics,
   .rb__group-title {
     margin-left: 0;

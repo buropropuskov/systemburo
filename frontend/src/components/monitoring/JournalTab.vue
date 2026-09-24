@@ -963,7 +963,7 @@ watch(() => props.hidden, (hidden) => {
   padding: 16px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .filters-bar {
     flex-direction: column;
     align-items: stretch;

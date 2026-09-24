@@ -288,7 +288,7 @@ watch(
   border-color: var(--accent);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* На мобилке лист - bottom-sheet во всю высоту тела (BaseModal), фикс-высоту снимаем. */
   .dp-modal__body {
     height: auto;

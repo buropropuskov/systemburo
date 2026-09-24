@@ -501,7 +501,7 @@ export default {
    видно всё равно, а размытия, которое отделяло бы находки от текста под ними, здесь
    нет. Оставшиеся 15% прозрачности читались как грязь на списке результатов, поэтому
    на мобилке подложка почти глухая. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .gsp {
     background: color-mix(in srgb, var(--surface) 96%, transparent);
   }
@@ -716,7 +716,7 @@ export default {
   transform: translateX(100%);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .gsp {
     width: 100vw;
     top: 0;

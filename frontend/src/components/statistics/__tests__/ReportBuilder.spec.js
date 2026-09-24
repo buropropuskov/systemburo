@@ -660,14 +660,14 @@ describe('ReportBuilder — справочники в дропдауне (#2308)
 
 describe('ReportBuilder — мобильная адаптивность (#1097 r3d)', () => {
   const src = readFileSync(resolve(__dirname, '../ReportBuilder.vue'), 'utf8');
-  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+  const mobile = src.slice(src.indexOf('@media (max-width: 767.98px)'));
   const marginReset = mobile;
   // Шаг «Что считаем» уехал в свой компонент (#2296), мобильные правила метрик - вместе с ним.
   const pickerSrc = readFileSync(resolve(__dirname, '../ReportMetricPicker.vue'), 'utf8');
-  const pickerMobile = pickerSrc.slice(pickerSrc.indexOf('@media (max-width: 768px)'));
+  const pickerMobile = pickerSrc.slice(pickerSrc.indexOf('@media (max-width: 767.98px)'));
 
   it('канонический брейкпоинт мобилки 768 (эталон #1097), прежний 620 убран', () => {
-    expect(src).toContain('@media (max-width: 768px)');
+    expect(src).toContain('@media (max-width: 767.98px)');
     expect(src).not.toContain('max-width: 620px');
   });
 

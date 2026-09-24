@@ -1203,7 +1203,7 @@ export default {
         _applyHeight() {
             const el = this.$refs.root;
             if (!el) return;
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth < 768) {
                 el.style.height = '';
                 this._lastHeight = -1;
                 return;
@@ -2796,7 +2796,7 @@ export default {
     color: var(--danger-text);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .cars-card {
         width: 100%;
         height: auto;

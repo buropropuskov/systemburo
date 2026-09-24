@@ -1375,7 +1375,7 @@ export default {
   color: var(--color-text-muted, var(--text-muted));
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .pdc-pending__search,
   .pdc-pending__filter {
     width: 100%;

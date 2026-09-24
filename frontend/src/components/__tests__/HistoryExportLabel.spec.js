@@ -18,7 +18,7 @@ function readSfc(relative) {
 }
 
 function mobileBlock(source) {
-  const start = source.indexOf('@media (max-width: 768px)');
+  const start = source.indexOf('@media (max-width: 767.98px)');
   return start === -1 ? '' : source.slice(start);
 }
 

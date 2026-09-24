@@ -1004,7 +1004,7 @@ export default {
     border-radius: 8px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Bottom-sheet: во всю ширину снизу, скруглены только верхние углы (#1097 R4-10). */
     .modal-content-inner {
         height: auto;

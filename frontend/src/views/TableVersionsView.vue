@@ -1007,7 +1007,7 @@ onMounted(async () => {
    растёт до ~502 вместо 390. Сама preview-таблица (CarsTable/PeopleTable)
    превращается в карточки своей инфрой responsive-tables.css (767.98) - тут её
    не трогаем. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .versions-view {
     padding: 12px;
   }

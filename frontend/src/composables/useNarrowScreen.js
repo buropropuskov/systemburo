@@ -1,17 +1,18 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { PHONE_MAX } from '@/constants/breakpoints';
 
 /**
- * Реактивный признак «узкий экран» - тот же порог 768px, что и у мобильных `@media`.
+ * Реактивный признак «узкий экран» - тот же порог 767.98px, что и у мобильных `@media`.
  *
  * Нужен там, где мобильное поведение нельзя выразить одним CSS: показать подсказку,
  * которая на десктопе живёт на hover, свернуть список в «Ещё N», не переносить фокус
  * после выбора даты. Матчер держим вне реактивного состояния - слушателю реактивность
  * не нужна.
  *
- * @param {number} [maxWidth=768] порог в пикселях
+ * @param {number} [maxWidth=767.98] порог в пикселях
  * @returns {{ isNarrow: import('vue').Ref<boolean> }}
  */
-export function useNarrowScreen(maxWidth = 768) {
+export function useNarrowScreen(maxWidth = PHONE_MAX) {
   const isNarrow = ref(false);
   let mql = null;
   let onChange = null;

@@ -1157,7 +1157,7 @@ export default {
   border-left: 2px solid var(--border);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Bottom-sheet: окно выезжает снизу, свайп вниз за ползунок закрывает. Своё имя
      класса не ловит глобальный паттерн .modal-content из App.vue, поэтому лист
      описан здесь целиком - раньше карточка 900px с радиусом 30px просто липла к

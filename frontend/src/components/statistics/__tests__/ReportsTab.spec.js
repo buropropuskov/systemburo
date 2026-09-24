@@ -256,10 +256,10 @@ describe('ReportsTab', () => {
  */
 describe('ReportsTab — мобильная адаптивность (#1097 r3d)', () => {
   const src = readFileSync(resolve(__dirname, '../ReportsTab.vue'), 'utf8');
-  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+  const mobile = src.slice(src.indexOf('@media (max-width: 767.98px)'));
 
   it('на мобилке карточка-конструктор получает узкий padding', () => {
-    expect(src).toContain('@media (max-width: 768px)');
+    expect(src).toContain('@media (max-width: 767.98px)');
     expect(mobile).toContain('.wizard');
     expect(mobile).toMatch(/padding:\s*16px 14px/);
   });

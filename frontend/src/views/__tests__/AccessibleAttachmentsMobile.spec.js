@@ -190,7 +190,7 @@ describe('«Доступные мне» - геометрия мобильног�
     expect(SOURCE).toContain('useNarrowScreen(767.98)');
     expect(mobileBlock).toContain('@media (max-width: 767.98px)');
     // Прежний рассинхрон 768 (разметка) против 767.98 (RefreshButton, карточки).
-    expect(SOURCE).not.toContain('@media (max-width: 768px)\n  .filters__search');
+    expect(SOURCE).not.toContain('@media (max-width: 767.98px)\n  .filters__search');
   });
 
   it('шапка экрана - одна строка 48px, полоса поиска - 36px под ней', () => {
