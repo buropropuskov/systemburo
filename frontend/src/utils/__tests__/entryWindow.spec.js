@@ -8,8 +8,8 @@ import {
 } from '../entryWindow';
 
 const ATTACHMENT = {
-  entry_date_from: '2026-10-01',
-  entry_date_to: '2026-10-03',
+  entry_date_from: '2099-10-01',
+  entry_date_to: '2099-10-03',
   entry_time_from: '09:00:00',
   entry_time_to: '18:00:00',
 };
@@ -33,21 +33,21 @@ describe('окно вложения <-> форма дат', () => {
   it('период раскладывается в поля «с/по» и обратно без потерь', () => {
     const form = periodFormFromAttachment(ATTACHMENT);
     expect(form).toEqual({
-      isOneDay: false, startDate: '01.10.2026', endDate: '03.10.2026', singleDate: '',
+      isOneDay: false, startDate: '01.10.2099', endDate: '03.10.2099', singleDate: '',
       startTime: '09:00', endTime: '18:00',
     });
     expect(periodPayloadFromForm(form)).toEqual(ATTACHMENT);
   });
 
   it('один день идёт через singleDate', () => {
-    const form = periodFormFromAttachment({ ...ATTACHMENT, entry_date_to: '2026-10-01' });
+    const form = periodFormFromAttachment({ ...ATTACHMENT, entry_date_to: '2099-10-01' });
     expect(form.isOneDay).toBe(true);
-    expect(form.singleDate).toBe('01.10.2026');
-    expect(periodPayloadFromForm(form).entry_date_to).toBe('2026-10-01');
+    expect(form.singleDate).toBe('01.10.2099');
+    expect(periodPayloadFromForm(form).entry_date_to).toBe('2099-10-01');
   });
 
   it('человеку окно показывается датами и временем без секунд', () => {
-    expect(formatPeriod(ATTACHMENT)).toBe('01.10.2026 09:00 - 03.10.2026 18:00');
+    expect(formatPeriod(ATTACHMENT)).toBe('01.10.2099 09:00 - 03.10.2099 18:00');
   });
 });
 
@@ -63,12 +63,17 @@ describe('periodFormErrors', () => {
     expect(Object.keys(errors).sort()).toEqual(['startDate', 'startTime']);
   });
 
+  it('прошедший срок не уходит на сервер: сравнение по часам бюро', () => {
+    expect(periodFormErrors(valid, '2099-10-03T18:00:00').endDate).toMatch(/истёк/);
+    expect(periodFormErrors(valid, '2099-10-03T17:59:59')).toEqual({});
+  });
+
   it('окончание раньше начала', () => {
-    expect(periodFormErrors({ ...valid, startDate: '05.10.2026' }).endDate).toMatch(/раньше/);
+    expect(periodFormErrors({ ...valid, startDate: '05.10.2099' }).endDate).toMatch(/раньше/);
   });
 
   it('в один день время окончания обязано быть позже начала', () => {
-    const oneDay = periodFormFromAttachment({ ...ATTACHMENT, entry_date_to: '2026-10-01' });
+    const oneDay = periodFormFromAttachment({ ...ATTACHMENT, entry_date_to: '2099-10-01' });
     expect(periodFormErrors({ ...oneDay, startTime: '18:00', endTime: '09:00' }).endTime).toMatch(/позже/);
     expect(periodFormErrors({ ...oneDay, startTime: '09:00', endTime: '09:00' }).endTime).toMatch(/позже/);
   });

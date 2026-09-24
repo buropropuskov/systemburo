@@ -1,3 +1,5 @@
+import { moscowParts } from './serverTime';
+
 /**
  * Срок заявки в двух видах: как его хранит сервер (ГГГГ-ММ-ДД, ЧЧ:ММ:СС) и как его
  * редактирует DateRangeSection формы подачи (ДД.ММ.ГГГГ, ЧЧ:ММ, признак «один день»).
@@ -73,9 +75,10 @@ export function periodPayloadFromForm(form) {
 
 /**
  * Ошибки окна в тех ключах, что понимает DateRangeSection. Пусто - можно сохранять.
- * Правила те же, что у сервера: всё заполнено, конец позже начала.
+ * Правила те же, что у сервера: всё заполнено, конец позже начала и ещё не наступил.
+ * `now` - момент по Москве в формате окна, параметром ради тестов.
  */
-export function periodFormErrors(form) {
+export function periodFormErrors(form, now = moscowNowStamp()) {
   const errors = {};
   const payload = periodPayloadFromForm(form);
   if (form.isOneDay) {
@@ -94,8 +97,17 @@ export function periodFormErrors(form) {
     errors.endDate = 'Дата окончания не может быть раньше даты начала';
   } else if (end <= start) {
     errors.endTime = 'Время окончания должно быть позже времени начала';
+  } else if (end <= now) {
+    errors.endDate = 'Срок уже истёк: укажите окончание в будущем';
   }
   return errors;
+}
+
+/** «Сейчас» по часам бюро в том же виде, что и окно: ГГГГ-ММ-ДДTЧЧ:ММ:СС. */
+function moscowNowStamp() {
+  const p = moscowParts();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
 }
 
 /** Окно для человека: «01.10.2026 09:00 - 03.10.2026 18:00». */

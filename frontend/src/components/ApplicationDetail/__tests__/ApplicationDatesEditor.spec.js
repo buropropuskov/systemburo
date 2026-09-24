@@ -9,7 +9,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import ApplicationDatesEditor from '../ApplicationDatesEditor.vue';
 
 const ATTACHMENTS = [
-  { id: 1, entry_date_from: '2026-10-01', entry_date_to: '2026-10-03', entry_time_from: '09:00:00', entry_time_to: '18:00:00' },
+  { id: 1, entry_date_from: '2099-10-01', entry_date_to: '2099-10-03', entry_time_from: '09:00:00', entry_time_to: '18:00:00' },
 ];
 
 // Ответ в том виде, в каком его отдаёт обёртка client.js: json() уже развернул конверт.
@@ -53,20 +53,20 @@ describe('ApplicationDatesEditor', () => {
     const wrapper = mountEditor();
     await wrapper.find('[data-testid="app-detail-change-dates"]').trigger('click');
 
-    expect(wrapper.find('[data-testid="dates-editor-current"]').text()).toContain('01.10.2026 09:00 - 03.10.2026 18:00');
+    expect(wrapper.find('[data-testid="dates-editor-current"]').text()).toContain('01.10.2099 09:00 - 03.10.2099 18:00');
     expect(wrapper.find('[data-testid="dates-editor-save"]').attributes('disabled')).toBeDefined();
   });
 
   it('сохранение шлёт окно в формате сервера и причину, затем эмитит changed', async () => {
     apiRequest.mockResolvedValue(okResponse({
-      old_period: '01.10.2026 09:00 - 03.10.2026 18:00',
-      new_period: '02.10.2026 08:00 - 04.10.2026 20:00',
+      old_period: '01.10.2099 09:00 - 03.10.2099 18:00',
+      new_period: '02.10.2099 08:00 - 04.10.2099 20:00',
       approvals_reset: true,
     }));
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
     const wrapper = mountEditor();
     await openWithReason(wrapper, '  заявитель ошибся датой  ');
-    Object.assign(wrapper.vm.form, { startDate: '02.10.2026', endDate: '04.10.2026', startTime: '08:00', endTime: '20:00' });
+    Object.assign(wrapper.vm.form, { startDate: '02.10.2099', endDate: '04.10.2099', startTime: '08:00', endTime: '20:00' });
 
     await wrapper.find('[data-testid="dates-editor-save"]').trigger('click');
     await flushPromises();
@@ -76,15 +76,15 @@ describe('ApplicationDatesEditor', () => {
     expect(url).toBe('/applications/42/dates');
     expect(options.method).toBe('PUT');
     expect(JSON.parse(options.body)).toEqual({
-      entry_date_from: '2026-10-02',
-      entry_date_to: '2026-10-04',
+      entry_date_from: '2099-10-02',
+      entry_date_to: '2099-10-04',
       entry_time_from: '08:00:00',
       entry_time_to: '20:00:00',
       reason: 'заявитель ошибся датой',
     });
     expect(wrapper.emitted('changed')).toHaveLength(1);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'success', bold: '02.10.2026 08:00 - 04.10.2026 20:00', suffix: 'Голоса согласующих сняты.',
+      type: 'success', bold: '02.10.2099 08:00 - 04.10.2099 20:00', suffix: 'Голоса согласующих сняты.',
     }));
     expect(wrapper.vm.show).toBe(false);
   });
@@ -94,7 +94,7 @@ describe('ApplicationDatesEditor', () => {
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
     const wrapper = mountEditor();
     await openWithReason(wrapper);
-    wrapper.vm.form.endDate = '05.10.2026';
+    wrapper.vm.form.endDate = '05.10.2099';
 
     await wrapper.find('[data-testid="dates-editor-save"]').trigger('click');
     await flushPromises();
@@ -109,7 +109,7 @@ describe('ApplicationDatesEditor', () => {
   it('неверное окно не уходит на сервер, ошибки появляются у полей', async () => {
     const wrapper = mountEditor();
     await openWithReason(wrapper);
-    wrapper.vm.form.startDate = '05.10.2026';
+    wrapper.vm.form.startDate = '05.10.2099';
 
     await wrapper.find('[data-testid="dates-editor-save"]').trigger('click');
     await flushPromises();
