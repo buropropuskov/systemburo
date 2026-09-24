@@ -127,9 +127,12 @@ func (s *documentService) Upload(ctx context.Context, userID int, req models.Upl
 
 	publishedAt := time.Now().UTC()
 	if req.PublishedAt != nil && *req.PublishedAt != "" {
-		if t, err := time.Parse(time.RFC3339, *req.PublishedAt); err == nil {
-			publishedAt = t.UTC()
+		t, err := time.Parse(time.RFC3339, *req.PublishedAt)
+		if err != nil {
+			s.fileSvc.Delete(storedName)
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Неверный формат даты публикации (ожидается RFC3339)")
 		}
+		publishedAt = t.UTC()
 	}
 
 	title := strings.TrimSpace(req.Title)
