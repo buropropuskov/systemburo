@@ -184,9 +184,9 @@ export default {
                     reason: this.reason.trim()
                 })
                 notify({
-                    prefix: 'Срок заявки изменён:',
+                    prefix: 'Срок заявки изменён: ',
                     bold: result?.new_period || '',
-                    suffix: result?.approvals_reset ? 'Голоса согласующих сняты.' : '',
+                    suffix: result?.approvals_reset ? '. Голоса согласующих сняты.' : '',
                     type: 'success'
                 })
                 this.show = false

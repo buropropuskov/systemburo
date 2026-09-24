@@ -541,18 +541,7 @@ export default {
         // Иначе при наборе "1" в endTime система пыталась сразу переносить дату.
     },
     mounted() {
-        document.addEventListener('click', (e) => {
-            // Календарь телепортирован в body (вне .datepicker-wrapper) и имеет @click.stop,
-            // поэтому клики внутри него не всплывают сюда - дополнительное исключение не нужно.
-            // Но если клик всё же дошёл и попал в .datepicker - не закрываем.
-            if (!e.target.closest('.datepicker-wrapper') && !e.target.closest('.datepicker')) {
-                this.closeDatepicker();
-            }
-            // Меню "Быстрый выбор" телепортится в body, поэтому исключаем и .qd-menu.
-            if (!e.target.closest('.qd-dropdown') && !e.target.closest('.qd-menu')) {
-                this.showQuickMenu = false;
-            }
-        });
+        document.addEventListener('click', this.onDocumentClick, true);
         // Меню позиционируется fixed от триггера - при скролле отрываться нельзя, закрываем.
         window.addEventListener('scroll', this.closeQuickMenuOnScroll, true);
         document.addEventListener('keydown', this.handleDatepickerEscape);
@@ -560,11 +549,22 @@ export default {
         this.validateTimeCrossing();
     },
     beforeUnmount() {
+        document.removeEventListener('click', this.onDocumentClick, true);
         window.removeEventListener('scroll', this.closeQuickMenuOnScroll, true);
         document.removeEventListener('keydown', this.handleDatepickerEscape);
         releaseBodyScrollLock(this);
     },
     methods: {
+        // Слушается в фазе перехвата: внутри BaseModal (@click.stop) всплытие до document не
+        // доходит, и календарь не закрывался кликом мимо. Попапы в body исключены по классам.
+        onDocumentClick(e) {
+            if (!e.target.closest('.datepicker-wrapper') && !e.target.closest('.datepicker')) {
+                this.closeDatepicker();
+            }
+            if (!e.target.closest('.qd-dropdown') && !e.target.closest('.qd-menu')) {
+                this.showQuickMenu = false;
+            }
+        },
         // "Быстрый выбор": меню телепортится в body (иначе тонет под гейтом/инпутами
         // из-за вложенных stacking-контекстов). Позицию считаем от триггера.
         toggleQuickMenu() {
