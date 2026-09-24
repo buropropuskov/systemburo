@@ -14,14 +14,8 @@
 /** Верх телефона. Планшет начинается с 768. */
 export const PHONE_MAX = 767.98;
 
-/** Верх узкого планшета: ниже списки с большим числом колонок идут карточками. */
-export const TABLET_NARROW_MAX = 899.98;
-
 /** Верх планшета. Столько же держит бургер-меню вместо рельса. */
 export const TABLET_MAX = 1366;
-
-/** Условие телефона для `matchMedia`. */
-export const PHONE_MEDIA = `(max-width: ${PHONE_MAX}px)`;
 
 /**
  * Условие, при котором меню живёт в drawer, а не в рельсе: планшет по ширине
@@ -29,11 +23,6 @@ export const PHONE_MEDIA = `(max-width: ${PHONE_MAX}px)`;
  * ноутбуки с сенсорным экраном, где мышь есть.
  */
 export const DRAWER_MEDIA = `(max-width: ${TABLET_MAX}px), (hover: none) and (pointer: coarse)`;
-
-/** Телефонная раскладка: одна колонка, листы вместо окон, карточки вместо строк. */
-export function isPhoneViewport() {
-  return typeof window !== 'undefined' && window.innerWidth <= PHONE_MAX;
-}
 
 /**
  * Меню сейчас в drawer. Отдельно от телефона: drawer держится до 1366, поэтому

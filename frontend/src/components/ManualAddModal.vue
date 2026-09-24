@@ -849,7 +849,7 @@ export default {
    `.completion__fields` в колонку (`flex-direction: column`, брейкпоинт 768px), и
    `flex-basis` из этих правил там читается уже как ВЫСОТА, а не ширина - номер
    растягивался в блок 202px, марка в 320px, и между полями возникал пустой провал. */
-@media (min-width: 769px) {
+@media (min-width: 768px) {
     .manual-modal :deep(.completion__fields) {
         gap: 12px;
     }

@@ -147,6 +147,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { DRAWER_MEDIA } from '@/constants/breakpoints'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
@@ -302,12 +303,12 @@ export default {
       this.showFeedbackModal = true;
     },
     /**
-     * Реактивно отслеживает тач-брейкпоинт (совпадает с CSS @media 1024):
+     * Реактивно отслеживает, в drawer ли сейчас меню (условие - DRAWER_MEDIA):
      * на нём кнопка «Сообщить о проблеме» показывается в drawer, а не в шапке.
      */
     initMobileWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-      this._mobileMql = window.matchMedia('(max-width: 1366px), (hover: none) and (pointer: coarse)');
+      this._mobileMql = window.matchMedia(DRAWER_MEDIA);
       this.isMobileHeader = this._mobileMql.matches;
       this._onMobileChange = (e) => { this.isMobileHeader = e.matches; };
       if (this._mobileMql.addEventListener) {
