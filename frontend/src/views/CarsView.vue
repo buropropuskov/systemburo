@@ -211,7 +211,7 @@
           />
         </div>
 
-        <div class="card-content rt-table">
+        <div class="card-content rt-table rt-keep-table">
           <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
           <div class="cars-header rt-head-row">
             <div class="header-row">

@@ -105,7 +105,26 @@
    колонок не помещается: замер на 810 показал номер заявки, обрезанный до «№ 20260»,
    и дату до «06.09.20» - строка перестаёт читаться вовсе. Выше 900 таблица остаётся,
    но уплотняется. Число вынесено в токен --bp-tablet-narrow; в самом медиазапросе
-   токен подставить нельзя, поэтому здесь литерал. */
+   токен подставить нельзя, поэтому здесь литерал.
+
+   Но восемь колонок не у всех. У «Моих сотрудников» их пять, и на 768 они занимают
+   734px из 734 доступных - таблица помещается целиком. Карточка там вместо строки
+   выглядела растянутой мобилкой: подпись у левого края, значение у правого, между
+   ними шестьсот пикселей пустоты, и десять машин занимали четыре с половиной экрана
+   против одного на десктопе (разбор владельца 24.09).
+
+   Поэтому список, который на планшете помещается таблицей, помечается классом
+   `rt-keep-table` и до 899.98 остаётся таблицей; карточки он получает только на
+   телефоне - блоком ниже. Пометка ОПТ-ИН: непомеченный список ведёт себя ровно как
+   раньше. Тип назначается замером «строка шире контейнера», а не на глаз.
+
+   Пометка завёрнута в `:where()` НЕ для красоты: он не добавляет специфичности.
+   Без него `.rt-table:not(.rt-keep-table) .rt-row` весит (0,3,0) вместо прежних
+   (0,2,0) и начинает выигрывать у scoped-правил компонентов, которым раньше
+   проигрывал - а `index.css` грузится после чанка компонента. Ревью поймало это
+   на окнах выбора существующих: их собственный «чип»-дизайн строки схлопывался
+   до общей карточки, и текст наезжал на абсолютные чекбокс и бейдж. Правило:
+   добавляя класс в селектор ГЛОБАЛЬНОГО слоя, гаси его вклад `:where()`. */
 @media (max-width: 899.98px) {
   /* --- Часть 1: таблица -> карточки --- */
 
@@ -116,7 +135,7 @@
      без клипа docScrollWidth 443 при вьюпорте 390. !important обязателен -
      глобальное .rt-table (0,1,0) иначе проигрывает scoped overflow-x у
      компонента-потребителя (.applications-table[data-v] = 0,2,0). */
-  .rt-table {
+  .rt-table:where(:not(.rt-keep-table)) {
     overflow-x: hidden !important;
   }
 
@@ -126,11 +145,11 @@
      .table-header/.table-row[data-v] иначе перебивает display/border, и шапка
      таблицы висит над карточками, а строки не собираются в карточку (#1097 S9a,
      ревью поймало production-сборкой; dev-сервер порядок чанков маскирует). */
-  .rt-table .rt-head-row {
+  .rt-table:where(:not(.rt-keep-table)) .rt-head-row {
     display: none !important;
   }
 
-  .rt-table .rt-row {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row {
     display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
@@ -141,11 +160,11 @@
     background: var(--surface) !important;
   }
 
-  .rt-table .rt-row + .rt-row {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row + .rt-row {
     margin-top: 8px !important;
   }
 
-  .rt-table .rt-row > [data-label] {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row > [data-label] {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -157,11 +176,11 @@
     text-align: right;
   }
 
-  .rt-table .rt-row > [data-label]:last-child {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row > [data-label]:last-child {
     border-bottom: none;
   }
 
-  .rt-table .rt-row > [data-label]::before {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row > [data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
     font-size: 12px;
@@ -375,6 +394,75 @@
     width: 36px !important;
     height: 36px !important;
     padding: 0 !important;
+  }
+}
+
+/* Списки с пометкой `rt-keep-table` на планшете остаются таблицей, а карточками
+   становятся только на телефоне. Правила те же, что в части 1 выше - разведены
+   не ради разных стилей, а ради разных диапазонов: одному семейству нужен потолок
+   899.98, другому 767.98, и подставить условие в селектор CSS не умеет. Замок
+   `ResponsiveTablesKeepTable.spec.js` следит, чтобы копии не разошлись. */
+@media (max-width: 767.98px) {
+
+  /* Клип горизонта в card-режиме: ховер-подсказки тегов/ЧС (.tag-hint
+     data-hint -> ::after) - абсолютные псевдоэлементы, что на всю ширину
+     карточки вылезают за вьюпорт и дают фантомный горизонтальный скролл (на
+     мобилке ховера нет, показывать их всё равно негде). Замерено на staging:
+     без клипа docScrollWidth 443 при вьюпорте 390. !important обязателен -
+     глобальное .rt-table (0,1,0) иначе проигрывает scoped overflow-x у
+     компонента-потребителя (.applications-table[data-v] = 0,2,0). */
+  .rt-table:where(.rt-keep-table) {
+    overflow-x: hidden !important;
+  }
+
+  /* !important обязателен на структурных card-правилах: компонент-потребитель
+     может быть lazy route-чанком (() => import), чей scoped-CSS грузится ПОЗЖЕ
+     глобального index.css - при равной специфичности (0,2,0) поздний scoped
+     .table-header/.table-row[data-v] иначе перебивает display/border, и шапка
+     таблицы висит над карточками, а строки не собираются в карточку (#1097 S9a,
+     ревью поймало production-сборкой; dev-сервер порядок чанков маскирует). */
+  .rt-table:where(.rt-keep-table) .rt-head-row {
+    display: none !important;
+  }
+
+  .rt-table:where(.rt-keep-table) .rt-row {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 10px 14px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-md, 15px) !important;
+    background: var(--surface) !important;
+  }
+
+  .rt-table:where(.rt-keep-table) .rt-row + .rt-row {
+    margin-top: 8px !important;
+  }
+
+  .rt-table:where(.rt-keep-table) .rt-row > [data-label] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 5px 0;
+    border-bottom: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    text-align: right;
+  }
+
+  .rt-table:where(.rt-keep-table) .rt-row > [data-label]:last-child {
+    border-bottom: none;
+  }
+
+  .rt-table:where(.rt-keep-table) .rt-row > [data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: left;
   }
 }
 

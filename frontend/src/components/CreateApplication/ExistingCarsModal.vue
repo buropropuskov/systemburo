@@ -85,7 +85,7 @@
 
           <!-- Список машин -->
           <div class="cars-table-container">
-            <div class="cars-table rt-table">
+            <div class="cars-table rt-table rt-keep-table">
               <!-- Заголовки таблицы -->
               <div class="table-header rt-head-row">
                 <div class="header-cell select-cell" />

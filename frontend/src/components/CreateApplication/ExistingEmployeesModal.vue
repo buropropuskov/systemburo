@@ -65,7 +65,7 @@
           </div>
 
           <div class="employees-table-container">
-            <div class="employees-table rt-table">
+            <div class="employees-table rt-table rt-keep-table">
               <div class="table-header rt-head-row">
                 <div class="header-cell select-cell" />
                 <div class="header-cell number-cell">
