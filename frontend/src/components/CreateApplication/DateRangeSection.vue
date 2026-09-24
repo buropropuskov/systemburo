@@ -555,15 +555,13 @@ export default {
         releaseBodyScrollLock(this);
     },
     methods: {
-        // Слушается в фазе перехвата: внутри BaseModal (@click.stop) всплытие до document не
-        // доходит, и календарь не закрывался кликом мимо. Попапы в body исключены по классам.
+        // Фаза перехвата: внутри BaseModal (@click.stop) всплытие до document не доходит. Клик с
+        // целью body - палец нажал поле, а отпущен на выехавшем затемнении листа (телефон), это не
+        // клик мимо: иначе лист закрывался сразу после открытия. Попапы в body исключены по классам.
         onDocumentClick(e) {
-            if (!e.target.closest('.datepicker-wrapper') && !e.target.closest('.datepicker')) {
-                this.closeDatepicker();
-            }
-            if (!e.target.closest('.qd-dropdown') && !e.target.closest('.qd-menu')) {
-                this.showQuickMenu = false;
-            }
+            if (e.target === document.body) return;
+            if (!e.target.closest('.datepicker-wrapper, .datepicker')) this.closeDatepicker();
+            if (!e.target.closest('.qd-dropdown, .qd-menu')) this.showQuickMenu = false;
         },
         // "Быстрый выбор": меню телепортится в body (иначе тонет под гейтом/инпутами
         // из-за вложенных stacking-контекстов). Позицию считаем от триггера.

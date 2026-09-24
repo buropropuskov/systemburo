@@ -28,6 +28,15 @@ describe('DateRangeSection - закрытие календаря кликом м
     expect(section.vm.showQuickMenu).toBe(false);
   });
 
+  it('тап на телефоне: палец отпущен на выехавшем затемнении, клик достаётся body - лист остаётся', async () => {
+    const wrapper = mount(DateRangeSection, { attachTo: document.body });
+    wrapper.vm.showStartDatepicker = true;
+
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(wrapper.vm.showStartDatepicker).toBe(true);
+  });
+
   it('клик по полю даты календарь не закрывает', async () => {
     const wrapper = mount(DateRangeSection, { attachTo: document.body });
     wrapper.vm.showStartDatepicker = true;
@@ -44,7 +53,10 @@ describe('DateRangeSection - закрытие календаря кликом м
     vm.closeDatepicker = () => { calls += 1; };
     wrapper.unmount();
 
-    document.body.click();
+    const outside = document.createElement('div');
+    document.body.appendChild(outside);
+    outside.click();
+    outside.remove();
 
     expect(calls).toBe(0);
   });
