@@ -323,7 +323,7 @@ export default {
   transform: translate(-50%, 0);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .recovery {
     padding: 8px 24px 28px;
   }

@@ -10,18 +10,17 @@ import { createPopoverZoomFix } from '@/components/onboarding/popoverZoom';
 import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
 /**
- * Мобильный брейкпоинт тура (#1097 S11) - совпадает с media-запросами
- * NavMenu/TheHeader/CreateApplication (`max-width: 768px`, ВКЛЮЧИТЕЛЬНО), на
- * которых рельс сворачивается в drawer, вторичные иконки шапки - в overflow-меню,
- * а форма/таблицы - в одну колонку. Порог `<= 768` (не `< 768`): на ровно 768px
- * (iPad-портрет) CSS уже мобильный - reveal обязан срабатывать там же, иначе тур
- * подсветит переехавшую пустоту (класс бага «768 vs 767.98» из S8/S9). Модульная
- * функция (не часть фабрики useOnboarding) - её зовут и reveal, и createDriver.
+ * Телефонная раскладка: форма и таблицы в одну колонку, поповер тура обязан
+ * ложиться вниз, а не сбоку. Порог тот же, что у CSS (`max-width: 767.98px`),
+ * и 768 в него НЕ входит: это портретный iPad, там раскладка планшетная.
+ * За «меню сейчас в drawer» отвечает отдельный признак - `isDrawerViewport`
+ * в `constants/breakpoints.js`: drawer держится до 1366, и путать эти два
+ * условия нельзя, иначе тур на планшете подсветит пустоту вместо пункта меню.
  *
  * @returns {boolean}
  */
 export function isMobileViewport() {
-  return typeof window !== 'undefined' && window.innerWidth <= 768;
+  return typeof window !== 'undefined' && window.innerWidth < 768;
 }
 
 /**

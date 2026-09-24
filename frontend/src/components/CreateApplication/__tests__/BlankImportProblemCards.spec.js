@@ -143,7 +143,7 @@ describe('BlankImportResult - карточки строк с ошибками', 
   // чтением самого SFC.
   it('на мобильной ширине поля идут одной колонкой с тач-таргетами 44px', () => {
     const sfc = readFileSync(resolve(__dirname, '../BlankImportResult.vue'), 'utf8');
-    const mobile = sfc.slice(sfc.indexOf('@media (max-width: 768px)'));
+    const mobile = sfc.slice(sfc.indexOf('@media (max-width: 767.98px)'));
 
     expect(mobile).toMatch(/\.bim__fields\s*{[^}]*grid-template-columns:\s*1fr/);
     expect(mobile).toMatch(/\.bim__cell-input\s*{[^}]*min-height:\s*44px/);

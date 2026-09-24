@@ -325,7 +325,7 @@ export default {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .bip__dropzone {
     min-height: 180px;
   }

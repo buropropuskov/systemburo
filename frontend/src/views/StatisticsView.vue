@@ -503,7 +503,7 @@ function onRefresh() {
 }
 
 /* ===== МОБИЛКА (<=768): каркас без переполнения ===== */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .statistics__header {
     flex-direction: column;
     align-items: stretch;

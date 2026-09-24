@@ -1159,7 +1159,7 @@ export default {
   margin-top: 2px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Bottom-sheet: окно выезжает снизу во всю ширину, свайп вниз за ползунок закрывает
      (как ApplicationHistory/детали Т/С, #1097 R4-9). */
   .modal-overlay {

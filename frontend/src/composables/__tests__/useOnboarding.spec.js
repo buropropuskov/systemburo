@@ -60,17 +60,17 @@ describe('isMobileViewport', () => {
     window.innerWidth = originalWidth;
   });
 
-  it('false на десктопной ширине (>=769)', () => {
+  it('false от 768 и выше - там раскладка уже планшетная', () => {
     window.innerWidth = 1440;
     expect(isMobileViewport()).toBe(false);
-    window.innerWidth = 769;
+    // 768 - портретный iPad. Телефон кончается на 767.98, и признак обязан
+    // совпадать с CSS: иначе тур кладёт поповер вниз там, где раскладка в две
+    // колонки, а рядом пустое место.
+    window.innerWidth = 768;
     expect(isMobileViewport()).toBe(false);
   });
 
-  it('true на мобильной ширине (<=768, порог включителен как CSS max-width:768px)', () => {
-    // 768 - iPad-портрет: CSS уже мобильный (max-width:768px), reveal обязан сработать.
-    window.innerWidth = 768;
-    expect(isMobileViewport()).toBe(true);
+  it('true на телефоне (<768, как CSS max-width: 767.98px)', () => {
     window.innerWidth = 767;
     expect(isMobileViewport()).toBe(true);
     window.innerWidth = 390;

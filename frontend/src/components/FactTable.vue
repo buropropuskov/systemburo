@@ -1908,15 +1908,6 @@ export default {
   }
 }
 
-/* Ровно на 768 (планшет в портрете) шапка приложения ещё закреплена - её
-   медиазапрос max-width: 768px, высота = токен. Полоса заголовков встаёт под
-   неё, иначе прилипает к верху экрана и прячется за шапкой (z-index 100). */
-@media (min-width: 768px) and (max-width: 768px) {
-  .fact-header {
-    top: var(--mobile-header-height);
-  }
-}
-
 /* #345 PR-B: размер шрифта строк через CSS-переменную (только тело). */
 .fact-table-card .fact-body .col {
   font-size: var(--table-font-size, 14px);

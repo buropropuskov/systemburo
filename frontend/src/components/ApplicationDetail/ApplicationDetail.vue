@@ -2030,7 +2030,7 @@ export default {
             // работать всегда: без проверки метод падал молча, и панель не закрывалась.
             const isSheet = typeof window !== 'undefined'
                 && typeof window.matchMedia === 'function'
-                && window.matchMedia('(max-width: 768px)').matches;
+                && window.matchMedia('(max-width: 767.98px)').matches;
             if (isSheet) {
                 this.dismissSheet();
                 return;
@@ -2470,7 +2470,7 @@ export default {
     transform: translateY(8px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .detail-close-leave-to .application-detail {
         transform: translateY(100%);
         opacity: 1;
@@ -3165,7 +3165,7 @@ export default {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Bottom-sheet: оверлей прижимает лист к низу, лист во всю ширину выезжает
        снизу; свайп вниз за ползунок закрывает (useSwipeDismiss, #1097 W3.9). */
     .application-detail-overlay {

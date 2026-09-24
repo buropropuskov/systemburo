@@ -1465,7 +1465,7 @@ export default {
         _applyHeight() {
             const el = this.$refs.root;
             if (!el) return;
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth < 768) {
                 el.style.height = '';
                 this._lastHeight = -1;
                 return;

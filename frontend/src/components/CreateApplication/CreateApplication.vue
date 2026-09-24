@@ -1091,7 +1091,7 @@ export default {
         // совпадает с sheet-брейкпоинтом BaseModal, чтобы модалка выезжала снизу листом.
         onConsentClick(e) {
             if (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-                && window.matchMedia('(max-width: 768px)').matches) {
+                && window.matchMedia('(max-width: 767.98px)').matches) {
                 e.preventDefault();
                 this.showConsentModal = true;
             }
@@ -1791,7 +1791,7 @@ export default {
          */
         scrollToEntityForm() {
             if (typeof window === 'undefined' || typeof window.matchMedia !== 'function'
-                || !window.matchMedia('(max-width: 768px)').matches) return;
+                || !window.matchMedia('(max-width: 767.98px)').matches) return;
             this.$nextTick(() => {
                 const el = this.$el && this.$el.querySelector('.form__data');
                 if (!el) return;
@@ -1807,7 +1807,7 @@ export default {
          */
         preserveFormHeight() {
             if (typeof window === 'undefined' || typeof window.matchMedia !== 'function'
-                || !window.matchMedia('(max-width: 768px)').matches) return;
+                || !window.matchMedia('(max-width: 767.98px)').matches) return;
             const el = this.$el && this.$el.querySelector('.create__form');
             if (!el) return;
             // Токен поколения: при быстром переключении вложений хвост раннего
@@ -3770,7 +3770,7 @@ export default {
     }
 
     /* Mobile: stacked layout, forms в 1 колонку */
-    @media (max-width: 768px) {
+    @media (max-width: 767.98px) {
         .create__header {
             flex-direction: column;
             align-items: flex-start;

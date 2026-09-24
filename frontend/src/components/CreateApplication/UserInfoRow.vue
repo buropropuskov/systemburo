@@ -165,7 +165,7 @@ export default {
 /* Планшет: колонка из четырёх полей растянула бы форму на лишний экран прокрутки, а
    ряд не помещается - четыре поля по 260px требуют 1160px вместе с зазорами и на
    1024 сжимались, обрезая значения («Отдел контр», «+7 (8»). Раскладываем по два. */
-@media (min-width: 768.02px) and (max-width: 1024px) {
+@media (min-width: 768px) and (max-width: 1024px) {
     .user-info-row {
         flex-wrap: wrap;
         gap: 16px 24px;
@@ -177,7 +177,7 @@ export default {
 }
 
 /* 4 фикс-ширных (260px) поля в ряд не влезают на узком - стекаем в колонку. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .user-info-row {
         flex-direction: column;
         gap: 16px;

@@ -2805,15 +2805,6 @@ export default {
   }
 }
 
-/* Ровно на 768 (планшет в портрете) шапка приложения ещё закреплена - её
-   медиазапрос max-width: 768px, высота = токен. Полоса заголовков встаёт под
-   неё, иначе прилипает к верху экрана и прячется за шапкой (z-index 100). */
-@media (min-width: 768px) and (max-width: 768px) {
-  .items-header {
-    top: var(--mobile-header-height);
-  }
-}
-
 /* #345 Phase 1D: размер шрифта строк через CSS-переменную. */
 .selected-table-card .items-body .col {
   font-size: var(--table-font-size, 14px);

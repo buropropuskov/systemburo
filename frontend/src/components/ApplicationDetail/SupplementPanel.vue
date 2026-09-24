@@ -214,10 +214,10 @@ export default {
     },
     setup() {
         // Порог 768, а не 767.98: панель сворачивается ровно там, где ApplicationDetail
-        // промоутит колонки в одну ленту (`@media (max-width: 768px)`) и где включаются
+        // промоутит колонки в одну ленту (`@media (max-width: 767.98px)`) и где включаются
         // её собственные мобильные стили. Разъедь пороги - на 768px (портретный iPad)
         // получился бы гибрид: блок уже в общей ленте, но ещё несворачиваемый.
-        const { isNarrow } = useNarrowScreen(768);
+        const { isNarrow } = useNarrowScreen(767.98);
         return { ...useApprovalStatus(), isNarrow, bodyId: `supplement-body-${useId()}` };
     },
     data() {
@@ -569,7 +569,7 @@ button.supplement-title {
 
 /* Мобилка: статус уходит под номер раунда, а строка решения перестаёт быть рядом -
    в 390px «Отказано в согласовании» рядом с номером не помещается. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .supplement-section {
         padding: 12px;
         /* Зазор между секциями на мобилке задаёт .detail-content { gap: 10px } -

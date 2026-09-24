@@ -1023,7 +1023,7 @@ export default {
                 // Константы-отступы (+8) уже в layout-px - НЕ делим.
                 // На мобилке календарь - bottom-sheet: координаты задаёт @media, inline
                 // top/left их бы перебили (инлайн сильнее любого правила).
-                if (window.innerWidth <= 768) {
+                if (window.innerWidth < 768) {
                     // Под листом-модалкой фон не скроллится, как у прочих окон.
                     setBodyScrollLock(this, true);
                     this.datepickerStyle = { zIndex: 12000 };
@@ -1082,7 +1082,7 @@ export default {
          */
         focusNext(refName) {
             if (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-                && window.matchMedia('(max-width: 768px)').matches) return;
+                && window.matchMedia('(max-width: 767.98px)').matches) return;
             const el = this.$refs[refName];
             if (el) el.focus();
         },
@@ -1568,7 +1568,7 @@ export default {
 }
 
 /* Мобильный лист выезжает снизу, а не сползает сверху, как десктопный попап. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .calendar-enter-from,
     .calendar-leave-to {
         opacity: 1;
@@ -1587,7 +1587,7 @@ export default {
 
 /* Дата (250px) + время + доп.опции в ряд не влезают на узком - стекаем в колонку,
    инпуты растягиваем на всю доступную ширину. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Календарь на телефоне - bottom-sheet с затемнением (как DateFilter): раньше
        висел попапом у поля, сливался с формой и на коротком экране не помещался.
        Высота ограничена вьюпортом, сетка дней прокручивается внутри. */

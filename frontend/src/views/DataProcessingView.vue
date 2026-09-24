@@ -177,7 +177,7 @@ async function download() {
 
 onMounted(() => {
   if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-    mql = window.matchMedia('(max-width: 768px)');
+    mql = window.matchMedia('(max-width: 767.98px)');
     isMobile.value = mql.matches;
     mql.addEventListener('change', applyMobile);
   }

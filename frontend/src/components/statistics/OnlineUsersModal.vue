@@ -336,7 +336,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .ou-overlay {
     align-items: flex-end;
     padding: 0;

@@ -455,7 +455,7 @@ export default {
 /* Для мобильных устройств: лист - bottom-sheet, ТОЛЬКО выезд снизу без фейда.
    Транзишн на transform (не all), opacity держим 1 во всех фазах (перебиваем базовое
    opacity:0 у enter-from/leave-to) - иначе лист гаснет вместе со слайдом. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .modal-enter-active,
   .modal-leave-active {
     transition: transform 0.3s ease-out;
@@ -809,7 +809,7 @@ export default {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .modal {
     max-width: 100%;
     border-radius: 16px 16px 0 0;

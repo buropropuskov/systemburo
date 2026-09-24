@@ -394,7 +394,7 @@ export default {
 }
 
 /* Bottom-sheet на мобильном */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .base-modal-overlay {
     padding: 0;
     align-items: flex-end;

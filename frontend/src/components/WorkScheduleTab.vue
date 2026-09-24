@@ -1517,7 +1517,7 @@ input:checked + .switch-slider:before {
   background: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .day-header {
     flex-direction: column;
     align-items: flex-start;

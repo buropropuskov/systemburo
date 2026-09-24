@@ -447,7 +447,7 @@ const eventsLabel = computed(() => {
   opacity: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .notif-detail-overlay {
     padding: 0;
     align-items: flex-end;

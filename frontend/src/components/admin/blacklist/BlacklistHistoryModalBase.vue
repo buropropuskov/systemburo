@@ -1013,7 +1013,7 @@ export default {
   color: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Bottom-sheet: hand-rolled модалка (не BaseModal) - паттерн скопирован 1:1 с
      BaseModal/App.vue/ApplicationHistory (align-items:flex-end + 90dvh + скруглённый
      только верх), см. эталон в responsive-tables.css и уроки проекта про Teleport-модалки. */

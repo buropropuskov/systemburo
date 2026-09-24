@@ -1022,7 +1022,7 @@ export default {
   word-break: break-word;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .filter-row {
     flex-direction: column;
     align-items: flex-start;

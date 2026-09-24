@@ -2445,7 +2445,7 @@ export default {
   min-width: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .te-modal-rounded.base-modal {
     border-radius: 16px 16px 0 0;
   }

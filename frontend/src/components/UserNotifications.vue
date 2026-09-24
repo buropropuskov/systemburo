@@ -215,7 +215,7 @@ export default {
     const onChange = (e) => { isSheet.value = e.matches; };
     onMounted(() => {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-      mql = window.matchMedia('(max-width: 768px)');
+      mql = window.matchMedia('(max-width: 767.98px)');
       isSheet.value = mql.matches;
       if (mql.addEventListener) mql.addEventListener('change', onChange);
       else if (mql.addListener) mql.addListener(onChange);

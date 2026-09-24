@@ -480,7 +480,7 @@ export default {
   border-top: 1px solid var(--color-border);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .places-grid {
     grid-template-columns: repeat(2, 1fr);
   }

@@ -322,7 +322,7 @@ export default {
 /* Мобилка: bottom-sheet - только верхнее скругление (низ прижат к кромке экрана).
    Глобальный двойной класс (0,2,0) иначе перебивает мобильный 16px 16px 0 0
    BaseModal (0,1,0) и рисует скругление снизу (#1097 R3-9). */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .base-modal.ask-question-modal {
         border-radius: 16px 16px 0 0;
     }

@@ -767,7 +767,7 @@ export default {
   background: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .modal-body-horizontal {
     flex-direction: column;
     height: auto;

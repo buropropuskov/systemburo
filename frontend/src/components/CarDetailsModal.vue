@@ -1621,7 +1621,7 @@ export default {
   opacity: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .modal-wrapper {
     flex-direction: column;
     gap: 10px;

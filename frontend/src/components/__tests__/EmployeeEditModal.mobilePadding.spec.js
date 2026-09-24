@@ -31,7 +31,7 @@ function mediaBlock(src, marker) {
   return src.slice(bodyStart, i - 1);
 }
 
-const MOBILE_768 = mediaBlock(SFC, '@media (max-width: 768px)');
+const MOBILE_768 = mediaBlock(SFC, '@media (max-width: 767.98px)');
 
 describe('EmployeeEditModal — отступы формы и подписи привязки на мобилке', () => {
   it('data__completion несёт реальный padding, а не 0', () => {

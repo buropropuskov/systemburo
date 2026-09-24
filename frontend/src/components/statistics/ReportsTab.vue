@@ -670,7 +670,7 @@ async function scrollToResult() {
 
 /* Мобилка (#1097): плотнее по вертикали, у карточки-конструктора padding под
    узкий экран — 20px с обеих сторон съедали ширину полей мастера. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .reports,
   .reports-layout {
     gap: 12px;

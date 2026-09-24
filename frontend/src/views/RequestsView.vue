@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
   border-bottom-color: var(--accent-text);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
     padding: 0 16px;
   }

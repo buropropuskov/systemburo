@@ -362,7 +362,7 @@ export default {
   font-style: italic;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .unload-places-grid {
     grid-template-columns: repeat(2, 1fr);
   }

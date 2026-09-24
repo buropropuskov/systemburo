@@ -13,19 +13,28 @@ const SFC = readFileSync(resolve(__dirname, '../ProcessingAnalytics.vue'), 'utf8
  * Вырезать содержимое @media-блока с учётом вложенных {} (внутри лежат обычные
  * правила, наивный [^{}]* их не переживёт).
  */
+/** Тела ВСЕХ блоков с таким условием - в файле их может быть несколько. */
 function mediaBlock(src, query) {
-  const start = src.indexOf(query);
-  if (start === -1) return null;
-  const openIdx = src.indexOf('{', start);
-  let depth = 0;
-  for (let i = openIdx; i < src.length; i += 1) {
-    if (src[i] === '{') depth += 1;
-    else if (src[i] === '}') {
-      depth -= 1;
-      if (depth === 0) return src.slice(openIdx + 1, i);
+  const bodies = [];
+  let from = 0;
+  for (;;) {
+    const start = src.indexOf(query, from);
+    if (start === -1) break;
+    const openIdx = src.indexOf('{', start);
+    let depth = 0;
+    let end = -1;
+    for (let i = openIdx; i < src.length; i += 1) {
+      if (src[i] === '{') depth += 1;
+      else if (src[i] === '}') {
+        depth -= 1;
+        if (depth === 0) { end = i; break; }
+      }
     }
+    if (end === -1) break;
+    bodies.push(src.slice(openIdx + 1, end));
+    from = end;
   }
-  return null;
+  return bodies.length ? bodies.join('\n') : null;
 }
 
 /** Тело правила для селектора, входящего в список через запятую перед {}. */
@@ -41,7 +50,7 @@ function ruleFor(block, selector) {
 
 describe('ProcessingAnalytics — мобильный каркас карточек (#1097 w7)', () => {
   const cardMedia = mediaBlock(SFC, '@media (max-width: 767.98px)');
-  const headMedia = mediaBlock(SFC, '@media (max-width: 768px)');
+  const headMedia = mediaBlock(SFC, '@media (max-width: 767.98px)');
 
   it('снимает рамку/паддинг у обёртки только когда есть карточки-строки (:has(.rt-row))', () => {
     expect(cardMedia).toBeTruthy();
@@ -93,14 +102,14 @@ describe('ProcessingAnalytics — мобильный каркас карточе
   });
 
   // Замок на реальный баг стенда (волна 8): базовое display:contents стояло
-  // ПОСЛЕ @media(max-width:768px) в файле - при равной специфичности более
+  // ПОСЛЕ @media(max-width:767.98px) в файле - при равной специфичности более
   // позднее правило побеждает НЕЗАВИСИМО от того, было ли оно внутри media,
   // и мобильный display:flex молча перебивался обратно в contents на ЛЮБОЙ
   // ширине. Ряд даты и поиск-иконка вместо своей строки съезжали в общий ряд
   // с дропдауном роли.
   it('базовое .proc__journal-daterow{display:contents} объявлено РАНЬШЕ мобильного @media, а не позже', () => {
     const baseIdx = SFC.indexOf('.proc__journal-daterow {\n  display: contents;');
-    const mediaIdx = SFC.indexOf('@media (max-width: 768px)');
+    const mediaIdx = SFC.indexOf('@media (max-width: 767.98px)');
     expect(baseIdx).toBeGreaterThan(-1);
     expect(mediaIdx).toBeGreaterThan(-1);
     expect(baseIdx).toBeLessThan(mediaIdx);

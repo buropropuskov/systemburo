@@ -694,7 +694,7 @@ export default {
   .sc__col--side { order: -1; }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .sc__card { padding: 28px 24px; }
   .sc__status-row { flex-direction: column; align-items: flex-start; gap: 8px; }
   .sc__field-row { grid-template-columns: 1fr; }

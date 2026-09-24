@@ -336,7 +336,7 @@ watch(() => props.active, (active) => {
   font-size: 11px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .analytics-tables {
     grid-template-columns: 1fr;
   }

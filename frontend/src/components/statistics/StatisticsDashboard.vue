@@ -1582,7 +1582,7 @@ onUnmounted(() => {
 }
 
 /* ===== МОБИЛКА (<=768) ===== */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .dashboard {
     gap: 22px;
   }

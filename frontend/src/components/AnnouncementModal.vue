@@ -299,7 +299,7 @@ export default {
   background: var(--accent-hover);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Прилипание к низу/ширина/радиус bottom-sheet задаёт глобальный паттерн App.vue
      (.modal-overlay>.modal-content, !important). Здесь добавляем только выезд снизу
      вверх, свайп-закрытие и ползунок. transition для снап-назад после свайпа. */

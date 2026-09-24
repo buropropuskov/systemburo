@@ -598,8 +598,8 @@ describe('ReportResult — мобильный адаптив (guard)', () => {
   });
 
   it('на <=768 ячейки таблицы уплотняются (больше колонок до включения скролла)', () => {
-    const media = sfc.slice(sfc.indexOf('@media (max-width: 768px)'));
-    expect(media).toContain('@media (max-width: 768px)');
+    const media = sfc.slice(sfc.indexOf('@media (max-width: 767.98px)'));
+    expect(media).toContain('@media (max-width: 767.98px)');
     // th и td получают компактный padding в мобильном блоке.
     expect(media).toMatch(/\.rr__table thead th\s*\{[^}]*padding:\s*8px 10px/);
     expect(media).toMatch(/\.rr__table tbody td[\s\S]*?padding:\s*8px 10px/);

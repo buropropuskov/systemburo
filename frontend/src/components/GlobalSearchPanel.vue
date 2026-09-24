@@ -491,7 +491,7 @@ export default {
 /* Лёгкое размытие подложки -- только на десктопе. На мобильных backdrop-filter форсит
    слой компоновки и рвёт кадры при выезде панели (запрет из правил адаптивности,
    #1201), поэтому там остаётся чистая прозрачность без размытия. */
-@media (min-width: 769px) {
+@media (min-width: 768px) {
   .gsp {
     backdrop-filter: blur(2px);
   }
@@ -501,7 +501,7 @@ export default {
    видно всё равно, а размытия, которое отделяло бы находки от текста под ними, здесь
    нет. Оставшиеся 15% прозрачности читались как грязь на списке результатов, поэтому
    на мобилке подложка почти глухая. */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .gsp {
     background: color-mix(in srgb, var(--surface) 96%, transparent);
   }
@@ -716,7 +716,7 @@ export default {
   transform: translateX(100%);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .gsp {
     width: 100vw;
     top: 0;

@@ -941,7 +941,7 @@ export default {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     /* Подсказка поверх НАД кнопкой: в потоке она двигала форму. Контейнер
        кнопок - её positioned-родитель. */
     .tooltip {

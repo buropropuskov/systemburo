@@ -239,7 +239,7 @@ defineExpose({ loadSettings });
 }
 
 /* ===== МОБИЛКА (<=768): каркас без переполнения (образец - StatisticsView.vue) ===== */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
     padding: 0 var(--gutter);
   }
