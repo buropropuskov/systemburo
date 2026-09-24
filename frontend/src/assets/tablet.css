@@ -93,6 +93,15 @@
  *
  * Минимум, а не фиксированная высота: кнопка с большим собственным размером его
  * сохраняет, ряды не разъезжаются.
+ *
+ * И БЕЗ `!important` - в отличие от структурных правил карточного слоя. Важность
+ * бьёт специфичность, поэтому общий минимум продавливал точечные нормы компонентов,
+ * объявленные без неё: «Повторить» на пустом экране списка теряла свои 36 (норма
+ * закреплена замком `lkButtonTouchTarget.spec.js`), «Скачать» в Центре - свои 44,
+ * а «Переслать» в шапке заявки - ширину 120. Без важности правило работает ровно
+ * как задумано: `min-height` сильнее `height` независимо от специфичности, поэтому
+ * кнопку с собственной высотой 25px оно поднимает; а там, где компонент объявил СВОЙ
+ * минимум, выигрывает компонент - у scoped-селектора специфичность выше.
  */
 @media (min-width: 768px) and (max-width: 1366px) {
   :is(
@@ -101,23 +110,25 @@
     .notif-filter-tabs__btn, .tables__instruction, .recipients-add__btn,
     .add-btn, .dashboard__seg-btn, .news-details-button, .modal-btn,
     .card-button, .grp-pill, .doc-row__dl, .detail-badge, .download-btn,
-    .notifications__settings, .notifications__clear, .filter-btn, .history-btn,
+    .notifications__clear, .filter-btn, .history-btn,
     .options__manual-add, .options__versions-link, .options__trash-link,
     .options__export, .add-button, .log-button,
     .action-btn, .completion__button, .view-cars-btn, .view-employees-btn,
-    .add-existing-btn, .history-toggle, .expand-btn, .toolbar-btn
+    .add-existing-btn, .history-toggle, .toolbar-btn
   ) {
-    min-height: 32px !important;
+    min-height: 32px;
   }
+
 
   /* Иконочные кнопки строки и крестики окон. Им нужен квадрат, а не только высота:
      кнопка удаления шириной 24px мимо пальца ровно так же, как и высотой. */
   :is(
     .delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn,
-    .close-detail-btn, .forward-btn, .participants-btn, .notifications__settings
+    .close-detail-btn, .forward-btn, .participants-btn, .notifications__settings,
+    .expand-btn
   ) {
-    min-width: 32px !important;
-    min-height: 32px !important;
+    min-width: 32px;
+    min-height: 32px;
   }
 
   /* Мастер-детейл справочников: список занимает 40% ширины, и на 1024 строка не
@@ -188,21 +199,23 @@
     .notif-filter-tabs__btn, .tables__instruction, .recipients-add__btn,
     .add-btn, .dashboard__seg-btn, .news-details-button, .modal-btn,
     .card-button, .grp-pill, .doc-row__dl, .detail-badge, .download-btn,
-    .notifications__settings, .notifications__clear, .filter-btn, .history-btn,
+    .notifications__clear, .filter-btn, .history-btn,
     .options__manual-add, .options__versions-link, .options__trash-link,
     .options__export, .add-button, .log-button,
     .action-btn, .completion__button, .view-cars-btn, .view-employees-btn,
-    .add-existing-btn, .history-toggle, .expand-btn, .toolbar-btn
+    .add-existing-btn, .history-toggle, .toolbar-btn
   ) {
-    min-height: 32px !important;
+    min-height: 32px;
   }
+
 
   :is(
     .delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn, .flag-btn,
-    .close-detail-btn, .forward-btn, .participants-btn, .notifications__settings
+    .close-detail-btn, .forward-btn, .participants-btn, .notifications__settings,
+    .expand-btn
   ) {
-    min-width: 32px !important;
-    min-height: 32px !important;
+    min-width: 32px;
+    min-height: 32px;
   }
 
   /* Номер заявки: та же компактная надпись, что в портрете - расширяем зону клика,
@@ -306,8 +319,7 @@
 @media (min-width: 768px) and (max-width: 1366px) {
   .filters-container,
   .filter-tabs,
-  .notif-filter-tabs,
-  .grp-pills {
+  .notif-filter-tabs {
     flex-wrap: wrap !important;
   }
 
