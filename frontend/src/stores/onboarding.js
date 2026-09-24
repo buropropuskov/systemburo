@@ -314,10 +314,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     // Идемпотентно по паре (версия, признак финала): повторный вызов при том же
     // исходе не шлёт второй POST, а вот «закрыл на середине» -> «досмотрел»
     // пройти обязан, иначе отметка о полном прохождении не запишется никогда.
+    // Чистим ДО раннего выхода: у второго прохода он срабатывал раньше (#2590).
+    if (finished) progress.clear(tour.key);
     if (hasCompleted(tour.key) && (!finished || hasFinished(tour.key))) return;
     completedByTour.value = { ...completedByTour.value, [tour.key]: tour.version };
-    // Досмотрел до конца - продолжать больше нечего, следующий запуск с начала.
-    if (finished) progress.clear(tour.key);
     if (finished && !finishedTours.value.includes(tour.key)) {
       finishedTours.value = [...finishedTours.value, tour.key];
     }
