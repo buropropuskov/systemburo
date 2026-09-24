@@ -7,39 +7,42 @@
     :z-index="20000"
     @close="close"
   >
-    <p
-      v-if="request"
-      class="revert__subject"
-    >
-      <span
-        class="revert__direction"
-        :class="`revert__direction--${request.direction}`"
-      >{{ directionLabel }}</span>
-      {{ request.subject }}
-    </p>
-    <p class="revert__hint">
-      Отметка останется в журнале с пометкой об отмене, но в отчёты и счётчики не попадёт.
-    </p>
-    <div class="revert__reasons">
-      <button
-        v-for="preset in reasons"
-        :key="preset"
-        type="button"
-        class="revert__reason"
-        :class="{ 'revert__reason--active': reason === preset }"
-        @click="reason = preset"
+    <div class="revert">
+      <p
+        v-if="request"
+        class="revert__subject"
       >
-        {{ preset }}
-      </button>
+        <span
+          class="revert__direction"
+          :class="`revert__direction--${request.direction}`"
+        >{{ directionLabel }}</span>
+        {{ request.subject }}
+      </p>
+      <p class="revert__hint">
+        Отметка останется в журнале с пометкой об отмене, но в отчёты и счётчики не попадёт.
+      </p>
+      <div class="revert__reasons">
+        <button
+          v-for="preset in reasons"
+          :key="preset"
+          type="button"
+          class="revert__reason"
+          :class="{ 'revert__reason--active': reason === preset }"
+          @click="reason = preset"
+        >
+          {{ preset }}
+        </button>
+      </div>
+      <input
+        v-model="reason"
+        class="lk-input revert__input"
+        type="text"
+        maxlength="200"
+        placeholder="Причина отмены"
+        data-testid="passage-revert-reason"
+      >
     </div>
-    <input
-      v-model="reason"
-      class="lk-input revert__input"
-      type="text"
-      maxlength="200"
-      placeholder="Причина отмены"
-      data-testid="passage-revert-reason"
-    >
+
     <template #actions>
       <button
         type="button"
@@ -138,6 +141,10 @@ export default {
 </script>
 
 <style scoped>
+.revert {
+  padding: 16px 20px;
+}
+
 .revert__subject {
   margin: 0 0 8px;
   font-size: 15px;

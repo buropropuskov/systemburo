@@ -224,27 +224,29 @@
       content-testid="news-modal"
       @close="closeNewsModal"
     >
-      <div class="form-group">
-        <label class="form-label">Заголовок</label>
-        <input
-          v-model="newsForm.title"
-          type="text"
-          class="lk-input"
-          placeholder="Введите заголовок"
-        >
-      </div>
-      <div class="form-group">
-        <label class="form-label">Краткое описание</label>
-        <textarea
-          v-model="newsForm.description"
-          class="lk-textarea"
-          placeholder="Введите краткое описание"
-          rows="3"
-        />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Полный текст</label>
-        <TextConstructor v-model="newsForm.fullText" />
+      <div class="news-form">
+        <div class="form-group">
+          <label class="form-label">Заголовок</label>
+          <input
+            v-model="newsForm.title"
+            type="text"
+            class="lk-input"
+            placeholder="Введите заголовок"
+          >
+        </div>
+        <div class="form-group">
+          <label class="form-label">Краткое описание</label>
+          <textarea
+            v-model="newsForm.description"
+            class="lk-textarea"
+            placeholder="Введите краткое описание"
+            rows="3"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Полный текст</label>
+          <TextConstructor v-model="newsForm.fullText" />
+        </div>
       </div>
       <template #actions>
         <button
@@ -270,36 +272,38 @@
       content-testid="announcement-modal"
       @close="closeAnnouncementModal"
     >
-      <div class="form-group">
-        <label class="form-label">Заголовок</label>
-        <input
-          v-model="announcementForm.title"
-          type="text"
-          class="lk-input"
-          placeholder="Введите заголовок"
-        >
-      </div>
-      <div class="form-group">
-        <label class="form-label">Краткое описание</label>
-        <textarea
-          v-model="announcementForm.description"
-          class="lk-textarea"
-          placeholder="Введите краткое описание"
-          rows="3"
-        />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Полный текст</label>
-        <TextConstructor v-model="announcementForm.fullText" />
-      </div>
-      <div class="form-group">
-        <label class="checkbox-label">
+      <div class="news-form">
+        <div class="form-group">
+          <label class="form-label">Заголовок</label>
           <input
-            v-model="announcementForm.isImportant"
-            type="checkbox"
+            v-model="announcementForm.title"
+            type="text"
+            class="lk-input"
+            placeholder="Введите заголовок"
           >
-          <span>Важное объявление</span>
-        </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Краткое описание</label>
+          <textarea
+            v-model="announcementForm.description"
+            class="lk-textarea"
+            placeholder="Введите краткое описание"
+            rows="3"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Полный текст</label>
+          <TextConstructor v-model="announcementForm.fullText" />
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              v-model="announcementForm.isImportant"
+              type="checkbox"
+            >
+            <span>Важное объявление</span>
+          </label>
+        </div>
       </div>
       <template #actions>
         <button
@@ -962,6 +966,10 @@ export default {
 }
 
 /* Модалки */
+.news-form {
+  padding: 16px 20px;
+}
+
 .form-group {
   margin-bottom: 18px;
 }

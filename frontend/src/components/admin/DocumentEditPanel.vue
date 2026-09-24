@@ -30,7 +30,7 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">Описание (серый текст)</label>
+      <label class="form-label">Подпись в списке (серый текст)</label>
       <textarea
         v-model="description"
         rows="3"
@@ -39,7 +39,7 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">Пояснение бюро (видно в окне документа)</label>
+      <label class="form-label">Описание (видно в окне документа)</label>
       <textarea
         v-model="comment"
         rows="4"
@@ -146,8 +146,8 @@ import { formatMomentDate } from '@/utils/datetime';
 import { formatBytes } from '@/utils/download';
 
 /**
- * Панель правки документа в админке: наименование, описание строкой списка,
- * пояснение бюро для окна документа, группа, дата и видимость.
+ * Панель правки документа в админке: наименование, подпись строкой списка,
+ * описание для окна документа, группа, дата и видимость.
  *
  * Вынесена из DocumentsManagement: тот упирался в предел размера шаблона, а поля
  * документа продолжают прибавляться.

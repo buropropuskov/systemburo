@@ -348,39 +348,13 @@
               </div>
             </div>
 
-            <BaseModal
+            <RotationConfirmModal
               :show="confirmRotation"
-              title="Сменить пароли всем работникам?"
-              width="440px"
-              content-testid="rotation-confirm"
+              :eligible="rotationStatus.eligible"
+              :without-email="rotationStatus.without_email"
               @close="confirmRotation = false"
-            >
-              <p>
-                Пароли сменятся у <b>{{ rotationStatus.eligible }}</b> работников с указанным
-                адресом почты. Каждому уйдёт письмо с новым паролем.
-              </p>
-              <p>
-                Все текущие сессии будут завершены - людям придётся войти заново.
-                <span v-if="rotationStatus.without_email > 0">
-                  Работников без почты ({{ rotationStatus.without_email }}) действие не затронет.
-                </span>
-              </p>
-              <template #actions>
-                <button
-                  class="btn btn--secondary"
-                  @click="confirmRotation = false"
-                >
-                  Отмена
-                </button>
-                <button
-                  class="btn btn--danger"
-                  data-testid="rotation-confirm-button"
-                  @click="runRotationNow"
-                >
-                  Сменить пароли
-                </button>
-              </template>
-            </BaseModal>
+              @confirm="runRotationNow"
+            />
 
             <div class="form-group">
               <label class="switch-label">
@@ -566,12 +540,13 @@
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
-import { SkeletonTransition, SkeletonLine, SkeletonBlock, BaseModal } from '@/components/ui';
+import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useContactsStore } from '@/stores/contacts';
 import { apiRequest } from '@/api/client';
 import WorkScheduleTab from '@/components/WorkScheduleTab.vue';
+import RotationConfirmModal from '@/components/admin/RotationConfirmModal.vue';
 
 export default {
   name: 'AdminSettings',
@@ -581,7 +556,7 @@ export default {
     SkeletonBlock,
     WorkScheduleTab,
     BaseDropdown,
-    BaseModal,
+    RotationConfirmModal,
   },
   data() {
     return {

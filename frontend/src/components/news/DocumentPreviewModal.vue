@@ -25,31 +25,21 @@
         </div>
       </div>
 
-      <div
-        v-if="doc.description"
-        class="doc-view__row"
-      >
-        <span class="doc-view__label">Описание</span>
-        <p class="doc-view__text">
-          {{ doc.description }}
-        </p>
-      </div>
-
       <div class="doc-view__row">
-        <span class="doc-view__label">Пояснение бюро</span>
+        <span class="doc-view__label">Описание</span>
         <p
-          v-if="doc.comment"
+          v-if="description"
           class="doc-view__text"
           data-testid="document-comment"
         >
-          {{ doc.comment }}
+          {{ description }}
         </p>
         <p
           v-else
           class="doc-view__empty"
           data-testid="document-comment-empty"
         >
-          Бюро пока ничего не пояснило к этому документу.
+          Описания нет
         </p>
       </div>
     </div>
@@ -81,7 +71,7 @@ import FileTypeIcon from '@/components/ui/FileTypeIcon.vue';
 import { formatMomentDate } from '@/utils/datetime';
 
 /**
- * Окно документа с обзора: что за файл, описание, пояснение бюро и скачивание.
+ * Окно документа с обзора: что за файл, описание и скачивание.
  *
  * Сам файл здесь не показывается - решение владельца: половина документов это
  * бланки xlsx, которые всё равно заполняют у себя, а не читают с экрана.
@@ -95,6 +85,12 @@ export default {
     downloading: { type: Boolean, default: false },
   },
   emits: ['close', 'download'],
+  computed: {
+    /** Развёрнутое пояснение бюро, а без него - короткая подпись из списка. */
+    description() {
+      return this.doc?.comment || this.doc?.description || '';
+    },
+  },
   methods: {
     formatDate(dt) {
       return dt ? formatMomentDate(new Date(dt)) : '';
@@ -114,6 +110,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  padding: 16px 20px;
 }
 
 .doc-view__head {
