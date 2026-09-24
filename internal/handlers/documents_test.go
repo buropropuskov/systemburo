@@ -291,6 +291,36 @@ func TestDocuments_Upload_WrongMagic(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// Кривая дата публикации при загрузке возвращает ошибку, а не подменяется молча на
+// «сейчас»: админ ставил дату задним числом, документ публиковался сегодняшним, и
+// понять это можно было только по списку.
+func TestDocuments_Upload_BadPublishedAt(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	content := append([]byte("%PDF-1.4\n"), bytes.Repeat([]byte("x"), 100)...)
+	body, ct := buildMultipartDoc(t, "doc.pdf", content, map[string]string{
+		"title":        "Тест",
+		"published_at": "2026-06-20",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/documents", body)
+	req.Header.Set("Content-Type", ct)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "даты публикации")
+
+	var count int64
+	require.NoError(t, db.Model(&models.Document{}).Count(&count).Error)
+	assert.Zero(t, count, "документ не должен создаться при отказе")
+}
+
 // --- Admin-only access ---
 
 func TestDocuments_List_AdminOnly(t *testing.T) {
