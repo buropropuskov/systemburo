@@ -116,7 +116,15 @@
    Поэтому список, который на планшете помещается таблицей, помечается классом
    `rt-keep-table` и до 899.98 остаётся таблицей; карточки он получает только на
    телефоне - блоком ниже. Пометка ОПТ-ИН: непомеченный список ведёт себя ровно как
-   раньше. Тип назначается замером «строка шире контейнера», а не на глаз. */
+   раньше. Тип назначается замером «строка шире контейнера», а не на глаз.
+
+   Пометка завёрнута в `:where()` НЕ для красоты: он не добавляет специфичности.
+   Без него `.rt-table:not(.rt-keep-table) .rt-row` весит (0,3,0) вместо прежних
+   (0,2,0) и начинает выигрывать у scoped-правил компонентов, которым раньше
+   проигрывал - а `index.css` грузится после чанка компонента. Ревью поймало это
+   на окнах выбора существующих: их собственный «чип»-дизайн строки схлопывался
+   до общей карточки, и текст наезжал на абсолютные чекбокс и бейдж. Правило:
+   добавляя класс в селектор ГЛОБАЛЬНОГО слоя, гаси его вклад `:where()`. */
 @media (max-width: 899.98px) {
   /* --- Часть 1: таблица -> карточки --- */
 
@@ -127,7 +135,7 @@
      без клипа docScrollWidth 443 при вьюпорте 390. !important обязателен -
      глобальное .rt-table (0,1,0) иначе проигрывает scoped overflow-x у
      компонента-потребителя (.applications-table[data-v] = 0,2,0). */
-  .rt-table:not(.rt-keep-table) {
+  .rt-table:where(:not(.rt-keep-table)) {
     overflow-x: hidden !important;
   }
 
@@ -137,11 +145,11 @@
      .table-header/.table-row[data-v] иначе перебивает display/border, и шапка
      таблицы висит над карточками, а строки не собираются в карточку (#1097 S9a,
      ревью поймало production-сборкой; dev-сервер порядок чанков маскирует). */
-  .rt-table:not(.rt-keep-table) .rt-head-row {
+  .rt-table:where(:not(.rt-keep-table)) .rt-head-row {
     display: none !important;
   }
 
-  .rt-table:not(.rt-keep-table) .rt-row {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row {
     display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
@@ -152,11 +160,11 @@
     background: var(--surface) !important;
   }
 
-  .rt-table:not(.rt-keep-table) .rt-row + .rt-row {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row + .rt-row {
     margin-top: 8px !important;
   }
 
-  .rt-table:not(.rt-keep-table) .rt-row > [data-label] {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row > [data-label] {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -168,11 +176,11 @@
     text-align: right;
   }
 
-  .rt-table:not(.rt-keep-table) .rt-row > [data-label]:last-child {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row > [data-label]:last-child {
     border-bottom: none;
   }
 
-  .rt-table:not(.rt-keep-table) .rt-row > [data-label]::before {
+  .rt-table:where(:not(.rt-keep-table)) .rt-row > [data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
     font-size: 12px;
@@ -403,7 +411,7 @@
      без клипа docScrollWidth 443 при вьюпорте 390. !important обязателен -
      глобальное .rt-table (0,1,0) иначе проигрывает scoped overflow-x у
      компонента-потребителя (.applications-table[data-v] = 0,2,0). */
-  .rt-table.rt-keep-table {
+  .rt-table:where(.rt-keep-table) {
     overflow-x: hidden !important;
   }
 
@@ -413,11 +421,11 @@
      .table-header/.table-row[data-v] иначе перебивает display/border, и шапка
      таблицы висит над карточками, а строки не собираются в карточку (#1097 S9a,
      ревью поймало production-сборкой; dev-сервер порядок чанков маскирует). */
-  .rt-table.rt-keep-table .rt-head-row {
+  .rt-table:where(.rt-keep-table) .rt-head-row {
     display: none !important;
   }
 
-  .rt-table.rt-keep-table .rt-row {
+  .rt-table:where(.rt-keep-table) .rt-row {
     display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
@@ -428,11 +436,11 @@
     background: var(--surface) !important;
   }
 
-  .rt-table.rt-keep-table .rt-row + .rt-row {
+  .rt-table:where(.rt-keep-table) .rt-row + .rt-row {
     margin-top: 8px !important;
   }
 
-  .rt-table.rt-keep-table .rt-row > [data-label] {
+  .rt-table:where(.rt-keep-table) .rt-row > [data-label] {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -444,11 +452,11 @@
     text-align: right;
   }
 
-  .rt-table.rt-keep-table .rt-row > [data-label]:last-child {
+  .rt-table:where(.rt-keep-table) .rt-row > [data-label]:last-child {
     border-bottom: none;
   }
 
-  .rt-table.rt-keep-table .rt-row > [data-label]::before {
+  .rt-table:where(.rt-keep-table) .rt-row > [data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
     font-size: 12px;
