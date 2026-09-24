@@ -705,7 +705,7 @@ export default {
   // Центром заявок, живёт в композабле.
   created() {
     this._tourReveal = useRevealFirstApplication({
-      first: () => this.sortedApplications[0],
+      list: () => this.sortedApplications,
       isOpen: () => this.showDetailModal,
       open: (application) => this.openApplication(application),
       close: () => this.closeApplicationDetail(),

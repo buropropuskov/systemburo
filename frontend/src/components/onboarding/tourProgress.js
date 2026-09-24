@@ -9,12 +9,22 @@
  * Храним в localStorage и отдельно по пользователю: за одним компьютером в бюро
  * работают посменно, и чужая позиция сбивала бы с толку. Запись протухает через
  * две недели - вернувшись через месяц, обучение честнее начать заново.
+ *
+ * Вместе с позицией держим версию набора шагов. Тур переписывают: шаги меняются
+ * местами, появляются новые - и старый индекс указывает уже не туда. Хуже того,
+ * если шаг той версии жил на другой странице, продолжение с него роняло тур сразу
+ * после запуска: сегмента для чужого пути нет, и обучение гасло молча (#2584).
  */
+
+import { TOURS } from '@/components/onboarding/tours';
 
 const PREFIX = 'ob:progress';
 const TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 const keyOf = (userId, tour) => `${PREFIX}:${userId || 'anon'}:${tour}`;
+
+/** @param {string} tour @returns {number|null} версия набора шагов тура */
+const versionOf = (tour) => TOURS.find((t) => t.key === tour)?.version ?? null;
 
 /**
  * @param {string|number|null} userId
@@ -27,8 +37,12 @@ export function readProgress(userId, tour) {
   try {
     const raw = localStorage.getItem(keyOf(userId, tour));
     if (!raw) return empty;
-    const { index, at, onScreen } = JSON.parse(raw);
+    const { index, at, onScreen, version } = JSON.parse(raw);
     if (!Number.isInteger(index) || index <= 0) return empty;
+    if (version !== versionOf(tour)) {
+      localStorage.removeItem(keyOf(userId, tour));
+      return empty;
+    }
     if (!at || Date.now() - at > TTL_MS) {
       localStorage.removeItem(keyOf(userId, tour));
       return empty;
@@ -53,7 +67,10 @@ export function saveProgress(userId, tour, index, onScreen = false) {
       clearProgress(userId, tour);
       return;
     }
-    localStorage.setItem(keyOf(userId, tour), JSON.stringify({ index, at: Date.now(), onScreen }));
+    localStorage.setItem(
+      keyOf(userId, tour),
+      JSON.stringify({ index, at: Date.now(), onScreen, version: versionOf(tour) }),
+    );
   } catch {
     // приватный режим браузера или переполненное хранилище - тур просто начнётся
     // сначала, ломать из-за этого обучение незачем

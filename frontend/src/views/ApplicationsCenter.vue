@@ -1324,7 +1324,7 @@ export default {
     // Контракт общий с личным кабинетом, живёт в композабле.
     created() {
         this._tourReveal = useRevealFirstApplication({
-            first: () => this.sortedApplications[0],
+            list: () => this.sortedApplications,
             isOpen: () => !!this.selectedApplication,
             open: (application) => this.openApplication(application),
             close: () => this.closeDetail(),
