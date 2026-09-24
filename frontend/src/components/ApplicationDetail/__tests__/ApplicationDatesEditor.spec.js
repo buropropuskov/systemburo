@@ -84,7 +84,7 @@ describe('ApplicationDatesEditor', () => {
     });
     expect(wrapper.emitted('changed')).toHaveLength(1);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'success', bold: '02.10.2099 08:00 - 04.10.2099 20:00', suffix: 'Голоса согласующих сняты.',
+      type: 'success', prefix: 'Срок заявки изменён: ', bold: '02.10.2099 08:00 - 04.10.2099 20:00', suffix: '. Голоса согласующих сняты.',
     }));
     expect(wrapper.vm.show).toBe(false);
   });
