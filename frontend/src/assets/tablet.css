@@ -76,16 +76,32 @@
   }
 }
 
-/* Тач-режим планшета: 768-1024.
+/* Тач-режим планшета: 768-1366.
  *
  * В этом диапазоне пользователь работает пальцем, а размеры контролов остаются
  * десктопными - обход находил 217 кнопок мельче нормы на 1024 и 72 на 810: «Обновить»
  * 25px, вкладки фильтров 30px, быстрые периоды аналитики 26px, бейджи кабинета 28px.
  * На десктопе те же 25-30px нормальны, там целятся курсором, поэтому диапазон закрыт
- * сверху и правил отсюда на 1025 нет.
+ * сверху и правил отсюда на 1367 нет.
+ *
+ * Минимум 32, а не 36. Первая волна взяла 36 и получила замечание владельца:
+ * «кнопки Обновить, Обучение слишком жирные и огромные» (24.09, 1024x768). На
+ * десктопе те же кнопки 25-26px, то есть 36 делало их в полтора раза выше соседнего
+ * заголовка - на коротком ландшафтном экране это видно сразу. 32 держит минимум
+ * WCAG 2.2 (24px) с запасом и отличается от десктопа на шесть пикселей, а не на
+ * одиннадцать.
  *
  * Минимум, а не фиксированная высота: кнопка с большим собственным размером его
  * сохраняет, ряды не разъезжаются.
+ *
+ * И БЕЗ `!important` - в отличие от структурных правил карточного слоя. Важность
+ * бьёт специфичность, поэтому общий минимум продавливал точечные нормы компонентов,
+ * объявленные без неё: «Повторить» на пустом экране списка теряла свои 36 (норма
+ * закреплена замком `lkButtonTouchTarget.spec.js`), «Скачать» в Центре - свои 44,
+ * а «Переслать» в шапке заявки - ширину 120. Без важности правило работает ровно
+ * как задумано: `min-height` сильнее `height` независимо от специфичности, поэтому
+ * кнопку с собственной высотой 25px оно поднимает; а там, где компонент объявил СВОЙ
+ * минимум, выигрывает компонент - у scoped-селектора специфичность выше.
  */
 @media (min-width: 768px) and (max-width: 1366px) {
   :is(
@@ -94,18 +110,25 @@
     .notif-filter-tabs__btn, .tables__instruction, .recipients-add__btn,
     .add-btn, .dashboard__seg-btn, .news-details-button, .modal-btn,
     .card-button, .grp-pill, .doc-row__dl, .detail-badge, .download-btn,
-    .notifications__settings, .notifications__clear, .filter-btn, .history-btn,
+    .notifications__clear, .filter-btn, .history-btn,
     .options__manual-add, .options__versions-link, .options__trash-link,
-    .options__export, .add-button, .log-button
+    .options__export, .add-button, .log-button,
+    .action-btn, .completion__button, .view-cars-btn, .view-employees-btn,
+    .add-existing-btn, .history-toggle, .toolbar-btn
   ) {
-    min-height: 36px !important;
+    min-height: 32px;
   }
+
 
   /* Иконочные кнопки строки и крестики окон. Им нужен квадрат, а не только высота:
      кнопка удаления шириной 24px мимо пальца ровно так же, как и высотой. */
-  :is(.delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn) {
-    min-width: 36px !important;
-    min-height: 36px !important;
+  :is(
+    .delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn,
+    .close-detail-btn, .forward-btn, .participants-btn, .notifications__settings,
+    .expand-btn
+  ) {
+    min-width: 32px;
+    min-height: 32px;
   }
 
   /* Мастер-детейл справочников: список занимает 40% ширины, и на 1024 строка не
@@ -176,16 +199,23 @@
     .notif-filter-tabs__btn, .tables__instruction, .recipients-add__btn,
     .add-btn, .dashboard__seg-btn, .news-details-button, .modal-btn,
     .card-button, .grp-pill, .doc-row__dl, .detail-badge, .download-btn,
-    .notifications__settings, .notifications__clear, .filter-btn, .history-btn,
+    .notifications__clear, .filter-btn, .history-btn,
     .options__manual-add, .options__versions-link, .options__trash-link,
-    .options__export, .add-button, .log-button
+    .options__export, .add-button, .log-button,
+    .action-btn, .completion__button, .view-cars-btn, .view-employees-btn,
+    .add-existing-btn, .history-toggle, .toolbar-btn
   ) {
-    min-height: 36px !important;
+    min-height: 32px;
   }
 
-  :is(.delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn, .flag-btn) {
-    min-width: 36px !important;
-    min-height: 36px !important;
+
+  :is(
+    .delete-btn, .edit-btn, .modal-close, .base-modal__close, .sound-icon-btn, .flag-btn,
+    .close-detail-btn, .forward-btn, .participants-btn, .notifications__settings,
+    .expand-btn
+  ) {
+    min-width: 32px;
+    min-height: 32px;
   }
 
   /* Номер заявки: та же компактная надпись, что в портрете - расширяем зону клика,
@@ -271,5 +301,52 @@
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+  }
+}
+
+
+/* Текст в кнопке не переносится, переносится ряд.
+ *
+ * На 810 «Все сотрудники системы» разложено на три строки внутри пилюли высотой
+ * 36px и вылезает за её рамку: ряд фильтров стоит в одну строку без переноса, а
+ * пилюли сжимаются по `flex-shrink` до ширины, на которой текст ломается. Тот же
+ * приём, что на телефоне: пилюля не сжимается и не переносит текст, а ряд при
+ * нехватке места переносится целыми пилюлями.
+ *
+ * Четыре пилюли «Моих сотрудников» - это 563px с зазорами, они помещаются в 736
+ * уже на 768; перенос включается только если рядом встал поиск.
+ */
+@media (min-width: 768px) and (max-width: 1366px) {
+  .filters-container,
+  .filter-tabs,
+  .notif-filter-tabs {
+    flex-wrap: wrap !important;
+  }
+
+  :is(.filter-tab, .status-btn, .grp-pill, .period-preset, .notif-filter-tabs__btn, .dashboard__seg-btn) {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* «Добавить существующего(-их)» в шапке формы подачи: на 1080 подпись ломалась
+     на две строки внутри кнопки 214x25. Кнопка не сжимается, а шапка при нехватке
+     места переносит её под заголовок. */
+  .completion__header {
+    flex-wrap: wrap !important;
+  }
+
+  .completion__button {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* Поиск в ряду фильтров ужимался до 150px, и плейсхолдер обрезался иконкой
+ * («Поиск сотрудник»). Даём читаемый минимум - столько же, сколько у дропдаунов
+ * таблицы поста в этом же листе.
+ */
+@media (min-width: 768px) and (max-width: 1366px) {
+  .filters-container > .search {
+    flex: 0 0 220px !important;
   }
 }

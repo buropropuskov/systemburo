@@ -38,9 +38,17 @@ const { selectScreens } = require('../helpers/screens');
 const DEFAULT_WIDTHS = [390, 810, 834, 900, 1024, 1440, 1920];
 const HEIGHT_BY_WIDTH = { 390: 844, 810: 1080, 834: 1112, 1024: 1366, 1180: 820, 1366: 1024, 1440: 900, 1920: 1080 };
 
-// Норма тач-таргета проекта - 36px (эталон §18): компактные контролы `.rt-btn-compact`
-// и «Обновить» сделаны именно такими, и гейт на 44 ругался бы на принятую норму.
-const TOUCH_MIN = 36;
+// Норма тач-таргета проекта - 36px на телефоне (эталон §18): компактные контролы
+// `.rt-btn-compact` и «Обновить» сделаны именно такими, и гейт на 44 ругался бы на
+// принятую норму.
+//
+// На планшете норма 32. Первая волна взяла те же 36 и получила замечание владельца:
+// «кнопки Обновить, Обучение слишком жирные и огромные» (24.09, 1024x768) - на
+// десктопе те же кнопки 25-26px, и 36 делало их в полтора раза выше соседнего
+// заголовка. 32 держит минимум WCAG 2.2 (24px) с запасом.
+const TOUCH_MIN_PHONE = 36;
+const TOUCH_MIN_TABLET = 32;
+const touchMin = (width) => (width <= 767.98 ? TOUCH_MIN_PHONE : TOUCH_MIN_TABLET);
 // Выше этой ширины раскладка десктопная - если экран с мышью. На планшете в
 // альбомной ориентации (прогон с AUDIT_TOUCH=1) тач-таргеты проверяем до самого верха
 // набора ширин: там пальцем работают и на 1366.
@@ -146,7 +154,7 @@ test('аудит раскладки: обход экранов по ширина
         entry.overlaps = screen.card ? await page.evaluate(overlaps, screen.card) : [];
         entry.clipped = screen.card ? await page.evaluate(clippedText, screen.card) : [];
         entry.small = width <= TOUCH_MAX_WIDTH
-          ? (await page.evaluate(smallTargets, TOUCH_MIN)).filter(isNotDeliberatelyCompact)
+          ? (await page.evaluate(smallTargets, touchMin(width))).filter(isNotDeliberatelyCompact)
           : [];
         entry.docOverflow = entry.metrics.doc > entry.metrics.vw + 1
           ? { doc: entry.metrics.doc, vw: entry.metrics.vw } : null;
@@ -175,7 +183,7 @@ test('аудит раскладки: обход экранов по ширина
           opened.metrics = await page.evaluate(pageMetrics);
           opened.overflow = await page.evaluate(horizontalOverflow);
           opened.small = width <= TOUCH_MAX_WIDTH
-            ? (await page.evaluate(smallTargets, TOUCH_MIN)).filter(isNotDeliberatelyCompact)
+            ? (await page.evaluate(smallTargets, touchMin(width))).filter(isNotDeliberatelyCompact)
             : [];
           opened.modal = await page.evaluate(modalGeometry);
           opened.docOverflow = opened.metrics.doc > opened.metrics.vw + 1
