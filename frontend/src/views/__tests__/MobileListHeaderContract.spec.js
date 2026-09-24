@@ -34,13 +34,26 @@ function read(name) {
   return readFileSync(path.join(VIEWS, name), 'utf8');
 }
 
-/** Блок мобильных правил: от @media 767.98 до следующего медиа-запроса. */
+/**
+ * Мобильные правила файла: ВСЕ блоки `@media (max-width: 767.98px)`, склеенные.
+ * Блоков в файле может быть несколько - раньше телефонные правила писались двумя
+ * порогами сразу, и после сведения к одному числу условие у них совпало. Брать
+ * первый попавшийся - значит проверять половину контракта.
+ */
 function mobileBlock(source) {
-  const start = source.indexOf('@media (max-width: 767.98px)');
-  expect(start, 'в файле нет блока @media (max-width: 767.98px)').toBeGreaterThan(-1);
-  const rest = source.slice(start + '@media (max-width: 767.98px)'.length);
-  const next = rest.indexOf('@media ');
-  return next === -1 ? rest : rest.slice(0, next);
+  const MARK = '@media (max-width: 767.98px)';
+  const parts = [];
+  let from = 0;
+  for (;;) {
+    const start = source.indexOf(MARK, from);
+    if (start === -1) break;
+    const rest = source.slice(start + MARK.length);
+    const next = rest.indexOf('@media ');
+    parts.push(next === -1 ? rest : rest.slice(0, next));
+    from = start + MARK.length;
+  }
+  expect(parts.length, 'в файле нет блока @media (max-width: 767.98px)').toBeGreaterThan(0);
+  return parts.join('\n');
 }
 
 /** Блок правил для очень узких телефонов (<=480). */
