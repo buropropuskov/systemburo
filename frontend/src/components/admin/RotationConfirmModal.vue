@@ -21,13 +21,13 @@
 
     <template #actions>
       <button
-        class="btn btn--secondary"
+        class="lk-button lk-button--secondary"
         @click="$emit('close')"
       >
         Отмена
       </button>
       <button
-        class="btn btn--danger"
+        class="lk-button lk-button--danger"
         data-testid="rotation-confirm-button"
         @click="$emit('confirm')"
       >
