@@ -533,7 +533,7 @@
                   </button>
                 </div>
                 <div
-                  v-if="can('entity.employees.delete')"
+                  v-if="can(`table.${tableName}.delete`)"
                   class="col actions-col"
                   style="order: 9999;"
                   @click.stop
@@ -1611,7 +1611,7 @@ export default {
       const host = this.$el && this.$el.querySelector('.card-content');
       if (!host) return;
       const reserved = SERVICE_COLUMNS_WIDTH.passage
-        + (this.can('entity.employees.delete') ? SERVICE_COLUMNS_WIDTH.actions : 0)
+        + (this.can(`table.${this.tableName}.delete`) ? SERVICE_COLUMNS_WIDTH.actions : 0)
         + SERVICE_COLUMNS_WIDTH.expand;
       // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
       // зазоров между ячейками (#1097 S8 волна 4).

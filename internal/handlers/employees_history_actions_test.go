@@ -159,6 +159,7 @@ func TestDeactivateEmployee_CreatesDeleteHistory(t *testing.T) {
 
 	userID := getUserID(t, db, "emphist_deact1")
 	body := fmt.Sprintf(`{"status": 0, "user_id": %d}`, userID)
+	allowPostElementActions(t, db, "emphist_deact1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/deactivate", empID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	assert.Equal(t, "Employee deactivated successfully", testutil.ParseMessage(t, rec))
@@ -211,6 +212,7 @@ func TestDeactivateEmployee_InputValidation(t *testing.T) {
 		},
 	}
 
+	allowPostElementActions(t, db, "emphist_deact2")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := testutil.PUT(t, e, tt.path, tt.body, testutil.AuthHeader(token))
@@ -230,6 +232,7 @@ func TestActivateEmployee_AfterDeactivateCreatesActivateHistory(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "emphist_act1", "pass123", 1, td.OrgID, td.CompanyID)
 	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 
+	allowPostElementActions(t, db, "emphist_act1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/deactivate", empID),
 		`{"status": 0}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -264,6 +267,7 @@ func TestRestoreEmployee_CreatesRestoreHistory(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "emphist_rest1", "pass123", 1, td.OrgID, td.CompanyID)
 	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 
+	allowPostElementActions(t, db, "emphist_rest1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/deactivate", empID),
 		`{"status": 0}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)

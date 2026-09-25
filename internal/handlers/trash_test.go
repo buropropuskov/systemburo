@@ -40,6 +40,7 @@ func TestTrash_CarFlowListScopingRestoreHistory(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td)
 
 	// Удаление из таблицы t1 с указанием table_id.
+	allowPostElementActions(t, db, "trashcar1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, t1.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -104,6 +105,7 @@ func TestTrash_RestoreBlockedWithoutApprovedApplication(t *testing.T) {
 
 	// Машина без согласованной заявки (не активируем).
 	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	allowPostElementActions(t, db, "trashcar2")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -152,6 +154,7 @@ func TestTrash_RestoreBlockedAfterPassHoursEnded(t *testing.T) {
 		msk.Format("2006-01-02"), msk.Format("15:04:05"), attID,
 	).Error)
 
+	allowPostElementActions(t, db, "trashcarmsk")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -181,6 +184,7 @@ func TestTrash_PurgeOneRemovesFromTrash(t *testing.T) {
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	allowPostElementActions(t, db, "trashcar3")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -219,6 +223,7 @@ func TestTrash_ClearAllCars_PurgesAndLogsDetails(t *testing.T) {
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	allowPostElementActions(t, db, "trashclear1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -273,6 +278,7 @@ func TestTrash_EmployeeFlow_ScopingRestoreHistoryDetails(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td) // согласовать + в работу: нужно для restore
 
 	// Деактивация с table_id -> сотрудник в корзину t1.
+	allowPostElementActions(t, db, "trashemp1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/deactivate", empID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, t1.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

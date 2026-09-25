@@ -105,6 +105,7 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 		{"PUT", fmt.Sprintf("/cars/%d/deactivate", carID), `{"status":2}`},
 		{"PUT", fmt.Sprintf("/cars/%d/activate", carID), `{}`},
 	}
+	allowPostElementActions(t, db, "carflip1")
 	for _, s := range steps {
 		var rec *httptest.ResponseRecorder
 		switch s.method {
@@ -150,6 +151,7 @@ func TestCars_WriteFlip_RestoreToAuditLog(t *testing.T) {
 	h := testutil.AuthHeader(token)
 
 	// Деактивируем машину чтобы restore был валиден (предусловие из TestRestoreCar_Success).
+	allowPostElementActions(t, db, "carrestore_audit1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID), `{"status": 2}`, h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 

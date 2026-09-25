@@ -72,6 +72,7 @@ func TestCarHistory_DeleteActionRecordedAtUTC(t *testing.T) {
 	beforeUTC := time.Now().UTC().Add(-2 * time.Second)
 
 	// Деактивация (мягкое удаление) -- именно этот сценарий отлажен в issue.
+	allowPostElementActions(t, db, "carutc2")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		`{"status": 2}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
