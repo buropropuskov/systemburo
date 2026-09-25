@@ -486,3 +486,27 @@
     max-width: none !important;
   }
 }
+
+
+/* Талон проходной на планшете.
+ *
+ * Кнопки талона стоят по половине - `flex-basis: calc(50% - 4px)`. На телефоне это 180px
+ * и ровно то, что задумано: две пилюли проезда в ряд и «Удалить» под данными. На
+ * планшете та же половина превращается в 349px, и экран занимают две пустые пилюли
+ * во всю ширину и одинокая широкая кнопка удаления - владелец назвал это «уродские
+ * кнопки, которые ни разу не получились».
+ *
+ * Фиксируем ту ширину, на которую пилюли и рисовались. Данные талона (номер, марка,
+ * организация) не трогаем - они и так занимают всю строку.
+ */
+@media (min-width: 768px) and (max-width: 899.98px) {
+  /* Селектор длиннее необходимого намеренно: правило-источник живёт в scoped-CSS
+     компонента (`.selected-table-card .rt-row > .entry-col[data-v]`), и это четыре
+     класса. Коротким селектором его не перебить даже важностью. */
+  :is(.selected-table-card, .fact-table-card) .rt-table .rt-pass > .entry-col,
+  :is(.selected-table-card, .fact-table-card) .rt-table .rt-pass > .exit-col,
+  :is(.selected-table-card, .fact-table-card) .rt-table .rt-pass > .actions-col,
+  :is(.selected-table-card, .fact-table-card) .rt-table .rt-pass > .expand-col {
+    flex: 0 0 180px !important;
+  }
+}
