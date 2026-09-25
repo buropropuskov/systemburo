@@ -133,7 +133,7 @@ type ApplicationService interface {
 	GetUserApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error)
 
 	// GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
-	GetApplicationByID(ctx context.Context, username string, applicationID int) (map[string]interface{}, error)
+	GetApplicationByID(ctx context.Context, username string, applicationID int, isSuperAdmin bool) (map[string]interface{}, error)
 
 	// GetApplicationDetails возвращает расширенную информацию о заявке. username -
 	// смотрящий: от него зависит, попадёт ли в ответ заметка бюро (только принимающему,
@@ -1247,7 +1247,8 @@ func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, u
 }
 
 // GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
-func (s *applicationService) GetApplicationByID(ctx context.Context, username string, applicationID int) (map[string]interface{}, error) {
+// Доступ проверяется до записи: постороннему 403 без перевода статуса и строки "read" в журнале.
+func (s *applicationService) GetApplicationByID(ctx context.Context, username string, applicationID int, isSuperAdmin bool) (map[string]interface{}, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -1299,6 +1300,11 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 			return nil, echo.NewHTTPError(http.StatusNotFound, "Application not found")
 		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	if !s.CanAccessApplication(ctx, applicationID, username, isSuperAdmin) {
+		tx.Rollback()
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	// Обновляем статус при первом прочтении не отправителем. Этот переход НЕ бампает
