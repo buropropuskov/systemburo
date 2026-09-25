@@ -120,7 +120,8 @@
     .options__manual-add, .options__versions-link, .options__trash-link,
     .options__export, .add-button, .log-button,
     .action-btn, .completion__button, .view-cars-btn, .view-employees-btn,
-    .add-existing-btn, .history-toggle, .toolbar-btn
+    .add-existing-btn, .history-toggle, .toolbar-btn,
+    .send-all-btn, .qd-trigger, .app-files__add, .questions-toggle
   ) {
     min-height: 32px;
   }
@@ -209,7 +210,8 @@
     .options__manual-add, .options__versions-link, .options__trash-link,
     .options__export, .add-button, .log-button,
     .action-btn, .completion__button, .view-cars-btn, .view-employees-btn,
-    .add-existing-btn, .history-toggle, .toolbar-btn
+    .add-existing-btn, .history-toggle, .toolbar-btn,
+    .send-all-btn, .qd-trigger, .app-files__add, .questions-toggle
   ) {
     min-height: 32px;
   }
@@ -514,5 +516,18 @@
   :is(.selected-table-card, .fact-table-card) .rt-table .rt-pass > .actions-col,
   :is(.selected-table-card, .fact-table-card) .rt-table .rt-pass > .expand-col {
     flex: 0 0 180px !important;
+  }
+}
+
+
+/* Панель редактора письма: кнопки объявлены 28x28 внутри формы подачи
+ * (`.create__form :deep(.toolbar-btn)`), и по высоте их поднимает общий минимум, а по
+ * ширине - нет: там у компонента свой `min-width`, а не `width`. Получался
+ * прямоугольник 28x32. Селектор в два класса, чтобы перебить компонентный.
+ */
+@media (min-width: 768px) and (max-width: 1366px) {
+  .create .create__form .toolbar-btn {
+    min-width: 32px;
+    height: 32px;
   }
 }
