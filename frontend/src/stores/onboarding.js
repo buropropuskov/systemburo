@@ -207,12 +207,12 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     if (!entry || !entry.steps.length) return false;
     activeTourKey.value = entry.key;
     isManual.value = manual;
-    // Продолжаем с того места, где человек остановился в прошлый раз: обучение
-    // длинное, и начинать его заново после перерыва - значит бросить на середине.
-    // `restart` - явная просьба «пройти сначала» из меню.
-    // Клампим по ФАКТИЧЕСКОМУ набору: часть шагов гейтится правами, и позиция,
-    // записанная когда-то с более широким доступом, увела бы тур за последний шаг.
-    const saved = restart ? 0 : progress.resumeIndex(entry.key);
+    // Продолжаем с места, где человек остановился: обучение длинное, и начинать
+    // заново после перерыва - значит бросить на середине. `restart` - явная просьба
+    // из меню; досмотренный тур тоже начинаем с начала, продолжать в нём нечего, а
+    // залежавшаяся запись уводила сразу на «Готово» (#2603). Клампим по ФАКТИЧЕСКОМУ
+    // набору: часть шагов гейтится правами, и старая позиция ушла бы за последний шаг.
+    const saved = restart || hasFinished(entry.key) ? 0 : progress.resumeIndex(entry.key);
     resumedFrom.value = Math.min(saved, Math.max(0, steps.value.length - 1));
     currentIndex.value = resumedFrom.value;
     skippedIndexes.value = [];

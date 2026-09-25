@@ -65,6 +65,9 @@ const USER_TOUR_RIGHTS = [...new Set(USER_REQUIRES_STEPS.map((s) => s.requires))
 
 describe('onboarding store', () => {
   beforeEach(() => {
+    // Позиция тура живёт в localStorage и протекала между тестами: запись одного
+    // ломала соседа, который проверяет, что после финала её нет.
+    localStorage.clear();
     setActivePinia(createPinia());
     getOnboardingStatus.mockReset();
     markOnboardingComplete.mockReset();
@@ -251,6 +254,22 @@ describe('onboarding store', () => {
       store.start({ tour: 'accept' });
 
       expect(syncDemoBackend).toHaveBeenCalledWith(true, true, 'accept');
+    });
+
+    it('досмотренный тур запускается сначала, даже если позиция залежалась', () => {
+      // Запись от прошлой версии кода переживает обновление: у того, кто проходил
+      // тур раньше, она указывала на последний шаг, и обучение открывалось сразу
+      // на «Готово» (#2603).
+      localStorage.setItem(
+        'ob:progress:1:accept',
+        JSON.stringify({ index: 20, at: Date.now(), onScreen: false, version: 3 }),
+      );
+      const store = useOnboardingStore();
+      store.markCompleted(true);
+      store.stop(true);
+      store.start({ tour: 'accept' });
+
+      expect(store.currentIndex).toBe(0);
     });
 
     it('после финала позиция не остаётся - stop не возвращает её', async () => {
