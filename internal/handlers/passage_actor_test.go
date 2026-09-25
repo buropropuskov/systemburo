@@ -68,6 +68,7 @@ func TestPassageActor_TakenFromToken(t *testing.T) {
 	assert.Equal(t, guardID, *actor, "в журнале автор токена, а не присланный телом")
 
 	// Соседнее действие тем же путём: деактивация записи.
+	allowPostElementActions(t, db, "actorguard")
 	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status": 0, "user_id": %d, "table_id": %d}`, victimID, table.ID),
 		testutil.AuthHeader(token))

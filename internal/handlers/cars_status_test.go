@@ -202,6 +202,7 @@ func TestCarTerritoryStatus_DeactivateSetsDateRemoved(t *testing.T) {
 	assert.Nil(t, carBefore.DateRemoved, "date_removed should be nil before deactivation")
 
 	// Deactivate
+	allowPostElementActions(t, db, "cardeact2")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		`{"status": 2}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -231,6 +232,7 @@ func TestCarTerritoryStatus_ActivateAfterDeactivateClearsDateRemoved(t *testing.
 	activateCarViaApp(t, e, db, appID, td)
 
 	// Deactivate first
+	allowPostElementActions(t, db, "caract2")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		`{"status": 2}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)

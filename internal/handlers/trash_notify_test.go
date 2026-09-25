@@ -35,6 +35,7 @@ func TestTrash_Notify_RestoreCarNotifiesAuthorNotRestorer(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, authorToken, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
+	allowPostElementActions(t, db, "trashnotify_restorer")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, restorer.ID, tbl.ID), testutil.AuthHeader(restorerToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -82,6 +83,7 @@ func TestTrash_Notify_RestoreByAuthorItselfNotNotified(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
+	allowPostElementActions(t, db, "trashnotify_self")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

@@ -358,13 +358,13 @@
                 >
                   {{ item.citizenshipName || item.citizenship_name || '-' }}
                 </div>
-                <!-- Удалить - всегда в конце -->
                 <div
                   class="col actions-col"
                   style="order: 9999;"
                   @click.stop
                 >
                   <button
+                    v-if="permissionsStore.hasPermission(`table.${tableData?.table?.name}.delete`)"
                     class="delete-btn rt-pass__act rt-pass__act--danger"
                     title="Удалить"
                     @click="deleteItem(item)"
@@ -436,6 +436,7 @@ import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatMoscowDateTime } from '@/utils/serverTime';
 import { downloadExcelSheet } from '@/utils/excelSheet';
+import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
   name: 'FactTable',
@@ -469,7 +470,7 @@ export default {
     // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
     // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
     const { isNarrow } = useNarrowScreen(899.98);
-    return { isNarrow };
+    return { isNarrow, permissionsStore: usePermissionsStore() };
   },
   data() {
     return {
@@ -1087,10 +1088,9 @@ export default {
             method: "PUT",
             body: JSON.stringify({ status: 0, user_id: this.currentUserId })
           });
-          if (response.ok) this.factData = this.factData.filter(i => i.id !== item.id);
-        } else {
-          this.factData = this.factData.filter(i => i.id !== item.id);
+          if (!response.ok) return;
         }
+        this.factData = this.factData.filter(i => i.id !== item.id);
       } catch (error) {
         console.error("Ошибка при удалении:", error);
       }

@@ -430,6 +430,7 @@ func TestAddCarHistoryEntry_Success(t *testing.T) {
 		"action_type": "comment",
 		"comment": "manual entry"
 	}`, userID)
+	allowPostElementActions(t, db, "carhistadd")
 	rec := testutil.POST(t, e, fmt.Sprintf("/cars/%d/history", carID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -505,6 +506,7 @@ func TestDeactivateCar_Success(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td)
 
 	body := `{"status": 2}`
+	allowPostElementActions(t, db, "cardeact1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -524,6 +526,7 @@ func TestActivateCar_Success(t *testing.T) {
 	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 
 	// Car starts with status=0, activate sets status=1
+	allowPostElementActions(t, db, "caract1")
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/activate", carID), `{}`, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -544,6 +547,7 @@ func TestRestoreCar_Success(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td)
 
 	// Deactivate first
+	allowPostElementActions(t, db, "carrestore1")
 	testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID), `{"status": 2}`, testutil.AuthHeader(token))
 
 	// Now restore
@@ -635,6 +639,7 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	// 6. Add manual history entry
 	userID := getUserID(t, db, "carlc1")
 	histBody := fmt.Sprintf(`{"user_id": %d, "action_type": "note", "comment": "inspection ok"}`, userID)
+	allowPostElementActions(t, db, "carlc1")
 	rec = testutil.POST(t, e, fmt.Sprintf("/cars/%d/history", carID), histBody, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 

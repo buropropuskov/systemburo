@@ -97,6 +97,7 @@ func TestEmployees_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                                                     // delete (повторно)
 		{fmt.Sprintf("/employees/%d/activate", empID), `{}`},                                                                 // activate
 	}
+	allowPostElementActions(t, db, "empflip1")
 	for _, s := range steps {
 		rec := testutil.PUT(t, e, s.path, s.body, h)
 		require.Equal(t, http.StatusOK, rec.Code, "PUT %s: %s", s.path, rec.Body.String())

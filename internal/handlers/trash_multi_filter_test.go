@@ -25,6 +25,7 @@ func seedTrashedCar(t *testing.T, e *echo.Echo, db *gorm.DB, token string, userI
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
 		Update("organization_id", orgID).Error)
+	allowPostElementActionsForID(t, db, userID)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, userID, tableID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -38,6 +39,7 @@ func seedTrashedEmployee(t *testing.T, e *echo.Echo, db *gorm.DB, token string, 
 	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
 		Update("organization_id", orgID).Error)
+	allowPostElementActionsForID(t, db, userID)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/deactivate", empID),
 		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, userID, tableID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

@@ -129,6 +129,11 @@ type Dependencies struct {
 	// testutil обязаны заполнять - без гейта любой залогиненный мог бы отметить
 	// проезд/проход любой машины или человека.
 	TablePassGate echo.MiddlewareFunc
+	// CarDeleteGate/EmployeeDeleteGate - RequireTableElementVerb(..., "delete"): снятие,
+	// возврат и восстановление элемента поста правом table.<name>.delete на его пост
+	// (#2600). main и testutil обязаны заполнять.
+	CarDeleteGate      echo.MiddlewareFunc
+	EmployeeDeleteGate echo.MiddlewareFunc
 
 	// Misc
 	JWTSecret []byte
@@ -718,7 +723,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.GET("/fact-unload-places", cars.GetFactCarUnloadPlaces)
 	carsGroup.GET("/check-active", cars.CheckActiveCar)
 	carsGroup.GET("/:id/history", cars.GetCarHistory)
-	carsGroup.POST("/:id/history", cars.AddCarHistoryEntry)
+	// Произвольная запись в журнал машины: интерфейс её не вызывает, а действие попадает
+	// в суточные отчёты по проходам - только администратор (#2600).
+	carsGroup.POST("/:id/history", cars.AddCarHistoryEntry, requireAdmin)
 	carsGroup.GET("/history/all", cars.GetAllCarsHistory)
 	carsGroup.GET("/history/filter-options", cars.GetCarsHistoryFilterOptions)
 	carsGroup.GET("/history/table/:table_id", cars.GetCarsHistoryByTable)
@@ -727,10 +734,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Отмена ошибочной отметки (#2437) идёт под тем же гейтом: направление и пост
 	// приходят телом, и правом отмену закрывает то же table.<name>.entry|exit.
 	carsGroup.PUT("/:id/territory-status/revert", cars.RevertCarPassage, d.TablePassGate)
-	carsGroup.PUT("/:id/deactivate", cars.DeactivateCar)
-	carsGroup.PUT("/:id/activate", cars.ActivateCar)
+	carsGroup.PUT("/:id/deactivate", cars.DeactivateCar, d.CarDeleteGate)
+	carsGroup.PUT("/:id/activate", cars.ActivateCar, d.CarDeleteGate)
 	carsGroup.GET("/history/unified", cars.GetUnifiedCarHistory)
-	carsGroup.PUT("/:id/restore", cars.RestoreCar)
+	carsGroup.PUT("/:id/restore", cars.RestoreCar, d.CarDeleteGate)
 	// Групповые операции над строками таблицы проходной (#1194): перенос/добавление/
 	// снятие набора машин с таблиц «Проезд». Права admin - как остальные bulk-операции.
 	carsGroup.POST("/bulk/move-table", cars.BulkMoveTable, requireAdmin)
@@ -747,9 +754,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	empGroup.GET("/active-for-table/:table_id", employees.GetActiveEmployeesForTable)
 	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus, d.TablePassGate)
 	empGroup.PUT("/:id/territory-status/revert", employees.RevertEmployeePassage, d.TablePassGate)
-	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee)
-	empGroup.PUT("/:id/activate", employees.ActivateEmployee)
-	empGroup.PUT("/:id/restore", employees.RestoreEmployee)
+	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee, d.EmployeeDeleteGate)
+	empGroup.PUT("/:id/activate", employees.ActivateEmployee, d.EmployeeDeleteGate)
+	empGroup.PUT("/:id/restore", employees.RestoreEmployee, d.EmployeeDeleteGate)
 	// Групповые операции над строками таблицы проходной (#1194): статические
 	// сегменты bulk/* приоритетнее /:id в роутинге Echo.
 	empGroup.POST("/bulk/move-table", employees.BulkMoveTable, requireAdmin)

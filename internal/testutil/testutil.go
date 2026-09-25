@@ -586,6 +586,8 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
+		CarDeleteGate:       mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "cars", "delete"),
+		EmployeeDeleteGate:  mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "employees", "delete"),
 		Impersonation:       handlers.NewImpersonationHandler(services.NewImpersonationService(db, TestJWTSecret, permissionResolver, auditRecorder)),
 		JWTSecret:           []byte(TestJWTSecret),
 		JWTRefreshSecret:    []byte(TestJWTRefreshSecret),
