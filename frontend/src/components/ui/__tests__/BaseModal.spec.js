@@ -1,6 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import BaseModal from '../BaseModal.vue';
+
+// Свайп-закрытие живёт только на телефоне: на планшете и десктопе окно рисуется
+// диалогом по центру, и `useSwipeDismiss` жест там не активирует. jsdom по умолчанию
+// отдаёт ширину 1024, поэтому задаём телефонную явно - иначе тесты проверяли бы жест
+// на ширине, где его и не должно быть.
+const swipeWidth = window.innerWidth;
+beforeEach(() => { window.innerWidth = 390; });
+afterEach(() => { window.innerWidth = swipeWidth; });
+
 
 function mountModal(props = {}, slots = {}) {
   return mount(BaseModal, {

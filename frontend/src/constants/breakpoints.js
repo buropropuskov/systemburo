@@ -25,6 +25,15 @@ export const TABLET_MAX = 1366;
 export const DRAWER_MEDIA = `(max-width: ${TABLET_MAX}px), (hover: none) and (pointer: coarse)`;
 
 /**
+ * Телефонная раскладка: карточки вместо строк, лист вместо окна, одна колонка.
+ * По этому же признаку гейтится свайп-закрытие: тянуть за палец можно лист, а на
+ * планшете окно - обычный диалог по центру.
+ */
+export function isPhoneViewport() {
+  return typeof window !== 'undefined' && window.innerWidth <= PHONE_MAX;
+}
+
+/**
  * Меню сейчас в drawer. Отдельно от телефона: drawer держится до 1366, поэтому
  * «открыть меню» на планшете нужно ровно так же, как на телефоне.
  */

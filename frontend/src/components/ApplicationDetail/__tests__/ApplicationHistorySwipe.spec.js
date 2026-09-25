@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
@@ -11,6 +11,15 @@ vi.mock('@/api/client', () => ({
 }));
 
 import ApplicationHistory from '../ApplicationHistory.vue';
+
+// Свайп-закрытие живёт только на телефоне: на планшете и десктопе окно рисуется
+// диалогом по центру, и `useSwipeDismiss` жест там не активирует. jsdom по умолчанию
+// отдаёт ширину 1024, поэтому задаём телефонную явно - иначе тесты проверяли бы жест
+// на ширине, где его и не должно быть.
+const swipeWidth = window.innerWidth;
+beforeEach(() => { window.innerWidth = 390; });
+afterEach(() => { window.innerWidth = swipeWidth; });
+
 
 function mountHistory() {
   return shallowMount(ApplicationHistory, {
