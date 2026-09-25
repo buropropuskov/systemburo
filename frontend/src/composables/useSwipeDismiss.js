@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { isPhoneViewport } from '@/constants/breakpoints';
 
 /**
  * Свайп-вниз-закрытие для bottom-sheet модалок на мобилке (#1097 W3.4).
@@ -56,8 +57,12 @@ export function useSwipeDismiss(onDismiss, options = {}) {
     // закрывать лист - иначе на мобилке preventDefault глотает фокус/ввод, и текст не
     // набрать (#1097 R4-5). Свайп с ползунка/пустых зон работает как прежде.
     const onFormField = !!e.target?.closest?.('textarea, input, select, [contenteditable="true"]');
+    // Свайп живёт только там, где окно - лист, то есть на телефоне. На планшете и
+    // десктопе то же окно рисуется диалогом по центру, и тянуть его вниз пальцем
+    // нечему: жест выглядел бы как случайное закрытие. Порог тот же, что у геометрии
+    // листа в App.vue (767.98) - иначе окно тянется за пальцем, но листом не выглядит.
     // Свайп-закрытие только с ползунка или когда контент прокручен вверх, и не с поля ввода.
-    active = !onFormField && (fromHandle || getScrollTop() <= 0);
+    active = isPhoneViewport() && !onFormField && (fromHandle || getScrollTop() <= 0);
     reset();
   }
 

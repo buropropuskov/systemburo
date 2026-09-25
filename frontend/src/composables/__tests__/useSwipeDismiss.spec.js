@@ -1,5 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useSwipeDismiss } from '../useSwipeDismiss';
+
+// Свайп-закрытие живёт только на телефоне: на планшете и десктопе окно рисуется
+// диалогом по центру, и `useSwipeDismiss` жест там не активирует. jsdom по умолчанию
+// отдаёт ширину 1024, поэтому задаём телефонную явно - иначе тесты проверяли бы жест
+// на ширине, где его и не должно быть.
+const swipeWidth = window.innerWidth;
+beforeEach(() => { window.innerWidth = 390; });
+afterEach(() => { window.innerWidth = swipeWidth; });
+
 
 // #1097 W3.4: свайп-вниз-закрытие bottom-sheet. Лист тянется только вниз, закрытие
 // после порога; скролл-guard и ползунок разрешают/запрещают жест.
@@ -7,6 +16,21 @@ import { useSwipeDismiss } from '../useSwipeDismiss';
 const touch = (y) => ({ touches: [{ clientY: y }], cancelable: true, preventDefault: vi.fn(), target: null });
 
 describe('useSwipeDismiss', () => {
+  it('на планшетной ширине жест не активируется - там окно диалог, а не лист', () => {
+    // Порог тот же, что у геометрии листа в App.vue: с 768 окно рисуется по центру,
+    // и протяжка вниз выглядела бы случайным закрытием.
+    window.innerWidth = 768;
+    const onDismiss = vi.fn();
+    const s = useSwipeDismiss(onDismiss, { threshold: 90 });
+    s.onTouchStart(touch(100));
+    s.onTouchMove({ ...touch(250), touches: [{ clientY: 250 }] });
+
+    expect(s.isDragging.value).toBe(false);
+    expect(s.offset.value).toBe(0);
+    s.onTouchEnd();
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
   it('свайп вниз дальше порога уводит лист вниз и закрывает после слайда', () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
