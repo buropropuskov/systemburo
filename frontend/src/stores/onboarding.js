@@ -217,7 +217,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     currentIndex.value = resumedFrom.value;
     skippedIndexes.value = [];
     isActive.value = true;
-    syncDemoBackend(true, hasOwnApplication.value);
+    syncDemoBackend(true, hasOwnApplication.value, entry.key);
     // Фоновый резолв фактовой таблицы: не блокирует показ первого шага, сегмент
     // отметки добавится в хвост, как только route приедет.
     if (entry.key === 'guard') ensureFactRoute();

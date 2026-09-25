@@ -232,7 +232,7 @@ describe('onboarding store', () => {
       await store.ensureOwnApplication();
       store.start({ tour: 'user' });
 
-      expect(syncDemoBackend).toHaveBeenCalledWith(true, false);
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, false, 'user');
     });
 
     it('со своей заявкой пример не поднимается - список остаётся настоящим', async () => {
@@ -240,7 +240,17 @@ describe('onboarding store', () => {
       await withOwnApplication(store);
       store.start({ tour: 'user' });
 
-      expect(syncDemoBackend).toHaveBeenCalledWith(true, true);
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, true, 'user');
+    });
+
+    it('тур принимающего поднимает пример даже со своими заявками', async () => {
+      // Обучение про чужие заявки идёт в Центре: там у каждого своё, и без
+      // примера состав тура зависит от того, что лежит в списке сегодня (#2580).
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      store.start({ tour: 'accept' });
+
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, true, 'accept');
     });
 
     it('конец тура снимает подмену', async () => {
