@@ -179,6 +179,7 @@ func TestGetActiveEmployeesForTable_Empty(t *testing.T) {
 
 	tableID := seedSystemTable(t, db)
 	token := testutil.RegisterAndLogin(t, e, "empget1", "pass123", 1, td.OrgID, td.CompanyID)
+	grantPostView(t, db, "empget1", tableID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -198,6 +199,7 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 	uaID := seedUniqueAttachment(t, db, "people", "people_active_tmpl", "People Active")
 
 	token := testutil.RegisterAndLogin(t, e, "empactive1", "pass123", 1, td.OrgID, td.CompanyID)
+	grantPostView(t, db, "empactive1", tableID)
 
 	// Create a complete application with employees
 	body := fmt.Sprintf(`{
@@ -306,6 +308,7 @@ func TestGetActiveEmployeesForTable_IncludesExtendedFields(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "empfields1", "pass123", 1, td.OrgID, td.CompanyID)
 	tableID := seedSystemTable(t, db)
+	grantPostView(t, db, "empfields1", tableID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -336,11 +339,9 @@ func TestGetActiveEmployeesForTable_NonexistentTable(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "empne1", "pass123", 1, td.OrgID, td.CompanyID)
 
+	// Право на пост проверяется по его имени, поэтому несуществующий пост отвечает 404.
 	rec := testutil.GET(t, e, "/employees/active-for-table/999999", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	employees := testutil.ParseSlice(t, rec)
-	assert.Empty(t, employees)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 // --- PUT /employees/:id/territory-status ---

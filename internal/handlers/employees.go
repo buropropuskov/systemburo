@@ -117,16 +117,16 @@ func (h *EmployeeHandler) RevertEmployeePassage(c echo.Context) error {
 	return RespondMessage(c, "Employee passage mark reverted successfully")
 }
 
-// GetActiveEmployeesForTable обрабатывает GET /employees/active-for-table/:table_id.
+// GetActiveEmployeesForTable обрабатывает GET /employees/active-for-table/:id.
 // @Summary Получение активных сотрудников для таблицы
 // @Tags employees
 // @Security BearerAuth
 // @Produce json
-// @Param table_id path int true "ID таблицы"
+// @Param id path int true "ID таблицы"
 // @Success 200 {array} services.TableEmployeeResponse
-// @Router /employees/active-for-table/{table_id} [get]
+// @Router /employees/active-for-table/{id} [get]
 func (h *EmployeeHandler) GetActiveEmployeesForTable(c echo.Context) error {
-	tableID, err := strconv.Atoi(c.Param("table_id"))
+	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
 	}

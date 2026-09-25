@@ -58,6 +58,6 @@ describe('CarsTableHistoryModal - история своей таблицы (#130
     mountModal({ tableId: 42 });
     await flushPromises();
 
-    expect(apiRequest).toHaveBeenCalledWith('/cars/history/filter-options?table_id=42', { method: 'GET' });
+    expect(apiRequest).toHaveBeenCalledWith('/cars/history/table/42/filter-options', { method: 'GET' });
   });
 });

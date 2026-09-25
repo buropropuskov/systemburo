@@ -122,6 +122,7 @@ func TestCarTargetSource_DetailIncludesTargetTables(t *testing.T) {
 	require.NoError(t, db.Create(&tbl).Error)
 	carID := int(cars[0]["id"].(float64))
 	require.NoError(t, db.Create(&models.CarTargetTable{CarID: carID, TableID: tbl.ID, Source: "manual"}).Error)
+	grantPostView(t, db, "carsrcdet1", tbl.ID)
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)

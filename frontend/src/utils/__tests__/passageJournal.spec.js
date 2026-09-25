@@ -101,8 +101,8 @@ describe('collectPassageRows', () => {
 describe('fetchPassageFilterOptions', () => {
   it('сужает список таблицей проходной', async () => {
     apiRequest.mockResolvedValue({ ok: true, json: async () => ({ users: [{ id: 3, name: 'Иванов' }] }) });
-    const options = await fetchPassageFilterOptions('/cars/history/filter-options', 42);
-    expect(apiRequest).toHaveBeenCalledWith('/cars/history/filter-options?table_id=42', { method: 'GET' });
+    const options = await fetchPassageFilterOptions('cars', 42);
+    expect(apiRequest).toHaveBeenCalledWith('/cars/history/table/42/filter-options', { method: 'GET' });
     expect(options.users).toHaveLength(1);
     expect(options.employees).toEqual([]);
   });
@@ -114,13 +114,14 @@ describe('fetchPassageFilterOptions', () => {
       ok: true,
       json: async () => ({ users: [], employees: [{ id: 11, last_name: 'Петров' }] }),
     });
-    const options = await fetchPassageFilterOptions('/employees/history/filter-options', 4);
+    const options = await fetchPassageFilterOptions('employees', 4);
+    expect(apiRequest).toHaveBeenCalledWith('/employees/history/table/4/filter-options', { method: 'GET' });
     expect(options.employees).toHaveLength(1);
   });
 
   it('без таблицы берёт весь журнал', async () => {
     apiRequest.mockResolvedValue({ ok: true, json: async () => ({ users: [] }) });
-    await fetchPassageFilterOptions('/cars/history/filter-options', null);
+    await fetchPassageFilterOptions('cars', null);
     expect(apiRequest).toHaveBeenCalledWith('/cars/history/filter-options', { method: 'GET' });
   });
 });

@@ -494,7 +494,7 @@ export default {
 
     async loadFilterOptions() {
       try {
-        const options = await fetchPassageFilterOptions('/employees/history/filter-options', this.tableId);
+        const options = await fetchPassageFilterOptions('employees', this.tableId);
         this.filterUsers = options.users.map(user => ({ id: user.id, name: user.name || 'Система' }));
         this.filterEmployees = (options.employees || []).map(employee => ({
           id: employee.id,

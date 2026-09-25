@@ -100,7 +100,7 @@ func (h *EmployeesHistoryHandler) GetAll(c echo.Context) error {
 // @Success 200 {object} Response
 // @Router /employees/history/filter-options [get]
 func (h *EmployeesHistoryHandler) GetFilterOptions(c echo.Context) error {
-	tableID, err := optionalIntQuery(c, "table_id")
+	tableID, err := passageFilterTableID(c)
 	if err != nil {
 		return err
 	}
@@ -126,12 +126,12 @@ func (h *EmployeesHistoryHandler) GetCurrentStatus(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
-// GetByTable обрабатывает GET /employees/history/table/:table_id.
+// GetByTable обрабатывает GET /employees/history/table/:id.
 // @Summary Получение истории сотрудников для конкретной таблицы
 // @Tags employees-history
 // @Security BearerAuth
 // @Produce json
-// @Param table_id    path  int    true  "ID таблицы"
+// @Param id          path  int    true  "ID таблицы"
 // @Param user_id     query int    false "Кто отметил проход"
 // @Param employee_id query int    false "Конкретный сотрудник"
 // @Param date_from   query string false "Начало периода, YYYY-MM-DD (московские сутки включительно)"
@@ -141,9 +141,9 @@ func (h *EmployeesHistoryHandler) GetCurrentStatus(c echo.Context) error {
 // @Param page        query int    false "Страница" default(1)
 // @Param per_page    query int    false "Записей на странице (максимум 200)" default(50)
 // @Success 200 {object} Response
-// @Router /employees/history/table/{table_id} [get]
+// @Router /employees/history/table/{id} [get]
 func (h *EmployeesHistoryHandler) GetByTable(c echo.Context) error {
-	tableID, err := ParseID(c, "table_id")
+	tableID, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}

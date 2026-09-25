@@ -105,7 +105,7 @@ describe('EmployeesTableHistoryModal - страницы и серверные ф
     const wrapper = mountModal();
     await flushPromises();
 
-    expect(apiRequest).toHaveBeenCalledWith('/employees/history/filter-options?table_id=4', { method: 'GET' });
+    expect(apiRequest).toHaveBeenCalledWith('/employees/history/table/4/filter-options', { method: 'GET' });
 
     await wrapper.find('.employee-filter .custom-select').trigger('click');
     const options = wrapper.findAll('.employee-filter .select-option');

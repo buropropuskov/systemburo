@@ -65,6 +65,7 @@ func seedPassTableGrant(t *testing.T, db *gorm.DB, userID int, tableType string)
 	name := fmt.Sprintf("pass_tbl_u%d_%d", userID, time.Now().UnixNano()%1000000)
 	tbl := models.SystemTable{Name: name, DisplayName: &dn, TableType: tableType, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, userID, name, "view")
 	testutil.GrantTableVerb(t, userID, name, "entry")
 	testutil.GrantTableVerb(t, userID, name, "exit")
 	return tbl.ID

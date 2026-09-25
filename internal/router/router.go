@@ -124,6 +124,12 @@ type Dependencies struct {
 	// чистить корзину любой таблицы. main и testutil обязаны заполнять.
 	TableVersionsGate echo.MiddlewareFunc
 	TableTrashGate    echo.MiddlewareFunc
+	// TableViewGate/TableHistoryGate - RequireTableVerb(..., "view"/"history"): состав
+	// поста и журнал его проходов правом table.<name>.view/.history, тем же ключом,
+	// которым фронт открывает страницу поста и кнопку журнала. main и testutil обязаны
+	// заполнять.
+	TableViewGate    echo.MiddlewareFunc
+	TableHistoryGate echo.MiddlewareFunc
 	// TablePassGate - RequireTablePassVerb: отметка прохода на КПП правом
 	// table.<name>.entry/.exit (направление и таблица берутся из тела). main и
 	// testutil обязаны заполнять - без гейта любой залогиненный мог бы отметить
@@ -713,12 +719,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
-	carsGroup.GET("/active-for-table/:table_id", cars.GetActiveCarsForTable)
+	carsGroup.GET("/active-for-table/:id", cars.GetActiveCarsForTable, d.TableViewGate)
 	// Ручное добавление машин без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.cars.manual_add.
 	carsGroup.POST("/manual", cars.CreateManualCars,
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityCarsManualAdd))
-	carsGroup.GET("/fact-for-table/:table_id", cars.GetFactCarsForTable)
+	carsGroup.GET("/fact-for-table/:id", cars.GetFactCarsForTable, d.TableViewGate)
 	carsGroup.GET("/unload-places", cars.GetCarUnloadPlaces)
 	carsGroup.GET("/fact-unload-places", cars.GetFactCarUnloadPlaces)
 	carsGroup.GET("/check-active", cars.CheckActiveCar)
@@ -726,9 +732,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Произвольная запись в журнал машины: интерфейс её не вызывает, а действие попадает
 	// в суточные отчёты по проходам - только администратор (#2600).
 	carsGroup.POST("/:id/history", cars.AddCarHistoryEntry, requireAdmin)
-	carsGroup.GET("/history/all", cars.GetAllCarsHistory)
-	carsGroup.GET("/history/filter-options", cars.GetCarsHistoryFilterOptions)
-	carsGroup.GET("/history/table/:table_id", cars.GetCarsHistoryByTable)
+	// Журнал проходов поста открывается правом на журнал этого поста; сводный журнал
+	// всех постов и его фильтры без поста - только администратору.
+	carsGroup.GET("/history/all", cars.GetAllCarsHistory, requireAdmin)
+	carsGroup.GET("/history/filter-options", cars.GetCarsHistoryFilterOptions, requireAdmin)
+	carsGroup.GET("/history/table/:id", cars.GetCarsHistoryByTable, d.TableHistoryGate)
+	carsGroup.GET("/history/table/:id/filter-options", cars.GetCarsHistoryFilterOptions, d.TableHistoryGate)
 	carsGroup.GET("/history/current-status", cars.GetCarsCurrentStatus)
 	carsGroup.PUT("/:id/territory-status", cars.UpdateCarTerritoryStatus, d.TablePassGate)
 	// Отмена ошибочной отметки (#2437) идёт под тем же гейтом: направление и пост
@@ -751,7 +760,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// остальные - по гранту entity.employees.manual_add.
 	empGroup.POST("/manual", employees.CreateManualEmployees,
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesManualAdd))
-	empGroup.GET("/active-for-table/:table_id", employees.GetActiveEmployeesForTable)
+	empGroup.GET("/active-for-table/:id", employees.GetActiveEmployeesForTable, d.TableViewGate)
 	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus, d.TablePassGate)
 	empGroup.PUT("/:id/territory-status/revert", employees.RevertEmployeePassage, d.TablePassGate)
 	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee, d.EmployeeDeleteGate)
@@ -764,10 +773,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	empGroup.POST("/bulk/unbind-table", employees.BulkUnbindTable, requireAdmin)
 	empGroup.GET("/:id/history", employeesHistory.GetByEmployee)
 	empGroup.GET("/history/unified", employeesHistory.GetUnified)
-	empGroup.GET("/history/all", employeesHistory.GetAll)
-	empGroup.GET("/history/filter-options", employeesHistory.GetFilterOptions)
+	empGroup.GET("/history/all", employeesHistory.GetAll, requireAdmin)
+	empGroup.GET("/history/filter-options", employeesHistory.GetFilterOptions, requireAdmin)
+	empGroup.GET("/history/table/:id/filter-options", employeesHistory.GetFilterOptions, d.TableHistoryGate)
 	empGroup.GET("/history/current-status", employeesHistory.GetCurrentStatus)
-	empGroup.GET("/history/table/:table_id", employeesHistory.GetByTable)
+	empGroup.GET("/history/table/:id", employeesHistory.GetByTable, d.TableHistoryGate)
 
 	// Системные таблицы (конструктор таблиц)
 	stg := protected.Group("/system-tables")
