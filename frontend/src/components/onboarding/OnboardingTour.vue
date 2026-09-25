@@ -426,7 +426,7 @@ function handleDestroyed(gen) {
   rail.restore();
   restoreReveal();
   markIfAuto();
-  store.stop();
+  store.stop(reachedFinal);
 }
 
 function teardown() {

@@ -253,9 +253,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return Object.values(completedByTour.value).some((v) => v !== null && v !== undefined);
   }
 
-  function stop() {
-    // Закрыли осознанно - позицию храним, но сами тур больше не поднимаем.
-    if (activeTourKey.value) progress.save(activeTourKey.value, currentIndex.value, false);
+  function stop(finished = false) {
+    // Закрыли осознанно - храним; после финала нет: stop идёт последним и вернул бы запись (#2600).
+    if (activeTourKey.value && !finished) progress.save(activeTourKey.value, currentIndex.value, false);
     isActive.value = false;
     syncDemoBackend(false);
   }
