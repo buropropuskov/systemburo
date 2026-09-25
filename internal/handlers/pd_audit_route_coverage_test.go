@@ -47,12 +47,12 @@ var pdAuditKnownNonPDGetRoutes = map[string]string{
 	// cars: живая таблица поста и текущий статус не идентифицируют субъекта - номер
 	// и марка машины персональными данными не считаются (см. UniqueCar.PDConsentAt);
 	// история машин (ФИО охранника) уже в pd_audit.go.
-	"GET /api/cars/active-for-table/:table_id": "TableCarResponse - номер/марка/организация, без ФИО",
-	"GET /api/cars/fact-for-table/:table_id":   "то же самое для фактовой таблицы",
-	"GET /api/cars/unload-places":              "назначенные места разгрузки, без ФИО",
-	"GET /api/cars/fact-unload-places":         "то же самое для фактовой таблицы",
-	"GET /api/cars/check-active":               "булев признак, без ФИО",
-	"GET /api/cars/history/current-status":     "CarCurrentStatus - car_id/статус/время, без единого имени",
+	"GET /api/cars/active-for-table/:id":   "TableCarResponse - номер/марка/организация, без ФИО",
+	"GET /api/cars/fact-for-table/:id":     "то же самое для фактовой таблицы",
+	"GET /api/cars/unload-places":          "назначенные места разгрузки, без ФИО",
+	"GET /api/cars/fact-unload-places":     "то же самое для фактовой таблицы",
+	"GET /api/cars/check-active":           "булев признак, без ФИО",
+	"GET /api/cars/history/current-status": "CarCurrentStatus - car_id/статус/время, без единого имени",
 	// system-tables: конфигурация таблицы (структура, слайты, права) - не её
 	// содержимое; содержимое (корзина/слепок/история конфигурации) уже в pd_audit.go.
 	"GET /api/system-tables":                      "список таблиц - конфигурация, не содержимое",

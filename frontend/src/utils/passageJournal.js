@@ -77,12 +77,16 @@ export async function fetchPassagePage(path, filters, options = {}) {
  * кого отмечали. У машин список сущностей не приходит - его модалка берёт от таблицы
  * проходной, в которой открыта.
  *
- * @param {string} path
+ * Списки поста отдаёт сервер под правом на журнал этого поста, поэтому пост идёт в
+ * путь, а не в query; без поста - сводный журнал администратора.
+ *
+ * @param {'cars'|'employees'} entity
  * @param {number|null} [tableId] сузить до таблицы проходной
  * @returns {Promise<{users: object[], employees: object[]}>}
  */
-export async function fetchPassageFilterOptions(path, tableId = null) {
-  const response = await apiRequest(`${path}${tableId ? `?table_id=${tableId}` : ''}`, { method: 'GET' });
+export async function fetchPassageFilterOptions(entity, tableId = null) {
+  const scope = tableId ? `table/${tableId}/filter-options` : 'filter-options';
+  const response = await apiRequest(`/${entity}/history/${scope}`, { method: 'GET' });
   if (!response.ok) {
     throw new Error(`Фильтры журнала: ${response.status}`);
   }

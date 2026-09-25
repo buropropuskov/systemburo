@@ -588,7 +588,7 @@ export default {
 
     async loadFilterUsers() {
       try {
-        const options = await fetchPassageFilterOptions('/cars/history/filter-options', this.tableId);
+        const options = await fetchPassageFilterOptions('cars', this.tableId);
         this.filterUsers = options.users.map(user => ({ id: user.id, name: user.name || 'Система' }));
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'список пользователей фильтра', type: 'error' });

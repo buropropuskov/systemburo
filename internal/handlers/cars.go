@@ -21,16 +21,16 @@ func NewCarHandler(service services.CarService) *CarHandler {
 }
 
 
-// GetActiveCarsForTable обрабатывает GET /cars/active-for-table/:table_id.
+// GetActiveCarsForTable обрабатывает GET /cars/active-for-table/:id.
 // @Summary Получение активных машин конкретной таблицы «Проезд»
 // @Tags cars
 // @Security BearerAuth
 // @Produce json
-// @Param table_id path int true "ID таблицы"
+// @Param id path int true "ID таблицы"
 // @Success 200 {array} services.TableCarResponse
-// @Router /cars/active-for-table/{table_id} [get]
+// @Router /cars/active-for-table/{id} [get]
 func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
-	tableID, err := strconv.Atoi(c.Param("table_id"))
+	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
 	}
@@ -65,16 +65,16 @@ func (h *CarHandler) CreateManualCars(c echo.Context) error {
 }
 
 
-// GetFactCarsForTable обрабатывает GET /cars/fact-for-table/:table_id.
+// GetFactCarsForTable обрабатывает GET /cars/fact-for-table/:id.
 // @Summary Получение машин «по факту» конкретной таблицы «Проезд»
 // @Tags cars
 // @Security BearerAuth
 // @Produce json
-// @Param table_id path int true "ID таблицы"
+// @Param id path int true "ID таблицы"
 // @Success 200 {array} services.TableCarResponse
-// @Router /cars/fact-for-table/{table_id} [get]
+// @Router /cars/fact-for-table/{id} [get]
 func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
-	tableID, err := strconv.Atoi(c.Param("table_id"))
+	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
 	}
@@ -220,7 +220,7 @@ func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
 // @Success 200 {object} Response
 // @Router /cars/history/filter-options [get]
 func (h *CarHandler) GetCarsHistoryFilterOptions(c echo.Context) error {
-	tableID, err := optionalIntQuery(c, "table_id")
+	tableID, err := passageFilterTableID(c)
 	if err != nil {
 		return err
 	}
@@ -231,12 +231,12 @@ func (h *CarHandler) GetCarsHistoryFilterOptions(c echo.Context) error {
 	return RespondSuccess(c, options)
 }
 
-// GetCarsHistoryByTable обрабатывает GET /cars/history/table/:table_id.
+// GetCarsHistoryByTable обрабатывает GET /cars/history/table/:id.
 // @Summary Получение истории въездов/выездов таблицы проходной
 // @Tags cars
 // @Security BearerAuth
 // @Produce json
-// @Param table_id path int true "ID таблицы"
+// @Param id path int true "ID таблицы"
 // @Param user_id   query int    false "Кто отметил проход"
 // @Param car_id    query int    false "Конкретная машина"
 // @Param date_from query string false "Начало периода, YYYY-MM-DD (московские сутки включительно)"
@@ -246,9 +246,9 @@ func (h *CarHandler) GetCarsHistoryFilterOptions(c echo.Context) error {
 // @Param page      query int    false "Страница" default(1)
 // @Param per_page  query int    false "Записей на странице (максимум 200)" default(50)
 // @Success 200 {object} Response
-// @Router /cars/history/table/{table_id} [get]
+// @Router /cars/history/table/{id} [get]
 func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
-	tableID, err := ParseID(c, "table_id")
+	tableID, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}

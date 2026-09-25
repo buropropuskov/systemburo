@@ -583,6 +583,8 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
+		TableViewGate:       mw.RequireTableVerb(db, permissionResolver, accessDenialService, "view"),
+		TableHistoryGate:    mw.RequireTableVerb(db, permissionResolver, accessDenialService, "history"),
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),

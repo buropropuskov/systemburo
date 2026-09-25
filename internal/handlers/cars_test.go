@@ -155,6 +155,8 @@ func TestGetActiveCarsForTable_ScopedByTargetTable(t *testing.T) {
 	require.NoError(t, db.Create(&tblB).Error)
 	require.NoError(t, db.Exec(
 		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tblA.ID).Error)
+	grantPostView(t, db, "carscoped1", tblA.ID)
+	grantPostView(t, db, "carscoped1", tblB.ID)
 
 	// В привязанной таблице машина видна.
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblA.ID), testutil.AuthHeader(token))
@@ -212,6 +214,8 @@ func TestSubmitCar_PassageTablesWrittenAndScoped(t *testing.T) {
 		JOIN attachments a ON a.application_id = app.id
 		JOIN cars c ON c.attachment_id = a.id WHERE c.car_number = ?`, "C777CC177").Scan(&appID).Error)
 	activateCarViaApp(t, e, db, appID, td)
+	grantPostView(t, db, "carpass1", tblA.ID)
+	grantPostView(t, db, "carpass1", tblB.ID)
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblA.ID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -446,7 +450,8 @@ func TestGetAllCarsHistory_Empty(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "carhistall", "pass123", 1, td.OrgID, td.CompanyID)
+	// Сводный журнал всех постов открыт только администратору.
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
 	rec := testutil.GET(t, e, "/cars/history/all", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -734,10 +739,12 @@ func TestGetActiveCarsForTable_RespectsEntryDates(t *testing.T) {
 	tbl := models.SystemTable{Name: uniq("cars_dates_table"), DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
 
-	token := testutil.RegisterAndLogin(t, e, uniq("cardates"), "pass123", 1, td.OrgID, td.CompanyID)
+	username := uniq("cardates")
+	token := testutil.RegisterAndLogin(t, e, username, "pass123", 1, td.OrgID, td.CompanyID)
 	appID, attID, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	require.NoError(t, db.Exec(
 		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tbl.ID).Error)
+	grantPostView(t, db, username, tbl.ID)
 	activateCarViaApp(t, e, db, appID, td)
 
 	видна := func() bool {

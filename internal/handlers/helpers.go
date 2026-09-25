@@ -130,6 +130,20 @@ func optionalIntQuery(c echo.Context, param string) (*int, error) {
 	return &v, nil
 }
 
+// passageFilterTableID - пост, до которого сужаются фильтры журнала проходов: из пути
+// (/history/table/:id/filter-options, там его уже проверил гейт права на журнал поста)
+// или из query у сводного журнала администратора.
+func passageFilterTableID(c echo.Context) (*int, error) {
+	if c.Param("id") == "" {
+		return optionalIntQuery(c, "table_id")
+	}
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
 // bindPassageHistoryQuery разбирает параметры страницы журнала проходов и приводит
 // их к допустимым значениям. Дальше фильтры применяет сервис - разбирать даты здесь
 // незачем, у машин и людей они одни и те же.
