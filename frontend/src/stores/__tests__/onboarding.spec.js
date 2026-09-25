@@ -253,6 +253,19 @@ describe('onboarding store', () => {
       expect(syncDemoBackend).toHaveBeenCalledWith(true, true, 'accept');
     });
 
+    it('после финала позиция не остаётся - stop не возвращает её', async () => {
+      // markCompleted чистит запись, но stop идёт последним и сохранял её заново:
+      // следующий запуск уводил на страницу последнего шага без единого шага на
+      // экране (#2600).
+      const store = useOnboardingStore();
+      store.start({ tour: 'accept' });
+      store.setIndex(8);
+      store.markCompleted(true);
+      store.stop(true);
+
+      expect(localStorage.getItem('ob:progress:1:accept')).toBe(null);
+    });
+
     it('конец тура снимает подмену', async () => {
       getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
       const store = useOnboardingStore();

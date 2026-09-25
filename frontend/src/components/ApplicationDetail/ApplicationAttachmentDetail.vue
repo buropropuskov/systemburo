@@ -380,7 +380,7 @@
                     :key="col.key"
                     type="button"
                     class="lk-button lk-button--ghost el-foot__bulk-btn"
-                    :data-testid="`attachment-assign-all-${col.assignKind}`"
+                    :data-testid="col.assignKind === 'places' ? 'attachment-assign-all-places' : 'attachment-assign-all-tables'"
                     @click="openAssignAll(col)"
                   >
                     {{ col.label.toLowerCase() }}
