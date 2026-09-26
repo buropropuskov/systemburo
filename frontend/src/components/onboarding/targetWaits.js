@@ -78,19 +78,24 @@ export function waitForElement(selector, timeout = 2500, signal) {
  * поповер без подсветки. Скроллим до показа, поэтому рамку driver меряет уже
  * по конечному положению.
  *
+ * Шаг, попросивший подвести цель (`scrollTo`), подводится ВСЕГДА. Без просьбы
+ * скроллим, только если цель не помещается: карточка заявки дорисовывается уже
+ * после проверки - блок согласования подрос вместе с согласующими, и «влезает»
+ * превращалось в «уехало» на глазах (#2616).
+ *
  * @param {Element|null} el
- * @param {'center'|'end'|'start'} [block] куда подвести цель. 'end' прижимает её
- *   к низу экрана - так делают высокие формы, над которыми встаёт поповер.
+ * @param {'center'|'end'|'start'} [block] куда подвести цель; не задан - только
+ *   при нехватке места, по центру.
  * @returns {Promise<void>}
  */
-export function ensureInView(el, block = 'center') {
+export function ensureInView(el, block) {
   // scrollIntoView есть не везде (jsdom в юнит-тестах) - тогда просто не скроллим.
   if (!el?.getBoundingClientRect || typeof el.scrollIntoView !== 'function') return Promise.resolve();
   const rect = el.getBoundingClientRect();
   const margin = 24;
   const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
-  if (fits && block !== 'end') return Promise.resolve();
-  el.scrollIntoView({ block, inline: 'nearest' });
+  if (fits && !block) return Promise.resolve();
+  el.scrollIntoView({ block: block || 'center', inline: 'nearest' });
   // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр. Карточка
   // заявки прокручивается вложенным контейнером, и на невысоком окне доводка
   // занимала больше секунды: шаг успевал показаться с подсветкой в пустоте, а
