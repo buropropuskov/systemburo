@@ -95,7 +95,10 @@ export function ensureInView(el, block) {
   const margin = 24;
   const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
   if (fits && !block) return Promise.resolve();
-  el.scrollIntoView({ block: block || 'center', inline: 'nearest' });
+  // behavior: 'auto' обязателен: на html стоит scroll-behavior: smooth, и без
+  // явного указания доводка цели растягивалась на полторы секунды - шаг успевал
+  // показаться с подсветкой в пустоте (#2618).
+  el.scrollIntoView({ block: block || 'center', inline: 'nearest', behavior: 'auto' });
   // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр. Карточка
   // заявки прокручивается вложенным контейнером, и на невысоком окне доводка
   // занимала больше секунды: шаг успевал показаться с подсветкой в пустоте, а
