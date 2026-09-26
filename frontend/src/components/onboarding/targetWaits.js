@@ -91,6 +91,18 @@ export function ensureInView(el, block = 'center') {
   const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
   if (fits && block !== 'end') return Promise.resolve();
   el.scrollIntoView({ block, inline: 'nearest' });
-  // Кадр на применение скролла: без него driver померит прежнюю позицию.
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр. Карточка
+  // заявки прокручивается вложенным контейнером, и на невысоком окне доводка
+  // занимала больше секунды: шаг успевал показаться с подсветкой в пустоте, а
+  // цель приезжала потом (#2610). Потолок - чтобы не ждать недостижимую цель.
+  return new Promise((resolve) => {
+    const срок = Date.now() + 1200;
+    const кадр = () => {
+      const r = el.getBoundingClientRect();
+      const виден = r.top >= 0 && r.bottom <= window.innerHeight;
+      if (виден || Date.now() > срок) resolve();
+      else requestAnimationFrame(кадр);
+    };
+    requestAnimationFrame(кадр);
+  });
 }

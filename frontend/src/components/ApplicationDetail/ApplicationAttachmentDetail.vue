@@ -176,7 +176,7 @@
                           :class="{ 'chip--more': chip.isMore, 'chip--solo': chip.isSolo }"
                           :data-hint="chip.hint"
                           :title="chip.hint"
-                          :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
+                          :data-testid="chip.isMore ? 'attachment-chip-more' : (col.assignKind === 'tables' ? 'attachment-chip-table' : 'attachment-chip')"
                         ><span
                           class="chip__text"
                           :title="chip.hint"

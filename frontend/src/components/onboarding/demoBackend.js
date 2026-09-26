@@ -2,9 +2,12 @@ import { setReadInterceptor } from '@/api/readInterceptor';
 import {
   DEMO_CENTER_APPLICATION_ID,
   DEMO_CENTER_ATTACHMENT_ID,
+  DEMO_CENTER_PEOPLE_ID,
   buildDemoCenterApplication,
   buildDemoCenterAttachments,
   buildDemoCenterCars,
+  buildDemoCenterEmployees,
+  buildDemoCenterResponsibleUsers,
   buildDemoCenterSupplements,
 } from '@/components/onboarding/demoCenterApplication';
 import {
@@ -33,6 +36,7 @@ const LIST_PATH = /^\/applications\/user(\?|$)/;
 const CENTER_LIST_PATH = /^\/applications(\?|$)/;
 const CENTER_DETAIL_PATH = new RegExp(`^/applications/${DEMO_CENTER_APPLICATION_ID}(/|\\?|$)`);
 const CENTER_ATTACHMENT_PATH = new RegExp(`^/attachments/${DEMO_CENTER_ATTACHMENT_ID}(/|\\?|$)`);
+const CENTER_PEOPLE_PATH = new RegExp(`^/attachments/${DEMO_CENTER_PEOPLE_ID}(/|\\?|$)`);
 const DETAIL_PATH = new RegExp(`^/applications/${DEMO_APPLICATION_ID}(/|\\?|$)`);
 const ATTACHMENT_PATH = new RegExp(`^/attachments/${DEMO_ATTACHMENT_ID}(/|\\?|$)`);
 
@@ -75,18 +79,26 @@ export function createDemoResponder(ctx = {}) {
  */
 export function createCenterDemoResponder() {
   const application = buildDemoCenterApplication();
+  const responsibleUsers = buildDemoCenterResponsibleUsers();
   return (path, method = 'GET') => {
-    const own = CENTER_DETAIL_PATH.test(path) || CENTER_ATTACHMENT_PATH.test(path);
+    const own = CENTER_DETAIL_PATH.test(path)
+      || CENTER_ATTACHMENT_PATH.test(path)
+      || CENTER_PEOPLE_PATH.test(path);
     if (method !== 'GET') return own ? { success: true, data: null } : null;
     if (CENTER_LIST_PATH.test(path)) return ok([application], { total: 1, page: 1, per_page: 30 });
     if (CENTER_ATTACHMENT_PATH.test(path)) {
       if (path.includes('/cars')) return ok(buildDemoCenterCars());
       return ok([]);
     }
+    if (CENTER_PEOPLE_PATH.test(path)) {
+      if (path.includes('/employees')) return ok(buildDemoCenterEmployees());
+      return ok([]);
+    }
     if (!own) return null;
     if (path.includes('/attachments')) return ok(buildDemoCenterAttachments());
     if (path.includes('/supplements')) return ok(buildDemoCenterSupplements());
-    if (path.includes('/details')) return ok({ ...application, responsible_users: [] });
+    if (path.includes('/responsible-users')) return ok(responsibleUsers);
+    if (path.includes('/details')) return ok({ ...application, responsible_users: responsibleUsers });
     return ok([]);
   };
 }

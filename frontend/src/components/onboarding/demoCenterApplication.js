@@ -20,8 +20,11 @@
 /** Идентификаторы заведомо вне диапазона живых записей - чтобы не спутать в логах. */
 export const DEMO_CENTER_APPLICATION_ID = 999000002;
 export const DEMO_CENTER_ATTACHMENT_ID = 999000102;
+/** Второе вложение примера - люди: у них вместо проезда места прохода. */
+export const DEMO_CENTER_PEOPLE_ID = 999000103;
 
 const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
 
 /**
  * @param {{ now?: number }} [ctx]
@@ -34,10 +37,10 @@ export function buildDemoCenterApplication(ctx = {}) {
   return {
     id: DEMO_CENTER_APPLICATION_ID,
     application_number: `№ ${stamp}/001`,
-    // Согласующих у примера нет: тогда кнопка приёма называется «Согласовать и
-    // принять» и доступна - именно её объясняет шаг про главное действие роли.
-    confirmation: null,
-    confirmation_datetime: null,
+    // Согласование пройдено: колонка «Подтверждение» в списке иначе выглядит
+    // пустой серой полосой, а кнопка приёма ждала бы чужого решения.
+    confirmation: 'Согласовано',
+    confirmation_datetime: new Date(now - 3 * HOUR).toISOString(),
     sending_datetime: sent,
     reading_datetime: null,
     organization_id: 999000,
@@ -97,6 +100,78 @@ export function buildDemoCenterAttachments(now = Date.now()) {
       has_template: true,
       archive_status: 'active',
     },
+    {
+      id: DEMO_CENTER_PEOPLE_ID,
+      attachment_type: 'people',
+      attachment_name: 'zayavka_work',
+      attachment_display_name: 'Заявка на работы',
+      entry_date_from: from,
+      entry_date_to: to,
+      entry_time_from: '09:00:00',
+      entry_time_to: '18:00:00',
+      roof_access: false,
+      free_parking: false,
+      created_at: null,
+      unique_attachment_id: DEMO_CENTER_PEOPLE_ID,
+      unique_attachment_display_name: 'Заявка на работы',
+      unique_attachment_title: 'ЗАЯВКИ НА РАБОТЫ',
+      has_template: true,
+      archive_status: 'active',
+    },
+  ];
+}
+
+/**
+ * Сотрудники примерной заявки: у людей вместо проезда места прохода. Первый
+ * назначен, второй нет - на нём объясняется доназначение.
+ */
+export function buildDemoCenterEmployees() {
+  return [
+    {
+      id: 0,
+      last_name: 'Гаврилов', first_name: 'Пётр', middle_name: 'Игнатьевич',
+      position: 'Монтажник', citizenship_id: 1, citizenship_name: 'Российская Федерация',
+      passport_series_number: '4515 882014', patent_number: null, other_permission: null,
+      entry_date_to: null, pass_time: null,
+      organization: null, organization_id: null, company: null, company_id: null,
+      target_tables: [{ id: 0, name: 'post_72', display_name: 'ПОСТ №72', source: 'application' }],
+      is_blacklisted: false,
+    },
+    {
+      id: 0,
+      last_name: 'Дёмин', first_name: 'Артём', middle_name: 'Сергеевич',
+      position: 'Электрик', citizenship_id: 1, citizenship_name: 'Российская Федерация',
+      passport_series_number: '4517 331902', patent_number: null, other_permission: null,
+      entry_date_to: null, pass_time: null,
+      organization: null, organization_id: null, company: null, company_id: null,
+      target_tables: [],
+      is_blacklisted: false,
+    },
+  ];
+}
+
+/**
+ * Согласующие примера: без них блок согласования пуст, и шаг про него нечем
+ * наполнить - владелец увидел пустую рамку и справедливо спросил, где данные.
+ */
+export function buildDemoCenterResponsibleUsers(now = Date.now()) {
+  const created = new Date(now - DAY).toISOString();
+  return [
+    {
+      id: 0, username: 'demo_head', last_name: 'Волков', first_name: 'Владимир',
+      middle_name: 'Ильич', position: 'Начальник участка', is_primary: true,
+      required_approval: true, approval_status: 'approved',
+      approval_comment: 'Работы согласованы, въезд с сопровождением.',
+      approval_datetime: new Date(now - 5 * HOUR).toISOString(),
+      created_at: created, reminder_count: 0,
+    },
+    {
+      id: 0, username: 'demo_safety', last_name: 'Соколова', first_name: 'Анна',
+      middle_name: 'Владимировна', position: 'Служба безопасности', is_primary: false,
+      required_approval: true, approval_status: 'approved', approval_comment: null,
+      approval_datetime: new Date(now - 3 * HOUR).toISOString(),
+      created_at: created, reminder_count: 0,
+    },
   ];
 }
 
@@ -141,7 +216,7 @@ export function buildDemoCenterSupplements(now = Date.now()) {
       application_id: DEMO_CENTER_APPLICATION_ID,
       round: 1,
       status: 'pending',
-      created_at: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date(now - 2 * HOUR).toISOString(),
       author_full_name: 'Пример: Сидоров Олег Петрович',
       comment: 'Добавили третью машину - подвезут кабель во второй день.',
       elements_count: 1,

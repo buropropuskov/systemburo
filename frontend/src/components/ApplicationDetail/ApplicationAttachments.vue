@@ -16,6 +16,7 @@
     <div
       v-else
       class="attachments-list"
+      data-testid="ob-detail-attachments-list"
     >
       <!-- Группируем вложения по unique_attachment_id -->
       <div 
