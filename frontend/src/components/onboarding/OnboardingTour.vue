@@ -173,8 +173,7 @@ const startSegment = () => keys.busyWhile(startSegmentInner);
 
 async function startSegmentInner() {
   const myGen = ++driverGen;
-  // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг: при cross-page «Назад» мы попадаем на
-  // последний шаг предыдущей страницы, и поднять надо весь её сегмент.
+  // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг: при «Назад» между страницами мы на последнем шаге прошлой.
   let segmentStartIndex = store.currentIndex;
   while (segmentStartIndex > 0 && store.steps[segmentStartIndex - 1].route === route.path) {
     segmentStartIndex -= 1;
@@ -277,7 +276,8 @@ async function jumpToStep(globalIndex) {
   rail.apply(globalIndex);
   const ready = await prepareStep(globalIndex);
   if (!driverObj || gen !== driverGen) return;
-  driverObj.obGoTo(globalIndex, ready === false || ready === STEP_DEMO_FALLBACK);
+  // Шаг без якоря - без подсветки: иначе на нём висит рамка прошлого (#2616).
+  driverObj.obGoTo(globalIndex, !store.steps[globalIndex]?.element || ready === false || ready === STEP_DEMO_FALLBACK);
 }
 
 /**
