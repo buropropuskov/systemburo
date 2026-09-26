@@ -133,11 +133,17 @@ function smallTargets(min) {
     // Элемент в середине анимации появления или ухода уже/ещё не в своём размере.
     if (/-(enter|leave)-(from|to|active)\b/.test(el.className || '')) continue;
     if (cs.opacity !== '' && parseFloat(cs.opacity) < 0.9) continue;
-    // Невидимое расширение зоны через ::before - принятый в проекте приём: кнопка
-    // выглядит компактной пилюлей, а палец попадает. Учитываем его.
-    const before = getComputedStyle(el, '::before');
-    const inset = parseFloat(before.top) || 0;
-    const effective = r.height + Math.abs(inset) * 2;
+    // Невидимое расширение зоны - принятый в проекте приём: кнопка выглядит
+    // компактной пилюлей, а палец попадает. Смотрим ОБА псевдоэлемента: у части
+    // кнопок `::before` уже занят собственным оформлением, и зона висит на
+    // `::after`. Раньше читался только `::before`, и такие кнопки гейт продолжал
+    // считать маленькими, хотя пальцем по ним попадали.
+    const grow = (pseudo) => {
+      const cs2 = getComputedStyle(el, pseudo);
+      if (cs2.content === 'none') return 0;
+      return Math.abs(parseFloat(cs2.top) || 0);
+    };
+    const effective = r.height + Math.max(grow('::before'), grow('::after')) * 2;
     if (effective < min - 0.5) {
       out.push({
         cls: (el.className || '').toString().slice(0, 34),
