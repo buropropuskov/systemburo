@@ -6,6 +6,8 @@
  * конфига в начале перехода застаёт и анимацию, и итоговый вырез.
  */
 
+import { holdInView } from '@/components/onboarding/targetWaits';
+
 /**
  * Зазор и скругление выреза по умолчанию. С 5px мелкие цели (галочка согласия)
  * смотрелись обрезанными по краю выреза - «больше воздуха вокруг».
@@ -70,5 +72,11 @@ export function applyStageShape(driverObj, element) {
  */
 export function raiseActiveHighlight(driverObj) {
   const active = driverObj?.getActiveElement?.();
-  if (active && active.id !== 'driver-dummy-element') active.classList.add('ob-highlighted');
+  if (!active || active.id === 'driver-dummy-element') return;
+  active.classList.add('ob-highlighted');
+  // Карточка заявки доверстывается под уже открытым шагом: у блока согласования
+  // прокрутка перескакивала с колонки на тело карточки, и цель, подведённая до
+  // показа, уезжала обратно за край окна (#2622). Присматриваем короткое время,
+  // пока цель остаётся активной; вырез driver едет за ней сам.
+  holdInView(active, undefined, 900, () => active.classList.contains('driver-active-element'));
 }

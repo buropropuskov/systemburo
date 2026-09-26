@@ -70,22 +70,52 @@ export function waitForElement(selector, timeout = 2500, signal) {
 }
 
 /**
+ * Цель на месте? Высокую цель целиком не покажешь - довольно видимого верха:
+ * блок читается сверху вниз, и заголовок важнее нижнего края.
+ *
+ * @param {Element} el
+ * @returns {boolean}
+ */
+function наМесте(el) {
+  const r = el.getBoundingClientRect();
+  const margin = 24;
+  if (r.height > window.innerHeight - margin * 2) {
+    return r.top >= 0 && r.top <= window.innerHeight - 120;
+  }
+  return r.top >= margin && r.bottom <= window.innerHeight - margin;
+}
+
+/**
+ * Подвести цель мгновенно.
+ *
+ * behavior: 'instant', а не 'auto': 'auto' означает «как сказано в CSS», а в
+ * App.vue звёздочка ставит scroll-behavior: smooth ВСЕМ элементам. Доводка
+ * растягивалась на анимацию, каждый кадр начинал её заново, и шаг показывался,
+ * пока цель была ещё в пути - на окне 1280x500 блок согласования доезжал только
+ * через полторы секунды после подсветки (#2622).
+ *
+ * @param {Element} el
+ * @param {'center'|'end'|'start'} [block]
+ */
+function довести(el, block) {
+  const выше = el.getBoundingClientRect().height > window.innerHeight - 48;
+  el.scrollIntoView({ block: выше ? 'start' : (block || 'center'), inline: 'nearest', behavior: 'instant' });
+}
+
+/** Узел, который вообще можно подводить (в jsdom scrollIntoView нет). */
+const подводимый = (el) => !!el?.getBoundingClientRect && typeof el.scrollIntoView === 'function';
+
+/**
  * Подвести цель в зону видимости до подсветки.
  *
- * driver.js скроллит сам, но с задержкой и уже ПОСЛЕ показа шага: человек видит
- * рамку в пустоте, а цель приезжает спустя полсекунды. Поэтому доводим сами,
- * до показа, и рамку driver меряет по конечному положению.
+ * driver.js скроллит сам, но плавно и уже ПОСЛЕ показа шага: человек видит рамку
+ * в пустоте, а цель приезжает спустя полсекунды. Поэтому доводим сами, до показа,
+ * и рамку driver меряет по конечному положению.
  *
  * Шаг, попросивший подвести цель (`scrollTo`), подводится ВСЕГДА. Без просьбы
  * скроллим, только если цель не помещается: карточка заявки дорисовывается уже
  * после проверки - блок согласования подрос вместе с согласующими, и «влезает»
  * превращалось в «уехало» на глазах (#2616).
- *
- * Просим прокрутку на каждом кадре, пока цель не встанет: карточка заявки
- * прокручивается вложенным контейнером, и тот узнаёт свою высоту позже цели.
- * Одного вызова не хватало - блок согласования (456 px в контейнере 347 px)
- * оставался за краем окна, потому что в момент вызова контейнеру нечего было
- * прокручивать: scrollHeight равнялся clientHeight (#2622).
  *
  * @param {Element|null} el
  * @param {'center'|'end'|'start'} [block] куда подвести цель; не задан - только
@@ -93,38 +123,51 @@ export function waitForElement(selector, timeout = 2500, signal) {
  * @returns {Promise<void>}
  */
 export function ensureInView(el, block) {
-  // scrollIntoView есть не везде (jsdom в юнит-тестах) - тогда просто не скроллим.
-  if (!el?.getBoundingClientRect || typeof el.scrollIntoView !== 'function') return Promise.resolve();
-  const margin = 24;
-  const хвостВидим = 120;
-  // Цель выше окна целиком не покажешь: довольно, чтобы был виден её верх -
-  // блок читается сверху вниз, и заголовок важнее нижнего края.
-  const выше = () => el.getBoundingClientRect().height > window.innerHeight - margin * 2;
-  const наМесте = () => {
-    const r = el.getBoundingClientRect();
-    if (выше()) return r.top >= 0 && r.top <= window.innerHeight - хвостВидим;
-    return r.top >= margin && r.bottom <= window.innerHeight - margin;
-  };
-  if (!block && наМесте()) return Promise.resolve();
-  const довести = () => {
-    // behavior: 'auto' обязателен: на html стоит scroll-behavior: smooth, и без
-    // явного указания доводка цели растягивалась на полторы секунды - шаг успевал
-    // показаться с подсветкой в пустоте (#2618).
-    el.scrollIntoView({ block: выше() ? 'start' : (block || 'center'), inline: 'nearest', behavior: 'auto' });
-  };
-  довести();
+  if (!подводимый(el)) return Promise.resolve();
+  if (!block && наМесте(el)) return Promise.resolve();
+  довести(el, block);
   // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр (#2610).
   // Потолок - чтобы не ждать недостижимую цель.
   return new Promise((resolve) => {
     const срок = Date.now() + 1200;
     const кадр = () => {
-      if (наМесте() || Date.now() > срок) {
+      if (наМесте(el) || Date.now() > срок) {
         resolve();
         return;
       }
-      довести();
+      довести(el, block);
       requestAnimationFrame(кадр);
     };
     requestAnimationFrame(кадр);
   });
+}
+
+/**
+ * Придержать цель на экране после показа шага.
+ *
+ * Карточка заявки доверстывается и перевёрстывается уже под открытым шагом: у
+ * блока согласования прокрутка перескакивала с колонки на тело карточки, и цель,
+ * подведённая до показа, уезжала обратно за край окна - подсветка оставалась в
+ * пустоте (#2622). Проверяем недолго и доводим мгновенно; вырез driver едет за
+ * целью сам, он слушает прокрутку.
+ *
+ * @param {Element|null} el
+ * @param {'center'|'end'|'start'} [block]
+ * @param {number} [длительность] сколько присматривать, мс
+ * @param {() => boolean} [пока] пока это верно, цель ещё наша (шаг не сменился)
+ * @returns {() => void} отменить присмотр
+ */
+export function holdInView(el, block, длительность = 900, пока) {
+  if (!подводимый(el)) return () => {};
+  const таймер = setInterval(() => {
+    if (!el.isConnected || (пока && !пока())) {
+      clearInterval(таймер);
+      return;
+    }
+    if (наМесте(el)) return;
+    довести(el, block);
+  }, 120);
+  const стоп = () => clearInterval(таймер);
+  setTimeout(стоп, длительность);
+  return стоп;
 }
