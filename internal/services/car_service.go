@@ -28,9 +28,9 @@ type CarService interface {
 	// GetFactCarsForTable возвращает машины «по факту» конкретной таблицы «Проезд» (#1036).
 	GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
 	// GetCarUnloadPlaces возвращает связи активных машин с местами разгрузки.
-	GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error)
+	GetCarUnloadPlaces(ctx context.Context, scope ElementScope) ([]CarUnloadPlaceInfo, error)
 	// GetFactCarUnloadPlaces возвращает связи «по факту» машин с местами разгрузки.
-	GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error)
+	GetFactCarUnloadPlaces(ctx context.Context, scope ElementScope) ([]CarUnloadPlaceInfo, error)
 	// CheckActiveCar проверяет наличие активной машины по номеру, марке и организации/компании.
 	CheckActiveCar(ctx context.Context, req CheckActiveCarRequest) (*CheckActiveCarResponse, error)
 	// GetCarHistory возвращает историю конкретного автомобиля.
@@ -48,7 +48,7 @@ type CarService interface {
 	GetCarsHistoryFilterOptions(ctx context.Context, tableID *int) (CarsHistoryFilterOptions, error)
 	// GetCarsCurrentStatus возвращает текущий территориальный статус активных машин.
 	// viewerID - кто спрашивает, см. EmployeesHistoryService.GetCurrentStatus.
-	GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]CarCurrentStatus, error)
+	GetCarsCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]CarCurrentStatus, error)
 	// UpdateCarTerritoryStatus обновляет статус нахождения на территории (въезд/выезд).
 	UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateCarTerritoryStatusRequest) error
 	// RevertCarPassage отменяет последнюю отметку проезда машины (#2437).
@@ -60,7 +60,7 @@ type CarService interface {
 	// RestoreCar восстанавливает удалённый автомобиль.
 	RestoreCar(ctx context.Context, carID int, req RestoreCarRequest) error
 	// GetUnifiedCarHistory возвращает объединённую историю для всех машин с одинаковыми параметрами.
-	GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery) ([]CarHistoryItemResponse, error)
+	GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery, scope ElementScope) ([]CarHistoryItemResponse, error)
 	// BulkMoveTable переносит набор машин из одной таблицы «Проезд» в другие (#1194,
 	// групповая операция): FromTableID снимается, ToTableIDs добавляются (объединение
 	// с уже существующими у машины привязками, кроме FromTableID). Пустой итоговый

@@ -16,7 +16,7 @@ import (
 )
 
 // GetCarsCurrentStatus возвращает текущий территориальный статус активных автомобилей.
-func (s *carService) GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]CarCurrentStatus, error) {
+func (s *carService) GetCarsCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]CarCurrentStatus, error) {
 	type statusRow struct {
 		ID                 int
 		TerritoryStatus    *int
@@ -31,6 +31,7 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]
 		return nil, err
 	}
 
+	visible, visibleArgs := scope.Predicate(ElementCar, "c", "a", "app")
 	rows := make([]statusRow, 0)
 	err = s.db.WithContext(ctx).Raw(`
 		SELECT
@@ -57,8 +58,10 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context, viewerID int) ([]
 			ORDER BY ch.created_at DESC, ch.id DESC
 			LIMIT 1
 		) lm ON TRUE
-		WHERE c.status = 1
-	`, admin, viewerID, passageRevertWindowSQL()).Scan(&rows).Error
+		LEFT JOIN attachments a ON c.attachment_id = a.id
+		LEFT JOIN applications app ON a.application_id = app.id
+		WHERE c.status = 1 AND `+visible+`
+	`, append([]any{admin, viewerID, passageRevertWindowSQL()}, visibleArgs...)...).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars status")
 	}

@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -154,4 +155,23 @@ func bindPassageHistoryQuery(c echo.Context) (models.PassageHistoryQuery, error)
 	}
 	q.Normalize()
 	return q, nil
+}
+
+// requireElementVisible пускает дальше, только если машина или сотрудник заявки входит
+// в скоуп пользователя (services.ElementScope): иначе историю элемента по id читал бы
+// любой вошедший. Несуществующий id отвечает тем же 403, чтобы не выдавать, есть ли он.
+func requireElementVisible(c echo.Context, scopes *services.ElementScopeResolver, kind services.ElementKind, id int) error {
+	ctx := c.Request().Context()
+	scope, err := scopes.Resolve(ctx, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	visible, err := scopes.Visible(ctx, scope, kind, id)
+	if err != nil {
+		return err
+	}
+	if !visible {
+		return echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав")
+	}
+	return nil
 }
