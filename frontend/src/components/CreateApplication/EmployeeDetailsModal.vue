@@ -953,8 +953,6 @@ export default {
                     if (this.employee.middle_name) params.set('middle_name', this.employee.middle_name);
                     res = await apiRequest(`/employees/history/unified?${params}`, { method: 'GET' });
                 } else {
-                    // Карточка открывается и там, где историю этого человека смотреть не положено
-                    // (заявка с чужого поста): 403 тут штатный ответ, секция просто пустая.
                     res = await apiRequest(`/employees/${this.employee.id}/history`, { method: 'GET', silent403: true });
                 }
                 if (res.ok) {
