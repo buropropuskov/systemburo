@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -14,13 +15,14 @@ import (
 
 // DocumentHandler -- HTTP-обработчики документов.
 type DocumentHandler struct {
-	service services.DocumentService
-	fileSvc services.DocumentFileService
+	service  services.DocumentService
+	fileSvc  services.DocumentFileService
+	resolver *services.PermissionResolver
 }
 
 // NewDocumentHandler создаёт новый DocumentHandler.
-func NewDocumentHandler(service services.DocumentService, fileSvc services.DocumentFileService) *DocumentHandler {
-	return &DocumentHandler{service: service, fileSvc: fileSvc}
+func NewDocumentHandler(service services.DocumentService, fileSvc services.DocumentFileService, resolver *services.PermissionResolver) *DocumentHandler {
+	return &DocumentHandler{service: service, fileSvc: fileSvc, resolver: resolver}
 }
 
 // List godoc
@@ -226,9 +228,25 @@ func (h *DocumentHandler) Download(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Скрытый документ отсутствует в публичном списке; скачать его может только
+	// админ раздела, остальным он не существует.
+	if !doc.IsVisible && !h.canSeeHidden(c) {
+		return echo.NewHTTPError(http.StatusNotFound, "Документ не найден")
+	}
 
 	filePath := filepath.Join(h.fileSvc.UploadDir(), doc.StoredName)
 	return download.Serve(c, download.File{Path: filePath, Name: doc.FileName, Mime: doc.MimeType})
+}
+
+// canSeeHidden - есть ли у вызывающего право на раздел документов (page.admin.directories).
+func (h *DocumentHandler) canSeeHidden(c echo.Context) bool {
+	userID, _ := c.Get("user_id").(int)
+	allowed, err := h.resolver.HasPermission(c.Request().Context(), userID, services.KeyPageAdminDirectories)
+	if err != nil {
+		slog.Error("Не удалось проверить право на скрытые документы", "error", err)
+		return false
+	}
+	return allowed
 }
 
 // bindUploadRequest парсит поля multipart-формы для Upload.

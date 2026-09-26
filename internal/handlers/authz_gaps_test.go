@@ -46,6 +46,8 @@ var readBlockedForRegularUser = []struct {
 	name, path string
 }{
 	{"permissionGroups.list", "/permission-groups"},
+	// Группы конкретного человека читает только окно прав (UserAccessModal под audit.manage).
+	{"permissionGroups.forUser", "/users/1/permission-groups"},
 	{"roles.list", "/roles"},
 	// Чёрные списки: выгрузка ФИО/номеров и причин (ПД) — только под правом.
 	// Пометку реестра даёт сервер (is_blacklisted), список ЧС в браузер не идёт.
@@ -215,4 +217,16 @@ func TestAuthz_Admin_CanWriteAndReadPrivileged(t *testing.T) {
 	rec := testutil.POST(t, e, "/marks", `{"name":"`+uniqMarkName("authz_admin")+`"}`, adminH)
 	require.Contains(t, []int{http.StatusOK, http.StatusCreated}, rec.Code,
 		"админ должен создавать марку, получили %d", rec.Code)
+}
+
+// Создание сотрудника в обход заявки без права было открыто любому вошедшему и не
+// вызывалось фронтом - роут снят, ручное добавление идёт через /employees/manual.
+func TestAuthz_NoBareEmployeeCreateRoute(t *testing.T) {
+	e, _, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	for _, r := range e.Routes() {
+		require.Falsef(t, r.Method == http.MethodPost && r.Path == "/api/employees",
+			"POST /api/employees снова зарегистрирован")
+	}
 }

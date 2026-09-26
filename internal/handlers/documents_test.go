@@ -7,6 +7,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"systemburo/internal/config"
@@ -426,4 +428,52 @@ func TestDocuments_CommentSavedAndReturned(t *testing.T) {
 	видимый := docs[0].(map[string]interface{})
 	assert.Equal(t, "Заполнить оба листа и подписать у руководителя", видимый["comment"],
 		"пояснение видно читателю в публичной выдаче")
+}
+
+// Скрытый документ не показывается в публичном списке, и скачать его по id может только
+// админ раздела документов (page.admin.directories); остальным он отвечает 404.
+func TestDocuments_Download_HiddenOnlyForDirectoriesAdmin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	uploadDir := services.NewDocumentFileService("./uploads").UploadDir()
+	require.NoError(t, os.MkdirAll(uploadDir, 0o755))
+	newDoc := func(stored string, visible bool) models.Document {
+		t.Helper()
+		path := filepath.Join(uploadDir, stored)
+		require.NoError(t, os.WriteFile(path, []byte("%PDF-1.4 test"), 0o644))
+		t.Cleanup(func() { _ = os.Remove(path) })
+		doc := models.Document{
+			Title: stored, FileName: stored, StoredName: stored,
+			FileExt: ".pdf", MimeType: "application/pdf", FileSize: 13, IsVisible: true,
+		}
+		require.NoError(t, db.Create(&doc).Error)
+		if !visible {
+			require.NoError(t, db.Model(&doc).Update("is_visible", false).Error)
+		}
+		return doc
+	}
+	visible := newDoc("dl_visible_g236.pdf", true)
+	hidden := newDoc("dl_hidden_g236.pdf", false)
+
+	userH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "dl_regular", "password123!ABCabc", 1, td.OrgID, td.CompanyID))
+
+	var adminID int
+	testutil.RegisterUser(t, e, "dl_dir_admin", "password123!ABCabc", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Table("users").Select("id").Where("username = ?", "dl_dir_admin").Scan(&adminID).Error)
+	testutil.GrantPermission(t, adminID, services.KeyPageAdminDirectories)
+	adminToken, _ := testutil.LoginUser(t, e, "dl_dir_admin", "password123!ABCabc")
+	adminH := testutil.AuthHeader(adminToken)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/documents/%d/download", visible.ID), userH)
+	assert.Equal(t, http.StatusOK, rec.Code, "видимый документ скачивает любой вошедший")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/documents/%d/download", hidden.ID), userH)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "скрытый документ без права не отдаётся")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/documents/%d/download", hidden.ID), adminH)
+	assert.Equal(t, http.StatusOK, rec.Code, "админ раздела скачивает скрытый документ")
+	assert.Equal(t, "%PDF-1.4 test", rec.Body.String())
 }
