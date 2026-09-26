@@ -304,7 +304,6 @@ describe('замок против смешения ролей', () => {
   const REVIEWER_ONLY_ANCHORS = [
     'app-detail-button-approve',
     'app-detail-button-revoke-approval',
-    'app-detail-button-forward',
     'supplement-button-approve',
     'supplement-button-reject',
     'blacklist-override-btn',
@@ -315,6 +314,8 @@ describe('замок против смешения ролей', () => {
   // (`app-detail-button-take-to-work`), когда у заявки нет согласующих - она
   // закрывает согласование и приём разом. Одиночное «Согласовать» - кнопка
   // согласующего, и его замок стережёт.
+  // «Переслать» из списка убрана: с #1948 пересылка доступна каждому, у кого есть
+  // доступ к заявке, - принимающему в том числе (ApplicationDetail.vue:1106).
   const REVIEWER_ONLY_LABELS = [
     '«Согласовать»',
     '«Согласовать дополнение»',

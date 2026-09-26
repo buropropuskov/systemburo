@@ -311,7 +311,10 @@
         <!-- Центральная колонка - детали -->
         <div class="detail-main-column">
           <!-- Сообщение заявки -->
-          <div class="message-section">
+          <div
+            class="message-section"
+            data-testid="ob-detail-message"
+          >
             <div class="message-section-header">
               <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
             </div>
@@ -428,43 +431,7 @@
         <div class="detail-right-column">
           <div class="basic-info-section">
             <h4>Основная информация</h4>
-            <div class="info-grid">
-              <div class="info-row">
-                <span class="info-label">Организация / Отдел:</span>
-                <span class="info-value">{{ applicationData.organization_name }}</span>
-              </div>
-              <div
-                v-if="applicationData.company_name"
-                class="info-row"
-              >
-                <span class="info-label">Компания:</span>
-                <span class="info-value">{{ applicationData.company_name }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Отправитель:</span>
-                <span class="info-value sender-value">
-                  <span>{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
-                  <Badge
-                    v-if="applicationData.sender_is_important"
-                    variant="info"
-                    size="sm"
-                    class="sender-important-tag"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
-                    Важный
-                  </Badge>
-                </span>
-              </div>
-            </div>
+            <ApplicationBasicInfo :application="applicationData" />
 
             <!-- Разбор наименования, заведённого подачей (#1437): плашка видна только
                  тому, у кого есть право разбора, и только пока запись на проверке. -->
@@ -769,6 +736,7 @@ const DETAIL_STACK_LAYER = 10002
  * где браузерных переходов нет (jsdom), и панель осталась бы висеть.
  */
 const DETAIL_CLOSE_MS = 200
+import ApplicationBasicInfo from './ApplicationBasicInfo.vue'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
@@ -804,6 +772,7 @@ export default {
         Badge,
         BaseDropdown,
         CopyableNumber,
+        ApplicationBasicInfo,
         ApplicationMessageModal,
         ApplicationParticipantsModal,
         ApplicationParticipantCard,
@@ -1013,10 +982,8 @@ export default {
         },
 
         /**
-         * Наименования заявки, заведённые самой подачей и ждущие разбора (#1437).
-         * Гейт - право разбора: заявителю показывать нечего, действия ему всё равно
-         * закрыты серверным middleware.
-         *
+         * Наименования заявки, заведённые подачей и ждущие разбора (#1437). Гейт -
+         * право разбора: заявителю действия всё равно закрыты серверным middleware.
          * organization_name у заявки без организации содержит имя компании
          * (COALESCE на бэке), поэтому имя компании берём из company_name.
          */
@@ -2952,46 +2919,13 @@ export default {
     margin-bottom: 15px;
 }
 
-.info-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
 
-.info-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0px;
-}
 
-.info-label {
-    color: var(--text-muted);
-    font-size: 14px;
-    font-weight: 400;
-    min-width: 140px;
-    text-align: left;
-}
 
-.info-value {
-    color: var(--text);
-    font-size: 15px;
-    text-align: left;
-    flex: 1;
-    font-weight: 400;
-}
 
 /* Имя отправителя и тег "Важный" в одну строку: тег - пилюль рядом с именем (как теги
    Крыша/Парковка), а не отдельной строкой под ним. */
-.sender-value {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-}
 
-.sender-important-tag {
-    flex-shrink: 0;
-}
 
 /* Дропдаун "Продублировать": перекрашиваем триггер BaseDropdown в синюю primary-кнопку
    (как была прежняя .duplicate-btn), меню остаётся штатным белым. */

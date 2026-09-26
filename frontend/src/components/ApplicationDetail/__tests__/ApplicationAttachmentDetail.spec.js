@@ -236,7 +236,9 @@ describe('ApplicationAttachmentDetail — колонки и подписи (#139
 
 describe('ApplicationAttachmentDetail — чипы мест (#1392)', () => {
   function chipTexts(wrapper) {
-    return wrapper.findAll('[data-testid="attachment-chip"], [data-testid="attachment-chip-more"]')
+    // Проезд получил свой якорь (#2610): тур рассказывает про места и посты
+    // разными шагами, а шаги одного сегмента обязаны смотреть в разные точки.
+    return wrapper.findAll('[data-testid="attachment-chip"], [data-testid="attachment-chip-table"], [data-testid="attachment-chip-more"]')
       .map(chip => chip.text());
   }
 

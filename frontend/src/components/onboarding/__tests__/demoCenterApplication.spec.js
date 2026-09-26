@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createCenterDemoResponder, syncDemoBackend } from '../demoBackend';
-import { DEMO_CENTER_APPLICATION_ID, DEMO_CENTER_ATTACHMENT_ID } from '../demoCenterApplication';
+import { DEMO_CENTER_APPLICATION_ID, DEMO_CENTER_ATTACHMENT_ID, DEMO_CENTER_PEOPLE_ID } from '../demoCenterApplication';
 import { interceptRead } from '@/api/readInterceptor';
 import { acceptOnboardingSteps } from '../acceptOnboardingSteps';
 
@@ -63,6 +63,28 @@ describe('примерная заявка Центра', () => {
     // посреди обучения.
     expect(ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/read`, 'POST')).toEqual({ success: true, data: null });
     expect(ответ('/applications/123/read', 'POST'), 'чужое не трогаем').toBe(null);
+  });
+
+  it('во вложении с людьми есть места прохода и пустая строка', () => {
+    const люди = ответ(`/attachments/${DEMO_CENTER_PEOPLE_ID}/employees`).data;
+    expect(люди.length).toBeGreaterThan(1);
+    expect(люди[0].target_tables[0]).toHaveProperty('display_name');
+    expect(люди.some((e) => !e.target_tables.length), 'строка для доназначения').toBe(true);
+    expect(люди[0].position, 'должность вместо марки').toBeTruthy();
+  });
+
+  it('вложений два: машины и люди', () => {
+    const виды = ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/attachments`).data
+      .map((a) => a.attachment_type);
+    expect(виды).toEqual(['cars', 'people']);
+  });
+
+  it('согласующие есть - иначе блок согласования пустая рамка', () => {
+    const люди = ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/responsible-users`).data;
+    expect(люди.length).toBeGreaterThan(1);
+    expect(люди[0].approval_status).toBe('approved');
+    expect(люди[0].last_name).toBeTruthy();
+    expect(заявка().confirmation, 'колонка «Подтверждение» в списке').toBeTruthy();
   });
 
   it('каждый шаг про содержимое карточки обеспечен данными', () => {

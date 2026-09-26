@@ -49,14 +49,20 @@ function pickForTour(list) {
  * (#2584). Рабочей в списке нет - открываем верхнюю, чтобы показать карточку хоть
  * на чём-то.
  *
+ * По концу тура список перечитывается: на время обучения чтение подменяется
+ * примерной заявкой (`demoBackend`), и без перезапроса она оставалась висеть в
+ * Центре как настоящая - человек выходил из тура и видел заявку, которой нет
+ * (#2610).
+ *
  * @param {object} handlers
  * @param {() => Array<object>} handlers.list заявки в порядке показа
  * @param {() => boolean} handlers.isOpen открыта ли сейчас карточка
  * @param {(application: object) => void} handlers.open открыть карточку заявки
  * @param {() => void} handlers.close закрыть карточку
+ * @param {() => void} [handlers.reload] перечитать список - зовём по концу тура
  * @returns {{ stop: () => void, release: () => void }}
  */
-export function useRevealFirstApplication({ list, isOpen, open, close }) {
+export function useRevealFirstApplication({ list, isOpen, open, close, reload }) {
   const store = useOnboardingStore();
   let openedByTour = false;
   // Правило 3 в действии: человек закрыл карточку сам, и пока сигнал не сменится,
@@ -94,8 +100,15 @@ export function useRevealFirstApplication({ list, isOpen, open, close }) {
     },
   );
 
+  // Тур кончился - примерные данные больше не отдаются, но список в памяти
+  // остался с ними. Перечитываем, чтобы вернулись настоящие заявки.
+  const stopTour = watch(
+    () => store.isActive,
+    (active, было) => { if (было && !active) reload?.(); },
+  );
+
   return {
-    stop,
+    stop: () => { stop(); stopTour(); },
     /** Правило 3: карточку закрыли помимо тура - владение сброшено. */
     release() {
       openedByTour = false;
