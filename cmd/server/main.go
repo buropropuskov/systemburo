@@ -542,7 +542,7 @@ func main() {
 	attachmentImportHandler := handlers.NewAttachmentImportHandler(attachmentImportService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
-	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
+	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService, permissionResolver)
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, cfg.UploadMaxFileSize)
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
 	reminderHandler := handlers.NewReminderHandler(reminderService)

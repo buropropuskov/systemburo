@@ -755,7 +755,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Сотрудники (в заявках)
 	empGroup := protected.Group("/employees")
-	empGroup.POST("", employees.CreateEmployee)
 	// Ручное добавление сотрудников без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.employees.manual_add.
 	empGroup.POST("/manual", employees.CreateManualEmployees,
@@ -1045,7 +1044,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	pgGroup.PUT("/:id", permGroups.Update, auditManage)
 	pgGroup.DELETE("/:id", permGroups.Delete, auditManage)
 	pgGroup.POST("/merge", permGroups.Merge, auditManage)
-	protected.GET("/users/:user_id/permission-groups", permGroups.ListForUser)
+	protected.GET("/users/:user_id/permission-groups", permGroups.ListForUser, auditManage)
 	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser, auditManage)
 	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser, auditManage)
 	protected.PUT("/users/:id/role", permGroups.SetUserRole, auditManage)
@@ -1204,7 +1203,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	adminMaint.PUT("/maintenance", maintenance.ToggleMaintenance)
 
 	// Документы (#39). Admin-операции под page.admin.directories - тем же правом фронт
-	// открывает /admin/documents; скачивание и публичный список -- под auth.
+	// открывает /admin/documents; публичный список -- под auth, скачивание скрытого
+	// документа хендлер отдаёт только с тем же правом.
 
 	// Сброс онбординг-тура пользователю - админ-действие (после сброса у юзера
 	// снова автозапуск). Под page.admin, в отличие от self-эндпоинтов /onboarding.

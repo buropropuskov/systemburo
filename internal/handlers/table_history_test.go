@@ -125,47 +125,6 @@ func TestCreateManualEmployees_WritesAddedToTableHistory(t *testing.T) {
 	}
 }
 
-// TestCreateEmployee_NoAddedToTableHistory — standalone POST /employees создаёт НЕактивного
-// сотрудника (status=0), которого в таблице проходной не видно, поэтому истории попадания НЕ пишет
-// (она пишется только при активации, status->1). Само создание фиксируется записью create (#1085).
-func TestCreateEmployee_NoAddedToTableHistory(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	citizenshipID := seedCitizenship(t, db)
-	tableA := seedPeopleTable(t, db, "th_emp_a", "Проход A")
-	tableB := seedPeopleTable(t, db, "th_emp_b", "Проход B")
-
-	token := testutil.RegisterAndLogin(t, e, "th_empauthor", "pass123", 1, td.OrgID, td.CompanyID)
-	var actorID int
-	require.NoError(t, db.Raw("SELECT id FROM users WHERE username = ?", "th_empauthor").Scan(&actorID).Error)
-	require.NotZero(t, actorID)
-
-	body := fmt.Sprintf(`{
-		"last_name": "Petrov", "first_name": "Petr",
-		"citizenship_id": %d, "position": "Driver",
-		"passport_series_number": "4567 890123",
-		"target_tables": [%d, %d]
-	}`, citizenshipID, tableA, tableB)
-	rec := testutil.POST(t, e, "/employees", body, testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, "create employee: %s", rec.Body.String())
-	empID := int(testutil.ParseMap(t, rec)["employee_id"].(float64))
-
-	// Неактивный сотрудник (status=0) в таблице проходной не виден -> истории попадания нет.
-	assert.Zero(t, addedToTableCount(t, db, models.AuditEntityEmployee, empID), "status=0 -> added_to_table не пишется")
-
-	// Создание зафиксировано записью create с автором.
-	var createRows []models.AuditLog
-	require.NoError(t, db.
-		Where("entity_type = ? AND action = ? AND entity_id = ?", models.AuditEntityEmployee, "create", empID).
-		Find(&createRows).Error)
-	require.Len(t, createRows, 1, "создание сотрудника пишет одну запись create")
-	require.NotNil(t, createRows[0].ActorUserID, "автор проброшен, не «Система»")
-	assert.Equal(t, actorID, *createRows[0].ActorUserID)
-}
-
 // TestTakeToWork_WritesAddedToTableHistory — момент попадания в таблицу = ПРИНЯТИЕ заявки в работу
 // (status 0->1), а не подача. Проверяет обе ветки: после submit истории added_to_table НЕТ (машина
 // и сотрудник ещё неактивны), после take-to-work(accept) она появляется по целевым таблицам с

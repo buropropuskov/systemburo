@@ -475,7 +475,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	attachmentImportHandler := handlers.NewAttachmentImportHandler(attachmentImportService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
-	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
+	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService, permissionResolver)
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, 10*1024*1024)
 	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
 	authEventHandler := handlers.NewAuthEventHandler(services.NewAuthEventReader(db))

@@ -16,8 +16,6 @@ import (
 
 // EmployeeService -- интерфейс бизнес-логики сотрудников в заявках.
 type EmployeeService interface {
-	// CreateEmployee создаёт сотрудника и связи с целевыми таблицами (транзакция).
-	CreateEmployee(ctx context.Context, req CreateEmployeeRequest, actorID int) (*CreateEmployeeResponse, error)
 	// CreateManualEmployees добавляет сотрудников прямо в таблицу без заявки (#1049,
 	// режим-1): создаёт вложение-сироту (application_id NULL, is_manual, org/company и
 	// время действия на вложении), сотрудников со status=1 и привязку к целевым таблицам.
@@ -95,26 +93,6 @@ type RestoreEmployeeRequest struct {
 }
 
 // --- DTO запросов ---
-
-// CreateEmployeeRequest -- тело запроса на создание сотрудника.
-type CreateEmployeeRequest struct {
-	LastName             string  `json:"last_name" validate:"required,min=1"`
-	FirstName            string  `json:"first_name" validate:"required,min=1"`
-	MiddleName           *string `json:"middle_name"`
-	CitizenshipID        int     `json:"citizenship_id" validate:"gte=1"`
-	Position             string  `json:"position" validate:"required,min=1"`
-	PassportSeriesNumber string  `json:"passport_series_number" validate:"required,min=1"`
-	PatentNumber         *string `json:"patent_number"`
-	OtherPermission      *string `json:"other_permission"`
-	TargetTables         []int   `json:"target_tables"`
-}
-
-// CreateEmployeeResponse -- ответ после создания сотрудника.
-type CreateEmployeeResponse struct {
-	Success    bool   `json:"success"`
-	Message    string `json:"message"`
-	EmployeeID int    `json:"employee_id"`
-}
 
 // ManualEmployeeRequest -- тело запроса ручного добавления сотрудников в таблицу (#1049,
 // режим-1 без заявки, зеркало ManualCarRequest). org/company и время действия живут на
@@ -242,62 +220,6 @@ func NewEmployeeService(db *gorm.DB, recorder AuditRecorder, opts ...EmployeeSer
 		opt(s)
 	}
 	return s
-}
-
-// CreateEmployee создаёт сотрудника и связи с целевыми таблицами в транзакции.
-func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployeeRequest, actorID int) (*CreateEmployeeResponse, error) {
-	var employeeID int
-
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		statusZero := 0
-		employee := models.Employee{
-			LastName:             &req.LastName,
-			FirstName:            &req.FirstName,
-			MiddleName:           req.MiddleName,
-			CitizenshipID:        &req.CitizenshipID,
-			Position:             &req.Position,
-			PassportSeriesNumber: nilIfBlank(req.PassportSeriesNumber),
-			PatentNumber:         nilIfBlankPtr(req.PatentNumber),
-			OtherPermission:      req.OtherPermission,
-			Status:               &statusZero,
-		}
-		if err := tx.Create(&employee).Error; err != nil {
-			slog.Error("не удалось создать сотрудника", "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
-		}
-		employeeID = employee.ID
-
-		empComment := "Сотрудник создан"
-		s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &employeeID, "create", &actorID, carAuditDetails{Comment: &empComment})
-
-		for _, tableID := range req.TargetTables {
-			orderIdx := 1
-			ett := models.EmployeeTargetTable{
-				EmployeeID: employeeID,
-				TableID:    tableID,
-				OrderIndex: &orderIdx,
-				Source:     "manual",
-			}
-			if err := tx.Create(&ett).Error; err != nil {
-				slog.Error("не удалось создать связь сотрудника с таблицей", "employee_id", employeeID, "table_id", tableID, "error", err)
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee target table")
-			}
-			// Историю попадания в таблицу пишем при активации (status->1), а не здесь -
-			// сотрудник создаётся неактивным (status=0) и в таблице проходной не виден (#1085).
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	slog.Info("сотрудник создан", "employee_id", employeeID)
-	return &CreateEmployeeResponse{
-		Success:    true,
-		Message:    "Employee created successfully",
-		EmployeeID: employeeID,
-	}, nil
 }
 
 // CreateManualEmployees добавляет сотрудников в таблицу без заявки (#1049, режим-1).
