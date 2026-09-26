@@ -35,6 +35,8 @@ func TestTrash_CarFlowListScopingRestoreHistory(t *testing.T) {
 	require.NoError(t, db.Create(&t1).Error)
 	require.NoError(t, db.Create(&t2).Error)
 	testutil.GrantTableVerb(t, u.ID, t1.Name, "trash")
+	// Право и на t2: скоупинг проверяется содержимым корзины, а не отказом гейта.
+	testutil.GrantTableVerb(t, u.ID, t2.Name, "trash")
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
@@ -273,6 +275,8 @@ func TestTrash_EmployeeFlow_ScopingRestoreHistoryDetails(t *testing.T) {
 	require.NoError(t, db.Create(&t1).Error)
 	require.NoError(t, db.Create(&t2).Error)
 	testutil.GrantTableVerb(t, u.ID, t1.Name, "trash")
+	// Право и на t2: скоупинг проверяется содержимым корзины, а не отказом гейта.
+	testutil.GrantTableVerb(t, u.ID, t2.Name, "trash")
 
 	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td) // согласовать + в работу: нужно для restore
