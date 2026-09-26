@@ -95,27 +95,44 @@
  * заявки в Центре). Добираем только то, что мельче 24px: это порог WCAG 2.2, и
  * кнопки в 24-30px ему удовлетворяют как есть.
  *
- * `::after` у перечисленных классов свободен - проверено грепом перед правкой.
+ * Зона висит на `::after`, а не на `::before`: у кнопок правки и удаления
+ * `::before` уже занят таким же приёмом в мобильном слое. Замер тач-таргетов
+ * (`e2e/helpers/mobileInvariants.cjs`) читает оба псевдоэлемента - раньше только
+ * `::before`, и кнопки с зоной на `::after` гейт продолжал считать маленькими.
  */
 @media (min-width: 768px) and (max-width: 1366px) {
   :is(
     .card-button, .bureau-note__add, .message-open-hint, .questions-toggle,
     .expand-btn, .notif-filter-tabs__btn, .notifications__clear, .edit-btn,
-    .delete-btn, .qd-trigger, .app-files__add
+    .delete-btn, .qd-trigger, .app-files__add, .notifications__settings,
+    .options__export, .options__manual-add, .options__versions-link,
+    .options__trash-link
   ) {
     position: relative;
   }
 
   :is(
     .card-button, .bureau-note__add, .message-open-hint, .questions-toggle,
-    .expand-btn, .notif-filter-tabs__btn, .notifications__clear, .edit-btn,
-    .delete-btn, .qd-trigger, .app-files__add
+    .expand-btn, .notif-filter-tabs__btn, .notifications__clear,
+    .qd-trigger, .app-files__add, .notifications__settings,
+    .options__export, .options__manual-add, .options__versions-link,
+    .options__trash-link
   )::after {
     content: '';
     position: absolute;
-    /* До 32px по обеим осям от центра кнопки - ровно столько, сколько нужно пальцу,
-       и ни пикселя видимой высоты. */
+    /* Ни пикселя видимой высоты: растёт только зона нажатия. */
     inset: -6px -4px;
+  }
+
+  /* Правка и удаление стоят парой в строке через зазор 4px (`BlankSelector`,
+     строки таблиц). При -4px по горизонтали их зоны перекрылись бы ровно в
+     середине зазора, и тап у границы уходил бы на удаление вместо правки -
+     кнопки соседние, а исход разный. Расширяем на половину зазора: зоны
+     смыкаются, но не наезжают. */
+  :is(.edit-btn, .delete-btn)::after {
+    content: '';
+    position: absolute;
+    inset: -6px -2px;
   }
 
   /* Мастер-детейл справочников: список занимает 40% ширины, и на 1024 строка не
