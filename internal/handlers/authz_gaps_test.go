@@ -15,6 +15,7 @@ import (
 
 	"systemburo/internal/testutil"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,8 +115,8 @@ func TestAuthz_RegularUser_CannotWriteDirectoriesOrReadPrivileged(t *testing.T) 
 }
 
 // Снимки версий и корзина таблицы гейтятся per-table правом table.<name>.versions/.trash
-// (RequireTableVerb). Обычный юзер без такого права не должен снимать снимок или чистить
-// корзину любой таблицы.
+// (RequireTableVerb). Обычный юзер без такого права не должен ни читать версии и корзину,
+// ни снимать снимок или чистить корзину любой таблицы.
 func TestAuthz_RegularUser_CannotSnapshotOrTrashTable(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -126,6 +127,12 @@ func TestAuthz_RegularUser_CannotSnapshotOrTrashTable(t *testing.T) {
 	userH := testutil.AuthHeader(
 		testutil.RegisterAndLogin(t, e, "authz_table_regular", "password123", 1, td.OrgID, td.CompanyID),
 	)
+
+	for _, path := range append(tableVersionsReadPaths(tableID), tableTrashReadPaths(tableID)...) {
+		rec := testutil.GET(t, e, path, userH)
+		require.Equalf(t, http.StatusForbidden, rec.Code,
+			"GET %s без права на таблицу должен быть 403, получили %d", path, rec.Code)
+	}
 
 	snapshot := testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/snapshots", tableID), `{}`, userH)
 	require.Equalf(t, http.StatusForbidden, snapshot.Code,
@@ -138,6 +145,56 @@ func TestAuthz_RegularUser_CannotSnapshotOrTrashTable(t *testing.T) {
 	clear := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/trash", tableID), userH)
 	require.Equalf(t, http.StatusForbidden, clear.Code,
 		"очистка корзины без права table.*.trash должна быть 403, получили %d", clear.Code)
+}
+
+func tableVersionsReadPaths(tableID int) []string {
+	return []string{
+		fmt.Sprintf("/system-tables/%d/snapshots", tableID),
+		fmt.Sprintf("/system-tables/%d/snapshots/1", tableID),
+		fmt.Sprintf("/system-tables/%d/snapshots/current/export?format=xlsx", tableID),
+	}
+}
+
+func tableTrashReadPaths(tableID int) []string {
+	return []string{
+		fmt.Sprintf("/system-tables/%d/trash", tableID),
+		fmt.Sprintf("/system-tables/%d/trash/history", tableID),
+	}
+}
+
+// Право на версии не открывает корзину и наоборот: каждое чтение пускает ровно своим
+// ключом, тем же, которым фронт открывает вкладку.
+func TestAuthz_TableReads_OpenOnlyByOwnVerb(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	tableID := seedSystemTable(t, db)
+	versionsH := testutil.AuthHeader(
+		testutil.RegisterAndLogin(t, e, "authz_table_versions", "password123", 1, td.OrgID, td.CompanyID),
+	)
+	trashH := testutil.AuthHeader(
+		testutil.RegisterAndLogin(t, e, "authz_table_trash", "password123", 1, td.OrgID, td.CompanyID),
+	)
+	testutil.GrantTableVerb(t, getUserID(t, db, "authz_table_versions"), "test_table", "versions")
+	testutil.GrantTableVerb(t, getUserID(t, db, "authz_table_trash"), "test_table", "trash")
+
+	for _, path := range tableVersionsReadPaths(tableID) {
+		rec := testutil.GET(t, e, path, versionsH)
+		assert.NotEqualf(t, http.StatusForbidden, rec.Code, "GET %s с правом versions, получили 403", path)
+		rec = testutil.GET(t, e, path, trashH)
+		assert.Equalf(t, http.StatusForbidden, rec.Code, "GET %s с одним правом trash должен быть 403", path)
+	}
+	for _, path := range tableTrashReadPaths(tableID) {
+		rec := testutil.GET(t, e, path, trashH)
+		assert.Equalf(t, http.StatusOK, rec.Code, "GET %s с правом trash: %s", path, rec.Body.String())
+		rec = testutil.GET(t, e, path, versionsH)
+		assert.Equalf(t, http.StatusForbidden, rec.Code, "GET %s с одним правом versions должен быть 403", path)
+	}
+
+	list := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots", tableID), versionsH)
+	assert.Equalf(t, http.StatusOK, list.Code, "список версий с правом versions: %s", list.Body.String())
 }
 
 func TestAuthz_Admin_CanWriteAndReadPrivileged(t *testing.T) {

@@ -494,6 +494,7 @@ func TestTableSnapshot_List_ReturnsMetadataWithoutPayload(t *testing.T) {
 	dn := "Список версий"
 	tbl := models.SystemTable{Name: "list_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_list"), tbl.Name, "versions")
 
 	base := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
 	seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, base, models.SnapshotCounts{OnTerritory: 2, Total: 2})
@@ -538,6 +539,7 @@ func TestTableSnapshot_List_FilterByPeriod(t *testing.T) {
 	dn := "Фильтр версий"
 	tbl := models.SystemTable{Name: "filter_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_filter"), tbl.Name, "versions")
 
 	seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC), models.SnapshotCounts{Total: 1})
 	mid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, time.Date(2026, 6, 15, 8, 0, 0, 0, time.UTC), models.SnapshotCounts{Total: 1})
@@ -626,6 +628,7 @@ func TestTableSnapshot_Get_ReturnsPayload(t *testing.T) {
 	dn := "Получение версии"
 	tbl := models.SystemTable{Name: "get_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_get"), tbl.Name, "versions")
 	sid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonManual, nil, time.Now().UTC(), models.SnapshotCounts{OnTerritory: 1, Total: 1})
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d", tbl.ID, sid), testutil.AuthHeader(token))
@@ -661,6 +664,7 @@ func TestTableSnapshot_Get_WrongTable_404(t *testing.T) {
 	tblB := models.SystemTable{Name: "scope_b", DisplayName: &dnB, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tblA).Error)
 	require.NoError(t, db.Create(&tblB).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_scope"), tblB.Name, "versions")
 	sid := seedSnapshot(t, db, tblA.ID, models.SnapshotReasonManual, nil, time.Now().UTC(), models.SnapshotCounts{Total: 1})
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d", tblB.ID, sid), testutil.AuthHeader(token))
@@ -768,6 +772,7 @@ func TestTableSnapshot_Export_Xlsx(t *testing.T) {
 	dn := "Экспорт машин"
 	tbl := models.SystemTable{Name: "export_cars_x", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_xlsx"), tbl.Name, "versions")
 	sid := seedCarSnapshotWithCyrillic(t, db, tbl.ID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=xlsx", tbl.ID, sid), testutil.AuthHeader(token))
@@ -793,6 +798,7 @@ func TestTableSnapshot_Export_Pdf_EmbedsCyrillic(t *testing.T) {
 	dn := "Экспорт машин"
 	tbl := models.SystemTable{Name: "export_cars_p", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_pdf"), tbl.Name, "versions")
 	sid := seedCarSnapshotWithCyrillic(t, db, tbl.ID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=pdf", tbl.ID, sid), testutil.AuthHeader(token))
@@ -819,6 +825,7 @@ func TestTableSnapshot_Export_Current(t *testing.T) {
 	dn := "Текущее состояние"
 	tbl := models.SystemTable{Name: "export_current", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_cur"), tbl.Name, "versions")
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/current/export", tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -837,6 +844,7 @@ func TestTableSnapshot_Export_InvalidFormat_400(t *testing.T) {
 	dn := "Экспорт машин"
 	tbl := models.SystemTable{Name: "export_badfmt", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_badfmt"), tbl.Name, "versions")
 	sid := seedCarSnapshotWithCyrillic(t, db, tbl.ID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=csv", tbl.ID, sid), testutil.AuthHeader(token))
@@ -854,6 +862,7 @@ func TestTableSnapshot_Export_NotFound_404(t *testing.T) {
 	dn := "Экспорт машин"
 	tbl := models.SystemTable{Name: "export_404", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_exp404"), tbl.Name, "versions")
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/999999/export?format=xlsx", tbl.ID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusNotFound, rec.Code, "несуществующая версия - 404")
@@ -873,6 +882,7 @@ func TestTableSnapshot_Export_WrongTable_404(t *testing.T) {
 	tblB := models.SystemTable{Name: "export_idor_b", DisplayName: &dnB, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tblA).Error)
 	require.NoError(t, db.Create(&tblB).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "snap_exp_idor"), tblB.Name, "versions")
 	sid := seedCarSnapshotWithCyrillic(t, db, tblA.ID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=xlsx", tblB.ID, sid), testutil.AuthHeader(token))

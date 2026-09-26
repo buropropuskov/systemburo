@@ -814,15 +814,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto, requireTablesCtor)
 
 	// Версии (слепки) состояния таблицы (#980). Дневной снимок в 06:00 снимает джоба
-	// (см. startDailyStatusReset), ручной - POST. Читалки под общей auth-защитой, как
-	// соседние sub-роуты system-tables (trash/history): доступ вкладки гейтит фронт
-	// правом table.<slug>.versions. Чистка разрушительна - только admin/super.
+	// (см. startDailyStatusReset), ручной - POST. Чтение и снимок - правом
+	// table.<slug>.versions, тем же, которым фронт открывает вкладку версий: в версии
+	// лежит состав поста с ФИО и номерами. Чистка разрушительна - только admin/super.
 	stg.POST("/:id/snapshots", tsnap.Create, d.TableVersionsGate)
-	stg.GET("/:id/snapshots", tsnap.List)
-	stg.GET("/:id/snapshots/:sid", tsnap.Get)
-	// Экспорт версии/текущего состояния (xlsx|pdf) файлом на скачивание. Читалка -
-	// auth-only, как соседи; sid=current экспортирует текущее состояние таблицы.
-	stg.GET("/:id/snapshots/:sid/export", tsnap.Export)
+	stg.GET("/:id/snapshots", tsnap.List, d.TableVersionsGate)
+	stg.GET("/:id/snapshots/:sid", tsnap.Get, d.TableVersionsGate)
+	// Экспорт версии/текущего состояния (xlsx|pdf) файлом на скачивание;
+	// sid=current экспортирует текущее состояние таблицы.
+	stg.GET("/:id/snapshots/:sid/export", tsnap.Export, d.TableVersionsGate)
 	stg.DELETE("/:id/snapshots", tsnap.Cleanup, requireAdmin)
 
 	// Суточный отчёт охранника по проходам: живое окно [посл. 21:30, now) и
@@ -839,9 +839,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Корзина таблицы (#186) - удалённые элементы с возможностью восстановить
 	// или окончательно удалить. Тип элементов определяется по table_type
-	// системной таблицы (cars или people).
-	stg.GET("/:id/trash", trash.List)
-	stg.GET("/:id/trash/history", trash.History)
+	// системной таблицы (cars или people). Чтение и действия - правом table.<slug>.trash.
+	stg.GET("/:id/trash", trash.List, d.TableTrashGate)
+	stg.GET("/:id/trash/history", trash.History, d.TableTrashGate)
 	stg.POST("/:id/trash/restore", trash.Restore, d.TableTrashGate)
 	stg.DELETE("/:id/trash/:item_id", trash.PurgeOne, d.TableTrashGate)
 	stg.DELETE("/:id/trash", trash.ClearAll, d.TableTrashGate)
