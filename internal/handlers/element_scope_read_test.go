@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -192,4 +193,45 @@ func TestElementScope_Admin(t *testing.T) {
 		carHistory: http.StatusOK, empHistory: http.StatusOK,
 		carUnified: 1, empUnified: 1, carStatus: true, empStatus: true, carPlace: true,
 	}, got)
+}
+
+// Принимающий видит все заявки, а с ними и их машины и людей, без привязки к посту.
+func TestElementScope_Approver(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	fx := seedElementScopeFixture(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_acceptor", "pass123", 1, td.OrgID, td.CompanyID))
+	require.NoError(t, db.Create(&models.ApplicationApprover{UserID: getUserID(t, db, "scope_acceptor")}).Error)
+
+	got := readElements(t, e, h, fx)
+	assert.Equal(t, elementReads{
+		carHistory: http.StatusOK, empHistory: http.StatusOK,
+		carUnified: 1, empUnified: 1, carStatus: true, empStatus: true, carPlace: true,
+	}, got)
+}
+
+// Заблокированный не видит ничего, даже элементы своей организации и своего поста.
+func TestElementScope_BannedSeesNothing(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	fx := seedElementScopeFixture(t, db)
+	userID := seedDatesUser(t, db, "scope_banned", fx.orgID)
+	testutil.GrantTableVerb(t, userID, fx.tableName, "view")
+
+	scopes := services.NewElementScopeResolver(db, services.NewPermissionResolver(db))
+	scope, err := scopes.Resolve(context.Background(), userID)
+	require.NoError(t, err)
+	visible, err := scopes.Visible(context.Background(), scope, services.ElementCar, fx.carID)
+	require.NoError(t, err)
+	require.True(t, visible, "до блокировки машина своего поста и своей организации видна")
+
+	require.NoError(t, db.Exec("UPDATE users SET is_banned = TRUE WHERE id = ?", userID).Error)
+	scope, err = services.NewElementScopeResolver(db, services.NewPermissionResolver(db)).Resolve(context.Background(), userID)
+	require.NoError(t, err)
+	visible, err = scopes.Visible(context.Background(), scope, services.ElementCar, fx.carID)
+	require.NoError(t, err)
+	assert.False(t, visible, "после блокировки не видна")
 }
