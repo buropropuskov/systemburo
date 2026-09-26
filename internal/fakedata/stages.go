@@ -454,7 +454,7 @@ func shiftAttachmentItemsTouched(ctx context.Context, db *gorm.DB, appID int, at
 // раз на свежую заявку партии -- буквенно-числовые стадии друг друга не пересекают, и
 // повторного вызова с уже снятым статусом здесь не бывает.
 func stageRead(ctx context.Context, appSvc services.ApplicationService, db *gorm.DB, reader stageApprover, app batchApplication, at time.Time) error {
-	if _, err := appSvc.GetApplicationByID(ctx, reader.Username, app.ID); err != nil {
+	if _, err := appSvc.GetApplicationByID(ctx, reader.Username, app.ID, false); err != nil {
 		return fmt.Errorf("прочтение заявки %d принимающим %s: %w", app.ID, reader.Username, err)
 	}
 	if err := shiftReadingDatetime(ctx, db, app.ID, at); err != nil {

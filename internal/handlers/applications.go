@@ -203,6 +203,7 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 // @Param        id path int true "ID заявки"
 // @Success      200 {object} map[string]interface{}
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id} [get]
@@ -213,13 +214,9 @@ func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
-	app, err := h.service.GetApplicationByID(c.Request().Context(), username, id)
+	app, err := h.service.GetApplicationByID(c.Request().Context(), username, id, IsSuperAdmin(c))
 	if err != nil {
 		return err
-	}
-
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
-		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	return RespondSuccess(c, app)
