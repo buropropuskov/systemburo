@@ -240,8 +240,7 @@ func (h *DocumentHandler) Download(c echo.Context) error {
 
 // canSeeHidden - есть ли у вызывающего право на раздел документов (page.admin.directories).
 func (h *DocumentHandler) canSeeHidden(c echo.Context) bool {
-	userID, _ := c.Get("user_id").(int)
-	allowed, err := h.resolver.HasPermission(c.Request().Context(), userID, services.KeyPageAdminDirectories)
+	allowed, err := h.resolver.HasPermission(c.Request().Context(), GetUserID(c), services.KeyPageAdminDirectories)
 	if err != nil {
 		slog.Error("Не удалось проверить право на скрытые документы", "error", err)
 		return false
