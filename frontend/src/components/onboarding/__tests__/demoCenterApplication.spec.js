@@ -87,6 +87,15 @@ describe('примерная заявка Центра', () => {
     expect(заявка().confirmation, 'колонка «Подтверждение» в списке').toBeTruthy();
   });
 
+  it('файлы к заявке есть, а скачивание примера наружу не уходит', () => {
+    const files = ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/files`).data;
+    expect(files.length).toBeGreaterThan(1);
+    expect(files.every((f) => f.file_name && f.file_size > 0)).toBe(true);
+    // Сам файл отдать нечем: за именами примера на сервере ничего не лежит, и
+    // подменять поток скачивания конвертом - значит ронять его разбором.
+    expect(ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/files/1/download`)).toEqual({ success: true, data: [] });
+  });
+
   it('каждый шаг про содержимое карточки обеспечен данными', () => {
     const данные = {
       'attachment-elements': ответ(`/attachments/${DEMO_CENTER_ATTACHMENT_ID}/cars`).data.length > 0,
@@ -97,6 +106,11 @@ describe('примерная заявка Центра', () => {
       'ob-org-moderation': заявка().organization_moderation_status === 'pending',
       'app-detail-button-download': заявка().has_blank_template,
       'ob-center-blacklist-tag': заявка().blacklist_flags_count > 0,
+      'application-files': ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/files`).data.length > 0,
+      'blacklist-override-btn': ответ(`/attachments/${DEMO_CENTER_ATTACHMENT_ID}/cars`).data
+        .some((c) => c.blacklist_similar),
+      // Заметка бюро стоит в карточке всегда, пустая или заполненная.
+      'bureau-note': true,
     };
     const необеспеченные = acceptOnboardingSteps
       .filter((s) => s.element)

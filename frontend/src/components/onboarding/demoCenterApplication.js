@@ -223,3 +223,28 @@ export function buildDemoCenterSupplements(now = Date.now()) {
     },
   ];
 }
+
+/**
+ * Файлы, приложенные к примерной заявке: шаг про них рассказывал вслепую -
+ * у примера файлов не было, и шаг молча выпадал из тура (#2622). Скачивание на
+ * примере не работает: файла за этими именами на сервере нет, и шаг нажимать не
+ * просит.
+ */
+export function buildDemoCenterFiles() {
+  return [
+    {
+      id: 1,
+      application_id: DEMO_CENTER_APPLICATION_ID,
+      file_name: 'Договор подряда 14-2026.pdf',
+      file_size: 384_512,
+      mime_type: 'application/pdf',
+    },
+    {
+      id: 2,
+      application_id: DEMO_CENTER_APPLICATION_ID,
+      file_name: 'Список оборудования.xlsx',
+      file_size: 28_160,
+      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+  ];
+}

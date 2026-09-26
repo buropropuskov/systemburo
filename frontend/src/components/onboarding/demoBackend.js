@@ -9,6 +9,7 @@ import {
   buildDemoCenterEmployees,
   buildDemoCenterResponsibleUsers,
   buildDemoCenterSupplements,
+  buildDemoCenterFiles,
 } from '@/components/onboarding/demoCenterApplication';
 import {
   DEMO_APPLICATION_ID,
@@ -97,6 +98,7 @@ export function createCenterDemoResponder() {
     if (!own) return null;
     if (path.includes('/attachments')) return ok(buildDemoCenterAttachments());
     if (path.includes('/supplements')) return ok(buildDemoCenterSupplements());
+    if (/\/files(\?|$)/.test(path)) return ok(buildDemoCenterFiles());
     if (path.includes('/responsible-users')) return ok(responsibleUsers);
     if (path.includes('/details')) return ok({ ...application, responsible_users: responsibleUsers });
     return ok([]);
