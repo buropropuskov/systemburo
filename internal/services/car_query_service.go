@@ -264,8 +264,9 @@ func (s *carService) targetTablesByCarID(ctx context.Context, carIDs []int) (map
 }
 
 // GetCarUnloadPlaces возвращает связи активных автомобилей с местами разгрузки.
-func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error) {
+func (s *carService) GetCarUnloadPlaces(ctx context.Context, scope ElementScope) ([]CarUnloadPlaceInfo, error) {
 	places := make([]CarUnloadPlaceInfo, 0)
+	visible, visibleArgs := scope.Predicate(ElementCar, "c", "a", "app")
 	err := s.db.WithContext(ctx).
 		Table("car_unload_places cup").
 		Select("cup.car_id, cup.unload_place_id, up.name AS unload_place_name").
@@ -281,6 +282,7 @@ func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceIn
 		Where("c.status = ?", 1).
 		Where("a.is_manual OR (app.confirmation = ? AND app.status IN ?)",
 			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted}).
+		Where(visible, visibleArgs...).
 		Order("cup.car_id, cup.order_index").
 		Scan(&places).Error
 	if err != nil {
@@ -290,8 +292,9 @@ func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceIn
 }
 
 // GetFactCarUnloadPlaces возвращает связи «по факту» автомобилей с местами разгрузки.
-func (s *carService) GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error) {
+func (s *carService) GetFactCarUnloadPlaces(ctx context.Context, scope ElementScope) ([]CarUnloadPlaceInfo, error) {
 	places := make([]CarUnloadPlaceInfo, 0)
+	visible, visibleArgs := scope.Predicate(ElementCar, "c", "a", "app")
 	err := s.db.WithContext(ctx).
 		Table("car_unload_places cup").
 		Select("cup.car_id, cup.unload_place_id, up.name AS unload_place_name").
@@ -304,6 +307,7 @@ func (s *carService) GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPla
 		Where("a.is_manual OR (app.confirmation = ? AND app.status IN ?)",
 			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted}).
 		Where("LOWER(TRIM(c.car_number)) = ?", "по факту").
+		Where(visible, visibleArgs...).
 		Order("cup.car_id, cup.order_index").
 		Scan(&places).Error
 	if err != nil {

@@ -1084,7 +1084,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
                 // и unified (по номеру+марке) склеил бы истории всех таких машин. Берём
                 // историю ОДНОЙ машины, чтобы данные пропуска (metadata) относились к ней.
                 if (this.source === 'facttable') {
-                    const response = await apiRequest(`/cars/${this.vehicle.id}/history`, {});
+                    const response = await apiRequest(`/cars/${this.vehicle.id}/history`, { silent403: true });
                     if (response.ok) {
                         this.history = await response.json();
                     }

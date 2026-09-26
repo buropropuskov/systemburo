@@ -31,7 +31,7 @@ type snapshotEmployeeLister interface {
 }
 
 type snapshotEmployeeStatuser interface {
-	GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error)
+	GetCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]EmployeeCurrentStatus, error)
 }
 
 // TableSnapshotService снимает и хранит слепки состояния таблиц.
@@ -211,7 +211,7 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 		}
 		// Спрашивающего нет: слепок снимает планировщик, и признак «отметку можно
 		// отменить» в нём никого не касается (#2437).
-		statusList, err := s.empStatus.GetCurrentStatus(ctx, 0)
+		statusList, err := s.empStatus.GetCurrentStatus(ctx, 0, FullElementScope())
 		if err != nil {
 			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list employee statuses for snapshot: %w", err)
 		}

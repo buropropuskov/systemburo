@@ -276,6 +276,9 @@ func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "emphist1"), "people")
+	// История сотрудника видна охраннику только на его посту.
+	require.NoError(t, db.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)",
+		employee.ID, passTbl).Error)
 
 	// Регистрируем entry - должен создать запись в audit_log[employee].
 	putBody := fmt.Sprintf(`{"territory_status":1,"user_id":null,"table_id":%d}`, passTbl)

@@ -312,7 +312,8 @@ func mapAllCarsHistoryRows(rows []allCarsHistoryRow) []AllCarsHistoryItem {
 }
 
 // GetUnifiedCarHistory возвращает объединённую историю для всех автомобилей с одинаковыми параметрами.
-func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery) ([]CarHistoryItemResponse, error) {
+func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery, scope ElementScope) ([]CarHistoryItemResponse, error) {
+	visible, visibleArgs := scope.Predicate(ElementCar, "c", "a", "app")
 	// Находим все машины с одинаковыми параметрами
 	type carIDRow struct {
 		ID int
@@ -334,11 +335,12 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 		AND LOWER(TRIM(c.car_brand)) = LOWER(TRIM(?))
 		AND (?::integer IS NULL OR COALESCE(app.organization_id, a.organization_id) = ?)
 		AND (?::integer IS NULL OR COALESCE(app.company_id, a.company_id) = ?)
+		AND `+visible+`
 		ORDER BY c.id
-	`, req.CarNumber, req.CarBrand,
+	`, append([]any{req.CarNumber, req.CarBrand,
 		req.OrganizationID, req.OrganizationID,
 		req.CompanyID, req.CompanyID,
-	).Scan(&carIDs).Error
+	}, visibleArgs...)...).Scan(&carIDs).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}

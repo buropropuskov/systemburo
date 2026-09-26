@@ -953,7 +953,7 @@ export default {
                     if (this.employee.middle_name) params.set('middle_name', this.employee.middle_name);
                     res = await apiRequest(`/employees/history/unified?${params}`, { method: 'GET' });
                 } else {
-                    res = await apiRequest(`/employees/${this.employee.id}/history`, { method: 'GET' });
+                    res = await apiRequest(`/employees/${this.employee.id}/history`, { method: 'GET', silent403: true });
                 }
                 if (res.ok) {
                     this.history = await res.json();

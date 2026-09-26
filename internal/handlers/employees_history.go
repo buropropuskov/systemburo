@@ -12,11 +12,13 @@ import (
 // EmployeesHistoryHandler -- HTTP-обработчики истории сотрудников.
 type EmployeesHistoryHandler struct {
 	service services.EmployeesHistoryService
+	scopes  *services.ElementScopeResolver
 }
 
-// NewEmployeesHistoryHandler создаёт новый экземпляр EmployeesHistoryHandler.
-func NewEmployeesHistoryHandler(service services.EmployeesHistoryService) *EmployeesHistoryHandler {
-	return &EmployeesHistoryHandler{service: service}
+// NewEmployeesHistoryHandler создаёт новый экземпляр EmployeesHistoryHandler. scopes
+// ограничивает историю и статусы сотрудниками, которых пользователь вправе видеть.
+func NewEmployeesHistoryHandler(service services.EmployeesHistoryService, scopes *services.ElementScopeResolver) *EmployeesHistoryHandler {
+	return &EmployeesHistoryHandler{service: service, scopes: scopes}
 }
 
 // GetByEmployee обрабатывает GET /employees/:id/history.
@@ -30,6 +32,9 @@ func NewEmployeesHistoryHandler(service services.EmployeesHistoryService) *Emplo
 func (h *EmployeesHistoryHandler) GetByEmployee(c echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
+		return err
+	}
+	if err := requireElementVisible(c, h.scopes, services.ElementEmployee, id); err != nil {
 		return err
 	}
 	items, err := h.service.GetByEmployee(c.Request().Context(), id)
@@ -57,7 +62,12 @@ func (h *EmployeesHistoryHandler) GetUnified(c echo.Context) error {
 	}
 	middleName := c.QueryParam("middle_name")
 
-	items, err := h.service.GetUnified(c.Request().Context(), lastName, firstName, middleName)
+	// Раздел чёрного списка ищет историю человека по всей системе, остальным - только свои.
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c), services.KeyPageBlacklist)
+	if err != nil {
+		return err
+	}
+	items, err := h.service.GetUnified(c.Request().Context(), lastName, firstName, middleName, scope)
 	if err != nil {
 		return err
 	}
@@ -119,7 +129,11 @@ func (h *EmployeesHistoryHandler) GetFilterOptions(c echo.Context) error {
 // @Success 200 {array} services.EmployeeCurrentStatus
 // @Router /employees/history/current-status [get]
 func (h *EmployeesHistoryHandler) GetCurrentStatus(c echo.Context) error {
-	items, err := h.service.GetCurrentStatus(c.Request().Context(), GetUserID(c))
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return err
+	}
+	items, err := h.service.GetCurrentStatus(c.Request().Context(), GetUserID(c), scope)
 	if err != nil {
 		return err
 	}

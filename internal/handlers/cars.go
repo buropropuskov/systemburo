@@ -13,11 +13,13 @@ import (
 // CarHandler -- HTTP-обработчики автомобилей в заявках.
 type CarHandler struct {
 	service services.CarService
+	scopes  *services.ElementScopeResolver
 }
 
-// NewCarHandler создаёт новый экземпляр CarHandler.
-func NewCarHandler(service services.CarService) *CarHandler {
-	return &CarHandler{service: service}
+// NewCarHandler создаёт новый экземпляр CarHandler. scopes ограничивает историю, статусы
+// и места разгрузки машинами, которые пользователь вправе видеть.
+func NewCarHandler(service services.CarService, scopes *services.ElementScopeResolver) *CarHandler {
+	return &CarHandler{service: service, scopes: scopes}
 }
 
 
@@ -93,7 +95,11 @@ func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
 // @Success 200 {array} services.CarUnloadPlaceInfo
 // @Router /cars/unload-places [get]
 func (h *CarHandler) GetCarUnloadPlaces(c echo.Context) error {
-	places, err := h.service.GetCarUnloadPlaces(c.Request().Context())
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return err
+	}
+	places, err := h.service.GetCarUnloadPlaces(c.Request().Context(), scope)
 	if err != nil {
 		return err
 	}
@@ -108,7 +114,11 @@ func (h *CarHandler) GetCarUnloadPlaces(c echo.Context) error {
 // @Success 200 {array} services.CarUnloadPlaceInfo
 // @Router /cars/fact-unload-places [get]
 func (h *CarHandler) GetFactCarUnloadPlaces(c echo.Context) error {
-	places, err := h.service.GetFactCarUnloadPlaces(c.Request().Context())
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return err
+	}
+	places, err := h.service.GetFactCarUnloadPlaces(c.Request().Context(), scope)
 	if err != nil {
 		return err
 	}
@@ -150,6 +160,9 @@ func (h *CarHandler) GetCarHistory(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
+	}
+	if err := requireElementVisible(c, h.scopes, services.ElementCar, id); err != nil {
+		return err
 	}
 	items, err := h.service.GetCarHistory(c.Request().Context(), id)
 	if err != nil {
@@ -271,7 +284,11 @@ func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
 // @Success 200 {array} services.CarCurrentStatus
 // @Router /cars/history/current-status [get]
 func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
-	items, err := h.service.GetCarsCurrentStatus(c.Request().Context(), GetUserID(c))
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return err
+	}
+	items, err := h.service.GetCarsCurrentStatus(c.Request().Context(), GetUserID(c), scope)
 	if err != nil {
 		return err
 	}
@@ -506,7 +523,12 @@ func (h *CarHandler) GetUnifiedCarHistory(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
-	items, err := h.service.GetUnifiedCarHistory(c.Request().Context(), req)
+	// Раздел чёрного списка ищет историю машины по всей системе, остальным - только свои.
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c), services.KeyPageBlacklist)
+	if err != nil {
+		return err
+	}
+	items, err := h.service.GetUnifiedCarHistory(c.Request().Context(), req, scope)
 	if err != nil {
 		return err
 	}

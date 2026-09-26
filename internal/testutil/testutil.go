@@ -296,6 +296,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	attachmentService := services.NewAttachmentService(db)
 	citizenshipService := services.NewCitizenshipService(db)
 	permissionResolver := services.NewPermissionResolver(db)
+	elementScopes := services.NewElementScopeResolver(db, permissionResolver)
 	// pushService поднимается и в тестах (#974), пустыми VAPID-ключами: Configured()
 	// false, Send() - no-op. Подключается той же опцией конструктора, что и в
 	// cmd/server/main.go, - иначе прод и тесты разошлись бы в wiring и push молчал бы
@@ -392,7 +393,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, uploadDir)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
-	carHandler := handlers.NewCarHandler(carService)
+	carHandler := handlers.NewCarHandler(carService, elementScopes)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
@@ -405,7 +406,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
-	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
+	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService, elementScopes)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	applicationFileHandler := handlers.NewApplicationFileHandler(
 		applicationFileService, applicationService,

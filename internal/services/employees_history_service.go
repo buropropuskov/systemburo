@@ -17,13 +17,13 @@ type EmployeesHistoryService interface {
 	// GetByEmployee возвращает историю конкретного сотрудника.
 	GetByEmployee(ctx context.Context, employeeID int) ([]EmployeeHistoryItem, error)
 	// GetUnified возвращает объединённую историю по ФИО (все сотрудники с таким именем).
-	GetUnified(ctx context.Context, lastName, firstName, middleName string) ([]EmployeeHistoryItem, error)
+	GetUnified(ctx context.Context, lastName, firstName, middleName string, scope ElementScope) ([]EmployeeHistoryItem, error)
 	// GetAll возвращает страницу истории входов/выходов всех сотрудников по фильтру и
 	// общее число подходящих строк.
 	GetAll(ctx context.Context, q models.PassageHistoryQuery) ([]EmployeeHistoryItem, int64, error)
 	// GetCurrentStatus возвращает текущий территориальный статус всех сотрудников.
 	// viewerID - кто спрашивает: от него зависит признак «отметку можно отменить».
-	GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error)
+	GetCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]EmployeeCurrentStatus, error)
 	// GetByTable возвращает страницу истории сотрудников таблицы (места) по фильтру и
 	// общее число подходящих строк.
 	GetByTable(ctx context.Context, tableID int, q models.PassageHistoryQuery) ([]EmployeeHistoryItem, int64, error)
@@ -210,23 +210,26 @@ func (s *employeesHistoryService) GetByEmployee(ctx context.Context, employeeID 
 	return mapEmployeeHistoryRows(rows), nil
 }
 
-func (s *employeesHistoryService) GetUnified(ctx context.Context, lastName, firstName, middleName string) ([]EmployeeHistoryItem, error) {
+func (s *employeesHistoryService) GetUnified(ctx context.Context, lastName, firstName, middleName string, scope ElementScope) ([]EmployeeHistoryItem, error) {
 	rows := make([]employeeHistoryRow, 0)
 	var err error
+	visible, visibleArgs := scope.Predicate(ElementEmployee, "e", "a", "app")
 
 	if strings.TrimSpace(middleName) != "" {
 		err = s.db.WithContext(ctx).Raw(baseSelectSQL+`
 			WHERE LOWER(TRIM(e.last_name)) = LOWER(TRIM(?))
 			  AND LOWER(TRIM(e.first_name)) = LOWER(TRIM(?))
 			  AND LOWER(TRIM(e.middle_name)) = LOWER(TRIM(?))
+			  AND `+visible+`
 			ORDER BY eh.created_at DESC
-		`, lastName, firstName, middleName).Scan(&rows).Error
+		`, append([]any{lastName, firstName, middleName}, visibleArgs...)...).Scan(&rows).Error
 	} else {
 		err = s.db.WithContext(ctx).Raw(baseSelectSQL+`
 			WHERE LOWER(TRIM(e.last_name)) = LOWER(TRIM(?))
 			  AND LOWER(TRIM(e.first_name)) = LOWER(TRIM(?))
+			  AND `+visible+`
 			ORDER BY eh.created_at DESC
-		`, lastName, firstName).Scan(&rows).Error
+		`, append([]any{lastName, firstName}, visibleArgs...)...).Scan(&rows).Error
 	}
 
 	if err != nil {
@@ -244,7 +247,7 @@ func (s *employeesHistoryService) GetAll(ctx context.Context, q models.PassageHi
 	return s.queryHistoryPage(ctx, q, employeesHistoryPassageWhereSQL, nil)
 }
 
-func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID int) ([]EmployeeCurrentStatus, error) {
+func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]EmployeeCurrentStatus, error) {
 	type statusRow struct {
 		ID                 int
 		TerritoryStatus    *int
@@ -259,6 +262,7 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID
 		return nil, err
 	}
 
+	visible, visibleArgs := scope.Predicate(ElementEmployee, "e", "a", "app")
 	rows := make([]statusRow, 0)
 	err = s.db.WithContext(ctx).Raw(`
 		SELECT
@@ -284,8 +288,10 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID
 			ORDER BY eh.created_at DESC, eh.id DESC
 			LIMIT 1
 		) lm ON TRUE
-		WHERE e.status = 1
-	`, admin, viewerID, passageRevertWindowSQL()).Scan(&rows).Error
+		LEFT JOIN attachments a ON e.attachment_id = a.id
+		LEFT JOIN applications app ON a.application_id = app.id
+		WHERE e.status = 1 AND `+visible+`
+	`, append([]any{admin, viewerID, passageRevertWindowSQL()}, visibleArgs...)...).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees current status")
 	}

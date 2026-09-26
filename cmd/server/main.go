@@ -263,6 +263,7 @@ func main() {
 	// которых человек не получит по правам, и резолвер нужен сервису при создании.
 	permissionResolver := services.NewPermissionResolver(db)
 	permissionResolver.SetRealtimePublisher(eventsHub) // #840: смена роли/группы/override -> user.permissions
+	elementScopes := services.NewElementScopeResolver(db, permissionResolver)
 	// pushService создаётся до notificationService (#974): рассылка Web Push
 	// подключается опцией конструктора, как и real-time паблишер. Пустые
 	// VAPID-ключи в параметрах не мешают подняться - Send() тогда молча ничего не
@@ -394,7 +395,7 @@ func main() {
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
-	carHandler := handlers.NewCarHandler(carService)
+	carHandler := handlers.NewCarHandler(carService, elementScopes)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, cfg.UploadMaxFileSize, cfg.UploadPath)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(tableSnapshotService)
@@ -406,7 +407,7 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
-	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
+	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService, elementScopes)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	// Типы файлов заявки: картинки и документы одним списком. Разделять их незачем -
 	// заявитель прикладывает и снимок, и pdf в одно поле.
