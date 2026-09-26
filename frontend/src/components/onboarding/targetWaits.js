@@ -72,16 +72,20 @@ export function waitForElement(selector, timeout = 2500, signal) {
 /**
  * Подвести цель в зону видимости до подсветки.
  *
- * driver.js скроллит сам, но на длинной форме заявки промахивается: после шага
- * с формой сотрудников страница остаётся прокрученной вниз, и отметка согласия
- * оказывается выше экрана - вырез рисуется за краем окна, а человек видит
- * поповер без подсветки. Скроллим до показа, поэтому рамку driver меряет уже
- * по конечному положению.
+ * driver.js скроллит сам, но с задержкой и уже ПОСЛЕ показа шага: человек видит
+ * рамку в пустоте, а цель приезжает спустя полсекунды. Поэтому доводим сами,
+ * до показа, и рамку driver меряет по конечному положению.
  *
  * Шаг, попросивший подвести цель (`scrollTo`), подводится ВСЕГДА. Без просьбы
  * скроллим, только если цель не помещается: карточка заявки дорисовывается уже
  * после проверки - блок согласования подрос вместе с согласующими, и «влезает»
  * превращалось в «уехало» на глазах (#2616).
+ *
+ * Просим прокрутку на каждом кадре, пока цель не встанет: карточка заявки
+ * прокручивается вложенным контейнером, и тот узнаёт свою высоту позже цели.
+ * Одного вызова не хватало - блок согласования (456 px в контейнере 347 px)
+ * оставался за краем окна, потому что в момент вызова контейнеру нечего было
+ * прокручивать: scrollHeight равнялся clientHeight (#2622).
  *
  * @param {Element|null} el
  * @param {'center'|'end'|'start'} [block] куда подвести цель; не задан - только
@@ -91,25 +95,35 @@ export function waitForElement(selector, timeout = 2500, signal) {
 export function ensureInView(el, block) {
   // scrollIntoView есть не везде (jsdom в юнит-тестах) - тогда просто не скроллим.
   if (!el?.getBoundingClientRect || typeof el.scrollIntoView !== 'function') return Promise.resolve();
-  const rect = el.getBoundingClientRect();
   const margin = 24;
-  const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
-  if (fits && !block) return Promise.resolve();
-  // behavior: 'auto' обязателен: на html стоит scroll-behavior: smooth, и без
-  // явного указания доводка цели растягивалась на полторы секунды - шаг успевал
-  // показаться с подсветкой в пустоте (#2618).
-  el.scrollIntoView({ block: block || 'center', inline: 'nearest', behavior: 'auto' });
-  // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр. Карточка
-  // заявки прокручивается вложенным контейнером, и на невысоком окне доводка
-  // занимала больше секунды: шаг успевал показаться с подсветкой в пустоте, а
-  // цель приезжала потом (#2610). Потолок - чтобы не ждать недостижимую цель.
+  const хвостВидим = 120;
+  // Цель выше окна целиком не покажешь: довольно, чтобы был виден её верх -
+  // блок читается сверху вниз, и заголовок важнее нижнего края.
+  const выше = () => el.getBoundingClientRect().height > window.innerHeight - margin * 2;
+  const наМесте = () => {
+    const r = el.getBoundingClientRect();
+    if (выше()) return r.top >= 0 && r.top <= window.innerHeight - хвостВидим;
+    return r.top >= margin && r.bottom <= window.innerHeight - margin;
+  };
+  if (!block && наМесте()) return Promise.resolve();
+  const довести = () => {
+    // behavior: 'auto' обязателен: на html стоит scroll-behavior: smooth, и без
+    // явного указания доводка цели растягивалась на полторы секунды - шаг успевал
+    // показаться с подсветкой в пустоте (#2618).
+    el.scrollIntoView({ block: выше() ? 'start' : (block || 'center'), inline: 'nearest', behavior: 'auto' });
+  };
+  довести();
+  // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр (#2610).
+  // Потолок - чтобы не ждать недостижимую цель.
   return new Promise((resolve) => {
     const срок = Date.now() + 1200;
     const кадр = () => {
-      const r = el.getBoundingClientRect();
-      const виден = r.top >= 0 && r.bottom <= window.innerHeight;
-      if (виден || Date.now() > срок) resolve();
-      else requestAnimationFrame(кадр);
+      if (наМесте() || Date.now() > срок) {
+        resolve();
+        return;
+      }
+      довести();
+      requestAnimationFrame(кадр);
     };
     requestAnimationFrame(кадр);
   });

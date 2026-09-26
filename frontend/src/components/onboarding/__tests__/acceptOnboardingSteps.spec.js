@@ -175,6 +175,27 @@ describe('acceptOnboardingSteps - карточка заявки', () => {
     }
   });
 
+  it('строка заявки разбирается раньше её пометок', () => {
+    // Рассказ про тег «похоже на ЧС» до того, как человек увидел саму строку,
+    // объяснял пометку на пустом месте (#2622).
+    const idx = (id) => acceptOnboardingSteps.findIndex((s) => s.id === id);
+    expect(idx('acc-center-list')).toBeLessThan(idx('acc-center-blacklist'));
+  });
+
+  it('разбор доходит до препятствий приёма, заметки и файлов', () => {
+    // Шаги, которые тихо выпадали: цели не было ни у одного - блока статуса у
+    // непринятой заявки, файлов у примера, мобильной кнопки бланков на широком
+    // экране. Замок держит их в туре, чтобы пропажа была видна тестом.
+    const ids = acceptOnboardingSteps.map((s) => s.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'acc-detail-blacklist-override',
+      'acc-detail-note',
+      'acc-detail-files',
+      'acc-center-download',
+      'acc-detail-status-section',
+    ]));
+  });
+
   it('без карточки тур остаётся связным: остаются вход, Центр, архив и финал', () => {
     const ids = acceptOnboardingSteps.filter((s) => !CARD_STEPS.includes(s)).map((s) => s.id);
     expect(ids[0]).toBe(acceptOnboardingSteps[0].id);
@@ -297,16 +318,18 @@ describe('выпадение шагов по правам', () => {
 describe('замок против смешения ролей', () => {
   /**
    * Кнопки, которые интерфейс рисует ТОЛЬКО согласующему (`isResponsibleUser` в
-   * ApplicationActionBar, `canForwardApplication` и `can-override` в
-   * ApplicationDetail). Шаг принимающего на такой якорь молча пропадёт у всей
+   * ApplicationActionBar). Шаг принимающего на такой якорь молча пропадёт у всей
    * аудитории тура - цели у неё нет.
+   *
+   * Подтверждения пропуска в списке нет: `canOverrideBlacklist` - это
+   * `isResponsibleUser || isApprover`, то есть принимающий разбирает совпадения с
+   * чёрным списком сам, и без разбора заявку не примет.
    */
   const REVIEWER_ONLY_ANCHORS = [
     'app-detail-button-approve',
     'app-detail-button-revoke-approval',
     'supplement-button-approve',
     'supplement-button-reject',
-    'blacklist-override-btn',
   ];
 
   /** Подписи кнопок согласующего: обещать их принимающему нельзя даже словами. */
