@@ -22,7 +22,8 @@
       :key="tab.key"
       class="filter-tab"
       :class="{ 'filter-tab--active': modelValue === tab.key }"
-      :data-testid="`filter-tab-${tab.key}`"
+      :data-testid="`${testidPrefix}${tab.testid || tab.key}`"
+      :title="tab.title || null"
       @click="$emit('update:modelValue', tab.key)"
     >
       <span class="filter-tab__label">{{ tab.label }}</span>
@@ -63,6 +64,15 @@ export default {
     modelValue: {
       type: String,
       required: true,
+    },
+    /**
+     * Приставка `data-testid` вкладки. У потребителей они исторически разные
+     * (`filter-tab-organization` в шапке, `employees-scope-organization` в листе
+     * фильтров), и замки смотрят именно на них - поэтому приставка задаётся снаружи.
+     */
+    testidPrefix: {
+      type: String,
+      default: 'filter-tab-',
     },
   },
   emits: ['update:modelValue'],
