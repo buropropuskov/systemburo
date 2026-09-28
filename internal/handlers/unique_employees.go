@@ -13,12 +13,13 @@ import (
 
 // UniqueEmployeeHandler -- HTTP-обработчики уникальных сотрудников.
 type UniqueEmployeeHandler struct {
-	service services.UniqueEmployeeService
+	service  services.UniqueEmployeeService
+	resolver *services.PermissionResolver
 }
 
 // NewUniqueEmployeeHandler создаёт новый экземпляр обработчика уникальных сотрудников.
-func NewUniqueEmployeeHandler(service services.UniqueEmployeeService) *UniqueEmployeeHandler {
-	return &UniqueEmployeeHandler{service: service}
+func NewUniqueEmployeeHandler(service services.UniqueEmployeeService, resolver *services.PermissionResolver) *UniqueEmployeeHandler {
+	return &UniqueEmployeeHandler{service: service, resolver: resolver}
 }
 
 // GetAll godoc
@@ -79,6 +80,7 @@ func (h *UniqueEmployeeHandler) GetAll(c echo.Context) error {
 // @Success      200 {object} services.UniqueEmployeeResponse
 // @Failure      400 {object} models.HTTPError "Дубликат"
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Чужая организация или компания без права"
 // @Router       /unique-employees [post]
 func (h *UniqueEmployeeHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
@@ -87,7 +89,11 @@ func (h *UniqueEmployeeHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	employee, err := h.service.Create(c.Request().Context(), username, req)
+	canOverride, err := canOverrideOrganization(c, h.resolver)
+	if err != nil {
+		return err
+	}
+	employee, err := h.service.Create(c.Request().Context(), username, req, canOverride)
 	if err != nil {
 		return err
 	}
@@ -121,7 +127,11 @@ func (h *UniqueEmployeeHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	employee, err := h.service.Update(c.Request().Context(), username, id, req)
+	canOverride, err := canOverrideOrganization(c, h.resolver)
+	if err != nil {
+		return err
+	}
+	employee, err := h.service.Update(c.Request().Context(), username, id, req, canOverride)
 	if err != nil {
 		return err
 	}

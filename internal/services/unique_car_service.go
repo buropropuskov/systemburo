@@ -102,7 +102,8 @@ type NewUniqueCarRequest struct {
 	OrganizationID *int    `json:"organization_id"`
 	CompanyID      *int    `json:"company_id"`
 	FormatID       *int    `json:"format_id"`
-	UserID         *int    `json:"user_id"`
+	// Владельца (user_id) в теле нет намеренно: при создании он берётся из токена,
+	// правка его не меняет. Иначе запись подбрасывалась чужому пользователю.
 }
 
 // UniqueCarResponse -- ответ при создании/обновлении машины.
@@ -116,21 +117,6 @@ type UniqueCarResponse struct {
 	UserID         *int       `json:"user_id"`
 	Status         bool       `json:"status"`
 	CreatedAt      *time.Time `json:"created_at"`
-}
-
-// UpdateCarByNumberRequest -- запрос на обновление машины по номеру и марке.
-type UpdateCarByNumberRequest struct {
-	Number     string              `json:"number" validate:"required"`
-	Mark       string              `json:"mark"`
-	UpdateData NewUniqueCarRequest `json:"update_data"`
-}
-
-// BatchCreateCarsResponse -- результат пакетного создания машин.
-type BatchCreateCarsResponse struct {
-	CreatedCars  []UniqueCarResponse `json:"created_cars"`
-	Errors       []string            `json:"errors"`
-	SuccessCount int                 `json:"success_count"`
-	ErrorCount   int                 `json:"error_count"`
 }
 
 // UniqueCarHistoryItem -- запись истории мастер-машины с username вызывающего.
@@ -161,10 +147,11 @@ type UniqueCarService interface {
 	// LookupByNumberMark ищет машину по номеру и марке (LOWER(TRIM), как ЧС) для открытия
 	// карточки со страницы чёрного списка. Возвращает nil, nil если совпадения нет.
 	LookupByNumberMark(ctx context.Context, number, mark string) (*UniqueCarWithRelations, error)
-	Create(ctx context.Context, username string, req NewUniqueCarRequest) (*UniqueCarResponse, error)
-	CreateBatch(ctx context.Context, username string, reqs []NewUniqueCarRequest) (*BatchCreateCarsResponse, int, error)
-	Update(ctx context.Context, username string, id int, req NewUniqueCarRequest) (*UniqueCarResponse, error)
-	UpdateByNumber(ctx context.Context, username string, req UpdateCarByNumberRequest) (*UniqueCarResponse, error)
+	// Create и Update: canOverrideOrganization - вправе ли вызывающий привязать запись к чужой
+	// организации или компании (право KeyApplicationOrganizationOverride), см.
+	// checkRegistryBinding. Администратору чужая привязка разрешена и без него.
+	Create(ctx context.Context, username string, req NewUniqueCarRequest, canOverrideOrganization bool) (*UniqueCarResponse, error)
+	Update(ctx context.Context, username string, id int, req NewUniqueCarRequest, canOverrideOrganization bool) (*UniqueCarResponse, error)
 	Delete(ctx context.Context, username string, id int) error
 	GetHistory(ctx context.Context, username string, id int) ([]UniqueCarHistoryItem, error)
 	// GetRegistryLog - журнал по всему реестру машин, включая удалённые записи.
@@ -545,9 +532,15 @@ func carToResponse(car *models.UniqueCar) *UniqueCarResponse {
 }
 
 // Create создаёт уникальный автомобиль с проверкой уникальности.
-func (s *uniqueCarService) Create(ctx context.Context, username string, req NewUniqueCarRequest) (*UniqueCarResponse, error) {
+func (s *uniqueCarService) Create(ctx context.Context, username string, req NewUniqueCarRequest, canOverrideOrganization bool) (*UniqueCarResponse, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkRegistryBinding(
+		registryBinding{OrganizationID: req.OrganizationID, CompanyID: req.CompanyID},
+		registryBinding{OrganizationID: ownerInfo.OrganizationID, CompanyID: ownerInfo.CompanyID},
+		registryBinding{}, canOverrideOrganization || ownerInfo.CanManageAll); err != nil {
 		return nil, err
 	}
 
@@ -588,11 +581,6 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 		}
 	}
 
-	userID := ownerInfo.UserID
-	if req.UserID != nil {
-		userID = *req.UserID
-	}
-
 	statusFalse := false
 	car := models.UniqueCar{
 		Number:         &req.Number,
@@ -600,7 +588,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 		OrganizationID: req.OrganizationID,
 		CompanyID:      req.CompanyID,
 		FormatID:       req.FormatID,
-		UserID:         &userID,
+		UserID:         &ownerInfo.UserID,
 		Status:         &statusFalse,
 	}
 
@@ -622,97 +610,8 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	return carToResponse(&car), nil
 }
 
-// CreateBatch создаёт несколько уникальных автомобилей пакетно.
-func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, reqs []NewUniqueCarRequest) (*BatchCreateCarsResponse, int, error) {
-	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	createdCars := make([]UniqueCarResponse, 0)
-	errors := make([]string, 0)
-
-	for _, req := range reqs {
-		// Проверка уникальности для пользователя
-		var count int64
-		if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-			Where("user_id = ? AND number = ? AND mark = ?", ownerInfo.UserID, req.Number, derefStr(req.Mark)).
-			Count(&count).Error; err != nil {
-			return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
-		}
-		if count > 0 {
-			errors = append(errors, "Автомобиль "+req.Number+" "+derefStr(req.Mark)+" уже привязан к вашему аккаунту")
-			continue
-		}
-
-		// Проверка уникальности для организации
-		if req.OrganizationID != nil {
-			var orgCount int64
-			if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-				Where("organization_id = ? AND number = ? AND mark = ?", *req.OrganizationID, req.Number, derefStr(req.Mark)).
-				Count(&orgCount).Error; err != nil {
-				return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
-			}
-			if orgCount > 0 {
-				errors = append(errors, "Автомобиль "+req.Number+" "+derefStr(req.Mark)+" уже существует в этой организации")
-				continue
-			}
-		}
-
-		// Проверка уникальности для компании
-		if req.CompanyID != nil {
-			var compCount int64
-			if err := s.db.WithContext(ctx).Model(&models.UniqueCar{}).
-				Where("company_id = ? AND number = ? AND mark = ?", *req.CompanyID, req.Number, derefStr(req.Mark)).
-				Count(&compCount).Error; err != nil {
-				return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error checking car uniqueness")
-			}
-			if compCount > 0 {
-				errors = append(errors, "Автомобиль "+req.Number+" "+derefStr(req.Mark)+" уже существует в этой компании")
-				continue
-			}
-		}
-
-		userID := ownerInfo.UserID
-		if req.UserID != nil {
-			userID = *req.UserID
-		}
-
-		statusFalse := false
-		car := models.UniqueCar{
-			Number:         &req.Number,
-			Mark:           markValueOrEmpty(req.Mark),
-			OrganizationID: req.OrganizationID,
-			CompanyID:      req.CompanyID,
-			FormatID:       req.FormatID,
-			UserID:         &userID,
-			Status:         &statusFalse,
-		}
-
-		if err := s.db.WithContext(ctx).Create(&car).Error; err != nil {
-			slog.Error("не удалось создать автомобиль в пакетной операции", "number", req.Number, "mark", derefStr(req.Mark), "error", err)
-			errors = append(errors, "Ошибка при создании автомобиля "+req.Number+" "+derefStr(req.Mark))
-			continue
-		}
-
-		createdCars = append(createdCars, *carToResponse(&car))
-	}
-
-	httpStatus := http.StatusOK
-	if len(errors) > 0 {
-		httpStatus = http.StatusMultiStatus
-	}
-
-	return &BatchCreateCarsResponse{
-		CreatedCars:  createdCars,
-		Errors:       errors,
-		SuccessCount: len(createdCars),
-		ErrorCount:   len(errors),
-	}, httpStatus, nil
-}
-
 // Update обновляет уникальный автомобиль по ID с проверкой прав и уникальности.
-func (s *uniqueCarService) Update(ctx context.Context, username string, id int, req NewUniqueCarRequest) (*UniqueCarResponse, error) {
+func (s *uniqueCarService) Update(ctx context.Context, username string, id int, req NewUniqueCarRequest, canOverrideOrganization bool) (*UniqueCarResponse, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
@@ -729,6 +628,13 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 
 	if !s.canEditCar(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this car")
+	}
+	if err := checkRegistryBinding(
+		registryBinding{OrganizationID: req.OrganizationID, CompanyID: req.CompanyID},
+		registryBinding{OrganizationID: ownerInfo.OrganizationID, CompanyID: ownerInfo.CompanyID},
+		registryBinding{OrganizationID: existing.OrganizationID, CompanyID: existing.CompanyID},
+		canOverrideOrganization || ownerInfo.CanManageAll); err != nil {
+		return nil, err
 	}
 
 	// Проверка уникальности считается по владельцу ЗАПИСИ, а не по тому, кто правит:
@@ -794,12 +700,6 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 	if req.FormatID != nil {
 		updates["format_id"] = *req.FormatID
 	}
-	// Владельца меняем только по явному указанию в запросе. Прежний код подставлял
-	// сюда правящего пользователя, и любая правка чужой записи переводила её на себя;
-	// у администратора, который правит машины всей системы, это переписало бы реестр.
-	if req.UserID != nil {
-		updates["user_id"] = *req.UserID
-	}
 
 	result := s.db.WithContext(ctx).Model(&models.UniqueCar{}).Where("id = ?", id).
 		Updates(updates)
@@ -816,57 +716,6 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 
 	if err := s.recordCarChanges(ctx, &existing, &updated, ownerInfo.UserID); err != nil {
 		slog.Error("не удалось записать аудит изменений автомобиля", "id", id, "error", err)
-	}
-
-	return carToResponse(&updated), nil
-}
-
-// UpdateByNumber обновляет уникальный автомобиль по номеру и марке.
-func (s *uniqueCarService) UpdateByNumber(ctx context.Context, username string, req UpdateCarByNumberRequest) (*UniqueCarResponse, error) {
-	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
-	if err != nil {
-		return nil, err
-	}
-
-	var existing models.UniqueCar
-	if err := s.db.WithContext(ctx).
-		Where("number = ? AND mark = ?", req.Number, req.Mark).
-		First(&existing).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, echo.NewHTTPError(http.StatusNotFound, "Car not found")
-		}
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car")
-	}
-
-	if !s.canEditCar(&existing, ownerInfo) {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this car")
-	}
-
-	updates := map[string]interface{}{
-		"number":          req.UpdateData.Number,
-		"mark":            req.UpdateData.Mark,
-		"organization_id": req.UpdateData.OrganizationID,
-		"company_id":      req.UpdateData.CompanyID,
-		"format_id":       req.UpdateData.FormatID,
-	}
-	// Владелец сохраняется, если его не передали явно (см. Update).
-	if req.UpdateData.UserID != nil {
-		updates["user_id"] = *req.UpdateData.UserID
-	}
-
-	result := s.db.WithContext(ctx).Model(&models.UniqueCar{}).Where("id = ?", existing.ID).
-		Updates(updates)
-	if result.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating car")
-	}
-
-	var updated models.UniqueCar
-	if err := s.db.WithContext(ctx).First(&updated, existing.ID).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated car")
-	}
-
-	if err := s.recordCarChanges(ctx, &existing, &updated, ownerInfo.UserID); err != nil {
-		slog.Error("не удалось записать аудит изменений автомобиля", "id", existing.ID, "error", err)
 	}
 
 	return carToResponse(&updated), nil

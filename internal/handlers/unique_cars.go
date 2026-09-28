@@ -12,12 +12,13 @@ import (
 
 // UniqueCarHandler -- HTTP-обработчики уникальных машин.
 type UniqueCarHandler struct {
-	service services.UniqueCarService
+	service  services.UniqueCarService
+	resolver *services.PermissionResolver
 }
 
 // NewUniqueCarHandler создаёт новый экземпляр обработчика уникальных машин.
-func NewUniqueCarHandler(service services.UniqueCarService) *UniqueCarHandler {
-	return &UniqueCarHandler{service: service}
+func NewUniqueCarHandler(service services.UniqueCarService, resolver *services.PermissionResolver) *UniqueCarHandler {
+	return &UniqueCarHandler{service: service, resolver: resolver}
 }
 
 // GetAll godoc
@@ -79,6 +80,7 @@ func (h *UniqueCarHandler) GetAll(c echo.Context) error {
 // @Success      200 {object} services.UniqueCarResponse
 // @Failure      400 {object} models.HTTPError "Дубликат"
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Чужая организация или компания без права"
 // @Router       /unique-cars [post]
 func (h *UniqueCarHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
@@ -87,37 +89,15 @@ func (h *UniqueCarHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	car, err := h.service.Create(c.Request().Context(), username, req)
+	canOverride, err := canOverrideOrganization(c, h.resolver)
+	if err != nil {
+		return err
+	}
+	car, err := h.service.Create(c.Request().Context(), username, req, canOverride)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, car)
-}
-
-// CreateBatch godoc
-// @Summary      Пакетное создание уникальных машин
-// @Description  Создаёт несколько уникальных машин, пропуская дубликаты
-// @Tags         unique-cars
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        request body []services.NewUniqueCarRequest true "Массив данных машин"
-// @Success      200 {object} services.BatchCreateCarsResponse
-// @Success      207 {object} services.BatchCreateCarsResponse "Частичный успех"
-// @Failure      401 {object} models.HTTPError
-// @Router       /unique-cars/batch [post]
-func (h *UniqueCarHandler) CreateBatch(c echo.Context) error {
-	username := c.Get("username").(string)
-	var reqs []services.NewUniqueCarRequest
-	if err := c.Bind(&reqs); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
-	}
-
-	resp, httpStatus, err := h.service.CreateBatch(c.Request().Context(), username, reqs)
-	if err != nil {
-		return err
-	}
-	return c.JSON(httpStatus, Response{Success: true, Data: resp})
 }
 
 // Update godoc
@@ -147,34 +127,11 @@ func (h *UniqueCarHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	car, err := h.service.Update(c.Request().Context(), username, id, req)
+	canOverride, err := canOverrideOrganization(c, h.resolver)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, car)
-}
-
-// UpdateByNumber godoc
-// @Summary      Обновление уникальной машины по номеру
-// @Description  Находит машину по номеру и марке, обновляет данные
-// @Tags         unique-cars
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        request body services.UpdateCarByNumberRequest true "Номер, марка и новые данные"
-// @Success      200 {object} services.UniqueCarResponse
-// @Failure      401 {object} models.HTTPError
-// @Failure      403 {object} models.HTTPError "Нет прав"
-// @Failure      404 {object} models.HTTPError "Не найдена"
-// @Router       /unique-cars/by-number [put]
-func (h *UniqueCarHandler) UpdateByNumber(c echo.Context) error {
-	username := c.Get("username").(string)
-	var req services.UpdateCarByNumberRequest
-	if err := BindAndValidate(c, &req); err != nil {
-		return err
-	}
-
-	car, err := h.service.UpdateByNumber(c.Request().Context(), username, req)
+	car, err := h.service.Update(c.Request().Context(), username, id, req, canOverride)
 	if err != nil {
 		return err
 	}
