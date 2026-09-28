@@ -1591,19 +1591,19 @@ func TestApplicationLifecycle_CreateSubmitForwardApproveTakeToWork(t *testing.T)
 	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), takeBody, testutil.AuthHeader(approverToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	// 12. Check history has multiple entries
+	// 11. Check history has multiple entries
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	history := testutil.ParseResponse[[]interface{}](t, rec)
 	assert.GreaterOrEqual(t, len(history), 2, "history should have at least create + approve entries")
 
-	// 13. Verify attachments
+	// 12. Verify attachments
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	atts := testutil.ParseSlice(t, rec)
 	assert.NotEmpty(t, atts)
 
-	// 14. Verify cars in attachment
+	// 13. Verify cars in attachment
 	if len(atts) > 0 {
 		attID := int(atts[0]["id"].(float64))
 		rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID), testutil.AuthHeader(senderToken))
