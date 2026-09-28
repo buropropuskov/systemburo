@@ -261,12 +261,12 @@ var routeAccessRegistry = map[string]routeAccess{
 	"GET /api/feedback/stats":      perm("page.admin.feedback"),
 
 	// file-archive
-	"POST /api/file-archive/applications/:id/reexport": perm("page.admin.file_archive"),
-	"POST /api/file-archive/backfill":                  perm("page.admin.file_archive"),
+	"POST /api/file-archive/applications/:id/reexport": perm("page.admin.file_archive", "action.manage.file_archive"),
+	"POST /api/file-archive/backfill":                  perm("page.admin.file_archive", "action.manage.file_archive"),
 	"GET /api/file-archive/download":                   public("вне JWT: ссылку открывает браузер, доступ по одноразовому билету с пользователем, правом и периодом"),
-	"POST /api/file-archive/download-ticket":           perm("page.admin.file_archive"),
+	"POST /api/file-archive/download-ticket":           perm("page.admin.file_archive", "action.download.file_archive"),
 	"POST /api/file-archive/estimate":                  perm("page.admin.file_archive"),
-	"GET /api/file-archive/files/:id":                  perm("page.admin.file_archive"),
+	"GET /api/file-archive/files/:id":                  perm("page.admin.file_archive", "action.download.file_archive"),
 	"GET /api/file-archive/items":                      perm("page.admin.file_archive"),
 	"GET /api/file-archive/settings":                   perm("page.admin.file_archive"),
 	"GET /api/file-archive/stats":                      perm("page.admin.file_archive"),
@@ -373,7 +373,7 @@ var routeAccessRegistry = map[string]routeAccess{
 	// pd-subject
 	"GET /api/pd-subject/candidates":  perm("page.admin.pd_subject"),
 	"GET /api/pd-subject/disclosures": perm("page.admin.pd_subject"),
-	"POST /api/pd-subject/export":     perm("page.admin.pd_subject"),
+	"POST /api/pd-subject/export":     perm("page.admin.pd_subject", "action.pd_subject.export"),
 	"GET /api/pd-subject/report":      perm("page.admin.pd_subject"),
 
 	// permission-groups
