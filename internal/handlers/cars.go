@@ -156,7 +156,8 @@ func (h *CarHandler) CheckActiveCar(c echo.Context) error {
 // organization_id с угаданным номером раскрывал бы чужие заявки. Правило то же, что у
 // подачи заявки (#1437): чужую организацию выбирает только администратор или владелец
 // application.organization.override; остальным незаданная организация подставляется
-// своя, а компания допускается своя или пустая (заявку подают и без компании).
+// своя, а компания допускается своя или пустая. Пустую не подменяем своей: она ищет
+// заявки без компании, как и раньше, а их подают и сотрудники с компанией.
 func (h *CarHandler) limitCheckToOwnOrganization(c echo.Context, req *services.CheckActiveCarRequest) error {
 	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c), services.KeyApplicationOrganizationOverride)
 	if err != nil {
