@@ -174,6 +174,7 @@ func TestRouteAccess_Registry(t *testing.T) {
 		}
 	}
 
+	postKeys := registryPostKeys()
 	body := fmt.Sprintf(`{"table_id":%d,"territory_status":1}`, table.ID)
 	for _, key := range sortedKeys(routes) {
 		ra, ok := routeAccessRegistry[key]
@@ -195,7 +196,7 @@ func TestRouteAccess_Registry(t *testing.T) {
 		}
 
 		if ra.class == accessPerm {
-			checkPermChain(t, key, ra.keys, post, func(granted []string) accessProbe {
+			checkPermChain(t, key, ra.keys, post, postKeys, func(granted []string) accessProbe {
 				return probeRoute(t, e, method, target, body, tokenWith(granted))
 			})
 			continue
@@ -218,8 +219,10 @@ func TestRouteAccess_Registry(t *testing.T) {
 // checkPermChain сверяет цепочку гейтов: с первыми i ключами ответ - 403 с (i+1)-м,
 // а со всеми ключами ни один гейт роутера не отказывает. Вторая половина ловит гейт,
 // которого нет в записи: пользователь без прав упирается во внешний гейт группы, и
-// внутренний, более узкий, иначе не был бы виден вовсе.
-func checkPermChain(t *testing.T, key string, keys []string, post string, probe func([]string) accessProbe) {
+// внутренний, более узкий, иначе не был бы виден вовсе. Если последний ключ - право
+// на пост, его не заменяет ни один другой глагол того же поста из postKeys: гейт,
+// принимающий «versions или trash», первой половиной не виден.
+func checkPermChain(t *testing.T, key string, keys []string, post string, postKeys []string, probe func([]string) accessProbe) {
 	t.Helper()
 	chain := make([]string, len(keys))
 	for i, k := range keys {
@@ -232,6 +235,19 @@ func checkPermChain(t *testing.T, key string, keys []string, post string, probe 
 				key, chain[:i], want, got.status, got.key, got.body)
 		}
 	}
+	if last := keys[len(keys)-1]; strings.Contains(last, "{post}") {
+		granted := append([]string{}, chain[:len(chain)-1]...)
+		for _, k := range postKeys {
+			if k != last {
+				granted = append(granted, strings.ReplaceAll(k, "{post}", post))
+			}
+		}
+		want := chain[len(chain)-1]
+		if got := probe(granted); got.status != http.StatusForbidden || got.key != want {
+			t.Errorf("%s: с другими правами на пост %v ждали 403 с ключом %q, получили %d с ключом %q",
+				key, granted, want, got.status, got.key)
+		}
+	}
 	// Ключ только для супер-админа персонально не выдаётся: пользователя, прошедшего
 	// такой гейт, в тесте не собрать, первая половина проверки его уже покрыла.
 	if services.IsSuperOnly(chain[len(chain)-1]) {
@@ -241,6 +257,20 @@ func checkPermChain(t *testing.T, key string, keys []string, post string, probe 
 		t.Errorf("%s: со всеми ключами из реестра %v гейт требует ещё %q - допиши его в цепочку",
 			key, chain, got.key)
 	}
+}
+
+// registryPostKeys - ключи прав на пост, которыми гейтятся методы реестра, по одному на
+// глагол: каждый гейт поста проверяется против всех остальных.
+func registryPostKeys() []string {
+	seen := map[string]bool{}
+	for _, ra := range routeAccessRegistry {
+		for _, k := range ra.keys {
+			if strings.Contains(k, "{post}") {
+				seen[k] = true
+			}
+		}
+	}
+	return sortedKeys(seen)
 }
 
 // registeredRoutes - методы приложения в нотации "METHOD путь-шаблон". Служебный
