@@ -22,12 +22,13 @@ func NewApplicationHandler(service services.ApplicationService, resolver *servic
 	return &ApplicationHandler{service: service, resolver: resolver}
 }
 
-// canOverrideOrganization сообщает, вправе ли подающий указать организацию или компанию,
-// отличную от своей (#1437). Резолвер истинен для супер-админа (allowAll), администратора
-// (adminAll, включая руководителей: миграция перенесла тип manager на is_admin) и для
-// явного гранта роли, группы или личного override; бан и личные deny он учитывает.
-func (h *ApplicationHandler) canOverrideOrganization(c echo.Context) (bool, error) {
-	set, err := h.resolver.Resolve(c.Request().Context(), GetUserID(c))
+// canOverrideOrganization сообщает, вправе ли вызывающий указать организацию или компанию,
+// отличную от своей (#1437): в заявке и в привязке записей реестра машин и сотрудников.
+// Резолвер истинен для супер-админа (allowAll), администратора (adminAll, включая
+// руководителей: миграция перенесла тип manager на is_admin) и для явного гранта роли,
+// группы или личного override; бан и личные deny он учитывает.
+func canOverrideOrganization(c echo.Context, resolver *services.PermissionResolver) (bool, error) {
+	set, err := resolver.Resolve(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return false, err
 	}
@@ -318,7 +319,7 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 		return err
 	}
 
-	canOverride, err := h.canOverrideOrganization(c)
+	canOverride, err := canOverrideOrganization(c, h.resolver)
 	if err != nil {
 		return err
 	}
@@ -381,7 +382,7 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 		return err
 	}
 
-	canOverride, err := h.canOverrideOrganization(c)
+	canOverride, err := canOverrideOrganization(c, h.resolver)
 	if err != nil {
 		return err
 	}

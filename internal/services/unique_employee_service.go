@@ -147,7 +147,7 @@ type NewUniqueEmployeeRequest struct {
 	OtherPermission      *string `json:"other_permission"`
 	OrganizationID       *int    `json:"organization_id"`
 	CompanyID            *int    `json:"company_id"`
-	UserID               *int    `json:"user_id"`
+	// Владельца (user_id) в теле нет намеренно, см. NewUniqueCarRequest.
 	// PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих
 	// персональных данных (152-ФЗ). Для новой записи обязателен: в карточке вводят
 	// паспорт и патент, то есть данные третьего лица. При правке существующей записи
@@ -208,8 +208,9 @@ type UniqueEmployeeService interface {
 	// LookupByFIO ищет сотрудника по ФИО (LOWER(TRIM), как ЧС) для открытия карточки со
 	// страницы чёрного списка. Возвращает nil, nil если совпадения нет.
 	LookupByFIO(ctx context.Context, lastName, firstName, middleName string) (*UniqueEmployeeWithRelations, error)
-	Create(ctx context.Context, username string, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
-	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
+	// Create и Update: canOverrideOrganization - как у UniqueCarService, см. checkRegistryBinding.
+	Create(ctx context.Context, username string, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error)
+	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error)
 	Delete(ctx context.Context, username string, id int) error
 	// SetObjection отмечает, что субъект возразил против обработки своих данных
 	// (#2361), ClearObjection снимает отметку по итогам рассмотрения оператором.
@@ -611,9 +612,15 @@ func employeeToResponse(emp *models.UniqueEmployee) *UniqueEmployeeResponse {
 }
 
 // Create создаёт уникального сотрудника с проверкой уникальности паспортных данных.
-func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error) {
+func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkRegistryBinding(
+		registryBinding{OrganizationID: req.OrganizationID, CompanyID: req.CompanyID},
+		registryBinding{OrganizationID: ownerInfo.OrganizationID, CompanyID: ownerInfo.CompanyID},
+		registryBinding{}, canOverrideOrganization || ownerInfo.CanManageAll); err != nil {
 		return nil, err
 	}
 
@@ -664,11 +671,6 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 		}
 	}
 
-	userID := ownerInfo.UserID
-	if req.UserID != nil {
-		userID = *req.UserID
-	}
-
 	statusFalse := false
 	consentGrantedAt := time.Now().UTC()
 	employee := models.UniqueEmployee{
@@ -684,7 +686,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 		OtherPermission:      req.OtherPermission,
 		OrganizationID:       req.OrganizationID,
 		CompanyID:            req.CompanyID,
-		UserID:               &userID,
+		UserID:               &ownerInfo.UserID,
 		Status:               &statusFalse,
 	}
 
@@ -711,7 +713,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 }
 
 // Update обновляет уникального сотрудника по ID с проверкой прав и уникальности.
-func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error) {
+func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
@@ -729,6 +731,13 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 
 	if !s.canEditEmployee(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
+	}
+	if err := checkRegistryBinding(
+		registryBinding{OrganizationID: req.OrganizationID, CompanyID: req.CompanyID},
+		registryBinding{OrganizationID: ownerInfo.OrganizationID, CompanyID: ownerInfo.CompanyID},
+		registryBinding{OrganizationID: existing.OrganizationID, CompanyID: existing.CompanyID},
+		canOverrideOrganization || ownerInfo.CanManageAll); err != nil {
+		return nil, err
 	}
 
 	// Возражение субъекта запирает персональные поля (#2361): человек возразил против
@@ -824,13 +833,6 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 	// запись остаётся, меняется только принадлежность.
 	updates["organization_id"] = req.OrganizationID
 	updates["company_id"] = req.CompanyID
-	// Владельца меняем только по явному указанию в запросе. Прежний код подставлял
-	// сюда правящего пользователя, и правка чужой записи переводила её на себя;
-	// у администратора, который правит сотрудников всей системы, это переписало бы
-	// привязки реестра.
-	if req.UserID != nil {
-		updates["user_id"] = *req.UserID
-	}
 	// Согласие правкой только ДОБАВЛЯЕТСЯ: у записи, заведённой до введения поля,
 	// отметку можно поставить, а снять её снятой галочкой нельзя - иначе полученное
 	// согласие исчезало бы из базы вместе с исправлением опечатки в фамилии.

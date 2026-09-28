@@ -70,9 +70,8 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 		OtherPermission: &otherOld,
 		OrganizationID:  &td.OrgID,
 		CompanyID:       &td.CompanyID,
-		UserID:          &owner.ID,
 	}
-	resp, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
+	resp, err := svc.Update(context.Background(), owner.Username, emp.ID, req, false)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, "Петров", *resp.LastName)
@@ -151,9 +150,8 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 		MiddleName:     &middle,
 		OrganizationID: &td.OrgID,
 		CompanyID:      &td.CompanyID,
-		UserID:         &owner.ID,
 	}
-	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
+	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req, false)
 	require.NoError(t, err)
 
 	// При no-op апдейте audit_log[unique_employee] не пополняется (#870, срез 1.13c).
@@ -164,9 +162,9 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 	assert.Equal(t, int64(0), count, "не должно создаваться записей истории при no-op апдейте")
 }
 
-// TestUniqueCarService_UpdateByNumber_RecordsChanges проверяет аудит для
-// машины при изменении format_id и user_id через UpdateByNumber.
-func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
+// TestUniqueCarService_Update_RecordsChanges проверяет аудит для машины при
+// изменении format_id.
+func TestUniqueCarService_Update_RecordsChanges(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -197,19 +195,14 @@ func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
 	svc := services.NewUniqueCarService(db)
 
 	formatNew := 2
-	req := services.UpdateCarByNumberRequest{
-		Number: number,
-		Mark:   mark,
-		UpdateData: services.NewUniqueCarRequest{
-			Number:         number,
-			Mark:           &mark,
-			OrganizationID: &td.OrgID,
-			CompanyID:      &td.CompanyID,
-			FormatID:       &formatNew,
-			UserID:         &owner.ID,
-		},
+	req := services.NewUniqueCarRequest{
+		Number:         number,
+		Mark:           &mark,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		FormatID:       &formatNew,
 	}
-	resp, err := svc.UpdateByNumber(context.Background(), owner.Username, req)
+	resp, err := svc.Update(context.Background(), owner.Username, car.ID, req, false)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
@@ -273,9 +266,8 @@ func TestUniqueEmployeeService_GetHistory_ReturnsRecords(t *testing.T) {
 		Position:       &pos,
 		OrganizationID: &td.OrgID,
 		CompanyID:      &td.CompanyID,
-		UserID:         &owner.ID,
 	}
-	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
+	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req, false)
 	require.NoError(t, err)
 
 	items, err := svc.GetHistory(context.Background(), owner.Username, emp.ID)
@@ -344,7 +336,7 @@ func TestUniqueEmployeeService_GetHistory_Forbidden(t *testing.T) {
 }
 
 // TestUniqueCarService_GetHistory_ReturnsRecords проверяет аналогичный сценарий
-// для машин: создание записи через UpdateByNumber и чтение через GetHistory.
+// для машин: правка записи через Update и чтение через GetHistory.
 func TestUniqueCarService_GetHistory_ReturnsRecords(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -375,18 +367,13 @@ func TestUniqueCarService_GetHistory_ReturnsRecords(t *testing.T) {
 
 	svc := services.NewUniqueCarService(db)
 	formatNew := 2
-	_, err := svc.UpdateByNumber(context.Background(), owner.Username, services.UpdateCarByNumberRequest{
-		Number: number,
-		Mark:   mark,
-		UpdateData: services.NewUniqueCarRequest{
-			Number:         number,
-			Mark:           &mark,
-			OrganizationID: &td.OrgID,
-			CompanyID:      &td.CompanyID,
-			FormatID:       &formatNew,
-			UserID:         &owner.ID,
-		},
-	})
+	_, err := svc.Update(context.Background(), owner.Username, car.ID, services.NewUniqueCarRequest{
+		Number:         number,
+		Mark:           &mark,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		FormatID:       &formatNew,
+	}, false)
 	require.NoError(t, err)
 
 	items, err := svc.GetHistory(context.Background(), owner.Username, car.ID)

@@ -256,7 +256,8 @@ func createFakeEmployee(ctx context.Context, svc services.UniqueEmployeeService,
 	var lastErr error
 	for attempt := 0; attempt < registryCreateRetries; attempt++ {
 		req := buildEmployeeRequest(refs, s)
-		resp, err := svc.Create(ctx, username, req)
+		// Наливка раскладывает записи по всем организациям стенда, актор - администратор.
+		resp, err := svc.Create(ctx, username, req, true)
 		if err == nil {
 			return resp.ID, nil
 		}
@@ -388,7 +389,8 @@ func createFakeCar(ctx context.Context, svc services.UniqueCarService, refs regi
 		if err != nil {
 			return 0, err
 		}
-		resp, err := svc.Create(ctx, username, req)
+		// Наливка раскладывает записи по всем организациям стенда, актор - администратор.
+		resp, err := svc.Create(ctx, username, req, true)
 		if err == nil {
 			return resp.ID, nil
 		}
