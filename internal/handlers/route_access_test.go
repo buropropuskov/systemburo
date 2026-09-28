@@ -29,12 +29,14 @@ const (
 	// затем гейт метода. Без очередного ключа 403 с ним в required_permission.
 	accessPerm accessClass = "perm"
 	// accessRole - обработчик сам требует роль или флаг (супер, админ, принимающий).
+	// На каждый метод заведён валидный запрос в roleProbes: без роли ответ 403.
 	accessRole accessClass = "role"
 	// accessScoped - обработчик или сервис проверяет доступ к конкретному объекту.
 	accessScoped accessClass = "scoped"
 	// accessSelf - только данные самого вызывающего, пользователь берётся из токена.
 	accessSelf accessClass = "self"
-	// accessOpen - любому вошедшему, так задумано; причина обязательна.
+	// accessOpen - любому вошедшему, так задумано; причина обязательна. Пользователю
+	// без прав не 403.
 	accessOpen accessClass = "open"
 )
 
@@ -77,7 +79,9 @@ type accessProbe struct {
 // существующий метод, и записанное решение совпадает с тем, что отвечает сервер.
 // Сверка идёт двумя запросами на метод: без токена и от пользователя, у которого
 // запрещены все ключи каталога прав. Этого хватает, чтобы отличить публичный метод,
-// гейт по праву (ключ виден в required_permission) и решение в обработчике.
+// гейт по праву (ключ виден в required_permission) и решение в обработчике. Методам
+// role тот же пользователь шлёт запрос из roleProbes, валидный по телу, и получает 403
+// обработчика; снятые методы из removedRoutes не должны появиться снова.
 func TestRouteAccess_Registry(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -92,6 +96,7 @@ func TestRouteAccess_Registry(t *testing.T) {
 	require.NoError(t, db.Create(&table).Error)
 
 	tokens := map[string]string{}
+	userIDs := map[string]int{}
 	// tokenWith - пользователь, у которого есть только ключи granted, остальные ключи
 	// каталога запрещены. Один пользователь на набор ключей: кэш прав резолвера живёт
 	// до конца теста.
@@ -114,8 +119,11 @@ func TestRouteAccess_Registry(t *testing.T) {
 			}
 		}
 		tokens[set] = tok
+		userIDs[set] = uid
 		return tok
 	}
+	noKeys := tokenWith(nil)
+	probes := roleProbes(seedRoleFixture(t, db, td, userIDs[""]))
 
 	routes := registeredRoutes(e.Routes())
 
@@ -131,6 +139,38 @@ func TestRouteAccess_Registry(t *testing.T) {
 		}
 		if ra.class == accessPerm && len(ra.keys) == 0 || ra.class != accessPerm && strings.TrimSpace(ra.why) == "" {
 			t.Errorf("%s: у perm нужен ключ, у остальных классов причина", key)
+		}
+		if _, ok := probes[key]; ra.class == accessRole && !ok {
+			t.Errorf("%s: у role нужен запрос в roleProbes, на котором без роли сервер отвечает 403", key)
+		}
+	}
+	for key := range probes {
+		if ra, ok := routeAccessRegistry[key]; !ok || ra.class != accessRole {
+			t.Errorf("%s есть в roleProbes, но в реестре не role: удали запрос", key)
+		}
+	}
+	for key, why := range removedRoutes {
+		if routes[key] {
+			t.Errorf("%s снова зарегистрирован, а был снят: %s", key, why)
+		}
+	}
+
+	// Ролевой проход идёт до общего: общий шлёт на каждый :id один и тот же номер и
+	// может снести объект фикстуры (владелец удаляет свою запись реестра).
+	for _, key := range sortedKeys(routes) {
+		rp, ok := probes[key]
+		if !ok {
+			continue
+		}
+		method, path, _ := strings.Cut(key, " ")
+		id := table.ID
+		if rp.id != 0 {
+			id = rp.id
+		}
+		got := probeRoute(t, e, method, concreteRoutePath(path, id), rp.body, noKeys)
+		if got.status != http.StatusForbidden || got.key != "" {
+			t.Errorf("%s: без роли ждали 403 обработчика, получили %d с ключом %q: %s",
+				key, got.status, got.key, got.body)
 		}
 	}
 
@@ -160,10 +200,17 @@ func TestRouteAccess_Registry(t *testing.T) {
 			})
 			continue
 		}
-		// Статус здесь не сверяется: ролевые и объектные проверки у части методов идут
-		// после разбора тела, и пустой запрос получает 400 раньше отказа.
-		if got := probeRoute(t, e, method, target, body, tokenWith(nil)); got.key != "" {
+		if ra.class == accessRole {
+			continue
+		}
+		// Статус scoped и self здесь не сверяется: объектные проверки у части методов
+		// идут после разбора тела, и общий запрос получает 400 раньше отказа.
+		got := probeRoute(t, e, method, target, body, noKeys)
+		if got.key != "" {
 			t.Errorf("%s: в реестре %s, а в роутере гейт %q - перенеси в perm", key, ra.class, got.key)
+		}
+		if ra.class == accessOpen && got.status == http.StatusForbidden {
+			t.Errorf("%s: в реестре open, а пользователю без прав 403: %s", key, got.body)
 		}
 	}
 }
