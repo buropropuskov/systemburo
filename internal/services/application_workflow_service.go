@@ -140,6 +140,10 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	if req.Action == "accept" {
+		// Принятие активировало машины и сотрудников - посты показывают их без F5 (#840 V2.2).
+		s.tablesProducer.NotifyApplicationActivated(ctx, applicationID)
+	}
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе принятия/отказа (#1349). Гейт actor != sender
 	// внутри хелпера: если принимающий = отправитель, себе не шлём.
@@ -381,47 +385,6 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	s.notifyWithdrawn(ctx, applicationID, formatFullName(user.LastName, user.FirstName, user.MiddleName), pendingApproverIDs)
-	return nil
-}
-
-// UpdateApplicationItemsStatus активирует машины и сотрудников заявки (status->1) и пишет историю
-// попадания в таблицу проходной по факту активации. username - кто активирует (актор истории).
-func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error {
-	// Отозванную заявку нельзя реактивировать через массовое выставление статусов (#951).
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
-
-	user, err := s.getUserByUsername(ctx, username)
-	if err != nil {
-		return err
-	}
-
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
-	}
-
-	// Активированные машины/сотрудники появились в таблицах проходной - сигналим
-	// их аудитории обновиться live (#840 V2.2). После commit: строки уже видны.
-	s.tablesProducer.NotifyApplicationActivated(ctx, applicationID)
-	// Принятие сменило статус заявки - участники увидят его в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
-
 	return nil
 }
 

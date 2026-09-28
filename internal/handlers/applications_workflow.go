@@ -369,34 +369,6 @@ func (h *ApplicationHandler) RevokeApproval(c echo.Context) error {
 	return RespondSuccess(c, resp)
 }
 
-// UpdateApplicationItemsStatus godoc
-// @Summary      Обновление статусов элементов заявки
-// @Description  Активирует все машины и сотрудников во вложениях заявки (status = 1).
-// @Tags         applications
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id path int true "ID заявки"
-// @Success      200 {object} map[string]interface{} "success + message"
-// @Failure      401 {object} models.HTTPError
-// @Failure      500 {object} models.HTTPError
-// @Router       /applications/{id}/update-items-status [post]
-func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
-	}
-
-	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
-		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
-	}
-
-	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id, username); err != nil {
-		return err
-	}
-	return RespondMessage(c, "All items statuses updated successfully")
-}
-
 // AssignElementTables godoc
 // @Summary      Назначение постов элементам заявки
 // @Description  Принимающий добавляет или снимает посты проезда/прохода у машин и сотрудников заявки (#1393).

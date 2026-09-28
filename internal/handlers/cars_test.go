@@ -89,9 +89,6 @@ func activateCarViaApp(t *testing.T, e *echo.Echo, db *gorm.DB, appID int, td te
 	body := fmt.Sprintf(`{"user_id": %d, "action": "accept"}`, approverID)
 	testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), body, testutil.AuthHeader(approverToken))
 
-	// Also call update-items-status for completeness
-	testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(approverToken))
-
 	return approverToken
 }
 
