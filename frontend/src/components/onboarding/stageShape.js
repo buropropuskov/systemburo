@@ -8,6 +8,9 @@
 
 import { holdInView } from '@/components/onboarding/targetWaits';
 
+/** Присмотр за целью текущего шага; новый переход снимает предыдущий. */
+let отпустить = null;
+
 /**
  * Зазор и скругление выреза по умолчанию. С 5px мелкие цели (галочка согласия)
  * смотрелись обрезанными по краю выреза - «больше воздуха вокруг».
@@ -52,6 +55,15 @@ export function isFlushTarget(element) {
  * @param {Element|undefined} element цель шага (undefined у центр-модалки)
  */
 export function applyStageShape(driverObj, element) {
+  // Карточка заявки доверстывается прямо под переходом: у блока согласования
+  // прокрутка перескакивает с правой колонки на тело карточки, и цель,
+  // подведённая до показа, уезжает обратно за край окна (#2622). Присмотр
+  // начинаем ЗДЕСЬ, в начале перехода: к моменту, когда шаг покажется, цель уже
+  // вернулась. Вырез driver едет за ней сам - он слушает прокрутку.
+  отпустить?.();
+  отпустить = element
+    ? holdInView(element, undefined, 1200, () => !!document.querySelector('.driver-popover'))
+    : null;
   if (!driverObj) return;
   const flush = isFlushTarget(element);
   const stagePadding = flush ? 0 : STAGE_PADDING;
@@ -74,9 +86,4 @@ export function raiseActiveHighlight(driverObj) {
   const active = driverObj?.getActiveElement?.();
   if (!active || active.id === 'driver-dummy-element') return;
   active.classList.add('ob-highlighted');
-  // Карточка заявки доверстывается под уже открытым шагом: у блока согласования
-  // прокрутка перескакивала с колонки на тело карточки, и цель, подведённая до
-  // показа, уезжала обратно за край окна (#2622). Присматриваем короткое время,
-  // пока цель остаётся активной; вырез driver едет за ней сам.
-  holdInView(active, undefined, 900, () => active.classList.contains('driver-active-element'));
 }
