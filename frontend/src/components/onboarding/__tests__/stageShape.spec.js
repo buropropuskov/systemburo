@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isFlushTarget, STAGE_PADDING, STAGE_RADIUS } from '../stageShape';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { isFlushTarget, applyStageShape, STAGE_PADDING, STAGE_RADIUS } from '../stageShape';
 
 /**
  * Форма выреза подсветки (замечание владельца 20.08): панель поиска и рельс
@@ -60,5 +60,62 @@ describe('пороги выреза', () => {
   it('значения по умолчанию - те же, что были зашиты в конфиг driver', () => {
     expect(STAGE_PADDING).toBe(10);
     expect(STAGE_RADIUS).toBe(30);
+  });
+});
+
+describe('присмотр за целью перехода', () => {
+  beforeEach(() => {
+    window.innerHeight = 500;
+    vi.useFakeTimers();
+    document.body.innerHTML = '<div class="driver-popover"></div>';
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  /** Цель-заглушка: scrollIntoView ставит её по центру, как браузер. */
+  function цель(top) {
+    const state = { top };
+    return {
+      state,
+      isConnected: true,
+      getBoundingClientRect: () => ({ top: state.top, bottom: state.top + 100, height: 100 }),
+      scrollIntoView: () => { state.top = 200; },
+    };
+  }
+
+  const driverЗаглушка = { getConfig: () => ({ stagePadding: STAGE_PADDING, stageRadius: STAGE_RADIUS }), setConfig: () => {} };
+
+  it('цель, уехавшую во время перехода, возвращают до показа шага', () => {
+    const el = цель(120);
+    applyStageShape(driverЗаглушка, el);
+    // карточка доверсталась под переходом - цель ушла за край окна
+    el.state.top = 700;
+    vi.advanceTimersByTime(60);
+    expect(el.state.top).toBe(200);
+  });
+
+  it('новый переход снимает присмотр с прежней цели', () => {
+    const первая = цель(120);
+    applyStageShape(driverЗаглушка, первая);
+    applyStageShape(driverЗаглушка, цель(120));
+    первая.state.top = 700;
+    vi.advanceTimersByTime(200);
+    expect(первая.state.top).toBe(700);
+  });
+
+  it('без цели присмотра нет - центр-модалке нечего держать', () => {
+    expect(() => applyStageShape(driverЗаглушка, undefined)).not.toThrow();
+    vi.advanceTimersByTime(200);
+  });
+
+  it('закрытый тур цель больше не двигает', () => {
+    const el = цель(120);
+    applyStageShape(driverЗаглушка, el);
+    document.body.innerHTML = '';
+    el.state.top = 700;
+    vi.advanceTimersByTime(200);
+    expect(el.state.top).toBe(700);
   });
 });
