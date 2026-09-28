@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -183,6 +184,20 @@ func TestApprovers_GetAvailableUsers_AdminOnly(t *testing.T) {
 	userToken := testutil.RegisterAndLogin(t, e, "nonadmin", "password123", 1, td.OrgID, td.CompanyID)
 	rec := testutil.GET(t, e, "/application-approvers/available-users", testutil.AuthHeader(userToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// Журнал назначений принимающих называет сотрудников бюро и смотрится из раздела
+// принимающих, поэтому закрыт тем же правом, что и сам раздел.
+func TestApprovers_History_RegularUserForbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	userToken := testutil.RegisterAndLogin(t, e, "nohistory", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/application-approvers/history", testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Contains(t, rec.Body.String(), services.KeyPageAdminDirectories)
 }
 
 func TestApprovers_Create_RegularUserForbidden(t *testing.T) {

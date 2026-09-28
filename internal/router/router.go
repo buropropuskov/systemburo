@@ -987,16 +987,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.GET("/:id/employees", app.GetAttachmentEmployees)
 	att.GET("/:id/items", app.GetAttachmentItems)
 
-	// Утверждающие заявок. Управление - админ справочников (page.admin.directories,
-	// тем же правом фронт открывает /admin/approvers); журнал (history) доступен
-	// всем авторизованным (как и раньше - без checkAdmin).
+	// Утверждающие заявок. Управление и журнал - админ справочников (page.admin.directories,
+	// тем же правом фронт открывает /admin/approvers, откуда и смотрят журнал).
 	aag := protected.Group("/application-approvers")
 	aag.GET("", approvers.GetAll, requireDirectories)
 	// Получатели заявки: только отображаемые имена, поэтому без права на справочники -
 	// иначе заявитель не видел бы, кому уходит его заявка.
 	aag.GET("/recipients", approvers.GetRecipients)
 	aag.GET("/available-users", approvers.GetAvailableUsers, requireDirectories)
-	aag.GET("/history", approvers.GetHistory)
+	aag.GET("/history", approvers.GetHistory, requireDirectories)
 	// Ответ про себя доступен любому авторизованному: карточке заявки нужно знать,
 	// показывать ли кнопки принимающего, а весь состав ей не нужен и закрыт админом.
 	aag.GET("/me", approvers.IsApprover)
