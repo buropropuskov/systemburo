@@ -23,7 +23,7 @@ type BulkItemError struct {
 }
 
 // BulkOpResult — результат групповой операции над справочником: успешные
-// применены, неуспешные собраны в Errors. По образцу BatchCreateCarsResponse:
+// применены, неуспешные собраны в Errors:
 // операция не падает целиком, статус 207 при наличии ошибок.
 type BulkOpResult struct {
 	SuccessCount int             `json:"success_count"`
