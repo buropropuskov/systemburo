@@ -141,11 +141,52 @@ func (h *CarHandler) CheckActiveCar(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
+	if err := h.limitCheckToOwnOrganization(c, &req); err != nil {
+		return err
+	}
 	resp, err := h.service.CheckActiveCar(c.Request().Context(), req)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, resp)
+}
+
+// limitCheckToOwnOrganization держит проверку активной машины в пределах своей
+// организации и компании. Ответ называет заявку и её срок, поэтому перебор чужих
+// organization_id с угаданным номером раскрывал бы чужие заявки. Правило то же, что у
+// подачи заявки (#1437): чужую организацию выбирает только администратор или владелец
+// application.organization.override; остальным незаданная организация подставляется
+// своя, а компания допускается своя или пустая. Пустую не подменяем своей: она ищет
+// заявки без компании, как и раньше, а их подают и сотрудники с компанией.
+func (h *CarHandler) limitCheckToOwnOrganization(c echo.Context, req *services.CheckActiveCarRequest) error {
+	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c), services.KeyApplicationOrganizationOverride)
+	if err != nil {
+		return err
+	}
+	if scope.All {
+		return nil
+	}
+	own := func(id int) *int {
+		if id == 0 {
+			return nil
+		}
+		return &id
+	}
+	ownOrg, ownCompany := own(scope.OrgID), own(scope.CompanyID)
+	if req.OrganizationID == nil {
+		req.OrganizationID = ownOrg
+	}
+	if !sameOptionalID(req.OrganizationID, ownOrg) || req.CompanyID != nil && !sameOptionalID(req.CompanyID, ownCompany) {
+		return echo.NewHTTPError(http.StatusForbidden, "Проверять машины чужой организации нельзя")
+	}
+	return nil
+}
+
+func sameOptionalID(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // GetCarHistory обрабатывает GET /cars/:id/history.

@@ -339,6 +339,38 @@ func TestCheckActiveCar_Found(t *testing.T) {
 	}
 }
 
+// Ответ проверки называет заявку и её срок, поэтому чужую организацию в запросе
+// принимает только тот, кто вправе подавать за неё заявку. Без этого номер и марка,
+// перебираемые по чужим organization_id, раскрывали чужие заявки.
+func TestCheckActiveCar_ForeignOrganization(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	ownerToken := testutil.RegisterAndLogin(t, e, "carchkowner", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, _ := seedCarViaCompleteApp(t, e, db, ownerToken, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	other := models.Organization{Name: "Чужая организация проверки"}
+	require.NoError(t, db.Create(&other).Error)
+	strangerToken := testutil.RegisterAndLogin(t, e, "carchkstranger", "pass123", 1, other.ID, 0)
+	query := fmt.Sprintf("/cars/check-active?car_number=B002BB799&car_brand=Kamaz&organization_id=%d", td.OrgID)
+
+	rec := testutil.GET(t, e, query, testutil.AuthHeader(strangerToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code, "чужая организация без права: %s", rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "B002BB799")
+
+	rec = testutil.GET(t, e, "/cars/check-active?car_number=B002BB799&car_brand=Kamaz", testutil.AuthHeader(strangerToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, false, testutil.ParseMap(t, rec)["active"], "без параметров проверка идёт по своей организации")
+
+	testutil.GrantPermission(t, getUserID(t, db, "carchkstranger"), services.KeyApplicationOrganizationOverride)
+	rec = testutil.GET(t, e, query, testutil.AuthHeader(strangerToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, true, testutil.ParseMap(t, rec)["active"], "подача за чужую организацию видит её машины")
+}
+
 // Срок действия пропуска сверяется по московским часам, а не по UTC (#2298).
 //
 // entry_date_to и entry_time_to - дата и час из заявки, записанные по московскому
