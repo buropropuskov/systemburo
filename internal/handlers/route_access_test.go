@@ -29,12 +29,14 @@ const (
 	// затем гейт метода. Без очередного ключа 403 с ним в required_permission.
 	accessPerm accessClass = "perm"
 	// accessRole - обработчик сам требует роль или флаг (супер, админ, принимающий).
+	// На каждый метод заведён валидный запрос в roleProbes: без роли ответ 403.
 	accessRole accessClass = "role"
 	// accessScoped - обработчик или сервис проверяет доступ к конкретному объекту.
 	accessScoped accessClass = "scoped"
 	// accessSelf - только данные самого вызывающего, пользователь берётся из токена.
 	accessSelf accessClass = "self"
-	// accessOpen - любому вошедшему, так задумано; причина обязательна.
+	// accessOpen - любому вошедшему, так задумано; причина обязательна. Пользователю
+	// без прав не 403.
 	accessOpen accessClass = "open"
 )
 
@@ -77,7 +79,9 @@ type accessProbe struct {
 // существующий метод, и записанное решение совпадает с тем, что отвечает сервер.
 // Сверка идёт двумя запросами на метод: без токена и от пользователя, у которого
 // запрещены все ключи каталога прав. Этого хватает, чтобы отличить публичный метод,
-// гейт по праву (ключ виден в required_permission) и решение в обработчике.
+// гейт по праву (ключ виден в required_permission) и решение в обработчике. Методам
+// role тот же пользователь шлёт запрос из roleProbes, валидный по телу, и получает 403
+// обработчика; снятые методы из removedRoutes не должны появиться снова.
 func TestRouteAccess_Registry(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -92,6 +96,7 @@ func TestRouteAccess_Registry(t *testing.T) {
 	require.NoError(t, db.Create(&table).Error)
 
 	tokens := map[string]string{}
+	userIDs := map[string]int{}
 	// tokenWith - пользователь, у которого есть только ключи granted, остальные ключи
 	// каталога запрещены. Один пользователь на набор ключей: кэш прав резолвера живёт
 	// до конца теста.
@@ -114,8 +119,11 @@ func TestRouteAccess_Registry(t *testing.T) {
 			}
 		}
 		tokens[set] = tok
+		userIDs[set] = uid
 		return tok
 	}
+	noKeys := tokenWith(nil)
+	probes := roleProbes(seedRoleFixture(t, db, td, userIDs[""]))
 
 	routes := registeredRoutes(e.Routes())
 
@@ -132,8 +140,41 @@ func TestRouteAccess_Registry(t *testing.T) {
 		if ra.class == accessPerm && len(ra.keys) == 0 || ra.class != accessPerm && strings.TrimSpace(ra.why) == "" {
 			t.Errorf("%s: у perm нужен ключ, у остальных классов причина", key)
 		}
+		if _, ok := probes[key]; ra.class == accessRole && !ok {
+			t.Errorf("%s: у role нужен запрос в roleProbes, на котором без роли сервер отвечает 403", key)
+		}
+	}
+	for key := range probes {
+		if ra, ok := routeAccessRegistry[key]; !ok || ra.class != accessRole {
+			t.Errorf("%s есть в roleProbes, но в реестре не role: удали запрос", key)
+		}
+	}
+	for key, why := range removedRoutes {
+		if routes[key] {
+			t.Errorf("%s снова зарегистрирован, а был снят: %s", key, why)
+		}
 	}
 
+	// Ролевой проход идёт до общего: общий шлёт на каждый :id один и тот же номер и
+	// может снести объект фикстуры (владелец удаляет свою запись реестра).
+	for _, key := range sortedKeys(routes) {
+		rp, ok := probes[key]
+		if !ok {
+			continue
+		}
+		method, path, _ := strings.Cut(key, " ")
+		id := table.ID
+		if rp.id != 0 {
+			id = rp.id
+		}
+		got := probeRoute(t, e, method, concreteRoutePath(path, id), rp.body, noKeys)
+		if got.status != http.StatusForbidden || got.key != "" {
+			t.Errorf("%s: без роли ждали 403 обработчика, получили %d с ключом %q: %s",
+				key, got.status, got.key, got.body)
+		}
+	}
+
+	postKeys := registryPostKeys()
 	body := fmt.Sprintf(`{"table_id":%d,"territory_status":1}`, table.ID)
 	for _, key := range sortedKeys(routes) {
 		ra, ok := routeAccessRegistry[key]
@@ -155,15 +196,22 @@ func TestRouteAccess_Registry(t *testing.T) {
 		}
 
 		if ra.class == accessPerm {
-			checkPermChain(t, key, ra.keys, post, func(granted []string) accessProbe {
+			checkPermChain(t, key, ra.keys, post, postKeys, func(granted []string) accessProbe {
 				return probeRoute(t, e, method, target, body, tokenWith(granted))
 			})
 			continue
 		}
-		// Статус здесь не сверяется: ролевые и объектные проверки у части методов идут
-		// после разбора тела, и пустой запрос получает 400 раньше отказа.
-		if got := probeRoute(t, e, method, target, body, tokenWith(nil)); got.key != "" {
+		if ra.class == accessRole {
+			continue
+		}
+		// Статус scoped и self здесь не сверяется: объектные проверки у части методов
+		// идут после разбора тела, и общий запрос получает 400 раньше отказа.
+		got := probeRoute(t, e, method, target, body, noKeys)
+		if got.key != "" {
 			t.Errorf("%s: в реестре %s, а в роутере гейт %q - перенеси в perm", key, ra.class, got.key)
+		}
+		if ra.class == accessOpen && got.status == http.StatusForbidden {
+			t.Errorf("%s: в реестре open, а пользователю без прав 403: %s", key, got.body)
 		}
 	}
 }
@@ -171,8 +219,10 @@ func TestRouteAccess_Registry(t *testing.T) {
 // checkPermChain сверяет цепочку гейтов: с первыми i ключами ответ - 403 с (i+1)-м,
 // а со всеми ключами ни один гейт роутера не отказывает. Вторая половина ловит гейт,
 // которого нет в записи: пользователь без прав упирается во внешний гейт группы, и
-// внутренний, более узкий, иначе не был бы виден вовсе.
-func checkPermChain(t *testing.T, key string, keys []string, post string, probe func([]string) accessProbe) {
+// внутренний, более узкий, иначе не был бы виден вовсе. Если последний ключ - право
+// на пост, его не заменяет ни один другой глагол того же поста из postKeys: гейт,
+// принимающий «versions или trash», первой половиной не виден.
+func checkPermChain(t *testing.T, key string, keys []string, post string, postKeys []string, probe func([]string) accessProbe) {
 	t.Helper()
 	chain := make([]string, len(keys))
 	for i, k := range keys {
@@ -185,6 +235,19 @@ func checkPermChain(t *testing.T, key string, keys []string, post string, probe 
 				key, chain[:i], want, got.status, got.key, got.body)
 		}
 	}
+	if last := keys[len(keys)-1]; strings.Contains(last, "{post}") {
+		granted := append([]string{}, chain[:len(chain)-1]...)
+		for _, k := range postKeys {
+			if k != last {
+				granted = append(granted, strings.ReplaceAll(k, "{post}", post))
+			}
+		}
+		want := chain[len(chain)-1]
+		if got := probe(granted); got.status != http.StatusForbidden || got.key != want {
+			t.Errorf("%s: с другими правами на пост %v ждали 403 с ключом %q, получили %d с ключом %q",
+				key, granted, want, got.status, got.key)
+		}
+	}
 	// Ключ только для супер-админа персонально не выдаётся: пользователя, прошедшего
 	// такой гейт, в тесте не собрать, первая половина проверки его уже покрыла.
 	if services.IsSuperOnly(chain[len(chain)-1]) {
@@ -194,6 +257,20 @@ func checkPermChain(t *testing.T, key string, keys []string, post string, probe 
 		t.Errorf("%s: со всеми ключами из реестра %v гейт требует ещё %q - допиши его в цепочку",
 			key, chain, got.key)
 	}
+}
+
+// registryPostKeys - ключи прав на пост, которыми гейтятся методы реестра, по одному на
+// глагол: каждый гейт поста проверяется против всех остальных.
+func registryPostKeys() []string {
+	seen := map[string]bool{}
+	for _, ra := range routeAccessRegistry {
+		for _, k := range ra.keys {
+			if strings.Contains(k, "{post}") {
+				seen[k] = true
+			}
+		}
+	}
+	return sortedKeys(seen)
 }
 
 // registeredRoutes - методы приложения в нотации "METHOD путь-шаблон". Служебный
