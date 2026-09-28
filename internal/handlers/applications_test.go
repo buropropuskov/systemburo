@@ -469,7 +469,6 @@ func TestApplications_Unauthorized(t *testing.T) {
 		{"GET", "/applications/1/responsible-users"},
 		{"GET", "/applications/1/details"},
 		{"GET", "/applications/1/attachments"},
-		{"POST", "/applications/1/update-items-status"},
 		{"POST", "/applications/1/forward"},
 		{"POST", "/applications/1/approve"},
 		{"GET", "/applications/1/check-approval-status"},
@@ -1443,25 +1442,6 @@ func TestTakeApplicationToWork_Reject(t *testing.T) {
 	assert.Equal(t, "Application rejected", msg)
 }
 
-// --- POST /applications/:id/update-items-status ---
-
-func TestUpdateApplicationItemsStatus_Success(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	uaID := seedUniqueAttachment(t, db, "cars", "status_cars", "Status Cars")
-	token := testutil.RegisterAndLogin(t, e, "itemstat1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	msg := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "All items statuses updated successfully", msg)
-}
-
 // --- POST /applications/:id/revoke-from-work ---
 
 func TestRevokeFromWork_Success(t *testing.T) {
@@ -1609,10 +1589,6 @@ func TestApplicationLifecycle_CreateSubmitForwardApproveTakeToWork(t *testing.T)
 	// 10. Approver takes to work
 	takeBody := fmt.Sprintf(`{"user_id": %d, "action": "accept"}`, approverID)
 	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), takeBody, testutil.AuthHeader(approverToken))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	// 11. Update items status (activate all cars/employees)
-	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(approverToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	// 12. Check history has multiple entries

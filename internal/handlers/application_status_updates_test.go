@@ -206,9 +206,10 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "cars", "su_exp_cars", "SU Exp Cars")
 		appD := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
 
-		// Активируем элементы (крон завершает только заявки с активными вложениями) и просрочиваем.
-		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appD), "", testutil.AuthHeader(senderToken))
-		require.Equal(t, http.StatusOK, rec.Code)
+		// Принимаем в работу (крон завершает только заявки с активными вложениями) и
+		// просрочиваем. Флаг от принятия гасим: проверяется флаг именно от крона.
+		acceptIntoWork(t, e, db, appD, td.OrgID, td.CompanyID)
+		require.NoError(t, db.Exec("UPDATE applications SET status_updated_at = NULL WHERE id = ?", appD).Error)
 		yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
 		require.NoError(t, db.Exec("UPDATE attachments SET entry_date_to = ? WHERE application_id = ?", yesterday, appD).Error)
 

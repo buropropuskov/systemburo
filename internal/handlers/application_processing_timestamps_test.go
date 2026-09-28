@@ -58,6 +58,17 @@ func takeToWork(t *testing.T, e *echo.Echo, token string, appID, approverID int)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
+// acceptIntoWork принимает заявку в работу тем же путём, что и бюро: согласованную
+// заявку берёт принимающий, и её машины с сотрудниками становятся активными.
+func acceptIntoWork(t *testing.T, e *echo.Echo, db *gorm.DB, appID, orgID, companyID int) {
+	t.Helper()
+	name := fmt.Sprintf("accept_app_%d", appID)
+	token := testutil.RegisterAndLogin(t, e, name, "pass123", 1, orgID, companyID)
+	makeApprover(t, db, name)
+	require.NoError(t, db.Exec("UPDATE applications SET confirmation = ? WHERE id = ?", models.ConfirmationApproved, appID).Error)
+	takeToWork(t, e, token, appID, getUserID(t, db, name))
+}
+
 // TestApplicationAcceptedAt_FirstTakeWins: принятие в работу проставляет accepted_at, а
 // повторное принятие после revoke/restore НЕ перетирает первый момент - иначе срок
 // обработки считался бы от последней попытки, а не от реального начала работы.

@@ -110,7 +110,7 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 	appResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 	appID := appResp.ApplicationID
 
-	// Activate via application workflow (take-to-work + update-items-status)
+	// Activate via application workflow (take-to-work)
 	testutil.RegisterUser(t, e, "empapprover1", "pass123", 6, td.OrgID, td.CompanyID)
 	approverID := getUserID(t, db, "empapprover1")
 	db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", approverID)
@@ -118,7 +118,6 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 
 	takeBody := fmt.Sprintf(`{"user_id": %d, "action": "accept"}`, approverID)
 	testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), takeBody, testutil.AuthHeader(approverToken))
-	testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(approverToken))
 
 	// Now check active employees for the table
 	rec = testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))

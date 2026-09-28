@@ -48,9 +48,8 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				require.NotEmpty(t, attachments)
 				attID := int(attachments[0]["id"].(float64))
 
-				// Activate items so status=1 (CheckExpiredAttachments checks status=1)
-				rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
-				require.Equal(t, http.StatusOK, rec.Code)
+				// CheckExpiredAttachments гасит только активные элементы
+				acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)
 
 				// Set entry_date_to to yesterday via raw SQL to avoid GORM type coercion issues
 				yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
@@ -94,9 +93,8 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				token := testutil.RegisterAndLogin(t, e, "exp_sender2", "pass123", 1, td.OrgID, td.CompanyID)
 				appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
 
-				// Activate items
-				rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
-				require.Equal(t, http.StatusOK, rec.Code)
+				// CheckExpiredAttachments гасит только активные элементы
+				acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)
 
 				// Set all attachments to expired
 				yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
@@ -163,9 +161,8 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 				appID := resp.ApplicationID
 
-				// Activate all items
-				rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
-				require.Equal(t, http.StatusOK, rec.Code)
+				// CheckExpiredAttachments гасит только активные элементы
+				acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)
 
 				// Get both attachments
 				rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
@@ -215,12 +212,11 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				token := testutil.RegisterAndLogin(t, e, "exp_sender4", "pass123", 1, td.OrgID, td.CompanyID)
 				appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
 
-				// Activate items
-				rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
-				require.Equal(t, http.StatusOK, rec.Code)
+				// CheckExpiredAttachments гасит только активные элементы
+				acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)
 
 				// Get attachment to verify its state before
-				rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
+				rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 				require.Equal(t, http.StatusOK, rec.Code)
 				attachments := testutil.ParseSlice(t, rec)
 				require.NotEmpty(t, attachments)

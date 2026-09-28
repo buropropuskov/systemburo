@@ -932,7 +932,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 		// что у скачивания одного бланка (canDownloadBlank) - не выше и не ниже.
 		apg.GET("/:id/archive", archiveDownload.Archive)
 	}
-	apg.POST("/:id/update-items-status", app.UpdateApplicationItemsStatus)
 	apg.POST("/:id/forward", app.ForwardApplication)
 	apg.GET("/:id/forward-messages", app.GetForwardMessages) // #967 - ветка заявки (пересылки)
 	apg.POST("/:id/approve", app.ApproveApplicationByUser)

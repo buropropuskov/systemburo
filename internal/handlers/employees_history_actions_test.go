@@ -120,8 +120,7 @@ func TestCheckExpiredAttachments_CreatesEmployeeDeactivateHistory(t *testing.T) 
 	token := testutil.RegisterAndLogin(t, e, "emphist_expiry1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, attID, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code)
+	acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)
 
 	yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
 	require.NoError(t, db.Exec("UPDATE attachments SET entry_date_to = ? WHERE id = ?", yesterday, attID).Error)
