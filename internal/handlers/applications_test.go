@@ -465,7 +465,6 @@ func TestApplications_Unauthorized(t *testing.T) {
 		{"POST", "/applications/submit-complete-application"},
 		{"GET", "/applications/user"},
 		{"GET", "/applications/1"},
-		{"PUT", "/applications/1"},
 		{"GET", "/applications/1/responsible-users"},
 		{"GET", "/applications/1/details"},
 		{"GET", "/applications/1/attachments"},
@@ -477,7 +476,6 @@ func TestApplications_Unauthorized(t *testing.T) {
 		{"POST", "/applications/1/restore-to-work"},
 		{"GET", "/applications/1/history"},
 		{"POST", "/applications/1/revoke-approval"},
-		{"POST", "/applications/history"},
 		{"GET", "/applications/1/viewers"},
 		{"GET", "/attachments/1/cars"},
 		{"GET", "/attachments/1/employees"},
@@ -1035,25 +1033,6 @@ func TestGetApplicationByID_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-// --- PUT /applications/:id ---
-
-func TestUpdateApplication_Success(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "updater1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
-
-	body := `{"responsible_comment":"some comment"}`
-	rec := testutil.PUT(t, e, fmt.Sprintf("/applications/%d", appID), body, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	resp := testutil.ParseResponse[services.ApplicationUpdateResponse](t, rec)
-	assert.True(t, resp.Success)
-}
-
 // --- GET /applications/:id/details ---
 
 func TestGetApplicationDetails_Success(t *testing.T) {
@@ -1255,31 +1234,6 @@ func TestGetApplicationHistory_Success(t *testing.T) {
 	history := testutil.ParseSlice(t, rec)
 	// SubmitCompleteApplication writes create + assigned_responsible entries
 	assert.GreaterOrEqual(t, len(history), 1)
-}
-
-// --- POST /applications/history ---
-
-func TestAddHistoryEntry_Success(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "histwr1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
-	userID := getUserID(t, db, "histwr1")
-
-	body := fmt.Sprintf(`{
-		"application_id": %d,
-		"user_id": %d,
-		"action_type": "comment",
-		"comment": "manual history entry"
-	}`, appID, userID)
-	rec := testutil.POST(t, e, "/applications/history", body, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	msg := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "History entry added successfully", msg)
 }
 
 // --- GET /applications/:id/viewers ---

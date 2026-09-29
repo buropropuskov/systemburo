@@ -107,14 +107,6 @@ export async function submitCompleteApplication(data) {
   return res.json();
 }
 
-export async function updateApplication(id, data) {
-  const res = await apiRequest(`/applications/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-  return res.json();
-}
-
 export async function forwardApplication(id, data) {
   const res = await apiRequest(`/applications/${id}/forward`, {
     method: 'POST',

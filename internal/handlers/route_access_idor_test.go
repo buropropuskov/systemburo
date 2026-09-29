@@ -91,7 +91,6 @@ func idorProbes() map[string]idorProbe {
 
 	return map[string]idorProbe{
 		"GET /api/applications/:id":                       owner(""),
-		"PUT /api/applications/:id":                       ownerBody("", `{"responsible_comment":"замок"}`),
 		"GET /api/applications/:id/attachments":           owner("/attachments"),
 		"GET /api/applications/:id/check-approval-status": owner("/check-approval-status"),
 		"GET /api/applications/:id/details":               owner("/details"),
@@ -134,10 +133,6 @@ func idorProbes() map[string]idorProbe {
 		"POST /api/applications/:id/supplements/:sid/revoke-approval": {actor: idorVoted, url: sup("revoke-approval"), body: constBody(`{}`)},
 		"POST /api/applications/:id/supplements/:sid/cancel":          {actor: idorOwner, url: sup("cancel"), body: constBody(`{}`)},
 
-		"POST /api/applications/history": {actor: idorOwner, url: func(idorFixture) string { return "/api/applications/history" },
-			body: func(f idorFixture, _ int) string {
-				return fmt.Sprintf(`{"application_id":%d,"user_id":1,"action_type":"comment"}`, f.app)
-			}},
 		"DELETE /api/applications/files/:id": {actor: idorOwner, url: func(f idorFixture) string {
 			return fmt.Sprintf("/api/applications/files/%d", f.draft)
 		}},
