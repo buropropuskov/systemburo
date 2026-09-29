@@ -166,7 +166,7 @@ export function holdInView(el, block, длительность = 900, пока) 
     }
     if (наМесте(el)) return;
     довести(el, block);
-  }, 120);
+  }, 40);
   const стоп = () => clearInterval(таймер);
   setTimeout(стоп, длительность);
   return стоп;
