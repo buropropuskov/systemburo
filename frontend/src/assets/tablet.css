@@ -601,8 +601,13 @@
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
     gap: 0 16px !important;
-    overflow: visible !important;
     border-bottom: none !important;
+    /* Прокрутку не отменяем, а отвязываем от фиксированных 490px: вложений в
+       категории бывает до десяти, и столбик из них иначе отжимает форму вниз
+       на пол-экрана. Замер с шестью: полоса 425px, прокрутки нет; потолок
+       включается дальше. */
+    max-height: 55vh !important;
+    overflow-y: auto !important;
   }
 
   /* У ряда действий селектора («Удалить выбранные», «Удалить все») пропадает смысл
