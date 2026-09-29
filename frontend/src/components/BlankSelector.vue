@@ -273,7 +273,6 @@ export default {
         return {
             allTemplates: [],
             selectedAttachment: null,
-            hoveredAttachment: null,
             showDeleteModal: false,
             attachmentsToDelete: [],
             showTooltip: false,
@@ -729,8 +728,6 @@ export default {
         },
 
         handleMouseEnter(attachment, event) {
-            this.hoveredAttachment = this.getAttachmentKey(attachment);
-
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
             }
@@ -743,7 +740,6 @@ export default {
         },
 
         handleMouseLeave() {
-            this.hoveredAttachment = null;
             this.showTooltip = false;
             this.tooltipText = '';
 
