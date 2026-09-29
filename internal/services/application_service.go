@@ -20,16 +20,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var allowedStatuses = map[string]bool{
-	"Непрочитано": true, "В обработке": true, "Принята в работу": true,
-	"На согласовании": true, "Не согласовано": true, "Согласовано": true,
-	"Отклонена": true, "Завершена": true,
-}
-
-var allowedConfirmations = map[string]bool{
-	"Согласование": true, "Согласовано": true, "Не согласовано": true,
-}
-
 // forwardAttachmentVisible ограничивает агрегаты-теги заявки вложениями, видимыми
 // просматривающему с учётом пер-вложенного пересыла (#680): отправитель и пользователь
 // без строк forward_attachments видят все вложения, получатель со строками - только
@@ -154,8 +144,6 @@ type ApplicationService interface {
 	// Флаг передаётся параметром, а не читается из тела: тело правит клиент.
 	SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error)
 
-	// UpdateApplication обновляет данные заявки.
-	UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error)
 
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
 	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
@@ -224,8 +212,6 @@ type ApplicationService interface {
 	// и сопроводительным текстом (если был), хронологически (старые сверху).
 	GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error)
 
-	// AddHistoryEntry добавляет запись в историю заявки.
-	AddHistoryEntry(ctx context.Context, req AddHistoryEntryRequest) error
 
 	// RevokeApproval отзывает ранее данное согласование.
 	RevokeApproval(ctx context.Context, username string, applicationID int, req RevokeApprovalRequest) (*RevokeApprovalResponse, error)
@@ -528,13 +514,6 @@ type RequiredUserInput struct {
 	RequiredApproval bool `json:"required_approval"`
 }
 
-// ApplicationUpdateRequest тело запроса на обновление заявки.
-type ApplicationUpdateRequest struct {
-	Confirmation       *string `json:"confirmation"`
-	Status             *string `json:"status"`
-	ResponsibleComment *string `json:"responsible_comment"`
-}
-
 // ForwardApplicationRequest тело запроса на пересылку заявки.
 // AttachmentIDs - общий для всех получателей список вложений (#680): пустой -> получатели
 // видят все вложения заявки; непустой -> в forward_attachments пишется строка на каждого
@@ -572,18 +551,6 @@ type TakeToWorkRequest struct {
 type RevokeFromWorkRequest struct {
 	UserID  int     `json:"user_id" validate:"gte=1"`
 	Comment *string `json:"comment"`
-}
-
-// AddHistoryEntryRequest тело запроса на добавление записи в историю.
-type AddHistoryEntryRequest struct {
-	ApplicationID int              `json:"application_id" validate:"gte=1"`
-	UserID        int              `json:"user_id" validate:"gte=1"`
-	ActionType    string           `json:"action_type" validate:"required"`
-	ActionStatus  *string          `json:"action_status"`
-	OldValue      *string          `json:"old_value"`
-	NewValue      *string          `json:"new_value"`
-	Comment       *string          `json:"comment"`
-	Metadata      *json.RawMessage `json:"metadata" swaggertype:"object"`
 }
 
 // RevokeApprovalRequest тело запроса на отзыв согласования.
@@ -664,13 +631,6 @@ type CompleteApplicationResponse struct {
 	Message           string `json:"message"`
 	ApplicationID     int    `json:"application_id"`
 	ApplicationNumber string `json:"application_number"`
-}
-
-// ApplicationUpdateResponse ответ при обновлении заявки.
-type ApplicationUpdateResponse struct {
-	Success      bool   `json:"success"`
-	Message      string `json:"message"`
-	RowsAffected int64  `json:"rows_affected"`
 }
 
 // ApprovalStatusResponse ответ проверки статуса согласования.
@@ -2792,138 +2752,3 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}, nil
 }
 
-// UpdateApplication обновляет данные заявки (confirmation, status, комментарий).
-func (s *applicationService) UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error) {
-	user, err := s.getUserByUsername(ctx, username)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-
-	setClauses := []string{}
-	args := []interface{}{}
-
-	if req.Confirmation != nil {
-		if !allowedConfirmations[*req.Confirmation] {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid confirmation value")
-		}
-		// Гейт обхода ЧС (#481): прямое выставление "Согласовано" этим путём (минуя
-		// поэлементное голосование) тоже блокируем, пока есть помеченные элементы без
-		// override - иначе блокировку согласования из ApproveApplicationByUser легко обойти.
-		if *req.Confirmation == models.ConfirmationApproved {
-			blocked, err := hasUnoverriddenBlacklistFlags(ctx, s.db, applicationID)
-			if err != nil {
-				return nil, err
-			}
-			if blocked {
-				return nil, echo.NewHTTPError(http.StatusConflict,
-					"Заявка содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
-			}
-		}
-		setClauses = append(setClauses, "confirmation = ?")
-		args = append(args, *req.Confirmation)
-		if *req.Confirmation == "Согласовано" || *req.Confirmation == "Не согласовано" {
-			setClauses = append(setClauses, "confirmation_datetime = ?")
-			args = append(args, now)
-		}
-	}
-
-	if req.Status != nil {
-		if !allowedStatuses[*req.Status] {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid status value")
-		}
-		setClauses = append(setClauses, "status = ?")
-		args = append(args, *req.Status)
-		if *req.Status == "В обработке" {
-			setClauses = append(setClauses, "reading_datetime = ?")
-			args = append(args, now)
-		}
-	}
-
-	if req.ResponsibleComment != nil {
-		setClauses = append(setClauses, "responsible_comment = ?")
-		args = append(args, *req.ResponsibleComment)
-		setClauses = append(setClauses, "responsible_user_id = ?")
-		args = append(args, user.ID)
-	}
-
-	if len(setClauses) == 0 {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "No data to update")
-	}
-
-	sqlQuery := fmt.Sprintf("UPDATE applications SET %s WHERE id = ?", strings.Join(setClauses, ", "))
-	args = append(args, applicationID)
-
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Старые значения под блокировкой строки: флаг "статус обновился" бампаем только при
-	// реальной смене status/confirmation, а не на каждый PUT (#1349).
-	var old struct {
-		Status       *string
-		Confirmation *string
-	}
-	oldRes := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&old)
-	if oldRes.Error != nil {
-		tx.Rollback()
-		slog.Error("Ошибка чтения заявки перед обновлением", "application_id", applicationID, "error", oldRes.Error)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application")
-	}
-
-	result := tx.Exec(sqlQuery, args...)
-	if result.Error != nil {
-		tx.Rollback()
-		slog.Error("Ошибка обновления заявки", "application_id", applicationID, "error", result.Error)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application")
-	}
-
-	statusChanged := req.Status != nil && (old.Status == nil || *old.Status != *req.Status)
-	confirmationChanged := req.Confirmation != nil && (old.Confirmation == nil || *old.Confirmation != *req.Confirmation)
-	if oldRes.RowsAffected > 0 && (statusChanged || confirmationChanged) {
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
-	}
-
-	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники
-	// видят в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
-	// Инициатору - уведомление об исходе согласования, если admin выставил confirmation
-	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
-	if confirmationChanged {
-		if outcome := confirmationOutcome(req.Confirmation); outcome != "" {
-			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome, &statusChangeContext{
-				ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
-				Comment:   optionalString(req.ResponsibleComment),
-			})
-		}
-	}
-	// Прямое выставление "Согласовано" (admin-путь, минуя approve-флоу) делает
-	// вложения доступными охране - сигналим обновить "Доступные мне" (#840 V3). Сигнал
-	// безданных, лишний при не-переходе безвреден (event-then-fetch, клиент рефетчит).
-	if req.Confirmation != nil && *req.Confirmation == models.ConfirmationApproved {
-		s.availableProducer.NotifyAvailableChanged(ctx)
-	}
-
-	return &ApplicationUpdateResponse{
-		Success:      true,
-		Message:      "Application updated successfully",
-		RowsAffected: result.RowsAffected,
-	}, nil
-}

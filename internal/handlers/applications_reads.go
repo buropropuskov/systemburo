@@ -101,39 +101,6 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 	return RespondSuccess(c, history)
 }
 
-// AddHistoryEntry godoc
-// @Summary      Добавление записи в историю
-// @Description  Ручное добавление записи в историю заявки.
-// @Tags         applications
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        request body services.AddHistoryEntryRequest true "Запись истории"
-// @Success      200 {object} map[string]interface{} "success + message"
-// @Failure      400 {object} models.HTTPError
-// @Failure      401 {object} models.HTTPError
-// @Failure      500 {object} models.HTTPError
-// @Router       /applications/history [post]
-func (h *ApplicationHandler) AddHistoryEntry(c echo.Context) error {
-	var req services.AddHistoryEntryRequest
-	if err := BindAndValidate(c, &req); err != nil {
-		return err
-	}
-
-	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), req.ApplicationID, username, IsSuperAdmin(c)) {
-		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
-	}
-
-	userID := c.Get("user_id").(int)
-	req.UserID = userID
-
-	if err := h.service.AddHistoryEntry(c.Request().Context(), req); err != nil {
-		return err
-	}
-	return RespondMessage(c, "History entry added successfully")
-}
-
 // GetApplicationViewers godoc
 // @Summary      Просматривающие заявки
 // @Description  Возвращает список просматривающих с информацией о пользователе.

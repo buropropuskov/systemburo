@@ -394,43 +394,6 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 	return RespondSuccess(c, resp)
 }
 
-// UpdateApplication godoc
-// @Summary      Обновление заявки
-// @Description  Обновляет confirmation, status и/или responsible_comment заявки.
-// @Tags         applications
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id      path int                              true  "ID заявки"
-// @Param        request body services.ApplicationUpdateRequest true  "Обновляемые поля"
-// @Success      200 {object} services.ApplicationUpdateResponse
-// @Failure      400 {object} models.HTTPError
-// @Failure      401 {object} models.HTTPError
-// @Failure      500 {object} models.HTTPError
-// @Router       /applications/{id} [put]
-func (h *ApplicationHandler) UpdateApplication(c echo.Context) error {
-	username := c.Get("username").(string)
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
-	}
-
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
-		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
-	}
-
-	var req services.ApplicationUpdateRequest
-	if err := BindAndValidate(c, &req); err != nil {
-		return err
-	}
-
-	resp, err := h.service.UpdateApplication(c.Request().Context(), username, id, req)
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, resp)
-}
-
 // GetUnreadCount godoc
 // @Summary      Количество непрочитанных заявок
 // @Description  Возвращает количество непрочитанных активных заявок для текущего пользователя.

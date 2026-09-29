@@ -82,8 +82,7 @@ func activateCarViaApp(t *testing.T, e *echo.Echo, db *gorm.DB, appID int, td te
 	approverToken, _ := testutil.LoginUser(t, e, username, "pass123")
 
 	// Set confirmation to 'Согласовано' (required for GetActiveCarsForTables)
-	testutil.PUT(t, e, fmt.Sprintf("/applications/%d", appID),
-		`{"confirmation":"Согласовано"}`, testutil.AuthHeader(approverToken))
+	require.NoError(t, db.Exec("UPDATE applications SET confirmation = ? WHERE id = ?", models.ConfirmationApproved, appID).Error)
 
 	// Take to work (sets status='В работе' and activates cars via activateApplicationItems)
 	body := fmt.Sprintf(`{"user_id": %d, "action": "accept"}`, approverID)

@@ -55,11 +55,6 @@ func TestBlacklistOverride_BlocksApprovalUntilConfirmed(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "чёрн")
 	})
 
-	t.Run("прямой PUT confirmation=Согласовано тоже заблокирован", func(t *testing.T) {
-		rec := testutil.PUT(t, e, fmt.Sprintf("/applications/%d", appID), `{"confirmation":"Согласовано"}`, testutil.AuthHeader(apprToken))
-		require.Equal(t, http.StatusConflict, rec.Code, "обход гейта через PUT не должен проходить: %s", rec.Body.String())
-	})
-
 	t.Run("override без комментария отклоняется", func(t *testing.T) {
 		rec := testutil.POST(t, e, overridePath, fmt.Sprintf(`{"flag_id":%d,"comment":""}`, flag.ID), testutil.AuthHeader(apprToken))
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())

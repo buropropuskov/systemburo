@@ -212,24 +212,3 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 	return items, nil
 }
 
-// AddHistoryEntry добавляет ручную запись в историю заявки (POST /applications/history).
-// #870 (срез 1.14): пишет в audit_log[application] через recorder; ошибка проброса -
-// как в прежнем write-path (раньше возвращался 500 при провале INSERT).
-func (s *applicationService) AddHistoryEntry(ctx context.Context, req AddHistoryEntryRequest) error {
-	details := applicationAuditDetails{
-		ActionStatus: req.ActionStatus,
-		OldValue:     req.OldValue,
-		NewValue:     req.NewValue,
-		Comment:      req.Comment,
-	}
-	if req.Metadata != nil {
-		details.Metadata = json.RawMessage(*req.Metadata)
-	}
-	actorID := req.UserID
-	if err := s.recorder.Record(ctx, nil, models.AuditEntityApplication, &req.ApplicationID, req.ActionType, &actorID, details); err != nil {
-		slog.Error("Ошибка добавления записи истории", "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error adding history entry")
-	}
-
-	return nil
-}

@@ -1,12 +1,14 @@
 package handlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -36,11 +38,10 @@ func historyActionTypes(hist []map[string]interface{}) []string {
 }
 
 // TestApplications_HistoryGolden_ManualEntryRoundTrip - golden (#870, срез 1.14):
-// ручная запись через POST /applications/history должна вернуться из GET history
-// байт-в-байт: action_status, old/new/comment и metadata как JSON-объект (не строка),
-// user_id = автор. Это самый строгий fidelity-чек двух гибридных полей заявки
-// (action_status + metadata jsonb), которых нет у простых сущностей. Зелёный и до,
-// и после cutover на audit_log.
+// запись в audit_log[application] должна вернуться из GET history байт-в-байт:
+// action_status, old/new/comment и metadata как JSON-объект (не строка), user_id = автор.
+// Это самый строгий fidelity-чек двух гибридных полей заявки (action_status + metadata
+// jsonb), которых нет у простых сущностей.
 func TestApplications_HistoryGolden_ManualEntryRoundTrip(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -51,20 +52,17 @@ func TestApplications_HistoryGolden_ManualEntryRoundTrip(t *testing.T) {
 	appID := createSimpleApplication(t, e, token, td.OrgID)
 	userID := getUserID(t, db, "goldman1")
 
-	body := fmt.Sprintf(`{
-		"application_id": %d,
-		"user_id": %d,
-		"action_type": "comment",
+	details := map[string]interface{}{
 		"action_status": "custom_status",
-		"old_value": "before",
-		"new_value": "after",
-		"comment": "manual entry round-trip",
-		"metadata": {"reason": "test", "n": 7}
-	}`, appID, userID)
-	rec := testutil.POST(t, e, "/applications/history", body, testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		"old_value":     "before",
+		"new_value":     "after",
+		"comment":       "manual entry round-trip",
+		"metadata":      map[string]interface{}{"reason": "test", "n": 7},
+	}
+	require.NoError(t, services.NewAuditRecorder(db).Record(context.Background(), nil,
+		models.AuditEntityApplication, &appID, "comment", &userID, details))
 
-	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
+	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	hist := testutil.ParseSlice(t, rec)
 

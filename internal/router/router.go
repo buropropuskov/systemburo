@@ -921,7 +921,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/available-attachments/:id/mark-executed", app.MarkAttachmentExecuted) // #2446 - отметка "исполнено", окно 5 минут
 	apg.GET("/attachable", app.GetAttachableApplications, requireAdmin)              // #1049 - заявки для привязки ручного вложения (super/admin)
 	apg.GET("/:id", app.GetApplicationByID)
-	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
 	apg.GET("/:id/participants", app.GetApplicationParticipants) // все участники заявки с ролями и контактами
 	apg.GET("/:id/details", app.GetApplicationDetails)
@@ -969,7 +968,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/supplements/:sid/cancel", app.CancelSupplement)
 	apg.GET("/:id/history", app.GetApplicationHistory)
 	apg.POST("/:id/revoke-approval", app.RevokeApproval)
-	apg.POST("/history", app.AddHistoryEntry)
 	apg.GET("/:id/viewers", app.GetApplicationViewers)
 	apg.POST("/:id/read", app.MarkAsRead)
 	apg.GET("/:id/reads", app.GetReads)
