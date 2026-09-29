@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+
+	"github.com/stretchr/testify/require"
 )
 
 // idorProbe - запрос к объекту организации A. Законный участник actor получает 2xx,
@@ -24,11 +26,13 @@ type idorProbe struct {
 }
 
 // idorSwap - чужак идёт в СВОЮ заявку с дочерним объектом заявки A. Своя заявка ему
-// открыта, поэтому отказ обязан прийти из сверки дочернего объекта с заявкой.
+// открыта, а роль, которой метод требует до поиска объекта, выдаёт grant, поэтому
+// отказ 404 приходит только из сверки дочернего объекта с заявкой из пути.
 type idorSwap struct {
 	method string
 	url    func(f idorFixture) string
 	body   func(f idorFixture) string
+	grant  func(t *testing.T, w *idorWorld, f idorFixture)
 }
 
 // idorCoveredElsewhere - методы с id объекта, которые замок не шлёт сам: либо чужак
@@ -37,6 +41,8 @@ type idorSwap struct {
 var idorCoveredElsewhere = map[string]string{
 	"GET /api/applications/:id/archive": "TestFileArchiveDownload_Application: посторонний 404, отправитель 200; " +
 		"нужен слепок архива на диске",
+	"GET /api/cars/check-active": "TestCheckActiveCar_ForeignOrganization: организация в query, чужая - " +
+		"только админу или с override",
 	"GET /api/uploads*": "TestApplicationScans_StaticGate: чужой скан и несуществующий отвечают одинаково 404",
 	"GET /api/documents/:id/download": "документ бюро общий для всех организаций, скрытый - только " +
 		"с page.admin.directories (#2621)",
@@ -168,29 +174,46 @@ func idorSwaps() map[string]idorSwap {
 	flag := func(f idorFixture) int { return f.flag }
 	blank := func(f idorFixture) int { return f.blankAtt }
 	get, post := http.MethodGet, http.MethodPost
+	// Членство в раунде проверяется по sid раньше, чем раунд сверяется с заявкой.
+	voter := func(s idorSwap, status string) idorSwap {
+		s.grant = func(t *testing.T, w *idorWorld, f idorFixture) {
+			st := status
+			require.NoError(t, w.db.Create(&models.ApplicationSupplementApproval{
+				SupplementID: f.supplement, UserID: w.ids[idorStranger], RequiredApproval: true, ApprovalStatus: &st,
+			}).Error)
+		}
+		return s
+	}
+	// Подтверждать пропуск ЧС вправе согласующий своей заявки, автору это не дано.
+	responsible := func(s idorSwap) idorSwap {
+		s.grant = func(t *testing.T, w *idorWorld, f idorFixture) {
+			suppResponsible(t, w.db, f.strangerApp, w.ids[idorStranger], true, "pending")
+		}
+		return s
+	}
 	return map[string]idorSwap{
 		"файл заявки":               child(get, "/api/applications/%d/files/%d", file, ""),
 		"бланк вложения":            child(get, "/api/applications/%d/blank?attachment_id=%d", blank, ""),
 		"ответ на вопрос":           child(post, "/api/applications/%d/questions/%d/answers", question, `{"text":"Ответ"}`),
 		"прочтение вопроса":         child(post, "/api/applications/%d/questions/%d/read", question, ""),
-		"голос в дополнении":        child(post, "/api/applications/%d/supplements/%d/approve", round, `{"status":"approved"}`),
-		"отзыв голоса в дополнении": child(post, "/api/applications/%d/supplements/%d/revoke-approval", round, `{}`),
+		"голос в дополнении":        voter(child(post, "/api/applications/%d/supplements/%d/approve", round, `{"status":"approved"}`), "pending"),
+		"отзыв голоса в дополнении": voter(child(post, "/api/applications/%d/supplements/%d/revoke-approval", round, `{}`), "approved"),
 		"снятие дополнения":         child(post, "/api/applications/%d/supplements/%d/cancel", round, `{}`),
-		"снятие подтверждения ЧС":   child(http.MethodDelete, "/api/applications/%d/blacklist-overrides?flag_id=%d", flag, ""),
-		"подтверждение ЧС": {method: post,
+		"снятие подтверждения ЧС":   responsible(child(http.MethodDelete, "/api/applications/%d/blacklist-overrides?flag_id=%d", flag, "")),
+		"подтверждение ЧС": responsible(idorSwap{method: post,
 			url: func(f idorFixture) string {
 				return fmt.Sprintf("/api/applications/%d/blacklist-overrides", f.strangerApp)
 			},
-			body: func(f idorFixture) string { return fmt.Sprintf(`{"flag_id":%d,"comment":"замок"}`, f.flag) }},
+			body: func(f idorFixture) string { return fmt.Sprintf(`{"flag_id":%d,"comment":"замок"}`, f.flag) }}),
 	}
 }
 
 // TestRouteAccess_IDOR - замок чужой организации. Каждый метод реестра классов scoped и
-// self, адресующий объект по id, разобран: либо запрос в idorProbes, либо причина в
+// self, адресующий объект по id в пути, разобран: либо запрос в idorProbes, либо причина в
 // idorCoveredElsewhere. По каждому запросу чужак получает 403 или 404 и не оставляет
 // следа - ни записи журнала от своего имени, ни сдвига статуса заявки (так прятался
 // перевод «Непрочитано» до проверки доступа, #2608); законный участник на том же
-// адресе получает 2xx. Подмена дочернего объекта в своей заявке тоже отказывает.
+// адресе получает 2xx. Подмена дочернего объекта в своей заявке отвечает 404.
 func TestRouteAccess_IDOR(t *testing.T) {
 	probes := idorProbes()
 	checkIDORCompleteness(t, probes)
@@ -228,9 +251,16 @@ func TestRouteAccess_IDOR(t *testing.T) {
 	for _, name := range keysOf(idorSwaps()) {
 		s := idorSwaps()[name]
 		fx := w.seed(t, true)
+		if s.grant != nil {
+			s.grant(t, w, fx)
+		}
+		before := w.trace(t, fx.app, stranger)
 		got := probeRoute(t, w.e, s.method, s.url(fx), s.body(fx), w.tokens[idorStranger])
-		if got.status != http.StatusForbidden && got.status != http.StatusNotFound {
-			t.Errorf("своя заявка, чужой объект (%s): получили %d вместо 403/404: %s", name, got.status, got.body)
+		if got.status != http.StatusNotFound {
+			t.Errorf("своя заявка, чужой объект (%s): ждали 404 сверки с заявкой, получили %d: %s", name, got.status, got.body)
+		}
+		if after := w.trace(t, fx.app, stranger); after != before {
+			t.Errorf("своя заявка, чужой объект (%s): отказ оставил след: было %s, стало %s", name, before, after)
 		}
 	}
 }
