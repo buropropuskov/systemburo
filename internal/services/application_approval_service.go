@@ -179,15 +179,18 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			var alreadyAdded bool
 			tx.Raw("SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
 
+			// Обязательность голоса задаёт справочник согласующих при подаче (#2037), а не
+			// тот, кто пересылает: иначе снятие её с ожидающего согласующего делает заявку
+			// Согласованной без его голоса. Форма пересылки уже назначенных не предлагает.
 			if alreadyAdded {
-				tx.Exec("UPDATE application_responsible_users SET required_approval = ?, created_by = ? WHERE application_id = ? AND user_id = ?",
-					fu.RequiredApproval, user.ID, applicationID, fu.UserID)
-			} else {
-				tx.Exec(`
-					INSERT INTO application_responsible_users (application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
-					VALUES (?, ?, ?, 'pending', ?, ?, false)
-				`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID)
+				slog.Warn("получатель пересылки отброшен: уже назначен ответственным",
+					"application_id", applicationID, "recipient_id", fu.UserID, "actor_id", user.ID)
+				continue
 			}
+			tx.Exec(`
+				INSERT INTO application_responsible_users (application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
+				VALUES (?, ?, ?, 'pending', ?, ?, false)
+			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID)
 			addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
 		} else {
 			// Просматривающий
