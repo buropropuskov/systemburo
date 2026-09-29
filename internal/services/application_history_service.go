@@ -211,4 +211,3 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 
 	return items, nil
 }
-

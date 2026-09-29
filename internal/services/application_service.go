@@ -144,7 +144,6 @@ type ApplicationService interface {
 	// Флаг передаётся параметром, а не читается из тела: тело правит клиент.
 	SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error)
 
-
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
 	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
 
@@ -211,7 +210,6 @@ type ApplicationService interface {
 	// GetForwardMessages возвращает ветку заявки (#967) - все пересылки с получателями
 	// и сопроводительным текстом (если был), хронологически (старые сверху).
 	GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error)
-
 
 	// RevokeApproval отзывает ранее данное согласование.
 	RevokeApproval(ctx context.Context, username string, applicationID int, req RevokeApprovalRequest) (*RevokeApprovalResponse, error)
@@ -2751,4 +2749,3 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		ApplicationNumber: applicationNumber,
 	}, nil
 }
-
