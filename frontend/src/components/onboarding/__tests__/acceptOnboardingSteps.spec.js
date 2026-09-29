@@ -20,7 +20,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 const TOUR_KEY = 'accept';
 
 /** Шаги, живущие в модалке карточки заявки: их открывает reveal, их же и пропускает. */
-const CARD_STEPS = acceptOnboardingSteps.filter((s) => s.reveal?.open === 'first-application');
+const CARD_STEPS = acceptOnboardingSteps.filter((s) => ['first-application', 'attachment-people'].includes(s.reveal?.open));
 
 /** Права, упомянутые в `requires` тура - чтобы «полный принимающий» не задавался числом. */
 const STEP_RIGHTS = [...new Set(acceptOnboardingSteps.filter((s) => s.requires).map((s) => s.requires))];
@@ -131,14 +131,29 @@ describe('acceptOnboardingSteps - сегменты и достижимость',
   });
 
   it('внутри сегмента шаги не смотрят все в одну точку', () => {
+    // Исключение одно: состав вложения разбирается дважды - у машин и у людей.
+    // Узел тот же, но между шагами бланк переключается сигналом reveal, и человек
+    // видит другую таблицу; подсветка на том же месте здесь не дубль, а возврат.
+    const СОСТАВ = '[data-testid="attachment-elements"]';
     const byRoute = new Map();
-    for (const s of acceptOnboardingSteps.filter((s) => s.element)) {
+    for (const s of acceptOnboardingSteps.filter((s) => s.element && s.element !== СОСТАВ)) {
       byRoute.set(s.route, [...(byRoute.get(s.route) ?? []), s.element]);
     }
     for (const [route, elements] of byRoute) {
       if (elements.length < 2) continue;
       expect(new Set(elements).size, route).toBe(elements.length);
     }
+    const состав = acceptOnboardingSteps.filter((s) => s.element === СОСТАВ);
+    expect(состав.map((s) => s.reveal?.open)).toEqual(['first-application', 'attachment-people']);
+  });
+
+  it('бланк на людей открывается сам и потом возвращается к машинам', () => {
+    // Шаг рассказывал про должность и гражданство, пока на экране были гос.номер и
+    // марка: тур говорил мимо экрана (#2622).
+    const люди = acceptOnboardingSteps.find((s) => s.id === 'acc-detail-people');
+    expect(люди.reveal.open).toBe('attachment-people');
+    const после = acceptOnboardingSteps[acceptOnboardingSteps.indexOf(люди) + 1];
+    expect(после.reveal?.open, 'следующий шаг возвращает первый бланк').toBe('first-application');
   });
 
   it('шаги тура попадают в общий замок существования селекторов', () => {
