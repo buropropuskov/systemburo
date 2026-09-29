@@ -488,3 +488,57 @@
     flex: 0 0 180px !important;
   }
 }
+
+
+/* Шапка подачи заявки.
+ *
+ * На десктопе заголовок страницы и получатели стоят на одной линии (замер: оба на
+ * y=87), а название вложения справа - на своей. На планшете левая группа переносит
+ * получателей на вторую строку, сами они встают в два ряда, и название вложения
+ * повисает на третьей отметке: три уровня вместо одного, владелец назвал шапку
+ * «очень странной».
+ *
+ * Лечим тем же, чем телефон: строка получателей остаётся ОДНОЙ строкой, а имя
+ * ужимается многоточием - «Ещё N» и плюс при этом целы. Правила зеркалят мобильный
+ * блок `ApplicationRecipientsRow`.
+ */
+@media (min-width: 768px) and (max-width: 1366px) {
+  .recipients-row {
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .recipients-chips {
+    flex: 1 1 auto !important;
+    flex-wrap: nowrap !important;
+    min-width: 0 !important;
+  }
+
+  .recipient-chip {
+    flex: 0 1 auto !important;
+    min-width: 72px !important;
+    overflow: hidden !important;
+  }
+
+  .recipient-chip__name {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* «+ получатель» ломался на две строки: кнопка сжимается наравне с чипами, а
+     подпись у неё короткая и делить её незачем - пусть отдают ширину чипы. */
+  .recipients-add__btn {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* Название вложения прижимается к нижнему краю левой группы - то есть встаёт на
+     линию получателей, а не висит между заголовком и ими. */
+  .create__header-top {
+    align-items: flex-end !important;
+  }
+}
