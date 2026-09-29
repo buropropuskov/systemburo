@@ -63,6 +63,7 @@
 </template>
 
 <script>
+import { useOnboardingStore } from '@/stores/onboarding'
 import ApplicationDatesEditor from './ApplicationDatesEditor.vue'
 
 export default {
@@ -88,6 +89,9 @@ export default {
         }
     },
     emits: ['attachment-selected', 'dates-changed'],
+    setup() {
+        return { onboarding: useOnboardingStore() }
+    },
     data() {
         return {
             selectedAttachment: null
@@ -131,6 +135,21 @@ export default {
                     this.selectedAttachment = newAttachments[0];
                     this.$emit('attachment-selected', this.selectedAttachment);
                 }
+            }
+        },
+        /**
+         * Шаг обучения про бланк на людей открывает его сам: рассказывать про
+         * должность и гражданство, пока на экране гос.номер и марка, значит
+         * говорить мимо экрана (#2622). Сигнал погас - возвращаем первый бланк.
+         */
+        'onboarding.revealOpen': {
+            handler(signal) {
+                if (!this.attachments.length) return;
+                const нужный = signal === 'attachment-people'
+                    ? this.attachments.find(a => a.attachment_type === 'people')
+                    : this.attachments[0];
+                if (!нужный || нужный.id === this.selectedAttachment?.id) return;
+                this.selectAttachment(нужный);
             }
         }
     },
