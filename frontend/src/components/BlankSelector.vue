@@ -154,9 +154,11 @@
                 @dblclick.stop="startRename(attachment)"
               >{{ attachment.display_name }}</span>
 
-              <!-- На тач-экране hover не наступает: кнопки строки держим видимыми всегда. -->
+              <!-- Показ по наведению задан стилями (`tablet.css`), а не условием:
+                   наведения нет ни на телефоне, ни на планшете, и там кнопки видны
+                   всегда. Прежнее условие стояло на `isNarrow`, а тот после сведения
+                   порога стал означать телефон. -->
               <button
-                v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
                 class="edit-btn"
                 title="Переименовать"
                 @click.stop="startRename(attachment)"
@@ -171,7 +173,6 @@
                 </template>
               </button>
               <button
-                v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
                 class="delete-btn"
                 title="Удалить"
                 @click.stop="confirmDelete(attachment)"
