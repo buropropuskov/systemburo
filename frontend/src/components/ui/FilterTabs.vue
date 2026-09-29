@@ -2,7 +2,7 @@
   <div
     ref="row"
     class="filter-tabs"
-    :class="{ 'filter-tabs--collapsed': collapsed }"
+    :class="{ 'filter-tabs--collapsed': collapsed, 'filter-tabs--stacked': stacked }"
   >
     <!-- Не поместились в строку - становимся списком. Ряд при этом остаётся в
          разметке (скрыт), иначе измерять было бы нечего и он бы не «разворачивался»
@@ -11,6 +11,7 @@
       v-if="collapsed"
       class="filter-tabs__select"
       data-testid="filter-tabs-select"
+      teleport
       :model-value="modelValue"
       :options="dropdownOptions"
       label-key="label"
@@ -66,6 +67,15 @@ export default {
       required: true,
     },
     /**
+     * Вертикальная укладка: каждая вкладка строкой во всю ширину, ряд не
+     * сворачивается в список. Так они стоят в мобильном листе фильтров - там
+     * ширина не дефицит, а список внутри листа со списком читался бы странно.
+     */
+    stacked: {
+      type: Boolean,
+      default: false,
+    },
+    /**
      * Приставка `data-testid` вкладки. У потребителей они исторически разные
      * (`filter-tab-organization` в шапке, `employees-scope-organization` в листе
      * фильтров), и замки смотрят именно на них - поэтому приставка задаётся снаружи.
@@ -117,6 +127,7 @@ export default {
       const pills = [...row.children].filter((el) => el.classList.contains('filter-tab'));
       if (!pills.length) return;
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      if (this.stacked) { this.collapsed = false; return; }
       const need = pills.reduce((sum, el) => sum + el.offsetWidth, 0) + gap * (pills.length - 1);
       // Гистерезис в один зазор: без него на границе ряд и список мигают друг в
       // друга, потому что свёрнутый ряд освобождает место и тут же разворачивается.
@@ -148,6 +159,20 @@ export default {
 
 .filter-tabs__select {
   min-width: 220px;
+}
+
+/* Вертикальная укладка: вкладка строкой во всю ширину. Раньше это же делали
+   scoped-правила «Моих сотрудников» и «Моих автомобилей», но после выноса ряда в
+   компонент они перестали доставать до кнопок - scoped-CSS родителя достаёт только
+   до КОРНЯ дочернего компонента. */
+.filter-tabs--stacked {
+  flex-wrap: wrap;
+}
+
+.filter-tabs--stacked .filter-tab {
+  flex: 1 1 100%;
+  justify-content: center;
+  text-align: center;
 }
 
 .filter-tab {

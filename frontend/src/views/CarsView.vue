@@ -54,6 +54,7 @@
         <span class="filter-label">Область</span>
         <OwnershipFilterTabs
           kind="cars"
+          stacked
           testid-prefix="cars-scope-"
           :ownership="ownershipInfo"
           :model-value="currentFilter"
@@ -1875,31 +1876,6 @@ export default {
     align-items: center;
 }
 
-.filter-tabs {
-    display: flex;
-    gap: 10px;
-}
-
-.filter-tab {
-    padding: 0px 16px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    border-radius: 50px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-    height: 30px;
-}
-
-.filter-tab:hover {
-    border-color: var(--accent);
-}
-
-.filter-tab--active {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    border-color: var(--accent);
-}
 
 .blue {
     color: var(--accent-text);
@@ -2802,21 +2778,6 @@ export default {
         border-radius: var(--radius-pill);
         font-size: 15px;
         font-weight: 700;
-    }
-
-    /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
-       (десктоп-табы скрыты v-if="!isNarrow"). Правила через data-v достают до
-       телепортнутого контента sheet: каждый таб на всю ширину строкой - единый ровный
-       вид на любой ширине телефона (тексты табов разной длины). */
-    .filter-tabs {
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-
-    .filter-tab {
-        flex: 1 1 100%;
-        white-space: nowrap;
-        text-align: center;
     }
 
     /* Отступы страницы по токену --gutter (12px на <=768, 10px на <=480). Хардкод

@@ -1,6 +1,7 @@
 <template>
   <FilterTabs
     :tabs="tabs"
+    :stacked="stacked"
     :testid-prefix="testidPrefix"
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
@@ -73,6 +74,11 @@ export default {
     modelValue: {
       type: String,
       required: true,
+    },
+    /** Вертикальная укладка - так ряд стоит в мобильном листе фильтров. */
+    stacked: {
+      type: Boolean,
+      default: false,
     },
     /** Приставка `data-testid`: в шапке одна, в листе фильтров другая. */
     testidPrefix: {
