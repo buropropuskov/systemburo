@@ -28,50 +28,13 @@
           v-model="searchQuery"
           :title="'Поиск сотрудников...'"
         />
-        <div
+        <OwnershipFilterTabs
           v-if="ownershipInfo"
-          class="filter-tabs"
-        >
-          <button
-            v-if="ownershipInfo.has_organization && canSeeOrganization"
-            class="filter-tab"
-            data-testid="filter-tab-organization"
-            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-            title="Сотрудники, которых привязывали пользователи вашей организации"
-            @click="switchFilter('organization')"
-          >
-            Сотрудники организации
-          </button>
-          <button
-            v-if="ownershipInfo.has_company && canSeeCompany"
-            class="filter-tab"
-            data-testid="filter-tab-company"
-            :class="{ 'filter-tab--active': currentFilter === 'company' }"
-            title="Сотрудники, которых привязывали пользователи вашей компании"
-            @click="switchFilter('company')"
-          >
-            Сотрудники компании
-          </button>
-          <button
-            class="filter-tab"
-            data-testid="filter-tab-user"
-            :class="{ 'filter-tab--active': currentFilter === 'user' }"
-            title="Только те сотрудники, которых привязывали лично вы"
-            @click="switchFilter('user')"
-          >
-            Мои сотрудники
-          </button>
-          <button
-            v-if="canSeeAllSystem"
-            class="filter-tab"
-            data-testid="filter-tab-all-system"
-            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-            title="Все сотрудники, когда-либо зарегистрированные в системе"
-            @click="switchFilter('all_system')"
-          >
-            Все сотрудники системы
-          </button>
-        </div>
+          kind="employees"
+          :ownership="ownershipInfo"
+          :model-value="currentFilter"
+          @update:model-value="switchFilter"
+        />
       </div>
     </div>
 
@@ -89,43 +52,14 @@
         class="filter-section"
       >
         <span class="filter-label">Область</span>
-        <div class="filter-tabs">
-          <button
-            v-if="ownershipInfo.has_organization && canSeeOrganization"
-            class="filter-tab"
-            data-testid="employees-scope-organization"
-            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-            @click="switchScopeFromSheet('organization')"
-          >
-            Сотрудники организации
-          </button>
-          <button
-            v-if="ownershipInfo.has_company && canSeeCompany"
-            class="filter-tab"
-            data-testid="employees-scope-company"
-            :class="{ 'filter-tab--active': currentFilter === 'company' }"
-            @click="switchScopeFromSheet('company')"
-          >
-            Сотрудники компании
-          </button>
-          <button
-            class="filter-tab"
-            data-testid="employees-scope-user"
-            :class="{ 'filter-tab--active': currentFilter === 'user' }"
-            @click="switchScopeFromSheet('user')"
-          >
-            Мои сотрудники
-          </button>
-          <button
-            v-if="canSeeAllSystem"
-            class="filter-tab"
-            data-testid="employees-scope-all-system"
-            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-            @click="switchScopeFromSheet('all_system')"
-          >
-            Все сотрудники системы
-          </button>
-        </div>
+        <OwnershipFilterTabs
+          kind="employees"
+          stacked
+          testid-prefix="employees-scope-"
+          :ownership="ownershipInfo"
+          :model-value="currentFilter"
+          @update:model-value="switchScopeFromSheet"
+        />
       </div>
     </FilterSheet>
 
@@ -620,6 +554,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
 import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
+import OwnershipFilterTabs from '@/components/filters/OwnershipFilterTabs.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
 import RegistryLogModal from '@/components/RegistryLogModal.vue';
@@ -636,6 +571,7 @@ const EMPLOYEES_PER_PAGE = 30;
 
 export default {
     components: {
+        OwnershipFilterTabs,
         SearchComponent,
         FilterButton,
         FilterSheet,
@@ -707,20 +643,6 @@ export default {
         };
     },
     computed: {
-        // Вкладка «Сотрудники организации» (раздел реестра по организации).
-        canSeeOrganization() {
-            return usePermissionsStore().hasPermission('section.registry.organization');
-        },
-        // Вкладка «Сотрудники компании» (раздел реестра по компании).
-        canSeeCompany() {
-            return usePermissionsStore().hasPermission('section.registry.company');
-        },
-        // Вкладка «Все сотрудники системы» (all_system) - по разделу каталога;
-        // супер/админ проходят, обычный юзер без гранта не видит. Бэк дополнительно
-        // отдаёт 403 на all_system без прав.
-        canSeeAllSystem() {
-            return usePermissionsStore().hasPermission('section.registry.all_system');
-        },
         // Право изменять реестр сотрудников (кнопки «Добавить»/«Редактировать»).
         // Базовая роль выдаёт его по умолчанию; админ может отозвать ролью.
         canWriteEmployees() {
@@ -1223,31 +1145,6 @@ export default {
     align-items: center;
 }
 
-.filter-tabs {
-    display: flex;
-    gap: 10px;
-}
-
-.filter-tab {
-    padding: 0px 16px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    border-radius: 50px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-    height: 30px;
-}
-
-.filter-tab:hover {
-    border-color: var(--accent);
-}
-
-.filter-tab--active {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    border-color: var(--accent);
-}
 
 .blue {
     color: var(--accent-text);
@@ -1772,20 +1669,6 @@ export default {
         border-radius: var(--radius-pill);
         font-size: 15px;
         font-weight: 700;
-    }
-
-    /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
-       (десктоп-табы скрыты v-if="!isNarrow"). Правила через data-v достают до
-       телепортнутого контента sheet: каждый таб на всю ширину строкой. */
-    .filter-tabs {
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-
-    .filter-tab {
-        flex: 1 1 100%;
-        white-space: nowrap;
-        text-align: center;
     }
 
     /* Отступы страницы по токену --gutter (12px на <=768, 10px на <=480). Хардкод

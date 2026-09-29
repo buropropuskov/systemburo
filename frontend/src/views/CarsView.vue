@@ -28,50 +28,13 @@
           v-model="searchQuery"
           :title="'Поиск машин...'"
         />
-        <div
+        <OwnershipFilterTabs
           v-if="ownershipInfo"
-          class="filter-tabs"
-        >
-          <button
-            v-if="ownershipInfo.has_organization && canSeeOrganization"
-            class="filter-tab"
-            data-testid="filter-tab-organization"
-            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-            title="Автомобили, которых привязывали пользователи вашей организации"
-            @click="switchFilter('organization')"
-          >
-            Машины организации
-          </button>
-          <button
-            v-if="ownershipInfo.has_company && canSeeCompany"
-            class="filter-tab"
-            data-testid="filter-tab-company"
-            :class="{ 'filter-tab--active': currentFilter === 'company' }"
-            title="Автомобили, которых привязывали пользователи вашей компании"
-            @click="switchFilter('company')"
-          >
-            Машины компании
-          </button>
-          <button
-            class="filter-tab"
-            data-testid="filter-tab-user"
-            :class="{ 'filter-tab--active': currentFilter === 'user' }"
-            title="Только те автомобили, которых привязывали лично вы"
-            @click="switchFilter('user')"
-          >
-            Мои машины
-          </button>
-          <button
-            v-if="canSeeAllSystem"
-            class="filter-tab"
-            data-testid="filter-tab-all-system"
-            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-            title="Все автомобили, когда-либо зарегистрированные в системе"
-            @click="switchFilter('all_system')"
-          >
-            Все машины системы
-          </button>
-        </div>
+          kind="cars"
+          :ownership="ownershipInfo"
+          :model-value="currentFilter"
+          @update:model-value="switchFilter"
+        />
       </div>
     </div>
 
@@ -89,43 +52,14 @@
         class="filter-section"
       >
         <span class="filter-label">Область</span>
-        <div class="filter-tabs">
-          <button
-            v-if="ownershipInfo.has_organization && canSeeOrganization"
-            class="filter-tab"
-            data-testid="cars-scope-organization"
-            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-            @click="switchScopeFromSheet('organization')"
-          >
-            Машины организации
-          </button>
-          <button
-            v-if="ownershipInfo.has_company && canSeeCompany"
-            class="filter-tab"
-            data-testid="cars-scope-company"
-            :class="{ 'filter-tab--active': currentFilter === 'company' }"
-            @click="switchScopeFromSheet('company')"
-          >
-            Машины компании
-          </button>
-          <button
-            class="filter-tab"
-            data-testid="cars-scope-user"
-            :class="{ 'filter-tab--active': currentFilter === 'user' }"
-            @click="switchScopeFromSheet('user')"
-          >
-            Мои машины
-          </button>
-          <button
-            v-if="canSeeAllSystem"
-            class="filter-tab"
-            data-testid="cars-scope-all-system"
-            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-            @click="switchScopeFromSheet('all_system')"
-          >
-            Все машины системы
-          </button>
-        </div>
+        <OwnershipFilterTabs
+          kind="cars"
+          stacked
+          testid-prefix="cars-scope-"
+          :ownership="ownershipInfo"
+          :model-value="currentFilter"
+          @update:model-value="switchScopeFromSheet"
+        />
       </div>
     </FilterSheet>
 
@@ -868,6 +802,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
 import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
+import OwnershipFilterTabs from '@/components/filters/OwnershipFilterTabs.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
 import RegistryLogModal from '@/components/RegistryLogModal.vue';
@@ -885,6 +820,7 @@ const CARS_PER_PAGE = 30;
 
 export default {
     components: {
+        OwnershipFilterTabs,
         SearchComponent,
         FilterButton,
         FilterSheet,
@@ -982,20 +918,6 @@ export default {
         };
     },
     computed: {
-        // Вкладка «Автомобили организации» (раздел реестра по организации).
-        canSeeOrganization() {
-            return usePermissionsStore().hasPermission('section.registry.organization');
-        },
-        // Вкладка «Автомобили компании» (раздел реестра по компании).
-        canSeeCompany() {
-            return usePermissionsStore().hasPermission('section.registry.company');
-        },
-        // Вкладка «Все машины системы» (all_system) - по разделу каталога;
-        // супер/админ проходят, обычный юзер без гранта не видит. Бэк дополнительно
-        // отдаёт 403 на all_system без прав.
-        canSeeAllSystem() {
-            return usePermissionsStore().hasPermission('section.registry.all_system');
-        },
         // Право изменять реестр авто (кнопки «Добавить»/«Редактировать»). Базовая
         // роль выдаёт его по умолчанию; админ может отозвать ролью.
         canWriteCars() {
@@ -1954,31 +1876,6 @@ export default {
     align-items: center;
 }
 
-.filter-tabs {
-    display: flex;
-    gap: 10px;
-}
-
-.filter-tab {
-    padding: 0px 16px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    border-radius: 50px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-    height: 30px;
-}
-
-.filter-tab:hover {
-    border-color: var(--accent);
-}
-
-.filter-tab--active {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    border-color: var(--accent);
-}
 
 .blue {
     color: var(--accent-text);
@@ -2881,21 +2778,6 @@ export default {
         border-radius: var(--radius-pill);
         font-size: 15px;
         font-weight: 700;
-    }
-
-    /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
-       (десктоп-табы скрыты v-if="!isNarrow"). Правила через data-v достают до
-       телепортнутого контента sheet: каждый таб на всю ширину строкой - единый ровный
-       вид на любой ширине телефона (тексты табов разной длины). */
-    .filter-tabs {
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-
-    .filter-tab {
-        flex: 1 1 100%;
-        white-space: nowrap;
-        text-align: center;
     }
 
     /* Отступы страницы по токену --gutter (12px на <=768, 10px на <=480). Хардкод
