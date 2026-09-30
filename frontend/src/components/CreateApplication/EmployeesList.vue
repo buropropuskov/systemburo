@@ -82,7 +82,10 @@
       />
     </div>
 
-    <div class="employees-table rt-table">
+    <!-- Пять колонок помещаются в планшетную ширину, поэтому список остаётся
+         таблицей до телефона (rt-keep-table); без пометки общий слой до 899.98
+         складывал строку в столбик без подписей колонок. -->
+    <div class="employees-table rt-table rt-keep-table">
       <div class="table-header rt-head-row">
         <div
           class="header-col number-col"

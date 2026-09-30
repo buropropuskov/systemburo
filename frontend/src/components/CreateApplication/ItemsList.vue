@@ -4,7 +4,7 @@
       <h4>Список ТМЦ</h4>
       <span class="items-badge">{{ items.length }}</span>
     </div>
-    <div class="items-table rt-table">
+    <div class="items-table rt-table rt-keep-table">
       <div class="table-header rt-head-row">
         <div
           class="header-col number-col"
