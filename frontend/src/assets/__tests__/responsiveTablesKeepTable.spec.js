@@ -131,3 +131,24 @@ describe('пометка стоит вместе с rt-table', () => {
     expect(broken).toEqual([]);
   });
 });
+
+/**
+ * Списки вложений в подаче помещаются таблицей уже на 768: у сотрудников пять
+ * колонок, у ТМЦ четыре. Без пометки общий карточный слой (до 899.98) прятал
+ * шапку колонок и складывал строку в столбик без подписей - владелец назвал это
+ * «всё сломано». Перечень явный: класс легко потерять при правке разметки, а
+ * замечает это только глаз на планшете.
+ */
+describe('списки вложений в подаче остаются таблицей на планшете', () => {
+  const KEEP = [
+    'components/CreateApplication/EmployeesList.vue',
+    'components/CreateApplication/ItemsList.vue',
+  ];
+
+  it.each(KEEP)('%s несёт rt-keep-table', (relative) => {
+    const src = fs.readFileSync(path.resolve(SRC, '..', relative), 'utf8');
+    const tables = [...src.matchAll(/class="([^"]*\brt-table\b[^"]*)"/g)].map((m) => m[1]);
+    expect(tables.length, 'в файле нет rt-table').toBeGreaterThan(0);
+    expect(tables.every((cls) => /\brt-keep-table\b/.test(cls))).toBe(true);
+  });
+});
