@@ -83,14 +83,12 @@ test.describe('Application Lifecycle', () => {
 
     // Approve application
     await approveApplication(adminToken, appId, {
-      user_id: adminUserId,
       status: 'approved',
       comment: 'E2E lifecycle approved',
     });
 
     // Take to work
     await takeToWork(adminToken, appId, {
-      user_id: adminUserId,
       action: 'accept',
     });
 
