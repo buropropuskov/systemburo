@@ -48,7 +48,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		Status       *string
 		Confirmation *string
 	}
-	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ?", applicationID).Scan(&app)
+	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
 	if result.Error != nil || result.RowsAffected == 0 {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
@@ -161,75 +161,36 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 
 // RevokeApplicationFromWork отзывает заявку из работы и возвращает в статус обработки.
 func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, username string, applicationID int, req RevokeFromWorkRequest) error {
-	user, err := s.getUserByUsername(ctx, username)
-	if err != nil {
-		return err
-	}
-
-	isApprover, err := s.isApprover(ctx, user.ID)
-	if err != nil {
-		return err
-	}
-	if !isApprover {
-		return echo.NewHTTPError(http.StatusForbidden, "Only approver can revoke the application")
-	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
-
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	var app struct{ Status *string }
-	result := tx.Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&app)
-	if result.Error != nil || result.RowsAffected == 0 {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
-	}
-
-	tx.Exec("UPDATE applications SET status = ?, responsible_user_id = NULL, responsible_comment = NULL WHERE id = ?", models.StatusProcessing, applicationID)
-
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_from_work", &user.ID,
-		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
-
-	// Флаг "статус обновился" - только при реальной смене (#1349): повторный отзыв
-	// уже возвращённой в обработку заявки статус не меняет.
-	if app.Status == nil || *app.Status != models.StatusProcessing {
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
-	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
-	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
-	}
-
-	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
-	return nil
+	return s.returnToProcessing(ctx, username, applicationID, req, backToProcessing{
+		from:      models.StatusInWork,
+		action:    "revoke_from_work",
+		forbidden: "Only approver can revoke the application",
+		conflict:  "Отозвать из работы можно только заявку в работе",
+	})
 }
 
-// RestoreApplicationToWork возвращает заявку в статус обработки.
+// RestoreApplicationToWork возвращает отказанную заявку в статус обработки.
 func (s *applicationService) RestoreApplicationToWork(ctx context.Context, username string, applicationID int, req RevokeFromWorkRequest) error {
+	return s.returnToProcessing(ctx, username, applicationID, req, backToProcessing{
+		from:      models.StatusRefused,
+		action:    "restore_to_work",
+		forbidden: "Only approver can restore the application",
+		conflict:  "Вернуть в работу можно только заявку, в которой отказано",
+	})
+}
+
+// backToProcessing - откуда и под каким именем заявка возвращается в обработку.
+type backToProcessing struct {
+	from      string
+	action    string
+	forbidden string
+	conflict  string
+}
+
+// returnToProcessing переводит заявку принимающим обратно в "В обработке" и гасит её
+// строки. Исходный статус строго один: без этой сверки завершённую или несогласованную
+// заявку можно было вернуть в обработку и заново принять, а архивную - вытащить из архива.
+func (s *applicationService) returnToProcessing(ctx context.Context, username string, applicationID int, req RevokeFromWorkRequest, t backToProcessing) error {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return err
@@ -240,7 +201,10 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 		return err
 	}
 	if !isApprover {
-		return echo.NewHTTPError(http.StatusForbidden, "Only approver can restore the application")
+		return echo.NewHTTPError(http.StatusForbidden, t.forbidden)
+	}
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return err
 	}
 	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
 		return err
@@ -256,24 +220,27 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 		}
 	}()
 
+	// FOR UPDATE: параллельный переход (принятие, отзыв отправителем) не проскочит
+	// между сверкой статуса и записью.
 	var app struct{ Status *string }
-	result := tx.Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&app)
+	result := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
 	if result.Error != nil || result.RowsAffected == 0 {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
 	}
+	if app.Status == nil || *app.Status != t.from {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusConflict, t.conflict)
+	}
 
 	tx.Exec("UPDATE applications SET status = ?, responsible_user_id = NULL, responsible_comment = NULL WHERE id = ?", models.StatusProcessing, applicationID)
 
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "restore_to_work", &user.ID,
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, t.action, &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
-	// Как и в RevokeApplicationFromWork: бамп только при реальной смене статуса (#1349).
-	if app.Status == nil || *app.Status != models.StatusProcessing {
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return err
-		}
+	if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {

@@ -93,7 +93,19 @@ func formatShortName(lastName, firstName, middleName *string) string {
 }
 
 // updateConfirmationBasedOnApprovals пересчитывает confirmation заявки по голосам ответственных.
+// У заявки в работе или завершённой итог согласования зафиксирован: поздний голос, отзыв
+// голоса или пересылка нового согласующего уронили бы confirmation и сняли с КПП уже
+// допущенных. Новые сущности такой заявки согласуются раундом дополнения.
 func (s *applicationService) updateConfirmationBasedOnApprovals(tx *gorm.DB, applicationID int) error {
+	var status *string
+	if err := tx.Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&status).Error; err != nil {
+		slog.Error("Ошибка чтения статуса заявки", "application_id", applicationID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application status")
+	}
+	if status != nil && (*status == models.StatusInWork || *status == models.StatusCompleted) {
+		return nil
+	}
+
 	var responsibles []models.ApplicationResponsibleUser
 	if err := tx.Where("application_id = ?", applicationID).Find(&responsibles).Error; err != nil {
 		slog.Error("Ошибка получения ответственных", "application_id", applicationID, "error", err)
