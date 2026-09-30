@@ -23,12 +23,6 @@ async function getJSON(path) {
   return res.json();
 }
 
-/** POST без тела с уже снятым envelope - повторяется на простых действиях-переключателях. */
-async function postJSON(path) {
-  const res = await apiRequest(path, { method: 'POST' });
-  return res.json();
-}
-
 export async function getApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
   return getJSON(`/applications${query ? '?' + query : ''}`);
@@ -113,22 +107,6 @@ export async function forwardApplication(id, data) {
     body: JSON.stringify(data),
   });
   return res.json();
-}
-
-export async function approveApplication(id, data) {
-  const res = await apiRequest(`/applications/${id}/approve`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return res.json();
-}
-
-export async function takeToWork(id) {
-  return postJSON(`/applications/${id}/take-to-work`);
-}
-
-export async function revokeFromWork(id) {
-  return postJSON(`/applications/${id}/revoke-from-work`);
 }
 
 export async function markAsRead(id) {

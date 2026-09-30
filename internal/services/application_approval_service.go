@@ -437,10 +437,6 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		return err
 	}
 
-	if req.UserID != user.ID {
-		return echo.NewHTTPError(http.StatusForbidden, "You can only approve for yourself")
-	}
-
 	if req.Status != "approved" && req.Status != "rejected" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be 'approved' or 'rejected'")
 	}
@@ -470,7 +466,7 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		SELECT id, approval_status, required_approval
 		FROM application_responsible_users
 		WHERE application_id = ? AND user_id = ?
-	`, applicationID, req.UserID).Scan(&responsible)
+	`, applicationID, user.ID).Scan(&responsible)
 	if result.Error != nil || responsible.ID == 0 {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
@@ -508,7 +504,7 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		UPDATE application_responsible_users
 		SET approval_status = ?, approval_comment = ?, approval_datetime = ?
 		WHERE application_id = ? AND user_id = ?
-	`, req.Status, req.Comment, nowUTC, applicationID, req.UserID)
+	`, req.Status, req.Comment, nowUTC, applicationID, user.ID)
 
 	// Записываем действие в историю
 	actionType := "approve"

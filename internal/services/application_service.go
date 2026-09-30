@@ -531,23 +531,20 @@ type ForwardUser struct {
 	CanView          bool `json:"can_view"`
 }
 
-// UserApprovalRequest тело запроса на согласование заявки.
+// UserApprovalRequest тело запроса на согласование заявки. Голосующий - из токена.
 type UserApprovalRequest struct {
-	UserID  int     `json:"user_id" validate:"gte=1"`
 	Status  string  `json:"status" validate:"required,oneof=approved rejected"`
 	Comment *string `json:"comment"`
 }
 
-// TakeToWorkRequest тело запроса на принятие заявки в работу.
+// TakeToWorkRequest тело запроса на принятие заявки в работу. Принимающий - из токена.
 type TakeToWorkRequest struct {
-	UserID  int     `json:"user_id" validate:"gte=1"`
 	Action  string  `json:"action" validate:"required,oneof=accept reject"`
 	Comment *string `json:"comment"`
 }
 
-// RevokeFromWorkRequest тело запроса на отзыв заявки из работы.
+// RevokeFromWorkRequest тело запроса на отзыв заявки из работы. Принимающий - из токена.
 type RevokeFromWorkRequest struct {
-	UserID  int     `json:"user_id" validate:"gte=1"`
 	Comment *string `json:"comment"`
 }
 

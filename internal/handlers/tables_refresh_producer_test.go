@@ -117,7 +117,7 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	makeApprover(t, db, "trtaccept")
 	require.NoError(t, db.Exec("UPDATE applications SET confirmation = ? WHERE id = ?", models.ConfirmationApproved, created.ApplicationID).Error)
 	require.NoError(t, appSvc.TakeApplicationToWork(context.Background(), "trtaccept", created.ApplicationID,
-		services.TakeToWorkRequest{UserID: getUserID(t, db, "trtaccept"), Action: "accept"}))
+		services.TakeToWorkRequest{Action: "accept"}))
 	audience := findTablesRefresh(fake, scope)
 	require.NotNil(t, audience, "принятие заявки с машиной должно послать tables.refresh cars-таблице")
 	assert.Contains(t, audience, guardID, "аудитория должна включать юзера с правом table.kpp_a.view")
