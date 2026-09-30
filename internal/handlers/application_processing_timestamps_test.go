@@ -106,6 +106,11 @@ func TestApplicationAcceptedAt_FirstTakeWins(t *testing.T) {
 	assert.Equal(t, models.StatusProcessing, revokedStatus)
 	assert.WithinDuration(t, *first, *afterRevoke, time.Millisecond)
 
+	// Возврат в работу штатно идёт только из "Отказано": сперва отказываем.
+	recRefuse := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID),
+		fmt.Sprintf(`{"user_id": %d, "action": "reject", "comment": "refuse"}`, approverID), testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, recRefuse.Code, recRefuse.Body.String())
+
 	recRestore := testutil.POST(t, e, fmt.Sprintf("/applications/%d/restore-to-work", appID),
 		fmt.Sprintf(`{"user_id": %d, "comment": "restore"}`, approverID), testutil.AuthHeader(approverToken))
 	require.Equal(t, http.StatusOK, recRestore.Code, recRestore.Body.String())
