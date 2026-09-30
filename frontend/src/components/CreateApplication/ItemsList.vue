@@ -4,6 +4,9 @@
       <h4>Список ТМЦ</h4>
       <span class="items-badge">{{ items.length }}</span>
     </div>
+    <!-- Четыре колонки помещаются в планшетную ширину, поэтому список остаётся
+         таблицей до телефона (rt-keep-table): общий карточный слой до 899.98
+         прятал шапку и складывал строку в столбик без подписей. -->
     <div class="items-table rt-table rt-keep-table">
       <div class="table-header rt-head-row">
         <div
