@@ -48,7 +48,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		Status       *string
 		Confirmation *string
 	}
-	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ?", applicationID).Scan(&app)
+	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
 	if result.Error != nil || result.RowsAffected == 0 {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
