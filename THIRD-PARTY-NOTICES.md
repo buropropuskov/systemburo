@@ -123,7 +123,7 @@
 | `base64-js` | 1.5.1 | MIT | Copyright (c) 2014 Jameson Little |
 | `birpc` | 2.9.0 | MIT | Copyright (c) 2021 Anthony Fu <https://github.com/antfu> |
 | `bluebird` | 3.7.2 | MIT | Copyright (c) 2013-2018 Petka Antonov |
-| `brace-expansion` | 5.0.9 | MIT | Copyright Julian Gruber <julian@juliangruber.com> |
+| `brace-expansion` | 5.0.12 | MIT | Copyright Julian Gruber <julian@juliangruber.com> |
 | `brotli` | 1.3.3 | MIT | Devon Govett |
 | `browserify-zlib` | 0.2.0 | MIT | Copyright (c) 2014-2015 Devon Govett <devongovett@gmail.com>; Copyright Node.js contributors. All rights reserved; Copyright Joyent, Inc. and other Node contributors. All rights reserved |
 | `buffer` | 6.0.3 | MIT | Copyright (c) Feross Aboukhadijeh, and other contributors |
@@ -2169,7 +2169,7 @@ THE SOFTWARE.
 
 ### 7.49. MIT
 
-Компоненты: `brace-expansion` 5.0.9
+Компоненты: `brace-expansion` 5.0.12
 
 ```text
 MIT License
