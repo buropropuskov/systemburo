@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
-	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -42,10 +41,10 @@ func TestForwardApplication_Archived_Allowed(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "пересылка архивной заявки должна проходить (#869): %s", rec.Body.String())
 
-	// Пересылка реально исполнилась: confirmation стал "Согласование".
-	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/check-approval-status", appID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code)
-	status := testutil.ParseResponse[services.ApprovalStatusResponse](t, rec)
-	require.NotNil(t, status.Confirmation)
-	assert.Equal(t, "Согласование", *status.Confirmation)
+	// Пересылка реально исполнилась: получатель назначен ответственным. Confirmation
+	// завершённой заявки пересылка не пересчитывает - итог согласования зафиксирован.
+	var assigned int64
+	require.NoError(t, db.Raw(`SELECT COUNT(*) FROM application_responsible_users
+		WHERE application_id = ? AND user_id = ?`, appID, respID).Scan(&assigned).Error)
+	assert.EqualValues(t, 1, assigned)
 }

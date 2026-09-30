@@ -589,6 +589,9 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	if err != nil {
 		return nil, err
 	}
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return nil, err
+	}
 	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
 		return nil, err
 	}
@@ -617,6 +620,16 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus == "pending" {
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "You haven't voted yet")
+	}
+
+	var status *string
+	if err := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&status).Error; err != nil {
+		tx.Rollback()
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	if status != nil && (*status == models.StatusInWork || *status == models.StatusCompleted) {
+		tx.Rollback()
+		return nil, echo.NewHTTPError(http.StatusConflict, "Заявка уже принята в работу - голос по ней не отзывается")
 	}
 
 	var oldConfirmation *string
