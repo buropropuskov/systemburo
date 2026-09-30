@@ -12,6 +12,7 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // forwardAuthority - что пересылающий вправе сделать на конкретной заявке.
@@ -454,6 +455,11 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		}
 	}()
 
+	if _, err := lockApplicationForVote(tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Проверяем, что пользователь -- ответственный
 	var responsible struct {
 		ID               int
@@ -606,6 +612,12 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		}
 	}()
 
+	status, err := lockApplicationForVote(tx, applicationID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	var responsible struct {
 		ApprovalStatus   *string
 		RequiredApproval bool
@@ -622,11 +634,6 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "You haven't voted yet")
 	}
 
-	var status *string
-	if err := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&status).Error; err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
 	if status != nil && (*status == models.StatusInWork || *status == models.StatusCompleted) {
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusConflict, "Заявка уже принята в работу - голос по ней не отзывается")
@@ -681,4 +688,17 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		Confirmation: updatedApp.Confirmation,
 		Status:       updatedApp.Status,
 	}, nil
+}
+
+// lockApplicationForVote блокирует строку заявки до чтения голоса и возвращает её статус.
+// Заявка берётся первой, как в правке срока и сбросе раунда: иначе голос держит строку
+// согласующего и ждёт заявку, а правка срока наоборот (дедлок), либо правка не видит
+// незакоммиченный голос по старому окну и не сбрасывает его (#2575).
+func lockApplicationForVote(tx *gorm.DB, applicationID int) (*string, error) {
+	var status *string
+	if err := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&status).Error; err != nil {
+		slog.Error("голос: не удалось заблокировать заявку", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	return status, nil
 }
