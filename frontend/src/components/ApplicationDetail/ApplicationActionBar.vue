@@ -1010,7 +1010,6 @@ export default {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        user_id: this.currentUserId,
                         status: action === 'accept' ? 'approved' : 'rejected',
                         comment: this.actionComment || null
                     })
@@ -1060,7 +1059,6 @@ export default {
             const response = await apiRequest(`/applications/${this.application.id}/take-to-work`, {
                 method: "POST",
                 body: JSON.stringify({
-                    user_id: this.currentUserId,
                     action: 'accept',
                     comment: this.actionComment || null
                 })
@@ -1079,7 +1077,6 @@ export default {
             const response = await apiRequest(`/applications/${this.application.id}/take-to-work`, {
                 method: "POST",
                 body: JSON.stringify({
-                    user_id: this.currentUserId,
                     action: 'reject',
                     comment: this.actionComment || null
                 })
@@ -1100,7 +1097,6 @@ export default {
                 const response = await apiRequest(`/applications/${this.application.id}/revoke-from-work`, {
                     method: "POST",
                     body: JSON.stringify({
-                        user_id: this.currentUserId,
                         comment: null
                     })
                 });
@@ -1125,7 +1121,6 @@ export default {
                 const response = await apiRequest(`/applications/${this.application.id}/restore-to-work`, {
                     method: "POST",
                     body: JSON.stringify({
-                        user_id: this.currentUserId,
                         comment: this.actionComment || null
                     })
                 });
@@ -1188,7 +1183,6 @@ export default {
                 const userApprovalResponse = await apiRequest(`/applications/${this.application.id}/approve`, {
                     method: "POST",
                     body: JSON.stringify({
-                        user_id: this.currentUserId,
                         status: confirmation === 'Согласовано' ? 'approved' : 'rejected',
                         comment: this.actionComment || null
                     })

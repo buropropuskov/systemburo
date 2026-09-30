@@ -498,7 +498,7 @@ func approveFully(ctx context.Context, appSvc services.ApplicationService, db *g
 		if !v.RequiredApproval {
 			continue
 		}
-		req := services.UserApprovalRequest{UserID: v.UserID, Status: stageVoteApproved}
+		req := services.UserApprovalRequest{Status: stageVoteApproved}
 		if err := appSvc.ApproveApplicationByUser(ctx, v.Username, appID, req); err != nil {
 			return fmt.Errorf("согласование пользователем %s: %w", v.Username, err)
 		}
@@ -536,7 +536,7 @@ func rejectOneRequired(ctx context.Context, appSvc services.ApplicationService, 
 			"(шаг пользователей должен был назначить хотя бы одного, см. ensureOrganizationApprovers в "+
 			"users.go)", appID)
 	}
-	req := services.UserApprovalRequest{UserID: target.UserID, Status: stageVoteRejected}
+	req := services.UserApprovalRequest{Status: stageVoteRejected}
 	if err := appSvc.ApproveApplicationByUser(ctx, target.Username, appID, req); err != nil {
 		return fmt.Errorf("отклонение пользователем %s: %w", target.Username, err)
 	}
@@ -556,7 +556,7 @@ func rejectOneRequired(ctx context.Context, appSvc services.ApplicationService, 
 // TakeApplicationToWork требует confirmation="Согласовано" (или полное отсутствие
 // согласующих), поэтому approveFully обязан отработать раньше этого вызова.
 func acceptToWork(ctx context.Context, appSvc services.ApplicationService, db *gorm.DB, approver stageApprover, appID int, at time.Time) error {
-	req := services.TakeToWorkRequest{UserID: approver.UserID, Action: "accept"}
+	req := services.TakeToWorkRequest{Action: "accept"}
 	if err := appSvc.TakeApplicationToWork(ctx, approver.Username, appID, req); err != nil {
 		return fmt.Errorf("принятие в работу принимающим %s: %w", approver.Username, err)
 	}
@@ -669,7 +669,7 @@ func runRevokedStage(ctx context.Context, appSvc services.ApplicationService, db
 		return err
 	}
 
-	revokeReq := services.RevokeFromWorkRequest{UserID: approver.UserID}
+	revokeReq := services.RevokeFromWorkRequest{}
 	if err := appSvc.RevokeApplicationFromWork(ctx, approver.Username, app.ID, revokeReq); err != nil {
 		return fmt.Errorf("возврат заявки %d из работы принимающим %s: %w", app.ID, approver.Username, err)
 	}
