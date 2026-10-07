@@ -21,7 +21,7 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `dompurify` | 3.4.15 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
+| `dompurify` | 3.4.16 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
 | `jszip` | 3.10.2 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
 | `lightningcss` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 | `fsevents` | 2.3.3 | не указана | не указан в поставке пакета |
@@ -141,7 +141,7 @@
 | `dayjs` | 1.11.19 | MIT | Copyright (c) 2018-present, iamkun |
 | `detect-libc` | 2.1.2 | Apache-2.0 | Copyright {yyyy} {name of copyright owner} |
 | `dfa` | 1.2.0 | MIT | Devon Govett |
-| `dompurify` | 3.4.15 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
+| `dompurify` | 3.4.16 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
 | `driver.js` | 1.8.0 | MIT | Copyright (c) Kamran Ahmed |
 | `duplexer2` | 0.1.4 | BSD-3-Clause | Copyright (c) 2013, Deoxxa Development |
 | `entities` | 7.0.1 | BSD-2-Clause | Copyright (c) Felix Böhm |
@@ -236,7 +236,7 @@
 | `saxes` | 5.0.1 | ISC | Louis-Dominique Dubeau |
 | `scule` | 1.3.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `setimmediate` | 1.0.5 | MIT | Copyright (c) 2012 Barnesandnoble.com, llc, Donavon West, and Domenic Denicola |
-| `source-map-js` | 1.2.1 | BSD-3-Clause | Copyright (c) 2009-2011, Mozilla Foundation and contributors |
+| `source-map-js` | 1.2.2 | BSD-3-Clause | Copyright (c) 2009-2011, Mozilla Foundation and contributors |
 | `streamx` | 2.28.0 | MIT | Copyright (c) 2019 Mathias Buus |
 | `string_decoder` | 1.1.1 | MIT | Copyright Node.js contributors. All rights reserved; Copyright Joyent, Inc. and other Node contributors. All rights reserved |
 | `string_decoder` | 1.3.0 | MIT | Copyright Node.js contributors. All rights reserved; Copyright Joyent, Inc. and other Node contributors. All rights reserved |
@@ -3054,7 +3054,7 @@ Apache License
 
 ### 7.63. (MPL-2.0 OR Apache-2.0)
 
-Компоненты: `dompurify` 3.4.15
+Компоненты: `dompurify` 3.4.16
 
 ```text
 ===== LICENSE =====
@@ -8197,7 +8197,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### 7.157. BSD-3-Clause
 
-Компоненты: `source-map-js` 1.2.1
+Компоненты: `source-map-js` 1.2.2
 
 ```text
 Copyright (c) 2009-2011, Mozilla Foundation and contributors
