@@ -21,9 +21,10 @@ type PDConsentGateService struct {
 	settings SettingsService
 	ttl      time.Duration
 
-	mu            sync.RWMutex
-	requirement   PDConsentRequirement
-	requirementAt time.Time
+	mu              sync.RWMutex
+	requirement     PDConsentRequirement
+	requirementAt   time.Time
+	cacheGeneration uint64
 
 	accepted sync.Map // userID(int) -> acceptedEntry
 }
@@ -66,6 +67,7 @@ func (s *PDConsentGateService) Requirement(ctx context.Context) (PDConsentRequir
 		s.mu.RUnlock()
 		return req, nil
 	}
+	generation := s.cacheGeneration
 	s.mu.RUnlock()
 
 	settings, err := s.settings.GetPDConsentSettings(ctx)
@@ -83,8 +85,10 @@ func (s *PDConsentGateService) Requirement(ctx context.Context) (PDConsentRequir
 	}
 
 	s.mu.Lock()
-	s.requirement = req
-	s.requirementAt = time.Now().Add(s.ttl)
+	if generation == s.cacheGeneration {
+		s.requirement = req
+		s.requirementAt = time.Now().Add(s.ttl)
+	}
 	s.mu.Unlock()
 	return req, nil
 }
@@ -98,11 +102,18 @@ func (s *PDConsentGateService) AcceptedVersion(ctx context.Context, userID int) 
 			return entry.version, nil
 		}
 	}
+	s.mu.RLock()
+	generation := s.cacheGeneration
+	s.mu.RUnlock()
 	version, err := s.consents.ActiveVersion(ctx, userID, ConsentTypePDProcessing)
 	if err != nil {
 		return 0, err
 	}
-	s.accepted.Store(userID, acceptedEntry{version: version, expiresAt: time.Now().Add(s.ttl)})
+	s.mu.Lock()
+	if generation == s.cacheGeneration {
+		s.accepted.Store(userID, acceptedEntry{version: version, expiresAt: time.Now().Add(s.ttl)})
+	}
+	s.mu.Unlock()
 	return version, nil
 }
 
@@ -125,18 +136,22 @@ func (s *PDConsentGateService) NeedsConsent(ctx context.Context, userID int) (bo
 // Invalidate сбрасывает кэш принятой редакции пользователя. Обязателен после выдачи
 // и отзыва согласия, иначе доступ открывается/закрывается лишь по истечении TTL.
 func (s *PDConsentGateService) Invalidate(userID int) {
+	s.mu.Lock()
+	s.cacheGeneration++
 	s.accepted.Delete(userID)
+	s.mu.Unlock()
 }
 
 // InvalidateAll сбрасывает кэш требования и всех принятых редакций. Нужен, когда
 // администратор поднял редакцию или поменял настройки согласия.
 func (s *PDConsentGateService) InvalidateAll() {
 	s.mu.Lock()
+	s.cacheGeneration++
 	s.requirement = PDConsentRequirement{}
 	s.requirementAt = time.Time{}
-	s.mu.Unlock()
 	s.accepted.Range(func(key, _ any) bool {
 		s.accepted.Delete(key)
 		return true
 	})
+	s.mu.Unlock()
 }

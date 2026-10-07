@@ -113,8 +113,8 @@ func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
 		return err
 	}
 
-	// Билет проверяется здесь, а не на самой выдаче ZIP: GET /file-archive/download
-	// ходит без Authorization (билет вместо заголовка), и права там уже не спросить.
+	// Право экспорта проверяется на выдаче билета. Публичный GET без Authorization
+	// повторно проверяет состояние владельца билета до чтения файлов.
 	if err := requireBlankDocumentsExport(c, nil, h.resolver, 0); err != nil {
 		return err
 	}
@@ -140,6 +140,8 @@ func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
 // @Param        ticket query string true "Билет из POST /file-archive/download-ticket"
 // @Success      200
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      503 {object} models.HTTPError
 // @Router       /file-archive/download [get]
 func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 	if h.downloads == nil {

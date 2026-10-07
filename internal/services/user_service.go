@@ -57,6 +57,8 @@ type UserService interface {
 	// SetBanCache подключает кэш блокировок, чтобы архив/восстановление мгновенно
 	// сбрасывали его (офбординг без ожидания TTL). Опционально (может не вызываться).
 	SetBanCache(banCache *BanCheckService)
+	// SetPermissionResolver подключает инвалидацию эффективных прав при archive/restore.
+	SetPermissionResolver(resolver *PermissionResolver)
 	// SetPasswordPolicyProvider подключает источник политики паролей.
 	SetPasswordPolicyProvider(p PasswordPolicyProvider)
 	// SetMailSender подключает почту и адрес системы для писем работнику с
@@ -98,6 +100,7 @@ type userService struct {
 	notificationService NotificationService
 	recorder            AuditRecorder
 	banCache            *BanCheckService
+	permissionResolver  *PermissionResolver
 	policy              PasswordPolicyProvider
 	mail                MailSender
 	// baseURL - адрес системы для писем. Пустой означает «ссылку не вставлять».
@@ -121,6 +124,11 @@ func NewUserService(db *gorm.DB, notificationService NotificationService) UserSe
 // в main.go banCheckService создаётся позже userService).
 func (s *userService) SetBanCache(banCache *BanCheckService) {
 	s.banCache = banCache
+}
+
+// SetPermissionResolver подключает общий resolver после конструирования сервиса.
+func (s *userService) SetPermissionResolver(resolver *PermissionResolver) {
+	s.permissionResolver = resolver
 }
 
 // SetPasswordPolicyProvider подключает источник политики паролей (опционально,
@@ -952,6 +960,9 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 	// (BanCheck на следующем запросе перечитает is_active, не дожидаясь TTL).
 	if s.banCache != nil {
 		s.banCache.Invalidate(user.ID)
+	}
+	if s.permissionResolver != nil {
+		s.permissionResolver.Invalidate(user.ID)
 	}
 	return nil
 }
