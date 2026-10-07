@@ -23,7 +23,7 @@ type permissionRealtimePublisher interface {
 // PermissionResolver вычисляет финальный набор прав пользователя.
 //
 // Уровни (приоритет сверху вниз):
-//  1. banned -> прав нет (Has всегда false).
+//  1. banned или is_active=false -> прав нет (Has всегда false).
 //  2. is_super_admin -> allowAll (Has всегда true, включая super-only).
 //  3. is_admin -> adminAll: всё, КРОМЕ super-only ключей и личных deny-override.
 //  4. обычный -> union(role_permission_grants + role.default_groups + user_groups),
@@ -33,7 +33,9 @@ type permissionRealtimePublisher interface {
 // Кэш: in-memory sync.Map с TTL 30s, инвалидируется по Invalidate(userID).
 type PermissionResolver struct {
 	db                *gorm.DB
-	cache             sync.Map // userID -> *cacheEntry
+	cache             sync.Map   // userID -> *cacheEntry
+	cacheMu           sync.Mutex // поколение и публикация, без SQL под lock
+	cacheGeneration   uint64
 	ttl               time.Duration
 	realtimePublisher permissionRealtimePublisher
 }
@@ -147,15 +149,24 @@ func (r *PermissionResolver) Resolve(ctx context.Context, userID int) (Permissio
 		}
 	}
 
+	r.cacheMu.Lock()
+	generation := r.cacheGeneration
+	r.cacheMu.Unlock()
 	set, err := r.computeSet(ctx, userID)
 	if err != nil {
 		return PermissionSet{}, fmt.Errorf("failed to compute permission set for user %d: %w", userID, err)
 	}
 
-	r.cache.Store(userID, &cacheEntry{
-		set:       set,
-		expiresAt: time.Now().Add(r.ttl),
-	})
+	// Инвалидация могла завершиться, пока SELECT ещё вычислял прежние права.
+	// Такой запрос может завершиться, но не должен вернуть старые права в кэш.
+	r.cacheMu.Lock()
+	if generation == r.cacheGeneration {
+		r.cache.Store(userID, &cacheEntry{
+			set:       set,
+			expiresAt: time.Now().Add(r.ttl),
+		})
+	}
+	r.cacheMu.Unlock()
 	return set, nil
 }
 
@@ -179,7 +190,10 @@ func (r *PermissionResolver) SetRealtimePublisher(p permissionRealtimePublisher)
 // Invalidate сбрасывает кэш для конкретного юзера. Вызывается при изменении
 // роли, групп, override или флага is_admin/бана.
 func (r *PermissionResolver) Invalidate(userID int) {
+	r.cacheMu.Lock()
+	r.cacheGeneration++
 	r.cache.Delete(userID)
+	r.cacheMu.Unlock()
 	// Адресный сигнал перезапросить права затронутому (тот же scope user:<id>,
 	// что слушает App.vue для бана). Best-effort, nil-safe. После сброса кэша,
 	// чтобы перезапрос увидел свежие права. Примечание: при бане это сработает
@@ -194,10 +208,13 @@ func (r *PermissionResolver) Invalidate(userID int) {
 // InvalidateAll сбрасывает кэш для всех юзеров. Вызывается при изменении grants
 // любой роли/группы (broad invalidation -- проще, чем отслеживать носителей).
 func (r *PermissionResolver) InvalidateAll() {
+	r.cacheMu.Lock()
+	r.cacheGeneration++
 	r.cache.Range(func(k, _ any) bool {
 		r.cache.Delete(k)
 		return true
 	})
+	r.cacheMu.Unlock()
 	// Гранты роли/группы могли изменить права любого носителя - шлём каждому
 	// подключённому сигнал перезапросить своё (у каждого свой scope user:<id>;
 	// для незатронутых это no-op refetch). Best-effort, nil-safe.
@@ -215,7 +232,7 @@ func permissionsChangedEvent(userID int) realtime.Event {
 func (r *PermissionResolver) computeSet(ctx context.Context, userID int) (PermissionSet, error) {
 	var user models.User
 	if err := r.db.WithContext(ctx).
-		Select("id, role_id, is_super_admin, is_admin, is_banned, ban_reason").
+		Select("id, role_id, is_super_admin, is_admin, is_active, is_banned, ban_reason").
 		First(&user, userID).Error; err != nil {
 		return PermissionSet{}, fmt.Errorf("user not found: %w", err)
 	}
@@ -227,6 +244,12 @@ func (r *PermissionResolver) computeSet(ctx context.Context, userID int) (Permis
 			reason = *user.BanReason
 		}
 		return PermissionSet{banned: true, banReason: reason}, nil
+	}
+	// Архив выключает эффективные права, сохраняя отдельную семантику бана.
+	// Проверка выше admin/super-admin: безопасный GET кабинета не должен
+	// сохранять доступ к административным данным после архивирования.
+	if !user.IsActive {
+		return PermissionSet{}, nil
 	}
 	if user.IsSuperAdmin {
 		return PermissionSet{allowAll: true}, nil

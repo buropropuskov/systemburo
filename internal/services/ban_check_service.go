@@ -20,6 +20,9 @@ type BanCheckService struct {
 	db    *gorm.DB
 	ttl   time.Duration
 	cache sync.Map
+	// Защищает поколение инвалидации и публикацию; SQL выполняется вне lock.
+	cacheMu         sync.Mutex
+	cacheGeneration uint64
 }
 
 type banEntry struct {
@@ -45,6 +48,9 @@ func (s *BanCheckService) Status(ctx context.Context, userID int) (banned, activ
 		}
 	}
 
+	s.cacheMu.Lock()
+	generation := s.cacheGeneration
+	s.cacheMu.Unlock()
 	var user models.User
 	if err := s.db.WithContext(ctx).Select("id, is_banned, is_active").First(&user, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,11 +61,16 @@ func (s *BanCheckService) Status(ctx context.Context, userID int) (banned, activ
 		// Транзиентная ошибка БД - active=true, caller делает fail-open.
 		return false, true, err
 	}
-	s.cache.Store(userID, banEntry{
-		banned:    user.IsBanned,
-		active:    user.IsActive,
-		expiresAt: time.Now().Add(s.ttl),
-	})
+	// Старое чтение не должно восстановить запись после Ban/Archive.
+	s.cacheMu.Lock()
+	if generation == s.cacheGeneration {
+		s.cache.Store(userID, banEntry{
+			banned:    user.IsBanned,
+			active:    user.IsActive,
+			expiresAt: time.Now().Add(s.ttl),
+		})
+	}
+	s.cacheMu.Unlock()
 	return user.IsBanned, user.IsActive, nil
 }
 
@@ -72,5 +83,8 @@ func (s *BanCheckService) IsBanned(ctx context.Context, userID int) (bool, error
 // Invalidate сбрасывает кэш для конкретного пользователя.
 // Вызывается из UserBanService при Ban/Unban.
 func (s *BanCheckService) Invalidate(userID int) {
+	s.cacheMu.Lock()
+	s.cacheGeneration++
 	s.cache.Delete(userID)
+	s.cacheMu.Unlock()
 }

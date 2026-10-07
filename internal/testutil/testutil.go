@@ -195,7 +195,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // причине, что и вариант с архивом, - чтобы не трогать три сотни чужих вызовов.
 func SetupTestAppWithUploads(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
-	e, db, _, uploadDir, cleanup := setupTestApp(t, false, false)
+	e, db, _, uploadDir, cleanup := setupTestApp(t, false, false, nil)
 	return e, db, uploadDir, cleanup
 }
 
@@ -205,7 +205,7 @@ func SetupTestAppWithUploads(t *testing.T) (*echo.Echo, *gorm.DB, string, func()
 // чужих вызовов.
 func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
-	e, db, archiveDir, _, cleanup := setupTestApp(t, false, false)
+	e, db, archiveDir, _, cleanup := setupTestApp(t, false, false, nil)
 	return e, db, archiveDir, cleanup
 }
 
@@ -217,7 +217,7 @@ func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()
 // начали бы получать 403 вместо своих ответов.
 func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, _, cleanup := setupTestApp(t, true, false)
+	e, db, _, _, cleanup := setupTestApp(t, true, false, nil)
 	return e, db, cleanup
 }
 
@@ -227,7 +227,7 @@ func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // где у пользователя поднят флаг.
 func SetupTestAppWithPasswordGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, _, cleanup := setupTestApp(t, false, true)
+	e, db, _, _, cleanup := setupTestApp(t, false, true, nil)
 	return e, db, cleanup
 }
 
@@ -240,11 +240,35 @@ func SetupTestAppWithPasswordGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // снаружи, не ловил ни один тест.
 func SetupTestAppWithBothGates(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, _, cleanup := setupTestApp(t, true, true)
+	e, db, _, _, cleanup := setupTestApp(t, true, true, nil)
 	return e, db, cleanup
 }
 
-func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.Echo, *gorm.DB, string, string, func()) {
+// SecurityGateServices даёт тестам штатные переходы состояния и их общие кэши.
+// Каталоги принадлежат тесту и удаляются testing.T после его завершения.
+type SecurityGateServices struct {
+	Maintenance services.MaintenanceService
+	Bans        *services.UserBanService
+	Users       services.UserService
+	BanCache    *services.BanCheckService
+	Events      *realtime.Hub
+	Downloads   *services.ArchiveDownloadService
+	ArchiveDir  string
+	UploadDir   string
+}
+
+// SetupTestAppWithAllGates включает полный порядок гейтов из router.Setup.
+// BanCache имеет production TTL и связан со штатными сервисами бана/архива.
+// Consent/password сохраняют TTL 0: эти сценарии проверяют флаги, не задержку кэша.
+func SetupTestAppWithAllGates(t *testing.T) (*echo.Echo, *gorm.DB, *SecurityGateServices, func()) {
+	t.Helper()
+	gates := &SecurityGateServices{}
+	e, db, archiveDir, uploadDir, cleanup := setupTestApp(t, true, true, gates)
+	gates.ArchiveDir, gates.UploadDir = archiveDir, uploadDir
+	return e, db, gates, cleanup
+}
+
+func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *SecurityGateServices) (*echo.Echo, *gorm.DB, string, string, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -311,6 +335,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
 	companyService := services.NewCompanyService(db, services.WithCompanyNotifications(notificationServiceEarly))
 	userService := services.NewUserService(db, notificationServiceEarly)
+	userService.SetPermissionResolver(permissionResolver)
 	onboardingService := services.NewOnboardingService(db)
 	themeService := services.NewThemeService(db)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
@@ -324,7 +349,17 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
-	userBanService := services.NewUserBanService(db, permissionResolver, nil, auditRecorder, services.WithBanNotifications(notificationServiceEarly))
+	eventsHub := realtime.NewHub()
+	var banCache *services.BanCheckService
+	if gates != nil {
+		banCache = services.NewBanCheckService(db, 30*time.Second)
+		userService.SetBanCache(banCache)
+	}
+	userBanService := services.NewUserBanService(db, permissionResolver, banCache, auditRecorder, services.WithBanNotifications(notificationServiceEarly))
+	if gates != nil {
+		userBanService = services.NewUserBanService(db, permissionResolver, banCache, auditRecorder, services.WithBanNotifications(notificationServiceEarly), services.WithBanRealtimePublisher(eventsHub))
+		gates.Bans, gates.Users, gates.BanCache, gates.Events = userBanService, userService, banCache, eventsHub
+	}
 	systemTableService := services.NewSystemTableService(db, "./uploads", 10*1024*1024, permissionService)
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
@@ -460,7 +495,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	// Скачивание из файлового архива (#1615, срез B3) - тот же писатель и корень, что
 	// у сервиса выгрузки выше; access/resolver повторяют пару, которой пользуется
 	// attachmentBlankHandler ниже, чтобы гейт ZIP заявки и гейт одного бланка не разъехались.
-	archiveDownloadService := services.NewArchiveDownloadService(db, archiveWriter, settingsService)
+	archiveDownloadService := services.NewArchiveDownloadService(db, archiveWriter, settingsService, services.NewBanCheckService(db, 0))
 	archiveDownloadHandler := handlers.NewArchiveDownloadHandler(
 		archiveDownloadService, applicationService, permissionResolver)
 	telegramService := services.NewTelegramService("", "")
@@ -483,7 +518,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	// структуры в памяти без горутин, зато роуты /events и /events/ticket начинают
 	// существовать. Без них гвард-тест белого списка гейта согласия сверялся бы с
 	// роутером, где нужного роута нет вовсе.
-	eventsHandler := handlers.NewEventsHandler(realtime.NewHub(), realtime.NewTicketStore(60*time.Second))
+	eventsHandler := handlers.NewEventsHandler(eventsHub, realtime.NewTicketStore(60*time.Second), services.NewBanCheckService(db, 0))
 
 	// Сквозной поиск поднимается и здесь: гвард-тесты его прав сверяются с роутером
 	// тестового приложения, и без регистрации они молча проверяли бы роутер без поиска.
@@ -506,10 +541,15 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	// (забаненный не может дать согласие, поэтому ему показывается блокировка, а не
 	// требование). В обычном тестовом приложении BanCheck не навешивается, чтобы не
 	// менять поведение существующих тестов, поэтому пара поднимается только здесь.
-	var consentGate, banCheck echo.MiddlewareFunc
+	var consentGate, banCheck, maintenanceBlock echo.MiddlewareFunc
 	if withConsentGate {
 		consentGate = mw.PDConsentGate(pdConsentGateService)
 		banCheck = mw.BanCheck(services.NewBanCheckService(db, 0))
+	}
+	if gates != nil {
+		banCheck = mw.BanCheck(banCache)
+		maintenanceBlock = mw.MaintenanceBlock(maintenanceService)
+		gates.Maintenance, gates.Downloads = maintenanceService, archiveDownloadService
 	}
 	// Нулевой TTL: тест поднимает и снимает флаг прямо в базе, ждать протухания
 	// кэша ему нечем.
@@ -520,6 +560,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	// nil loginLimiter - в тестах rate-limit на /login не применяется,
 	// т.к. тесты делают много логинов подряд. Отдельный Test* покрывает сам лимитер.
 	router.Setup(e, router.Dependencies{
+		MaintenanceBlock:    maintenanceBlock,
 		ConsentGate:         consentGate,
 		MustChangePassword:  mustChangePassword,
 		BanCheck:            banCheck,

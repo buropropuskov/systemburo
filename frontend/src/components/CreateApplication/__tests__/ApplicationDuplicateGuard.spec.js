@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CreateApplication from '../CreateApplication.vue';
@@ -80,10 +80,14 @@ async function fillPlate(w, parts) {
 }
 
 beforeEach(() => {
+    // Фикстуры срока — сентябрьские; текущий день не должен менять проверку границы.
+    vi.setSystemTime(new Date('2026-09-05T09:00:00Z'));
     setActivePinia(createPinia());
     vi.clearAllMocks();
     localStorage.clear();
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe('CreateApplication - гард дублей перед подачей', () => {
     const PEOPLE_ATTACHMENT = { local_id: 'a1', attachment_type: 'people', display_name: 'Люди' };

@@ -61,10 +61,11 @@ type MaintenanceService interface {
 type maintenanceService struct {
 	db *gorm.DB
 
-	mu       sync.RWMutex
-	cache    *MaintenanceStatus
-	cachedAt time.Time
-	cacheTTL time.Duration
+	mu              sync.RWMutex
+	cache           *MaintenanceStatus
+	cachedAt        time.Time
+	cacheTTL        time.Duration
+	cacheGeneration uint64
 
 	notificationService NotificationService
 }
@@ -182,6 +183,7 @@ func (s *maintenanceService) GetStatusCached(ctx context.Context) *MaintenanceSt
 		s.mu.RUnlock()
 		return &st
 	}
+	generation := s.cacheGeneration
 	s.mu.RUnlock()
 
 	st, err := s.GetStatus(ctx)
@@ -190,14 +192,17 @@ func (s *maintenanceService) GetStatusCached(ctx context.Context) *MaintenanceSt
 		return &MaintenanceStatus{Enabled: false}
 	}
 	s.mu.Lock()
-	s.cache = st
-	s.cachedAt = time.Now().UTC()
+	if generation == s.cacheGeneration {
+		s.cache = st
+		s.cachedAt = time.Now().UTC()
+	}
 	s.mu.Unlock()
 	return st
 }
 
 func (s *maintenanceService) InvalidateCache() {
 	s.mu.Lock()
+	s.cacheGeneration++
 	s.cache = nil
 	s.cachedAt = time.Time{}
 	s.mu.Unlock()

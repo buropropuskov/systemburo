@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 import { readFileSync } from 'node:fs';
@@ -42,7 +42,12 @@ function mountForm() {
 }
 
 describe('CreateApplication — предупреждение о сроке машины «По факту»', () => {
-  beforeEach(() => setActivePinia(createPinia()));
+  beforeEach(() => {
+    // Сроки фикстур проверяются относительно одного дня, независимо от даты прогона.
+    vi.setSystemTime(new Date('2026-09-05T09:00:00Z'));
+    setActivePinia(createPinia());
+  });
+  afterEach(() => vi.useRealTimers());
 
   it('флаг включённого тумблера существует и по умолчанию выключен', () => {
     const w = mountForm();

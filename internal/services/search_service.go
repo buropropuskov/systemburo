@@ -45,7 +45,6 @@ type searchService struct {
 	db        *gorm.DB
 	resolver  *PermissionResolver
 	providers []searchProvider
-	cache     *searchCache
 }
 
 // NewSearchService создаёт сервис сквозного поиска. Реестр провайдеров проверяется
@@ -56,7 +55,7 @@ func NewSearchService(db *gorm.DB, resolver *PermissionResolver) (SearchService,
 	if err := validateSearchProviders(ps); err != nil {
 		return nil, err
 	}
-	return &searchService{db: db, resolver: resolver, providers: ps, cache: newSearchCache()}, nil
+	return &searchService{db: db, resolver: resolver, providers: ps}, nil
 }
 
 func (s *searchService) Search(ctx context.Context, userID int, q string, types []SearchEntityType, limit int) (*SearchResponse, error) {
@@ -92,12 +91,8 @@ func (s *searchService) Search(ctx context.Context, userID int, q string, types 
 		return &SearchResponse{Query: raw, Groups: []SearchGroup{}, TookMS: time.Since(started).Milliseconds()}, nil
 	}
 
-	// Кэш проверяется после разбора прав: иначе смена роли не вступала бы в силу до
-	// истечения записи, а сам ключ пришлось бы городить поверх набора прав.
-	if cached := s.cache.get(userID, raw, limit); cached != nil {
-		return cached, nil
-	}
-
+	// Готовые ответы не кэшируются: права, видимость строк и публикация
+	// могут измениться между одинаковыми поисковыми запросами.
 	req, err := s.buildRequest(ctx, userID, raw, limit, set)
 	if err != nil {
 		return nil, err
@@ -113,7 +108,6 @@ func (s *searchService) Search(ctx context.Context, userID int, q string, types 
 
 	resp := s.assemble(raw, limit, selected, results, degraded)
 	resp.TookMS = time.Since(started).Milliseconds()
-	s.cache.set(userID, raw, limit, resp)
 	return resp, nil
 }
 

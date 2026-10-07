@@ -9,6 +9,7 @@ import (
 
 	"systemburo/internal/httpx"
 	"systemburo/internal/realtime"
+	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -20,20 +21,22 @@ const eventsHeartbeatInterval = 25 * time.Second
 // eventsStreamMaxLifetime - максимальное время жизни одного SSE-соединения. По
 // истечении сервер закрывает поток сигналом reconnect; фронт берёт новый билет
 // (через защищённый POST -> JWTAuth+banCheck) и переоткрывает. Так отзыв доступа
-// (истёкшая сессия, бан) отрабатывает на выдаче билета, а не тянется в стриме.
+// истёкшей сессии отрабатывает на выдаче билета. Бан/архив дополнительно
+// проверяются при открытии потока; уже открытый поток получает штатные сигналы.
 const eventsStreamMaxLifetime = 10 * time.Minute
 
 // EventsHandler отдаёт SSE-поток лёгких real-time сигналов (issue #840) и выдаёт
 // одноразовые билеты для его установления. См. realtime.TicketStore про то, почему
 // билет, а не access-токен в query.
 type EventsHandler struct {
-	hub     *realtime.Hub
-	tickets *realtime.TicketStore
+	hub         *realtime.Hub
+	tickets     *realtime.TicketStore
+	ownerStatus services.TicketOwnerStatus
 }
 
 // NewEventsHandler создаёт хендлер SSE-потока.
-func NewEventsHandler(hub *realtime.Hub, tickets *realtime.TicketStore) *EventsHandler {
-	return &EventsHandler{hub: hub, tickets: tickets}
+func NewEventsHandler(hub *realtime.Hub, tickets *realtime.TicketStore, ownerStatus services.TicketOwnerStatus) *EventsHandler {
+	return &EventsHandler{hub: hub, tickets: tickets, ownerStatus: ownerStatus}
 }
 
 // IssueTicket выдаёт одноразовый билет для подключения к потоку.
@@ -77,6 +80,8 @@ func (h *EventsHandler) IssueTicket(c echo.Context) error {
 // @Param        ticket query string true "Одноразовый билет из POST /events/ticket"
 // @Success      200 {string} string "SSE-поток событий"
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      503 {object} models.HTTPError
 // @Router       /events [get]
 func (h *EventsHandler) Stream(c echo.Context) error {
 	ticket := c.QueryParam("ticket")
@@ -86,6 +91,9 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 	userID, ok := h.tickets.Consume(ticket, time.Now())
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired ticket")
+	}
+	if err := services.RequireActiveTicketOwner(c.Request().Context(), userID, h.ownerStatus); err != nil {
+		return err
 	}
 
 	// Поток живёт eventsStreamMaxLifetime, то есть заведомо дольше общего

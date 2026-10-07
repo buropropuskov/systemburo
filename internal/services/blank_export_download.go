@@ -49,17 +49,18 @@ type archiveDownloadTicket struct {
 // пишет реестр и не зависит от генератора бланков, а тянет за собой билеты и
 // потоковую отдачу, которые самому экспорту не нужны.
 type ArchiveDownloadService struct {
-	db       *gorm.DB
-	writer   *ArchiveWriter
-	settings SettingsService
+	db          *gorm.DB
+	writer      *ArchiveWriter
+	settings    SettingsService
+	ownerStatus TicketOwnerStatus
 
 	mu      sync.Mutex
 	tickets map[string]archiveDownloadTicket
 }
 
 // NewArchiveDownloadService создаёт сервис скачивания файлового архива.
-func NewArchiveDownloadService(db *gorm.DB, writer *ArchiveWriter, settings SettingsService) *ArchiveDownloadService {
-	return &ArchiveDownloadService{db: db, writer: writer, settings: settings, tickets: make(map[string]archiveDownloadTicket)}
+func NewArchiveDownloadService(db *gorm.DB, writer *ArchiveWriter, settings SettingsService, ownerStatus TicketOwnerStatus) *ArchiveDownloadService {
+	return &ArchiveDownloadService{db: db, writer: writer, settings: settings, ownerStatus: ownerStatus, tickets: make(map[string]archiveDownloadTicket)}
 }
 
 // ArchiveItemsQuery - фильтры списка реестра файлового архива (вкладка «Ошибки» и
@@ -165,6 +166,9 @@ func (s *ArchiveDownloadService) ConsumeAndCollect(ctx context.Context, ticket s
 	t, ok := s.consumeTicket(ticket, now)
 	if !ok {
 		return nil, "", 0, echo.NewHTTPError(http.StatusUnauthorized, "билет на скачивание недействителен или истёк")
+	}
+	if err := RequireActiveTicketOwner(ctx, t.userID, s.ownerStatus); err != nil {
+		return nil, "", t.userID, err
 	}
 
 	entries, err := s.periodEntries(ctx, t.from, t.to)

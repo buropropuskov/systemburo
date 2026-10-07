@@ -282,6 +282,7 @@ func main() {
 	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
 	companyService := services.NewCompanyService(db, services.WithCompanyNotifications(notificationServiceEarly))
 	userService := services.NewUserService(db, notificationServiceEarly)
+	userService.SetPermissionResolver(permissionResolver)
 	onboardingService := services.NewOnboardingService(db)
 	themeService := services.NewThemeService(db)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
@@ -512,7 +513,7 @@ func main() {
 			blankExportQuotaService)
 		// Скачивание (#1615, B3) делит писателя с сервисом выгрузки - оба читают/пишут
 		// один и тот же корень архива, заводить второй экземпляр незачем.
-		archiveDownloadService = services.NewArchiveDownloadService(db, archiveWriter, settingsService)
+		archiveDownloadService = services.NewArchiveDownloadService(db, archiveWriter, settingsService, services.NewBanCheckService(db, 0))
 	}
 	// Точки изменения заявки ставят её в очередь на выгрузку (#1615, B1). Сеттеры,
 	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
@@ -580,7 +581,7 @@ func main() {
 
 	// Routes
 	eventsTickets := realtime.NewTicketStore(60 * time.Second)
-	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
+	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets, services.NewBanCheckService(db, 0))
 
 	// Сквозной поиск. Конструктор проверяет реестр разделов и падает на старте, если
 	// раздел объявлен без права: такой раздел в рантайме был бы открыт всем подряд.

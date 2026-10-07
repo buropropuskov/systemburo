@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bufio"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,10 +14,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type activeEventsUser struct{}
+
+func (activeEventsUser) Status(context.Context, int) (bool, bool, error) {
+	return false, true, nil
+}
+
 func newEventsHandler() (*EventsHandler, *realtime.Hub, *realtime.TicketStore) {
 	hub := realtime.NewHub()
 	tickets := realtime.NewTicketStore(time.Minute)
-	return NewEventsHandler(hub, tickets), hub, tickets
+	return NewEventsHandler(hub, tickets, activeEventsUser{}), hub, tickets
 }
 
 func newEventsServer(t *testing.T, h *EventsHandler) *httptest.Server {

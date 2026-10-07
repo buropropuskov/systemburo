@@ -29,7 +29,9 @@ type PasswordChangeGateService struct {
 	db  *gorm.DB
 	ttl time.Duration
 	// cache: userID -> момент, до которого известно, что смена НЕ требуется.
-	cache sync.Map
+	cache           sync.Map
+	cacheMu         sync.Mutex
+	cacheGeneration uint64
 }
 
 // NewPasswordChangeGateService создаёт сервис с заданным TTL кэша (в проде 30s,
@@ -48,6 +50,9 @@ func (s *PasswordChangeGateService) Required(ctx context.Context, userID int) (b
 		}
 	}
 
+	s.cacheMu.Lock()
+	generation := s.cacheGeneration
+	s.cacheMu.Unlock()
 	// Тип учётной записи читается тем же запросом: работник поста своим паролем
 	// не распоряжается (#2280), и поднятый флаг запер бы его в форме, которую
 	// сервер ему всё равно не даст пройти. Флаг при этом не гасим - он останется
@@ -74,7 +79,11 @@ func (s *PasswordChangeGateService) Required(ctx context.Context, userID int) (b
 
 	required := row.MustChangePassword && row.TypeCode != securityUserTypeCode
 	if !required {
-		s.cache.Store(userID, time.Now().Add(s.ttl))
+		s.cacheMu.Lock()
+		if generation == s.cacheGeneration {
+			s.cache.Store(userID, time.Now().Add(s.ttl))
+		}
+		s.cacheMu.Unlock()
 	}
 	return required, nil
 }
@@ -83,5 +92,8 @@ func (s *PasswordChangeGateService) Required(ctx context.Context, userID int) (b
 // ждать TTL не хочется (плановая ротация паролей). Снятия флага не касается -
 // положительный ответ не кэшируется вовсе.
 func (s *PasswordChangeGateService) Invalidate(userID int) {
+	s.cacheMu.Lock()
+	s.cacheGeneration++
 	s.cache.Delete(userID)
+	s.cacheMu.Unlock()
 }
