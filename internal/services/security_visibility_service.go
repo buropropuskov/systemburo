@@ -392,6 +392,10 @@ func (s *applicationService) securityHasAnyPlace(ctx context.Context, userID int
 // назначенных мест -> пустая страница без основного запроса.
 func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, unrestricted bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error) {
 	page, perPage = normalizePage(page, perPage)
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	if !unrestricted {
 		hasPlaces, err := s.securityHasAnyPlace(ctx, userID)
@@ -419,7 +423,6 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 		return []AvailableAttachment{}, 0, nil
 	}
 
-	offset := (page - 1) * perPage
 	dataSQL := `SELECT ` + availableAttachmentSelect + availableAttachmentFrom + `
 		WHERE ` + where + `
 		ORDER BY app.sending_datetime DESC NULLS LAST, a.id DESC

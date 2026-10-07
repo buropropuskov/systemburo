@@ -154,6 +154,9 @@ func bindPassageHistoryQuery(c echo.Context) (models.PassageHistoryQuery, error)
 		return q, echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
 	}
 	q.Normalize()
+	if _, err := q.Offset(); err != nil {
+		return q, err
+	}
 	return q, nil
 }
 

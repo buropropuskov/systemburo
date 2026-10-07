@@ -276,7 +276,7 @@ func (h *ArchiveDownloadHandler) ListItems(c echo.Context) error {
 
 	var p models.PaginationParams
 	if err := c.Bind(&p); err != nil {
-		p = models.PaginationParams{}
+		return apperr.Validation("Invalid pagination parameters")
 	}
 	p.Normalize()
 	q.Page, q.PerPage = p.Page, p.PerPage

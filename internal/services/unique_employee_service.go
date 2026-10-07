@@ -542,6 +542,13 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 
 // GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 3).
 func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueEmployeeWithRelations, int64, error) {
+	params := models.PaginationParams{Page: page, PerPage: perPage}
+	params.Normalize()
+	page, perPage = params.Page, params.PerPage
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, 0, err
@@ -557,7 +564,6 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting employees")
 	}
 
-	offset := (page - 1) * perPage
 	dataQuery := s.buildEmployeesQuery(ctx, ownerInfo, filterType, searchQuery).
 		Select(employeesListSelect).
 		Order("ue.last_name, ue.first_name, ue.middle_name, ue.id").

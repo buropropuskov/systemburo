@@ -381,12 +381,13 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
-	settingsService := services.NewSettingsService(db, &config.Config{
+	testConfig := &config.Config{
 		UploadMaxFileSize:       10 * 1024 * 1024,
 		UploadAllowedImageTypes: []string{"image/jpeg", "image/png", "image/webp"},
 		UploadAllowedDocTypes:   []string{"application/pdf"},
 		PaginationMaxLimit:      100,
-	})
+	}
+	settingsService := services.NewSettingsService(db, testConfig)
 	userService.SetPasswordPolicyProvider(settingsService)
 	// Гейт согласия на обработку ПД (#1567). TTL нулевой: в тестах кэш только мешал
 	// бы - настройки меняются прямо в ходе теста и должны читаться сразу.
@@ -402,7 +403,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	uploadDir := t.TempDir()
 	applicationFileService := services.NewApplicationFileService(db, uploadDir, auditRecorder)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, 30, 100*1024*1024))
-	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
+	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads", testConfig.UploadMaxFileSize)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	attachmentImportService := services.NewAttachmentImportService(db, auditRecorder, uploadDir)

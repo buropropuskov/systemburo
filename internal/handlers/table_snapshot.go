@@ -79,11 +79,25 @@ func (h *TableSnapshotHandler) List(c echo.Context) error {
 		return err
 	}
 
-	page, _ := strconv.Atoi(c.QueryParam("page"))
+	page := 0
+	if v := c.QueryParam("page"); v != "" {
+		var err error
+		page, err = strconv.Atoi(v)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid page")
+		}
+	}
 	if page < 1 {
 		page = 1
 	}
-	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+	perPage := 0
+	if v := c.QueryParam("per_page"); v != "" {
+		var err error
+		perPage, err = strconv.Atoi(v)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid per_page")
+		}
+	}
 	if perPage < 1 || perPage > 100 {
 		perPage = 20
 	}

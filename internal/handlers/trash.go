@@ -45,6 +45,9 @@ func (h *TrashHandler) List(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")
 	}
+	if _, err := models.ParseQueryDateBounds(c.QueryParam("date_from"), c.QueryParam("date_to")); err != nil {
+		return err
+	}
 	tableType, err := h.db.GetTableType(tableID)
 	if err != nil {
 		return err

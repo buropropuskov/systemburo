@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"systemburo/internal/upload"
 
 	"gorm.io/gorm"
 )
@@ -201,7 +202,7 @@ func readManifest(dir string, dec Decryptor) (Manifest, string, error) {
 	}
 	name := present[0]
 
-	rc, err := openPackageFile(filepath.Join(dir, name), dec)
+	rc, err := openContainedPackageFile(dir, name, dec)
 	if err != nil {
 		return Manifest{}, "", fmt.Errorf("манифест %s: %w", name, err)
 	}
@@ -295,7 +296,7 @@ func sealedLabel(sealed bool) string {
 func verifyTableFile(t TableFile, dir string, dec Decryptor, res *VerifyResult) FileCheck {
 	check := FileCheck{Name: t.File}
 
-	rc, err := openPackageFile(filepath.Join(dir, filepath.FromSlash(t.File)), dec)
+	rc, err := openContainedPackageFile(dir, t.File, dec)
 	if err != nil {
 		res.fail("таблица %s (%s): файл не читается: %v", t.Table, t.File, err)
 		check.State = "нет файла"
@@ -332,6 +333,13 @@ func verifyTableFile(t TableFile, dir string, dec Decryptor, res *VerifyResult) 
 			res.fail("таблица %s: строка %d не разбирается как JSON-объект", t.Table, i+1)
 			ok = false
 		}
+		if t.Table == applicationFilesTable {
+			name, _ := obj["stored_name"].(string)
+			if _, err := upload.ContainedPath(dir, name, true); err != nil {
+				res.fail("invalid application file stored_name at row %d", i+1)
+				ok = false
+			}
+		}
 	}
 
 	check.OK = ok
@@ -344,7 +352,7 @@ func verifyTableFile(t TableFile, dir string, dec Decryptor, res *VerifyResult) 
 func verifyDataFile(f DataFile, dir string, dec Decryptor, res *VerifyResult) FileCheck {
 	check := FileCheck{Name: f.File}
 
-	rc, err := openPackageFile(filepath.Join(dir, filepath.FromSlash(f.File)), dec)
+	rc, err := openContainedPackageFile(dir, f.File, dec)
 	if err != nil {
 		res.fail("файл %s (заявка %d, %s): файл не читается: %v", f.File, f.RowID, f.Table, err)
 		check.State = "нет файла"
@@ -484,4 +492,12 @@ func openPackageFile(full string, dec Decryptor) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("файл закрыт конвертом, а ключ для расшифровки не передан")
 	}
 	return os.Open(full)
+}
+
+func openContainedPackageFile(root, name string, dec Decryptor) (io.ReadCloser, error) {
+	path, err := upload.ContainedPath(root, name, false)
+	if err != nil {
+		return nil, err
+	}
+	return openPackageFile(path, dec)
 }

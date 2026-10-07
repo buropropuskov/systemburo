@@ -41,6 +41,14 @@ func NewAuditReader(db *gorm.DB) AuditReader {
 }
 
 func (r *auditReader) List(ctx context.Context, q AuditQuery) ([]models.AuditLogItem, int64, error) {
+	offset := 0
+	if q.PerPage > 0 {
+		var err error
+		offset, err = models.CheckedOffset(q.Page, q.PerPage)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
 	// Условия применяем на общий билдер, затем клонируем сессией под count и data,
 	// чтобы SELECT count(*) не протёк в выборку строк.
 	cond := r.db.WithContext(ctx).Table("audit_log AS h")
@@ -86,7 +94,7 @@ func (r *auditReader) List(ctx context.Context, q AuditQuery) ([]models.AuditLog
 		Joins("LEFT JOIN users u ON u.id = h.actor_user_id").
 		Order("h.created_at DESC, h.id DESC")
 	if q.PerPage > 0 {
-		dataQ = dataQ.Limit(q.PerPage).Offset((q.Page - 1) * q.PerPage)
+		dataQ = dataQ.Limit(q.PerPage).Offset(offset)
 	}
 
 	var rows []row

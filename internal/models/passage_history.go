@@ -59,4 +59,4 @@ func (q *PassageHistoryQuery) Normalize() {
 func (q PassageHistoryQuery) Ascending() bool { return q.Order == "asc" }
 
 // Offset - смещение страницы. Normalize обязателен до вызова.
-func (q PassageHistoryQuery) Offset() int { return (q.Page - 1) * q.PerPage }
+func (q PassageHistoryQuery) Offset() (int, error) { return CheckedOffset(q.Page, q.PerPage) }

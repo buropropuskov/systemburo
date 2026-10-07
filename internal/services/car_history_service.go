@@ -221,6 +221,11 @@ func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int, q m
 // памяти. Порядок аргументов важен: скоуп, затем фильтры, затем страница - именно в
 // этой последовательности `?` встречаются в собранном запросе.
 func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHistoryQuery, scopeSQL string, scopeArgs []any) ([]AllCarsHistoryItem, int64, error) {
+	q.Normalize()
+	limitSQL, limitArgs, err := passageHistoryLimitSQL(q)
+	if err != nil {
+		return nil, 0, err
+	}
 	filterSQL, filterArgs, err := passageHistoryConditions(q, passageFilterSpec{
 		alias:        "h",
 		entityColumn: "h.car_id",
@@ -239,7 +244,6 @@ func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHisto
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting cars history")
 	}
 
-	limitSQL, limitArgs := passageHistoryLimitSQL(q)
 	rows := make([]allCarsHistoryRow, 0, q.PerPage)
 	err = s.db.WithContext(ctx).Raw(
 		allCarsHistorySelectSQL+where+passageHistoryOrderSQL(q, "h")+limitSQL,

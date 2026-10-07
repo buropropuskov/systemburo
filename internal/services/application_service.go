@@ -983,6 +983,9 @@ func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationI
 }
 
 func (s *applicationService) GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
+	if err := filter.ValidateDates(); err != nil {
+		return nil, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -1004,7 +1007,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	query = applyApplicationFilters(query, filter, true, user.ID)
 	query = applyArchiveScope(query, filter)
 	query = applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, true)
-	query = query.Order("a.sending_datetime DESC")
+	query = query.Order("a.sending_datetime DESC, a.id DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
 	if err := query.Find(&rows).Error; err != nil {
@@ -1025,6 +1028,9 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 // Список жёстко ограничен confirmation='Согласовано' AND status='В работе' (BE-привязка
 // принимает только такие цели, loadActiveApprovedApp), фильтр статуса игнорируется.
 func (s *applicationService) GetAttachableApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
+	if err := filter.ValidateDates(); err != nil {
+		return nil, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -1045,7 +1051,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 	// Намеренно БЕЗ applyApplicationAccessFilter - привязка это admin-операция.
 	query = applyApplicationFilters(query, filter, true, user.ID)
 	query = applyArchiveScope(query, filter)
-	query = query.Order("a.sending_datetime DESC")
+	query = query.Order("a.sending_datetime DESC, a.id DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
 	if err := query.Find(&rows).Error; err != nil {
@@ -1075,6 +1081,16 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 
 // GetApplicationsPaginated возвращает страницу заявок с общим количеством.
 func (s *applicationService) GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error) {
+	if err := filter.ValidateDates(); err != nil {
+		return nil, 0, err
+	}
+	params := models.PaginationParams{Page: page, PerPage: perPage}
+	params.Normalize()
+	page, perPage = params.Page, params.PerPage
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, 0, err
@@ -1091,11 +1107,10 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	offset := (page - 1) * perPage
 	dataQuery := s.buildApplicationsBaseQuery(ctx, user.ID, isApprover, filter)
 	dataQuery = dataQuery.
 		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
-		Order("a.sending_datetime DESC").
+		Order("a.sending_datetime DESC, a.id DESC").
 		Offset(offset).
 		Limit(perPage)
 
@@ -1145,6 +1160,9 @@ func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context,
 // GetUserApplications возвращает заявки текущего пользователя с фильтрацией (legacy,
 // полный список без пагинации - обратная совместимость для вызовов без per_page).
 func (s *applicationService) GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
+	if err := filter.ValidateDates(); err != nil {
+		return nil, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -1169,6 +1187,16 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 // него офсет-пагинация по неуникальному sending_datetime (несколько заявок в одну
 // секунду) могла бы дублировать/пропускать строки между страницами.
 func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error) {
+	if err := filter.ValidateDates(); err != nil {
+		return nil, 0, err
+	}
+	params := models.PaginationParams{Page: page, PerPage: perPage}
+	params.Normalize()
+	page, perPage = params.Page, params.PerPage
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, 0, err
@@ -1181,7 +1209,6 @@ func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, u
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	offset := (page - 1) * perPage
 	dataQuery := s.buildUserApplicationsBaseQuery(ctx, user, filter).
 		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
 		Order("a.sending_datetime DESC, a.id DESC").
@@ -2745,4 +2772,21 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		ApplicationID:     appID,
 		ApplicationNumber: applicationNumber,
 	}, nil
+}
+
+// DateBounds validates the optional sending date filters before SQL.
+func (f ApplicationFilter) DateBounds() (models.QueryDateBounds, error) {
+	var from, to string
+	if f.DateFrom != nil {
+		from = *f.DateFrom
+	}
+	if f.DateTo != nil {
+		to = *f.DateTo
+	}
+	return models.ParseQueryDateBounds(from, to)
+}
+
+func (f ApplicationFilter) ValidateDates() error {
+	_, err := f.DateBounds()
+	return err
 }

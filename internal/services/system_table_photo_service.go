@@ -2,9 +2,12 @@ package services
 
 import (
 	"context"
+	"errors"
+	"gorm.io/gorm/clause"
 	"net/http"
 	"os"
 	"path/filepath"
+	"systemburo/internal/upload"
 
 	"systemburo/internal/models"
 
@@ -14,50 +17,58 @@ import (
 
 // UploadPhoto сохраняет метаданные фотографии системной таблицы. Запись файла
 // на диск выполняет upload-конвейер на уровне хендлера (см. internal/upload).
-func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error) {
-	// Получаем ID пользователя
-	var userID int
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Select("id").
-		Where("username = ?", username).
-		Row().
-		Scan(&userID); err != nil {
-		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-
-	// Проверяем существование таблицы
+func (s *systemTableService) ValidatePhotoParent(ctx context.Context, tableID int) error {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&models.SystemTable{}).
-		Where("id = ? AND is_active = ?", tableID, true).
-		Count(&count).Error; err != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	if err := s.db.WithContext(ctx).Model(&models.SystemTable{}).Where("id = ? AND is_active = ?", tableID, true).Count(&count).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 	if count == 0 {
-		return 0, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+		return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 	}
+	return nil
+}
 
-	// Первая фотография -- главная
-	var photoCount int64
-	s.db.WithContext(ctx).Model(&models.SystemTablePhoto{}).
-		Where("table_id = ?", tableID).
-		Count(&photoCount)
-
-	photo := models.SystemTablePhoto{
-		TableID:    tableID,
-		PhotoURL:   photoURL,
-		FileName:   &fileName,
-		FileSize:   &fileSize,
-		MimeType:   &mimeType,
-		IsMain:     photoCount == 0,
-		UploadedBy: &userID,
+func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error) {
+	ids, err := s.UploadPhotos(ctx, tableID, username, []upload.SavedFile{{URL: photoURL, FileName: fileName, DetectedMime: mimeType, Size: fileSize}})
+	if err != nil {
+		return 0, err
 	}
+	return ids[0], nil
+}
 
-	if err := s.db.WithContext(ctx).Create(&photo).Error; err != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+// UploadPhotos commits the entire metadata batch under a parent row lock.
+func (s *systemTableService) UploadPhotos(ctx context.Context, tableID int, username string, files []upload.SavedFile) ([]int, error) {
+	ids := make([]int, 0, len(files))
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var parent models.SystemTable
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND is_active = ?", tableID, true).First(&parent).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+		var userID int
+		if err := tx.Table("users").Select("id").Where("username = ?", username).Row().Scan(&userID); err != nil {
+			return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+		}
+		var count int64
+		if err := tx.Model(&models.SystemTablePhoto{}).Where("table_id = ?", tableID).Count(&count).Error; err != nil {
+			return err
+		}
+		for i, f := range files {
+			name, size, mime := f.FileName, f.Size, f.DetectedMime
+			row := models.SystemTablePhoto{TableID: tableID, PhotoURL: f.URL, FileName: &name, FileSize: &size, MimeType: &mime, IsMain: count == 0 && i == 0, UploadedBy: &userID}
+			if err := tx.Create(&row).Error; err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Database error").SetInternal(err)
+			}
+			ids = append(ids, row.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	return photo.ID, nil
+	return ids, nil
 }
 
 // DeletePhoto удаляет фотографию системной таблицы с файлом.

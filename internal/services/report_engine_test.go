@@ -147,7 +147,7 @@ func TestAggregatePlan_PeriodAndDateRange(t *testing.T) {
 		if strings.Contains(w.expr, "ch.created_at >= ?") {
 			hasFrom = true
 		}
-		if strings.Contains(w.expr, "ch.created_at <= ?") {
+		if strings.Contains(w.expr, "ch.created_at < ?") {
 			hasTo = true
 		}
 	}

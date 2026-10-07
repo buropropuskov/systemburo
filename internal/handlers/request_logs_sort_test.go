@@ -52,6 +52,40 @@ func logURLs(t *testing.T, body []byte) []string {
 
 func us(v int64) *int64 { return &v }
 
+func TestRequestLogs_NormalizedMetaMatchesActualPage(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	at := time.Now().UTC().Add(-time.Hour)
+	for i := 0; i < 110; i++ {
+		insertSortedLog(t, db, "/api/s6-normalized/"+strconv.Itoa(i), "GET", us(1000), at.Add(time.Duration(i)*time.Second))
+	}
+	for _, tc := range []struct {
+		query            string
+		page, size, rows int
+	}{
+		{"", 1, 20, 20}, {"&page=-3&per_page=-8", 1, 20, 20},
+		{"&page=1&per_page=1000", 1, 100, 100}, {"&page=2&per_page=25", 2, 25, 25},
+	} {
+		rec := testutil.GET(t, e, "/request-logs?search=s6-normalized"+tc.query, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		// per_page has an underscore in the response envelope.
+		var envelope struct {
+			Meta struct {
+				Page    int `json:"page"`
+				PerPage int `json:"per_page"`
+			}
+			Data []any
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+		assert.Equal(t, tc.page, envelope.Meta.Page)
+		assert.Equal(t, tc.size, envelope.Meta.PerPage)
+		assert.Len(t, envelope.Data, tc.rows)
+	}
+}
+
 // Сортировка по длительности идёт в обе стороны и считает по микросекундной
 // колонке, а записи без длительности уходят в конец в обоих направлениях.
 func TestRequestLogs_SortByDuration(t *testing.T) {

@@ -23,6 +23,11 @@ func NewPDAuditService(db *gorm.DB) *PDAuditService {
 
 // List возвращает страницу журнала с фильтрами и общее количество.
 func (s *PDAuditService) List(ctx context.Context, f models.PDAuditFilter) (models.PDAuditPageResponse, error) {
+	page, limit := normalizePage(f.Page, f.Limit)
+	offset, err := models.CheckedOffset(page, limit)
+	if err != nil {
+		return models.PDAuditPageResponse{}, err
+	}
 	q := s.applyFilters(s.db.WithContext(ctx).Model(&models.PDAuditLog{}), f)
 
 	var total int64
@@ -30,10 +35,9 @@ func (s *PDAuditService) List(ctx context.Context, f models.PDAuditFilter) (mode
 		return models.PDAuditPageResponse{}, fmt.Errorf("count pd audit: %w", err)
 	}
 
-	page, limit := normalizePage(f.Page, f.Limit)
 	rows := make([]models.PDAuditLog, 0, limit)
 	if err := q.Order("created_at DESC, id DESC").
-		Limit(limit).Offset((page - 1) * limit).
+		Limit(limit).Offset(offset).
 		Find(&rows).Error; err != nil {
 		return models.PDAuditPageResponse{}, fmt.Errorf("list pd audit: %w", err)
 	}

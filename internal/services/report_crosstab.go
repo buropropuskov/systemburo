@@ -199,7 +199,7 @@ var avgMetrics = map[string]bool{
 	"avg_cars_per_day": true,
 }
 
-// reportDateBounds извлекает границы периода [from, to] из date_range-фильтра запроса
+// reportDateBounds извлекает границы периода [from, to) из date_range-фильтра запроса
 // (в МСК, как и бакетинг — parseReportDate). Нужны для деления крайних неполных
 // бинов на фактическое число дней пересечения с периодом.
 func reportDateBounds(filters []models.ReportFilterValue) (from, to time.Time, hasFrom, hasTo bool) {
@@ -218,7 +218,7 @@ func reportDateBounds(filters []models.ReportFilterValue) (from, to time.Time, h
 }
 
 // binDays возвращает число календарных дней в периоде-бине гранулярности unit,
-// начинающемся в binStart, с поправкой на пересечение с запрошенным окном [from,to]:
+// начинающемся в binStart, с поправкой на пересечение с запрошенным окном [from,to):
 // крайний неполный бин делится на фактическое число дней внутри окна (а не на полную
 // длину бина). Если границы окна не заданы — берётся полная длина бина (day=1,
 // week=7, month=число дней месяца).
@@ -230,9 +230,9 @@ func binDays(binStart time.Time, unit string, from, to time.Time, hasFrom, hasTo
 	}
 	hi := binEnd
 	if hasTo {
-		// to — конец дня (23:59:59) МСК; эксклюзивная граница окна = начало след. суток
+		// to — эксклюзивная граница окна (начало следующих суток)
 		// в той же зоне (иначе смешение с MSK-бинами даёт дробные дни).
-		toExcl := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, analyticsLocation).AddDate(0, 0, 1)
+		toExcl := to
 		if toExcl.Before(hi) {
 			hi = toExcl
 		}
@@ -260,7 +260,7 @@ func nextBinStart(binStart time.Time, unit string) time.Time {
 // applyAvgPerDay превращает целые счётчики метрики-среднего в дробные средние в день.
 // Чистая функция. Для разреза period каждое значение бина делится на число дней бина
 // (binDays, с поправкой на крайние неполные бины). Для разреза none знаменатель —
-// число дней всего окна [from,to] (общее среднее). Значения переносятся из Values в
+// число дней всего окна [from,to) (общее среднее). Значения переносятся из Values в
 // FloatValues и удаляются из Values (метрика дробная). Округление до 1 знака.
 func applyAvgPerDay(rows []models.ReportMetricRow, metric, dimension, granularity string, filters []models.ReportFilterValue) float64 {
 	from, to, hasFrom, hasTo := reportDateBounds(filters)
@@ -297,16 +297,16 @@ func applyAvgPerDay(rows []models.ReportMetricRow, metric, dimension, granularit
 	return round1(float64(sumCount) / windowDays(from, to, hasFrom, hasTo))
 }
 
-// windowDays — число календарных дней в окне [from,to] включительно; без заданных
+// windowDays — число календарных дней в окне [from,to) с эксклюзивным концом; без заданных
 // границ -> 1 (нет периода — среднее вырождается в сам счётчик). Считается по датам
-// (to нормализуется к началу своих суток), чтобы не зависеть от 23:59:59-хвоста.
+// (to уже начало следующих суток).
 func windowDays(from, to time.Time, hasFrom, hasTo bool) float64 {
 	if !hasFrom || !hasTo {
 		return 1
 	}
 	fromDay := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, analyticsLocation)
 	toDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, analyticsLocation)
-	days := int(toDay.Sub(fromDay).Hours()/24) + 1
+	days := int(toDay.Sub(fromDay).Hours() / 24)
 	if days < 1 {
 		days = 1
 	}

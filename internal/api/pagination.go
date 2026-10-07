@@ -3,6 +3,8 @@ package api
 import (
 	"strconv"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -45,6 +47,10 @@ func ParsePagination(c echo.Context, defaultLimit int) PaginationParams {
 
 // ApplyPagination применяет offset/limit к GORM-запросу на основании параметров пагинации.
 func ApplyPagination(db *gorm.DB, p PaginationParams) *gorm.DB {
-	offset := (p.Page - 1) * p.Limit
+	offset, err := models.CheckedOffset(p.Page, p.Limit)
+	if err != nil {
+		db.AddError(err)
+		return db
+	}
 	return db.Offset(offset).Limit(p.Limit)
 }

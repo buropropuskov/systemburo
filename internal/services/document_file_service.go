@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -134,11 +135,18 @@ func (s *documentFileService) Save(_ context.Context, file *multipart.FileHeader
 	if err != nil {
 		return "", "", echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи файла")
 	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, combined); err != nil {
-		_ = os.Remove(savePath)
-		return "", "", echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи файла")
+	written, copyErr := io.Copy(dst, io.LimitReader(combined, maxSize+1))
+	err = errors.Join(copyErr, dst.Close())
+	if written > maxSize {
+		err = errors.Join(err, echo.NewHTTPError(http.StatusBadRequest, "Файл слишком большой"))
+	}
+	if err != nil {
+		cleanupErr := os.Remove(savePath)
+		code, message := http.StatusInternalServerError, "Ошибка записи файла"
+		if written > maxSize && cleanupErr == nil {
+			code, message = http.StatusBadRequest, "Файл слишком большой"
+		}
+		return "", "", echo.NewHTTPError(code, message).SetInternal(errors.Join(err, cleanupErr))
 	}
 
 	return storedName, ext, nil

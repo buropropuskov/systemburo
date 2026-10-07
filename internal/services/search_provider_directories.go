@@ -52,11 +52,11 @@ func (directorySearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 	for _, k := range directoryKinds {
 		cond, condArgs := searchCondition([]string{k.titleCol}, req.Raw)
 		branches = append(branches, fmt.Sprintf(
-			`(SELECT id, %s AS title, ? AS subtitle, ? AS kind
+			`(SELECT id, %s AS title, ? AS subtitle, ? AS kind, %s
 			  FROM %s WHERE is_active AND (%s)
-			  ORDER BY id DESC LIMIT ?)`,
-			k.titleCol, k.table, cond))
-		args = append(args, k.label, k.entity)
+			  ORDER BY match_rank, title, id DESC LIMIT ?)`,
+			k.titleCol, matchRankExpr(k.titleCol), k.table, cond))
+		args = append(args, k.label, k.entity, req.Raw, req.Raw)
 		args = append(args, condArgs...)
 		args = append(args, req.Limit+1)
 	}
@@ -64,12 +64,9 @@ func (directorySearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 	// Внешний LIMIT поверх объединения: без него до сортировки доезжало бы
 	// len(directoryKinds) * (limit+1) строк ради limit нужных.
 	sql := fmt.Sprintf(`SELECT id, title, subtitle, kind FROM (%s) d
-		ORDER BY CASE
-			WHEN LOWER(TRIM(title)) = LOWER(TRIM(?)) THEN 0
-			WHEN LOWER(title) LIKE LOWER(?) || '%%' THEN 1
-			ELSE 2 END, title
+		ORDER BY match_rank, title, kind, id DESC
 		LIMIT ?`, strings.Join(branches, " UNION ALL "))
-	args = append(args, req.Raw, req.Raw, req.Limit+1)
+	args = append(args, req.Limit+1)
 
 	// Через scanKindedRows, а не rowsToItems: у каждой строки свой код сущности --
 	// организация и марка ведут на разные страницы.

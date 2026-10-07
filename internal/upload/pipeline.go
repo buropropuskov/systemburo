@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -72,6 +73,9 @@ func SaveMultipart(c echo.Context, field string, opts Options) ([]SavedFile, err
 	for _, fh := range files {
 		file, err := saveOne(fh, opts)
 		if err != nil {
+			if cleanupErr := Cleanup(saved, opts.Dir); cleanupErr != nil {
+				return nil, errors.Join(apperr.Internal("Не удалось удалить загруженные файлы"), err, cleanupErr)
+			}
 			return nil, err
 		}
 		saved = append(saved, file)
@@ -110,7 +114,9 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	// уточняется по имени: иначе таблица сохраняется как текстовый документ.
 	stored := OfficeMimeByName(detected, fh.Filename)
 	if opts.Normalize != nil && imaging.Normalizable(detected) {
-		data, outMime, err := imaging.Normalize(src, detected, *opts.Normalize)
+		normalize := *opts.Normalize
+		normalize.MaxEncodedBytes = opts.MaxFileSize
+		data, outMime, err := imaging.Normalize(src, detected, normalize)
 		if err != nil {
 			return SavedFile{}, apperr.Validation("Не удалось обработать изображение")
 		}
@@ -130,24 +136,24 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	if err != nil {
 		return SavedFile{}, apperr.Internal("Не удалось записать файл")
 	}
-	defer dst.Close()
 
 	writer, err := crypto.NewStreamWriter(dst, opts.EncryptionKey)
 	if err != nil {
-		os.Remove(path)
-		return SavedFile{}, apperr.Internal("Не удалось записать файл")
+		return SavedFile{}, errors.Join(apperr.Internal("Не удалось записать файл"), dst.Close(), os.Remove(path))
 	}
-	if _, err := io.Copy(writer, content); err != nil {
-		os.Remove(path)
-		return SavedFile{}, apperr.Internal("Не удалось записать файл")
+	if opts.MaxFileSize > 0 {
+		content = io.LimitReader(content, opts.MaxFileSize+1)
 	}
-	// Close дописывает последний чанк: без него файл не прочитается, поэтому его
-	// ошибка обязана дойти до вызывающего, а не потеряться в defer.
-	if err := writer.Close(); err != nil {
-		os.Remove(path)
-		return SavedFile{}, apperr.Internal("Не удалось записать файл")
+	n, err := finishWrite(writer, dst, content, opts.MaxFileSize, func() error { return os.Remove(path) })
+	if err != nil {
+		var validation *apperr.Error
+		if errors.As(err, &validation) {
+			return SavedFile{}, err
+		}
+		return SavedFile{}, errors.Join(apperr.Internal("Не удалось записать файл"), err)
 	}
 
+	size = n
 	mimeType := fh.Header.Get("Content-Type")
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
@@ -162,4 +168,32 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 		DetectedMime: stored,
 		Encrypted:    opts.EncryptionKey != nil,
 	}, nil
+}
+
+// finishWrite always finalizes the cipher, then closes the file before cleanup.
+func finishWrite(writer io.WriteCloser, file io.Closer, src io.Reader, maxSize int64, cleanup func() error) (int64, error) {
+	n, copyErr := io.Copy(writer, src)
+	if maxSize > 0 && n > maxSize {
+		copyErr = apperr.Validation("Файл слишком большой")
+	}
+	err := errors.Join(copyErr, writer.Close(), file.Close())
+	if err != nil {
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			return n, errors.Join(apperr.Internal("Не удалось удалить недописанный файл"), err, cleanupErr)
+		}
+		return n, err
+	}
+	return n, nil
+}
+
+// Cleanup compensates only files returned by this invocation.
+func Cleanup(files []SavedFile, dir string) error {
+	var result error
+	for _, file := range files {
+		err := os.Remove(filepath.Join(dir, file.StoredName))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			result = errors.Join(result, err)
+		}
+	}
+	return result
 }

@@ -6,6 +6,7 @@ package handlers_test
 // слов находит запись, у которой слова лежат в разных колонках.
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -16,6 +17,75 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Every UNION branch must keep an old exact match before taking its local LIMIT.
+func TestSearch_UnionBranchesExactBeforeLimit(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	cases := []struct{ table, column, group, visibility string }{
+		{"organizations", "name", "directories", "is_active"},
+		{"companies", "name", "directories", "is_active"},
+		{"unload_places", "name", "directories", "is_active"},
+		{"system_tables", "name", "directories", "is_active"},
+		{"marks", "name", "directories", "is_active"},
+		{"citizenships", "name", "directories", "is_active"},
+		{"license_plate_formats", "name", "directories", "is_active"},
+		{"news", "title", "content", "is_active"},
+		{"announcements", "title", "content", "is_active"},
+		{"documents", "title", "content", "is_visible"},
+		{"person_blacklists", "last_name", "blacklist", "is_active"},
+		{"vehicle_blacklists", "car_number", "blacklist", "is_active"},
+	}
+	for index, tc := range cases {
+		t.Run(tc.table, func(t *testing.T) {
+			query := fmt.Sprintf("s6rank%02dexact", index)
+			// CleanDB does not clear every directory. Remove only this fixture prefix.
+			remove := func() {
+				require.NoError(t, db.Exec("DELETE FROM "+tc.table+" WHERE "+tc.column+" LIKE ?", query+"%").Error)
+			}
+			remove()
+			defer remove()
+			insert := func(title string) {
+				row := map[string]any{tc.column: title, tc.visibility: true}
+				if tc.table == "system_tables" {
+					row["table_type"] = "cars"
+					row["display_name"] = title
+				}
+				if tc.table == "person_blacklists" {
+					row["first_name"] = ""
+					row["middle_name"] = ""
+					row["reason"] = "synthetic"
+				}
+				if tc.table == "vehicle_blacklists" {
+					row["reason"] = "synthetic"
+					row["mark_id"] = 0
+				}
+				require.NoError(t, db.Table(tc.table).Create(row).Error)
+			}
+			insert(query)
+			for i := 0; i < 10; i++ {
+				insert(fmt.Sprintf("%s partial %02d", query, i))
+			}
+			rec := testutil.GET(t, e, "/search?q="+urlQuery(query)+"&limit=1&types="+tc.group, testutil.AuthHeader(token))
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			resp := decodeSearch(t, rec.Body.String())
+			found := false
+			for _, group := range resp.Data.Groups {
+				if group.Type != tc.group {
+					continue
+				}
+				require.Len(t, group.Items, 1, rec.Body.String())
+				assert.Equal(t, query, group.Items[0].Title, "old exact survives local branch LIMIT")
+				found = true
+			}
+			require.True(t, found, rec.Body.String())
+		})
+	}
+}
 
 // urlQuery кодирует строку запроса: в тестовых запросах есть пробелы и кириллица.
 func urlQuery(q string) string { return url.QueryEscape(q) }

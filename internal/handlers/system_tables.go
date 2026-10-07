@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -825,6 +826,9 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 
+	if err := h.service.ValidatePhotoParent(c.Request().Context(), tableID); err != nil {
+		return err
+	}
 	saved, err := upload.SaveMultipart(c, "photos", upload.Options{
 		Dir:          h.uploadDir,
 		URLPrefix:    "/api/uploads/system_tables",
@@ -836,13 +840,12 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 		return err
 	}
 
-	photoIDs := make([]int, 0, len(saved))
-	for _, f := range saved {
-		id, err := h.service.UploadPhoto(c.Request().Context(), tableID, username, f.URL, f.FileName, f.MimeType, f.Size)
-		if err != nil {
-			return err
+	photoIDs, err := h.service.UploadPhotos(c.Request().Context(), tableID, username, saved)
+	if err != nil {
+		if cleanupErr := upload.Cleanup(saved, h.uploadDir); cleanupErr != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось удалить новые файлы").SetInternal(errors.Join(err, cleanupErr))
 		}
-		photoIDs = append(photoIDs, id)
+		return err
 	}
 
 	return RespondSuccess(c, map[string]interface{}{

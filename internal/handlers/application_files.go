@@ -62,7 +62,7 @@ func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 		AllowedTypes: h.allowed,
 		// Снимок с телефона ужимается и перекодируется, вместе с этим уходит
 		// EXIF с координатами съёмки. Документы проходят мимо нетронутыми.
-		Normalize: &imaging.Options{MaxSide: h.imageMaxSide, JPEGQuality: h.jpegQuality},
+		Normalize: &imaging.Options{MaxPixels: 25_000_000, MaxSide: h.imageMaxSide, JPEGQuality: h.jpegQuality},
 		// Файл заявки ложится на диск зашифрованным: номер паспорта в базе
 		// защищён, и его снимок не может лежать рядом открытым.
 		EncryptionKey: crypto.GetGlobalKey(),

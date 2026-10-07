@@ -24,7 +24,7 @@ func TestTzColumn(t *testing.T) {
 }
 
 // parseReportDate должен трактовать YYYY-MM-DD как границу московских суток, а не
-// UTC: 00:00 МСК (= 21:00 UTC предыдущих суток), конец дня — 23:59:59 МСК.
+// UTC: 00:00 МСК (= 21:00 UTC предыдущих суток), конец интервала — следующие 00:00 МСК.
 func TestParseReportDate_MoscowBoundaries(t *testing.T) {
 	loc := AnalyticsLocation()
 	tests := []struct {
@@ -34,7 +34,7 @@ func TestParseReportDate_MoscowBoundaries(t *testing.T) {
 		want     time.Time
 	}{
 		{"начало суток МСК", "2026-06-15", false, time.Date(2026, 6, 15, 0, 0, 0, 0, loc)},
-		{"конец суток МСК", "2026-06-15", true, time.Date(2026, 6, 15, 23, 59, 59, 0, loc)},
+		{"конец суток МСК", "2026-06-15", true, time.Date(2026, 6, 16, 0, 0, 0, 0, loc)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

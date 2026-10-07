@@ -359,7 +359,7 @@ func main() {
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
 	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal))
-	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
+	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath, cfg.UploadMaxFileSize)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	attachmentImportService := services.NewAttachmentImportService(db, auditRecorder, cfg.UploadPath)

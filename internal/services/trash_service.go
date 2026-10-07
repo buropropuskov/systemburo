@@ -63,6 +63,10 @@ func NewTrashService(db *gorm.DB, recorder AuditRecorder, opts ...TrashServiceOp
 // записью cars_history(action_type='delete', table_id) - именно она создаётся
 // при удалении машины из конкретной таблицы.
 func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error) {
+	bounds, err := models.ParseQueryDateBounds(filter.DateFrom, filter.DateTo)
+	if err != nil {
+		return nil, err
+	}
 	sql := `
 		SELECT c.id, 'car' AS type,
 			a.application_number, a.id AS application_id,
@@ -116,13 +120,13 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 		sql += ` AND a.organization_id IN ?`
 		args = append(args, ids)
 	}
-	if filter.DateFrom != "" {
+	if bounds.From != nil {
 		sql += ` AND c.date_removed >= ?`
-		args = append(args, filter.DateFrom)
+		args = append(args, *bounds.From)
 	}
-	if filter.DateTo != "" {
-		sql += ` AND c.date_removed <= ?`
-		args = append(args, filter.DateTo+" 23:59:59")
+	if bounds.To != nil {
+		sql += ` AND c.date_removed < ?`
+		args = append(args, *bounds.To)
 	}
 	sql += ` ORDER BY c.date_removed DESC`
 
@@ -136,6 +140,10 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 // ListEmployeesTrash возвращает удалённых из этой таблицы сотрудников. Скоуп -
 // запись employees_history(action_type='delete', table_id).
 func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error) {
+	bounds, err := models.ParseQueryDateBounds(filter.DateFrom, filter.DateTo)
+	if err != nil {
+		return nil, err
+	}
 	sql := `
 		SELECT e.id, 'employee' AS type,
 			a.application_number, a.id AS application_id,
@@ -191,13 +199,13 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 		sql += ` AND a.organization_id IN ?`
 		args = append(args, ids)
 	}
-	if filter.DateFrom != "" {
+	if bounds.From != nil {
 		sql += ` AND e.date_deleted >= ?`
-		args = append(args, filter.DateFrom)
+		args = append(args, *bounds.From)
 	}
-	if filter.DateTo != "" {
-		sql += ` AND e.date_deleted <= ?`
-		args = append(args, filter.DateTo+" 23:59:59")
+	if bounds.To != nil {
+		sql += ` AND e.date_deleted < ?`
+		args = append(args, *bounds.To)
 	}
 	sql += ` ORDER BY e.date_deleted DESC`
 

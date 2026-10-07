@@ -211,7 +211,11 @@ func (s *applicationFileService) Locate(ctx context.Context, applicationID, file
 	if err != nil {
 		return models.ApplicationFile{}, "", apperr.Internal("Не удалось прочитать файл")
 	}
-	return file, filepath.Join(s.dir, file.StoredName), nil
+	path, err := upload.StoredPath(filepath.Dir(s.dir), ApplicationFilesDir, file.StoredName)
+	if err != nil {
+		return models.ApplicationFile{}, "", apperr.Internal("Некорректное имя файла")
+	}
+	return file, path, nil
 }
 
 func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int, applicationID, fileID int) error {
@@ -314,7 +318,11 @@ func (s *applicationFileService) ReadContent(ctx context.Context, fileID int) ([
 		return nil, apperr.Internal("Не удалось прочитать файл")
 	}
 
-	f, err := os.Open(filepath.Join(s.dir, file.StoredName))
+	path, err := upload.StoredPath(filepath.Dir(s.dir), ApplicationFilesDir, file.StoredName)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open application file %d: %w", fileID, err)
 	}
@@ -343,7 +351,11 @@ func (s *applicationFileService) removeFile(storedName string) {
 	if storedName == "" {
 		return
 	}
-	path := filepath.Join(s.dir, storedName)
+	path, err := upload.StoredPath(filepath.Dir(s.dir), ApplicationFilesDir, storedName)
+	if err != nil {
+		slog.Error("некорректное имя файла заявки", "error", err)
+		return
+	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.Error("не удалось удалить файл заявки", "error", err, "path", path)
 	}

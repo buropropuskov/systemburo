@@ -58,6 +58,11 @@ func (s *AccessDenialService) Log(p LogParams) {
 
 // List возвращает страницу журнала с фильтрами + общее количество.
 func (s *AccessDenialService) List(ctx context.Context, f models.AccessDenialFilter) (models.AccessDenialPageResponse, error) {
+	page, limit := normalizePage(f.Page, f.Limit)
+	offset, err := models.CheckedOffset(page, limit)
+	if err != nil {
+		return models.AccessDenialPageResponse{}, err
+	}
 	q := s.applyFilters(s.db.WithContext(ctx).Model(&models.AccessDenial{}), f)
 
 	var total int64
@@ -65,10 +70,9 @@ func (s *AccessDenialService) List(ctx context.Context, f models.AccessDenialFil
 		return models.AccessDenialPageResponse{}, fmt.Errorf("count denials: %w", err)
 	}
 
-	page, limit := normalizePage(f.Page, f.Limit)
 	var denials []models.AccessDenial
 	if err := q.Order("created_at DESC").
-		Limit(limit).Offset((page - 1) * limit).
+		Limit(limit).Offset(offset).
 		Find(&denials).Error; err != nil {
 		return models.AccessDenialPageResponse{}, fmt.Errorf("list denials: %w", err)
 	}
@@ -87,6 +91,11 @@ func (s *AccessDenialService) List(ctx context.Context, f models.AccessDenialFil
 
 // ListArchive возвращает страницу архива с теми же фильтрами.
 func (s *AccessDenialService) ListArchive(ctx context.Context, f models.AccessDenialFilter) (models.AccessDenialPageResponse, error) {
+	page, limit := normalizePage(f.Page, f.Limit)
+	offset, err := models.CheckedOffset(page, limit)
+	if err != nil {
+		return models.AccessDenialPageResponse{}, err
+	}
 	q := s.applyFiltersArchive(s.db.WithContext(ctx).Model(&models.AccessDenialArchive{}), f)
 
 	var total int64
@@ -94,10 +103,9 @@ func (s *AccessDenialService) ListArchive(ctx context.Context, f models.AccessDe
 		return models.AccessDenialPageResponse{}, fmt.Errorf("count archive: %w", err)
 	}
 
-	page, limit := normalizePage(f.Page, f.Limit)
 	var rows []models.AccessDenialArchive
 	if err := q.Order("created_at DESC").
-		Limit(limit).Offset((page - 1) * limit).
+		Limit(limit).Offset(offset).
 		Find(&rows).Error; err != nil {
 		return models.AccessDenialPageResponse{}, fmt.Errorf("list archive: %w", err)
 	}

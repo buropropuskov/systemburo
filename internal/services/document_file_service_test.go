@@ -34,6 +34,35 @@ func makeFileHeader(t *testing.T, name string, content []byte) *multipart.FileHe
 	}
 }
 
+func TestDocumentFileServiceActualSizeLimit(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewDocumentFileService(dir)
+	data := []byte("%PDF-1.4 synthetic content")
+	for _, tc := range []struct {
+		limit int64
+		ok    bool
+	}{{int64(len(data)), true}, {int64(len(data) - 1), false}} {
+		header := testableFile(t, t.TempDir(), "file.pdf", data)
+		header.Size = 1
+		name, _, err := svc.Save(context.Background(), header, tc.limit)
+		if tc.ok {
+			if err != nil {
+				t.Fatal(err)
+			}
+			svc.Delete(name)
+		} else if err == nil {
+			t.Fatal("oversized actual content accepted")
+		}
+		entries, err := os.ReadDir(svc.UploadDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("leftover files: %v", entries)
+		}
+	}
+}
+
 // testableFileHeader создаёт *multipart.FileHeader, Open которого возвращает content.
 // multipart.FileHeader хранит путь приватно, поэтому используем tmpdir и патчим Open.
 func testableFile(t *testing.T, dir, name string, content []byte) *multipart.FileHeader {

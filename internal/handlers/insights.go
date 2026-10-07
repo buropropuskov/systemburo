@@ -22,7 +22,7 @@ func (h *StatisticsHandler) GetInsights(c echo.Context) error {
 	res, err := h.service.GetInsights(
 		c.Request().Context(),
 		from.Format("2006-01-02"),
-		to.Format("2006-01-02"),
+		to.AddDate(0, 0, -1).Format("2006-01-02"),
 	)
 	if err != nil {
 		return mapReportError(err)

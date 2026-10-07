@@ -123,7 +123,7 @@ func processingJournalSource() string {
 		JOIN applications app ON app.id = aru.application_id
 		LEFT JOIN users u ON u.id = aru.user_id
 		WHERE aru.approval_datetime IS NOT NULL
-		  AND aru.approval_datetime >= @from AND aru.approval_datetime <= @to
+		  AND aru.approval_datetime >= @from AND aru.approval_datetime < @to
 		UNION ALL
 		SELECT
 			app.id,
@@ -139,7 +139,7 @@ func processingJournalSource() string {
 		JOIN applications app ON app.id = acc.application_id
 		LEFT JOIN users u ON u.id = acc.acceptor_user_id
 		WHERE app.accepted_at IS NOT NULL
-		  AND app.accepted_at >= @from AND app.accepted_at <= @to
+		  AND app.accepted_at >= @from AND app.accepted_at < @to
 		UNION ALL
 		SELECT
 			app.id,
@@ -160,7 +160,7 @@ func processingJournalSource() string {
 			(al.action = '%[8]s' AND al.details->>'new_value' = '%[11]s')
 			OR al.action = '%[12]s'
 		  )
-		  AND al.created_at >= @from AND al.created_at <= @to`,
+		  AND al.created_at >= @from AND al.created_at < @to`,
 		journalActorName,                       // %[1]s — подпись актора
 		approvalRole,                           // %[2]s — согласование или несогласование
 		approvalDur,                            // %[3]s — рабочее время голоса согласующего

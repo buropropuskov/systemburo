@@ -47,6 +47,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"systemburo/internal/upload"
 
 	"systemburo/internal/models"
 
@@ -391,7 +392,11 @@ func removeApplicationFiles(uploadPath string, files []appFileRow) error {
 		if f.StoredName == "" {
 			continue
 		}
-		path := filepath.Join(uploadPath, applicationFilesDir, f.StoredName)
+		path, pathErr := upload.StoredPath(uploadPath, applicationFilesDir, f.StoredName)
+		if pathErr != nil {
+			failed = append(failed, fmt.Sprintf("invalid stored name: %v", pathErr))
+			continue
+		}
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			failed = append(failed, fmt.Sprintf("%s (заявка %d): %v", f.FileName, f.ID, err))
 		}

@@ -353,7 +353,7 @@ func resolveAggFilter(s aggMetricSchema, f models.ReportFilterValue) (*whereClau
 			args = append(args, t)
 		}
 		if t, ok := parseReportDate(f.To, true); ok {
-			parts = append(parts, s.tsColumn+" <= ?")
+			parts = append(parts, s.tsColumn+" < ?")
 			args = append(args, t)
 		}
 		if len(parts) == 0 {
@@ -405,7 +405,7 @@ func clampLimit(limit int) int {
 }
 
 // parseReportDate парсит YYYY-MM-DD как границу московских суток (бакетинг тоже в
-// МСК). endOfDay=true -> 23:59:59 МСК (для верхней границы). Инстант сравнивается
+// МСК). endOfDay=true -> начало следующего дня МСК (для верхней границы). Инстант сравнивается
 // с timestamptz-колонками корректно вне зависимости от их хранения в UTC.
 func parseReportDate(s string, endOfDay bool) (time.Time, bool) {
 	if s == "" {
@@ -416,7 +416,7 @@ func parseReportDate(s string, endOfDay bool) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	if endOfDay {
-		return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, analyticsLocation), true
+		return t.AddDate(0, 0, 1), true
 	}
 	return t, true
 }

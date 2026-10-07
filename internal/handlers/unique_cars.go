@@ -55,7 +55,7 @@ func (h *UniqueCarHandler) GetAll(c echo.Context) error {
 
 	var params models.PaginationParams
 	if err := c.Bind(&params); err != nil {
-		params = models.PaginationParams{}
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid pagination parameters")
 	}
 	params.Normalize()
 

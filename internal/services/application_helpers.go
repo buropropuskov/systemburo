@@ -893,13 +893,17 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	if len(statusConds) > 0 {
 		query = query.Where("("+strings.Join(statusConds, " OR ")+")", statusArgs...)
 	}
-	if filter.DateFrom != nil && *filter.DateFrom != "" {
-		query = query.Where("a.sending_datetime >= ?", *filter.DateFrom+" 00:00:00")
+	bounds, err := filter.DateBounds()
+	if err != nil {
+		query.AddError(err)
+		return query
 	}
-	if filter.DateTo != nil && *filter.DateTo != "" {
-		query = query.Where("a.sending_datetime <= ?", *filter.DateTo+" 23:59:59")
+	if bounds.From != nil {
+		query = query.Where("a.sending_datetime >= ?", *bounds.From)
 	}
-
+	if bounds.To != nil {
+		query = query.Where("a.sending_datetime < ?", *bounds.To)
+	}
 	// Active today: заявка активна сегодня, если период действия хотя бы одного
 	// вложения (entry_date_from..entry_date_to) включает текущую дату.
 	if filter.ActiveToday != nil && *filter.ActiveToday {
@@ -909,7 +913,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 				WHERE att.application_id = a.id
 				AND att.entry_date_from IS NOT NULL
 				AND att.entry_date_to IS NOT NULL
-				AND `+moscowTodaySQL+` BETWEEN CAST(att.entry_date_from AS DATE) AND CAST(att.entry_date_to AS DATE)
+				AND ` + moscowTodaySQL + ` BETWEEN CAST(att.entry_date_from AS DATE) AND CAST(att.entry_date_to AS DATE)
 			)
 		`)
 	}

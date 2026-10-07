@@ -313,6 +313,18 @@ func (s *ArchiveDownloadService) GetByApplicationAttachment(ctx context.Context,
 // ListItems листает реестр файлового архива с фильтрами по статусу и заявке -
 // вкладка «Ошибки» и просмотр раздела (#1615, B3).
 func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQuery) ([]models.ArchiveItemView, int64, error) {
+	page, perPage := q.Page, q.PerPage
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 	query := s.db.WithContext(ctx).Model(&models.BlankExport{})
 	if q.Status != "" {
 		query = query.Where("status = ?", q.Status)
@@ -324,14 +336,6 @@ func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQu
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count archive items: %w", err)
-	}
-
-	page, perPage := q.Page, q.PerPage
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 100 {
-		perPage = 20
 	}
 
 	// Номер заявки и наименование вложения подтягиваются здесь же: без них лента
@@ -361,7 +365,7 @@ func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQu
 		args = append(args, q.ApplicationID)
 	}
 	sql += ` ORDER BY be.updated_at DESC LIMIT ? OFFSET ?`
-	args = append(args, perPage, (page-1)*perPage)
+	args = append(args, perPage, offset)
 
 	var rows []models.ArchiveItemView
 	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {

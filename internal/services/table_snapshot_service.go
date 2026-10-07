@@ -292,6 +292,10 @@ func (s *tableSnapshotService) ListSnapshots(ctx context.Context, tableID int, f
 		perPage = 20
 	}
 
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 	// Единый набор условий для Count и выборки - строится заново на каждый запрос,
 	// чтобы состояние билдера не перетекало между вызовами.
 	base := func() *gorm.DB {
@@ -318,7 +322,7 @@ func (s *tableSnapshotService) ListSnapshots(ctx context.Context, tableID int, f
 			"u.first_name AS actor_first_name, u.last_name AS actor_last_name, u.username AS actor_username").
 		Joins("LEFT JOIN users u ON u.id = table_snapshots.actor_user_id").
 		Order("table_snapshots.taken_at DESC, table_snapshots.id DESC").
-		Limit(perPage).Offset((page - 1) * perPage).
+		Limit(perPage).Offset(offset).
 		Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to list snapshots for table %d: %w", tableID, err)
 	}
