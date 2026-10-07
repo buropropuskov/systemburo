@@ -250,14 +250,10 @@ func applySort(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
 
 // GetLogs возвращает логи с пагинацией и фильтрацией.
 func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQuery) ([]models.RequestLogs, int64, error) {
-	if q.Page < 1 {
-		q.Page = 1
-	}
-	if q.PerPage < 1 {
-		q.PerPage = 20
-	}
-	if q.PerPage > 100 {
-		q.PerPage = 100
+	q.Normalize()
+	offset, err := models.CheckedOffset(q.Page, q.PerPage)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	tx := s.db.WithContext(ctx).Table("request_logs")
@@ -269,7 +265,6 @@ func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQu
 	}
 
 	logs := make([]models.RequestLogs, 0)
-	offset := (q.Page - 1) * q.PerPage
 	if err := applySort(tx, q).Offset(offset).Limit(q.PerPage).Find(&logs).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch request logs")
 	}

@@ -29,9 +29,9 @@ func processingWindowArgs(t *testing.T, from, to string) (time.Time, time.Time) 
 	loc := services.AnalyticsLocation()
 	f, err := time.ParseInLocation("2006-01-02 15:04", from+" 00:00", loc)
 	require.NoError(t, err)
-	tt, err := time.ParseInLocation("2006-01-02 15:04", to+" 23:59", loc)
+	tt, err := time.ParseInLocation("2006-01-02 15:04", to+" 00:00", loc)
 	require.NoError(t, err)
-	return f, tt
+	return f, tt.AddDate(0, 0, 1)
 }
 
 func stageByKey(t *testing.T, stages []models.ProcessingStageKPI, key string) models.ProcessingStageKPI {

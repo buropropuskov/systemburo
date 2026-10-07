@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"systemburo/internal/upload"
 	"time"
 
 	"systemburo/internal/models"
@@ -132,6 +133,8 @@ type UnloadPlaceService interface {
 	DeleteWarningWindow(ctx context.Context, placeID, windowID int) error
 
 	// Фотографии
+	ValidatePhotoParent(ctx context.Context, id int) error
+	UploadPhotos(ctx context.Context, id int, username string, files []upload.SavedFile) ([]int, error)
 	UploadPhoto(ctx context.Context, placeID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error)
 	DeletePhoto(ctx context.Context, placeID, photoID int) (string, error)
 	SetMainPhoto(ctx context.Context, placeID, photoID int) error

@@ -75,7 +75,7 @@ func (h *AuditHandler) GetAuditLog(c echo.Context) error {
 
 	var p models.PaginationParams
 	if err := c.Bind(&p); err != nil {
-		p = models.PaginationParams{}
+		return apperr.Validation("Invalid pagination parameters")
 	}
 	p.Normalize()
 	q.Page = p.Page

@@ -90,8 +90,12 @@ func passageHistoryOrderSQL(q models.PassageHistoryQuery, alias string) string {
 
 // passageHistoryLimitSQL - хвост страницы. Normalize у запроса обязателен до вызова:
 // он и держит предел, за которым журнал снова стал бы выгрузкой всей истории.
-func passageHistoryLimitSQL(q models.PassageHistoryQuery) (string, []any) {
-	return " LIMIT ? OFFSET ?", []any{q.PerPage, q.Offset()}
+func passageHistoryLimitSQL(q models.PassageHistoryQuery) (string, []any, error) {
+	offset, err := q.Offset()
+	if err != nil {
+		return "", nil, err
+	}
+	return " LIMIT ? OFFSET ?", []any{q.PerPage, offset}, nil
 }
 
 // passageSubject собирает снимок «о ком отметка» из полей справочника: номер с маркой у

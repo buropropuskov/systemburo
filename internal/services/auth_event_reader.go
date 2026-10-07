@@ -40,6 +40,11 @@ func (r *AuthEventReader) ResolveUserID(ctx context.Context, username string) (i
 // Фильтр по user_id (а не username) стабилен и точен: у событий существующего юзера
 // user_id проставлен всегда, а "user not found" события к нему не относятся.
 func (r *AuthEventReader) ListForUser(ctx context.Context, f models.AuthEventFilter) (models.AuthEventPageResponse, error) {
+	page, limit := normalizeAuthPage(f.Page, f.Limit)
+	offset, err := models.CheckedOffset(page, limit)
+	if err != nil {
+		return models.AuthEventPageResponse{}, err
+	}
 	cond := r.db.WithContext(ctx).Model(&models.AuthEvent{}).Where("user_id = ?", f.UserID)
 	if types := models.AuthEventCategoryTypes(f.Category); len(types) > 0 {
 		cond = cond.Where("event_type IN ?", types)
@@ -56,12 +61,11 @@ func (r *AuthEventReader) ListForUser(ctx context.Context, f models.AuthEventFil
 		return models.AuthEventPageResponse{}, fmt.Errorf("count auth events: %w", err)
 	}
 
-	page, limit := normalizeAuthPage(f.Page, f.Limit)
 	items := make([]models.AuthEventResponse, 0, limit)
 	if err := cond.Session(&gorm.Session{}).
 		Select("id, event_type, success, ip_address, user_agent, detail, created_at").
 		Order("created_at DESC, id DESC").
-		Limit(limit).Offset((page - 1) * limit).
+		Limit(limit).Offset(offset).
 		Scan(&items).Error; err != nil {
 		return models.AuthEventPageResponse{}, fmt.Errorf("list auth events: %w", err)
 	}

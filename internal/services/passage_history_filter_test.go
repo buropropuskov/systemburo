@@ -52,7 +52,7 @@ func TestPassageHistoryQuery_NormalizeBounds(t *testing.T) {
 	if empty.PerPage != models.PassageHistoryDefaultPerPage {
 		t.Errorf("размер страницы по умолчанию: got %d, want %d", empty.PerPage, models.PassageHistoryDefaultPerPage)
 	}
-	if got := normalizedQuery(t, models.PassageHistoryQuery{Page: 3, PerPage: 20}).Offset(); got != 40 {
+	if got, err := normalizedQuery(t, models.PassageHistoryQuery{Page: 3, PerPage: 20}).Offset(); err != nil || got != 40 {
 		t.Errorf("смещение третьей страницы по 20: got %d, want 40", got)
 	}
 }

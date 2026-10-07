@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"systemburo/internal/models"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
@@ -44,13 +44,14 @@ type AttachmentTemplateService interface {
 }
 
 type attachmentTemplateService struct {
-	db         *gorm.DB
-	uploadPath string // базовый путь, обычно cfg.UploadPath. Шаблоны в <uploadPath>/templates/
+	db          *gorm.DB
+	uploadPath  string // базовый путь, обычно cfg.UploadPath. Шаблоны в <uploadPath>/templates/
+	maxFileSize int64
 }
 
 // NewAttachmentTemplateService создаёт сервис.
-func NewAttachmentTemplateService(db *gorm.DB, uploadPath string) AttachmentTemplateService {
-	return &attachmentTemplateService{db: db, uploadPath: uploadPath}
+func NewAttachmentTemplateService(db *gorm.DB, uploadPath string, maxFileSize int64) AttachmentTemplateService {
+	return &attachmentTemplateService{db: db, uploadPath: uploadPath, maxFileSize: maxFileSize}
 }
 
 func (s *attachmentTemplateService) Get(ctx context.Context, uaID int) (*models.AttachmentTemplate, error) {
@@ -94,6 +95,21 @@ func (s *attachmentTemplateService) ListTemplates(ctx context.Context, uaID int)
 }
 
 func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *multipart.FileHeader, req models.CreateTemplateRequest, userID int) (*models.AttachmentTemplate, error) {
+	data, err := readTemplate(file, s.maxFileSize)
+	if err != nil {
+		return nil, err
+	}
+	book, err := OpenSpreadsheet(data)
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный файл XLSX")
+	}
+	if len(book.GetSheetList()) == 0 {
+		closeErr := book.Close()
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "В шаблоне XLSX нет листов").SetInternal(closeErr)
+	}
+	if err := book.Close(); err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось закрыть шаблон")
+	}
 	var ua models.UniqueAttachment
 	if err := s.db.WithContext(ctx).First(&ua, uaID).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
@@ -103,8 +119,11 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось создать директорию шаблонов")
 	}
-	dst := filepath.Join(dir, fmt.Sprintf("%d_%d.xlsx", uaID, time.Now().UnixMilli()))
-	if err := saveMultipartFile(file, dst); err != nil {
+	dst := filepath.Join(dir, uuid.NewString()+".xlsx")
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
+		if cleanupErr := os.Remove(dst); cleanupErr != nil && !errors.Is(cleanupErr, os.ErrNotExist) {
+			return nil, errors.Join(err, cleanupErr)
+		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить файл")
 	}
 
@@ -122,7 +141,7 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 		t.MaxListRows = t.ListEndRow - t.ListStartRow + 1
 	}
 
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.AttachmentTemplate{}).
 			Where("unique_attachment_id = ? AND is_active = ?", uaID, true).
 			Update("is_active", false).Error; err != nil {
@@ -131,8 +150,7 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 		return tx.Create(&t).Error
 	})
 	if err != nil {
-		_ = os.Remove(dst)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить шаблон")
+		return nil, errors.Join(echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить шаблон"), os.Remove(dst))
 	}
 	return &t, nil
 }
@@ -577,7 +595,29 @@ func saveMultipartFile(file *multipart.FileHeader, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, src)
-	return err
+	_, copyErr := io.Copy(out, src)
+	err = errors.Join(copyErr, out.Close())
+	if err != nil {
+		return errors.Join(err, os.Remove(dst))
+	}
+	return nil
+}
+
+func readTemplate(file *multipart.FileHeader, maxSize int64) ([]byte, error) {
+	if maxSize <= 0 || file.Size > maxSize || strings.ToLower(filepath.Ext(file.Filename)) != ".xlsx" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Недопустимый размер или тип шаблона")
+	}
+	src, err := file.Open()
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не удалось прочитать шаблон")
+	}
+	data, readErr := io.ReadAll(io.LimitReader(src, maxSize+1))
+	err = errors.Join(readErr, src.Close())
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось прочитать шаблон").SetInternal(err)
+	}
+	if int64(len(data)) > maxSize {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Файл слишком большой")
+	}
+	return data, nil
 }

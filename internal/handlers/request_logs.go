@@ -48,6 +48,10 @@ func (h *RequestLogsHandler) GetLogs(c echo.Context) error {
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
 	}
+	q.Normalize()
+	if _, err := models.CheckedOffset(q.Page, q.PerPage); err != nil {
+		return err
+	}
 	logs, total, err := h.service.GetLogs(c.Request().Context(), q)
 	if err != nil {
 		return err

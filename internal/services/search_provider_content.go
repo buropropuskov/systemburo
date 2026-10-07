@@ -36,29 +36,29 @@ func (contentSearchProvider) Search(ctx context.Context, db *gorm.DB, req search
 	docCond, docArgs := searchCondition([]string{"title", "description", "file_name"}, req.Raw)
 
 	sql := fmt.Sprintf(`SELECT id, title, subtitle, kind FROM (
-		(SELECT id, title, CONCAT_WS(' · ', 'Новость', NULLIF(description, '')) AS subtitle, 'news' AS kind
-		 FROM news WHERE is_active AND (%s) ORDER BY id DESC LIMIT ?)
+		(SELECT id, title, CONCAT_WS(' · ', 'Новость', NULLIF(description, '')) AS subtitle, 'news' AS kind, %s
+		 FROM news WHERE is_active AND (%s) ORDER BY match_rank, title, id DESC LIMIT ?)
 		UNION ALL
-		(SELECT id, title, CONCAT_WS(' · ', 'Объявление', NULLIF(description, '')) AS subtitle, 'announcement' AS kind
-		 FROM announcements WHERE is_active AND (%s) ORDER BY id DESC LIMIT ?)
+		(SELECT id, title, CONCAT_WS(' · ', 'Объявление', NULLIF(description, '')) AS subtitle, 'announcement' AS kind, %s
+		 FROM announcements WHERE is_active AND (%s) ORDER BY match_rank, title, id DESC LIMIT ?)
 		UNION ALL
-		(SELECT id, title, CONCAT_WS(' · ', 'Документ', NULLIF(description, '')) AS subtitle, 'document' AS kind
-		 FROM documents WHERE is_visible AND (%s) ORDER BY id DESC LIMIT ?)
+		(SELECT id, title, CONCAT_WS(' · ', 'Документ', NULLIF(description, '')) AS subtitle, 'document' AS kind, %s
+		 FROM documents WHERE is_visible AND (%s) ORDER BY match_rank, title, id DESC LIMIT ?)
 	) c
-	ORDER BY CASE
-		WHEN LOWER(TRIM(title)) = LOWER(TRIM(?)) THEN 0
-		WHEN LOWER(title) LIKE LOWER(?) || '%%' THEN 1
-		ELSE 2 END, title
-	LIMIT ?`, newsCond, annCond, docCond)
+	ORDER BY match_rank, title, kind, id DESC
+	LIMIT ?`, matchRankExpr("title"), newsCond, matchRankExpr("title"), annCond, matchRankExpr("title"), docCond)
 
 	args := make([]interface{}, 0, len(newsArgs)+len(annArgs)+len(docArgs)+6)
+	args = append(args, req.Raw, req.Raw)
 	args = append(args, newsArgs...)
 	args = append(args, req.Limit+1)
+	args = append(args, req.Raw, req.Raw)
 	args = append(args, annArgs...)
 	args = append(args, req.Limit+1)
+	args = append(args, req.Raw, req.Raw)
 	args = append(args, docArgs...)
 	args = append(args, req.Limit+1)
-	args = append(args, req.Raw, req.Raw, req.Limit+1)
+	args = append(args, req.Limit+1)
 
 	return scanKindedRows(ctx, db, SearchTypeContent, sql, args, "поиск по новостям и документам")
 }

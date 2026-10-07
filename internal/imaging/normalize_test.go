@@ -2,6 +2,9 @@ package imaging
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -21,6 +24,48 @@ func sampleImage(w, h int) image.Image {
 		}
 	}
 	return img
+}
+
+func TestNormalizePixelBounds(t *testing.T) {
+	for _, tc := range []struct {
+		w, h int
+		ok   bool
+	}{{5000, 5000, true}, {5001, 5000, false}, {0, 1, false}, {1, 0, false}, {int(^uint(0) >> 1), int(^uint(0) >> 1), false}} {
+		require.Equal(t, tc.ok, validDimensions(tc.w, tc.h, 25_000_000))
+	}
+	data := encodeJPEG(t, sampleImage(10, 10))
+	_, _, err := Normalize(bytes.NewReader(data), "image/jpeg", Options{MaxPixels: 100})
+	require.NoError(t, err)
+	_, _, err = Normalize(bytes.NewReader(data), "image/jpeg", Options{MaxPixels: 99})
+	require.ErrorContains(t, err, "pixel limit")
+	_, _, err = Normalize(bytes.NewReader(data), "image/jpeg", Options{MaxEncodedBytes: int64(len(data))})
+	require.NoError(t, err)
+	_, _, err = Normalize(bytes.NewReader(data), "image/jpeg", Options{MaxEncodedBytes: int64(len(data) - 1)})
+	require.ErrorContains(t, err, "input exceeds limit")
+}
+
+func TestNormalizeRejectsLargeConfigBeforeDecode(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, sampleImage(1, 1)))
+	data := append([]byte(nil), buf.Bytes()[:33]...)
+	binary.BigEndian.PutUint32(data[16:20], 5001)
+	binary.BigEndian.PutUint32(data[20:24], 5000)
+	binary.BigEndian.PutUint32(data[29:33], crc32.ChecksumIEEE(data[12:29]))
+	_, _, err := Normalize(bytes.NewReader(data), "image/png", Options{})
+	require.ErrorContains(t, err, "pixel limit")
+}
+
+func TestNormalizeWebP(t *testing.T) {
+	// Synthetic one-pixel lossless WebP fixture.
+	data, err := base64.StdEncoding.DecodeString("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==")
+	require.NoError(t, err)
+	out, mime, err := Normalize(bytes.NewReader(data), "image/webp", Options{})
+	require.NoError(t, err)
+	require.Equal(t, "image/jpeg", mime)
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(out))
+	require.NoError(t, err)
+	require.Equal(t, 1, cfg.Width)
+	require.Equal(t, 1, cfg.Height)
 }
 
 func encodeJPEG(t *testing.T, img image.Image) []byte {

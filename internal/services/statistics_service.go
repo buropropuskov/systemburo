@@ -26,7 +26,7 @@ type StatisticsService interface {
 	// SnapshotOnlinePeak фиксирует текущий онлайн как дневной пик за сегодня
 	// (upsert по date, peak_count = MAX(старый, текущий)). Зовётся фоновым тикером.
 	SnapshotOnlinePeak(ctx context.Context) error
-	// GetOnlinePeaks возвращает серию дневных пиков онлайна за период [from, to]
+	// GetOnlinePeaks возвращает серию дневных пиков онлайна за период [from, to)
 	// для карточки динамики пользователей. Дни без снимков опускаются.
 	GetOnlinePeaks(ctx context.Context, from, to time.Time) ([]models.OnlinePeakPoint, error)
 	// GetOnlineUsers возвращает список пользователей онлайн (last_seen в окне) по
@@ -37,7 +37,7 @@ type StatisticsService interface {
 	// топ медленных согласующих и разбивку по организациям (#1240).
 	GetProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error)
 	// GetProcessingJournal возвращает страницу сквозной ленты событий обработки
-	// (согласования и принятия в работу) за период [from, to] по времени убыванием:
+	// (согласования и принятия в работу) за период [from, to) по времени убыванием:
 	// limit событий начиная с offset и общее число подходящих событий для постраничной
 	// навигации. filter сужает выборку по роли и подстроке номера/актора. Реальное
 	// время: без кэша (#1251 S4, страницы — P5b, фильтры и поиск — P5c).
@@ -126,7 +126,7 @@ func (s *statisticsService) StartCacheRefresh(ctx context.Context) {
 	}
 }
 
-// GetSummary возвращает сводную статистику за период [from, to]. Тяжёлые агрегаты
+// GetSummary возвращает сводную статистику за период [from, to). Тяжёлые агрегаты
 // берутся из тёплого кэша (если включён), realtime-показатели (онлайн, на
 // территории) всегда считаются на лету и домешиваются к снимку.
 func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error) {
@@ -157,7 +157,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// total_applications
 	if err := s.db.WithContext(ctx).
 		Table("applications").
-		Where("sending_datetime BETWEEN ? AND ?", from, to).
+		Where("sending_datetime >= ? AND sending_datetime < ?", from, to).
 		Count(&summary.TotalApplications).Error; err != nil {
 		return nil, fmt.Errorf("statistics: count applications: %w", err)
 	}
@@ -170,7 +170,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	if err := s.db.WithContext(ctx).
 		Table("unique_attachments ua").
 		Joins("LEFT JOIN attachments a ON a.unique_attachment_id = ua.id").
-		Joins("LEFT JOIN applications app ON app.id = a.application_id AND app.sending_datetime BETWEEN ? AND ?", from, to).
+		Joins("LEFT JOIN applications app ON app.id = a.application_id AND app.sending_datetime >= ? AND app.sending_datetime < ?", from, to).
 		Where("ua.is_active = true").
 		Select(attachmentName + " AS name, COUNT(app.id) AS count").
 		Group(attachmentName).
@@ -183,7 +183,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	summary.ByStatus = make([]models.StatusCount, 0)
 	if err := s.db.WithContext(ctx).
 		Table("applications").
-		Where("sending_datetime BETWEEN ? AND ?", from, to).
+		Where("sending_datetime >= ? AND sending_datetime < ?", from, to).
 		Select("status, COUNT(*) AS count").
 		Group("status").
 		Scan(&summary.ByStatus).Error; err != nil {
@@ -199,7 +199,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	}
 	if err := s.db.WithContext(ctx).
 		Table("applications").
-		Where("sending_datetime BETWEEN ? AND ? AND status IN ?", from, to, terminalStatuses).
+		Where("sending_datetime >= ? AND sending_datetime < ? AND status IN ?", from, to, terminalStatuses).
 		Count(&summary.Processed).Error; err != nil {
 		return nil, fmt.Errorf("statistics: processed: %w", err)
 	}
@@ -212,7 +212,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	}
 	if err := s.db.WithContext(ctx).
 		Table("applications").
-		Where("sending_datetime BETWEEN ? AND ? AND status IN ?", from, to, inWorkStatuses).
+		Where("sending_datetime >= ? AND sending_datetime < ? AND status IN ?", from, to, inWorkStatuses).
 		Count(&summary.InWork).Error; err != nil {
 		return nil, fmt.Errorf("statistics: in_work: %w", err)
 	}
@@ -221,7 +221,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// до-cutover въезды cars_history перенесены в audit_log backfill'ом.
 	if err := s.db.WithContext(ctx).
 		Table(carsHistoryUnion+" ch").
-		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
+		Where("ch.action_type = 'entry' AND ch.created_at >= ? AND ch.created_at < ?", from, to).
 		Where(passageNotReverted("ch")).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
@@ -231,14 +231,14 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// read-switch); до-cutover въезды employees_history перенесены backfill'ом.
 	if err := s.db.WithContext(ctx).
 		Table(employeesHistoryUnion+" eh").
-		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).
+		Where("eh.action_type = 'entry' AND eh.created_at >= ? AND eh.created_at < ?", from, to).
 		Where(passageNotReverted("eh")).
 		Count(&summary.PeopleEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: people_entered: %w", err)
 	}
 
 	// avg_cars_per_day
-	days := int(to.Sub(from).Hours()/24) + 1
+	days := int(to.Sub(from).Hours() / 24)
 	if days < 1 {
 		days = 1
 	}
@@ -250,7 +250,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 		Table("items i").
 		Joins("JOIN attachments a ON a.id = i.attachment_id").
 		Joins("JOIN applications app ON app.id = a.application_id").
-		Where("app.sending_datetime BETWEEN ? AND ?", from, to).
+		Where("app.sending_datetime >= ? AND app.sending_datetime < ?", from, to).
 		Select("COALESCE(SUM(i.count), 0) AS sum").
 		Scan(&itemsSum).Error; err != nil {
 		return nil, fmt.Errorf("statistics: items_sum: %w", err)
@@ -444,7 +444,7 @@ func (s *statisticsService) SnapshotOnlinePeak(ctx context.Context) error {
 	return nil
 }
 
-// GetOnlinePeaks возвращает дневные пики онлайна за период [from, to], по возрастанию даты.
+// GetOnlinePeaks возвращает дневные пики онлайна за период [from, to), по возрастанию даты.
 func (s *statisticsService) GetOnlinePeaks(ctx context.Context, from, to time.Time) ([]models.OnlinePeakPoint, error) {
 	points := make([]models.OnlinePeakPoint, 0)
 	rows := []struct {
@@ -453,7 +453,7 @@ func (s *statisticsService) GetOnlinePeaks(ctx context.Context, from, to time.Ti
 	}{}
 	if err := s.db.WithContext(ctx).
 		Table("user_online_peaks").
-		Where("date BETWEEN ? AND ?", from.Format("2006-01-02"), to.Format("2006-01-02")).
+		Where("date >= ? AND date < ?", from.Format("2006-01-02"), to.Format("2006-01-02")).
 		Select("to_char(date, 'YYYY-MM-DD') AS date, peak_count AS peak").
 		Order("date ASC").
 		Scan(&rows).Error; err != nil {
@@ -497,7 +497,7 @@ func resolveTimelineSource(metric, granularity string) (src timelineSource, unit
 	return src, unit, nil
 }
 
-// GetTimeline возвращает точки графика за период [from, to].
+// GetTimeline возвращает точки графика за период [from, to).
 // metric и granularity проходят через whitelist — конкатенация пользовательского ввода в SQL исключена.
 func (s *statisticsService) GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error) {
 	src, unit, err := resolveTimelineSource(metric, granularity)
@@ -518,7 +518,7 @@ func (s *statisticsService) GetTimeline(ctx context.Context, from, to time.Time,
 	tx := s.db.WithContext(ctx).
 		Table(src.table).
 		Select(selectExpr).
-		Where(fmt.Sprintf("%s BETWEEN ? AND ?", src.tsColumn), from, to)
+		Where(fmt.Sprintf("%s >= ? AND %s < ?", src.tsColumn, src.tsColumn), from, to)
 
 	if src.filter != "" {
 		tx = tx.Where(src.filter)

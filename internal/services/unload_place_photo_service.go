@@ -2,8 +2,11 @@ package services
 
 import (
 	"context"
+	"errors"
+	"gorm.io/gorm/clause"
 	"log/slog"
 	"net/http"
+	"systemburo/internal/upload"
 
 	"systemburo/internal/models"
 
@@ -12,52 +15,58 @@ import (
 )
 
 // UploadPhoto загружает фотографию места разгрузки.
-func (s *unloadPlaceService) UploadPhoto(ctx context.Context, placeID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error) {
-	// Проверяем существование места
+func (s *unloadPlaceService) ValidatePhotoParent(ctx context.Context, placeID int) error {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&models.UnloadPlace{}).Where("id = ?", placeID).Count(&count).Error; err != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	if err := s.db.WithContext(ctx).Model(&models.UnloadPlace{}).Where("id = ? AND is_active = ?", placeID, true).Count(&count).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 	if count == 0 {
-		return 0, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
+	return nil
+}
 
-	// Получаем ID пользователя
-	var userID int
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Select("id").
-		Where("username = ?", username).
-		Row().
-		Scan(&userID); err != nil {
-		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+func (s *unloadPlaceService) UploadPhoto(ctx context.Context, placeID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error) {
+	ids, err := s.UploadPhotos(ctx, placeID, username, []upload.SavedFile{{URL: photoURL, FileName: fileName, DetectedMime: mimeType, Size: fileSize}})
+	if err != nil {
+		return 0, err
 	}
+	return ids[0], nil
+}
 
-	// Определяем, должна ли быть фотография главной (первая = главная)
-	var photoCount int64
-	s.db.WithContext(ctx).
-		Model(&models.UnloadPlacePhoto{}).
-		Where("unload_place_id = ?", placeID).
-		Count(&photoCount)
-
-	isMain := photoCount == 0
-
-	photo := models.UnloadPlacePhoto{
-		UnloadPlaceID: placeID,
-		PhotoURL:      photoURL,
-		FileName:      &fileName,
-		FileSize:      &fileSize,
-		MimeType:      &mimeType,
-		IsMain:        isMain,
-		UploadedBy:    &userID,
+// UploadPhotos commits the entire metadata batch under a parent row lock.
+func (s *unloadPlaceService) UploadPhotos(ctx context.Context, placeID int, username string, files []upload.SavedFile) ([]int, error) {
+	ids := make([]int, 0, len(files))
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var parent models.UnloadPlace
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND is_active = ?", placeID, true).First(&parent).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+		var userID int
+		if err := tx.Table("users").Select("id").Where("username = ?", username).Row().Scan(&userID); err != nil {
+			return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+		}
+		var count int64
+		if err := tx.Model(&models.UnloadPlacePhoto{}).Where("unload_place_id = ?", placeID).Count(&count).Error; err != nil {
+			return err
+		}
+		for i, f := range files {
+			name, size, mime := f.FileName, f.Size, f.DetectedMime
+			row := models.UnloadPlacePhoto{UnloadPlaceID: placeID, PhotoURL: f.URL, FileName: &name, FileSize: &size, MimeType: &mime, IsMain: count == 0 && i == 0, UploadedBy: &userID}
+			if err := tx.Create(&row).Error; err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Database error").SetInternal(err)
+			}
+			ids = append(ids, row.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	if err := s.db.WithContext(ctx).Create(&photo).Error; err != nil {
-		slog.Error("не удалось загрузить фото", "place_id", placeID, "error", err)
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-	slog.Info("фото загружено", "id", photo.ID, "place_id", placeID)
-	return photo.ID, nil
+	return ids, nil
 }
 
 // DeletePhoto удаляет фотографию места разгрузки и возвращает URL удалённого файла.

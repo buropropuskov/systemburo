@@ -55,7 +55,7 @@ func bindApplicationListFilter(c echo.Context) (services.ApplicationFilter, erro
 		activeToday := activeTodayStr == "true"
 		filter.ActiveToday = &activeToday
 	}
-	return filter, nil
+	return filter, filter.ValidateDates()
 }
 
 // GetApplications godoc
@@ -99,9 +99,12 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 
 	var params models.PaginationParams
 	if err := c.Bind(&params); err != nil {
-		params = models.PaginationParams{}
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid pagination parameters")
 	}
 	params.Normalize()
+	if _, err := models.CheckedOffset(params.Page, params.PerPage); err != nil {
+		return err
+	}
 
 	data, total, err := h.service.GetApplicationsPaginated(
 		c.Request().Context(), username, filter, params.Page, params.PerPage,
@@ -134,6 +137,9 @@ func (h *ApplicationHandler) GetAttachableApplications(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
+	if err := filter.ValidateDates(); err != nil {
+		return err
+	}
 	apps, err := h.service.GetAttachableApplications(c.Request().Context(), username, filter)
 	if err != nil {
 		return err
@@ -169,6 +175,9 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
+	if err := filter.ValidateDates(); err != nil {
+		return err
+	}
 	// Legacy mode: per_page не задан - полный список (обратная совместимость).
 	if c.QueryParam("per_page") == "" {
 		apps, err := h.service.GetUserApplications(c.Request().Context(), username, filter)
@@ -180,9 +189,12 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 
 	var params models.PaginationParams
 	if err := c.Bind(&params); err != nil {
-		params = models.PaginationParams{}
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid pagination parameters")
 	}
 	params.Normalize()
+	if _, err := models.CheckedOffset(params.Page, params.PerPage); err != nil {
+		return err
+	}
 
 	data, total, err := h.service.GetUserApplicationsPaginated(
 		c.Request().Context(), username, filter, params.Page, params.PerPage,

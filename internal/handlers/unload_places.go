@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -649,6 +650,9 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 
+	if err := h.service.ValidatePhotoParent(c.Request().Context(), placeID); err != nil {
+		return err
+	}
 	saved, err := upload.SaveMultipart(c, "photos", upload.Options{
 		Dir:          h.uploadDir,
 		URLPrefix:    "/api/uploads/unload_places",
@@ -660,16 +664,12 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 		return err
 	}
 
-	insertedIDs := make([]int, 0, len(saved))
-	for _, f := range saved {
-		id, err := h.service.UploadPhoto(
-			c.Request().Context(), placeID, username,
-			f.URL, f.FileName, f.MimeType, f.Size,
-		)
-		if err != nil {
-			return err
+	insertedIDs, err := h.service.UploadPhotos(c.Request().Context(), placeID, username, saved)
+	if err != nil {
+		if cleanupErr := upload.Cleanup(saved, h.uploadDir); cleanupErr != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось удалить новые файлы").SetInternal(errors.Join(err, cleanupErr))
 		}
-		insertedIDs = append(insertedIDs, id)
+		return err
 	}
 
 	return RespondSuccess(c, map[string]interface{}{

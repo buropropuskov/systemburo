@@ -35,29 +35,28 @@ func (blacklistSearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 		(SELECT id,
 			TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)) AS title,
 			'Человек в чёрном списке' AS subtitle,
-			'person_blacklist' AS kind
+			'person_blacklist' AS kind, %s
 		 FROM person_blacklists WHERE is_active AND (%s)
-		 ORDER BY id DESC LIMIT ?)
+		 ORDER BY match_rank, title, id DESC LIMIT ?)
 		UNION ALL
 		(SELECT id,
 			COALESCE(car_number, '') AS title,
 			CONCAT_WS(' · ', 'Машина в чёрном списке', NULLIF(mark_name, '')) AS subtitle,
-			'vehicle_blacklist' AS kind
+			'vehicle_blacklist' AS kind, %s
 		 FROM vehicle_blacklists WHERE is_active AND (%s)
-		 ORDER BY id DESC LIMIT ?)
+		 ORDER BY match_rank, title, id DESC LIMIT ?)
 	) b
-	ORDER BY CASE
-		WHEN LOWER(TRIM(title)) = LOWER(TRIM(?)) THEN 0
-		WHEN LOWER(title) LIKE LOWER(?) || '%%' THEN 1
-		ELSE 2 END, title
-	LIMIT ?`, personCond, vehicleCond)
+	ORDER BY match_rank, title, kind, id DESC
+	LIMIT ?`, matchRankExpr("TRIM(CONCAT_WS(' ', last_name, first_name, middle_name))"), personCond, matchRankExpr("car_number"), vehicleCond)
 
 	args := make([]interface{}, 0, len(personArgs)+len(vehicleArgs)+5)
+	args = append(args, req.Raw, req.Raw)
 	args = append(args, personArgs...)
 	args = append(args, req.Limit+1)
+	args = append(args, req.Raw, req.Raw)
 	args = append(args, vehicleArgs...)
 	args = append(args, req.Limit+1)
-	args = append(args, req.Raw, req.Raw, req.Limit+1)
+	args = append(args, req.Limit+1)
 
 	// Человек и машина ведут на разные вкладки раздела, отсюда свой код сущности
 	// у каждой строки.

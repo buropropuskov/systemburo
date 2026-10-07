@@ -290,7 +290,7 @@ func resolveListFilter(exec listExecSchema, f models.ReportFilterValue) (*whereC
 			args = append(args, t)
 		}
 		if t, ok := parseReportDate(f.To, true); ok {
-			parts = append(parts, exec.tsColumn+" <= ?")
+			parts = append(parts, exec.tsColumn+" < ?")
 			args = append(args, t)
 		}
 		if len(parts) == 0 {

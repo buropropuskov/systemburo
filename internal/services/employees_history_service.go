@@ -329,6 +329,11 @@ func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int, q
 // Порядок аргументов важен: базовое условие, затем фильтры, затем страница - в этой же
 // последовательности `?` встречаются в собранном запросе.
 func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models.PassageHistoryQuery, baseWhere string, baseArgs []any) ([]EmployeeHistoryItem, int64, error) {
+	q.Normalize()
+	limitSQL, limitArgs, err := passageHistoryLimitSQL(q)
+	if err != nil {
+		return nil, 0, err
+	}
 	filterSQL, filterArgs, err := passageHistoryConditions(q, passageFilterSpec{
 		alias:        "eh",
 		entityColumn: "eh.employee_id",
@@ -351,7 +356,6 @@ func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting employees history")
 	}
 
-	limitSQL, limitArgs := passageHistoryLimitSQL(q)
 	rows := make([]employeeHistoryRow, 0, q.PerPage)
 	err = s.db.WithContext(ctx).Raw(
 		baseSelectSQL+where+passageHistoryOrderSQL(q, "eh")+limitSQL,

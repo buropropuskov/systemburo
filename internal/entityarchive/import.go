@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"systemburo/internal/upload"
 
 	"systemburo/internal/crypto"
 	"systemburo/internal/models"
@@ -152,6 +153,11 @@ func Import(ctx context.Context, db *gorm.DB, dir string, opt ImportOptions) (Im
 	for _, t := range tables {
 		res.Rows += int64(len(t.rows))
 	}
+	for _, name := range applicationFileNames(tables) {
+		if _, err := upload.StoredPath(opt.UploadPath, applicationFilesDir, name); err != nil {
+			return res, fmt.Errorf("invalid stored name: %w", err)
+		}
+	}
 	res.Files = len(v.Manifest.Files)
 
 	conflicts, err := findConflicts(ctx, db, tables)
@@ -236,7 +242,7 @@ type packageTable struct {
 func loadPackageTables(dir string, files []TableFile, dec Decryptor) ([]packageTable, error) {
 	out := make([]packageTable, 0, len(files))
 	for _, f := range files {
-		rc, err := openPackageFile(filepath.Join(dir, filepath.FromSlash(f.File)), dec)
+		rc, err := openContainedPackageFile(dir, f.File, dec)
 		if err != nil {
 			return nil, fmt.Errorf("таблица %s: %w", f.Table, err)
 		}
@@ -382,7 +388,10 @@ func writeDataFiles(dir, uploadPath string, files []DataFile, storedNames map[in
 		if !ok || name == "" {
 			return fmt.Errorf("файл %s (заявка %d): в строке application_files нет имени на диске", f.File, f.RowID)
 		}
-		dest := filepath.Join(destDir, name)
+		dest, err := upload.StoredPath(uploadPath, applicationFilesDir, name)
+		if err != nil {
+			return fmt.Errorf("invalid stored name: %w", err)
+		}
 		if _, err := os.Stat(dest); err == nil {
 			return fmt.Errorf("файл %s уже существует на этом стенде - разворот поверх существующих файлов не поддерживается", dest)
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -397,7 +406,7 @@ func writeDataFiles(dir, uploadPath string, files []DataFile, storedNames map[in
 }
 
 func copyPackageFile(dir, pkgName, dest string, dec Decryptor, key []byte) error {
-	rc, err := openPackageFile(filepath.Join(dir, filepath.FromSlash(pkgName)), dec)
+	rc, err := openContainedPackageFile(dir, pkgName, dec)
 	if err != nil {
 		return fmt.Errorf("файл %s: %w", pkgName, err)
 	}

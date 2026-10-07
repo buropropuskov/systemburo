@@ -201,3 +201,16 @@ type HistoryUser struct {
 	Username string `json:"username"`
 	Requests int64  `json:"requests"`
 }
+
+// Normalize shares the actual paging policy between the handler and service.
+func (q *RequestLogsQuery) Normalize() {
+	if q.Page < 1 {
+		q.Page = 1
+	}
+	if q.PerPage < 1 {
+		q.PerPage = 20
+	}
+	if q.PerPage > 100 {
+		q.PerPage = 100
+	}
+}

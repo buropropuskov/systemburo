@@ -43,7 +43,7 @@ const (
 )
 
 // GetProcessingSummary возвращает бандл вкладки «Обработка заявок» за период
-// [from, to] — KPI этапов со сравнением с прошлым периодом равной длины,
+// [from, to) — KPI этапов со сравнением с прошлым периодом равной длины,
 // качество обработки, топ медленных согласующих и разбивку по организациям.
 func (s *statisticsService) GetProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error) {
 	if s.processingCache != nil {
@@ -55,7 +55,7 @@ func (s *statisticsService) GetProcessingSummary(ctx context.Context, from, to t
 // computeProcessingSummary считает бандл. Дорого (каждая метрика — свой план), но
 // целиком кэшируется: realtime-показателей, как у сводки дашборда, здесь нет.
 func (s *statisticsService) computeProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error) {
-	fromStr, toStr := dateKey(from), dateKey(to)
+	fromStr, toStr := dateKey(from), dateKey(to.AddDate(0, 0, -1))
 	prevFromStr, prevToStr := prevPeriod(fromStr, toStr)
 
 	current, err := s.runProcessingWindow(ctx, fromStr, toStr)
@@ -165,7 +165,7 @@ func (s *statisticsService) stageSamples(ctx context.Context, from, to string) (
 		tx = tx.Where("app.sending_datetime >= ?", t)
 	}
 	if t, ok := parseReportDate(to, true); ok {
-		tx = tx.Where("app.sending_datetime <= ?", t)
+		tx = tx.Where("app.sending_datetime < ?", t)
 	}
 
 	row := map[string]any{}

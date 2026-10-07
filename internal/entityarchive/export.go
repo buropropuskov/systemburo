@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"systemburo/internal/upload"
 	"time"
 
 	"systemburo/internal/crypto"
@@ -531,7 +532,10 @@ func writeDataFile(dir, uploadPath string, row appFileRow, enc Encryptor) (DataF
 			"без него в пакет уехал бы шифротекст", row.ID)
 	}
 
-	src := filepath.Join(uploadPath, applicationFilesDir, row.StoredName)
+	src, err := upload.StoredPath(uploadPath, applicationFilesDir, row.StoredName)
+	if err != nil {
+		return DataFile{}, err
+	}
 	f, err := os.Open(src)
 	if err != nil {
 		return DataFile{}, fmt.Errorf("файл заявки %d (%s): %w", row.ID, row.FileName, err)

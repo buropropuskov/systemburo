@@ -478,6 +478,13 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 
 // GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 2).
 func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueCarWithRelations, int64, error) {
+	params := models.PaginationParams{Page: page, PerPage: perPage}
+	params.Normalize()
+	page, perPage = params.Page, params.PerPage
+	offset, err := models.CheckedOffset(page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, 0, err
@@ -493,7 +500,6 @@ func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filter
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting cars")
 	}
 
-	offset := (page - 1) * perPage
 	dataQuery := s.buildCarsQuery(ctx, ownerInfo, filterType, searchQuery).
 		Select(carsListSelect).
 		// uc.id третий ключ - number/mark не уникальны (нет unique-индекса), без

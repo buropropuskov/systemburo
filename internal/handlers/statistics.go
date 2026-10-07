@@ -25,12 +25,12 @@ func NewStatisticsHandler(service services.StatisticsService) *StatisticsHandler
 // parseDateRange парсит from/to из query-параметров (формат YYYY-MM-DD).
 // По умолчанию — последние 7 дней. Границы считаются в московских сутках (как и
 // бакетинг аналитики), иначе "сегодня"/"неделя" съезжают на 3 часа: from -> начало
-// дня 00:00 МСК, to -> конец дня 23:59:59 МСК. Инстанты сравниваются с timestamptz
+// дня 00:00 МСК, to -> начало следующего дня МСК. Инстанты сравниваются с timestamptz
 // корректно вне зависимости от хранения в UTC.
 func parseDateRange(c echo.Context) (from, to time.Time) {
 	loc := services.AnalyticsLocation()
 	now := time.Now().In(loc)
-	toDefault := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, loc)
+	toDefault := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
 	fromDefault := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -6)
 
 	fromStr := c.QueryParam("from")
@@ -50,7 +50,7 @@ func parseDateRange(c echo.Context) (from, to time.Time) {
 	}
 	if toStr != "" {
 		if t, err := time.ParseInLocation("2006-01-02", toStr, loc); err == nil {
-			to = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, loc)
+			to = t.AddDate(0, 0, 1)
 		}
 	}
 
@@ -70,7 +70,7 @@ func parseDateRange(c echo.Context) (from, to time.Time) {
 // @Router       /statistics/summary [get]
 func (h *StatisticsHandler) GetSummary(c echo.Context) error {
 	from, to := parseDateRange(c)
-	if from.After(to) {
+	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
 	}
 	summary, err := h.service.GetSummary(c.Request().Context(), from, to)
@@ -95,7 +95,7 @@ func (h *StatisticsHandler) GetSummary(c echo.Context) error {
 // @Router       /statistics/processing-summary [get]
 func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
 	from, to := parseDateRange(c)
-	if from.After(to) {
+	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
 	}
 	summary, err := h.service.GetProcessingSummary(c.Request().Context(), from, to)
@@ -124,7 +124,7 @@ func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
 // @Router       /statistics/processing-journal [get]
 func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
 	from, to := parseDateRange(c)
-	if from.After(to) {
+	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
 	}
 	limit, offset := 0, 0
@@ -178,7 +178,7 @@ func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
 // @Router       /statistics/online-peaks [get]
 func (h *StatisticsHandler) GetOnlinePeaks(c echo.Context) error {
 	from, to := parseDateRange(c)
-	if from.After(to) {
+	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
 	}
 	points, err := h.service.GetOnlinePeaks(c.Request().Context(), from, to)
@@ -222,7 +222,7 @@ func (h *StatisticsHandler) GetOnlineUsers(c echo.Context) error {
 // @Router       /statistics/timeline [get]
 func (h *StatisticsHandler) GetTimeline(c echo.Context) error {
 	from, to := parseDateRange(c)
-	if from.After(to) {
+	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
 	}
 

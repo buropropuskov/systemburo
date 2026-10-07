@@ -132,7 +132,7 @@ func TestListPlan_FiltersAndDateRange(t *testing.T) {
 		if strings.Contains(w.expr, "app.sending_datetime >= ?") {
 			hasFrom = true
 		}
-		if strings.Contains(w.expr, "app.sending_datetime <= ?") {
+		if strings.Contains(w.expr, "app.sending_datetime < ?") {
 			hasTo = true
 		}
 		if strings.Contains(w.expr, "org.name IN") {

@@ -73,8 +73,20 @@ func (h *AuthEventHandler) ListForUser(c echo.Context) error {
 		end := t.Add(24 * time.Hour) // to включительно - граница на начало след. дня
 		f.To = &end
 	}
-	f.Page, _ = strconv.Atoi(c.QueryParam("page"))
-	f.Limit, _ = strconv.Atoi(c.QueryParam("limit"))
+	if v := c.QueryParam("page"); v != "" {
+		var err error
+		f.Page, err = strconv.Atoi(v)
+		if err != nil {
+			return apperr.Validation("Invalid page")
+		}
+	}
+	if v := c.QueryParam("limit"); v != "" {
+		var err error
+		f.Limit, err = strconv.Atoi(v)
+		if err != nil {
+			return apperr.Validation("Invalid limit")
+		}
+	}
 
 	resp, err := h.reader.ListForUser(ctx, f)
 	if err != nil {

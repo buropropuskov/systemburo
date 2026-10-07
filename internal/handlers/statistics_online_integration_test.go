@@ -233,7 +233,7 @@ func TestGetOnlinePeaks_Series(t *testing.T) {
 	mkPeak(d1, 5)
 
 	svc := services.NewStatisticsService(db, 0)
-	points, err := svc.GetOnlinePeaks(context.Background(), now.Add(-3*24*time.Hour), now)
+	points, err := svc.GetOnlinePeaks(context.Background(), now.Add(-3*24*time.Hour), now.AddDate(0, 0, 1))
 	require.NoError(t, err)
 
 	require.Len(t, points, 3, "только дни внутри периода")
