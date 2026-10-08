@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -14,9 +17,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// Тесты правки срока заявки принимающим (#2575): пока заявка не принята и по ней нет
-// итога согласования, принимающий задаёт новое окно всем вложениям и машинам, голоса
-// согласующих сбрасываются, участники получают уведомление.
+// До принятия принимающий задаёт новое окно всем вложениям и машинам;
+// поданные голоса сохраняются, участники получают уведомление (#2575).
+
+// Одна временная точка на пакет: календарные окна всегда на два года впереди,
+// включая ожидаемые строки истории. Тест не зависит от наступления фиксированного года.
+var datesFixtureYear = strconv.Itoa(time.Now().In(time.FixedZone("MSK", 3*60*60)).Year() + 2)
+
+func datesFixture(text string) string {
+	return strings.ReplaceAll(text, "2099", datesFixtureYear)
+}
 
 func datesPath(appID int) string {
 	return fmt.Sprintf("/applications/%d/dates", appID)
@@ -42,7 +52,7 @@ func seedDatesApp(t *testing.T, db *gorm.DB, orgID, senderID int, status string,
 	require.NoError(t, db.Create(&app).Error)
 
 	st := 0
-	from, to, tFrom, tTo := "2099-01-10", "2099-01-12", "09:00:00", "18:00:00"
+	from, to, tFrom, tTo := datesFixture("2099-01-10"), datesFixture("2099-01-12"), "09:00:00", "18:00:00"
 	att := models.Attachment{
 		ApplicationID: &app.ID, AttachmentType: "cars",
 		EntryDateFrom: &from, EntryDateTo: &to, EntryTimeFrom: &tFrom, EntryTimeTo: &tTo,
@@ -50,7 +60,7 @@ func seedDatesApp(t *testing.T, db *gorm.DB, orgID, senderID int, status string,
 	}
 	require.NoError(t, db.Create(&att).Error)
 
-	carFrom, carTo := "2099-01-11", "2099-01-11"
+	carFrom, carTo := datesFixture("2099-01-11"), datesFixture("2099-01-11")
 	car := models.Car{AttachmentID: att.ID, CarNumber: &plate, Status: &st,
 		EntryDateFrom: &carFrom, EntryDateTo: &carTo, EntryTimeFrom: &tFrom, EntryTimeTo: &tTo}
 	require.NoError(t, db.Create(&car).Error)
@@ -107,7 +117,7 @@ func TestChangeDates_ApproverChangesPeriod(t *testing.T) {
 	appID, attID, carID := seedDatesApp(t, db, td.OrgID, senderID, models.StatusProcessing, nil, "D111DD777")
 
 	rec := testutil.PUT(t, e, datesPath(appID),
-		datesBody("2099-02-01", "2099-02-03", "08:30", "20:00", "заявитель ошибся на месяц"), testutil.AuthHeader(token))
+		datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-03"), "08:30", "20:00", "заявитель ошибся на месяц"), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "правка срока: %s", rec.Body.String())
 
 	var resp struct {
@@ -118,11 +128,11 @@ func TestChangeDates_ApproverChangesPeriod(t *testing.T) {
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "10.01.2099 09:00 - 12.01.2099 18:00", resp.Data.OldPeriod)
-	assert.Equal(t, "01.02.2099 08:30 - 03.02.2099 20:00", resp.Data.NewPeriod)
+	assert.Equal(t, datesFixture("10.01.2099 09:00 - 12.01.2099 18:00"), resp.Data.OldPeriod)
+	assert.Equal(t, datesFixture("01.02.2099 08:30 - 03.02.2099 20:00"), resp.Data.NewPeriod)
 	assert.False(t, resp.Data.ApprovalsReset, "голосов не было - сбрасывать нечего")
 
-	want := storedPeriod{"2099-02-01", "2099-02-03", "08:30:00", "20:00:00"}
+	want := storedPeriod{datesFixture("2099-02-01"), datesFixture("2099-02-03"), "08:30:00", "20:00:00"}
 	assert.Equal(t, want, periodOf(t, db, "attachments", attID), "вложение получило новое окно")
 	assert.Equal(t, want, periodOf(t, db, "cars", carID), "машина получила то же окно, а не свой прежний срок")
 
@@ -135,8 +145,8 @@ func TestChangeDates_ApproverChangesPeriod(t *testing.T) {
 		Scan(&audit).Error)
 	require.NotNil(t, audit.ActorID, "запись в истории заявки есть")
 	assert.Equal(t, actorID, *audit.ActorID)
-	assert.Contains(t, audit.Details, "10.01.2099 09:00 - 12.01.2099 18:00")
-	assert.Contains(t, audit.Details, "01.02.2099 08:30 - 03.02.2099 20:00")
+	assert.Contains(t, audit.Details, datesFixture("10.01.2099 09:00 - 12.01.2099 18:00"))
+	assert.Contains(t, audit.Details, datesFixture("01.02.2099 08:30 - 03.02.2099 20:00"))
 	assert.Contains(t, audit.Details, "заявитель ошибся на месяц")
 
 	assert.Equal(t, 1, datesNotifCount(t, db, senderID), "заявитель уведомлён")
@@ -144,13 +154,12 @@ func TestChangeDates_ApproverChangesPeriod(t *testing.T) {
 	var message string
 	require.NoError(t, db.Raw("SELECT message FROM notifications WHERE user_id = ? AND type = 'application_dates_changed'", senderID).
 		Scan(&message).Error)
-	assert.Contains(t, message, "стало 01.02.2099 08:30 - 03.02.2099 20:00")
+	assert.Contains(t, message, datesFixture("стало 01.02.2099 08:30 - 03.02.2099 20:00"))
 	assert.Contains(t, message, "Причина: заявитель ошибся на месяц")
 }
 
-// Уже поданный голос снимается: согласующий одобрял другое окно. Он же получает
-// уведомление с пометкой о повторном согласовании.
-func TestChangeDates_ResetsCastVotes(t *testing.T) {
+// Поданный голос сохраняется; ожидающий участник продолжает согласование нового окна.
+func TestChangeDates_PreservesCastVotes(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -165,16 +174,25 @@ func TestChangeDates_ResetsCastVotes(t *testing.T) {
 	appID, _, _ := seedDatesApp(t, db, td.OrgID, senderID, models.StatusProcessing, &pending, "D222DD777")
 	addResponsible(t, db, appID, voterA, "approved")
 	addResponsible(t, db, appID, voterB, "pending")
+	require.NoError(t, db.Exec(`UPDATE application_responsible_users
+		SET approval_comment = 'исходный голос', approval_datetime = NOW()
+		WHERE application_id = ? AND user_id = ?`, appID, voterA).Error)
+	var voteBefore string
+	require.NoError(t, db.Raw(`SELECT ROW(approval_status, approval_comment, approval_datetime)::text
+		FROM application_responsible_users WHERE application_id = ? AND user_id = ?`, appID, voterA).Scan(&voteBefore).Error)
 
 	rec := testutil.PUT(t, e, datesPath(appID),
-		datesBody("2099-03-01", "2099-03-01", "10:00", "12:00", "перенос по просьбе заявителя"), testutil.AuthHeader(token))
+		datesBody(datesFixture("2099-03-01"), datesFixture("2099-03-01"), "10:00", "12:00", "перенос по просьбе заявителя"), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "правка срока: %s", rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"approvals_reset":true`)
+	assert.Contains(t, rec.Body.String(), `"approvals_reset":false`)
 
 	var vote string
 	require.NoError(t, db.Raw("SELECT approval_status FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
 		appID, voterA).Scan(&vote).Error)
-	assert.Equal(t, "pending", vote, "голос согласующего снят")
+	assert.Equal(t, "approved", vote, "поданный голос сохранён")
+	require.NoError(t, db.Raw("SELECT approval_status FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, voterB).Scan(&vote).Error)
+	assert.Equal(t, "pending", vote, "второй согласующий продолжает голосование")
 
 	var confirmation string
 	require.NoError(t, db.Raw("SELECT confirmation FROM applications WHERE id = ?", appID).Scan(&confirmation).Error)
@@ -184,7 +202,33 @@ func TestChangeDates_ResetsCastVotes(t *testing.T) {
 	var message string
 	require.NoError(t, db.Raw("SELECT message FROM notifications WHERE user_id = ? AND type = 'application_dates_changed'", voterA).
 		Scan(&message).Error)
-	assert.Contains(t, message, "Голоса согласующих сброшены")
+	assert.NotContains(t, message, "сброшены")
+	var voteAfter string
+	require.NoError(t, db.Raw(`SELECT ROW(approval_status, approval_comment, approval_datetime)::text
+		FROM application_responsible_users WHERE application_id = ? AND user_id = ?`, appID, voterA).Scan(&voteAfter).Error)
+	assert.Equal(t, voteBefore, voteAfter, "статус, комментарий и время голоса сохранены")
+}
+
+func TestChangeDates_AfterPositiveApproval(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+	senderID := seedAttachSender(t, db, td.OrgID)
+	voter := seedDatesUser(t, db, "dates_full_voter", td.OrgID)
+	approved := models.ConfirmationApproved
+	appID, attID, _ := seedDatesApp(t, db, td.OrgID, senderID, models.StatusProcessing, &approved, "D229DD777")
+	addResponsible(t, db, appID, voter, "approved")
+	rec := testutil.PUT(t, e, datesPath(appID), datesBody(datesFixture("2099-03-01"), datesFixture("2099-03-02"), "10:00", "12:00", "решение принимающего"), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"approvals_reset":false`)
+	assert.Equal(t, datesFixture("2099-03-02"), periodOf(t, db, "attachments", attID).EntryDateTo)
+	assert.Equal(t, models.ConfirmationApproved, *suppReadApplication(t, db, appID).Confirmation)
+	var vote string
+	require.NoError(t, db.Raw("SELECT approval_status FROM application_responsible_users WHERE application_id = ? AND user_id = ?", appID, voter).Scan(&vote).Error)
+	assert.Equal(t, "approved", vote)
 }
 
 // Не принимающий срок не меняет, даже будучи автором заявки.
@@ -199,12 +243,12 @@ func TestChangeDates_NonApproverForbidden(t *testing.T) {
 	appID, attID, _ := seedDatesApp(t, db, td.OrgID, senderID, models.StatusUnread, nil, "D333DD777")
 
 	rec := testutil.PUT(t, e, datesPath(appID),
-		datesBody("2099-02-01", "2099-02-03", "08:30", "20:00", "хочу подольше"), testutil.AuthHeader(senderToken))
+		datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-03"), "08:30", "20:00", "хочу подольше"), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusForbidden, rec.Code, "автор заявки срок не правит: %s", rec.Body.String())
-	assert.Equal(t, "2099-01-10", periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
+	assert.Equal(t, datesFixture("2099-01-10"), periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
 }
 
-// Принятая или получившая итог согласования заявка уже обещана охране: срок закрыт.
+// Принятая, завершённая, отказанная или не согласованная заявка: срок закрыт.
 func TestChangeDates_ClosedStatesRejected(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -214,7 +258,6 @@ func TestChangeDates_ClosedStatesRejected(t *testing.T) {
 	makeApprover(t, db, "testadmin")
 	senderID := seedAttachSender(t, db, td.OrgID)
 
-	approved := models.ConfirmationApproved
 	rejected := models.ConfirmationRejected
 	cases := []struct {
 		name         string
@@ -223,7 +266,7 @@ func TestChangeDates_ClosedStatesRejected(t *testing.T) {
 		plate        string
 	}{
 		{"в работе", models.StatusInWork, nil, "D401DD777"},
-		{"согласована", models.StatusProcessing, &approved, "D402DD777"},
+		{"завершена", models.StatusCompleted, nil, "D402DD777"},
 		{"не согласована", models.StatusProcessing, &rejected, "D403DD777"},
 		{"отказано", models.StatusRefused, nil, "D404DD777"},
 	}
@@ -231,9 +274,9 @@ func TestChangeDates_ClosedStatesRejected(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			appID, attID, _ := seedDatesApp(t, db, td.OrgID, senderID, tc.status, tc.confirmation, tc.plate)
 			rec := testutil.PUT(t, e, datesPath(appID),
-				datesBody("2099-02-01", "2099-02-03", "08:30", "20:00", "поздно"), testutil.AuthHeader(token))
+				datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-03"), "08:30", "20:00", "поздно"), testutil.AuthHeader(token))
 			require.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", tc.name, rec.Body.String())
-			assert.Equal(t, "2099-01-10", periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
+			assert.Equal(t, datesFixture("2099-01-10"), periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
 		})
 	}
 }
@@ -254,12 +297,12 @@ func TestChangeDates_InvalidPeriodRejected(t *testing.T) {
 		name string
 		body string
 	}{
-		{"без причины", datesBody("2099-02-01", "2099-02-03", "08:30", "20:00", "   ")},
-		{"окончание раньше начала", datesBody("2099-02-03", "2099-02-01", "08:30", "20:00", "ошибка")},
-		{"время наоборот в один день", datesBody("2099-02-01", "2099-02-01", "20:00", "08:30", "ошибка")},
+		{"без причины", datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-03"), "08:30", "20:00", "   ")},
+		{"окончание раньше начала", datesBody(datesFixture("2099-02-03"), datesFixture("2099-02-01"), "08:30", "20:00", "ошибка")},
+		{"время наоборот в один день", datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-01"), "20:00", "08:30", "ошибка")},
 		{"срок в прошлом", datesBody("2020-02-01", "2020-02-03", "08:30", "20:00", "ошибка")},
-		{"неверная дата", datesBody("01.02.2099", "03.02.2099", "08:30", "20:00", "ошибка")},
-		{"неверное время", datesBody("2099-02-01", "2099-02-03", "8 утра", "20:00", "ошибка")},
+		{"неверная дата", datesBody(datesFixture("01.02.2099"), datesFixture("03.02.2099"), "08:30", "20:00", "ошибка")},
+		{"неверное время", datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-03"), "8 утра", "20:00", "ошибка")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -267,12 +310,12 @@ func TestChangeDates_InvalidPeriodRejected(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", tc.name, rec.Body.String())
 		})
 	}
-	assert.Equal(t, "2099-01-10", periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
+	assert.Equal(t, datesFixture("2099-01-10"), periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
 
 	// Машину выравниваем на окно вложения: теперь ни вложение, ни машина не меняются.
-	require.NoError(t, db.Exec("UPDATE cars SET entry_date_from = '2099-01-10', entry_date_to = '2099-01-12' WHERE id = ?", carID).Error)
+	require.NoError(t, db.Exec(datesFixture("UPDATE cars SET entry_date_from = '2099-01-10', entry_date_to = '2099-01-12' WHERE id = ?"), carID).Error)
 	rec := testutil.PUT(t, e, datesPath(appID),
-		datesBody("2099-01-10", "2099-01-12", "09:00", "18:00", "то же самое"), testutil.AuthHeader(token))
+		datesBody(datesFixture("2099-01-10"), datesFixture("2099-01-12"), "09:00", "18:00", "то же самое"), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code, "тот же срок: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Срок не изменился")
 }
@@ -290,8 +333,8 @@ func TestChangeDates_ByFactLimitApplies(t *testing.T) {
 	appID, attID, _ := seedDatesApp(t, db, td.OrgID, senderID, models.StatusProcessing, nil, "По факту")
 
 	rec := testutil.PUT(t, e, datesPath(appID),
-		datesBody("2099-02-01", "2099-02-03", "08:30", "20:00", "на неделю"), testutil.AuthHeader(token))
+		datesBody(datesFixture("2099-02-01"), datesFixture("2099-02-03"), "08:30", "20:00", "на неделю"), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code, "«По факту» на три дня: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "По факту")
-	assert.Equal(t, "2099-01-10", periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
+	assert.Equal(t, datesFixture("2099-01-10"), periodOf(t, db, "attachments", attID).EntryDateFrom, "срок не тронут")
 }

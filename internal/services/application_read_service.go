@@ -8,13 +8,18 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // isArchived проверяет, является ли заявка архивной (определение - application_archive.go).
 func (s *applicationService) isArchived(ctx context.Context, applicationID int) (bool, error) {
+	return isApplicationArchived(ctx, s.db, applicationID)
+}
+
+func isApplicationArchived(ctx context.Context, db *gorm.DB, applicationID int) (bool, error) {
 	var count int64
 	cond, args := archivedApplicationCond("app")
-	err := s.db.WithContext(ctx).
+	err := db.WithContext(ctx).
 		Table("applications app").
 		Where("app.id = ?", applicationID).
 		Where(cond, args...).
@@ -27,7 +32,12 @@ func (s *applicationService) isArchived(ctx context.Context, applicationID int) 
 
 // checkNotArchived возвращает ошибку 403, если заявка архивная.
 func (s *applicationService) checkNotArchived(ctx context.Context, applicationID int) error {
-	archived, err := s.isArchived(ctx, applicationID)
+	return checkApplicationNotArchived(ctx, s.db, applicationID)
+}
+
+// При наличии транзакции использовать её соединение, не занимать второе из пула.
+func checkApplicationNotArchived(ctx context.Context, db *gorm.DB, applicationID int) error {
+	archived, err := isApplicationArchived(ctx, db, applicationID)
 	if err != nil {
 		return err
 	}
@@ -41,8 +51,12 @@ func (s *applicationService) checkNotArchived(ctx context.Context, applicationID
 // Отзыв необратим штатными средствами: над "Отозвана" нельзя совершать рабочие и
 // согласовательные действия (принять в работу, согласовать, отказать и обратные им).
 func (s *applicationService) checkNotWithdrawn(ctx context.Context, applicationID int) error {
+	return checkApplicationNotWithdrawn(ctx, s.db, applicationID)
+}
+
+func checkApplicationNotWithdrawn(ctx context.Context, db *gorm.DB, applicationID int) error {
 	var app struct{ Status *string }
-	if err := s.db.WithContext(ctx).Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&app).Error; err != nil {
+	if err := db.WithContext(ctx).Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&app).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check application status")
 	}
 	if app.Status != nil && *app.Status == models.StatusWithdrawn {

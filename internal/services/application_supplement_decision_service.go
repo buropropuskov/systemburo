@@ -198,9 +198,6 @@ func (s *applicationService) CancelSupplement(ctx context.Context, username stri
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return nil, err
-	}
 
 	// Владение проверяем ДО того, как трогаем раунд: иначе разные ответы на «не твоя заявка»
 	// и «нет такого раунда» выдавали бы перебором id, у каких чужих заявок есть дополнения.
@@ -215,6 +212,10 @@ func (s *applicationService) CancelSupplement(ctx context.Context, username stri
 	}
 	if !isSuperAdmin && app.SenderUserID != user.ID {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Снять дополнение может только автор заявки")
+	}
+
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return nil, err
 	}
 
 	tx := s.db.WithContext(ctx).Begin()

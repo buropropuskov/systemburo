@@ -14,13 +14,6 @@ import (
 
 // TakeApplicationToWork принимает заявку в работу или отказывает в ней.
 func (s *applicationService) TakeApplicationToWork(ctx context.Context, username string, applicationID int, req TakeToWorkRequest) error {
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return err
-	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
-
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return err
@@ -32,6 +25,12 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	}
 	if !isApprover {
 		return echo.NewHTTPError(http.StatusForbidden, "User is not an approver")
+	}
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return err
+	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
 	}
 
 	tx := s.db.WithContext(ctx).Begin()
@@ -56,6 +55,10 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	oldStatus := app.Status
 
 	if req.Action == "accept" {
+		if oldStatus != nil && *oldStatus == models.StatusCompleted {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusBadRequest, "Завершённую заявку нельзя принять в работу повторно")
+		}
 		if oldStatus != nil && *oldStatus == models.StatusInWork {
 			tx.Rollback()
 			return echo.NewHTTPError(http.StatusBadRequest, "Application is already in work")
@@ -377,7 +380,7 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	tx.Raw(`
 		SELECT id, application_id FROM attachments
 		WHERE status = 1 AND (
-			(entry_date_to IS NOT NULL AND CAST(entry_date_to AS DATE) < `+moscowTodaySQL+`)
+			(entry_date_to IS NOT NULL AND CAST(entry_date_to AS DATE) < ` + moscowTodaySQL + `)
 			OR (entry_date_to IS NOT NULL AND entry_time_to IS NOT NULL
 			    AND (CAST(entry_date_to AS DATE) + CAST(entry_time_to AS TIME)) AT TIME ZONE 'Europe/Moscow' < CURRENT_TIMESTAMP)
 		)
