@@ -518,12 +518,8 @@
     />
 
     <EmployeeDetailsModal
-      :show="showDetailsModal"
-      :employee="detailsEmployee"
-      :all-tables="[]"
-      :current-user-id="ownershipInfo?.user_id || null"
-      :current-user-name="''"
-      source="employeesview"
+      v-bind="entityDetailsProps"
+      @period-changed="onEntityPeriodChanged"
       @close="closeDetailsModal"
       @open-application="handleOpenApplication"
     />
@@ -541,6 +537,7 @@
 </template>
 
 <script>
+import { employeesRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
@@ -570,6 +567,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 const EMPLOYEES_PER_PAGE = 30;
 
 export default {
+    mixins: [employeesRegistryPeriodDetails],
     components: {
         OwnershipFilterTabs,
         SearchComponent,
@@ -1021,38 +1019,6 @@ export default {
         resetScopeFilter() {
             this.switchFilter('user');
             this.showScopeSheet = false;
-        },
-
-        openEmployeeDetails(employee) {
-            // EmployeeDetailsModal читает snake_case (last_name, position, ...)
-            // и поддерживает source=employeesview - заголовок \"Информация о сотруднике\"
-            this.detailsEmployee = {
-                id: employee.id,
-                // id заявочной строки активной заявки; по нему карточка тянет статус
-                // территории (current-status ключуется по employees.id, не по реестру).
-                activeEmployeeId: employee.active_employee_id || null,
-                // id самой заявки - для кнопки "Открыть заявку" (open-application).
-                applicationId: employee.active_application_id || null,
-                last_name: employee.last_name,
-                first_name: employee.first_name,
-                middle_name: employee.middle_name,
-                position: employee.position,
-                citizenshipName: employee.citizenship_name,
-                passport_series_number: employee.passport_series_number,
-                patent_number: employee.patent_number,
-                other_permission: employee.other_permission,
-                organization: employee.active_app_org_name || employee.organization_name,
-                company: employee.active_app_company_name || employee.company_name,
-                entry_date_to: employee.active_entry_date_to,
-                pass_time: employee.active_pass_time,
-                isActive: employee.status,
-                // Логин владельца сервер отдаёт только администратору, поэтому карточка
-                // рисует строку по факту наличия значения, а не по своей проверке роли.
-                user_name: employee.user_name || null,
-                pd_consent_at: employee.pd_consent_at || null,
-                target_tables: []
-            };
-            this.showDetailsModal = true;
         },
         closeDetailsModal() {
             this.showDetailsModal = false;

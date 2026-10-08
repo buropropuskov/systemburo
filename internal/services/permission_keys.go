@@ -66,6 +66,8 @@ const (
 	// единственный гейт: сервис всё равно требует, чтобы дополняющий был автором заявки.
 	KeyActionSupplementApplication = "action.supplement.application"
 	KeyActionBanUser               = "action.ban.user"
+	KeyApplicationPeriodChange     = "application.period.change"
+	KeyDetailPeriodChange          = "detail.period.change"
 )
 
 // Audit-level keys (просмотр и управление журналами).
@@ -103,6 +105,8 @@ func AllStaticKeys() []string {
 		KeyActionForwardApplication,
 		KeyActionSupplementApplication,
 		KeyActionBanUser,
+		KeyApplicationPeriodChange,
+		KeyDetailPeriodChange,
 		KeyAuditRead,
 		KeyAuditManage,
 	}

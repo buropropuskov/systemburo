@@ -29,6 +29,7 @@ type Dependencies struct {
 	UserTypes           *handlers.UserTypesHandler
 	Attachments         *handlers.AttachmentHandler
 	ManualAttach        *handlers.ManualAttachHandler
+	SingleManualAttach  *handlers.SingleManualAttachHandler
 	LPF                 *handlers.LicensePlateFormatHandler
 	Citizenship         *handlers.CitizenshipHandler
 	Organization        *handlers.OrganizationHandler
@@ -46,6 +47,8 @@ type Dependencies struct {
 	UniqueEmployee      *handlers.UniqueEmployeeHandler
 	Feedback            *handlers.FeedbackHandler
 	Application         *handlers.ApplicationHandler
+	EntityPeriod        *handlers.EntityPeriodHandler
+	AttachmentPeriod    *handlers.AttachmentPeriodHandler
 	ApplicationFiles    *handlers.ApplicationFileHandler
 	Approver            *handlers.ApproverHandler
 	Permissions         *handlers.PermissionHandler
@@ -719,6 +722,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
+	carsGroup.GET("/:id/period", d.EntityPeriod.GetCarPeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
+	carsGroup.GET("/:id/manual-attach-context", d.SingleManualAttach.GetCarContext, requireAdmin)
+	carsGroup.GET("/:id/manual-attach-attachments", d.SingleManualAttach.GetCarAttachments, requireAdmin)
+	carsGroup.POST("/:id/attach-to-application/preview", d.SingleManualAttach.PreviewCar, requireAdmin)
+	carsGroup.POST("/:id/attach-to-application", d.SingleManualAttach.AttachCar, requireAdmin)
+	carsGroup.PUT("/:id/period", d.EntityPeriod.ChangeCarPeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
 	carsGroup.GET("/active-for-table/:id", cars.GetActiveCarsForTable, d.TableViewGate)
 	// Ручное добавление машин без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.cars.manual_add.
@@ -755,6 +764,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Сотрудники (в заявках)
 	empGroup := protected.Group("/employees")
+	empGroup.GET("/:id/period", d.EntityPeriod.GetEmployeePeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
+	empGroup.GET("/:id/manual-attach-context", d.SingleManualAttach.GetEmployeeContext, requireAdmin)
+	empGroup.GET("/:id/manual-attach-attachments", d.SingleManualAttach.GetEmployeeAttachments, requireAdmin)
+	empGroup.POST("/:id/attach-to-application/preview", d.SingleManualAttach.PreviewEmployee, requireAdmin)
+	empGroup.POST("/:id/attach-to-application", d.SingleManualAttach.AttachEmployee, requireAdmin)
+	empGroup.PUT("/:id/period", d.EntityPeriod.ChangeEmployeePeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
 	// Ручное добавление сотрудников без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.employees.manual_add.
 	empGroup.POST("/manual", employees.CreateManualEmployees,
@@ -949,6 +964,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
 	// Принимающий сдвигает срок заявки, пока она не принята и не согласована (#2575).
 	apg.PUT("/:id/dates", app.ChangeApplicationDates)
+	apg.POST("/:id/attachment-period/preview", d.AttachmentPeriod.Preview, mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationPeriodChange))
+	apg.PUT("/:id/attachment-period", d.AttachmentPeriod.Change, mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationPeriodChange))
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
 	apg.POST("/:id/withdraw", app.WithdrawApplication)

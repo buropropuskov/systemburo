@@ -296,7 +296,10 @@ func main() {
 	availableRefreshProducer := services.NewAvailableRefreshPublisher(db, permissionResolver, eventsHub)
 	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer), services.WithCarNotifications(notificationServiceEarly))
 	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer), services.WithEmployeeNotifications(notificationServiceEarly))
+	entityPeriodCommands := services.NewEntityPeriodCommandService(db, auditRecorder)
+	attachmentPeriodCommands := services.NewAttachmentPeriodCommandService(db, auditRecorder)
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
+	singleManualAttachCommands := services.NewSingleManualAttachCommandService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
 	permissionService := services.NewPermissionService(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
@@ -359,6 +362,22 @@ func main() {
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
 	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal))
+	if err := services.ConfigureEntityPeriodUpdates(entityPeriodCommands, applicationService); err != nil {
+		slog.Error("configure period updates", "error", err)
+		os.Exit(1)
+	}
+	if err := services.ConfigureAttachmentPeriodUpdates(attachmentPeriodCommands, applicationService); err != nil {
+		slog.Error("configure attachment period publishers", "error", err)
+		os.Exit(1)
+	}
+	if err := services.ConfigureManualAttachUpdates(manualAttachService, applicationService); err != nil {
+		slog.Error("configure manual attach publishers", "error", err)
+		os.Exit(1)
+	}
+	if err := services.ConfigureSingleManualAttachUpdates(singleManualAttachCommands, applicationService); err != nil {
+		slog.Error("configure single manual attach publishers", "error", err)
+		os.Exit(1)
+	}
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath, cfg.UploadMaxFileSize)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
@@ -597,6 +616,7 @@ func main() {
 		UserTypes:           userTypesHandler,
 		Attachments:         attachmentHandler,
 		ManualAttach:        manualAttachHandler,
+		SingleManualAttach:  handlers.NewSingleManualAttachHandler(singleManualAttachCommands),
 		LPF:                 lpfHandler,
 		Citizenship:         citizenshipHandler,
 		Organization:        organizationHandler,
@@ -612,6 +632,8 @@ func main() {
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
+		EntityPeriod:        handlers.NewEntityPeriodHandler(entityPeriodCommands),
+		AttachmentPeriod:    handlers.NewAttachmentPeriodHandler(attachmentPeriodCommands),
 		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,
 		Permissions:         permissionHandler,

@@ -33,32 +33,23 @@
               <h3 class="modal-title">
                 {{ modalTitle }}
               </h3>
-              <div
-                v-if="showCarFeatures || (!readonly && canManageBlacklist && hasVehicleIdentity)"
-                class="header-actions"
-              >
-                <button
-                  v-if="showCarFeatures && canSeeFullHistory"
-                  class="history-btn"
-                  @click="openCarHistory"
-                >
-                  <span>Полная история</span>
-                </button>
-                <button
-                  v-if="!readonly && canOpenApplication"
-                  class="application-btn"
-                  @click="openApplication"
-                >
-                  <span>Открыть заявку</span>
-                </button>
-                <button
-                  v-if="!readonly && canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
-                  class="blacklist-add-btn"
-                  @click="openAddBlacklist"
-                >
-                  <span>В ЧС</span>
-                </button>
-              </div>
+              <DetailHeaderActions
+                :visible="showCarFeatures || (!readonly && canManageBlacklist && hasVehicleIdentity) || visibleActionsCount > 0"
+                :show="show"
+                kind="car"
+                :entity="vehicle"
+                :source="source"
+                :readonly="readonly"
+                :period-table-id="periodTableId"
+                :history-visible="showCarFeatures && canSeeFullHistory"
+                :application-visible="!readonly && canOpenApplication"
+                :blacklist-visible="!readonly && canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
+                @history="openCarHistory"
+                @application="openApplication"
+                @blacklist="openAddBlacklist"
+                @period-changed="$emit('period-changed', $event)"
+                @manual-attached="$emit('manual-attached', $event)"
+              />
               <button
                 class="modal-close"
                 @click="close"
@@ -241,6 +232,7 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
+                    <CarAccessFlagRows :flags="vehicle" />
                     <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
                          подписью под блоком, а не строкой наравне с данными машины.
                          Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
@@ -523,6 +515,10 @@ import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import TableInfoModal from './TableInfoModal.vue';
+import { canEditEntityPeriod } from '@/components/EntityPeriodEditor.vue';
+import DetailHeaderActions, { detailHeaderTitle } from './DetailHeaderActions.vue';
+import CarAccessFlagRows from './CarAccessFlagRows.vue';
+import { vehicleDetailsIdentityComputed } from './vehicleDetailsIdentity';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import Badge from '@/components/ui/Badge.vue';
@@ -544,6 +540,8 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 export default {
     name: 'VehicleDetailsModal',
     components: {
+        CarAccessFlagRows,
+        DetailHeaderActions,
         AppIcon,
         UnloadPlaceModal,
         TableInfoModal,
@@ -553,6 +551,7 @@ export default {
         AddToBlacklistModal
     },
     props: {
+        periodTableId: { type: Number, default: null },
         show: {
             type: Boolean,
             required: true
@@ -609,7 +608,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'open-application', 'override', 'cancel-override'],
+    emits: ['close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
@@ -660,6 +659,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         }
     },
     computed: {
+        ...vehicleDetailsIdentityComputed,
         // Карточка, открытая ИЗ ApplicationDetail (source='application'), лежит ПОВЕРХ его
         // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
@@ -693,16 +693,12 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         visibleActionsCount() {
             const history = (this.showCarFeatures && this.canSeeFullHistory) ? 1 : 0;
             const application = this.canOpenApplication ? 1 : 0;
-            return history + application;
+            return history + application + (canEditEntityPeriod('car', this.source, this.vehicle, this.readonly) ? 1 : 0);
         },
         // На телефоне в строку шапки помещается только короткое имя: длинный вариант
         // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
-            if (this.isNarrow) return 'Информация';
-            const count = this.visibleActionsCount;
-            if (count >= 2) return 'Информация';
-            if (count === 1) return 'Детальная информация';
-            return 'Детальная информация о Т/С';
+            return detailHeaderTitle('car', this.isNarrow, this.visibleActionsCount);
         },
         getStatusClass() {
             if (this.entryChecked && !this.exitChecked) return 'status-on-territory';
@@ -733,20 +729,6 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         },
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
-        },
-        vehicleNumber() {
-            return (this.vehicle?.plateNumber || this.vehicle?.car_number || '').trim();
-        },
-        vehicleMark() {
-            return (this.vehicle?.mark || this.vehicle?.car_brand || '').trim();
-        },
-        vehicleLabel() {
-            return [this.vehicleNumber, this.vehicleMark].filter(Boolean).join(' ');
-        },
-        // Добавить в ЧС можно только реальную машину с номером и маркой (не "по факту").
-        hasVehicleIdentity() {
-            const n = this.vehicleNumber.toLowerCase();
-            return !!this.vehicleNumber && !!this.vehicleMark && n !== 'по факту';
         },
         // Предупреждение о возможном обходе ЧС показываем только в контексте заявки -
         // флаг приходит из деталей вложения (#481, срез C).
@@ -1292,46 +1274,6 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
   box-sizing: border-box;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-right: 10px;
-}
-
-.history-btn, .application-btn {
-  padding: 6px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.history-btn:hover, .application-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--accent);
-}
-
-.blacklist-add-btn {
-  padding: 6px 12px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--danger-text);
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  white-space: nowrap;
-}
-
-.blacklist-add-btn:hover {
-  background: var(--danger-bg);
-  border-color: var(--danger);
-}
 
 .bl-section {
   margin-bottom: 16px;
@@ -1996,12 +1938,6 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
     height: auto;
   }
   
-  .header-actions {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-    margin-top: 10px;
-  }
   
   .modal-body {
     padding: 16px 20px;

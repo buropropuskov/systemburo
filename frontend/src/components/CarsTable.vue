@@ -567,14 +567,9 @@
     <!-- Модальное окно с деталями автомобиля -->
     <VehicleDetailsModal
       v-if="!preview"
-      :show="showVehicleDetails"
-      :vehicle="selectedVehicle"
-      :all-unloading-places="allUnloadingPlaces" :all-tables="allTables"
-      :license-plate-formats="licensePlateFormats"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      :show-car-features="true"
-      :source="'carstable'"
+      v-bind="entityDetailsProps"
+      @period-changed="onEntityPeriodChanged"
+      @manual-attached="onManualEntityAttached"
       @close="closeVehicleDetails"
       @open-application="$emit('open-application', $event)"
     />
@@ -620,6 +615,7 @@
 </template>
 
 <script>
+import { carsTablePeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client'
 import { getSystemTables } from '@/api/system-tables'
 import { fetchJson } from '@/api/fetchJson'
@@ -680,6 +676,7 @@ const MOBILE_CARD_FIELDS = [
 ];
 
 export default {
+    mixins: [carsTablePeriodDetails],
   name: 'CarsTable',
   components: {
     RefreshButton,
@@ -1121,6 +1118,10 @@ export default {
             territory_status: car.territory_status ?? prev?.territory_status ?? 0,
             plateNumber: car.car_number,
             mark: car.car_brand,
+            roof_access: car.roof_access,
+            free_parking: car.free_parking,
+            individual_roof_access: car.individual_roof_access,
+            individual_free_parking: car.individual_free_parking,
             formatId: null,
             unloadPlaces: car.unload_place_ids || [],
             // Число таблиц «Проезд», к которым привязана машина (#1194 S5) -
@@ -1478,29 +1479,6 @@ export default {
       this._loadData(true);
       return true;
     },
-
-    openVehicleDetails(item) {
-      this.selectedVehicle = {
-        ...item,
-        plateNumber: item.car_number,
-        mark: item.car_brand,
-        formatId: null,
-        organization: item.organization_name,
-        organizationId: item.organization_id,
-        company: item.company,
-        companyId: item.company_id,
-        isExisting: true,
-        unloadPlaces: item.unload_place_ids || [],
-        entry_date_to: item.entry_date_to,
-        entry_time_from: item.entry_time_from,
-        entry_time_to: item.entry_time_to,
-        applicationId: item.applicationId,
-        entry_checked: item.entry_checked,
-        exit_checked: item.exit_checked
-      };
-      this.showVehicleDetails = true;
-    },
-
     closeVehicleDetails() {
       this.showVehicleDetails = false;
       this.selectedVehicle = null;

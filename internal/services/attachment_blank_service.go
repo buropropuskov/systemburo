@@ -199,6 +199,9 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	if err != nil {
 		return nil, "", err
 	}
+	if err := validateBlankEntityPeriods(bctx); err != nil {
+		return nil, "", fmt.Errorf("invalid entity period for blank: %w", err)
+	}
 	bctx.IncludeDocuments = opts.IncludeDocuments
 
 	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов

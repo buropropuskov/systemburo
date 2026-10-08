@@ -581,9 +581,13 @@ func (s *personBlacklistService) deactivateMatchingEmployees(ctx context.Context
 }
 
 // reactivateMatchingEmployees восстанавливает status=1 у деактивированных employees,
-// совпадающих по ФИО, с активной заявкой (Согласовано + рабочий статус) и актуальной
-// датой пропуска (attachments.entry_date_to - у employees своего поля даты нет).
+// совпадающих по ФИО, с активной заявкой (Согласовано + рабочий статус) и актуальным
+// effective-сроком пропуска (индивидуальное окно либо окно вложения целиком).
 func (s *personBlacklistService) reactivateMatchingEmployees(ctx context.Context, tx *gorm.DB, e models.PersonBlacklist, userID int) (int, error) {
+	validPeriod, err := restorableEntityPeriodSQL("emp")
+	if err != nil {
+		return 0, err
+	}
 	var ids []int
 	if err := tx.WithContext(ctx).
 		Table("employees emp").
@@ -596,7 +600,7 @@ func (s *personBlacklistService) reactivateMatchingEmployees(ctx context.Context
 		Where("emp.is_purged = ?", false).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
-		Where(passValidNowSQL("a")).
+		Where(validPeriod).
 		Pluck("emp.id", &ids).Error; err != nil {
 		return 0, err
 	}

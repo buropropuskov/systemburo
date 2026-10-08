@@ -388,10 +388,11 @@ func TestCheckActiveCar_ExpiredByMoscowClock(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
-	msk := time.Now().In(time.FixedZone("MSK", 3*60*60)).Add(-time.Minute)
+	clock := time.Now().In(time.FixedZone("MSK", 3*60*60))
+	start, msk := clock.Add(-2*time.Minute), clock.Add(-time.Minute)
 	require.NoError(t, db.Exec(
-		`UPDATE cars SET entry_date_to = ?, entry_time_to = ? WHERE id = ?`,
-		msk.Format("2006-01-02"), msk.Format("15:04:05"), carID,
+		`UPDATE cars SET period_mode = 'individual', entry_date_from = ?, entry_time_from = ?, entry_date_to = ?, entry_time_to = ? WHERE id = ?`,
+		start.Format("2006-01-02"), start.Format("15:04:05"), msk.Format("2006-01-02"), msk.Format("15:04:05"), carID,
 	).Error)
 
 	rec := testutil.GET(t, e, fmt.Sprintf(

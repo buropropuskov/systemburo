@@ -108,6 +108,8 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 	err := s.db.WithContext(ctx).Raw(`
 		SELECT
 			a.id,
+			a.status,
+			a.is_manual,
 			a.attachment_type,
 			a.attachment_name,
 			COALESCE(a.attachment_display_name, '') as attachment_display_name,
@@ -322,7 +324,12 @@ func (s *applicationService) employeeTargetTablesByEmployee(ctx context.Context,
 }
 
 func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error) {
+	period, err := EntityEffectivePeriodSQL("c", "a")
+	if err != nil {
+		return nil, err
+	}
 	type carRow struct {
+		CarAccessFlags
 		ID             int
 		CarNumber      string  `gorm:"column:car_number"`
 		CarBrand       string  `gorm:"column:car_brand"`
@@ -347,13 +354,13 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 	if err := s.db.WithContext(ctx).Raw(`
 		SELECT
 			c.id,
-			c.car_number,
+			c.car_number,`+carAccessSelectSQL+`,
 			c.car_brand,
 			c.unload_place,
-			c.entry_date_from,
-			c.entry_time_from,
-			c.entry_date_to,
-			c.entry_time_to,
+			`+period.DateFrom+` AS entry_date_from,
+			`+period.TimeFrom+` AS entry_time_from,
+			`+period.DateTo+` AS entry_date_to,
+			`+period.TimeTo+` AS entry_time_to,
 			o.name AS organization,
 			o.id   AS organization_id,
 			comp.name AS company,
@@ -410,6 +417,7 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		}
 
 		result = append(result, CarWithPlaces{
+			CarAccessFlags:   car.CarAccessFlags,
 			IsBlacklisted:    car.IsBlacklisted,
 			ID:               car.ID,
 			CarNumber:        car.CarNumber,
@@ -437,6 +445,10 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 // решает, попадают ли в выдачу сотрудники ещё не принятого дополнения (#1685); выборка
 // несёт серию и номер паспорта и номер патента, поэтому охране идёт только допущенное.
 func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error) {
+	period, err := EntityEffectivePeriodSQL("e", "a")
+	if err != nil {
+		return nil, err
+	}
 	type empRow struct {
 		ID                   int
 		LastName             string  `gorm:"column:last_name"`
@@ -476,8 +488,8 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 			e.passport_series_number,
 			e.patent_number,
 			e.other_permission,
-			a.entry_date_to,
-			CONCAT(a.entry_time_from, ' - ', a.entry_time_to) AS pass_time,
+			`+period.DateTo+` AS entry_date_to,
+			CONCAT(`+period.TimeFrom+`, ' - ', `+period.TimeTo+`) AS pass_time,
 			o.name AS organization,
 			o.id   AS organization_id,
 			comp.name AS company,

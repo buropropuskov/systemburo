@@ -27,6 +27,10 @@ const relative = (file) => path.relative(SRC_ROOT, file).split(path.sep).join('/
  * ровном месте, а чинили его подстановкой нового числа - шум без пользы.
  */
 const OPAQUE_CALLS = {
+  'components/EntityPeriodModal.vue::load(this.endpoint + query)':
+    'GET /employees/:id/period либо /cars/:id/period, необязательный table_id: endpoint ограничен kind и положительным ID; окно загружается только после явного открытия кнопкой с detail.period.change. Сервер повторно проверяет это право, видимость записи и таблицу',
+  'components/EntityPeriodModal.vue::save(this.endpoint)':
+    'PUT /employees/:id/period либо /cars/:id/period: сохранение явно вызывается из открытого редактора после GET текущей ревизии; сервер свежим resolver проверяет detail.period.change, личный запрет, видимость, статус и ревизию внутри транзакции',
   'components/CreateApplication/CreateApplication.vue::collect(url)':
     'loadDefaultApprovers гоняет общий collect(url) по /organizations/:id/users и /companies/:id/users - оба открыты любому вошедшему',
 };

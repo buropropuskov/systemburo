@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"gorm.io/gorm"
+	"time"
+)
 
 type Car struct {
 	ID           int        `json:"id"`
@@ -9,22 +12,25 @@ type Car struct {
 	// SupplementID - каким дополнением заявки добавлена машина (#1685). NULL - пришла с
 	// исходной подачей. По нему принятие дополнения активирует только его строки, а
 	// интерфейс выделяет новые. Без FK: дополнения не удаляются, отмена у них - статус.
-	SupplementID       *int       `gorm:"index" json:"supplement_id"`
-	CarNumber          *string    `gorm:"size:50;index" json:"car_number"`
-	CarBrand           *string    `gorm:"size:100" json:"car_brand"` // deprecated: оставлен на N релизов, см. mark_name
-	MarkID             *int       `gorm:"index" json:"mark_id,omitempty"`
-	MarkName           *string    `gorm:"size:100" json:"mark_name,omitempty"` // snapshot имени марки на момент присвоения
-	Mark               *Mark      `gorm:"foreignKey:MarkID" json:"-"`
-	UnloadPlace        *string    `gorm:"size:255" json:"unload_place"`
-	EntryDateFrom      *string    `gorm:"size:20" json:"entry_date_from"`
-	EntryTimeFrom      *string    `gorm:"size:20" json:"entry_time_from"`
-	EntryDateTo        *string    `gorm:"size:20" json:"entry_date_to"`
-	EntryTimeTo        *string    `gorm:"size:20" json:"entry_time_to"`
-	TerritoryEntryTime *time.Time `json:"territory_entry_time"`
-	TerritoryStatus    *int       `json:"territory_status"`
-	Status             *int       `gorm:"index" json:"status"`
-	DateAdded          *time.Time `json:"date_added"`
-	DateRemoved        *time.Time `json:"date_removed"`
+	SupplementID          *int       `gorm:"index" json:"supplement_id"`
+	PeriodMode            PeriodMode `gorm:"size:16" json:"period_mode"`
+	IndividualRoofAccess  bool       `gorm:"not null;default:false" json:"individual_roof_access"`
+	IndividualFreeParking bool       `gorm:"not null;default:false" json:"individual_free_parking"`
+	CarNumber             *string    `gorm:"size:50;index" json:"car_number"`
+	CarBrand              *string    `gorm:"size:100" json:"car_brand"` // deprecated: оставлен на N релизов, см. mark_name
+	MarkID                *int       `gorm:"index" json:"mark_id,omitempty"`
+	MarkName              *string    `gorm:"size:100" json:"mark_name,omitempty"` // snapshot имени марки на момент присвоения
+	Mark                  *Mark      `gorm:"foreignKey:MarkID" json:"-"`
+	UnloadPlace           *string    `gorm:"size:255" json:"unload_place"`
+	EntryDateFrom         *string    `gorm:"size:20" json:"entry_date_from"`
+	EntryTimeFrom         *string    `gorm:"size:20" json:"entry_time_from"`
+	EntryDateTo           *string    `gorm:"size:20" json:"entry_date_to"`
+	EntryTimeTo           *string    `gorm:"size:20" json:"entry_time_to"`
+	TerritoryEntryTime    *time.Time `json:"territory_entry_time"`
+	TerritoryStatus       *int       `json:"territory_status"`
+	Status                *int       `gorm:"index" json:"status"`
+	DateAdded             *time.Time `json:"date_added"`
+	DateRemoved           *time.Time `json:"date_removed"`
 	// Согласие субъекта на обработку персональных данных: см. Employee.PDConsentAt.
 	// У машин поле шаблона по умолчанию выключено (номер и марка субъекта не
 	// идентифицируют), колонки заведены для случая, когда администратор его включит.
@@ -38,6 +44,13 @@ type Car struct {
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	TerritoryExitTime *time.Time `json:"territory_exit_time"`
+}
+
+func (c *Car) BeforeCreate(_ *gorm.DB) error {
+	if c.PeriodMode == "" {
+		c.PeriodMode = PeriodInherit
+	}
+	return nil
 }
 
 type UniqueCar struct {

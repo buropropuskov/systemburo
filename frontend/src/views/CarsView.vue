@@ -765,14 +765,8 @@
     />
 
     <VehicleDetailsModal
-      :show="showDetailsViewModal"
-      :vehicle="detailsCar"
-      :all-unloading-places="allUnloadingPlaces"
-      :license-plate-formats="[]"
-      :current-user-id="ownershipInfo?.user_id || null"
-      :current-user-name="''"
-      :show-car-features="false"
-      source="carsview"
+      v-bind="entityDetailsProps"
+      @period-changed="onEntityPeriodChanged"
       @close="closeCarDetails"
       @open-application="handleOpenApplication"
     />
@@ -790,6 +784,7 @@
 </template>
 
 <script>
+import { carsRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
@@ -819,6 +814,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 const CARS_PER_PAGE = 30;
 
 export default {
+    mixins: [carsRegistryPeriodDetails],
     components: {
         OwnershipFilterTabs,
         SearchComponent,
@@ -1138,33 +1134,6 @@ export default {
             if (height === this._lastHeight) return;
             this._lastHeight = height;
             el.style.height = `${height}px`;
-        },
-        openCarDetails(car) {
-            this.detailsCar = {
-                id: car.id,
-                plateNumber: car.number,
-                mark: car.mark,
-                formatId: car.format_id || null,
-                organization: car.active_app_org_name || car.organization_name || null,
-                organizationId: car.organization_id || null,
-                company: car.active_app_company_name || car.company_name || null,
-                companyId: car.company_id || null,
-                isExisting: true,
-                // active_car_id - id заявочной строки активной заявки; по нему тянем
-                // места разгрузки и статус территории (в реестре их нет).
-                activeCarId: car.active_car_id || null,
-                // id самой заявки - для кнопки "Открыть заявку" (open-application).
-                applicationId: car.active_application_id || null,
-                unloadPlaces: this.carUnloadPlacesMap[car.active_car_id] || [],
-                entry_date_to: car.active_entry_date_to,
-                entry_time_from: car.active_entry_time_from,
-                entry_time_to: car.active_entry_time_to,
-                isActive: car.status,
-                // Логин владельца сервер отдаёт только администратору, поэтому карточка
-                // рисует строку по факту наличия значения, а не по своей проверке роли.
-                user_name: car.user_name || null,
-            };
-            this.showDetailsViewModal = true;
         },
         closeCarDetails() {
             this.showDetailsViewModal = false;

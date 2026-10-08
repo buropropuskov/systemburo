@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/crypto"
@@ -67,10 +68,16 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 	if err != nil {
 		return nil, err
 	}
+	period, err := EntityEffectivePeriodSQL("c", "att")
+	if err != nil {
+		return nil, err
+	}
 	sql := `
 		SELECT c.id, 'car' AS type,
 			a.application_number, a.id AS application_id,
-			c.entry_date_to, c.entry_time_from, c.entry_time_to,
+			` + period.DateTo + ` AS entry_date_to,
+			` + period.TimeFrom + ` AS entry_time_from,
+			` + period.TimeTo + ` AS entry_time_to,
 			COALESCE(c.mark_name, c.car_brand) AS mark_name, c.car_number,
 			COALESCE(org.name, '') AS organization,
 			COALESCE(comp.name, '') AS company,
@@ -144,6 +151,10 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	if err != nil {
 		return nil, err
 	}
+	period, err := EntityEffectivePeriodSQL("e", "att")
+	if err != nil {
+		return nil, err
+	}
 	sql := `
 		SELECT e.id, 'employee' AS type,
 			a.application_number, a.id AS application_id,
@@ -158,7 +169,9 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 				FROM employee_target_tables ett2 JOIN system_tables st ON st.id = ett2.table_id
 				WHERE ett2.employee_id = e.id
 			), '[]') AS pass_places,
-			att.entry_date_to, att.entry_time_from, att.entry_time_to,
+			` + period.DateTo + ` AS entry_date_to,
+			` + period.TimeFrom + ` AS entry_time_from,
+			` + period.TimeTo + ` AS entry_time_to,
 			e.date_deleted AS deleted_at,
 			(
 				SELECT eh.user_id
@@ -226,15 +239,19 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 
 // CanRestoreCar - проверка что есть действующая согласованная заявка на эту машину.
 func (s *trashService) CanRestoreCar(ctx context.Context, id int) (bool, string) {
+	validPeriod, err := restorableEntityPeriodSQL("c")
+	if err != nil {
+		return false, "Нет активной согласованной заявки - восстановление невозможно"
+	}
 	var cnt int64
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Table("cars c").
 		Joins("JOIN attachments a ON a.id = c.attachment_id").
 		Joins("JOIN applications app ON app.id = a.application_id").
 		Where("c.id = ?", id).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status NOT IN ?", []string{models.StatusCompleted, models.StatusRefused}).
-		Where(passValidNowSQL("a")).
+		Where(validPeriod).
 		Count(&cnt).Error
 	if err != nil || cnt == 0 {
 		return false, "Нет активной согласованной заявки - восстановление невозможно"
@@ -243,20 +260,41 @@ func (s *trashService) CanRestoreCar(ctx context.Context, id int) (bool, string)
 }
 
 func (s *trashService) CanRestoreEmployee(ctx context.Context, id int) (bool, string) {
+	validPeriod, err := restorableEntityPeriodSQL("e")
+	if err != nil {
+		return false, "Нет активной согласованной заявки - восстановление невозможно"
+	}
 	var cnt int64
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Table("employees e").
 		Joins("JOIN attachments a ON a.id = e.attachment_id").
 		Joins("JOIN applications app ON app.id = a.application_id").
 		Where("e.id = ?", id).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status NOT IN ?", []string{models.StatusCompleted, models.StatusRefused}).
-		Where(passValidNowSQL("a")).
+		Where(validPeriod).
 		Count(&cnt).Error
 	if err != nil || cnt == 0 {
 		return false, "Нет активной согласованной заявки - восстановление невозможно"
 	}
 	return true, ""
+}
+
+// Restoration/reactivation preserves each caller's lifecycle and matching gates.
+// An individual window is never filled from the parent and cannot omit its end.
+// Inherited NULL/empty ends retain the caller's historical unbounded semantics,
+// including manual sources. The Moscow end rule and optional legacy end-clock
+// fallback remain shared with passValidNowSQL.
+func restorableEntityPeriodSQL(entityAlias string) (string, error) {
+	period, err := EntityEffectivePeriodSQL(entityAlias, "a")
+	if err != nil {
+		return "", err
+	}
+	validUntil := strings.NewReplacer(
+		"a.entry_date_to", period.DateTo,
+		"a.entry_time_to", period.TimeTo,
+	).Replace(passValidNowSQL("a"))
+	return period.ValidMode + " AND (" + period.Source + " <> 'individual' OR " + period.Bounded + ") AND " + validUntil, nil
 }
 
 func (s *trashService) RestoreCars(ctx context.Context, systemTableID int, ids []int, userID int) (int, error) {

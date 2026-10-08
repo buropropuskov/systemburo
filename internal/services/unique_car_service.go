@@ -56,6 +56,7 @@ type CarOwnerInfo struct {
 
 // UniqueCarWithRelations -- машина с данными связанных сущностей.
 type UniqueCarWithRelations struct {
+	CarAccessFlags
 	ID               int        `json:"id"`
 	Number           *string    `json:"number"`
 	Mark             *string    `json:"mark"`
@@ -310,29 +311,29 @@ const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, u
 		AND {{pass_valid}}
 		LIMIT 1
 	), false) as status,
-	(SELECT a.entry_date_to FROM cars cr
+	(SELECT {{date_to}} FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_entry_date_to,
-	(SELECT a.entry_time_from FROM cars cr
+	(SELECT {{time_from}} FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_entry_time_from,
-	(SELECT a.entry_time_to FROM cars cr
+	(SELECT {{time_to}} FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_entry_time_to,
 	(SELECT ao.name FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
@@ -341,7 +342,7 @@ const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, u
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_app_org_name,
 	(SELECT ac.name FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
@@ -350,7 +351,7 @@ const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, u
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_app_company_name,
 	(SELECT cr.id FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
@@ -358,7 +359,7 @@ const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, u
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_car_id,
 	(SELECT app.id FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
@@ -366,7 +367,7 @@ const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, u
 		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, cr.id DESC LIMIT 1
 	) as active_application_id,
 	-- Флаг ЧС считает сервер (нормализация 1:1 с vehicleBlacklistService.CheckByName),
 	-- чтобы фронт не выгружал весь список машин ЧС ради подсветки в реестре.
@@ -378,7 +379,7 @@ const carsListSelectTemplate = `uc.id, uc.number, uc.mark, uc.organization_id, u
 	) as is_blacklisted`
 
 // carsListSelect -- шаблон с развёрнутым условием действующего пропуска.
-var carsListSelect = strings.ReplaceAll(carsListSelectTemplate, "{{pass_valid}}", passValidNowSQL("a"))
+var carsListSelect = registryEffectivePeriodSelect(carsListSelectTemplate, "cr")
 
 // buildCarsQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
 // БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных
@@ -472,6 +473,9 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
 	maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll)
+	if err := hydrateRegistryCarAccess(ctx, s.db, cars); err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car access")
+	}
 
 	return cars, nil
 }
@@ -514,6 +518,9 @@ func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filter
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
 	maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll)
+	if err := hydrateRegistryCarAccess(ctx, s.db, cars); err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car access")
+	}
 
 	return cars, total, nil
 }

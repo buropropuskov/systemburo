@@ -30,29 +30,22 @@
               <h3 class="modal-title">
                 {{ modalTitle }}
               </h3>
-              <div class="header-actions">
-                <button
-                  v-if="showHistoryButton"
-                  class="history-btn"
-                  @click="openFullHistory"
-                >
-                  <span>Полная история</span>
-                </button>
-                <button
-                  v-if="!readonly && source !== 'application' && employee?.applicationId"
-                  class="application-btn"
-                  @click="openApplication"
-                >
-                  <span>Открыть заявку</span>
-                </button>
-                <button
-                  v-if="!readonly && canManageBlacklist && hasPersonIdentity && !isBlacklisted"
-                  class="blacklist-add-btn"
-                  @click="openAddBlacklist"
-                >
-                  <span>В ЧС</span>
-                </button>
-              </div>
+              <DetailHeaderActions
+                :show="show"
+                kind="employee"
+                :entity="employee"
+                :source="source"
+                :readonly="readonly"
+                :period-table-id="periodTableId"
+                :history-visible="showHistoryButton"
+                :application-visible="!readonly && source !== 'application' && !!employee?.applicationId"
+                :blacklist-visible="!readonly && canManageBlacklist && hasPersonIdentity && !isBlacklisted"
+                @history="openFullHistory"
+                @application="openApplication"
+                @blacklist="openAddBlacklist"
+                @period-changed="$emit('period-changed', $event)"
+                @manual-attached="$emit('manual-attached', $event)"
+              />
               <button
                 class="modal-close"
                 @click="close"
@@ -518,6 +511,8 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
+import { canEditEntityPeriod } from '@/components/EntityPeriodEditor.vue';
+import DetailHeaderActions, { detailHeaderTitle } from './DetailHeaderActions.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import Badge from '@/components/ui/Badge.vue';
 import { activePassageTables, removedPassageTables } from '@/constants/passageSource';
@@ -534,6 +529,7 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 export default {
     name: 'EmployeeDetailsModal',
     components: {
+        DetailHeaderActions,
         AppIcon,
         TableInfoModal,
         EmployeeHistoryModal,
@@ -541,6 +537,7 @@ export default {
         AddToBlacklistModal
     },
     props: {
+        periodTableId: { type: Number, default: null },
         show: {
             type: Boolean,
             required: true
@@ -581,7 +578,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'open-application', 'override', 'cancel-override'],
+    emits: ['close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
     setup() {
         // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). onDismiss зовёт метод
         // close() компонента (полная очистка таймеров/подмодалок) через proxy, не голый emit.
@@ -643,16 +640,12 @@ export default {
         visibleActionsCount() {
             const history = this.showHistoryButton ? 1 : 0;
             const application = (this.source !== 'application' && !!this.employee?.applicationId) ? 1 : 0;
-            return history + application;
+            return history + application + (canEditEntityPeriod('employee', this.source, this.employee, this.readonly) ? 1 : 0);
         },
         // На телефоне в строку шапки помещается только короткое имя: длинный вариант
         // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
-            if (this.isNarrow) return 'Информация';
-            const count = this.visibleActionsCount;
-            if (count >= 2) return 'Информация';
-            if (count === 1) return 'Детальная информация';
-            return 'Детальная информация о сотруднике';
+            return detailHeaderTitle('employee', this.isNarrow, this.visibleActionsCount);
         },
         showHistoryButton() {
             return this.source !== 'employeeslist' && this.canSeeFullHistory;
@@ -1133,46 +1126,6 @@ export default {
     box-sizing: border-box;
 }
 
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-right: 10px;
-}
-
-.history-btn, .application-btn {
-    padding: 6px 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 12px;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-}
-
-.history-btn:hover, .application-btn:hover {
-    background: var(--surface-2);
-    border-color: var(--accent);
-}
-
-.blacklist-add-btn {
-    padding: 6px 12px;
-    background: var(--surface);
-    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-    border-radius: 20px;
-    font-size: 12px;
-    color: var(--danger-text);
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-    white-space: nowrap;
-}
-
-.blacklist-add-btn:hover {
-    background: var(--danger-bg);
-    border-color: var(--danger);
-}
 
 .bl-section {
     margin-bottom: 16px;
@@ -1810,12 +1763,6 @@ export default {
         height: auto;
     }
     
-    .header-actions {
-        order: 3;
-        width: 100%;
-        justify-content: flex-start;
-        margin-top: 10px;
-    }
     
     .modal-body {
         padding: 16px 20px;

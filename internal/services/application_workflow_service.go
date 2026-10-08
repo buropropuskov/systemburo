@@ -360,147 +360,217 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 
 // CheckExpiredAttachments проверяет и деактивирует вложения с истёкшим сроком действия.
 func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error {
-	slog.Info("Проверка истекших вложений...")
-
+	// Match the admission boundary: an end equal to now is already expired.
+	period, err := EntityEffectivePeriodSQL("e", "a")
+	if err != nil {
+		return err
+	}
+	expiredEntity := "(" + period.ValidMode + " AND " + period.Bounded +
+		" AND (NULLIF(BTRIM(" + period.DateTo + "), '')::date + COALESCE(NULLIF(BTRIM(" + period.TimeTo + "), '')::time, TIME '23:59:59')) <= " + moscowNowSQL + ")"
+	expiredParent := "NOT " + passValidNowSQL("a")
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		return tx.Error
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	type expiredRow struct {
+	// Also rolls back on panic; do not swallow it and report a successful cron.
+	defer tx.Rollback()
+	type attachmentRow struct {
 		ID            int
-		ApplicationID int
+		ApplicationID *int
 	}
-	var expired []expiredRow
-	tx.Raw(`
-		SELECT id, application_id FROM attachments
-		WHERE status = 1 AND (
-			(entry_date_to IS NOT NULL AND CAST(entry_date_to AS DATE) < ` + moscowTodaySQL + `)
-			OR (entry_date_to IS NOT NULL AND entry_time_to IS NOT NULL
-			    AND (CAST(entry_date_to AS DATE) + CAST(entry_time_to AS TIME)) AT TIME ZONE 'Europe/Moscow' < CURRENT_TIMESTAMP)
-		)
-	`).Scan(&expired)
-
-	if len(expired) == 0 {
-		tx.Rollback()
-		slog.Info("Истекших вложений не найдено")
+	type idRow struct{ ID int }
+	var candidates []attachmentRow
+	if err := tx.Raw(`SELECT a.id, a.application_id FROM attachments a
+		WHERE a.status = 1 AND (` + expiredParent + `
+		OR EXISTS (SELECT 1 FROM cars e WHERE e.attachment_id = a.id AND e.status = 1 AND ` + expiredEntity + `)
+		OR EXISTS (SELECT 1 FROM employees e WHERE e.attachment_id = a.id AND e.status = 1 AND ` + expiredEntity + `))
+		ORDER BY a.id`).Scan(&candidates).Error; err != nil {
+		return err
+	}
+	if len(candidates) == 0 {
 		return nil
 	}
-
-	slog.Info("Найдено истекших вложений", "count", len(expired))
-
-	attachmentIDs := make([]int, len(expired))
-	appIDs := make([]int, len(expired))
-	for i, e := range expired {
-		attachmentIDs[i] = e.ID
-		appIDs[i] = e.ApplicationID
+	attachmentIDs := make([]int, 0, len(candidates))
+	appIDs := make([]int, 0, len(candidates))
+	originalParents := make(map[int]*int, len(candidates))
+	for _, candidate := range candidates {
+		attachmentIDs = append(attachmentIDs, candidate.ID)
+		originalParents[candidate.ID] = candidate.ApplicationID
+		if candidate.ApplicationID != nil {
+			appIDs = append(appIDs, *candidate.ApplicationID)
+		}
 	}
-
-	// Получаем машины для истории
-	type carDeactivate struct {
-		ID        int
-		CarNumber string
-		CarBrand  string
+	slices.Sort(appIDs)
+	appIDs = slices.Compact(appIDs)
+	// Same order as period writers: all applications, all attachments, employees,
+	// cars. This also matches the legacy territory reset's entity order. Never acquire an application
+	// lock after locking its attachment or entity.
+	var apps []struct {
+		ID     int
+		Status *string
 	}
-	var cars []carDeactivate
-	tx.Raw("SELECT id, car_number, car_brand FROM cars WHERE attachment_id IN ?", attachmentIDs).Scan(&cars)
-
-	// Получаем сотрудников для истории
-	type employeeDeactivate struct {
-		ID         int
-		LastName   *string
-		FirstName  *string
-		MiddleName *string
+	if len(appIDs) > 0 {
+		if err := tx.Raw("SELECT id, status FROM applications WHERE id IN ? ORDER BY id FOR UPDATE", appIDs).Scan(&apps).Error; err != nil {
+			return err
+		}
 	}
-	var employees []employeeDeactivate
-	tx.Raw("SELECT id, last_name, first_name, middle_name FROM employees WHERE attachment_id IN ?", attachmentIDs).Scan(&employees)
-
-	tx.Exec("UPDATE attachments SET status = 0 WHERE id IN ?", attachmentIDs)
-	tx.Exec("UPDATE cars SET status = 0 WHERE attachment_id IN ?", attachmentIDs)
-	tx.Exec("UPDATE employees SET status = 0 WHERE attachment_id IN ?", attachmentIDs)
-
-	for _, car := range cars {
-		carID := car.ID
-		comment := fmt.Sprintf("Срок действия заявки на автомобиль %s %s истёк", car.CarNumber, car.CarBrand)
-		s.recorder.Log(ctx, tx, models.AuditEntityCar, &carID, "deactivate", nil, carAuditDetails{Comment: &comment})
+	appStatuses := make(map[int]*string, len(apps))
+	for _, app := range apps {
+		appStatuses[app.ID] = app.Status
 	}
-
-	for _, emp := range employees {
-		empID := emp.ID
-		fullName := formatFullName(emp.LastName, emp.FirstName, emp.MiddleName)
-		comment := fmt.Sprintf("Срок действия заявки на сотрудника %s истёк", fullName)
-		s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "deactivate", nil, carAuditDetails{Comment: &comment})
+	var locked []attachmentRow
+	if err := tx.Raw("SELECT id, application_id FROM attachments WHERE id IN ? ORDER BY id FOR UPDATE", attachmentIDs).Scan(&locked).Error; err != nil {
+		return err
 	}
-
-	// Завершаем заявки, у которых все вложения неактивны
-	uniqueAppIDs := make(map[int]bool)
-	for _, id := range appIDs {
-		uniqueAppIDs[id] = true
-	}
-	var completedAppIDs []int
-	for appID := range uniqueAppIDs {
-		var activeCount int64
-		tx.Raw("SELECT COUNT(*) FROM attachments WHERE application_id = ? AND status = 1", appID).Scan(&activeCount)
-		if activeCount != 0 {
+	attachmentIDs = attachmentIDs[:0]
+	for _, attachment := range locked {
+		original := originalParents[attachment.ID]
+		// A concurrent manual-attach/relink is handled by the next cron pass;
+		// its new application is not one of the application locks above.
+		if (original == nil) != (attachment.ApplicationID == nil) {
 			continue
 		}
+		if original != nil && *original != *attachment.ApplicationID {
+			continue
+		}
+		if attachment.ApplicationID != nil {
+			if _, ok := appStatuses[*attachment.ApplicationID]; !ok {
+				continue
+			}
+		}
+		attachmentIDs = append(attachmentIDs, attachment.ID)
+	}
+	if len(attachmentIDs) == 0 {
+		return nil
+	}
+	for _, table := range []string{"employees", "cars"} {
+		var lockedEntities []idRow
+		if err := tx.Raw("SELECT id FROM "+table+" WHERE attachment_id IN ? ORDER BY id FOR UPDATE", attachmentIDs).Scan(&lockedEntities).Error; err != nil {
+			return err
+		}
+	}
+	// Re-evaluate the effective window after acquiring the locks. A period
+	// extension committed before these locks must win over the initial scan.
+	changedAttachments := make(map[int]bool)
+	var changedCars, changedEmployees []int
+	// Only actual expiry transitions permit closing a typed attachment early.
+	expiredChildAttachments := map[string][]int{}
 
-		id := appID
-		var snapshot struct{ Status *string }
-		tx.Raw("SELECT status FROM applications WHERE id = ?", id).Scan(&snapshot)
-
-		// Завершаем только заявки, которые ещё живы: у закрытых (отказ, отзыв, уже
-		// завершённые) решение принято, и срок вложений его не отменяет. Белый список, а не
-		// "всё кроме Завершено": иначе отказ молча превращается в завершение с фальшивым
-		// completed_at и событием в истории. Отзыв сюда не доходит - withdraw гасит
-		// вложения сам, а вот reject их активными и оставляет. COALESCE - NULL-safe:
-		// заявка без статуса завершается как и раньше.
-		res := tx.Exec("UPDATE applications SET status = ?, completed_at = NOW() WHERE id = ? AND COALESCE(status, '') NOT IN (?)",
-			models.StatusCompleted, id, models.ArchivableStatuses)
+	for _, target := range []struct{ table, entityType, detailColumns string }{
+		{"cars", models.AuditEntityCar, "e.car_number, e.car_brand"},
+		{"employees", models.AuditEntityEmployee, "e.last_name, e.first_name, e.middle_name"},
+	} {
+		var changed []struct {
+			ID           int
+			AttachmentID int
+			CarNumber    string
+			CarBrand     string
+			LastName     *string
+			FirstName    *string
+			MiddleName   *string
+		}
+		if err := tx.Raw("UPDATE "+target.table+" e SET status = 0, updated_at = NOW() FROM attachments a WHERE a.id = e.attachment_id AND a.id IN ? AND a.status = 1 AND e.status = 1 AND "+expiredEntity+" RETURNING e.id, e.attachment_id, "+target.detailColumns, attachmentIDs).Scan(&changed).Error; err != nil {
+			return err
+		}
+		for _, entity := range changed {
+			changedAttachments[entity.AttachmentID] = true
+			expiredChildAttachments[target.table] = append(expiredChildAttachments[target.table], entity.AttachmentID)
+			id := entity.ID
+			comment := fmt.Sprintf("Срок действия заявки на автомобиль %s %s истёк", entity.CarNumber, entity.CarBrand)
+			if target.table == "employees" {
+				comment = fmt.Sprintf("Срок действия заявки на сотрудника %s истёк", formatFullName(entity.LastName, entity.FirstName, entity.MiddleName))
+			}
+			if err := s.recorder.Record(ctx, tx, target.entityType, &id, "deactivate", nil, carAuditDetails{Comment: &comment}); err != nil {
+				return err
+			}
+			if target.table == "cars" {
+				changedCars = append(changedCars, id)
+			} else {
+				changedEmployees = append(changedEmployees, id)
+			}
+		}
+	}
+	// For people/cars the final actual admission can end before the parent
+	// window. An empty attachment or one manually emptied earlier does not
+	// become expired just because it has no active children. Other attachment
+	// types keep their existing parent-window expiry policy.
+	earlyEnd := "(FALSE"
+	parentArgs := []any{attachmentIDs}
+	for _, target := range []struct{ table, attachmentType string }{
+		{"cars", "cars"}, {"employees", "people"},
+	} {
+		ids := expiredChildAttachments[target.table]
+		if len(ids) == 0 {
+			continue
+		}
+		slices.Sort(ids)
+		ids = slices.Compact(ids)
+		earlyEnd += " OR (a.attachment_type = '" + target.attachmentType + "' AND a.id IN ? AND EXISTS (SELECT 1 FROM " + target.table + " member WHERE member.attachment_id = a.id))"
+		parentArgs = append(parentArgs, ids)
+	}
+	earlyEnd += ")"
+	var expiredAttachments []attachmentRow
+	if err := tx.Raw(`UPDATE attachments a SET status = 0, updated_at = NOW()
+		WHERE a.id IN ? AND a.status = 1 AND (`+expiredParent+` OR `+earlyEnd+`)
+		AND NOT EXISTS (SELECT 1 FROM cars e WHERE e.attachment_id = a.id AND e.status = 1)
+		AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.attachment_id = a.id AND e.status = 1)
+		RETURNING a.id, a.application_id`, parentArgs...).Scan(&expiredAttachments).Error; err != nil {
+		return err
+	}
+	for _, attachment := range expiredAttachments {
+		changedAttachments[attachment.ID] = true
+	}
+	changedApps := make(map[int]bool)
+	for _, attachment := range locked {
+		if changedAttachments[attachment.ID] && attachment.ApplicationID != nil {
+			changedApps[*attachment.ApplicationID] = true
+		}
+	}
+	var completedAppIDs []int
+	for _, appID := range appIDs {
+		if !changedApps[appID] {
+			continue
+		}
+		// Preserve existing final-status policy and complete only once. An
+		// individual admission keeps its attachment active, hence its app too.
+		res := tx.Exec(`UPDATE applications SET status = ?, completed_at = NOW()
+			WHERE id = ? AND COALESCE(status, '') NOT IN (?)
+			AND NOT EXISTS (SELECT 1 FROM attachments WHERE application_id = ? AND status = 1)`,
+			models.StatusCompleted, appID, models.ArchivableStatuses, appID)
 		if res.Error != nil {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to complete application")
+			return res.Error
 		}
 		if res.RowsAffected == 0 {
 			continue
 		}
-
-		// Актор nil: заявку завершил крон по сроку, а не человек - история рисует "Система".
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &id, "completed", nil,
-			applicationAuditDetails{OldValue: snapshot.Status, NewValue: ptrString(models.StatusCompleted)})
-
-		// Актор nil и здесь: флаг "статус обновился" загорается у ВСЕХ участников,
-		// включая отправителя - завершение по сроку никто не совершал руками (#1349).
-		if err := s.bumpStatusUpdated(tx, id, nil); err != nil {
-			tx.Rollback()
+		id := appID
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &id, "completed", nil,
+			applicationAuditDetails{OldValue: appStatuses[id], NewValue: ptrString(models.StatusCompleted)}); err != nil {
 			return err
 		}
-
+		if err := s.bumpStatusUpdated(tx, id, nil); err != nil {
+			return err
+		}
 		if err := s.cancelOpenSupplements(ctx, tx, id); err != nil {
-			tx.Rollback()
 			return err
 		}
 		completedAppIDs = append(completedAppIDs, id)
-		slog.Info("Заявка завершена", "application_id", id)
 	}
-
 	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		return err
 	}
-
-	// Завершение - смена статуса заявки: участники видят её live в детали и списках (#1349).
-	// Инициатору - уведомление "завершена" (actor=nil: завершил крон, шлём и отправителю).
+	// Publish only committed transitions, including manual rows with no app.
+	s.tablesProducer.NotifyCarsChangedBatch(ctx, changedCars)
+	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedEmployees)
+	for _, id := range appIDs {
+		if changedApps[id] {
+			s.notifyApplicationUpdated(ctx, id, archiveDataChanged)
+		}
+	}
 	for _, id := range completedAppIDs {
-		s.notifyApplicationUpdated(ctx, id, archiveDataChanged)
 		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted, nil)
 	}
-
-	slog.Info("Проверка истекших вложений завершена")
+	slog.Info("Проверка истекших допусков завершена", "cars", len(changedCars), "employees", len(changedEmployees), "applications", len(completedAppIDs))
 	return nil
 }
 
