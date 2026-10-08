@@ -55,9 +55,7 @@ func auditID(t *testing.T, db *gorm.DB, appID int, action string) int {
 
 // Гонка голоса с правкой срока (#2575). Принимающий правит срок, а согласующий в тот же
 // момент голосует по старому окну. Правка встаёт в очередь за строкой заявки первой, голос
-// вторым. Голос, записанный до правки, обязан быть сброшен ею: согласующий одобрял другое
-// окно. Если кто-то уже голосовал, правка сбрасывает раунд - и встречный порядок
-// блокировок у голоса давал дедлок, один из запросов падал с 500.
+// вторым. Оба запроса должны пройти без дедлока; ранее поданные голоса сохраняются.
 func TestChangeDates_RaceWithVote(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -94,7 +92,7 @@ func TestChangeDates_RaceWithVote(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				rec := testutil.PUT(t, e, datesPath(appID),
-					datesBody("2099-04-01", "2099-04-02", "09:00", "18:00", "перенос"), testutil.AuthHeader(token))
+					datesBody(datesFixture("2099-04-01"), datesFixture("2099-04-02"), "09:00", "18:00", "перенос"), testutil.AuthHeader(token))
 				datesCode, datesBodyText = rec.Code, rec.Body.String()
 			}()
 			waitLockWaiters(t, db, 1)
@@ -113,11 +111,17 @@ func TestChangeDates_RaceWithVote(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, datesCode, "правка срока: %s", datesBodyText)
 			require.Equal(t, http.StatusOK, voteCode, "голос: %s", voteBodyText)
-			assert.Equal(t, "2099-04-01", periodOf(t, db, "attachments", attID).EntryDateFrom, "новое окно легло на вложение")
+			assert.Equal(t, datesFixture("2099-04-01"), periodOf(t, db, "attachments", attID).EntryDateFrom, "новое окно легло на вложение")
 
 			var vote string
 			require.NoError(t, db.Raw("SELECT approval_status FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
 				appID, voterID).Scan(&vote).Error)
+			assert.Equal(t, "approved", vote)
+			if tc.priorVote {
+				var remaining int64
+				require.NoError(t, db.Table("application_responsible_users").Where("application_id = ? AND approval_status = ?", appID, "approved").Count(&remaining).Error)
+				assert.EqualValues(t, 2, remaining, "оба поданных голоса сохранены")
+			}
 			if vote == "approved" {
 				assert.Greater(t, auditID(t, db, appID, "approve"), auditID(t, db, appID, models.AuditActionDatesChanged),
 					"голос, поданный до правки срока, пережил её: согласующий одобрил окно, которого больше нет")
@@ -126,9 +130,7 @@ func TestChangeDates_RaceWithVote(t *testing.T) {
 	}
 }
 
-// Отзыв голоса в гонке с правкой срока: правка сбрасывает голос первой, отзыв приходит
-// следом. Прочитав свой голос до блокировки заявки, отзыв видел уже снятое «согласовано»
-// и писал в историю заявки отзыв голоса, которого к тому моменту не было.
+// Правка сохраняет голос, последующий самостоятельный отзыв остаётся доступен.
 func TestChangeDates_RaceWithRevokeApproval(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -152,7 +154,7 @@ func TestChangeDates_RaceWithRevokeApproval(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		rec := testutil.PUT(t, e, datesPath(appID),
-			datesBody("2099-05-01", "2099-05-02", "09:00", "18:00", "перенос"), testutil.AuthHeader(token))
+			datesBody(datesFixture("2099-05-01"), datesFixture("2099-05-02"), "09:00", "18:00", "перенос"), testutil.AuthHeader(token))
 		datesCode, datesBodyText = rec.Code, rec.Body.String()
 	}()
 	waitLockWaiters(t, db, 1)
@@ -169,7 +171,7 @@ func TestChangeDates_RaceWithRevokeApproval(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, http.StatusOK, datesCode, "правка срока: %s", datesBodyText)
-	assert.Contains(t, datesBodyText, `"approvals_reset":true`, "правка застала голос и сбросила его")
-	assert.Equal(t, http.StatusBadRequest, revokeCode, "после сброса отзывать нечего")
-	assert.Zero(t, auditID(t, db, appID, "revoke_approval"), "отзыв снятого голоса не попадает в историю заявки")
+	assert.Contains(t, datesBodyText, `"approvals_reset":false`, "правка сохраняет голос")
+	assert.Equal(t, http.StatusOK, revokeCode, "согласующий может сам отозвать сохранённый голос")
+	assert.Greater(t, auditID(t, db, appID, "revoke_approval"), auditID(t, db, appID, models.AuditActionDatesChanged), "самостоятельный отзыв записан после изменения срока")
 }

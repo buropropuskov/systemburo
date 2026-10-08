@@ -110,14 +110,6 @@ func (s *applicationService) loadBureauNote(ctx context.Context, applicationID i
 // take-to-work. Супер-администратор БЕЗ этой роли заметку не сохранит и не увидит -
 // см. комментарий к applyBureauNoteVisibility.
 func (s *applicationService) SetBureauNote(ctx context.Context, username string, applicationID int, req SetBureauNoteRequest) (*BureauNoteView, error) {
-	// Архивная заявка доступна только для чтения - общий запрет системы, заметка не
-	// исключение. Отозванную, наоборот, комментировать можно: checkNotWithdrawn закрывает
-	// рабочие и согласовательные действия, а объяснение «почему ничего не вышло» на
-	// отозванной заявке нужно ровно так же, как на любой другой.
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return nil, err
-	}
-
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -129,6 +121,11 @@ func (s *applicationService) SetBureauNote(ctx context.Context, username string,
 	}
 	if !isApprover {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Заметку бюро ведут только принимающие")
+	}
+	// После проверки роли: архив доступен только для чтения, отозванную комментировать можно.
+
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return nil, err
 	}
 
 	text := strings.TrimSpace(req.Note)

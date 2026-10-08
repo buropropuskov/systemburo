@@ -9,8 +9,8 @@ import { moscowParts } from './serverTime';
 /** Статусы, в которых принимающий может сдвинуть срок - зеркало серверного белого списка. */
 export const DATES_EDITABLE_STATUSES = ['Непрочитано', 'В обработке'];
 
-/** Итоги согласования, после которых срок уже обещан охране и заявителю. */
-const FINAL_CONFIRMATIONS = ['Согласовано', 'Не согласовано'];
+/** Допустимые итоги согласования — зеркало серверного белого списка. */
+const DATES_EDITABLE_CONFIRMATIONS = [null, undefined, '', 'Согласование', 'Согласовано'];
 
 /**
  * Можно ли сейчас менять срок заявки. Сервер проверяет то же самое под блокировкой;
@@ -21,7 +21,7 @@ const FINAL_CONFIRMATIONS = ['Согласовано', 'Не согласова�
 export function canEditApplicationDates(application) {
   if (!application) return false;
   if (!DATES_EDITABLE_STATUSES.includes(application.status)) return false;
-  return !FINAL_CONFIRMATIONS.includes(application.confirmation);
+  return DATES_EDITABLE_CONFIRMATIONS.includes(application.confirmation);
 }
 
 function isoToRu(iso) {

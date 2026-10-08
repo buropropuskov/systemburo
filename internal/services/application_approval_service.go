@@ -92,9 +92,6 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	if err != nil {
 		return err
 	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
 	currentUserName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 
 	var exists bool
@@ -128,6 +125,10 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 					"Заявка доступна вам только для просмотра: переслать её можно тоже для просмотра, назначать ответственных и согласующих вправе отправитель")
 			}
 		}
+	}
+
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
 	}
 
 	tx := s.db.WithContext(ctx).Begin()
@@ -425,12 +426,6 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 // ApproveApplicationByUser фиксирует согласование или отказ заявки пользователем.
 func (s *applicationService) ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error {
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return err
-	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
 
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -470,6 +465,15 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	if result.Error != nil || responsible.ID == 0 {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
+	}
+
+	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := checkApplicationNotWithdrawn(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus != "pending" {
@@ -591,12 +595,6 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return nil, err
-	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return nil, err
-	}
 
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -623,6 +621,15 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	if result.Error != nil || result.RowsAffected == 0 {
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
+	}
+
+	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := checkApplicationNotWithdrawn(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
 	if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus == "pending" {
@@ -688,8 +695,8 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 
 // lockApplicationForVote блокирует строку заявки до чтения голоса и возвращает её статус.
 // Заявка берётся первой, как в правке срока и сбросе раунда: иначе голос держит строку
-// согласующего и ждёт заявку, а правка срока наоборот (дедлок), либо правка не видит
-// незакоммиченный голос по старому окну и не сбрасывает его (#2575).
+// согласующего и ждёт заявку, а правка срока наоборот (дедлок). Поданные голоса
+// при изменении срока сохраняются (#2575).
 func lockApplicationForVote(tx *gorm.DB, applicationID int) (*string, error) {
 	var status *string
 	if err := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&status).Error; err != nil {

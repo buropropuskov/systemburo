@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   canEditApplicationDates,
   formatPeriod,
@@ -14,15 +14,23 @@ const ATTACHMENT = {
   entry_time_to: '18:00:00',
 };
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2099-09-30T00:00:00Z'));
+});
+afterEach(() => vi.useRealTimers());
+
 describe('canEditApplicationDates', () => {
-  it('открыта до принятия и итога согласования', () => {
+  it('открыта до принятия, включая положительный итог согласования', () => {
     expect(canEditApplicationDates({ status: 'Непрочитано', confirmation: null })).toBe(true);
     expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'Согласование' })).toBe(true);
+    expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'Согласовано' })).toBe(true);
   });
 
   it('закрыта в работе, после итога согласования и без заявки', () => {
     expect(canEditApplicationDates({ status: 'В работе', confirmation: null })).toBe(false);
-    expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'Согласовано' })).toBe(false);
+    expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'неизвестный статус' })).toBe(false);
+    expect(canEditApplicationDates({ status: 'Завершено', confirmation: 'Согласовано' })).toBe(false);
     expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'Не согласовано' })).toBe(false);
     expect(canEditApplicationDates({ status: 'Отказано', confirmation: null })).toBe(false);
     expect(canEditApplicationDates(null)).toBe(false);
@@ -55,7 +63,7 @@ describe('periodFormErrors', () => {
   const valid = periodFormFromAttachment(ATTACHMENT);
 
   it('корректное окно без ошибок', () => {
-    expect(periodFormErrors(valid)).toEqual({});
+    expect(periodFormErrors(valid, '2099-09-30T00:00:00')).toEqual({});
   });
 
   it('пустые поля названы по ключам DateRangeSection', () => {

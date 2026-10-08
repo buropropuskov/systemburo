@@ -25,8 +25,8 @@ type ChangeApplicationDatesRequest struct {
 	Reason        string `json:"reason" validate:"required,min=1,max=1000"`
 }
 
-// ChangeApplicationDatesResult - что изменилось: окно до правки, после неё и сброшены
-// ли голоса согласующих.
+// ChangeApplicationDatesResult — окна до и после правки. ApprovalsReset сохраняется
+// для совместимости API и всегда false: изменение срока не снимает голоса.
 type ChangeApplicationDatesResult struct {
 	OldPeriod      string `json:"old_period"`
 	NewPeriod      string `json:"new_period"`
@@ -52,10 +52,10 @@ type applicationPeriod struct {
 // ChangeApplicationDates задаёт одно окно допуска всем вложениям заявки и всем её машинам.
 //
 // Зачем: заявитель часто промахивается со сроком на день или на час, и раньше бюро могло
-// только отказать и ждать новую заявку. Править можно, пока заявка не принята и по ней нет
-// итога согласования: после этого срок уже стал обещанием охране и заявителю.
+// только отказать и ждать новую заявку. Править можно до принятия, в том числе после
+// положительного итога согласования. Изменение фиксируется за принимающим в истории.
 //
-// Голоса согласующих сбрасываются, если кто-то уже голосовал: они одобряли другое окно.
+// Поданные голоса сохраняются; оставшиеся согласующие рассматривают новое окно.
 // Машины получают то же окно, иначе пост видел бы у машины прежний срок.
 func (s *applicationService) ChangeApplicationDates(ctx context.Context, username string, applicationID int, req ChangeApplicationDatesRequest) (*ChangeApplicationDatesResult, error) {
 	user, err := s.getUserByUsername(ctx, username)
@@ -113,15 +113,10 @@ func (s *applicationService) ChangeApplicationDates(ctx context.Context, usernam
 			return err
 		}
 
-		approvalsReset, err := s.resetApprovalsIfVoted(ctx, tx, applicationID, user.ID)
-		if err != nil {
-			return err
-		}
-
 		result = &ChangeApplicationDatesResult{
 			OldPeriod:      formatApplicationPeriods(oldPeriods),
 			NewPeriod:      formatApplicationPeriod(period),
-			ApprovalsReset: approvalsReset,
+			ApprovalsReset: false,
 		}
 		if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &applicationID,
 			models.AuditActionDatesChanged, &user.ID, applicationAuditDetails{
@@ -220,7 +215,7 @@ func lockApplicationForDatesChange(tx *gorm.DB, applicationID int) (string, erro
 		return "", echo.NewHTTPError(http.StatusBadRequest,
 			fmt.Sprintf("Заявка в статусе «%s»: срок менять нельзя", status))
 	}
-	if confirmation := derefStr(app.Confirmation); confirmation != "" && confirmation != models.ConfirmationPending {
+	if confirmation := derefStr(app.Confirmation); confirmation != "" && confirmation != models.ConfirmationPending && confirmation != models.ConfirmationApproved {
 		return "", echo.NewHTTPError(http.StatusBadRequest,
 			fmt.Sprintf("По заявке уже есть итог согласования («%s»): срок менять нельзя", confirmation))
 	}
@@ -329,27 +324,6 @@ func writeApplicationPeriod(tx *gorm.DB, applicationID int, p applicationPeriod)
 	return nil
 }
 
-// resetApprovalsIfVoted сбрасывает круг согласования, только если в нём уже есть голос:
-// без голосов сбрасывать нечего, а лишняя запись «статус согласования изменился» в
-// истории читалась бы как событие.
-func (s *applicationService) resetApprovalsIfVoted(ctx context.Context, tx *gorm.DB, applicationID, actorID int) (bool, error) {
-	var voted int64
-	if err := tx.Raw(`
-		SELECT COUNT(*) FROM application_responsible_users
-		WHERE application_id = ? AND approval_status IS NOT NULL AND approval_status <> 'pending'
-	`, applicationID).Scan(&voted).Error; err != nil {
-		slog.Error("срок заявки: не удалось прочитать голоса", "application_id", applicationID, "error", err)
-		return false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка чтения согласования")
-	}
-	if voted == 0 {
-		return false, nil
-	}
-	if err := s.resetApprovalRound(ctx, tx, applicationID, actorID); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 // formatApplicationPeriod - окно для человека: «01.10.2026 09:00 - 03.10.2026 18:00».
 func formatApplicationPeriod(p applicationPeriod) string {
 	side := func(date, clock string) string {
@@ -386,9 +360,7 @@ func (s *applicationService) notifyDatesChanged(ctx context.Context, application
 
 	message := fmt.Sprintf("Принимающий изменил срок заявки %s: было %s, стало %s. Причина: %s",
 		number, result.OldPeriod, result.NewPeriod, reason)
-	if result.ApprovalsReset {
-		message += " Голоса согласующих сброшены, заявка снова на согласовании."
-	}
+
 	payload, _ := json.Marshal(map[string]any{
 		"application_id":     applicationID,
 		"application_number": number,

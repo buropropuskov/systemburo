@@ -73,11 +73,6 @@ func (s *applicationService) ApproveSupplement(ctx context.Context, username str
 	if err != nil {
 		return nil, err
 	}
-	// Архивная заявка доступна только для чтения; открытый раунд в архиве пережить может -
-	// архивация, в отличие от закрытия заявки, его не снимает.
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return nil, err
-	}
 	// Членство в раунде - до всего остального и по одному supplement_id: посторонний
 	// получает 403 и на существующий раунд, и на выдуманный, и перебором id состав чужих
 	// заявок не нащупывает.
@@ -97,6 +92,11 @@ func (s *applicationService) ApproveSupplement(ctx context.Context, username str
 
 	round, err := s.lockSupplementRound(tx, applicationID, supplementID)
 	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	// Членство и принадлежность раунда проверены; архив доступен только для чтения.
+	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -188,9 +188,6 @@ func (s *applicationService) RevokeSupplementApproval(ctx context.Context, usern
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return nil, err
-	}
 	if err := s.ensureSupplementVoter(ctx, s.db, supplementID, user.ID); err != nil {
 		return nil, err
 	}
@@ -207,6 +204,10 @@ func (s *applicationService) RevokeSupplementApproval(ctx context.Context, usern
 
 	round, err := s.lockSupplementRound(tx, applicationID, supplementID)
 	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
 		tx.Rollback()
 		return nil, err
 	}

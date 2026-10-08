@@ -29,12 +29,29 @@ func (userSearchProvider) PermissionKey() string  { return KeyPageAdminUsers }
 
 func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
 	// Скрытые до согласия персональные данные не должны находиться и через поиск:
-	// пока маскировка работает, по почте и телефону не ищем вовсе, а скрытое ФИО
-	// подменяем логином уже в выдаче. Иначе подсказка подтверждала бы, чей это
+	// скрытое ФИО исключаем из совпадений и ранга, контакты — из точного поиска.
+	// В выдаче ФИО подменяется логином. Иначе подсказка подтверждала бы, чей это
 	// адрес, - то же раскрытие, только другим путём.
 	masks := loadConsentMasks(ctx, db)
+	table := "users u"
+	var tableArgs []any
+	nameCols := []string{"u.last_name", "u.first_name", "u.middle_name"}
+	if len(masks) > 0 {
+		hidden := make([]int, 0, len(masks))
+		for id := range masks {
+			hidden = append(hidden, id)
+		}
+		// Одни колонки для точного, многословного, нечёткого поиска и ранга.
+		table = `(SELECT users.*,
+			CASE WHEN id IN (?) THEN NULL ELSE last_name END AS search_last_name,
+			CASE WHEN id IN (?) THEN NULL ELSE first_name END AS search_first_name,
+			CASE WHEN id IN (?) THEN NULL ELSE middle_name END AS search_middle_name
+			FROM users) u`
+		tableArgs = []any{hidden, hidden, hidden}
+		nameCols = []string{"u.search_last_name", "u.search_first_name", "u.search_middle_name"}
+	}
 	cols := []string{
-		"u.last_name", "u.first_name", "u.middle_name",
+		nameCols[0], nameCols[1], nameCols[2],
 		"u.username", `u."position"`,
 	}
 	cond, args := searchCondition(cols, req.Raw)
@@ -47,14 +64,14 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	rows := make([]searchRow, 0, req.Limit+1)
 	err := withTrigramThreshold(ctx, db, func(tx *gorm.DB) error {
 		q := tx.
-			Table("users u").
+			Table(table, tableArgs...).
 			Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 			Joins("LEFT JOIN companies c ON u.company_id = c.id").
 			Select(`u.id AS id,
 				NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
 				CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name),
 					CASE WHEN u.is_active THEN NULL ELSE 'в архиве' END) AS subtitle,
-				`+matchRankExprAny("u.last_name", "u.username"), req.Raw, req.Raw, req.Raw, req.Raw).
+				`+matchRankExprAny(nameCols[0], "u.username"), req.Raw, req.Raw, req.Raw, req.Raw).
 			Where(cond, args...)
 
 		// Архивные учётные записи ниже действующих: на стенде их 92 из 109, и по

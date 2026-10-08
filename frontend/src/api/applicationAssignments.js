@@ -68,7 +68,7 @@ export async function removeApplicationElements(applicationId, { elementType, el
 
 /**
  * Новый срок действия заявки от принимающего (#2575): одно окно на все вложения и
- * машины. Доступно, пока заявка не принята и по ней нет итога согласования.
+ * машины. Доступно до принятия, включая положительный итог согласования. Голоса сохраняются.
  * @param {number} applicationId
  * @param {{entry_date_from: string, entry_date_to: string, entry_time_from: string, entry_time_to: string, reason: string}} payload
  * @returns {Promise<{old_period: string, new_period: string, approvals_reset: boolean}>}

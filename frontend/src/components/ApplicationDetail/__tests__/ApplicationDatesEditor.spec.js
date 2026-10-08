@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
@@ -35,17 +35,20 @@ async function openWithReason(wrapper, reason = 'заявитель ошибся
 
 describe('ApplicationDatesEditor', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2099-09-30T00:00:00Z'));
     setActivePinia(createPinia());
     apiRequest.mockReset();
   });
+  afterEach(() => vi.useRealTimers());
 
-  it('кнопку видит только принимающий, пока заявка не принята и не согласована', () => {
+  it('кнопку видит принимающий до принятия, включая согласованную заявку', () => {
     expect(mountEditor().find('[data-testid="app-detail-change-dates"]').exists()).toBe(true);
     expect(mountEditor({ isApprover: false }).find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
     expect(mountEditor({ application: { id: 42, status: 'В работе' } })
       .find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
     expect(mountEditor({ application: { id: 42, status: 'В обработке', confirmation: 'Согласовано' } })
-      .find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
+      .find('[data-testid="app-detail-change-dates"]').exists()).toBe(true);
     expect(mountEditor({ attachments: [] }).find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
   });
 
@@ -61,7 +64,7 @@ describe('ApplicationDatesEditor', () => {
     apiRequest.mockResolvedValue(okResponse({
       old_period: '01.10.2099 09:00 - 03.10.2099 18:00',
       new_period: '02.10.2099 08:00 - 04.10.2099 20:00',
-      approvals_reset: true,
+      approvals_reset: false,
     }));
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
     const wrapper = mountEditor();
@@ -84,7 +87,7 @@ describe('ApplicationDatesEditor', () => {
     });
     expect(wrapper.emitted('changed')).toHaveLength(1);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'success', prefix: 'Срок заявки изменён: ', bold: '02.10.2099 08:00 - 04.10.2099 20:00', suffix: '. Голоса согласующих сняты.',
+      type: 'success', prefix: 'Срок заявки изменён: ', bold: '02.10.2099 08:00 - 04.10.2099 20:00', suffix: '. Голоса согласующих сохранены.',
     }));
     expect(wrapper.vm.show).toBe(false);
   });
