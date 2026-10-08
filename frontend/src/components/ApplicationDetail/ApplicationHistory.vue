@@ -184,28 +184,10 @@
                         {{ getActionText(item) }}
                       </div>
 
-                      <div
+                      <ForwardHistoryDetails
                         v-if="item.action_type === 'forwarded'"
-                        class="forward-detail"
-                      >
-                        <div class="forward-label">Получатели</div>
-                        <div
-                          v-for="recipient in forwardRecipients(item.metadata)"
-                          :key="recipient.user_id"
-                          class="forward-recipient"
-                        >
-                          <strong>{{ recipient.display_name }}</strong><span> — {{ forwardRecipientPurpose(recipient) }}</span>
-                        </div>
-                        <div
-                          v-if="!forwardRecipients(item.metadata).length"
-                          class="forward-legacy"
-                        >
-                          {{ forwardRecipientsUnavailable }}
-                        </div>
-                        <div class="forward-materials">
-                          <span class="forward-label">Материалы: </span>{{ forwardMaterialsText(item.metadata) }}
-                        </div>
-                      </div>
+                        :metadata="item.metadata"
+                      />
 
                       <!-- Для пересылки показываем дополнительную информацию -->
                       <div
@@ -271,11 +253,12 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { ACTION_DOT_CLASS, ACTION_TEXT } from '@/utils/applicationHistoryActions';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
-import { forwardRecipients, forwardRecipientPurpose, forwardActionText, forwardRecipientsText, forwardMaterialsText, FORWARD_RECIPIENTS_UNAVAILABLE } from '@/utils/applicationForwardHistory';
+import { forwardActionText, forwardRecipientsText, forwardMaterialsText } from '@/utils/applicationForwardHistory';
+import ForwardHistoryDetails from './ForwardHistoryDetails.vue';
 
 export default {
     name: 'ApplicationHistory',
-    components: { LoaderSpinner, AppIcon },
+    components: { LoaderSpinner, AppIcon, ForwardHistoryDetails },
     props: {
         applicationId: {
             type: Number,
@@ -332,9 +315,6 @@ export default {
         }
     },
     computed: {
-        forwardRecipientsUnavailable() {
-            return FORWARD_RECIPIENTS_UNAVAILABLE;
-        },
         // Уникальные пользователи из истории
         uniqueUsers() {
             const users = new Map();
@@ -465,9 +445,6 @@ export default {
         },
     },
     methods: {
-        forwardRecipients,
-        forwardRecipientPurpose,
-        forwardMaterialsText,
         openModal() {
             this.showModal = true;
             this.loadHistory();
@@ -1074,33 +1051,6 @@ export default {
     color: var(--accent-text);
     font-style: italic;
     margin-bottom: 4px;
-}
-
-.forward-detail {
-    margin-top: 12px;
-    padding: 12px 14px;
-    background: var(--surface-2);
-    border-radius: var(--radius-md);
-    font-size: 13px;
-    line-height: 1.6;
-    overflow-wrap: anywhere;
-}
-
-.forward-label {
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.forward-recipient {
-    margin: 6px 0;
-}
-
-.forward-materials {
-    margin-top: 10px;
-}
-
-.forward-legacy {
-    color: var(--text-muted);
 }
 
 .required-badge {
