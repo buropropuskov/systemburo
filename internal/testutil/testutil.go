@@ -275,6 +275,11 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 
 	dbOnce.Do(func() {
 		db := initTestDB()
+		var err error
+		testDatabaseLease, err = acquireTestDatabaseLease(testDatabaseLeaseKey)
+		if err != nil {
+			log.Fatal(err)
+		}
 		// sync.Once защищает только свой процесс, а `go test ./...` запускает
 		// пакеты параллельными бинарями по одной базе. Двое одновременных
 		// CREATE TABLE по одной таблице падают конфликтом системного индекса

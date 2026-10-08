@@ -23,7 +23,8 @@ import (
 // an owned schema and pg_catalog on its search_path, and are always rolled back.
 // It covers GORM AllModels replay plus the period backfill, not the broader
 // database.AutoMigrate wrapper with its extension and partition installers.
-func TestEntityPeriodAllModelsReplayIsIsolated(t *testing.T) {
+func openEntityPeriodTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL_TEST"))
 	if dsn == "" {
 		t.Skip("DATABASE_URL_TEST must explicitly identify an existing test database")
@@ -49,15 +50,20 @@ func TestEntityPeriodAllModelsReplayIsIsolated(t *testing.T) {
 	require.True(t, err == nil, "cannot connect to the explicitly configured test database")
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
-	defer sqlDB.Close()
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
+	return db
+}
+
+func TestEntityPeriodAllModelsReplayIsIsolated(t *testing.T) {
+	db := openEntityPeriodTestDB(t)
 
 	tx := db.Begin()
 	require.NoError(t, tx.Error)
 	defer func() { require.NoError(t, tx.Rollback().Error) }()
 	var randomID [12]byte
-	_, err = rand.Read(randomID[:])
+	_, err := rand.Read(randomID[:])
 	require.NoError(t, err)
 	// This identifier contains only a fixed prefix and lowercase hex generated
 	// here. It never accepts an environment value or a request parameter.

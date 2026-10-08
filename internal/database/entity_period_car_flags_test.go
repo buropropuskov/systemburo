@@ -4,13 +4,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"systemburo/internal/database"
-	"systemburo/internal/testutil"
+
 	"testing"
 )
 
 func TestEntityPeriodCarFlagsMigrationDefaultsAndReplay(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
+	db := openEntityPeriodTestDB(t)
 	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
 		periodMigrationTables(t, tx)
 		for _, sql := range []string{`INSERT INTO attachments(id) VALUES(1)`, `INSERT INTO employees(id) VALUES(1)`, `INSERT INTO cars(id,attachment_id) VALUES(1,1)`} {

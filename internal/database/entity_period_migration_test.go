@@ -4,7 +4,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"systemburo/internal/database"
-	"systemburo/internal/testutil"
+
 	"testing"
 )
 
@@ -12,6 +12,9 @@ import (
 // defaults or constraints are modified; all fixtures disappear at transaction end.
 func periodMigrationTables(t *testing.T, tx *gorm.DB) {
 	t.Helper()
+	// No public fallback is allowed, even if a fixture table is accidentally
+	// omitted. Explicit TEMP tables live only on this transaction's connection.
+	require.NoError(t, tx.Exec("SET LOCAL search_path = pg_temp, pg_catalog").Error)
 	for _, ddl := range []string{
 		`CREATE TEMP TABLE attachments (id integer PRIMARY KEY, entry_date_from varchar(20), entry_date_to varchar(20), entry_time_from varchar(20), entry_time_to varchar(20)) ON COMMIT DROP`,
 		`CREATE TEMP TABLE employees (id integer PRIMARY KEY, period_mode varchar(16), entry_date_from varchar(20), entry_date_to varchar(20), entry_time_from varchar(20), entry_time_to varchar(20)) ON COMMIT DROP`,
@@ -19,11 +22,13 @@ func periodMigrationTables(t *testing.T, tx *gorm.DB) {
 	} {
 		require.NoError(t, tx.Exec(ddl).Error)
 	}
+	var isolated bool
+	require.NoError(t, tx.Raw("SELECT current_schema()::regnamespace = pg_my_temp_schema()").Scan(&isolated).Error)
+	require.True(t, isolated, "migration fixtures must resolve only to the connection-owned temporary schema")
 }
 
 func TestBackfillEntityPeriodModesPreservesAndIsIdempotent(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
+	db := openEntityPeriodTestDB(t)
 	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
 		periodMigrationTables(t, tx)
 		require.NoError(t, tx.Exec(`INSERT INTO attachments VALUES (1,'2030-10-08','2030-10-09','08:00:00','22:00:00'),(2,NULL,NULL,NULL,NULL)`).Error)
@@ -57,8 +62,7 @@ func TestBackfillEntityPeriodModesPreservesAndIsIdempotent(t *testing.T) {
 }
 
 func TestBackfillEntityPeriodModesInvalidLegacyRollsBack(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
+	db := openEntityPeriodTestDB(t)
 	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
 		periodMigrationTables(t, tx)
 		require.NoError(t, tx.Exec(`INSERT INTO attachments VALUES(1,'2030-10-08','2030-10-09',NULL,NULL)`).Error)
