@@ -350,21 +350,21 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 		AND {{pass_valid}}
 		LIMIT 1
 	), false) as status,
-	(SELECT a.entry_date_to FROM employees e
+	(SELECT {{date_to}} FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, e.id DESC LIMIT 1
 	) as active_entry_date_to,
-	(SELECT CONCAT(a.entry_time_from, ' - ', a.entry_time_to) FROM employees e
+	(SELECT CONCAT({{time_from}}, ' - ', {{time_to}}) FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, e.id DESC LIMIT 1
 	) as active_pass_time,
 	(SELECT ao.name FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
@@ -373,7 +373,7 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, e.id DESC LIMIT 1
 	) as active_app_org_name,
 	(SELECT ac.name FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
@@ -382,7 +382,7 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, e.id DESC LIMIT 1
 	) as active_app_company_name,
 	(SELECT e.id FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
@@ -390,7 +390,7 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, e.id DESC LIMIT 1
 	) as active_employee_id,
 	(SELECT app.id FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
@@ -398,7 +398,7 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND {{pass_valid}}
-		ORDER BY a.entry_date_to DESC LIMIT 1
+		ORDER BY {{date_to}} DESC, e.id DESC LIMIT 1
 	) as active_application_id,
 	-- Флаг ЧС считает сервер (нормализация 1:1 с personBlacklistService.Check), чтобы
 	-- клиенту не отдавать весь список ПД ради подсветки. ФИО в обеих таблицах - открытый
@@ -412,7 +412,29 @@ const employeesListSelectTemplate = `ue.id, ue.last_name, ue.first_name, ue.midd
 	) as is_blacklisted`
 
 // employeesListSelect -- шаблон с развёрнутым условием действующего пропуска.
-var employeesListSelect = strings.ReplaceAll(employeesListSelectTemplate, "{{pass_valid}}", passValidNowSQL("a"))
+var employeesListSelect = registryEffectivePeriodSelect(employeesListSelectTemplate, "e")
+
+// Both registries keep their existing owner/identity/status filters and Moscow
+// end-of-permit rule. Only the whole source window changes; incomplete individual
+// dates must not silently turn into an unbounded permit.
+func registryEffectivePeriodSelect(template, entityAlias string) string {
+	period, err := EntityEffectivePeriodSQL(entityAlias, "a")
+	if err != nil {
+		// Aliases are fixed developer constants at package initialization.
+		panic(err)
+	}
+	validUntil := strings.NewReplacer(
+		"a.entry_date_to", period.DateTo,
+		"a.entry_time_to", period.TimeTo,
+	).Replace(passValidNowSQL("a"))
+	valid := period.ValidMode + " AND (" + period.Source + " <> 'individual' OR " + period.Bounded + ") AND " + validUntil
+	return strings.NewReplacer(
+		"{{pass_valid}}", valid,
+		"{{date_to}}", period.DateTo,
+		"{{time_from}}", period.TimeFrom,
+		"{{time_to}}", period.TimeTo,
+	).Replace(template)
+}
 
 // buildEmployeesQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
 // БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных (тот же

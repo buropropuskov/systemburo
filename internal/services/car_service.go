@@ -234,6 +234,7 @@ type UnifiedCarHistoryQuery struct {
 
 // TableCarResponse -- автомобиль для отображения в таблице.
 type TableCarResponse struct {
+	CarAccessFlags
 	ID                 int      `json:"id"`
 	CarNumber          string   `json:"car_number"`
 	CarBrand           string   `json:"car_brand"`
@@ -583,6 +584,10 @@ func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest,
 // лишние три часа действия пропуска, а между 21:00 и 24:00 МСК UTC-дата отставала
 // на сутки, и вчерашняя заявка считалась активной (та же природа, что у #868).
 func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarRequest) (*CheckActiveCarResponse, error) {
+	period, err := EntityEffectivePeriodSQL("c", "a")
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking active car")
+	}
 	now := time.Now().In(moscowWorkModeLoc)
 	today := now.Format("2006-01-02")
 	currentTime := now.Format("15:04:05")
@@ -600,13 +605,13 @@ func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarReque
 	}
 
 	var row checkRow
-	err := s.db.WithContext(ctx).Raw(`
+	err = s.db.WithContext(ctx).Raw(`
 		SELECT
 			c.id,
 			c.car_number,
 			c.car_brand,
-			c.entry_date_to,
-			c.entry_time_to,
+			`+period.DateTo+` AS entry_date_to,
+			`+period.TimeTo+` AS entry_time_to,
 			a.application_id,
 			app.application_number,
 			COALESCE(o.name, '') AS organization_name,
@@ -627,9 +632,11 @@ func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarReque
 			(?::integer IS NULL AND app.company_id IS NULL)
 			OR app.company_id = ?
 		)
+		AND `+period.ValidMode+`
+		AND `+period.Bounded+`
 		AND (
-			c.entry_date_to > ?
-			OR (c.entry_date_to = ? AND c.entry_time_to > ?)
+			`+period.DateTo+` > ?
+			OR (`+period.DateTo+` = ? AND `+period.TimeTo+` > ?)
 		)
 		LIMIT 1
 	`, req.CarNumber, req.CarBrand,

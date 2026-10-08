@@ -14,7 +14,7 @@
 
     <BaseModal
       :show="show"
-      title="Изменить срок заявки"
+      title="Изменить срок вложений"
       width="560px"
       radius="30px"
       :z-index="10005"
@@ -24,7 +24,7 @@
     >
       <div class="dates-editor__body">
         <p class="dates-editor__lead">
-          Новый срок ляжет на все вложения и машины заявки. Участники получат уведомление,
+          Новый срок применяется к выбранным вложениям, людям и машинам, которые наследуют их срок. Участники получат уведомление,
           а поданные голоса согласующих сохранятся. Изменение и его автор будут записаны в историю.
         </p>
 
@@ -35,6 +35,21 @@
           Сейчас: {{ currentPeriods }}
         </div>
 
+        <fieldset class="dates-editor__fields" :disabled="busy">
+          <legend>Выберите вложения</legend>
+          <label class="dates-editor__choice">
+            <input type="checkbox" :checked="allSelected" data-testid="dates-editor-all" @change="selectAll($event.target.checked)"> Все вложения
+          </label>
+          <div class="dates-editor__attachments">
+            <label v-for="attachment in selectableAttachments" :key="attachment.id" class="dates-editor__choice">
+              <input v-model="selectedIDs" type="checkbox" :value="attachment.id" :data-testid="`dates-editor-attachment-${attachment.id}`">
+              <span>{{ attachment.attachment_display_name || attachment.attachment_name || `Вложение №${attachment.id}` }}
+                <small>{{ formatPeriod(attachment) }}</small></span>
+            </label>
+          </div>
+          <p v-if="!selectedIDs.length" class="dates-editor__error" role="alert">Выберите хотя бы одно вложение.</p>
+        </fieldset>
+        <fieldset class="dates-editor__fields" :disabled="busy">
         <DateRangeSection
           :is-one-day="form.isOneDay"
           :start-date="form.startDate"
@@ -52,6 +67,13 @@
           @update:end-time="form.endTime = $event"
         />
 
+        <FormField label="Индивидуальные сроки">
+          <select v-model="individualPolicy" class="lk-select" data-testid="dates-editor-policy">
+            <option value="preserve">Сохранить индивидуальные сроки</option>
+            <option value="replace">Заменить индивидуальные сроки новым сроком</option>
+          </select>
+        </FormField>
+        <p class="dates-editor__lead">При замене индивидуальный режим сохранится. Вернуть наследование можно отдельно в карточке человека или машины.</p>
         <FormField
           label="Причина изменения"
           required
@@ -65,18 +87,27 @@
             data-testid="dates-editor-reason"
           />
         </FormField>
+        </fieldset>
+        <div v-if="snapshot" class="dates-editor__current" data-testid="dates-editor-preview" aria-live="polite">
+          Вложений: {{ snapshot.attachment_count }}. Людей: {{ snapshot.employee_count }}. Машин: {{ snapshot.car_count }}.
+          Индивидуальных сроков: {{ snapshot.individual_count }} — {{ individualPolicy === 'preserve' ? 'сохранятся' : 'будут заменены' }}.
+          <small>Новый срок: {{ formatPeriod(snapshot.new_period) }}</small>
+        </div>
+        <p v-if="error" class="dates-editor__error" role="alert">{{ error }}</p>
       </div>
 
       <template #actions>
         <button
           type="button"
           class="lk-button lk-button--ghost"
-          :disabled="submitting"
+          :disabled="busy"
           @click="close"
         >
           Отмена
         </button>
-        <button
+        <button v-if="!snapshot" type="button" class="lk-button lk-button--primary" :disabled="!canPreview"
+          data-testid="dates-editor-preview-button" @click="preview">{{ conflict ? 'Обновить данные' : 'Проверить изменения' }}</button>
+        <button v-else
           type="button"
           class="lk-button lk-button--primary"
           :disabled="!canSubmit"
@@ -94,7 +125,8 @@
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue'
-import { changeApplicationDates } from '@/api/applicationAssignments'
+import { previewApplicationPeriods, changeApplicationPeriods } from '@/api/applicationPeriodCommands'
+import { usePermissionsStore } from '@/stores/permissions'
 import { useDeletionsStore } from '@/stores/deletions'
 import {
     canEditApplicationDates,
@@ -104,11 +136,7 @@ import {
     periodPayloadFromForm
 } from '@/utils/entryWindow'
 
-/**
- * Правка срока заявки принимающим (#2575): кнопка и окно с тем же блоком дат, что в
- * форме подачи. Сам решает, показывать ли кнопку, чтобы карточка заявки, которая
- * уже за порогом размера, не несла ещё одно вычисляемое свойство.
- */
+// Selected attachment periods use managed rights and a server preview revision.
 export default {
     name: 'ApplicationDatesEditor',
     components: { BaseModal, FormField, DateRangeSection },
@@ -138,15 +166,28 @@ export default {
             form: periodFormFromAttachment(null),
             reason: '',
             submitting: false,
-            validated: false
+            validated: false,
+            selectedIDs: [],
+            individualPolicy: 'preserve',
+            snapshot: null,
+            loading: false,
+            error: '',
+            conflict: false,
+            requestVersion: 0
         }
     },
     computed: {
+        selectableAttachments() { return this.attachments.filter(item => Number.isSafeInteger(item.id) && item.id > 0) },
         canEdit() {
-            return this.isApprover && this.attachments.length > 0 && canEditApplicationDates(this.application)
+            return Number.isSafeInteger(this.application?.id) && this.application.id > 0 && this.selectableAttachments.length > 0 &&
+                usePermissionsStore().hasPermission('application.period.change') && canEditApplicationDates(this.application)
         },
+        busy() { return this.loading || this.submitting },
+        allSelected() { return this.selectableAttachments.length > 0 && this.selectedIDs.length === this.selectableAttachments.length },
         currentPeriods() {
-            return [...new Set(this.attachments.map(formatPeriod))].join('; ')
+            const periods = this.snapshot ? this.snapshot.attachments.map(item => item.old_period)
+                : this.selectableAttachments.filter(item => this.selectedIDs.includes(item.id))
+            return [...new Set(periods.map(formatPeriod))].join('; ') || '—'
         },
         errors() {
             return periodFormErrors(this.form)
@@ -156,43 +197,86 @@ export default {
         shownErrors() {
             return this.validated ? this.errors : {}
         },
-        canSubmit() {
-            return !this.submitting && this.reason.trim().length > 0
-        }
+        canPreview() { return this.canEdit && this.show && !this.busy && this.selectedIDs.length > 0 && !!this.reason.trim() },
+        canSubmit() { return this.canPreview && !!this.snapshot && !this.conflict },
+        requestBody() {
+            return { attachment_ids: [...this.selectedIDs].sort((a, b) => a - b), period: periodPayloadFromForm(this.form),
+                individual_policy: this.individualPolicy, reason: this.reason.trim() }
+        },
+        requestKey() { return JSON.stringify([this.application?.id, this.requestBody]) },
+        identity() { return JSON.stringify([this.canEdit, this.application?.id, this.attachments]) }
     },
+    watch: {
+        requestKey() { this.invalidate() },
+        identity() { this.invalidate(); this.show = false }
+    },
+    beforeUnmount() { this.requestVersion++ },
     methods: {
+        formatPeriod,
+        invalidate() { this.requestVersion++; this.snapshot = null; this.error = ''; this.conflict = false; this.loading = false },
+        selectAll(checked) { this.selectedIDs = checked ? this.selectableAttachments.map(item => item.id) : [] },
         open() {
-            this.form = periodFormFromAttachment(this.attachments[0])
+            if (!this.canEdit) return
+            this.invalidate()
+            this.form = periodFormFromAttachment(this.selectableAttachments[0])
+            this.selectAll(true)
+            this.individualPolicy = 'preserve'
             this.reason = ''
             this.validated = false
             this.show = true
         },
         close() {
-            if (this.submitting) return
+            if (this.busy) return
+            this.invalidate()
             this.show = false
+        },
+        async preview() {
+            if (!this.canPreview) return
+            this.validated = true
+            if (Object.keys(this.errors).length) return
+            const version = ++this.requestVersion
+            this.loading = true
+            this.error = ''
+            this.snapshot = null
+            try {
+                const result = await previewApplicationPeriods(this.application.id, this.requestBody)
+                if (version !== this.requestVersion || !this.canEdit || !this.show) return
+                this.snapshot = result
+                this.conflict = false
+            } catch (error) {
+                if (version === this.requestVersion) this.error = error.message || 'Не удалось проверить изменения'
+            } finally {
+                if (version === this.requestVersion) this.loading = false
+            }
         },
         async submit() {
             if (!this.canSubmit) return
             this.validated = true
             if (Object.keys(this.errors).length) return
 
+            const version = this.requestVersion
             this.submitting = true
+            this.error = ''
             const notify = useDeletionsStore().notify
             try {
-                const result = await changeApplicationDates(this.application.id, {
-                    ...periodPayloadFromForm(this.form),
-                    reason: this.reason.trim()
+                const result = await changeApplicationPeriods(this.application.id, {
+                    ...this.requestBody,
+                    expected_revision: this.snapshot.period_revision
                 })
+                if (version !== this.requestVersion || !this.canEdit || !this.show) return
                 notify({
-                    prefix: 'Срок заявки изменён: ',
-                    bold: result?.new_period || '',
-                    suffix: '. Голоса согласующих сохранены.',
+                    prefix: 'Срок выбранных вложений изменён. Голоса согласующих сохранены.',
                     type: 'success'
                 })
                 this.show = false
-                this.$emit('changed')
+                this.snapshot = null
+                this.$emit('changed', result)
             } catch (error) {
-                notify({ bold: error.message || 'Не удалось изменить срок заявки', type: 'error' })
+                if (version !== this.requestVersion) return
+                this.snapshot = null
+                this.conflict = error.status === 409
+                this.error = this.conflict ? 'Срок или состав заявки изменились. Обновите данные и проверьте изменения перед сохранением.'
+                    : (error.message || 'Не удалось изменить срок вложений')
             } finally {
                 this.submitting = false
             }
@@ -215,7 +299,15 @@ export default {
   flex-direction: column;
   gap: 14px;
   padding: 16px 20px;
+  min-width: 0;
 }
+.dates-editor__fields { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.dates-editor__fields legend { margin-bottom: 8px; }
+.dates-editor__attachments { max-height: 140px; overflow-y: auto; }
+.dates-editor__choice { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 4px 0; }
+.dates-editor__choice input { accent-color: var(--primary); }
+.dates-editor__current small, .dates-editor__choice small { display: block; font-weight: normal; color: var(--text-muted); }
+.dates-editor__error { margin: 0; color: var(--danger-text); font-size: 13px; }
 
 .dates-editor__lead {
   margin: 0;

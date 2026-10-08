@@ -16,6 +16,11 @@ type Employee struct {
 	// исходной подачей. По нему принятие дополнения активирует только его строки, а
 	// интерфейс выделяет новых. Без FK: дополнения не удаляются, отмена у них - статус.
 	SupplementID             *int         `gorm:"index" json:"supplement_id"`
+	PeriodMode               PeriodMode   `gorm:"size:16" json:"period_mode"`
+	EntryDateFrom            *string      `gorm:"size:20" json:"entry_date_from"`
+	EntryDateTo              *string      `gorm:"size:20" json:"entry_date_to"`
+	EntryTimeFrom            *string      `gorm:"size:20" json:"entry_time_from"`
+	EntryTimeTo              *string      `gorm:"size:20" json:"entry_time_to"`
 	LastName                 *string      `gorm:"size:100" json:"last_name"`
 	FirstName                *string      `gorm:"size:100" json:"first_name"`
 	MiddleName               *string      `gorm:"size:100" json:"middle_name"`
@@ -46,6 +51,13 @@ type Employee struct {
 	PurgedByUserID *int       `json:"purged_by_user_id,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+func (e *Employee) BeforeCreate(_ *gorm.DB) error {
+	if e.PeriodMode == "" {
+		e.PeriodMode = PeriodInherit
+	}
+	return nil
 }
 
 func (e *Employee) BeforeSave(tx *gorm.DB) error {
@@ -125,10 +137,10 @@ type UniqueEmployee struct {
 	// PDObjectionSource - откуда пришло обращение: «письмо на почту бюро 06.09»,
 	// «заявление через работодателя». Свободный текст: способов обратиться больше,
 	// чем можно перечислить списком, а разбирать возражение будет человек.
-	PDObjectionSource *string `gorm:"type:text" json:"pd_objection_source"`
-	Status            *bool      `gorm:"default:false" json:"status"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	PDObjectionSource *string   `gorm:"type:text" json:"pd_objection_source"`
+	Status            *bool     `gorm:"default:false" json:"status"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 func (e *UniqueEmployee) BeforeSave(tx *gorm.DB) error {

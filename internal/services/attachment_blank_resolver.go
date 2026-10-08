@@ -389,6 +389,25 @@ func yesNo(v bool) string {
 }
 
 func resolveCar(bctx *BlankContext, c *models.Car, path string, rowIdx int) string {
+	if strings.HasPrefix(path, "car.entry_") {
+		period, err := blankEntityEffectivePeriod(bctx.Attachment, c.PeriodMode, models.EntryPeriod{
+			EntryDateFrom: c.EntryDateFrom, EntryDateTo: c.EntryDateTo,
+			EntryTimeFrom: c.EntryTimeFrom, EntryTimeTo: c.EntryTimeTo,
+		})
+		if err != nil {
+			return "" // GenerateBlank must validate the context before rendering.
+		}
+		switch path {
+		case "car.entry_date_from":
+			return formatDate(derefStr(period.EntryDateFrom))
+		case "car.entry_date_to":
+			return formatDate(derefStr(period.EntryDateTo))
+		case "car.entry_time_from":
+			return formatTime(derefStr(period.EntryTimeFrom))
+		case "car.entry_time_to":
+			return formatTime(derefStr(period.EntryTimeTo))
+		}
+	}
 	switch path {
 	case "car.row_number":
 		return strconv.Itoa(rowIdx + 1)
@@ -407,16 +426,46 @@ func resolveCar(bctx *BlankContext, c *models.Car, path string, rowIdx int) stri
 		return strings.Join(bctx.CarUnloadPlaces[c.ID], ", ")
 	case "car.passage_tables":
 		return strings.Join(bctx.CarPassageTables[c.ID], ", ")
-	case "car.entry_date_from":
-		return formatDate(derefStr(c.EntryDateFrom))
-	case "car.entry_date_to":
-		return formatDate(derefStr(c.EntryDateTo))
-	case "car.entry_time_from":
-		return formatTime(derefStr(c.EntryTimeFrom))
-	case "car.entry_time_to":
-		return formatTime(derefStr(c.EntryTimeTo))
 	}
 	return ""
+}
+
+// A blank and its archive snapshot resolve the same whole window. Historical
+// optional clocks remain optional, and inherited unbounded dates stay unbounded.
+func blankEntityEffectivePeriod(a *models.Attachment, mode models.PeriodMode, own models.EntryPeriod) (models.EffectivePeriod, error) {
+	if a == nil {
+		return models.EffectivePeriod{}, fmt.Errorf("attachment is required to resolve entity period")
+	}
+	parent := models.EntryPeriod{EntryDateFrom: a.EntryDateFrom, EntryDateTo: a.EntryDateTo, EntryTimeFrom: a.EntryTimeFrom, EntryTimeTo: a.EntryTimeTo}
+	period, err := models.ResolveEntityPeriod(mode, own, parent, a.IsManual)
+	if err != nil {
+		return models.EffectivePeriod{}, err
+	}
+	return period, nil
+}
+
+// Called after loadContext and before filling the workbook. The string resolver
+// cannot return errors; validation prevents an invalid window becoming a blank
+// cell in an otherwise apparently successful export.
+func validateBlankEntityPeriods(bctx *BlankContext) error {
+	if bctx == nil {
+		return fmt.Errorf("blank context is required")
+	}
+	for _, c := range bctx.Cars {
+		if _, err := blankEntityEffectivePeriod(bctx.Attachment, c.PeriodMode, models.EntryPeriod{
+			EntryDateFrom: c.EntryDateFrom, EntryDateTo: c.EntryDateTo, EntryTimeFrom: c.EntryTimeFrom, EntryTimeTo: c.EntryTimeTo,
+		}); err != nil {
+			return fmt.Errorf("invalid car period for blank: %w", err)
+		}
+	}
+	for _, e := range bctx.Employees {
+		if _, err := blankEntityEffectivePeriod(bctx.Attachment, e.PeriodMode, models.EntryPeriod{
+			EntryDateFrom: e.EntryDateFrom, EntryDateTo: e.EntryDateTo, EntryTimeFrom: e.EntryTimeFrom, EntryTimeTo: e.EntryTimeTo,
+		}); err != nil {
+			return fmt.Errorf("invalid employee period for blank: %w", err)
+		}
+	}
+	return nil
 }
 
 func resolveEmployee(bctx *BlankContext, e *models.Employee, path string, rowIdx int) string {

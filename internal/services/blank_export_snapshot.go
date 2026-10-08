@@ -28,7 +28,7 @@ const archiveSnapshotFileName = "заявка.json"
 // archiveSnapshotSchemaVersion - версия состава полей заявка.json. Меняется вместе
 // со структурой снапшота, чтобы читающая сторона (корпоративный сервер) могла
 // отличить файлы, записанные до и после расширения состава.
-const archiveSnapshotSchemaVersion = 1
+const archiveSnapshotSchemaVersion = 2
 
 // archiveSnapshotAttachmentID - зарезервированное значение attachment_id для
 // строки реестра слепка заявки (B1, долг A5c). 0 не занят реальными вложениями
@@ -110,23 +110,36 @@ type snapshotEmployee struct {
 	// кладёт их читаемыми, и слепок обязан отражать то же самое - иначе он
 	// бесполезен как аудиторская копия. Каталог архива - хранилище того же класса
 	// защиты, что и база (решение зафиксировано в context.md эпика).
-	PassportSeriesNumber string   `json:"passport_series_number,omitempty"`
-	PatentNumber         string   `json:"patent_number,omitempty"`
-	OtherPermission      string   `json:"other_permission,omitempty"`
-	TargetTables         []string `json:"target_tables,omitempty"`
+	PassportSeriesNumber string             `json:"passport_series_number,omitempty"`
+	PatentNumber         string             `json:"patent_number,omitempty"`
+	OtherPermission      string             `json:"other_permission,omitempty"`
+	TargetTables         []string           `json:"target_tables,omitempty"`
+	EntryDateFrom        string             `json:"entry_date_from,omitempty"`
+	EntryDateTo          string             `json:"entry_date_to,omitempty"`
+	EntryTimeFrom        string             `json:"entry_time_from,omitempty"`
+	EntryTimeTo          string             `json:"entry_time_to,omitempty"`
+	PeriodMode           models.PeriodMode  `json:"period_mode"`
+	PeriodSource         string             `json:"period_source"`
+	PeriodBounded        bool               `json:"period_bounded"`
+	StoredPeriod         models.EntryPeriod `json:"stored_period"`
 }
 
 type snapshotCar struct {
-	ID            int      `json:"id"`
-	Number        string   `json:"number,omitempty"`
-	Mark          string   `json:"mark,omitempty"`
-	UnloadPlace   string   `json:"unload_place,omitempty"`
-	EntryDateFrom string   `json:"entry_date_from,omitempty"`
-	EntryTimeFrom string   `json:"entry_time_from,omitempty"`
-	EntryDateTo   string   `json:"entry_date_to,omitempty"`
-	EntryTimeTo   string   `json:"entry_time_to,omitempty"`
-	UnloadPlaces  []string `json:"unload_places,omitempty"`
-	PassageTables []string `json:"passage_tables,omitempty"`
+	CarAccessFlags
+	ID            int                `json:"id"`
+	Number        string             `json:"number,omitempty"`
+	Mark          string             `json:"mark,omitempty"`
+	UnloadPlace   string             `json:"unload_place,omitempty"`
+	EntryDateFrom string             `json:"entry_date_from,omitempty"`
+	EntryTimeFrom string             `json:"entry_time_from,omitempty"`
+	EntryDateTo   string             `json:"entry_date_to,omitempty"`
+	EntryTimeTo   string             `json:"entry_time_to,omitempty"`
+	UnloadPlaces  []string           `json:"unload_places,omitempty"`
+	PassageTables []string           `json:"passage_tables,omitempty"`
+	PeriodMode    models.PeriodMode  `json:"period_mode"`
+	PeriodSource  string             `json:"period_source"`
+	PeriodBounded bool               `json:"period_bounded"`
+	StoredPeriod  models.EntryPeriod `json:"stored_period"`
 }
 
 type snapshotItem struct {
@@ -346,7 +359,7 @@ func loadSnapshotEmployees(ctx context.Context, db *gorm.DB, attachmentIDs []int
 	out := make(map[int][]snapshotEmployee)
 
 	var rows []models.Employee
-	if err := db.WithContext(ctx).Where("attachment_id IN ?", attachmentIDs).Order("id").Find(&rows).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("Attachment").Where("attachment_id IN ?", attachmentIDs).Order("id").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load employees for archive snapshot: %w", err)
 	}
 	if len(rows) == 0 {
@@ -389,11 +402,12 @@ func loadSnapshotEmployees(ctx context.Context, db *gorm.DB, attachmentIDs []int
 		if e.AttachmentID == nil {
 			continue
 		}
+		own := models.EntryPeriod{EntryDateFrom: e.EntryDateFrom, EntryDateTo: e.EntryDateTo, EntryTimeFrom: e.EntryTimeFrom, EntryTimeTo: e.EntryTimeTo}
 		citizenship := ""
 		if e.CitizenshipID != nil {
 			citizenship = citizenships[*e.CitizenshipID]
 		}
-		out[*e.AttachmentID] = append(out[*e.AttachmentID], snapshotEmployee{
+		entry, err := snapshotEmployeeWithPeriod(snapshotEmployee{
 			ID: e.ID, LastName: derefStr(e.LastName), FirstName: derefStr(e.FirstName),
 			MiddleName: derefStr(e.MiddleName), Position: derefStr(e.Position),
 			Citizenship:          citizenship,
@@ -401,7 +415,11 @@ func loadSnapshotEmployees(ctx context.Context, db *gorm.DB, attachmentIDs []int
 			PatentNumber:         derefStr(e.PatentNumber),
 			OtherPermission:      derefStr(e.OtherPermission),
 			TargetTables:         targetTables[e.ID],
-		})
+		}, e.Attachment, e.PeriodMode, own)
+		if err != nil {
+			return nil, fmt.Errorf("invalid employee period for archive snapshot: %w", err)
+		}
+		out[*e.AttachmentID] = append(out[*e.AttachmentID], entry)
 	}
 	return out, nil
 }
@@ -410,7 +428,7 @@ func loadSnapshotCars(ctx context.Context, db *gorm.DB, attachmentIDs []int) (ma
 	out := make(map[int][]snapshotCar)
 
 	var rows []models.Car
-	if err := db.WithContext(ctx).Where("attachment_id IN ?", attachmentIDs).Order("id").Find(&rows).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("Attachment").Where("attachment_id IN ?", attachmentIDs).Order("id").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load cars for archive snapshot: %w", err)
 	}
 	if len(rows) == 0 {
@@ -443,16 +461,52 @@ func loadSnapshotCars(ctx context.Context, db *gorm.DB, attachmentIDs []int) (ma
 	}
 
 	for _, c := range rows {
-		out[c.AttachmentID] = append(out[c.AttachmentID], snapshotCar{
+		own := models.EntryPeriod{EntryDateFrom: c.EntryDateFrom, EntryDateTo: c.EntryDateTo, EntryTimeFrom: c.EntryTimeFrom, EntryTimeTo: c.EntryTimeTo}
+		if c.Attachment.ID == 0 {
+			return nil, fmt.Errorf("attachment missing for car archive snapshot")
+		}
+		entry, err := snapshotCarWithPeriod(snapshotCar{
 			ID: c.ID, Number: derefStr(c.CarNumber), Mark: snapshotCarMark(c),
-			UnloadPlace:   derefStr(c.UnloadPlace),
-			EntryDateFrom: derefStr(c.EntryDateFrom), EntryTimeFrom: derefStr(c.EntryTimeFrom),
-			EntryDateTo: derefStr(c.EntryDateTo), EntryTimeTo: derefStr(c.EntryTimeTo),
-			UnloadPlaces:  unloadPlaces[c.ID],
-			PassageTables: passageTables[c.ID],
-		})
+			CarAccessFlags: carAccessFlags(c),
+			UnloadPlace:    derefStr(c.UnloadPlace),
+			UnloadPlaces:   unloadPlaces[c.ID],
+			PassageTables:  passageTables[c.ID],
+		}, &c.Attachment, c.PeriodMode, own)
+		if err != nil {
+			return nil, fmt.Errorf("invalid car period for archive snapshot: %w", err)
+		}
+		out[c.AttachmentID] = append(out[c.AttachmentID], entry)
 	}
 	return out, nil
+}
+
+func snapshotPeriodMode(mode models.PeriodMode) models.PeriodMode {
+	if mode == "" {
+		return models.PeriodInherit
+	}
+	return mode
+}
+
+func snapshotCarWithPeriod(row snapshotCar, a *models.Attachment, mode models.PeriodMode, own models.EntryPeriod) (snapshotCar, error) {
+	period, err := blankEntityEffectivePeriod(a, mode, own)
+	if err != nil {
+		return snapshotCar{}, err
+	}
+	row.EntryDateFrom, row.EntryDateTo = derefStr(period.EntryDateFrom), derefStr(period.EntryDateTo)
+	row.EntryTimeFrom, row.EntryTimeTo = derefStr(period.EntryTimeFrom), derefStr(period.EntryTimeTo)
+	row.PeriodMode, row.PeriodSource, row.PeriodBounded, row.StoredPeriod = snapshotPeriodMode(mode), period.Source, period.Bounded, own
+	return row, nil
+}
+
+func snapshotEmployeeWithPeriod(row snapshotEmployee, a *models.Attachment, mode models.PeriodMode, own models.EntryPeriod) (snapshotEmployee, error) {
+	period, err := blankEntityEffectivePeriod(a, mode, own)
+	if err != nil {
+		return snapshotEmployee{}, err
+	}
+	row.EntryDateFrom, row.EntryDateTo = derefStr(period.EntryDateFrom), derefStr(period.EntryDateTo)
+	row.EntryTimeFrom, row.EntryTimeTo = derefStr(period.EntryTimeFrom), derefStr(period.EntryTimeTo)
+	row.PeriodMode, row.PeriodSource, row.PeriodBounded, row.StoredPeriod = snapshotPeriodMode(mode), period.Source, period.Bounded, own
+	return row, nil
 }
 
 // snapshotCarMark выбирает актуальное название марки: снимок присвоения (MarkName)

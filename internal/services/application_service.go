@@ -695,6 +695,8 @@ type ViewerWithUser struct {
 // AttachmentInfo информация о вложении заявки.
 type AttachmentInfo struct {
 	ID                          int        `json:"id"`
+	Status                      *int       `json:"status"`
+	IsManual                    bool       `json:"is_manual"`
 	AttachmentType              string     `json:"attachment_type"`
 	AttachmentName              string     `json:"attachment_name"`
 	AttachmentDisplayName       string     `json:"attachment_display_name"`
@@ -726,6 +728,7 @@ type CustomValueDetail struct {
 
 // CarWithPlaces автомобиль с привязанными местами разгрузки.
 type CarWithPlaces struct {
+	CarAccessFlags
 	ID             int              `json:"id"`
 	CarNumber      string           `json:"car_number"`
 	CarBrand       string           `json:"car_brand"`
@@ -960,10 +963,17 @@ func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationI
 		Select(`at.application_id AS application_id,
 			COUNT(DISTINCT e.id) AS people_count,
 			COUNT(DISTINCT c.id) AS cars_count,
-			COALESCE(MIN(NULLIF(at.entry_date_from, '')), '') AS entry_date_from,
-			COALESCE(MAX(NULLIF(at.entry_date_to, '')), '') AS entry_date_to`).
+			COALESCE(MAX(periods.entry_date_from), '') AS entry_date_from,
+			COALESCE(MAX(periods.entry_date_to), '') AS entry_date_to`).
 		Joins("LEFT JOIN employees e ON e.attachment_id = at.id").
 		Joins("LEFT JOIN cars c ON c.attachment_id = at.id").
+		Joins(`LEFT JOIN (
+			SELECT rp.application_id,
+				CASE WHEN BOOL_OR(NOT rp.valid_mode) THEN '' ELSE COALESCE(MIN(rp.date_from), '') END AS entry_date_from,
+				CASE WHEN BOOL_OR(NOT rp.valid_mode OR rp.unbounded) THEN '' ELSE COALESCE(MAX(rp.date_to), '') END AS entry_date_to
+			FROM (`+applicationPeriodRowsSQL()+`) rp WHERE rp.application_id IN ?
+			GROUP BY rp.application_id
+		) periods ON periods.application_id = at.application_id`, applicationIDs).
 		Where("at.application_id IN ?", applicationIDs).
 		Group("at.application_id").
 		Scan(&rows).Error

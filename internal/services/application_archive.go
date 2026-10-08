@@ -43,17 +43,12 @@ func applicationInactiveSinceExpr(alias string) (string, []any) {
 	expr := fmt.Sprintf(`(CASE
 		WHEN COALESCE(%[1]s.status, '') = ? AND %[1]s.withdrawn_at IS NOT NULL THEN %[1]s.withdrawn_at
 		ELSE (
-			SELECT MAX(CAST(att.entry_date_to AS DATE))::timestamptz
-			FROM attachments att
-			WHERE att.application_id = %[1]s.id
-			AND NULLIF(att.entry_date_to, '') IS NOT NULL
-			AND NOT EXISTS (
-				SELECT 1 FROM attachments live
-				WHERE live.application_id = %[1]s.id
-				AND NULLIF(live.entry_date_to, '') IS NULL
-			)
+			SELECT CASE WHEN BOOL_OR(NOT periods.valid_mode OR periods.unbounded)
+				THEN NULL ELSE MAX(CAST(periods.date_to AS DATE))::timestamptz END
+			FROM (%[2]s) periods
+			WHERE periods.application_id = %[1]s.id
 		)
-	END)`, alias)
+	END)`, alias, applicationPeriodRowsSQL())
 	return expr, []any{models.StatusWithdrawn}
 }
 

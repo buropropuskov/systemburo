@@ -95,12 +95,20 @@ export async function restoreAttachment(id) {
  * существующее вложение заявки (сирота удаляется).
  * POST /attachments/{id}/attach-to-application -> {application_id, attachment_id}.
  * @param {number} attachmentId экземпляр вложения-сироты (resp.attachment_id из manual-create)
- * @param {{applicationId?: number, targetAttachmentId?: number}} target
+ * @param {{applicationId?: number, targetAttachmentId?: number, periodChoice?: string, sourceAttachmentId?: number, period?: object}} target
  */
-export async function attachToApplication(attachmentId, { applicationId = null, targetAttachmentId = null } = {}) {
+export async function attachToApplication(attachmentId, {
+  applicationId = null, targetAttachmentId = null,
+  periodChoice, sourceAttachmentId, period,
+} = {}) {
   const body = {};
   if (applicationId != null) body.application_id = applicationId;
   if (targetAttachmentId != null) body.target_attachment_id = targetAttachmentId;
+  if (periodChoice) body.period_choice = periodChoice;
+  if (periodChoice === 'source' && sourceAttachmentId != null) {
+    body.source_attachment_id = sourceAttachmentId;
+  }
+  if (periodChoice === 'individual' && period != null) body.period = period;
   const res = await apiRequest(`/attachments/${attachmentId}/attach-to-application`, {
     method: 'POST',
     body: JSON.stringify(body),

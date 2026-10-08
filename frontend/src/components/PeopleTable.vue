@@ -593,12 +593,9 @@
     <!-- Модальное окно деталей сотрудника -->
     <EmployeeDetailsModal
       v-if="!preview && showDetailsModal"
-      :show="showDetailsModal"
-      :employee="selectedEmployee"
-      :all-tables="allTables"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      :source="'peopletable'"
+      v-bind="entityDetailsProps"
+      @period-changed="onEntityPeriodChanged"
+      @manual-attached="onManualEntityAttached"
       @close="closeDetailsModal"
       @open-application="openApplicationDetail"
     />
@@ -641,6 +638,7 @@
 </template>
 
 <script>
+import { peopleTablePeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
@@ -695,6 +693,7 @@ const MOBILE_CARD_FIELDS = [
 ];
 
 export default {
+    mixins: [peopleTablePeriodDetails],
   name: 'PeopleTable',
   components: {
     RefreshButton,
@@ -1485,31 +1484,6 @@ export default {
       this._loadData(true);
       return true;
     },
-
-    openEmployeeDetails(item) {
-      this.selectedEmployee = {
-        id: item.id,
-        last_name: item.last_name,
-        first_name: item.first_name,
-        middle_name: item.middle_name,
-        position: item.position,
-        citizenshipName: item.citizenshipName,
-        passport_series_number: item.passport_series_number,
-        patent_number: item.patent_number,
-        other_permission: item.other_permission,
-        organization: item.organization_name,
-        organizationId: item.organization_id,
-        company: item.company,
-        companyId: item.company_id,
-        entry_date_to: item.entry_date_to,
-        pass_time: item.pass_time,
-        target_tables: item.target_tables || [],
-        territory_status: item.territory_status,
-        applicationId: item.applicationId
-      };
-      this.showDetailsModal = true;
-    },
-
     closeDetailsModal() {
       this.showDetailsModal = false;
       this.selectedEmployee = null;

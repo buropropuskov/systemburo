@@ -74,7 +74,7 @@ type EmployeeBulkUnbindTableRequest struct {
 
 // DeactivateEmployeeRequest -- тело запроса деактивации сотрудника.
 type DeactivateEmployeeRequest struct {
-	Status  int  `json:"status"`
+	Status int `json:"status"`
 	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
 	UserID  *int `json:"-"`
 	TableID *int `json:"table_id"`
@@ -364,10 +364,14 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 	}
 
 	rows := make([]employeeRow, 0)
+	period, err := EntityEffectivePeriodSQL("e", "a")
+	if err != nil {
+		return nil, err
+	}
 	// Оконная функция считается после GROUP BY: для каждого непустого паспорта
 	// оставляем строку с максимальным entry_date_to (rn=1). Строки с NULL-паспортом
 	// ("По факту") не схлопываем - условие (hmac IS NULL OR rn = 1).
-	err := s.db.WithContext(ctx).Raw(`
+	err = s.db.WithContext(ctx).Raw(`
 		SELECT
 			id,
 			last_name,
@@ -401,8 +405,8 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 					JOIN system_tables st ON ett2.table_id = st.id
 					WHERE ett2.employee_id = e.id
 				) AS pass_places,
-				a.entry_date_to,
-				CONCAT(a.entry_time_from, ' - ', a.entry_time_to) AS pass_time,
+				`+period.DateTo+` AS entry_date_to,
+				CONCAT(`+period.TimeFrom+`, ' - ', `+period.TimeTo+`) AS pass_time,
 				e.status,
 				app.id AS application_id,
 				app.application_number AS application_number,
@@ -414,7 +418,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 				e.passport_series_number_hmac,
 				ROW_NUMBER() OVER (
 					PARTITION BY e.passport_series_number_hmac
-					ORDER BY a.entry_date_to DESC NULLS LAST, e.id DESC
+					ORDER BY `+period.DateTo+` DESC NULLS LAST, e.id DESC
 				) AS rn
 			FROM employees e
 			JOIN employee_target_tables ett ON e.id = ett.employee_id
@@ -431,17 +435,18 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			-- Заявочные сотрудники видны только по согласованной активной заявке в окне
 			-- действия пропуска; ручные минуют оба требования - заявки у них нет вовсе,
 			-- гейт видимости берёт на себя принадлежность целевой таблице (employee_target_tables)
-			-- + security-видимость (S6). Показываются, пока активны (e.status = 1), как ручные машины.
+			-- + security-видимость (S6). Конечный ручной срок проверяется ниже.
 			AND (a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))
 			-- Окно дней считается по московскому календарю (#2327), но КРАЙНЕЕ ВРЕМЯ
 			-- пребывания здесь намеренно не учитывается: иначе сотрудник, вошедший в
 			-- 17:50 по пропуску до 18:00, исчезнет со стола поста ровно в 18:00, и
 			-- отметить его выход будет некому. Видимость на посту и право прохода -
 			-- разные вещи; признака «пропуск на сегодня истёк» в таблице пока нет.
-			AND (a.is_manual OR `+moscowTodaySQL+` BETWEEN a.entry_date_from::date AND a.entry_date_to::date)
+			AND `+period.ValidMode+`
+			AND (`+period.Source+` = 'manual_unbounded' OR `+moscowTodaySQL+` BETWEEN (`+period.DateFrom+`)::date AND (`+period.DateTo+`)::date)
 			GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
 					 o.name, co.name, c.name, e.position,
-					 a.entry_date_to, a.entry_time_from,
+					 a.id, a.entry_date_to, a.entry_time_from,
 					 a.entry_time_to, e.status, app.id, app.application_number,
 					 e.territory_status, e.passport_series_number_hmac
 		) sub

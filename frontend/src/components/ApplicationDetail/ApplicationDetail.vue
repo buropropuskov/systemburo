@@ -648,31 +648,16 @@
       </div>
     </div>
     <VehicleDetailsModal
-      :show="showVehicleModal"
-      :vehicle="selectedVehicle"
-      :all-unloading-places="allUnloadingPlaces"
-      :all-tables="allTables"
-      :license-plate-formats="licensePlateFormats"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      :show-car-features="true"
-      :source="'application'"
-      :can-override="canOverrideBlacklist"
-      :can-cancel-override="canManageBlacklistOverride"
+      v-bind="vehicleDetailsProps"
+      @period-changed="onEntityPeriodChanged('vehicle', $event)"
       @close="showVehicleModal = false"
       @override="onCardOverride('vehicle')"
       @cancel-override="onCardCancelOverride('vehicle')"
     />
 
     <EmployeeDetailsModal
-      :show="showEmployeeModal"
-      :employee="selectedEmployee"
-      :all-tables="allTables"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      :source="'application'"
-      :can-override="canOverrideBlacklist"
-      :can-cancel-override="canManageBlacklistOverride"
+      v-bind="employeeDetailsProps"
+      @period-changed="onEntityPeriodChanged('employee', $event)"
       @close="showEmployeeModal = false"
       @override="onCardOverride('employee')"
       @cancel-override="onCardCancelOverride('employee')"
@@ -698,6 +683,7 @@
 </template>
 
 <script>
+import { applicationPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client'
 import { markAsRead, getApplicationSupplements, getApplicationParticipants } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
@@ -753,6 +739,7 @@ import { removeApplicationElements } from '@/api/applicationAssignments'
 const SUPPLEMENT_ALLOWED_STATUSES = ['Непрочитано', 'В обработке', 'В работе']
 
 export default {
+    mixins: [applicationPeriodDetails],
     name: 'ApplicationDetail',
     components: {
         ApplicationAttachments,
@@ -832,6 +819,7 @@ export default {
             eventStreamOff: null,
             eventStreamAppId: null,
             loadDetailSeq: 0,
+            loadAttachmentSeq: 0,
             showMessageModal: false,
             messageClamped: false,
             attachments: [],
@@ -1676,7 +1664,13 @@ export default {
 
         async loadAttachmentDetails(attachmentId) {
             if (!attachmentId) return;
-
+            const seq = ++this.loadAttachmentSeq;
+            const applicationId = this.applicationData?.id;
+            const requestedApplicationId = this.application?.id;
+            const selectedId = this.selectedAttachment?.id;
+            const current = () => seq === this.loadAttachmentSeq &&
+                this.applicationData?.id === applicationId && this.application?.id === requestedApplicationId &&
+                this.selectedAttachment?.id === selectedId;
             this.loadingAttachmentDetails = true;
             try {
                 this.attachmentCars = [];
@@ -1692,7 +1686,8 @@ export default {
                             method: "GET",
                         });
                         if (carsResponse.ok) {
-                            this.attachmentCars = await carsResponse.json();
+                            const cars = await carsResponse.json();
+                            if (current()) this.attachmentCars = cars;
                         }
                         break;
                     }
@@ -1702,7 +1697,8 @@ export default {
                             method: "GET",
                         });
                         if (employeesResponse.ok) {
-                            this.attachmentEmployees = await employeesResponse.json();
+                            const employees = await employeesResponse.json();
+                            if (current()) this.attachmentEmployees = employees;
                         }
                         break;
                     }
@@ -1712,15 +1708,16 @@ export default {
                             method: "GET",
                         });
                         if (itemsResponse.ok) {
-                            this.attachmentItems = await itemsResponse.json();
+                            const items = await itemsResponse.json();
+                            if (current()) this.attachmentItems = items;
                         }
                         break;
                     }
                 }
             } catch (error) {
-                console.error("Ошибка при загрузке деталей вложения:", error);
+                if (current()) console.error("Ошибка при загрузке деталей вложения:", error);
             } finally {
-                this.loadingAttachmentDetails = false;
+                if (seq === this.loadAttachmentSeq) this.loadingAttachmentDetails = false;
             }
         },
 
@@ -2040,57 +2037,6 @@ export default {
                 console.error("Ошибка при загрузке общих данных:", error);
             }
         },
-
-        openVehicleModal(car) {
-            this.selectedVehicle = {
-                id: car.id,
-                plateNumber: car.car_number,
-                mark: car.car_brand,
-                formatId: car.formatId || null,
-                organization: car.organization || null,
-                organizationId: car.organization_id || null,
-                company: car.company || null,
-                companyId: car.company_id || null,
-                isExisting: true,
-                unloadPlaces: car.unload_places ? car.unload_places.map(p => p.id) : [],
-                target_tables: car.target_tables || [], // объектами: в них источник привязки (#2558)
-                entry_date_to: car.entry_date_to || null,
-                entry_time_from: car.entry_time_from || null,
-                entry_time_to: car.entry_time_to || null,
-                applicationId: this.applicationData.id,
-                territory_status: 0,
-                entry_checked: false,
-                exit_checked: false,
-                blacklist_similar: car.blacklist_similar || null
-            };
-            this.showVehicleModal = true;
-        },
-
-        openEmployeeModal(employee) {
-            this.selectedEmployee = {
-                id: employee.id,
-                last_name: employee.last_name,
-                first_name: employee.first_name,
-                middle_name: employee.middle_name,
-                position: employee.position,
-                citizenshipName: employee.citizenship_name,
-                passport_series_number: employee.passport_series_number,
-                patent_number: employee.patent_number,
-                other_permission: employee.other_permission,
-                organization: employee.organization || null,
-                organizationId: employee.organization_id || null,
-                company: employee.company || null,
-                companyId: employee.company_id || null,
-                entry_date_to: employee.entry_date_to || null,
-                pass_time: employee.pass_time || null,
-                target_tables: employee.target_tables || [],
-                applicationId: this.applicationData.id,
-                territory_status: 0,
-                blacklist_similar: employee.blacklist_similar || null
-            };
-            this.showEmployeeModal = true;
-        },
-
         openRemovalModal({ label, id }) {
             this.removalLabel = label || '';
             this.removalElementId = id || null;

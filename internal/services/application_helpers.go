@@ -909,11 +909,12 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	if filter.ActiveToday != nil && *filter.ActiveToday {
 		query = query.Where(`
 			EXISTS(
-				SELECT 1 FROM attachments att
-				WHERE att.application_id = a.id
-				AND att.entry_date_from IS NOT NULL
-				AND att.entry_date_to IS NOT NULL
-				AND ` + moscowTodaySQL + ` BETWEEN CAST(att.entry_date_from AS DATE) AND CAST(att.entry_date_to AS DATE)
+				SELECT 1 FROM (` + applicationPeriodRowsSQL() + `) periods
+				WHERE periods.application_id = a.id
+				AND periods.valid_mode
+				AND periods.date_from IS NOT NULL
+				AND periods.date_to IS NOT NULL
+				AND ` + moscowTodaySQL + ` BETWEEN CAST(periods.date_from AS DATE) AND CAST(periods.date_to AS DATE)
 			)
 		`)
 	}

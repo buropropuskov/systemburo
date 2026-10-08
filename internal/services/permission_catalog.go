@@ -204,11 +204,13 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyActionImportList, DisplayName: "Импорт списка из бланка", Category: CatCenter},
 		{Key: KeyApplicationOrganizationOverride, DisplayName: "Подача заявки от другой организации", Category: CatCenter},
 		{Key: KeyApplicationOrganizationModerate, DisplayName: "Разбор организаций на проверке", Category: CatCenter},
+		{Key: KeyApplicationPeriodChange, DisplayName: "Изменять сроки вложений заявки", Category: CatCenter},
 
 		// Карточка авто/сотрудника (общие действия; где кнопка уместна -- определяет контекст на фронте)
 		{Key: KeyDetailFullHistory, DisplayName: "Кнопка «Полная история»", Category: CatDetail},
 		{Key: KeyDetailOpenApplication, DisplayName: "Кнопка «Открыть заявку»", Category: CatDetail},
 		{Key: KeyDetailEntryExitHistory, DisplayName: "Раздел «История въездов и выездов»", Category: CatDetail},
+		{Key: KeyDetailPeriodChange, DisplayName: "Изменять срок отдельного человека или машины", Category: CatDetail},
 		{
 			Key:         KeyDetailDocuments,
 			DisplayName: "Раздел «Документы»",

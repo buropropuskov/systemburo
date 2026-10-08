@@ -344,6 +344,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	carService := services.NewCarService(db, auditRecorder)
 	employeeService := services.NewEmployeeService(db, auditRecorder)
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, nil, nil)
+	singleManualAttachCommands := services.NewSingleManualAttachCommandService(db, auditRecorder, nil, nil)
 	permissionService := services.NewPermissionService(db)
 	cachedResolver = permissionResolver
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
@@ -569,6 +570,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 		UserTypes:           userTypesHandler,
 		Attachments:         attachmentHandler,
 		ManualAttach:        manualAttachHandler,
+		SingleManualAttach:  handlers.NewSingleManualAttachHandler(singleManualAttachCommands),
 		LPF:                 lpfHandler,
 		Citizenship:         citizenshipHandler,
 		Organization:        organizationHandler,
@@ -588,6 +590,8 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
+		EntityPeriod:        handlers.NewEntityPeriodHandler(services.NewEntityPeriodCommandService(db, auditRecorder)),
+		AttachmentPeriod:    handlers.NewAttachmentPeriodHandler(services.NewAttachmentPeriodCommandService(db, auditRecorder)),
 		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,
 		Permissions:         permissionHandler,

@@ -266,6 +266,7 @@ func applicationPeriodUnchanged(tx *gorm.DB, applicationID int, attachments []ap
 		SELECT COUNT(*) FROM cars c
 		JOIN attachments a ON a.id = c.attachment_id
 		WHERE a.application_id = ?
+		  AND COALESCE(NULLIF(c.period_mode, ''), 'inherit') = 'inherit'
 		  AND (c.entry_date_from IS DISTINCT FROM ? OR c.entry_date_to IS DISTINCT FROM ?
 		    OR c.entry_time_from IS DISTINCT FROM ? OR c.entry_time_to IS DISTINCT FROM ?)
 	`, applicationID, p.DateFrom, p.DateTo, p.TimeFrom, p.TimeTo).Scan(&differentCars).Error; err != nil {
@@ -284,6 +285,7 @@ func checkByFactPeriodOnChange(tx *gorm.DB, applicationID int, p applicationPeri
 		SELECT COUNT(*) FROM cars c
 		JOIN attachments a ON a.id = c.attachment_id
 		WHERE a.application_id = ?
+		  AND COALESCE(NULLIF(c.period_mode, ''), 'inherit') = 'inherit'
 		  AND c.date_removed IS NULL
 		  AND LOWER(REPLACE(TRIM(c.car_number), ' ', '')) = ?
 	`, applicationID, byFactCompactPlate()).Scan(&byFact).Error; err != nil {
@@ -317,6 +319,7 @@ func writeApplicationPeriod(tx *gorm.DB, applicationID int, p applicationPeriod)
 		SET entry_date_from = ?, entry_date_to = ?, entry_time_from = ?, entry_time_to = ?, updated_at = ?
 		FROM attachments a
 		WHERE a.id = c.attachment_id AND a.application_id = ?
+		  AND COALESCE(NULLIF(c.period_mode, ''), 'inherit') = 'inherit'
 	`, p.DateFrom, p.DateTo, p.TimeFrom, p.TimeTo, now, applicationID).Error; err != nil {
 		slog.Error("срок заявки: не удалось обновить машины", "application_id", applicationID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка изменения срока машин")

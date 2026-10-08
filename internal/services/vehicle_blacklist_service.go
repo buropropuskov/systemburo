@@ -625,6 +625,10 @@ func (s *vehicleBlacklistService) deactivateMatchingCars(ctx context.Context, tx
 // активной заявки или с просроченным пропуском остаются деактивированными. Совпадение по
 // марке - как в deactivateMatchingCars (mark_id, для легаси - имя).
 func (s *vehicleBlacklistService) reactivateMatchingCars(ctx context.Context, tx *gorm.DB, e models.VehicleBlacklist, userID int) (int, error) {
+	validPeriod, err := restorableEntityPeriodSQL("c")
+	if err != nil {
+		return 0, err
+	}
 	var ids []int
 	if err := tx.WithContext(ctx).
 		Table("cars c").
@@ -636,9 +640,8 @@ func (s *vehicleBlacklistService) reactivateMatchingCars(ctx context.Context, tx
 		Where("c.is_purged = ?", false).
 		Where("app.confirmation = ?", models.ConfirmationApproved).
 		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
-		// "дата актуальна" из ТЗ: не возрождаем просроченный пропуск. NULLIF защищает
-		// от пустой строки в entry_date_to (иначе ''::date упадёт).
-		Where(passValidNowSQL("c")).
+		// Effective-срок сохраняет московскую границу конца и legacy NULLIF/fallback.
+		Where(validPeriod).
 		Pluck("c.id", &ids).Error; err != nil {
 		return 0, err
 	}

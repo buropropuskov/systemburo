@@ -13,6 +13,7 @@ import (
 )
 
 type tableCarRow struct {
+	CarAccessFlags
 	ID                 int
 	CarNumber          string
 	CarBrand           string
@@ -36,13 +37,19 @@ type tableCarRow struct {
 // выбранной таблице. tableID == nil — все активные машины (legacy-эндпоинт до
 // перевода потребителей на scoped; #1036).
 func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
+	period, err := EntityEffectivePeriodSQL("c", "a")
+	if err != nil {
+		q := s.db.WithContext(ctx)
+		q.AddError(err)
+		return q
+	}
 	q := s.db.WithContext(ctx).
 		Table("cars c").
 		Select(`c.id, c.car_number, c.car_brand, c.unload_place,
-			c.territory_status, c.territory_entry_time,
+			c.territory_status, c.territory_entry_time,`+carAccessSelectSQL+`,
 			o.name AS organization, o.id AS organization_id,
 			c2.name AS company, c2.id AS company_id,
-			c.entry_date_to, c.entry_time_from, c.entry_time_to,
+			`+period.DateTo+` AS entry_date_to, `+period.TimeFrom+` AS entry_time_from, `+period.TimeTo+` AS entry_time_to,
 			c.status, app.id AS application_id, app.application_number AS application_number`).
 		Joins("JOIN attachments a ON c.attachment_id = a.id").
 		// LEFT JOIN: ручные машины (#1049) висят на вложении-сироте без заявки
@@ -59,9 +66,10 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
 			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted}).
 		// Заявка попадает на пост в свой срок, а не с момента согласования: машина из
 		// заявки на следующую неделю висела в таблице уже сегодня, и отличить её от той,
-		// которой въезд разрешён, охране было нечем. У людей это условие стоит с самого
-		// начала (#2552). Ручные строки срока не имеют и проверку минуют.
-		Where("a.is_manual OR " + moscowTodaySQL + " BETWEEN a.entry_date_from::date AND a.entry_date_to::date")
+		// которой въезд разрешён, охране было нечем. Индивидуальный срок заменяет
+		// окно вложения целиком; только действительно бессрочные ручные строки минуют его.
+		Where(period.ValidMode).
+		Where(period.Source + " = 'manual_unbounded' OR " + moscowTodaySQL + " BETWEEN (" + period.DateFrom + ")::date AND (" + period.DateTo + ")::date")
 	if tableID != nil {
 		q = q.Joins("JOIN car_target_tables ctt ON ctt.car_id = c.id").
 			Where("ctt.table_id = ?", *tableID)
@@ -86,10 +94,14 @@ func (s *carService) activeCars(ctx context.Context, tableID *int) ([]TableCarRe
 // ILIKE, если точного совпадения «по факту» нет (совместимость со старыми данными).
 func (s *carService) factCars(ctx context.Context, tableID *int) ([]TableCarResponse, error) {
 	rows := make([]tableCarRow, 0)
+	period, err := EntityEffectivePeriodSQL("c", "a")
+	if err != nil {
+		return nil, err
+	}
 
-	err := s.tableCarsBase(ctx, tableID).
+	err = s.tableCarsBase(ctx, tableID).
 		Where("LOWER(TRIM(c.car_number)) = ?", "по факту").
-		Order("organization, c.entry_date_to").
+		Order("organization, " + period.DateTo).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching fact cars")
@@ -99,7 +111,7 @@ func (s *carService) factCars(ctx context.Context, tableID *int) ([]TableCarResp
 		err = s.tableCarsBase(ctx, tableID).
 			Where("c.car_number ILIKE ? OR c.car_number ILIKE ? OR c.car_number ILIKE ?",
 				"%по факту%", "%пофакту%", "%факт%").
-			Order("organization, c.entry_date_to").
+			Order("organization, " + period.DateTo).
 			Scan(&rows).Error
 		if err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching alternative fact cars")
@@ -182,6 +194,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 		}
 
 		cars = append(cars, TableCarResponse{
+			CarAccessFlags:     row.CarAccessFlags,
 			ID:                 row.ID,
 			CarNumber:          row.CarNumber,
 			CarBrand:           row.CarBrand,

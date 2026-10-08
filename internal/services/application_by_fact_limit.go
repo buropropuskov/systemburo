@@ -120,16 +120,21 @@ func (s *applicationService) ensureNoActiveByFactApplication(tx *gorm.DB, organi
 		Number string
 		DateTo string
 	}
-	err := tx.Raw(`
+	period, err := EntityEffectivePeriodSQL("c", "a")
+	if err != nil {
+		return err
+	}
+	validUntil := strings.NewReplacer("a.entry_date_to", period.DateTo, "a.entry_time_to", period.TimeTo).Replace(passValidNowSQL("a"))
+	err = tx.Raw(`
 		SELECT COALESCE(app.application_number, '') AS number,
-		       COALESCE(NULLIF(TRIM(a.entry_date_to), ''), '') AS date_to
+		       COALESCE(NULLIF(TRIM(`+period.DateTo+`), ''), '') AS date_to
 		FROM cars c
 		JOIN attachments a ON a.id = c.attachment_id
 		JOIN applications app ON app.id = a.application_id
 		WHERE app.organization_id = ?
 		  AND COALESCE(app.status, '') NOT IN ?
 		  AND LOWER(REPLACE(TRIM(c.car_number), ' ', '')) = ?
-		  AND `+passValidNowSQL("a")+`
+		  AND `+period.ValidMode+` AND (`+period.Source+` <> 'individual' OR `+period.Bounded+`) AND `+validUntil+`
 		LIMIT 1
 	`, *organizationID, models.ArchivableStatuses, byFactCompactPlate()).
 		Scan(&existing).Error
