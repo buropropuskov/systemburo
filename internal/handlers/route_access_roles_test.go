@@ -74,6 +74,12 @@ func roleActions() []roleAction {
 	roundPending := withSeed(seedVoted, func(s *roleSeed) { s.round, s.roundVote = models.SupplementPending, "pending" })
 
 	return []roleAction{
+		// Роль участника сама по себе не выдаёт управляемое право изменения сроков.
+		// Выданное право и персональный запрет проверяет TestEntityPeriod2665HTTP*.
+		{name: "предпросмотр срока без права", route: "POST /api/applications/:id/attachment-period/preview", seed: seedVoting,
+			url: roleURL("/attachment-period/preview"), body: roleBody(`{}`)},
+		{name: "изменение срока без права", route: "PUT /api/applications/:id/attachment-period", seed: seedVoting,
+			url: roleURL("/attachment-period"), body: roleBody(`{}`)},
 		{name: "голос", route: "POST /api/applications/:id/approve", seed: seedVoting, allowed: voters,
 			url: roleURL("/approve"),
 			body: func(_ *roleWorld, _ roleApp, uid int) string {
