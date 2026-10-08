@@ -1,3 +1,5 @@
+import PassageRegistrySummary from './PassageRegistrySummary.vue';
+import { passageFields } from '@/utils/passageProjection';
 // Shared card contracts keep each source's original row mapper and refresh flow together.
 // Registry IDs remain distinct from the active application entity IDs.
 
@@ -101,6 +103,7 @@ export const peopleTablePeriodDetails = {
 
     openEmployeeDetails(item) {
       this.selectedEmployee = {
+        ...passageFields(item),
         id: item.id,
         last_name: item.last_name,
         first_name: item.first_name,
@@ -126,6 +129,7 @@ export const peopleTablePeriodDetails = {
 };
 
 export const carsRegistryPeriodDetails = {
+  components: { PassageRegistrySummary },
   computed: {
     entityDetailsProps() {
       return {
@@ -183,6 +187,7 @@ export const carsRegistryPeriodDetails = {
 };
 
 export const employeesRegistryPeriodDetails = {
+  components: { PassageRegistrySummary },
   computed: {
     entityDetailsProps() {
       return {

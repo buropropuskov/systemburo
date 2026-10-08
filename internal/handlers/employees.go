@@ -7,16 +7,22 @@ import (
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // EmployeeHandler -- HTTP-обработчики сотрудников в заявках.
 type EmployeeHandler struct {
-	service services.EmployeeService
+	service   services.EmployeeService
+	passageDB *gorm.DB
 }
 
 // NewEmployeeHandler создаёт новый экземпляр EmployeeHandler.
-func NewEmployeeHandler(service services.EmployeeService) *EmployeeHandler {
-	return &EmployeeHandler{service: service}
+func NewEmployeeHandler(service services.EmployeeService, passageDB ...*gorm.DB) *EmployeeHandler {
+	h := &EmployeeHandler{service: service}
+	if len(passageDB) > 0 {
+		h.passageDB = passageDB[0]
+	}
+	return h
 }
 
 // CreateManualEmployees обрабатывает POST /employees/manual.
@@ -110,6 +116,10 @@ func (h *EmployeeHandler) GetActiveEmployeesForTable(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
 	}
 	employees, err := h.service.GetActiveEmployeesForTable(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	employees, err = h.enrichEmployeePassages(c, tableID, employees)
 	if err != nil {
 		return err
 	}

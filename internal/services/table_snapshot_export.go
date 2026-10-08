@@ -137,7 +137,7 @@ func carExportRows(rows []snapshotCarRow) ([]string, [][]string) {
 			derefStr(r.Company),
 			carUnloadPlaces(r),
 			derefStr(r.ApplicationNumber),
-			territoryStatusLabel(r.TerritoryStatus),
+			snapshotPassageStatusLabel(r.PassageState, r.TerritoryStatus),
 			derefStr(r.TerritoryEntryTime),
 		}
 		if hasFact {
@@ -164,7 +164,7 @@ func employeeExportRows(rows []snapshotEmployeeRow) ([]string, [][]string) {
 			derefStr(r.Position),
 			derefStr(r.PassPlaces),
 			derefStr(r.ApplicationNumber),
-			territoryStatusLabel(r.TerritoryStatus),
+			snapshotPassageStatusLabel(r.PassageState, r.TerritoryStatus),
 		})
 	}
 	return headers, out
@@ -181,6 +181,13 @@ func carUnloadPlaces(r snapshotCarRow) string {
 
 // territoryStatusLabel - русская подпись территориального статуса, как на фронте:
 // 1=На территории, 2=Выехал, 0/nil=Не въезжал.
+func snapshotPassageStatusLabel(state PassageState, legacy *int) string {
+	if !state.Open && state.LastEventKind == "passage_close" {
+		return "Учёт исправлен"
+	}
+	return territoryStatusLabel(legacy)
+}
+
 func territoryStatusLabel(s *int) string {
 	switch {
 	case s != nil && *s == 1:

@@ -30,7 +30,7 @@ const (
 	// passageRevertColumn - сам признак. Сравнение по тексту, а не приведением
 	// details.reverts_id к int: журнал переживает любые данные, и каст свалил бы
 	// чтение истории целиком, встретив одну нечисловую строку.
-	passageRevertColumn = `rv.id IS NOT NULL AS reverted`
+	passageRevertColumn = `(rv.id IS NOT NULL OR EXISTS(SELECT 1 FROM audit_log cr WHERE cr.action='` + PassageCorrectionRevertAction + `' AND cr.details->>'reverts_id'=a.id::text)) AS reverted`
 )
 
 // passageNotReverted - условие «отметка в силе» для читателей, считающих проходы.
@@ -54,7 +54,7 @@ func passageRevertWindowSQL() string {
 // COUNT(*) FILTER по entity_type, а union-проекции этот столбец стирают.
 func passageRevertNotExists(alias string) string {
 	return fmt.Sprintf(
-		`NOT EXISTS (SELECT 1 FROM audit_log rv WHERE rv.action IN ('%s', '%s') `+
+		`NOT EXISTS (SELECT 1 FROM audit_log rv WHERE rv.action IN ('%s', '%s', '%s') `+
 			`AND rv.details->>'reverts_id' = %s.id::text)`,
-		models.AuditActionEntryRevert, models.AuditActionExitRevert, alias)
+		models.AuditActionEntryRevert, models.AuditActionExitRevert, PassageCorrectionRevertAction, alias)
 }

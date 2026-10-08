@@ -7,8 +7,19 @@
  */
 
 /** Общие для машины и сотрудника действия: различаются только словом-подлежащим. */
+export const PASSAGE_CORRECTION_ACTIONS = {
+  passage_close: 'Учёт закрыт исправлением (не отметка выхода)',
+  passage_close_revert: 'Исправление учёта отменено',
+};
+export function isPassageHistoryAction(item) {
+  return ['entry', 'exit', 'entry_revert', 'exit_revert', 'passage_close', 'passage_close_revert'].includes(item.action_type);
+}
+export function correctionStatus(state) {
+  return state?.last_event_kind === 'passage_close' ? 'Учёт закрыт исправлением' : '';
+}
 function commonActions(subject) {
   return {
+    ...PASSAGE_CORRECTION_ACTIONS,
     create: `Подана заявка на ${subject === 'Автомобиль' ? 'автомобиль' : 'сотрудника'}`,
     update: 'Данные обновлены',
     delete: `${subject} удалён`,
@@ -54,4 +65,10 @@ export function historyActionText(item, actions) {
     return `Изменено поле "${item.field_name}"`;
   }
   return actions[item?.action_type] || item?.action_type || '';
+}
+
+/** Table journals retain their existing delete/restore wording. */
+export function tablePassageHistoryText(item, kind) {
+  return historyActionText(item, { ...(kind === 'car' ? CAR_HISTORY_ACTIONS : EMPLOYEE_HISTORY_ACTIONS),
+    delete: 'Удаление из таблицы', restore: 'Восстановление в таблице', purge: 'Безвозвратное удаление' });
 }

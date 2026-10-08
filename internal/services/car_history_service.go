@@ -148,7 +148,7 @@ const allCarsHistoryFromSQL = `
 	LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
 	LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)
 	LEFT JOIN system_tables st ON h.table_id = st.id
-	WHERE h.action_type IN ('entry', 'exit')
+	WHERE h.action_type IN ('entry', 'exit', '` + PassageCorrectionAction + `', '` + PassageCorrectionRevertAction + `')
 `
 
 // allCarsHistorySelectSQL - общая часть выборки истории въездов/выездов;

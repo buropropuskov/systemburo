@@ -119,8 +119,10 @@ export default {
           direction: current.direction,
           tableId: current.tableId,
           reason: text,
+          expectedLastEventID: current.expectedLastEventID,
         });
         if (!ok) {
+          current.onDone?.();
           useDeletionsStore().notify({ prefix: '', bold: error, type: 'error' });
           return;
         }

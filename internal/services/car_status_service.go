@@ -2,11 +2,9 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -17,161 +15,37 @@ import (
 
 // GetCarsCurrentStatus возвращает текущий территориальный статус активных автомобилей.
 func (s *carService) GetCarsCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]CarCurrentStatus, error) {
-	type statusRow struct {
-		ID                 int
-		TerritoryStatus    *int
-		TerritoryEntryTime *time.Time
-		LastExitTime       *time.Time
-		CanRevert          bool
-		LastMarkTableID    *int
-	}
-
-	admin, err := isPassageRevertAdmin(ctx, s.db, viewerID)
+	rows, err := loadPassageCurrent(ctx, s.db, viewerID, ElementCar, scope)
 	if err != nil {
 		return nil, err
 	}
-
-	visible, visibleArgs := scope.Predicate(ElementCar, "c", "a", "app")
-	rows := make([]statusRow, 0)
-	err = s.db.WithContext(ctx).Raw(`
-		SELECT
-			c.id,
-			c.territory_status,
-			c.territory_entry_time,
-			(
-				SELECT created_at
-				FROM `+carsHistoryUnion+` ch
-				WHERE car_id = c.id AND action_type = 'exit' AND NOT ch.reverted
-				ORDER BY created_at DESC
-				LIMIT 1
-			) AS last_exit_time,
-			lm.table_id AS last_mark_table_id,
-			lm.created_at IS NOT NULL
-				AND (? OR (lm.user_id = ? AND lm.created_at > NOW() - ?::interval)) AS can_revert
-		FROM cars c
-		-- Последняя действительная отметка нужна целиком (кто, когда, где), поэтому
-		-- LATERAL, а не три коррелированных подзапроса подряд.
-		LEFT JOIN LATERAL (
-			SELECT ch.user_id, ch.created_at, ch.table_id
-			FROM `+carsHistoryUnion+` ch
-			WHERE ch.car_id = c.id AND ch.action_type IN ('entry', 'exit') AND NOT ch.reverted
-			ORDER BY ch.created_at DESC, ch.id DESC
-			LIMIT 1
-		) lm ON TRUE
-		LEFT JOIN attachments a ON c.attachment_id = a.id
-		LEFT JOIN applications app ON a.application_id = app.id
-		WHERE c.status = 1 AND `+visible+`
-	`, append([]any{admin, viewerID, passageRevertWindowSQL()}, visibleArgs...)...).Scan(&rows).Error
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars status")
-	}
-
-	items := make([]CarCurrentStatus, 0, len(rows))
+	out := make([]CarCurrentStatus, 0, len(rows))
 	for _, r := range rows {
-		ts := 0
-		if r.TerritoryStatus != nil {
-			ts = *r.TerritoryStatus
-		}
-		items = append(items, CarCurrentStatus{
-			CarID:           r.ID,
-			TerritoryStatus: ts,
-			EntryTime:       FormatUTCPtr(r.TerritoryEntryTime),
-			LastExitTime:    FormatUTCPtr(r.LastExitTime),
-			CanRevert:       r.CanRevert,
-			LastMarkTableID: r.LastMarkTableID,
-		})
+		out = append(out, CarCurrentStatus{CarID: r.EntityID, TerritoryStatus: r.TerritoryStatus, EntryTime: r.EntryTime, LastExitTime: r.LastExitTime, CanRevert: r.CanRevert, LastMarkTableID: r.LastMarkTableID, PassageState: r.PassageState, EffectivePeriod: r.EffectivePeriod, ServerNow: r.ServerNow})
 	}
-	return items, nil
+	return out, nil
 }
 
 // UpdateCarTerritoryStatus обновляет территориальный статус автомобиля (въезд/выезд).
 func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateCarTerritoryStatusRequest) error {
-	now := time.Now().UTC()
-	actionType := "unknown"
-	if req.TerritoryStatus == 1 {
-		actionType = "entry"
-	} else if req.TerritoryStatus == 2 {
-		actionType = "exit"
+	actor := 0
+	if req.UserID != nil {
+		actor = *req.UserID
 	}
-
-	var car models.Car
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Select("id", "car_number", "car_brand", "territory_status", "attachment_id").
-			First(&car, carID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return echo.NewHTTPError(http.StatusNotFound, "Car not found")
-			}
-			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-		}
-
-		updates := map[string]interface{}{
-			"territory_status": req.TerritoryStatus,
-			"updated_at":       now,
-		}
-		if req.TerritoryStatus == 1 {
-			updates["territory_entry_time"] = now
-		}
-		if err := tx.Model(&models.Car{}).Where("id = ?", carID).Updates(updates).Error; err != nil {
-			slog.Error("не удалось обновить территориальный статус автомобиля", "car_id", carID, "status", req.TerritoryStatus, "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating car territory status")
-		}
-
-		carNumber := ""
-		if car.CarNumber != nil {
-			carNumber = *car.CarNumber
-		}
-		var comment string
-		if req.TerritoryStatus == 1 {
-			comment = fmt.Sprintf("Автомобиль %s въехал на территорию", carNumber)
-		} else if req.TerritoryStatus == 2 {
-			comment = fmt.Sprintf("Автомобиль %s выехал с территории", carNumber)
-		}
-
-		details := carAuditDetails{Comment: &comment, TableID: req.TableID}
-		// Снимок номера с маркой прямо в отметке (#2485): машину могут удалить, а факт
-		// прохода остаётся доказательством того, кто был на объекте, и терять его вместе
-		// со строкой справочника нельзя. Тот же приём, что в журнале реестра.
-		if subject := passageSubject(car.CarNumber, car.CarBrand); subject != "" {
-			details.Subject = &subject
-		}
-		// Данные пропуска "по факту" (#1132): при въезде и наличии введённого номера
-		// кладём снимок в details.metadata записи entry -> он доедет до карточки через
-		// carsHistoryUnion (details->'metadata'). Выезд/пустой номер снимок не пишут.
-		if req.TerritoryStatus == 1 && req.Pass != nil && strings.TrimSpace(req.Pass.Number) != "" {
-			if raw, err := json.Marshal(req.Pass); err == nil {
-				details.Metadata = raw
-			} else {
-				slog.Error("не удалось сериализовать данные пропуска по факту", "car_id", carID, "error", err)
-			}
-		}
-
-		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, details); err != nil {
-			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
-		}
-		slog.Info("территориальный статус автомобиля обновлён", "car_id", carID, "action_type", actionType, "status", req.TerritoryStatus)
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	// Въезд/выезд изменил строку машины - сигналим аудитории её таблиц «Проезд»
-	// обновиться live (#840 V2.3, scoped #1036).
-	s.tablesProducer.NotifyCarsChanged(ctx, carID)
-
-	return nil
+	commands := NewPassageCommandService(s.db, s.recorder)
+	commands.SetAfterChange(func(ctx context.Context, _ ElementKind, id int) { s.tablesProducer.NotifyCarsChanged(ctx, id) })
+	_, err := commands.Mark(ctx, actor, ElementCar, carID, PassageCommandRequest{TableID: req.TableID, ExpectedLastEventID: req.ExpectedLastEventID, TerritoryStatus: req.TerritoryStatus, Pass: req.Pass})
+	return err
 }
 
 // RevertCarPassage отменяет последнюю отметку проезда машины и откатывает её
 // территориальный статус (#2437). Сигнал таблицам шлём тем же способом, что и при
 // самой отметке: строка изменилась, и посты обязаны увидеть это без перезагрузки.
 func (s *carService) RevertCarPassage(ctx context.Context, carID int, req RevertPassageRequest) error {
-	if err := revertPassage(ctx, s.db, s.recorder, time.Now, models.AuditEntityCar, carID, req); err != nil {
-		return err
-	}
-	s.tablesProducer.NotifyCarsChanged(ctx, carID)
-	return nil
+	commands := NewPassageCommandService(s.db, s.recorder)
+	commands.SetAfterChange(func(ctx context.Context, _ ElementKind, id int) { s.tablesProducer.NotifyCarsChanged(ctx, id) })
+	_, err := commands.Revert(ctx, req.ActorUserID, ElementCar, carID, PassageCommandRequest{TableID: req.TableID, ExpectedLastEventID: req.ExpectedLastEventID, TerritoryStatus: req.TerritoryStatus, Reason: req.Reason})
+	return err
 }
 
 // DeactivateCar деактивирует автомобиль и записывает удаление в историю.

@@ -65,10 +65,13 @@ type EmployeeHistoryItem struct {
 
 // EmployeeCurrentStatus -- текущий территориальный статус сотрудника.
 type EmployeeCurrentStatus struct {
-	EmployeeID      int     `json:"employee_id"`
-	TerritoryStatus int     `json:"territory_status"`
-	EntryTime       *string `json:"entry_time"`
-	LastExitTime    *string `json:"last_exit_time"`
+	PassageState    PassageState           `json:"passage_state"`
+	EffectivePeriod models.EffectivePeriod `json:"effective_period"`
+	ServerNow       time.Time              `json:"server_now"`
+	EmployeeID      int                    `json:"employee_id"`
+	TerritoryStatus int                    `json:"territory_status"`
+	EntryTime       *string                `json:"entry_time"`
+	LastExitTime    *string                `json:"last_exit_time"`
 	// CanRevert - спрашивающий может отменить последнюю отметку прямо сейчас (#2437):
 	// либо она его и свежая, либо он администратор. Считает бэк, чтобы правило и его
 	// окно жили в одном месте, а не повторялись в трёх таблицах на фронте.
@@ -171,7 +174,7 @@ const employeesHistoryFromSQL = `
 const employeesHistoryCountSQL = `SELECT COUNT(*)` + employeesHistoryFromSQL
 
 // employeesHistoryPassageWhereSQL - базовое условие журнала проходов людей.
-const employeesHistoryPassageWhereSQL = ` WHERE eh.action_type IN ('entry', 'exit')`
+const employeesHistoryPassageWhereSQL = ` WHERE eh.action_type IN ('entry', 'exit', '` + PassageCorrectionAction + `', '` + PassageCorrectionRevertAction + `')`
 
 // employeesHistoryTableWhereSQL - скоуп таблицы (места). Кроме entry/exit с прямым
 // table_id сюда входят все события сотрудников, привязанных к таблице через
@@ -248,70 +251,15 @@ func (s *employeesHistoryService) GetAll(ctx context.Context, q models.PassageHi
 }
 
 func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context, viewerID int, scope ElementScope) ([]EmployeeCurrentStatus, error) {
-	type statusRow struct {
-		ID                 int
-		TerritoryStatus    *int
-		TerritoryEntryTime *time.Time
-		LastExitTime       *time.Time
-		CanRevert          bool
-		LastMarkTableID    *int
-	}
-
-	admin, err := isPassageRevertAdmin(ctx, s.db, viewerID)
+	rows, err := loadPassageCurrent(ctx, s.db, viewerID, ElementEmployee, scope)
 	if err != nil {
 		return nil, err
 	}
-
-	visible, visibleArgs := scope.Predicate(ElementEmployee, "e", "a", "app")
-	rows := make([]statusRow, 0)
-	err = s.db.WithContext(ctx).Raw(`
-		SELECT
-			e.id,
-			e.territory_status,
-			e.territory_entry_time,
-			(
-				SELECT created_at
-				FROM `+employeesHistoryUnion+` eh
-				WHERE eh.employee_id = e.id AND eh.action_type = 'exit' AND NOT eh.reverted
-				ORDER BY eh.created_at DESC
-				LIMIT 1
-			) AS last_exit_time,
-			lm.table_id AS last_mark_table_id,
-			lm.created_at IS NOT NULL
-				AND (? OR (lm.user_id = ? AND lm.created_at > NOW() - ?::interval)) AS can_revert
-		FROM employees e
-		-- Последняя действительная отметка целиком (кто, когда, где), см. машины.
-		LEFT JOIN LATERAL (
-			SELECT eh.user_id, eh.created_at, eh.table_id
-			FROM `+employeesHistoryUnion+` eh
-			WHERE eh.employee_id = e.id AND eh.action_type IN ('entry', 'exit') AND NOT eh.reverted
-			ORDER BY eh.created_at DESC, eh.id DESC
-			LIMIT 1
-		) lm ON TRUE
-		LEFT JOIN attachments a ON e.attachment_id = a.id
-		LEFT JOIN applications app ON a.application_id = app.id
-		WHERE e.status = 1 AND `+visible+`
-	`, append([]any{admin, viewerID, passageRevertWindowSQL()}, visibleArgs...)...).Scan(&rows).Error
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees current status")
-	}
-
-	items := make([]EmployeeCurrentStatus, 0, len(rows))
+	out := make([]EmployeeCurrentStatus, 0, len(rows))
 	for _, r := range rows {
-		ts := 0
-		if r.TerritoryStatus != nil {
-			ts = *r.TerritoryStatus
-		}
-		items = append(items, EmployeeCurrentStatus{
-			EmployeeID:      r.ID,
-			TerritoryStatus: ts,
-			EntryTime:       FormatUTCPtr(r.TerritoryEntryTime),
-			LastExitTime:    FormatUTCPtr(r.LastExitTime),
-			CanRevert:       r.CanRevert,
-			LastMarkTableID: r.LastMarkTableID,
-		})
+		out = append(out, EmployeeCurrentStatus{EmployeeID: r.EntityID, TerritoryStatus: r.TerritoryStatus, EntryTime: r.EntryTime, LastExitTime: r.LastExitTime, CanRevert: r.CanRevert, LastMarkTableID: r.LastMarkTableID, PassageState: r.PassageState, EffectivePeriod: r.EffectivePeriod, ServerNow: r.ServerNow})
 	}
-	return items, nil
+	return out, nil
 }
 
 // GetByTable возвращает историю сотрудников, относящихся к конкретной таблице.

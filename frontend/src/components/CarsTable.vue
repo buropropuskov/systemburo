@@ -63,7 +63,8 @@
            строке, а счётчик с тумблерами уезжают ниже. Десктоп не меняется -
            .card-header__settings прижат вправо margin-left: auto, кнопка идёт
            сразу за ним с тем же зазором. -->
-      <RefreshButton
+      <PassageTableTools v-if="!preview" kind="car" :table-i-d="tableId" :rows="itemsData" @refresh="_loadData(true)" />
+        <RefreshButton
         v-if="!preview"
         class="card-header__refresh"
         :loading="refreshing"
@@ -355,7 +356,7 @@
                   <button
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
-                    :disabled="preview || (item.entry_checked && !canRevertMark(item, 'entry'))"
+                    :disabled="preview || (!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     data-testid="ob-pass-entry"
                     @click="preview ? null : onPassButton(item, 'entry')"
                   >
@@ -372,7 +373,7 @@
                   <button
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
-                    :disabled="preview || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
+                    :disabled="preview || (!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-pass-exit"
                     @click="preview ? null : onPassButton(item, 'exit')"
                   >
@@ -387,6 +388,7 @@
                   data-label="Номер Т/С"
                 >
                   {{ item.car_number }}
+                  <PassageStateIndicator v-if="!isFieldInDom('valid_until')" :passage-state="item.passage_state" :expired="passageExpired(item)" />
                 </div>
                 <div
                   v-if="isFieldInDom('car_brand')"
@@ -439,15 +441,9 @@
                 >
                   {{ formatUnloadPlaces(item) }}
                 </div>
-                <div
-                  v-if="isFieldInDom('valid_until')"
-                  class="col date-col"
+                <PassageValidityCell v-if="isFieldInDom('valid_until')" :item="item"
                   :class="fieldColClass('valid_until')"
-                  :style="getColStyle('valid_until')"
-                  data-label="Действует до"
-                >
-                  {{ formatDate(item.entry_date_to) }}
-                </div>
+                  :style="getColStyle('valid_until')" />
                 <div
                   v-if="isFieldInDom('time_range')"
                   class="col time-col"
@@ -615,6 +611,7 @@
 </template>
 
 <script>
+import passageTableIntegration from './passageTableIntegration';
 import { carsTablePeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client'
 import { getSystemTables } from '@/api/system-tables'
@@ -676,7 +673,7 @@ const MOBILE_CARD_FIELDS = [
 ];
 
 export default {
-    mixins: [carsTablePeriodDetails],
+    mixins: [carsTablePeriodDetails, passageTableIntegration],
   name: 'CarsTable',
   components: {
     RefreshButton,
@@ -1129,7 +1126,8 @@ export default {
             target_tables_count: car.target_tables_count || 0,
             // Список привязок {id,name,source} (#1227 P1) - карточка машины показывает
             // бейдж источника («из заявки»/«добавлено») в секции «Проезд».
-            target_tables: car.target_tables || []
+            target_tables: car.target_tables || [],
+            ...this.passageFields(car)
           };
         });
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
@@ -1149,9 +1147,9 @@ export default {
     onPassButton(item, type) {
       if (!this.canRevertMark(item, type)) return this.handleEntryExit(item, type);
       return usePassageRevertStore().ask({
-        kind: 'cars', id: item.id, direction: type, tableId: this.tableId,
+        kind: 'cars', id: item.id, direction: type, tableId: this.tableId, expectedLastEventID: this.expectedPassageEvent(item),
         subject: item.car_number || 'машина',
-        onDone: () => this.fetchCarHistoryStatus(),
+        onDone: () => this._loadData(true),
       });
     },
 
@@ -1170,15 +1168,7 @@ export default {
           statuses.forEach(status => { statusMap[status.car_id] = status; });
           this.itemsData.forEach(item => {
             const status = statusMap[item.id];
-            if (status) {
-              item.entry_checked = status.territory_status === 1;
-              item.exit_checked = status.territory_status === 2;
-              item.territory_status = status.territory_status;
-              item.can_revert = status.can_revert;
-              item.last_mark_table_id = status.last_mark_table_id;
-              item.entry_time = status.entry_time;
-              item.exit_time = status.last_exit_time;
-            }
+            if (status) this.mergePassageStatus(item, status);
           });
         }
       } catch (error) {
@@ -1263,26 +1253,18 @@ export default {
     extractStartTime: passTimeMinutes,
 
     async handleEntryExit(item, type) {
+      if (!this.passageAllowed(item, type) && !this.canRevertMark(item, type)) return;
       if (!this.currentUserId) return;
       try {
         const response = await markPassage({
           kind: 'cars', id: item.id, direction: type,
-          tableId: this.tableId,
+          tableId: this.tableId, expectedLastEventID: this.expectedPassageEvent(item),
         });
         if (response.ok) {
-          const index = this.itemsData.findIndex(i => i.id === item.id);
-          if (index !== -1) {
-            const updatedItem = { ...this.itemsData[index] };
-            updatedItem.entry_checked = type === 'entry';
-            updatedItem.exit_checked = type === 'exit';
-            updatedItem.territory_status = type === 'entry' ? 1 : 2;
-            // Своя свежая отметка - отмена доступна сразу, до опроса статусов.
-            updatedItem.can_revert = true;
-            updatedItem.last_mark_table_id = this.tableId;
-            this.itemsData.splice(index, 1, updatedItem);
-          }
+          await this._loadData(true);
           useDeletionsStore().notify({ prefix: 'Машина ', bold: item.car_number, suffix: type === 'entry' ? ' отмечена о прибытии' : ' уехала', type: 'success' });
         } else {
+          if (response.status === 409) await this._loadData(true);
           const err = await response.json();
           console.error('Ошибка при обновлении статуса:', err);
           useDeletionsStore().notify({ prefix: 'Не удалось отметить машину: ', bold: err.message || 'ошибка сервера', type: 'error' });

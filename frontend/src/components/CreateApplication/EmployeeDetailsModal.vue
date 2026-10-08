@@ -503,6 +503,7 @@
 </template>
 
 <script>
+import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 import { ref, getCurrentInstance } from 'vue';
@@ -528,6 +529,7 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'EmployeeDetailsModal',
+    mixins: [passageDetailsIntegration],
     components: {
         DetailHeaderActions,
         AppIcon,
@@ -651,7 +653,7 @@ export default {
             return this.source !== 'employeeslist' && this.canSeeFullHistory;
         },
         entryExitHistory() {
-            return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+            return this.history.filter(this.isPassageHistoryAction);
         },
         // Места прохода и снятые привязки - общий разбор для карточек машины и
         // сотрудника: формы ответа и правила подписи у них одни (#2551).
@@ -662,12 +664,15 @@ export default {
             return removedPassageTables(this.history, this.passageActiveTables, (id) => this.getTableName(id));
         },
         getStatusClass() {
+            if (this.correctionStatus(this.currentPassageState ?? this.employee?.passage_state)) return 'status-not-entered';
             const status = this.territoryStatus;
             if (status === 1) return 'status-on-territory';
             if (status === 2) return 'status-exited';
             return 'status-not-entered';
         },
         getStatusText() {
+            const correction = this.correctionStatus(this.currentPassageState ?? this.employee?.passage_state);
+            if (correction) return correction;
             const status = this.territoryStatus;
             if (status === 1) return 'На территории';
             if (status === 2) return 'Покинул территорию';
@@ -910,17 +915,8 @@ export default {
 
         formatDateTime,
 
-        getActionClass(item) {
-            if (!item.user_id) return 'dot-system';
-            const classes = { entry: 'dot-entry', exit: 'dot-exit' };
-            return classes[item.action_type] || 'dot-default';
-        },
 
-        getActionText(item) {
-            if (item.action_type === 'entry') return 'Проход на территорию';
-            if (item.action_type === 'exit') return 'Выход с территории';
-            return '';
-        },
+        getActionText(item) { return this.passageHistoryText(item); },
 
         getActionComment(item) {
             if (item.comment) return item.comment;
@@ -971,6 +967,7 @@ export default {
                     const statuses = await response.json();
                     const status = statuses.find(s => s.employee_id === statusEmployeeId);
                     if (status) {
+                        this.currentPassageState = status.passage_state ?? null;
                         this.territoryStatus = status.territory_status;
                     } else {
                         this.territoryStatus = 0;

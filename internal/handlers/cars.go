@@ -8,20 +8,25 @@ import (
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // CarHandler -- HTTP-обработчики автомобилей в заявках.
 type CarHandler struct {
-	service services.CarService
-	scopes  *services.ElementScopeResolver
+	service   services.CarService
+	scopes    *services.ElementScopeResolver
+	passageDB *gorm.DB
 }
 
 // NewCarHandler создаёт новый экземпляр CarHandler. scopes ограничивает историю, статусы
 // и места разгрузки машинами, которые пользователь вправе видеть.
-func NewCarHandler(service services.CarService, scopes *services.ElementScopeResolver) *CarHandler {
-	return &CarHandler{service: service, scopes: scopes}
+func NewCarHandler(service services.CarService, scopes *services.ElementScopeResolver, passageDB ...*gorm.DB) *CarHandler {
+	h := &CarHandler{service: service, scopes: scopes}
+	if len(passageDB) > 0 {
+		h.passageDB = passageDB[0]
+	}
+	return h
 }
-
 
 // GetActiveCarsForTable обрабатывает GET /cars/active-for-table/:id.
 // @Summary Получение активных машин конкретной таблицы «Проезд»
@@ -37,6 +42,10 @@ func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
 	}
 	cars, err := h.service.GetActiveCarsForTable(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	cars, err = h.enrichCarPassages(c, tableID, cars)
 	if err != nil {
 		return err
 	}
@@ -66,7 +75,6 @@ func (h *CarHandler) CreateManualCars(c echo.Context) error {
 	return RespondSuccess(c, resp)
 }
 
-
 // GetFactCarsForTable обрабатывает GET /cars/fact-for-table/:id.
 // @Summary Получение машин «по факту» конкретной таблицы «Проезд»
 // @Tags cars
@@ -81,6 +89,10 @@ func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
 	}
 	cars, err := h.service.GetFactCarsForTable(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	cars, err = h.enrichCarPassages(c, tableID, cars)
 	if err != nil {
 		return err
 	}

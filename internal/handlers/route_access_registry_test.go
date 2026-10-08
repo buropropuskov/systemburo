@@ -6,6 +6,14 @@ package handlers_test
 // записи с поведением роняют тест. Причина пишется для человека, который через год
 // спросит, почему метод доступен именно так.
 var routeAccessRegistry = map[string]routeAccess{
+	"GET /api/cars/open-for-table/:table_id":       scoped("fresh table.view и действующая привязка в сервисе, счётчики в той же области"),
+	"GET /api/employees/open-for-table/:table_id":  scoped("fresh table.view и действующая привязка в сервисе, счётчики в той же области"),
+	"GET /api/cars/open-admin-summary":             perm("detail.passage.correct"),
+	"GET /api/employees/open-admin-summary":        perm("detail.passage.correct"),
+	"POST /api/cars/:id/passage-close":             perm("detail.passage.correct"),
+	"POST /api/cars/:id/passage-close/revert":      perm("detail.passage.correct"),
+	"POST /api/employees/:id/passage-close":        perm("detail.passage.correct"),
+	"POST /api/employees/:id/passage-close/revert": perm("detail.passage.correct"),
 	// access-denials
 	"DELETE /api/access-denials":       perm("permission.audit.manage"),
 	"GET /api/access-denials":          perm("permission.audit.read"),

@@ -297,6 +297,14 @@ func main() {
 	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer), services.WithCarNotifications(notificationServiceEarly))
 	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer), services.WithEmployeeNotifications(notificationServiceEarly))
 	entityPeriodCommands := services.NewEntityPeriodCommandService(db, auditRecorder)
+	passageCommands := services.NewPassageCommandService(db, auditRecorder)
+	passageCommands.SetAfterChange(func(ctx context.Context, kind services.ElementKind, id int) {
+		if kind == services.ElementCar {
+			tablesRefreshProducer.NotifyCarsChanged(ctx, id)
+		} else {
+			tablesRefreshProducer.NotifyEmployeeChanged(ctx, id)
+		}
+	})
 	attachmentPeriodCommands := services.NewAttachmentPeriodCommandService(db, auditRecorder)
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
 	singleManualAttachCommands := services.NewSingleManualAttachCommandService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
@@ -415,8 +423,8 @@ func main() {
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
-	carHandler := handlers.NewCarHandler(carService, elementScopes)
-	employeeHandler := handlers.NewEmployeeHandler(employeeService)
+	carHandler := handlers.NewCarHandler(carService, elementScopes, db)
+	employeeHandler := handlers.NewEmployeeHandler(employeeService, db)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, cfg.UploadMaxFileSize, cfg.UploadPath)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(tableSnapshotService)
 	passReportHandler := handlers.NewPassReportHandler(dailyPassReportService, permissionResolver)
@@ -633,6 +641,7 @@ func main() {
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
 		EntityPeriod:        handlers.NewEntityPeriodHandler(entityPeriodCommands),
+		OpenPassages:        handlers.NewOpenPassagesHandler(services.NewPassageOpenService(db), passageCommands),
 		AttachmentPeriod:    handlers.NewAttachmentPeriodHandler(attachmentPeriodCommands),
 		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,

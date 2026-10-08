@@ -27,6 +27,8 @@ var pdAuditDomainPrefixes = []string{
 // формальность: через полгода по ней видно, что решение принято осознанно, а не
 // забыто. Ключ - "METHOD path" в нотации echo (":param", не конкретное число).
 var pdAuditKnownNonPDGetRoutes = map[string]string{
+	"GET /api/cars/open-for-table/:table_id": "текущий номер машины, организация и состояние проезда; без ФИО водителя, паспорта и снимков subject, как active-for-table",
+	"GET /api/cars/open-admin-summary":       "текущий номер машины, организация и состояние проезда; без ФИО водителя, паспорта и снимков subject, только управляемая область",
 	// applications: списки/детали персональные данные отдают (см. pd_audit.go),
 	// но эти соседи - только счётчики, флаги или метаданные вложения.
 	"GET /api/applications/unread-count":              "счётчик, без ФИО",

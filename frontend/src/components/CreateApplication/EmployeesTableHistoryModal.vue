@@ -275,6 +275,7 @@
 </template>
 
 <script>
+import { PASSAGE_CORRECTION_ACTIONS, tablePassageHistoryText } from '@/utils/passageHistoryActions';
 import { ref } from 'vue';
 import {
   PASSAGE_EXPORT_LIMIT,
@@ -512,6 +513,7 @@ export default {
     },
 
     getActionClass(actionType) {
+      if (PASSAGE_CORRECTION_ACTIONS[actionType]) return 'dot-correction';
       // Зелёная точка - сотрудник появляется/остаётся в таблице (проход, восстановление,
       // добавление/перенос, ввод в работу, снятие с ЧС). Остальное (выход, удаление,
       // вывод из работы по истечении срока, добавление в ЧС) - красная по умолчанию.
@@ -519,49 +521,7 @@ export default {
       return 'dot-exit';
     },
 
-    getActionText(item) {
-      // GetByTable (/employees/history/table/:id) не фильтрует action_type (урок #1085),
-      // поэтому словарь обязан покрывать все действия сотрудника, иначе deactivate/create/
-      // прочие текут в журнал сырым английским кодом.
-      if (item.action_type === 'entry') {
-        return 'Проход на территорию';
-      } else if (item.action_type === 'exit') {
-        return 'Выход с территории';
-      } else if (item.action_type === 'entry_revert') {
-        return 'Отметка о проходе отменена';
-      } else if (item.action_type === 'exit_revert') {
-        return 'Отметка о выходе отменена';
-      } else if (item.action_type === 'delete') {
-        return 'Удаление из таблицы';
-      } else if (item.action_type === 'restore') {
-        return 'Восстановление в таблице';
-      } else if (item.action_type === 'purge') {
-        return 'Безвозвратное удаление';
-      } else if (item.action_type === 'added_to_table') {
-        return 'Добавлен в таблицу проходной';
-      } else if (item.action_type === 'moved_between_tables') {
-        return 'Перенесён между таблицами';
-      } else if (item.action_type === 'unbound_from_table') {
-        return 'Снят с таблицы';
-      } else if (item.action_type === 'create') {
-        return 'Подана заявка на сотрудника';
-      } else if (item.action_type === 'activate') {
-        return 'Сотрудник введён в работу';
-      } else if (item.action_type === 'deactivate') {
-        return 'Сотрудник выведен из работы';
-      } else if (item.action_type === 'blacklisted') {
-        return 'Добавлен в чёрный список';
-      } else if (item.action_type === 'unblacklisted') {
-        return 'Снят с чёрного списка';
-      } else if (item.action_type === 'blacklist_override') {
-        return 'Пропущен несмотря на подозрение в обходе ЧС';
-      } else if (item.action_type === 'blacklist_override_revoke') {
-        return 'Отменено подтверждение пропуска (обход ЧС)';
-      } else if (item.action_type === 'update') {
-        return item.field_name ? `Изменено поле "${item.field_name}"` : 'Данные обновлены';
-      }
-      return item.action_type;
-    },
+    getActionText(item) { return tablePassageHistoryText(item, 'employee'); },
 
     getActionComment(item) {
       const fullName = this.getEmployeeName(item);
@@ -690,6 +650,7 @@ export default {
 </script>
 
 <style scoped>
+@import '@/assets/passage-history.css';
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
@@ -1102,8 +1063,6 @@ export default {
   background: var(--border);
 }
 
-.dot-entry { background: #059669; }
-.dot-exit { background: #dc2626; }
 
 .history-content {
   flex: 1;

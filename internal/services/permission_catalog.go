@@ -211,6 +211,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyDetailOpenApplication, DisplayName: "Кнопка «Открыть заявку»", Category: CatDetail},
 		{Key: KeyDetailEntryExitHistory, DisplayName: "Раздел «История въездов и выездов»", Category: CatDetail},
 		{Key: KeyDetailPeriodChange, DisplayName: "Изменять срок отдельного человека или машины", Category: CatDetail},
+		{Key: KeyDetailPassageCorrect, DisplayName: "Исправлять незакрытые проходы и проезды", Category: CatDetail},
 		{
 			Key:         KeyDetailDocuments,
 			DisplayName: "Раздел «Документы»",

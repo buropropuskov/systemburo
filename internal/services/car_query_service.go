@@ -14,6 +14,8 @@ import (
 
 type tableCarRow struct {
 	CarAccessFlags
+	Projection         passageProjectionRow  `gorm:"embedded;embeddedPrefix:passage_"`
+	Period             tablePassagePeriodRow `gorm:"embedded;embeddedPrefix:effective_"`
 	ID                 int
 	CarNumber          string
 	CarBrand           string
@@ -36,8 +38,20 @@ type tableCarRow struct {
 // не nil, добавляет scope по «Проезду» (car_target_tables): машина видна только в
 // выбранной таблице. tableID == nil — все активные машины (legacy-эндпоинт до
 // перевода потребителей на scoped; #1036).
-func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
+func (s *carService) tableCarsBase(ctx context.Context, tableID *int, now time.Time) *gorm.DB {
 	period, err := EntityEffectivePeriodSQL("c", "a")
+	if err != nil {
+		q := s.db.WithContext(ctx)
+		q.AddError(err)
+		return q
+	}
+	projection, err := PassageProjectionSQL(ElementCar, "c", "p")
+	if err != nil {
+		q := s.db.WithContext(ctx)
+		q.AddError(err)
+		return q
+	}
+	eligibility, args, err := tablePassageEligibilitySQL("c", "p", period, now)
 	if err != nil {
 		q := s.db.WithContext(ctx)
 		q.AddError(err)
@@ -50,15 +64,17 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
 			o.name AS organization, o.id AS organization_id,
 			c2.name AS company, c2.id AS company_id,
 			`+period.DateTo+` AS entry_date_to, `+period.TimeFrom+` AS entry_time_from, `+period.TimeTo+` AS entry_time_to,
-			c.status, app.id AS application_id, app.application_number AS application_number`).
+			c.status, app.id AS application_id, app.application_number AS application_number,`+
+			tablePassageProjectionSelectSQL("c", "p")+`,`+tablePassagePeriodSelectSQL(period)).
 		Joins("JOIN attachments a ON c.attachment_id = a.id").
+		Joins(projection).
 		// LEFT JOIN: ручные машины (#1049) висят на вложении-сироте без заявки
 		// (a.application_id IS NULL, a.is_manual). org/company тогда берутся с самого
 		// вложения (COALESCE), а app.* остаются NULL - это и есть метка «добавлено вручную».
 		Joins("LEFT JOIN applications app ON a.application_id = app.id").
 		Joins("LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)").
 		Joins("LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)").
-		Where("c.status = ?", 1).
+		Where("NOT c.is_purged AND c.date_removed IS NULL").
 		// Заявочные машины видны только по согласованной активной заявке; ручные
 		// минуют это требование - у них заявки нет вовсе, гейт видимости берёт на себя
 		// принадлежность целевой таблице (car_target_tables) + security-видимость (S6).
@@ -68,8 +84,9 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
 		// заявки на следующую неделю висела в таблице уже сегодня, и отличить её от той,
 		// которой въезд разрешён, охране было нечем. Индивидуальный срок заменяет
 		// окно вложения целиком; только действительно бессрочные ручные строки минуют его.
-		Where(period.ValidMode).
-		Where(period.Source + " = 'manual_unbounded' OR " + moscowTodaySQL + " BETWEEN (" + period.DateFrom + ")::date AND (" + period.DateTo + ")::date")
+		Where(eligibility, args...)
+	archive, archiveArgs := archivedApplicationCond("app")
+	q = q.Where("a.is_manual OR NOT "+archive, archiveArgs...)
 	if tableID != nil {
 		q = q.Joins("JOIN car_target_tables ctt ON ctt.car_id = c.id").
 			Where("ctt.table_id = ?", *tableID)
@@ -79,46 +96,13 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
 
 // activeCars возвращает активные машины (без «по факту») с опциональным scope таблицы.
 func (s *carService) activeCars(ctx context.Context, tableID *int) ([]TableCarResponse, error) {
-	rows := make([]tableCarRow, 0)
-	err := s.tableCarsBase(ctx, tableID).
-		Where("LOWER(TRIM(c.car_number)) != ?", "по факту").
-		Order("c.car_number").
-		Scan(&rows).Error
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active cars")
-	}
-	return s.enrichTableCars(ctx, rows)
+	return s.readTableCars(ctx, tableID, false)
 }
 
 // factCars возвращает машины «по факту» с опциональным scope таблицы. Fallback на
 // ILIKE, если точного совпадения «по факту» нет (совместимость со старыми данными).
 func (s *carService) factCars(ctx context.Context, tableID *int) ([]TableCarResponse, error) {
-	rows := make([]tableCarRow, 0)
-	period, err := EntityEffectivePeriodSQL("c", "a")
-	if err != nil {
-		return nil, err
-	}
-
-	err = s.tableCarsBase(ctx, tableID).
-		Where("LOWER(TRIM(c.car_number)) = ?", "по факту").
-		Order("organization, " + period.DateTo).
-		Scan(&rows).Error
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching fact cars")
-	}
-
-	if len(rows) == 0 {
-		err = s.tableCarsBase(ctx, tableID).
-			Where("c.car_number ILIKE ? OR c.car_number ILIKE ? OR c.car_number ILIKE ?",
-				"%по факту%", "%пофакту%", "%факт%").
-			Order("organization, " + period.DateTo).
-			Scan(&rows).Error
-		if err != nil {
-			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching alternative fact cars")
-		}
-	}
-
-	return s.enrichTableCars(ctx, rows)
+	return s.readTableCars(ctx, tableID, true)
 }
 
 // GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
@@ -132,7 +116,7 @@ func (s *carService) GetFactCarsForTable(ctx context.Context, tableID int) ([]Ta
 }
 
 // enrichTableCars добавляет unload_places к каждому автомобилю.
-func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([]TableCarResponse, error) {
+func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow, now time.Time) ([]TableCarResponse, error) {
 	if len(rows) == 0 {
 		return []TableCarResponse{}, nil
 	}
@@ -176,12 +160,22 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 
 	cars := make([]TableCarResponse, 0, len(rows))
 	for _, row := range rows {
+		state, err := projectPassageRow(row.Projection, now)
+		if err != nil {
+			return nil, err
+		}
 		status := 0
 		if row.Status != nil {
 			status = *row.Status
 		}
 
-		territoryEntryTimeStr := FormatUTCPtr(row.TerritoryEntryTime)
+		territoryEntryTimeStr := FormatUTCPtr(state.EntryAt)
+		projectedStatus := 0
+		if state.Open {
+			projectedStatus = 1
+		} else if state.HasEvent {
+			projectedStatus = 2
+		}
 
 		places := placesByCarID[row.ID]
 		if places == nil {
@@ -194,6 +188,9 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 		}
 
 		cars = append(cars, TableCarResponse{
+			PassageState:       state,
+			EffectivePeriod:    row.Period.effective(),
+			ServerNow:          now,
 			CarAccessFlags:     row.CarAccessFlags,
 			ID:                 row.ID,
 			CarNumber:          row.CarNumber,
@@ -210,7 +207,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			Status:             status,
 			ApplicationID:      row.ApplicationID,
 			ApplicationNumber:  row.ApplicationNumber,
-			TerritoryStatus:    row.TerritoryStatus,
+			TerritoryStatus:    &projectedStatus,
 			TerritoryEntryTime: territoryEntryTimeStr,
 			TargetTablesCount:  targetTablesCount[row.ID],
 			TargetTables:       tables,

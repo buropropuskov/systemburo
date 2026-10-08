@@ -32,7 +32,7 @@ export const PASSAGE_REVERT_REASONS = [
  * @returns {boolean}
  */
 export function canRevertMark(item, tableId) {
-  if (!item?.can_revert) return false;
+  if (!item?.can_revert || (item.passage_state && !['entry', 'exit'].includes(item.passage_state.last_event_kind))) return false;
   if (item.last_mark_table_id == null || tableId == null) return true;
   return item.last_mark_table_id === tableId;
 }
@@ -45,6 +45,7 @@ export function canRevertMark(item, tableId) {
  * @returns {'entry'|'exit'|null}
  */
 export function lastMarkDirection(item) {
+  if (item?.passage_state && !['entry', 'exit'].includes(item.passage_state.last_event_kind)) return null;
   if (item?.territory_status === 1) return 'entry';
   if (item?.territory_status === 2) return 'exit';
   return null;
@@ -59,12 +60,13 @@ export function lastMarkDirection(item) {
  * @param {{kind: 'employees'|'cars', id: number, direction: 'entry'|'exit', tableId: number, pass?: object}} params
  * @returns {Promise<Response>}
  */
-export function markPassage({ kind, id, direction, tableId, pass }) {
+export function markPassage({ kind, id, direction, tableId, pass, expectedLastEventID }) {
   const body = {
     territory_status: PASSAGE_STATUS[direction],
     table_id: tableId,
   };
   if (pass) body.pass = pass;
+  if (Number.isSafeInteger(expectedLastEventID) && expectedLastEventID >= 0) body.expected_last_event_id = expectedLastEventID;
   return apiRequest(`/${kind}/${id}/territory-status`, {
     method: 'PUT',
     body: JSON.stringify(body),
@@ -80,13 +82,14 @@ export function markPassage({ kind, id, direction, tableId, pass }) {
  * @param {{kind: 'employees'|'cars', id: number, direction: 'entry'|'exit', tableId: number, reason: string}} params
  * @returns {Promise<{ok: boolean, error: string}>} error - текст отказа с бэка
  */
-export async function revertPassage({ kind, id, direction, tableId, reason }) {
+export async function revertPassage({ kind, id, direction, tableId, reason, expectedLastEventID }) {
   const response = await apiRequest(`/${kind}/${id}/territory-status/revert`, {
     method: 'PUT',
     body: JSON.stringify({
       territory_status: PASSAGE_STATUS[direction],
       table_id: tableId,
       reason,
+      ...(Number.isSafeInteger(expectedLastEventID) && expectedLastEventID >= 0 ? { expected_last_event_id: expectedLastEventID } : {}),
     }),
   });
   if (response.ok) return { ok: true, error: '' };

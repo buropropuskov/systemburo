@@ -3,9 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -32,9 +30,10 @@ const passageRevertWindow = 15 * time.Minute
 // Его же читает гейт прав RequireTablePassVerb, поэтому отмена гейтится тем же
 // правом таблицы, что и сама отметка, без отдельного глагола в каталоге.
 type RevertPassageRequest struct {
-	TerritoryStatus int    `json:"territory_status"`
-	TableID         *int   `json:"table_id"`
-	Reason          string `json:"reason"`
+	ExpectedLastEventID *int64 `json:"expected_last_event_id,omitempty"`
+	TerritoryStatus     int    `json:"territory_status"`
+	TableID             *int   `json:"table_id"`
+	Reason              string `json:"reason"`
 	// ActorUserID ставит сервер из токена, а не клиент из тела. У самой отметки
 	// прохода автор приходит телом запроса, и повторять это здесь нельзя: на
 	// авторстве держится всё правило «своя, последняя, свежая».
@@ -95,7 +94,7 @@ func passageRevertActionFor(action string) string {
 // параметра не нужно.
 func lastLivePassage(ctx context.Context, tx *gorm.DB, entityType string, entityID int, actions ...string) (*passageRow, error) {
 	if len(actions) == 0 {
-		actions = []string{"entry", "exit"}
+		actions = []string{"entry", "exit", PassageCorrectionAction}
 	}
 	var row passageRow
 	err := tx.WithContext(ctx).
@@ -121,82 +120,18 @@ func lastLivePassage(ctx context.Context, tx *gorm.DB, entityType string, entity
 // только таблицей и тем, кого оповестить об изменении строки.
 func revertPassage(ctx context.Context, db *gorm.DB, recorder AuditRecorder, now func() time.Time,
 	entityType string, entityID int, req RevertPassageRequest) error {
-	table, ok := passageEntityTable[entityType]
-	if !ok {
-		return fmt.Errorf("revert passage: неизвестный тип сущности %q", entityType)
+	kind := ElementEmployee
+	if entityType == models.AuditEntityCar {
+		kind = ElementCar
+	} else if entityType != models.AuditEntityEmployee {
+		return fmt.Errorf("unsupported passage entity type")
 	}
-	reason := strings.TrimSpace(req.Reason)
-	if reason == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Укажите причину отмены отметки")
+	commands := NewPassageCommandService(db, recorder)
+	if now != nil {
+		commands.now = now
 	}
-	action, err := passageActionFor(req.TerritoryStatus)
-	if err != nil {
-		return err
-	}
-	if req.ActorUserID == 0 {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
-	}
-
-	admin, err := isPassageRevertAdmin(ctx, db, req.ActorUserID)
-	if err != nil {
-		return err
-	}
-
-	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		last, err := lastLivePassage(ctx, tx, entityType, entityID)
-		if err != nil {
-			return err
-		}
-		if last == nil {
-			return echo.NewHTTPError(http.StatusConflict, "Отменять нечего: отметок прохода нет")
-		}
-		// Направление разошлось - строку успели отметить заново, пока открыт экран.
-		// Молча отменить «то, что есть» нельзя: охранник целился в другое событие.
-		if last.Action != action {
-			return echo.NewHTTPError(http.StatusConflict,
-				"Отметка изменилась, обновите таблицу и повторите")
-		}
-		// Пост отменяемой отметки обязан совпасть с постом, с которого пришёл запрос.
-		// Право проверяется по table_id из тела, и без этой сверки охранник своего КПП
-		// мог бы отменить отметку, поставленную на соседнем: право у него есть, а
-		// отношения к тому проходу никакого. Записи без поста (до #1036) не сверяем.
-		if last.TableID != nil && req.TableID != nil && *last.TableID != *req.TableID {
-			return echo.NewHTTPError(http.StatusConflict,
-				"Отметка поставлена на другом посту, отменять её нужно там же")
-		}
-		if !admin {
-			if last.ActorUserID == nil || *last.ActorUserID != req.ActorUserID {
-				return echo.NewHTTPError(http.StatusForbidden,
-					"Отметку поставил другой пользователь, отменить её может администратор")
-			}
-			if now().Sub(last.CreatedAt) > passageRevertWindow {
-				return echo.NewHTTPError(http.StatusForbidden,
-					"Отменить свою отметку можно в течение 15 минут, дальше - через администратора")
-			}
-		}
-
-		details := passageRevertDetails{RevertsID: last.ID, Comment: &reason, TableID: req.TableID}
-		if subject := passageEntitySubject(ctx, tx, entityType, entityID); subject != "" {
-			details.Subject = &subject
-		}
-		if err := recorder.Record(ctx, tx, entityType, &entityID,
-			passageRevertActionFor(last.Action), &req.ActorUserID, details); err != nil {
-			// Уникальный индекс по reverts_id: параллельная отмена той же отметки
-			// успела первой. Для человека это не сбой, а «уже отменено».
-			if isUniqueViolation(err) {
-				return echo.NewHTTPError(http.StatusConflict, "Эта отметка уже отменена")
-			}
-			return fmt.Errorf("failed to record passage revert: %w", err)
-		}
-
-		return rollbackTerritoryStatus(ctx, tx, table, entityType, entityID, now())
-	})
-	if err != nil {
-		return err
-	}
-	slog.Info("отметка прохода отменена", "entity", entityType, "entity_id", entityID,
-		"actor_user_id", req.ActorUserID, "by_admin", admin)
-	return nil
+	_, err := commands.Revert(ctx, req.ActorUserID, kind, entityID, PassageCommandRequest{TableID: req.TableID, ExpectedLastEventID: req.ExpectedLastEventID, TerritoryStatus: req.TerritoryStatus, Reason: req.Reason})
+	return err
 }
 
 // rollbackTerritoryStatus приводит строку к состоянию до отменённой отметки.

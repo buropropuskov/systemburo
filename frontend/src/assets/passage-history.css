@@ -1,0 +1,3 @@
+.dot-entry { background: #059669; }
+.dot-exit { background: #dc2626; }
+.dot-correction { background: var(--text-muted); }

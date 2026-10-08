@@ -48,6 +48,7 @@ type Dependencies struct {
 	Feedback            *handlers.FeedbackHandler
 	Application         *handlers.ApplicationHandler
 	EntityPeriod        *handlers.EntityPeriodHandler
+	OpenPassages        *handlers.OpenPassagesHandler
 	AttachmentPeriod    *handlers.AttachmentPeriodHandler
 	ApplicationFiles    *handlers.ApplicationFileHandler
 	Approver            *handlers.ApproverHandler
@@ -722,6 +723,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
+	carsGroup.GET("/open-for-table/:table_id", d.OpenPassages.ListCars)
+	carsGroup.GET("/open-admin-summary", d.OpenPassages.SummaryCars, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPassageCorrect))
+	carsGroup.POST("/:id/passage-close", d.OpenPassages.CloseCar, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPassageCorrect))
+	carsGroup.POST("/:id/passage-close/revert", d.OpenPassages.RevertCar, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPassageCorrect))
 	carsGroup.GET("/:id/period", d.EntityPeriod.GetCarPeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
 	carsGroup.GET("/:id/manual-attach-context", d.SingleManualAttach.GetCarContext, requireAdmin)
 	carsGroup.GET("/:id/manual-attach-attachments", d.SingleManualAttach.GetCarAttachments, requireAdmin)
@@ -765,6 +770,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Сотрудники (в заявках)
 	empGroup := protected.Group("/employees")
 	empGroup.GET("/:id/period", d.EntityPeriod.GetEmployeePeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
+	empGroup.GET("/open-for-table/:table_id", d.OpenPassages.ListEmployees)
+	empGroup.GET("/open-admin-summary", d.OpenPassages.SummaryEmployees, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPassageCorrect))
+	empGroup.POST("/:id/passage-close", d.OpenPassages.CloseEmployee, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPassageCorrect))
+	empGroup.POST("/:id/passage-close/revert", d.OpenPassages.RevertEmployee, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPassageCorrect))
 	empGroup.GET("/:id/manual-attach-context", d.SingleManualAttach.GetEmployeeContext, requireAdmin)
 	empGroup.GET("/:id/manual-attach-attachments", d.SingleManualAttach.GetEmployeeAttachments, requireAdmin)
 	empGroup.POST("/:id/attach-to-application/preview", d.SingleManualAttach.PreviewEmployee, requireAdmin)

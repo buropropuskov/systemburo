@@ -15,6 +15,7 @@
         </h3>
       </div>
       <div class="card-header__settings">
+        <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" />
         <RefreshButton
           :loading="refreshing"
           @refresh="handleManualRefresh"
@@ -211,7 +212,7 @@
                   <button
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
-                    :disabled="item.entry_checked && !canRevertMark(item, 'entry')"
+                    :disabled="(!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || item.entry_checked && !canRevertMark(item, 'entry')"
                     data-testid="ob-fact-entry"
                     @click="handleEntryExit(item, 'entry')"
                   >
@@ -228,7 +229,7 @@
                   <button
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
-                    :disabled="(!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
+                    :disabled="(!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-fact-exit"
                     @click="handleEntryExit(item, 'exit')"
                   >
@@ -243,6 +244,7 @@
                   data-label="Номер Т/С"
                 >
                   {{ item.car_number || '-' }}
+                  <PassageStateIndicator v-if="!isFieldVisible('valid_until')" :passage-state="item.passage_state" :expired="passageExpired(item)" />
                 </div>
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_brand')"
@@ -290,14 +292,8 @@
                 >
                   {{ formatUnloadPlaces ? formatUnloadPlaces(item) : '-' }}
                 </div>
-                <div
-                  v-if="isFieldVisible('valid_until')"
-                  class="col date-col"
-                  :style="getColStyle('valid_until')"
-                  data-label="Действует до"
-                >
-                  {{ formatDate(item.entry_date_to) }}
-                </div>
+                <PassageValidityCell v-if="isFieldVisible('valid_until')" :item="item"
+                  :style="getColStyle('valid_until')" />
                 <div
                   v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
                   class="col time-col"
@@ -417,6 +413,7 @@
 </template>
 
 <script>
+import passageTableIntegration from './passageTableIntegration';
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui';
 import eventStream from '@/services/eventStream';
@@ -440,6 +437,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
   name: 'FactTable',
+  mixins: [passageTableIntegration],
   components: {
     AppIcon,
     RefreshButton,
@@ -903,7 +901,8 @@ export default {
             plateNumber: car.car_number,
             mark: car.car_brand,
             formatId: null,
-            unloadPlaces: car.unload_place_ids || []
+            unloadPlaces: car.unload_place_ids || [],
+            ...this.passageFields(car)
           };
         });
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
@@ -923,13 +922,7 @@ export default {
           statuses.forEach(status => { statusMap[status.car_id] = status; });
           this.factData.forEach(item => {
             const status = statusMap[item.id];
-            if (status) {
-              item.entry_checked = status.territory_status === 1;
-              item.exit_checked = status.territory_status === 2;
-              item.territory_status = status.territory_status;
-              item.can_revert = status.can_revert;
-              item.last_mark_table_id = status.last_mark_table_id;
-            }
+            if (status) this.mergePassageStatus(item, status);
           });
         }
       } catch (error) {
@@ -996,12 +989,13 @@ export default {
     },
     
     async handleEntryExit(item, type) {
+      if (!this.passageAllowed(item, type) && !this.canRevertMark(item, type)) return;
       if (!this.currentUserId) return;
       if (this.canRevertMark(item, type)) {
         usePassageRevertStore().ask({
-          kind: 'cars', id: item.id, direction: type, tableId: this.tableId,
+          kind: 'cars', id: item.id, direction: type, tableId: this.tableId, expectedLastEventID: this.expectedPassageEvent(item),
           subject: item.car_number || 'машина',
-          onDone: () => this.fetchCarHistoryStatus(),
+          onDone: () => this._loadData(true),
         });
         return;
       }
@@ -1049,24 +1043,15 @@ export default {
       try {
         const response = await markPassage({
           kind: 'cars', id: item.id, direction: territory_status === 1 ? 'entry' : 'exit',
-          tableId: this.tableId, pass,
+          tableId: this.tableId, pass, expectedLastEventID: this.expectedPassageEvent(item),
         });
         if (!response.ok) {
+          if (response.status === 409) await this._loadData(true);
           const errorText = await response.text();
           console.error('Ошибка при обновлении статуса:', errorText);
           return false;
         }
-        const index = this.factData.findIndex(i => i.id === item.id);
-        if (index !== -1) {
-          const updatedItem = { ...this.factData[index] };
-          updatedItem.entry_checked = territory_status === 1;
-          updatedItem.exit_checked = territory_status === 2;
-          updatedItem.territory_status = territory_status;
-          // Своя свежая отметка - отмена доступна сразу, до опроса статусов (#2437).
-          updatedItem.can_revert = true;
-          updatedItem.last_mark_table_id = this.tableId;
-          this.factData.splice(index, 1, updatedItem);
-        }
+        await this._loadData(true);
         return true;
       } catch (error) {
         console.error('Ошибка сети:', error);
@@ -1128,6 +1113,7 @@ export default {
         applicationId: item.applicationId,
         entry_checked: item.entry_checked,
         exit_checked: item.exit_checked,
+        ...this.passageFields(item),
         car_number: item.car_number,
         car_brand: item.car_brand
       };
