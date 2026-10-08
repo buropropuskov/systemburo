@@ -136,12 +136,13 @@ describe('ApplicationDetail - кнопка "Переслать" по досту�
     expect(wrapper.find(FORWARD).exists()).toBe(true);
   });
 
-  it('у отозванной заявки кнопки нет даже у ответственного', async () => {
+  it('у отозванной заявки кнопка доступна ответственному только для просмотра', async () => {
     const wrapper = await mountDetail({
       props: { application: { id: 7, application_number: 'A-7', status: 'Отозвана', sender_user_id: 99 } },
       data: { responsibleUsers: [{ id: 1 }] },
     });
-    expect(wrapper.find(FORWARD).exists()).toBe(false);
+    expect(wrapper.find(FORWARD).exists()).toBe(true);
+    expect(wrapper.vm.isForwardReaderOnly).toBe(true);
   });
 
   it('пользователь без доступа к заявке кнопки не видит', async () => {
@@ -312,5 +313,33 @@ describe('ForwardModal - получатели и роль (#1948)', () => {
     expect(wrapper.emitted('send')[0][0].users).toEqual([
       { user_id: 21, required_approval: true, can_view: false },
     ]);
+  });
+});
+
+// #2666: статус сужает назначение до просмотра для любой действующей роли.
+describe('ApplicationDetail — пересылка отозванной #2666', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    apiRequest.mockReset();
+    apiRequest.mockResolvedValue(okJson([]));
+  });
+  it.each([
+    ['суперадминистратор', { superAdmin: true }],
+    ['принимающий', { data: { isApproverSelf: true } }],
+    ['отправитель', { senderID: 1 }],
+    ['ответственный', { data: { responsibleUsers: [{ id: 1 }] } }],
+    ['читатель', { data: { viewers: [{ user_id: 1 }] } }],
+  ])('%s видит кнопку, но не может назначить согласующего', async (_role, options) => {
+    const wrapper = await mountDetail({ ...options, props: { application: { id: 7, application_number: 'A-7', status: 'Отозвана', sender_user_id: options.senderID || 99 } } });
+    expect(wrapper.vm.canForwardApplication).toBe(true);
+    expect(wrapper.find(FORWARD).exists()).toBe(true);
+    expect(wrapper.vm.isForwardReaderOnly).toBe(true);
+    expect(wrapper.findComponent(ForwardModal).props('withdrawn')).toBe(true);
+    expect(wrapper.findComponent(ForwardModal).props('readerOnly')).toBe(true);
+  });
+  it('отозванная не даёт доступа постороннему', async () => {
+    const wrapper = await mountDetail({ props: { application: { id: 7, status: 'Отозвана', sender_user_id: 99 } } });
+    expect(wrapper.vm.hasApplicationAccess).toBe(false);
+    expect(wrapper.find(FORWARD).exists()).toBe(false);
   });
 });

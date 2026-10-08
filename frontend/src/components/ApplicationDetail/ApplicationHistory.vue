@@ -184,6 +184,11 @@
                         {{ getActionText(item) }}
                       </div>
 
+                      <ForwardHistoryDetails
+                        v-if="item.action_type === 'forwarded'"
+                        :metadata="item.metadata"
+                      />
+
                       <!-- Для пересылки показываем дополнительную информацию -->
                       <div
                         v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
@@ -248,10 +253,12 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { ACTION_DOT_CLASS, ACTION_TEXT } from '@/utils/applicationHistoryActions';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
+import { forwardActionText, forwardRecipientsText, forwardMaterialsText } from '@/utils/applicationForwardHistory';
+import ForwardHistoryDetails from './ForwardHistoryDetails.vue';
 
 export default {
     name: 'ApplicationHistory',
-    components: { LoaderSpinner, AppIcon },
+    components: { LoaderSpinner, AppIcon, ForwardHistoryDetails },
     props: {
         applicationId: {
             type: Number,
@@ -490,6 +497,7 @@ export default {
                     header: [
                         'Дата и время', 'Пользователь', 'Действие', 'Старое значение',
                         'Новое значение', 'Комментарий', 'Обязательно', 'Кто переслал',
+                        'Получатели и назначения', 'Материалы',
                     ],
                     rows: this.filteredHistory.map(item => [
                         this.formatTime(item.created_at),
@@ -500,8 +508,11 @@ export default {
                         item.comment || '',
                         item.metadata?.required_approval ? 'Да' : 'Нет',
                         item.metadata?.forwarded_by || '',
+                        item.action_type === 'forwarded' ? forwardRecipientsText(item.metadata) : '',
+                        item.action_type === 'forwarded' ? forwardMaterialsText(item.metadata) : '',
                     ]),
-                    widths: [25, 40, 50, 30, 30, 40, 20, 35],
+                    widths: [25, 40, 50, 30, 30, 40, 20, 35, 60, 60],
+                    wrapColumns: [8, 9],
                     info: [
                         ['Отчёт сформировал:', this.currentUserDisplayName],
                         ['Дата формирования:', this.formattedCurrentDateTime],
@@ -537,11 +548,7 @@ export default {
 
             // Сводка пересылки: вся заявка или конкретные вложения (#680)
             if (item.action_type === 'forwarded') {
-                const names = item.metadata?.attachments;
-                if (item.metadata?.whole || !Array.isArray(names) || !names.length) {
-                    return 'Переслал(-а) всю заявку';
-                }
-                return `Переслал(-а) вложения: ${names.join(', ')}`;
+                return forwardActionText(item.metadata);
             }
 
             // Начало обсуждения по заявке (#973): тема обсуждения в metadata.subject.

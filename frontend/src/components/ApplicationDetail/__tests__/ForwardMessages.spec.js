@@ -14,6 +14,11 @@ const MSG = {
   author_name: 'Петров Пётр Петрович',
   message: 'Прошу дополнительно согласовать заявку с вами',
   recipients: ['Иванов Иван Иванович', 'Сидоров Сидор Сидорович'],
+  recipient_details_available: true,
+  recipient_details: [
+    { user_id: 6, display_name: 'Тестовый согласующий', purpose: 'approval', required_approval: true, access_granted: true },
+    { user_id: 7, display_name: 'Тестовый наблюдатель', purpose: 'view', required_approval: false, access_granted: true },
+  ],
   whole: true,
   attachments: [],
   created_at: '2026-07-01T10:00:00Z',
@@ -34,8 +39,11 @@ describe('ForwardMessages (#967)', () => {
     expect(items).toHaveLength(1);
     expect(wrapper.text()).toContain('Петров Пётр Петрович');
     expect(wrapper.text()).toContain('Прошу дополнительно согласовать заявку с вами');
-    expect(wrapper.text()).toContain('Иванов Иван Иванович, Сидоров Сидор Сидорович');
-    expect(wrapper.text()).toContain('Переслал(-а) всю заявку');
+    expect(wrapper.text()).toContain('Тестовый согласующий — назначен обязательным согласующим');
+    expect(wrapper.text()).toContain('Тестовый наблюдатель — предоставлен доступ к просмотру');
+    expect(wrapper.text()).not.toContain(MSG.recipients[0]);
+    expect(wrapper.text()).toContain('Переслал(-а) заявку');
+    expect(wrapper.text()).toContain('Материалы: заявка со всеми приложениями');
   });
 
   it('пересылка вложений показывает действие с их перечнем', async () => {
@@ -45,7 +53,10 @@ describe('ForwardMessages (#967)', () => {
     const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Переслал(-а) вложения: Пропуск №12, Акт');
+    expect(wrapper.text()).toContain('Переслал(-а) заявку');
+    expect(wrapper.text()).toContain('только выбранные приложения — Пропуск №12, Акт');
+    expect(wrapper.text()).toContain('Сведения о получателях недоступны');
+    expect(wrapper.text()).not.toContain('Кузнецов Кузьма');
   });
 
   it('пересылка без текста показывает действие и кому, но не текст', async () => {
@@ -57,8 +68,9 @@ describe('ForwardMessages (#967)', () => {
 
     expect(wrapper.findAll('[data-testid="forward-message-item"]')).toHaveLength(1);
     expect(wrapper.text()).toContain('Петров Пётр Петрович');
-    expect(wrapper.text()).toContain('Переслал(-а) всю заявку');
-    expect(wrapper.text()).toContain('Кузнецов Кузьма');
+    expect(wrapper.text()).toContain('Переслал(-а) заявку');
+    expect(wrapper.text()).toContain('Сведения о получателях недоступны');
+    expect(wrapper.text()).not.toContain('Кузнецов Кузьма');
     expect(wrapper.find('.forward-message-text').exists()).toBe(false);
   });
 
@@ -68,6 +80,16 @@ describe('ForwardMessages (#967)', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="forward-messages"]').exists()).toBe(false);
+  });
+
+  it('показывает комментарий и безопасное имя как текст без HTML', async () => {
+    const markup = '<img src=x onerror=alert(1)>';
+    getForwardMessages.mockResolvedValue([{ ...MSG, message: markup, recipient_details: [{ ...MSG.recipient_details[0], display_name: markup }] }]);
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+    expect(wrapper.find('.forward-message-text').text()).toBe(markup);
+    expect(wrapper.find('.forward-message-recipient').text()).toContain(markup);
+    expect(wrapper.find('img').exists()).toBe(false);
   });
 
   it('load() перезагружает сообщения', async () => {

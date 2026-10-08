@@ -127,10 +127,6 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}
 
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
-
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
@@ -141,9 +137,31 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}()
 
-	// Сохраняем старый confirmation
-	var oldConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
+	// WithdrawApplication блокирует эту же строку. Проверяем статус под тем же
+	// FOR UPDATE до назначений: отзыв не может проскочить между проверкой и INSERT.
+	var lockedApplication struct {
+		Status       *string
+		Confirmation *string
+	}
+	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&lockedApplication)
+	if result.Error != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
+	}
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
+	}
+	if lockedApplication.Status != nil && *lockedApplication.Status == models.StatusWithdrawn {
+		for _, recipient := range req.Users {
+			if recipient.RequiredApproval || !recipient.CanView {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusForbidden,
+					"Заявка отозвана: пересылка доступна только для просмотра, назначение согласующих недоступно")
+			}
+		}
+	}
+	oldConfirmation := lockedApplication.Confirmation
 
 	baseTime := time.Now().UTC()
 
@@ -153,6 +171,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	}
 	var addedResponsibleUsers []addedResp
 	var addedViewers []int
+	recipientDetails := make([]forwardRecipientDetail, 0, len(req.Users))
 
 	for _, fu := range req.Users {
 		// Проверяем существование пользователя
@@ -194,6 +213,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				VALUES (?, ?, ?, 'pending', ?, ?, false)
 			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID)
 			addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
+			recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
+				UserID: fu.UserID, Purpose: "approval", RequiredApproval: fu.RequiredApproval, AccessGranted: true,
+			})
 		} else {
 			// Просматривающий
 			var alreadyAdded bool
@@ -206,6 +228,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				`, applicationID, fu.UserID, baseTime, user.ID)
 			}
 			addedViewers = append(addedViewers, fu.UserID)
+			recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
+				UserID: fu.UserID, Purpose: "view", AccessGranted: !alreadyAdded,
+			})
 		}
 	}
 
@@ -269,6 +294,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	// вложений кладём в metadata, текст собирает фронт (как у assigned_*).
 	if len(addedResponsibleUsers) > 0 || len(addedViewers) > 0 {
 		var attNames []string
+		attachmentDetails := make([]forwardAttachmentDetail, 0)
 		if len(req.AttachmentIDs) > 0 {
 			tx.Raw(`
 				SELECT COALESCE(attachment_display_name, attachment_name, '')
@@ -276,6 +302,15 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				WHERE application_id = ? AND id IN ?
 				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
 			`, applicationID, req.AttachmentIDs).Scan(&attNames)
+		}
+		if len(req.AttachmentIDs) > 0 {
+			if err := tx.Raw(`SELECT id, COALESCE(attachment_display_name, attachment_name, '') AS name
+				FROM attachments WHERE application_id = ? AND id IN ?
+				ORDER BY COALESCE(attachment_display_name, attachment_name, ''), id`,
+				applicationID, req.AttachmentIDs).Scan(&attachmentDetails).Error; err != nil {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load forwarding materials")
+			}
 		}
 		// Получатели этой пересылки (#967, ветка заявки): ответственные, затем
 		// просматривающие - в том же порядке кладём в metadata.recipients, чтобы
@@ -316,10 +351,14 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 		}
 		meta, _ := json.Marshal(map[string]interface{}{
-			"forwarded_by": currentUserName,
-			"whole":        len(attNames) == 0,
-			"attachments":  attNames,
-			"recipients":   recipientNames,
+			"forwarded_by":           currentUserName,
+			"whole":                  len(attNames) == 0,
+			"attachments":            attNames,
+			"recipients":             recipientNames,
+			"forward_schema_version": 2,
+			"recipient_details":      recipientDetails,
+			"attachment_scope":       forwardAttachmentScope(req.AttachmentIDs),
+			"attachment_details":     attachmentDetails,
 		})
 		// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
 		// Пустое после trim -> comment не пишем; пересылка всё равно попадёт в ветку

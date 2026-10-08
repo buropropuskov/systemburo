@@ -45,6 +45,8 @@ const COL_MAX = 60;
  * @property {boolean} [outerBorder] жирная внешняя рамка вокруг таблицы
  * @property {number[]} [boldRows] какие строки данных набрать полужирным - подытоги,
  *   стоящие внутри данных, а не отдельной строкой в конце (отчёт по проходам)
+ * @property {number[]} [wrapColumns] индексы колонок (с нуля) с переносом текста
+ *   и расчётом высоты строки; без опции привычная высота 20 не меняется
  */
 
 function textLength(value) {
@@ -79,6 +81,10 @@ export async function buildExcelSheetBlob(spec) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(String(spec.sheetName || 'Лист').slice(0, SHEET_NAME_LIMIT));
+  const widths = spec.widths && spec.widths.length
+    ? spec.widths
+    : (spec.autoWidths ? autoWidths(spec) : null);
+  const wrapColumns = new Set(spec.wrapColumns || []);
 
   const headerRow = sheet.addRow(spec.header);
   headerRow.height = 25;
@@ -94,10 +100,19 @@ export async function buildExcelSheetBlob(spec) {
     const row = sheet.addRow(cells);
     row.height = 20;
     const fgColor = { argb: index % 2 === 0 ? ROW_FILL_EVEN : ROW_FILL_ODD };
-    row.eachCell((cell) => {
+    row.eachCell((cell, column) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor };
       cell.font = { name: 'Verdana', size: 9, bold: bold.has(index), color: { argb: 'FF333333' } };
       cell.alignment = { vertical: 'middle' };
+      if (wrapColumns.has(column - 1)) {
+        cell.alignment = { vertical: 'top', wrapText: true };
+        // Ширина Excel в символах; запас под Verdana и края ячейки.
+        const charsPerLine = Math.max(1, Math.floor(((widths?.[column - 1] || 8) - 2) / BODY_CHAR_RATIO));
+        const lines = String(cells[column - 1] ?? '').split('\n')
+          .reduce((count, line) => count + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
+        // 409 — предел высоты строки Excel. Полное значение остаётся в ячейке.
+        row.height = Math.min(409, Math.max(row.height, lines * 14 + 6));
+      }
       cell.border = THIN_BORDER;
     });
   });
@@ -130,9 +145,6 @@ export async function buildExcelSheetBlob(spec) {
     }
   }
 
-  const widths = spec.widths && spec.widths.length
-    ? spec.widths
-    : (spec.autoWidths ? autoWidths(spec) : null);
   if (widths) sheet.columns = widths.map(width => ({ width }));
 
   if (spec.info && spec.info.length) {

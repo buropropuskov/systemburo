@@ -17,7 +17,7 @@
       :existing-approvers="approvers"
       :existing-viewers="viewers"
       :attachments="attachments"
-      :reader-only="isForwardReaderOnly"
+      v-bind="{ readerOnly: isForwardReaderOnly, withdrawn: applicationData.status === 'Отозвана' }"
       :is-sending="isForwarding"
       @close="closeForwardModal"
       @send="sendForwardRequest"
@@ -696,6 +696,7 @@ import ApplicationFiles from './ApplicationFiles.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
+import { resolveForwardReaderOnly } from './forwardReaderOnly.js'
 import ForwardMessages from './ForwardMessages.vue'
 import ApplicationBureauNote from './ApplicationBureauNote.vue'
 import ApplicationQuestions from './ApplicationQuestions.vue'
@@ -1094,10 +1095,10 @@ export default {
          * Переслать заявку вправе любой, у кого есть к ней доступ (#1948): гейт
          * пересылки на бэке = гейт доступа. Прежнее «только ответственный» осталось от
          * #680 и отсекало отправителя, принимающего и читателя, хотя сервер их пускает.
-         * Отозванную заявку сервер отбивает checkNotWithdrawn - действий по ней нет.
+         * Отозванную заявку можно переслать только для просмотра; доступ проверяется сервером.
          */
         canForwardApplication() {
-            return this.hasApplicationAccess && this.applicationData.status !== 'Отозвана';
+            return this.hasApplicationAccess;
         },
 
         /**
@@ -1107,9 +1108,7 @@ export default {
          * раньше проверки роли на заявке, дальше решают отправитель/ответственный.
          */
         isForwardReaderOnly() {
-            if (this.isSuperAdmin || this.isApprover) return false;
-            if (this.applicationData?.sender_user_id === this.currentUserId) return false;
-            return !this.isResponsibleUser;
+            return resolveForwardReaderOnly(this);
         },
 
         hasUserVoted() {
