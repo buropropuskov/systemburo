@@ -127,10 +127,6 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}
 
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return err
-	}
-
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
@@ -141,9 +137,31 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}()
 
-	// Сохраняем старый confirmation
-	var oldConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
+	// WithdrawApplication блокирует эту же строку. Проверяем статус под тем же
+	// FOR UPDATE до назначений: отзыв не может проскочить между проверкой и INSERT.
+	var lockedApplication struct {
+		Status       *string
+		Confirmation *string
+	}
+	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&lockedApplication)
+	if result.Error != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
+	}
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
+	}
+	if lockedApplication.Status != nil && *lockedApplication.Status == models.StatusWithdrawn {
+		for _, recipient := range req.Users {
+			if recipient.RequiredApproval || !recipient.CanView {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusForbidden,
+					"Заявка отозвана: пересылка доступна только для просмотра, назначение согласующих недоступно")
+			}
+		}
+	}
+	oldConfirmation := lockedApplication.Confirmation
 
 	baseTime := time.Now().UTC()
 

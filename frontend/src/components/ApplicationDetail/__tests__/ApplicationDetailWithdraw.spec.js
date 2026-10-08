@@ -103,13 +103,14 @@ describe('ApplicationDetail - отображение отозванной зая
     expect(text).not.toContain('Принял(-а):');
   });
 
-  it('canLeaveComment/canForwardApplication: отозванную нельзя комментировать/переслать', async () => {
+  it('отозванную нельзя комментировать, переслать можно только для просмотра', async () => {
     // Ставим сценарий, где иначе действия были бы доступны (ответственный, ещё не голосовал).
     const wrapper = mountDetail({ status: 'Отозвана' });
     await wrapper.setData({ responsibleUsers: [{ id: 1, approval_status: 'pending' }] });
     expect(wrapper.vm.isResponsibleUser).toBe(true);
     expect(wrapper.vm.canLeaveComment).toBe(false);
-    expect(wrapper.vm.canForwardApplication).toBe(false);
+    expect(wrapper.vm.canForwardApplication).toBe(true);
+    expect(wrapper.vm.isForwardReaderOnly).toBe(true);
   });
 
   it('canLeaveComment: на ВСЕХ терминальных статусах false у ответственного без голоса (#1097 - баг «Завершено»)', async () => {
