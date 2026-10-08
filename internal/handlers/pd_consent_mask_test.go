@@ -590,8 +590,10 @@ func TestPDConsentMask_Search_HidesPD(t *testing.T) {
 	// нормализованного значения - значит запрос новый, а адрес тот же самый.
 	assert.Empty(t, searchTitles(t, e, admin, "HIDDEN_ADDR@EXAMPLE.COM"),
 		"по скрытой почте больше не находится")
-	assert.Equal(t, []string{"@mask_search"}, searchTitles(t, e, admin, "Поисков"),
-		"вместо скрытого ФИО в подсказке логин")
+	assert.Empty(t, searchTitles(t, e, admin, "Поисков"),
+		"скрытое ФИО не участвует в поиске")
+	assert.Equal(t, []string{"@mask_search"}, searchTitles(t, e, admin, "mask_search"),
+		"по открытому логину учётка доступна без скрытого ФИО")
 }
 
 // searchTitles возвращает заголовки найденных учётных записей.
