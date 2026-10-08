@@ -503,12 +503,7 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 		if r.Status != nil {
 			status = *r.Status
 		}
-		territory := 0
-		if states[r.ID].Open {
-			territory = 1
-		} else if states[r.ID].HasEvent {
-			territory = 2
-		}
+		territory := PassageTerritoryStatus(states[r.ID], r.TerritoryStatus)
 		employees = append(employees, TableEmployeeResponse{
 			ID:           r.ID,
 			PassageState: states[r.ID], EffectivePeriod: models.EffectivePeriod{EntryPeriod: models.EntryPeriod{EntryDateFrom: r.EntryDateFrom, EntryDateTo: r.EntryDateTo, EntryTimeFrom: r.EntryTimeFrom, EntryTimeTo: r.EntryTimeTo}, Source: r.PeriodSource, Bounded: r.Bounded}, ServerNow: now,
@@ -525,7 +520,7 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 			Status:            status,
 			ApplicationID:     r.ApplicationID,
 			ApplicationNumber: r.ApplicationNumber,
-			TerritoryStatus:   &territory,
+			TerritoryStatus:   territory,
 			TargetTablesCount: r.TargetTablesCount,
 			TargetTables:      targetTablesMap[r.ID],
 		})

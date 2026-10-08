@@ -65,7 +65,7 @@ func snapshotPassageCounts(raw json.RawMessage) (models.SnapshotCounts, error) {
 	}
 	counts := models.SnapshotCounts{Total: len(rows)}
 	for _, row := range rows {
-		if row.PassageState != nil {
+		if row.PassageState != nil && (row.PassageState.HasEvent || row.PassageState.Open) {
 			state := row.PassageState
 			switch {
 			case state.Open:

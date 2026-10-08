@@ -7,15 +7,6 @@ import (
 	"time"
 )
 
-func passageTerritoryState(state services.PassageState) *int {
-	value := 0
-	if state.Open {
-		value = 1
-	} else if state.HasEvent {
-		value = 2
-	}
-	return &value
-}
 func (h *CarHandler) enrichCarPassages(c echo.Context, tableID int, rows []services.TableCarResponse) ([]services.TableCarResponse, error) {
 	if h.passageDB == nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Сервис учёта недоступен")
@@ -41,7 +32,7 @@ func (h *CarHandler) enrichCarPassages(c echo.Context, tableID int, rows []servi
 		row.EntryDateTo = result.EffectivePeriod.EntryDateTo
 		row.EntryTimeFrom = result.EffectivePeriod.EntryTimeFrom
 		row.EntryTimeTo = result.EffectivePeriod.EntryTimeTo
-		row.TerritoryStatus = passageTerritoryState(result.PassageState)
+		row.TerritoryStatus = services.PassageTerritoryStatus(result.PassageState, row.TerritoryStatus)
 		row.TerritoryEntryTime = services.FormatUTCPtr(result.PassageState.EntryAt)
 		out = append(out, row)
 	}
@@ -70,7 +61,7 @@ func (h *EmployeeHandler) enrichEmployeePassages(c echo.Context, tableID int, ro
 		row.Admission = result.Admission
 		row.ServerNow = result.ServerNow
 		row.EntryDateTo = result.EffectivePeriod.EntryDateTo
-		row.TerritoryStatus = passageTerritoryState(result.PassageState)
+		row.TerritoryStatus = services.PassageTerritoryStatus(result.PassageState, row.TerritoryStatus)
 		from, to := "", ""
 		if result.EffectivePeriod.EntryTimeFrom != nil {
 			from = *result.EffectivePeriod.EntryTimeFrom

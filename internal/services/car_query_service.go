@@ -170,12 +170,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow, no
 		}
 
 		territoryEntryTimeStr := FormatUTCPtr(state.EntryAt)
-		projectedStatus := 0
-		if state.Open {
-			projectedStatus = 1
-		} else if state.HasEvent {
-			projectedStatus = 2
-		}
+		projectedStatus := PassageTerritoryStatus(state, row.TerritoryStatus)
 
 		places := placesByCarID[row.ID]
 		if places == nil {
@@ -207,7 +202,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow, no
 			Status:             status,
 			ApplicationID:      row.ApplicationID,
 			ApplicationNumber:  row.ApplicationNumber,
-			TerritoryStatus:    &projectedStatus,
+			TerritoryStatus:    projectedStatus,
 			TerritoryEntryTime: territoryEntryTimeStr,
 			TargetTablesCount:  targetTablesCount[row.ID],
 			TargetTables:       tables,

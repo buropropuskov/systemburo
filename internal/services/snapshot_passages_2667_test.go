@@ -49,3 +49,16 @@ func TestPassage2667SnapshotExportCorrectionAndLegacyLabels(t *testing.T) {
 	state.LastEventKind = "exit"
 	require.Equal(t, "Выехал", snapshotPassageStatusLabel(state, &closed))
 }
+
+func TestPassage2667LegacyStatusWithoutEventsKeepsWireAndCounts(t *testing.T) {
+	require.Nil(t, PassageTerritoryStatus(PassageState{}, nil))
+	left := 2
+	require.Equal(t, &left, PassageTerritoryStatus(PassageState{}, &left))
+	entered := 1
+	require.Equal(t, &entered, PassageTerritoryStatus(PassageState{Open: true}, &left))
+	counts, err := snapshotPassageCounts(json.RawMessage(`[{"passage_state":{"has_event":false},"territory_status":2}]`))
+	require.NoError(t, err)
+	require.Equal(t, 1, counts.Exited)
+	require.Zero(t, counts.Corrected)
+	require.Zero(t, counts.NotEntered)
+}

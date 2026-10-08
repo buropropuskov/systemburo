@@ -46,6 +46,7 @@ func TestPassageActor_TakenFromToken(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "actorguard", "pass123", 1, td.OrgID, td.CompanyID)
 	guardID := getUserID(t, db, "actorguard")
+	testutil.GrantTableVerb(t, guardID, table.Name, "view")
 	testutil.GrantTableVerb(t, guardID, table.Name, "entry")
 	testutil.GrantTableVerb(t, guardID, table.Name, "exit")
 
@@ -56,6 +57,7 @@ func TestPassageActor_TakenFromToken(t *testing.T) {
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	require.NoError(t, db.Create(&models.CarTargetTable{CarID: carID, TableID: table.ID, Source: "application"}).Error)
 
 	// Отметка въезда от имени другого охранника: тело называет чужой id.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),

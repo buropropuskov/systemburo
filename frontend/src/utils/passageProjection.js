@@ -2,15 +2,17 @@
 export function passageFields(row, { snapshot = false } = {}) {
   const state = row?.passage_state;
   if (!state) return {};
+  const legacy = !state.has_event && !state.last_event_kind && !state.open;
+  const territory = legacy ? row.territory_status ?? null : state.open ? 1 : state.last_event_kind === 'exit' ? 2 : 0;
   return {
     passage_state: { ...state, ...(snapshot ? { can_correct: false, can_revert_correction: false } : {}) },
     effective_period: row.effective_period ? { ...row.effective_period } : null,
     admission: snapshot ? { can_enter: false, can_exit: false, reason: row.admission?.reason || 'snapshot' } : row.admission ? { ...row.admission } : null,
     server_now: row.server_now ?? null,
-    territory_status: state.open ? 1 : state.last_event_kind === 'exit' ? 2 : 0,
-    entry_checked: state.open,
+    territory_status: territory,
+    entry_checked: territory === 1,
     // An administrative correction is not an observed exit.
-    exit_checked: !state.open && state.last_event_kind === 'exit',
+    exit_checked: territory === 2,
     ...(snapshot ? { can_revert: false, last_mark_table_id: null } : {}),
   };
 }

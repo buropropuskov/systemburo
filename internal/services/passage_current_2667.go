@@ -129,10 +129,8 @@ func loadPassageCurrent(ctx context.Context, db *gorm.DB, viewerID int, kind Ele
 			state.CanCorrect = state.Open && correctionAuthority && set.Has(passageCorrectionPermission)
 			state.CanRevertCorrection = correctionAuthority && p.Action == PassageCorrectionAction && p.CreatedAt != nil && now.Sub(*p.CreatedAt) <= passageRevertWindow && set.Has(passageCorrectionPermission)
 			status := 0
-			if state.Open {
-				status = 1
-			} else if state.HasEvent {
-				status = 2
+			if projected := PassageTerritoryStatus(state, p.TerritoryStatus); projected != nil {
+				status = *projected
 			}
 			items = append(items, passageCurrentItem{EntityID: p.EntityID, TerritoryStatus: status, EntryTime: FormatUTCPtr(state.EntryAt), LastExitTime: FormatUTCPtr(row.LastExitAt), CanRevert: canRevert, LastMarkTableID: p.TableID, PassageState: state, EffectivePeriod: effective, ServerNow: now})
 		}

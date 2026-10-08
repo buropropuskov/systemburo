@@ -59,6 +59,21 @@ func seedApplicationChain(t *testing.T, db *gorm.DB, kind, login string) (int, i
 	return att.ID, user.ID
 }
 
+// Keep the last-exit regression on a currently visible approved foundation.
+// Historical exit timestamps remain deliberate calendar fixtures.
+func prepareLastExit2667Foundation(t *testing.T, db *gorm.DB, attachmentID int) {
+	t.Helper()
+	var attachment models.Attachment
+	require.NoError(t, db.First(&attachment, attachmentID).Error)
+	require.NotNil(t, attachment.ApplicationID)
+	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", *attachment.ApplicationID).
+		Updates(map[string]any{"status": models.StatusInWork, "confirmation": models.ConfirmationApproved}).Error)
+	clock := time.Now().UTC().In(services.MoscowLocation())
+	require.NoError(t, db.Model(&models.Attachment{}).Where("id = ?", attachmentID).
+		Updates(map[string]any{"status": 1, "entry_date_from": clock.AddDate(0, 0, -1).Format("2006-01-02"),
+			"entry_date_to": clock.AddDate(0, 0, 1).Format("2006-01-02"), "entry_time_from": "00:00", "entry_time_to": "23:59"}).Error)
+}
+
 // seedCarWithApplication - машина на такой цепочке.
 func seedCarWithApplication(t *testing.T, db *gorm.DB, number string) (models.Car, int) {
 	t.Helper()
@@ -234,6 +249,7 @@ func TestPassageRevert_LastExitIgnoresRevoked(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	car, userID := seedCarWithApplication(t, db, "Е111ЕЕ")
+	prepareLastExit2667Foundation(t, db, car.AttachmentID)
 	require.NoError(t, db.Model(&models.Car{}).Where("id = ?", car.ID).
 		Update("territory_status", 2).Error)
 
@@ -275,6 +291,7 @@ func TestPassageRevert_LastExitIgnoresRevokedForPeople(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	attID, userID := seedApplicationChain(t, db, "people", "revert_last_exit")
+	prepareLastExit2667Foundation(t, db, attID)
 	last, first := "Шумилин", "Кирилл"
 	active, out := 1, 2
 	emp := models.Employee{AttachmentID: &attID, LastName: &last, FirstName: &first,

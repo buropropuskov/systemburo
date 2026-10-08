@@ -149,9 +149,9 @@ func TestPassage2667DBLegacyAdaptersFirstEntryRevertAndFactPass(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, 2, publisher.count)
-			var status int
-			require.NoError(t, w.db.Table(string(kind)).Select("territory_status").Where("id=?", w.id).Scan(&status).Error)
-			require.Zero(t, status)
+			var cached struct{ TerritoryStatus *int }
+			require.NoError(t, w.db.Table(string(kind)).Select("territory_status").Where("id=?", w.id).Scan(&cached).Error)
+			require.Nil(t, cached.TerritoryStatus)
 			states, err := services.LoadPassageStates(ctx, w.db, kind, []int{w.id}, time.Now().UTC())
 			require.NoError(t, err)
 			require.False(t, states[w.id].Open)

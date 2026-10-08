@@ -35,6 +35,19 @@ type PassageAdmission struct {
 	Reason   string `json:"reason"`
 }
 
+// PassageTerritoryStatus prefers live events and preserves legacy values when
+// there is no event to supersede them. A legacy exit never creates grace time.
+func PassageTerritoryStatus(state PassageState, legacy *int) *int {
+	if !state.Open && !state.HasEvent {
+		return legacy
+	}
+	status := 2
+	if state.Open {
+		status = 1
+	}
+	return &status
+}
+
 type PassageResult struct {
 	EntityID        int                    `json:"entity_id"`
 	EntityKind      ElementKind            `json:"entity_kind"`

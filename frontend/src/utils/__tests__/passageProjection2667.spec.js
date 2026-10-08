@@ -12,6 +12,15 @@ const state = { has_event: true, last_event_id: 81, last_event_kind: 'entry', op
 const period = { bounded: true, source: 'individual', entry_date_from: '2035-01-01', entry_date_to: '2035-01-02', entry_time_from: '09:00:00', entry_time_to: null };
 const row = { id: 17, passage_state: state, admission: { can_enter: false, can_exit: true, reason: 'expired' }, effective_period: period, server_now: stamp };
 describe('passage projection integration #2667', () => {
+  it.each(['cars', 'people'])('keeps legacy exit in a %s snapshot without inventing an event or grace', kind => {
+    const [frozen] = normalizeSnapshotRows([{ id: 1, territory_status: 2,
+      passage_state: { has_event: false, open: false, last_event_kind: '', in_exit_grace: false } }], kind);
+    expect(frozen.territory_status).toBe(2);
+    expect(frozen.exit_checked).toBe(true);
+    expect(frozen.passage_state.has_event).toBe(false);
+    expect(frozen.passage_state.in_exit_grace).toBe(false);
+    expect(frozen.can_revert).toBe(false);
+  });
   it('retains scoped admission and current passage when global status enrichment is stale', () => {
     const item = { ...row, ...passageFields(row) };
     mergePassageStatus(item, { territory_status: 2, can_revert: true, last_mark_table_id: 4, passage_state: { ...state, last_event_id: 70 } });

@@ -220,7 +220,7 @@ func (s *PassageCommandService) runOrdinary(ctx context.Context, actor int, kind
 				return err
 			}
 			if action == "entry" && record.PreviousID == 0 {
-				if err := tx.Table(string(kind)).Where("id=?", id).Update("territory_status", 0).Error; err != nil {
+				if err := tx.Table(string(kind)).Where("id=?", id).Update("territory_status", nil).Error; err != nil {
 					return err
 				}
 			}
@@ -285,13 +285,14 @@ func (s *PassageCommandService) finish(ctx context.Context, tx *gorm.DB, actor i
 	if err != nil {
 		return nil, err
 	}
-	status := 0
-	if state.Open {
-		status = 1
-	} else if state.HasEvent {
-		status = 2
+	status := PassageTerritoryStatus(state, record.TerritoryStatus)
+	entryAt := state.EntryAt
+	// The legacy cache retains the last effective entry even after departure.
+	// It does not make the closed passage open or create a new grace window.
+	if !state.Open && record.PreviousAction == "entry" {
+		entryAt = record.PreviousAt
 	}
-	updates := map[string]any{"territory_status": status, "territory_entry_time": state.EntryAt, "updated_at": now}
+	updates := map[string]any{"territory_status": status, "territory_entry_time": entryAt, "updated_at": now}
 	if err := tx.Table(string(kind)).Where("id=?", id).Updates(updates).Error; err != nil {
 		return nil, err
 	}

@@ -318,11 +318,13 @@ func TestEmployeeTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "empentrytbl1", "pass123", 1, td.OrgID, td.CompanyID)
-	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
 
 	// seedEmployeeViaCompleteApp уже создал system_table "test_table" (display_name "Test Table").
 	var st models.SystemTable
 	require.NoError(t, db.Where("name = ?", "test_table").First(&st).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "empentrytbl1"), "test_table", "view")
 	testutil.GrantTableVerb(t, getUserID(t, db, "empentrytbl1"), "test_table", "entry")
 
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID),
