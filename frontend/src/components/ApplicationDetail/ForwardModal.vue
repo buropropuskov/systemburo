@@ -10,15 +10,33 @@
   >
     <div class="forward-body">
       <div
-        v-if="readerOnly"
+        v-if="viewOnly"
         class="forward-reader-note"
         data-testid="forward-modal-reader-note"
       >
-        Заявка доступна вам только для просмотра - переслать её можно тоже только для
-        просмотра. Назначать согласующих и ответственных вправе отправитель.
+        <template v-if="withdrawn">Заявка отозвана. Пересылка доступна только для просмотра; назначение согласующих недоступно.</template>
+        <template v-else>Заявка доступна вам только для просмотра - переслать её можно тоже только для
+        просмотра. Назначать согласующих и ответственных вправе отправитель.</template>
       </div>
 
-      <div class="user-search-section">
+      <div class="filters-row">
+        <div v-for="(label, key) in { organization: 'Организации', company: 'Компании', position: 'Должности' }" :key="key" class="filters-row__control">
+          <BaseDropdown
+            v-model="filters[key]"
+            :options="[{ id: '', name: 'Все ' + label.toLowerCase() }, ...[...new Set(sortedAllUsers.map(user => user[key]).filter(Boolean))].map(value => ({ id: value, name: value }))]"
+            :placeholder="'Все ' + label.toLowerCase()"
+            :menu-z-index="20010"
+            searchable
+            teleport
+          />
+        </div>
+      </div>
+      <div class="forward-search-row">
+      <div
+        ref="userChooser"
+        class="user-search-section"
+        @focusout="onSearchBlur"
+      >
         <input
           ref="searchInput"
           v-model="searchQuery"
@@ -28,7 +46,6 @@
           type="text"
           @input="searchUsers"
           @focus="onSearchFocus"
-          @blur="onSearchBlur"
         >
         <div
           v-if="showDropdown && filteredUsers.length > 0"
@@ -40,6 +57,10 @@
               :key="user.username"
               class="forward-user-item"
               data-testid="forward-modal-user-option"
+              role="button"
+              tabindex="0"
+              @keydown.enter.prevent="addUser(user)"
+              @keydown.space.prevent="addUser(user)"
               @mousedown.prevent="addUser(user)"
             >
               <div class="forward-user-info">
@@ -73,13 +94,15 @@
         </div>
       </div>
 
+      <button type="button" class="reset-filters-btn" :disabled="!Object.values(filters).some(Boolean)" @click="resetFilters">Сбросить фильтры</button>
+      </div>
+
       <div
-        v-if="selectedUsers.length > 0"
         class="selected-forward-users"
       >
         <h4>Выбранные пользователи ({{ selectedUsers.length }})</h4>
         <div class="forward-users-list-container">
-          <div class="forward-users-list">
+          <div class="forward-users-list"><p v-if="selectedUsers.length === 0" class="forward-empty">Выберите пользователей для пересылки заявки</p>
             <div
               v-for="user in selectedUsers"
               :key="user.username"
@@ -104,7 +127,7 @@
                 <!-- Настройки доступа. Читателю не показываем: назначить согласующего
                      или ответственного он не вправе, сервер такой запрос отбивает. -->
                 <div
-                  v-if="!readerOnly"
+                  v-if="!viewOnly"
                   class="forward-selected-user-settings"
                   data-testid="forward-modal-user-settings"
                 >
@@ -150,16 +173,10 @@
       </div>
 
       <div
-        v-else
-        class="no-forward-users"
-      >
-        <p>Выберите пользователей для пересылки заявки</p>
-      </div>
-
-      <div
         v-if="attachments.length > 0"
         class="forward-attachments"
         data-testid="forward-modal-attachments"
+        :aria-describedby="selectedAttachmentIds.length === 0 ? 'forward-attachments-warning' : undefined"
       >
         <div class="forward-attachments-header">
           <h4>Вложения для пересылки ({{ selectedAttachmentIds.length }}/{{ attachments.length }})</h4>
@@ -201,10 +218,12 @@
           </label>
         </div>
         <p
-          v-if="selectedAttachmentIds.length === 0"
-          class="forward-attachments-hint"
+          v-show="selectedAttachmentIds.length === 0"
+          role="alert"
+          id="forward-attachments-warning"
+          class="forward-attachments-hint forward-message-warning"
         >
-          Выберите хотя бы одно вложение для пересылки
+          <span class="forward-message-warning-icon" aria-hidden="true">⚠</span><span>Выберите хотя бы одно вложение для пересылки</span>
         </p>
       </div>
 
@@ -235,7 +254,7 @@
         data-testid="forward-modal-warning"
       >
         <span class="forward-message-warning-icon">⚠</span>
-        <span>Ваше сообщение увидят все получатели заявки и бюро пропусков (принимающие), а не только выбранные вами.</span>
+        <span>Ваше сообщение увидят все получатели заявки и бюро пропусков, а не только выбранные вами.</span>
       </div>
     </div>
 
@@ -264,12 +283,14 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
+import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
     name: 'ForwardModal',
-    components: { BaseModal, FormField },
+    components: { BaseModal, FormField, BaseDropdown },
     props: {
+        withdrawn: { type: Boolean, default: false },
         show: {
             type: Boolean,
             required: true
@@ -314,8 +335,10 @@ export default {
     data() {
         return {
             searchQuery: '',
+            filters: {organization:'',company:'',position:''},
             searchResults: [],
             showDropdown: false,
+            searchBlurTimer: null,
             selectedUsers: [], // Каждый пользователь будет иметь поля: requires_approval, required_approval
             selectedAttachmentIds: [], // ID вложений для пересылки; по умолчанию выбраны все
             message: '', // Сопроводительное сообщение при пересылке (#967), необязательное
@@ -323,6 +346,7 @@ export default {
         }
     },
     computed: {
+        viewOnly() { return this.withdrawn || this.readerOnly; },
         // ID пользователей, которые уже являются ответственными
         responsibleUserIds() {
             return this.responsibleUsers.map(user => user.id);
@@ -376,7 +400,7 @@ export default {
                 });
             }
 
-            return availableUsers.slice(0, 15);
+            return availableUsers.filter(u => Object.entries(this.filters).every(([key,value]) => !value || u[key] === value)).slice(0, 15);
         },
 
         // Все вложения отмечены (мастер-тумблер "Выбрать все" в положении вкл).
@@ -405,17 +429,21 @@ export default {
     },
     watch: {
         // Модалка теперь всегда смонтирована (паттерн :show), поэтому чистим состояние
-        // при открытии и переводим фокус на поиск.
+        // при открытии. Фокус и список не открываем без действия пользователя.
         show(visible) {
             if (visible) {
                 this.reset();
-                this.$nextTick(() => {
-                    this.$refs.searchInput?.focus();
-                });
+            } else {
+                clearTimeout(this.searchBlurTimer);
+                this.searchBlurTimer = null;
             }
         }
     },
+    beforeUnmount() {
+        clearTimeout(this.searchBlurTimer);
+    },
     methods: {
+        resetFilters() { this.filters = { organization: '', company: '', position: '' }; },
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
             return names.length > 0 ? names.join(' ') : user.username;
@@ -426,6 +454,7 @@ export default {
         },
 
         onSearchFocus() {
+            clearTimeout(this.searchBlurTimer);
             this.showDropdown = true;
         },
 
@@ -457,9 +486,14 @@ export default {
             this.$emit('update:selected-users', this.selectedUsers);
         },
 
-        onSearchBlur() {
-            setTimeout(() => {
-                this.showDropdown = false;
+        onSearchBlur(event) {
+            clearTimeout(this.searchBlurTimer);
+            if (this.$refs.userChooser?.contains(event?.relatedTarget)) return;
+            this.searchBlurTimer = setTimeout(() => {
+                this.searchBlurTimer = null;
+                if (!this.$refs.userChooser?.contains(document.activeElement)) {
+                    this.showDropdown = false;
+                }
             }, 200);
         },
 
@@ -477,7 +511,7 @@ export default {
                 // Если требуется согласование - отправляем как ответственного.
                 // У читателя тумблеров нет вовсе, но флаг мог остаться от выбора,
                 // сделанного до смены роли - тогда сервер ответил бы 403.
-                if (user.requires_approval && !this.readerOnly) {
+                if (user.requires_approval && !this.viewOnly) {
                     return {
                         user_id: user.id,
                         required_approval: user.required_approval || false,
@@ -502,6 +536,9 @@ export default {
         },
 
         reset() {
+            clearTimeout(this.searchBlurTimer);
+            this.searchBlurTimer = null;
+            this.resetFilters();
             this.selectedUsers = [];
             this.searchQuery = '';
             this.showDropdown = false;
@@ -941,14 +978,45 @@ export default {
 }
 </style>
 
-<!-- не scoped: контент BaseModal телепортится в body и несёт data-v самого BaseModal,
-     поэтому радиус задаём глобально двойным классом (бьёт scoped .base-modal BaseModal).
-     overflow НЕ переопределяем: бокс сохраняет свой max-height:92vh + overflow-y:auto из
-     BaseModal, поэтому высокий контент (получатели + вложения + сообщение + предупреждение)
-     помещается со скроллом. Раньше здесь стоял overflow:visible ради выпадающего списка
-     поиска - он ломал вмещение и контент вылезал за экран. -->
+<!-- Общий BaseModal сохраняет свои заголовок, кнопки и предел высоты. Локальная flex-раскладка удерживает действия в окне; длинное тело прокручивается. -->
 <style>
 .base-modal.forward-modal {
     border-radius: 30px;
 }
+</style>
+<style scoped>
+/* Размеры trigger из истории, раскладка и сброс из Центра заявок. */
+.filters-row { display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap; }
+.filters-row__control {flex:1 1 0;min-width:150px;max-width:210px;}
+.filters-row :deep(.base-dropdown__button) {padding:6px 12px;font-size:12px;border-radius:20px;}
+.forward-search-row {display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.forward-search-row .user-search-section {flex:1;min-width:0;margin-bottom:0;}
+.reset-filters-btn {padding:7px 14px;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-pill);cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;}
+.reset-filters-btn:disabled {opacity:.5;cursor:default;}
+.forward-body {padding:16px;}
+.selected-forward-users {height:144px;min-height:144px;max-height:144px;display:flex;flex-direction:column;margin-bottom:12px;}
+.selected-forward-users h4 {font-size:14px;margin:0 0 8px;line-height:1.4;flex:0 0 auto;}
+.forward-users-list-container {flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;padding-bottom:2px;}
+.forward-selected-user {padding:8px 10px;flex-shrink:0;}
+.forward-selected-user-info {gap:4px;}
+.forward-selected-user-main {flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:6px;}
+.forward-selected-user-settings {gap:4px;margin-top:0;}
+.forward-users-list {gap:8px;}
+.forward-attachments-hint {box-sizing:border-box;height:34px;min-height:34px;margin:8px 0 0;visibility:visible;align-items:center;color:var(--danger-text);background:var(--danger-tint,var(--surface-2));border-color:var(--danger-text);border-radius:var(--radius-md);padding:6px 10px;font-size:12px;line-height:20px;}
+.forward-attachments-hint[style*="display: none"] {display:flex!important;visibility:hidden;}
+.forward-empty {font-size:12px;color:var(--text-muted);text-align:center;padding:20px 0;}
+.forward-attachments-list {max-height:240px;}
+.forward-attachments {margin-top:12px;}
+.forward-message-field {margin-top:12px;}
+.forward-message-warning {font-size:11px;}
+.forward-message-textarea {min-height:62px!important;}
+.forward-reader-note {font-size:12px;}
+@media(max-width:600px) {.filters-row__control{min-width:140px}.forward-search-row{flex-wrap:wrap}}
+</style>
+<style>
+.base-modal.forward-modal {display:flex;flex-direction:column;max-height:92vh;overflow:hidden!important;border-radius:30px;}
+.base-modal.forward-modal>.base-modal__header,
+.base-modal.forward-modal>.base-modal__actions {flex:0 0 auto;position:relative;z-index:1;background:var(--surface)}
+.base-modal.forward-modal>.base-modal__body {flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+@media(max-width:600px) {.base-modal.forward-modal{max-height:92dvh;margin:0 10px}}
 </style>
