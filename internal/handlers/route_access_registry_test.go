@@ -14,6 +14,22 @@ var routeAccessRegistry = map[string]routeAccess{
 	"POST /api/cars/:id/passage-close/revert":      perm("detail.passage.correct"),
 	"POST /api/employees/:id/passage-close":        perm("detail.passage.correct"),
 	"POST /api/employees/:id/passage-close/revert": perm("detail.passage.correct"),
+	// Individual and selected attachment periods: explicit managed rights plus
+	// fresh service visibility and lifecycle checks.
+	"GET /api/cars/:id/period":                              perm("detail.period.change"),
+	"PUT /api/cars/:id/period":                              perm("detail.period.change"),
+	"GET /api/employees/:id/period":                         perm("detail.period.change"),
+	"PUT /api/employees/:id/period":                         perm("detail.period.change"),
+	"POST /api/applications/:id/attachment-period/preview":  perm("application.period.change"),
+	"PUT /api/applications/:id/attachment-period":           perm("application.period.change"),
+	"GET /api/cars/:id/manual-attach-context":               perm("page.admin"),
+	"GET /api/cars/:id/manual-attach-attachments":           perm("page.admin"),
+	"POST /api/cars/:id/attach-to-application/preview":      perm("page.admin"),
+	"POST /api/cars/:id/attach-to-application":              perm("page.admin"),
+	"GET /api/employees/:id/manual-attach-context":          perm("page.admin"),
+	"GET /api/employees/:id/manual-attach-attachments":      perm("page.admin"),
+	"POST /api/employees/:id/attach-to-application/preview": perm("page.admin"),
+	"POST /api/employees/:id/attach-to-application":         perm("page.admin"),
 	// access-denials
 	"DELETE /api/access-denials":       perm("permission.audit.manage"),
 	"GET /api/access-denials":          perm("permission.audit.read"),

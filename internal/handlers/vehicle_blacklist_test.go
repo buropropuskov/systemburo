@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/database"
 	"systemburo/internal/models"
@@ -233,8 +234,14 @@ func TestVehicleBlacklist_UnblacklistSkipsExpiredPass(t *testing.T) {
 	}, userID)
 	require.NoError(t, err)
 
-	// Пропуск истёк, пока машина была в ЧС.
-	require.NoError(t, db.Model(&models.Car{}).Where("id = ?", carID).Update("entry_date_to", "2000-01-01").Error)
+	// In inherit mode the complete permit window belongs to the attachment,
+	// rather than the car's legacy stored dates.
+	now := time.Now().In(time.FixedZone("MSK", 3*60*60))
+	require.NoError(t, db.Model(&models.Attachment{}).Where("application_id = ?", appID).
+		Updates(map[string]interface{}{
+			"entry_date_from": now.AddDate(0, 0, -3).Format("2006-01-02"),
+			"entry_date_to":   now.AddDate(0, 0, -2).Format("2006-01-02"),
+		}).Error)
 
 	require.NoError(t, svc.Archive(ctx, entry.ID, userID))
 
