@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -97,10 +98,9 @@ func TestCreateManualEmployees_PersistsAndScoped(t *testing.T) {
 	assert.Empty(t, testutil.ParseSlice(t, rec), "ручной сотрудник не виден в непривязанной таблице")
 }
 
-// Ручной сотрудник виден в таблице даже с истёкшим окном действия пропуска: в отличие от
-// заявочных (гейтятся CURRENT_DATE BETWEEN entry_date_from/to), ручные показываются пока
-// активны (e.status=1) - зеркало поведения ручных машин, у которых окна-фильтра нет вовсе.
-func TestCreateManualEmployees_VisibleDespiteExpiredWindow(t *testing.T) {
+// A bounded manual entry follows its effective admission period, just like an
+// application entry. There is no open passage in this fixture.
+func TestCreateManualEmployees_HiddenAfterExpiredWindow(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -110,11 +110,12 @@ func TestCreateManualEmployees_VisibleDespiteExpiredWindow(t *testing.T) {
 	citizenshipID := seedCitizenship(t, db)
 	tableID := seedPeopleTable(t, db, "people_manual_expired", "Проход E")
 
+	now := time.Now().In(time.FixedZone("MSK", 3*60*60))
 	body := fmt.Sprintf(`{
 		"organization_id": %d,
 		"table_id": %d,
-		"entry_date_from": "2020-01-01",
-		"entry_date_to": "2020-12-31",
+		"entry_date_from": "%s",
+		"entry_date_to": "%s",
 		"employees": [{
 			"last_name": "Expired",
 			"first_name": "Window",
@@ -123,7 +124,7 @@ func TestCreateManualEmployees_VisibleDespiteExpiredWindow(t *testing.T) {
 			"passport_series_number": "0001 112233",
 			"target_tables": []
 		}]
-	}`, td.OrgID, tableID, citizenshipID)
+	}`, td.OrgID, tableID, now.AddDate(0, 0, -3).Format("2006-01-02"), now.AddDate(0, 0, -2).Format("2006-01-02"), citizenshipID)
 
 	rec := testutil.POST(t, e, "/employees/manual", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "manual add: %s", rec.Body.String())
@@ -131,8 +132,7 @@ func TestCreateManualEmployees_VisibleDespiteExpiredWindow(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	rows := testutil.ParseSlice(t, rec)
-	require.Len(t, rows, 1, "ручной сотрудник виден несмотря на истёкшее окно")
-	assert.Equal(t, "Expired", rows[0]["last_name"])
+	require.Empty(t, rows, "ручной сотрудник без открытого прохода скрыт после истечения срока")
 }
 
 // Двое ручных сотрудников без паспорта в одной таблице видны ОБА: пустой паспорт
