@@ -122,7 +122,7 @@ export default {
           expectedLastEventID: current.expectedLastEventID,
         });
         if (!ok) {
-          current.onDone?.();
+          current.onRefresh?.();
           useDeletionsStore().notify({ prefix: '', bold: error, type: 'error' });
           return;
         }

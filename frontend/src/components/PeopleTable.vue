@@ -1279,6 +1279,7 @@ export default {
         kind: 'employees', id: item.id, direction: type, tableId: this.currentTableId, expectedLastEventID: this.expectedPassageEvent(item),
         subject: `${item.last_name || ''} ${item.first_name || ''}`.trim() || 'сотрудник',
         onDone: () => this._loadData(true),
+        onRefresh: () => this._loadData(true),
       });
     },
 

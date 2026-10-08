@@ -25,6 +25,7 @@ function okResponse(data) {
 // Одна фактовая машина в ответе /cars/fact-for-table -> fetchCarsData её замапит
 // (entry_checked/exit_checked=false, status='В работе'), строка отрисуется штатно.
 const RAW_CAR = { id: 5, car_number: 'по факту', car_brand: '', organization: 'X', application_id: 1 };
+let serverCar;
 
 function mountTable(props = {}) {
   return mount(FactTable, {
@@ -39,8 +40,16 @@ describe('FactTable - пропуск "по факту" (#1132)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     apiRequest.mockReset();
-    apiRequest.mockImplementation((url) => {
-      if (url.includes('/cars/fact-for-table')) return Promise.resolve(okResponse([RAW_CAR]));
+    serverCar = { ...RAW_CAR };
+    apiRequest.mockImplementation((url, options) => {
+      if (url.endsWith('/territory-status')) {
+        const status = JSON.parse(options.body).territory_status;
+        serverCar = { ...serverCar, territory_status: status,
+          passage_state: { has_event: true, open: status === 1, last_event_id: 17, last_event_kind: status === 1 ? 'entry' : 'exit' },
+          admission: { can_enter: status !== 1, can_exit: status === 1 } };
+        return Promise.resolve(okResponse({}));
+      }
+      if (url.includes('/cars/fact-for-table')) return Promise.resolve(okResponse([serverCar]));
       if (/\/(unload-places|organizations|companies|marks)/.test(url)) return Promise.resolve(okResponse([]));
       if (url.includes('/cars/fact') || url.includes('/cars/history')) return Promise.resolve(okResponse([]));
       if (url.includes('/license-plate-formats')) return Promise.resolve(okResponse([]));

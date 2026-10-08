@@ -143,8 +143,18 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     await flushPromises();
     await wrapper.setData({ itemsData: [baseItem()] });
 
+    let marked = false;
+    const projectedRow = () => ({
+      ...baseItem(), status: 1, territory_status: marked ? 1 : null,
+      passage_state: { has_event: marked, open: marked, last_event_id: marked ? 17 : 0, last_event_kind: marked ? 'entry' : null },
+      admission: { can_enter: !marked, can_exit: marked },
+    });
     apiRequest.mockImplementation((url) => {
-      if (url.endsWith('/territory-status')) return { ok: true, json: async () => ({}) };
+      if (url.endsWith('/territory-status')) { marked = true; return okResponse({}); }
+      if (url.startsWith('/cars/active-for-table/')) return okResponse([projectedRow()]);
+      if (url.startsWith('/cars/history/current-status')) return okResponse([{
+        car_id: 1, can_revert: marked, last_mark_table_id: TABLE_ID, passage_state: projectedRow().passage_state,
+      }]);
       return okResponse([]);
     });
 

@@ -996,6 +996,7 @@ export default {
           kind: 'cars', id: item.id, direction: type, tableId: this.tableId, expectedLastEventID: this.expectedPassageEvent(item),
           subject: item.car_number || 'машина',
           onDone: () => this._loadData(true),
+          onRefresh: () => this._loadData(true),
         });
         return;
       }

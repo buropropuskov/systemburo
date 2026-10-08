@@ -86,6 +86,24 @@ describe('PassageRevertModal (#2437)', () => {
     expect(JSON.stringify(useDeletionsStore().items)).toContain('Отметку поставил другой пользователь');
   });
 
+  it('конфликт обновляет данные отдельно от успеха и оставляет окно открытым', async () => {
+    apiRequest.mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: 'Отметка изменилась' }) });
+    const wrapper = mountModal();
+    const store = usePassageRevertStore();
+    const onDone = vi.fn();
+    const onRefresh = vi.fn();
+    ask(store, { onDone, onRefresh });
+    await flushPromises();
+    await wrapper.find('[data-testid="passage-revert-reason"]').setValue('ошибочная отметка');
+    await wrapper.find('[data-testid="passage-revert-submit"]').trigger('click');
+    await flushPromises();
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(onDone).not.toHaveBeenCalled();
+    expect(store.request).not.toBeNull();
+    expect(JSON.stringify(useDeletionsStore().items)).toContain('Отметка изменилась');
+    wrapper.unmount();
+  });
+
   it('новый запрос начинается с пустой причины, а не с прошлой', async () => {
     const wrapper = mountModal();
     const store = usePassageRevertStore();
