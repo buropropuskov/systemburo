@@ -44,12 +44,21 @@
             <p class="forward-message-action">
               {{ actionText(msg) }}
             </p>
-            <p
-              v-if="recipientsText(msg)"
-              class="forward-message-recipients"
-            >
-              <span class="forward-message-recipients-label">Кому:</span>
-              {{ recipientsText(msg) }}
+            <div class="forward-message-recipients">
+              <span class="forward-message-recipients-label">Получатели:</span>
+              <div
+                v-for="recipient in forwardRecipients(msg)"
+                :key="recipient.user_id"
+                class="forward-message-recipient"
+              >
+                <strong>{{ recipient.display_name }}</strong><span> — {{ forwardRecipientPurpose(recipient) }}</span>
+              </div>
+              <div v-if="!forwardRecipients(msg).length">
+                {{ forwardRecipientsUnavailable }}
+              </div>
+            </div>
+            <p class="forward-message-materials">
+              <span class="forward-message-recipients-label">Материалы: </span>{{ forwardMaterialsText(msg) }}
             </p>
             <p
               v-if="msg.message"
@@ -66,6 +75,7 @@
 
 <script>
 import { getForwardMessages } from '@/api/applications'
+import { forwardRecipients, forwardRecipientPurpose, forwardActionText, forwardMaterialsText, FORWARD_RECIPIENTS_UNAVAILABLE } from '@/utils/applicationForwardHistory';
 
 export default {
     name: 'ForwardMessages',
@@ -84,6 +94,9 @@ export default {
         }
     },
     computed: {
+        forwardRecipientsUnavailable() {
+            return FORWARD_RECIPIENTS_UNAVAILABLE;
+        },
         // id тела для aria-controls кнопки-заголовка (disclosure widget).
         bodyId() {
             return `forward-messages-body-${this.applicationId}`;
@@ -99,6 +112,9 @@ export default {
         this.load();
     },
     methods: {
+        forwardRecipients,
+        forwardRecipientPurpose,
+        forwardMaterialsText,
         // Seq-токен: при быстрой смене заявки медленный ответ предыдущей не затирает
         // актуальный (урок гонки авто-fetch по watch, #632).
         async load() {
@@ -134,17 +150,9 @@ export default {
             }
         },
 
-        recipientsText(msg) {
-            return Array.isArray(msg.recipients) ? msg.recipients.join(', ') : '';
-        },
-
         // Действие пересылки теми же словами, что в блоке История (getActionText).
         actionText(msg) {
-            const names = msg.attachments;
-            if (msg.whole || !Array.isArray(names) || names.length === 0) {
-                return 'Переслал(-а) всю заявку';
-            }
-            return `Переслал(-а) вложения: ${names.join(', ')}`;
+            return forwardActionText(msg);
         },
 
         formatDateTime(value) {
@@ -286,12 +294,17 @@ export default {
     word-break: break-word;
 }
 
-.forward-message-recipients {
+.forward-message-recipients,
+.forward-message-materials {
     margin: 0 0 4px;
     font-size: 13px;
     color: var(--text-muted);
     line-height: 140%;
     word-break: break-word;
+}
+
+.forward-message-recipient {
+    margin: 6px 0;
 }
 
 .forward-message-recipients-label {

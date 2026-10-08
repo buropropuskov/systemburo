@@ -184,6 +184,29 @@
                         {{ getActionText(item) }}
                       </div>
 
+                      <div
+                        v-if="item.action_type === 'forwarded'"
+                        class="forward-detail"
+                      >
+                        <div class="forward-label">Получатели</div>
+                        <div
+                          v-for="recipient in forwardRecipients(item.metadata)"
+                          :key="recipient.user_id"
+                          class="forward-recipient"
+                        >
+                          <strong>{{ recipient.display_name }}</strong><span> — {{ forwardRecipientPurpose(recipient) }}</span>
+                        </div>
+                        <div
+                          v-if="!forwardRecipients(item.metadata).length"
+                          class="forward-legacy"
+                        >
+                          {{ forwardRecipientsUnavailable }}
+                        </div>
+                        <div class="forward-materials">
+                          <span class="forward-label">Материалы: </span>{{ forwardMaterialsText(item.metadata) }}
+                        </div>
+                      </div>
+
                       <!-- Для пересылки показываем дополнительную информацию -->
                       <div
                         v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
@@ -248,6 +271,7 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { ACTION_DOT_CLASS, ACTION_TEXT } from '@/utils/applicationHistoryActions';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
+import { forwardRecipients, forwardRecipientPurpose, forwardActionText, forwardRecipientsText, forwardMaterialsText, FORWARD_RECIPIENTS_UNAVAILABLE } from '@/utils/applicationForwardHistory';
 
 export default {
     name: 'ApplicationHistory',
@@ -308,6 +332,9 @@ export default {
         }
     },
     computed: {
+        forwardRecipientsUnavailable() {
+            return FORWARD_RECIPIENTS_UNAVAILABLE;
+        },
         // Уникальные пользователи из истории
         uniqueUsers() {
             const users = new Map();
@@ -438,6 +465,9 @@ export default {
         },
     },
     methods: {
+        forwardRecipients,
+        forwardRecipientPurpose,
+        forwardMaterialsText,
         openModal() {
             this.showModal = true;
             this.loadHistory();
@@ -490,6 +520,7 @@ export default {
                     header: [
                         'Дата и время', 'Пользователь', 'Действие', 'Старое значение',
                         'Новое значение', 'Комментарий', 'Обязательно', 'Кто переслал',
+                        'Получатели и назначения', 'Материалы',
                     ],
                     rows: this.filteredHistory.map(item => [
                         this.formatTime(item.created_at),
@@ -500,8 +531,11 @@ export default {
                         item.comment || '',
                         item.metadata?.required_approval ? 'Да' : 'Нет',
                         item.metadata?.forwarded_by || '',
+                        item.action_type === 'forwarded' ? forwardRecipientsText(item.metadata) : '',
+                        item.action_type === 'forwarded' ? forwardMaterialsText(item.metadata) : '',
                     ]),
-                    widths: [25, 40, 50, 30, 30, 40, 20, 35],
+                    widths: [25, 40, 50, 30, 30, 40, 20, 35, 60, 60],
+                    wrapColumns: [8, 9],
                     info: [
                         ['Отчёт сформировал:', this.currentUserDisplayName],
                         ['Дата формирования:', this.formattedCurrentDateTime],
@@ -537,11 +571,7 @@ export default {
 
             // Сводка пересылки: вся заявка или конкретные вложения (#680)
             if (item.action_type === 'forwarded') {
-                const names = item.metadata?.attachments;
-                if (item.metadata?.whole || !Array.isArray(names) || !names.length) {
-                    return 'Переслал(-а) всю заявку';
-                }
-                return `Переслал(-а) вложения: ${names.join(', ')}`;
+                return forwardActionText(item.metadata);
             }
 
             // Начало обсуждения по заявке (#973): тема обсуждения в metadata.subject.
@@ -1044,6 +1074,33 @@ export default {
     color: var(--accent-text);
     font-style: italic;
     margin-bottom: 4px;
+}
+
+.forward-detail {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.forward-label {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.forward-recipient {
+    margin: 6px 0;
+}
+
+.forward-materials {
+    margin-top: 10px;
+}
+
+.forward-legacy {
+    color: var(--text-muted);
 }
 
 .required-badge {

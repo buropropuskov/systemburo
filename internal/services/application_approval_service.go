@@ -153,6 +153,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	}
 	var addedResponsibleUsers []addedResp
 	var addedViewers []int
+	recipientDetails := make([]forwardRecipientDetail, 0, len(req.Users))
 
 	for _, fu := range req.Users {
 		// Проверяем существование пользователя
@@ -194,6 +195,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				VALUES (?, ?, ?, 'pending', ?, ?, false)
 			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID)
 			addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
+			recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
+				UserID: fu.UserID, Purpose: "approval", RequiredApproval: fu.RequiredApproval, AccessGranted: true,
+			})
 		} else {
 			// Просматривающий
 			var alreadyAdded bool
@@ -206,6 +210,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				`, applicationID, fu.UserID, baseTime, user.ID)
 			}
 			addedViewers = append(addedViewers, fu.UserID)
+			recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
+				UserID: fu.UserID, Purpose: "view", AccessGranted: !alreadyAdded,
+			})
 		}
 	}
 
@@ -269,6 +276,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	// вложений кладём в metadata, текст собирает фронт (как у assigned_*).
 	if len(addedResponsibleUsers) > 0 || len(addedViewers) > 0 {
 		var attNames []string
+		attachmentDetails := make([]forwardAttachmentDetail, 0)
 		if len(req.AttachmentIDs) > 0 {
 			tx.Raw(`
 				SELECT COALESCE(attachment_display_name, attachment_name, '')
@@ -276,6 +284,15 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				WHERE application_id = ? AND id IN ?
 				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
 			`, applicationID, req.AttachmentIDs).Scan(&attNames)
+		}
+		if len(req.AttachmentIDs) > 0 {
+			if err := tx.Raw(`SELECT id, COALESCE(attachment_display_name, attachment_name, '') AS name
+				FROM attachments WHERE application_id = ? AND id IN ?
+				ORDER BY COALESCE(attachment_display_name, attachment_name, ''), id`,
+				applicationID, req.AttachmentIDs).Scan(&attachmentDetails).Error; err != nil {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load forwarding materials")
+			}
 		}
 		// Получатели этой пересылки (#967, ветка заявки): ответственные, затем
 		// просматривающие - в том же порядке кладём в metadata.recipients, чтобы
@@ -316,10 +333,14 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 		}
 		meta, _ := json.Marshal(map[string]interface{}{
-			"forwarded_by": currentUserName,
-			"whole":        len(attNames) == 0,
-			"attachments":  attNames,
-			"recipients":   recipientNames,
+			"forwarded_by":           currentUserName,
+			"whole":                  len(attNames) == 0,
+			"attachments":            attNames,
+			"recipients":             recipientNames,
+			"forward_schema_version": 2,
+			"recipient_details":      recipientDetails,
+			"attachment_scope":       forwardAttachmentScope(req.AttachmentIDs),
+			"attachment_details":     attachmentDetails,
 		})
 		// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
 		// Пустое после trim -> comment не пишем; пересылка всё равно попадёт в ветку

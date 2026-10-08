@@ -18,14 +18,16 @@ import (
 // переслано (из metadata.recipients), AuthorName - кто переслал. Whole/Attachments -
 // что переслано (вся заявка либо перечень вложений), для строки "действия" в ветке.
 type ForwardMessageItem struct {
-	ID          int       `json:"id"`
-	AuthorID    int       `json:"author_id"`
-	AuthorName  string    `json:"author_name"`
-	Message     string    `json:"message"`
-	Recipients  []string  `json:"recipients"`
-	Whole       bool      `json:"whole"`
-	Attachments []string  `json:"attachments"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID                        int                       `json:"id"`
+	AuthorID                  int                       `json:"author_id"`
+	AuthorName                string                    `json:"author_name"`
+	Message                   string                    `json:"message"`
+	Recipients                []string                  `json:"recipients"`
+	Whole                     bool                      `json:"whole"`
+	Attachments               []string                  `json:"attachments"`
+	CreatedAt                 time.Time                 `json:"created_at"`
+	RecipientDetails          []forwardRecipientDisplay `json:"recipient_details"`
+	RecipientDetailsAvailable bool                      `json:"recipient_details_available"`
 }
 
 // applicationAuditDetails - форма details jsonb для записей application в audit_log
@@ -134,6 +136,26 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 		}
 	}
 
+	forwardIndexes := make([]int, 0)
+	forwardMetadata := make([]json.RawMessage, 0)
+	for i := range items {
+		if items[i].ActionType == models.AuditActionForwarded {
+			forwardIndexes = append(forwardIndexes, i)
+			if items[i].Metadata == nil {
+				forwardMetadata = append(forwardMetadata, nil)
+			} else {
+				forwardMetadata = append(forwardMetadata, *items[i].Metadata)
+			}
+		}
+	}
+	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, forwardMetadata)
+	if err != nil {
+		slog.Error("не удалось подготовить получателей истории", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
+	}
+	for i, index := range forwardIndexes {
+		items[index].Metadata = &sanitized[i]
+	}
 	return items, nil
 }
 
@@ -154,6 +176,7 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			` + authorName + ` AS author_name,
 			COALESCE(a.details->>'comment', '') AS message,
 			COALESCE(a.details->'metadata'->>'recipients', '[]') AS recipients_json,
+			a.details->'metadata' AS metadata_json,
 			COALESCE((a.details->'metadata'->>'whole')::boolean, true) AS whole,
 			COALESCE(a.details->'metadata'->>'attachments', '[]') AS attachments_json,
 			a.created_at
@@ -168,6 +191,7 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		AuthorID        int
 		AuthorName      string
 		Message         string
+		MetadataJSON    json.RawMessage
 		RecipientsJSON  string
 		Whole           bool
 		AttachmentsJSON string
@@ -193,19 +217,37 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		return out
 	}
 
+	metadata := make([]json.RawMessage, len(rows))
+	for i := range rows {
+		metadata[i] = rows[i].MetadataJSON
+	}
+	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, metadata)
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
+	}
 	// Логин вместо ФИО у пересылавших, не давших согласия на обработку данных.
 	masks := loadConsentMasks(ctx, s.db)
 	items := make([]ForwardMessageItem, 0, len(rows))
-	for _, r := range rows {
+	for i, r := range rows {
+		var safe struct {
+			Recipients []string                  `json:"recipients"`
+			Details    []forwardRecipientDisplay `json:"recipient_details"`
+			Available  bool                      `json:"recipient_details_available"`
+		}
+		if err := json.Unmarshal(sanitized[i], &safe); err != nil {
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
+		}
 		items = append(items, ForwardMessageItem{
-			ID:          r.ID,
-			AuthorID:    r.AuthorID,
-			AuthorName:  maskName(masks, &r.AuthorID, r.AuthorName),
-			Message:     r.Message,
-			Recipients:  parseStrings(r.RecipientsJSON, "recipients", r.ID),
-			Whole:       r.Whole,
-			Attachments: parseStrings(r.AttachmentsJSON, "attachments", r.ID),
-			CreatedAt:   r.CreatedAt,
+			ID:                        r.ID,
+			AuthorID:                  r.AuthorID,
+			AuthorName:                maskName(masks, &r.AuthorID, r.AuthorName),
+			Message:                   r.Message,
+			Recipients:                safe.Recipients,
+			RecipientDetails:          safe.Details,
+			RecipientDetailsAvailable: safe.Available,
+			Whole:                     r.Whole,
+			Attachments:               parseStrings(r.AttachmentsJSON, "attachments", r.ID),
+			CreatedAt:                 r.CreatedAt,
 		})
 	}
 
