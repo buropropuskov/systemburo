@@ -1336,6 +1336,9 @@ func (s *uniqueEmployeeService) ClearObjection(ctx context.Context, username str
 	if err != nil {
 		return err
 	}
+	if !ownerInfo.CanManageAll {
+		return echo.NewHTTPError(http.StatusForbidden, "Снять отметку о возражении может только администратор бюро: возражение адресовано оператору, и решение по нему принимает он")
+	}
 
 	var existing models.UniqueEmployee
 	if err := s.db.WithContext(ctx).First(&existing, id).Error; err != nil {
@@ -1343,9 +1346,6 @@ func (s *uniqueEmployeeService) ClearObjection(ctx context.Context, username str
 			return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
-	}
-	if !ownerInfo.CanManageAll {
-		return echo.NewHTTPError(http.StatusForbidden, "Снять отметку о возражении может только администратор бюро: возражение адресовано оператору, и решение по нему принимает он")
 	}
 	if existing.PDObjectionAt == nil {
 		return echo.NewHTTPError(http.StatusNotFound, "Возражение по этой записи не отмечено")

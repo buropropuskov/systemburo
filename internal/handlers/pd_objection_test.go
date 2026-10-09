@@ -175,6 +175,42 @@ func TestPDObjection_ClearIsAdminOnly(t *testing.T) {
 		"администратор бюро снимает по итогам рассмотрения")
 }
 
+func TestPDObjection_ClearDoesNotRevealEmployeeExistence(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	applicantH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "objection_enumerator",
+		"password123456789012345678901234", 1, td.OrgID, td.CompanyID))
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees",
+		`{"last_name":"Скрытый","first_name":"Пётр","position":"Слесарь","passport_series_number":"4501 888888","pd_consent":true}`, adminH).Code)
+	id := objectionEmployeeID(t, db, "Скрытый")
+	path := "/unique-employees/" + itoa(id)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, path+"/objection", `{"source":"заявление"}`, adminH).Code)
+
+	existing := testutil.DELETE(t, e, path+"/objection", applicantH)
+	missing := testutil.DELETE(t, e, "/unique-employees/2000000000/objection", applicantH)
+	assert.Equal(t, http.StatusForbidden, existing.Code)
+	assert.Equal(t, existing.Code, missing.Code, "отказ не раскрывает существование записи")
+	assert.Equal(t, existing.Body.String(), missing.Body.String(), "тело ответа одинаково для обоих ID")
+
+	var row models.UniqueEmployee
+	require.NoError(t, db.First(&row, id).Error)
+	assert.NotNil(t, row.PDObjectionAt, "отказ не снял возражение")
+	assert.NotNil(t, row.PDObjectionByUserID, "отказ не изменил автора возражения")
+	assert.NotNil(t, row.PDObjectionSource, "отказ не изменил источник возражения")
+	var cleared int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityUniqueEmployee, id, "pd_objection_cleared").
+		Count(&cleared).Error)
+	assert.Zero(t, cleared, "отказ не записал аудит снятия возражения")
+
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, "/unique-employees/2000000000/objection", adminH).Code,
+		"администратор по-прежнему получает 404 для неизвестного ID")
+}
+
 // Аннулирование действующих пропусков при возражении (#2361, решение владельца:
 // аннулировать сразу). Человек возразил - его данные не используются больше ни для
 // чего, включая проход. Строки убираются мягко: остаются в корзине и в истории,
