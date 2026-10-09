@@ -356,13 +356,13 @@
 | `github.com/valyala/bytebufferpool` | v1.0.0 | MIT | Copyright (c) 2016 Aliaksandr Valialkin, VertaMedia |
 | `github.com/valyala/fasttemplate` | v1.2.2 | MIT | Copyright (c) 2015 Aliaksandr Valialkin |
 | `github.com/wneessen/go-mail` | v0.8.1 | MIT | Copyright (c) 2022-2025 The go-mail Authors |
-| `github.com/xuri/efp` | v0.0.1 | BSD-3-Clause | Copyright (c) 2017 - 2025 Ri Xu All rights reserved |
-| `github.com/xuri/excelize/v2` | v2.11.1-0.20260910071107-696050fbf14e | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
+| `github.com/xuri/efp` | v0.0.2 | BSD-3-Clause | Copyright (c) 2017 - 2026 Ri Xu All rights reserved |
+| `github.com/xuri/excelize/v2` | v2.11.1-0.20261003002531-6258dcebc4e2 | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
 | `github.com/xuri/nfp` | v0.0.2-0.20250530014748-2ddeb826f9a9 | BSD-3-Clause | Copyright (c) 2022-2025 Ri Xu All rights reserved |
 | `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/image` | v0.46.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/mod` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/net` | v0.58.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/net` | v0.60.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sync` | v0.23.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sys` | v0.48.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/text` | v0.42.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
@@ -679,7 +679,7 @@ THE SOFTWARE.
 
 ### 7.5. BSD-3-Clause
 
-Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.57.0, `golang.org/x/image` v0.46.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.23.0, `golang.org/x/sys` v0.48.0, `golang.org/x/text` v0.42.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
+Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.57.0, `golang.org/x/image` v0.46.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.60.0, `golang.org/x/sync` v0.23.0, `golang.org/x/sys` v0.48.0, `golang.org/x/text` v0.42.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -5110,12 +5110,12 @@ SOFTWARE.
 
 ### 7.105. BSD-3-Clause
 
-Компоненты: `github.com/xuri/efp` v0.0.1
+Компоненты: `github.com/xuri/efp` v0.0.2
 
 ```text
 BSD 3-Clause License
 
-Copyright (c) 2017 - 2025 Ri Xu All rights reserved.
+Copyright (c) 2017 - 2026 Ri Xu All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -5145,7 +5145,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### 7.106. BSD-3-Clause
 
-Компоненты: `github.com/xuri/excelize/v2` v2.11.1-0.20260910071107-696050fbf14e
+Компоненты: `github.com/xuri/excelize/v2` v2.11.1-0.20261003002531-6258dcebc4e2
 
 ```text
 BSD 3-Clause License

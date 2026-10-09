@@ -27,6 +27,7 @@ func TestCarHistory_CreatedAtIsValidISO8601(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carutc1"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 
 	// Сделаем действие, чтобы появилась запись истории.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
@@ -132,6 +133,7 @@ func TestCarsCurrentStatus_TerritoryEntryTimeIsUTC(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carutc3"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 
 	// Делаем "въезд", который проставит territory_entry_time через time.Now().UTC().
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),

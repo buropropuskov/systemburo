@@ -151,9 +151,8 @@ func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "emphist1"), "people")
+	preparePassageFixtureEmployee2667(t, db, employee.ID, passTbl, td.OrgID, false)
 	// История сотрудника видна охраннику только на его посту.
-	require.NoError(t, db.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)",
-		employee.ID, passTbl).Error)
 
 	// Регистрируем entry - должен создать запись в audit_log[employee].
 	putBody := fmt.Sprintf(`{"territory_status":1,"user_id":null,"table_id":%d}`, passTbl)
@@ -251,6 +250,7 @@ func TestUpdateEmployeeTerritoryStatus_Entry(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "territory_u1", "pass123", 1, td.OrgID, td.CompanyID)
 	userID := getUserID(t, db, "territory_u1")
 	passTbl := seedPassTableGrant(t, db, userID, "people")
+	preparePassageFixtureEmployee2667(t, db, empID, passTbl, td.OrgID, false)
 
 	body := fmt.Sprintf(`{"territory_status": 1, "user_id": %d, "table_id": %d}`, userID, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
@@ -277,6 +277,7 @@ func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
 	empID := seedEmployeeDirect(t, db, "Petrov", "Petr")
 	token := testutil.RegisterAndLogin(t, e, "territory_u2", "pass123", 1, td.OrgID, td.CompanyID)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "territory_u2"), "people")
+	preparePassageFixtureEmployee2667(t, db, empID, passTbl, td.OrgID, true)
 
 	body := fmt.Sprintf(`{"territory_status": 2, "table_id": %d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))

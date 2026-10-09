@@ -12,7 +12,7 @@ export const usePassageRevertStore = defineStore('passageRevert', {
   state: () => ({
     /**
      * Открытый запрос на отмену либо null.
-     * {kind, id, direction, tableId, subject, onDone}
+     * {kind, id, direction, tableId, subject, onDone, onRefresh}
      */
     request: null,
   }),
@@ -20,7 +20,7 @@ export const usePassageRevertStore = defineStore('passageRevert', {
     /**
      * Открывает окно причины.
      *
-     * @param {{kind: 'employees'|'cars', id: number, direction: 'entry'|'exit', tableId: number, subject: string, onDone: Function}} request
+     * @param {{kind: 'employees'|'cars', id: number, direction: 'entry'|'exit', tableId: number, subject: string, onDone: Function, onRefresh?: Function}} request
      */
     ask(request) {
       this.request = request;

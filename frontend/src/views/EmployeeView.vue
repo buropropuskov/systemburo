@@ -4,14 +4,14 @@
     class="employeesview"
     data-testid="employees-page"
   >
-    <header class="employeesview__header">
+    <PassageRegistrySummary kind="employee" class="employeesview__header">
       <h2 class="employeesview__title">
         Список <span class="blue">сотрудников</span>
       </h2>
       <p class="employeesview__subtitle">
         Вкладка для просмотра сотрудников, которых вы или ваша организация/компания когда-либо привязывали к заявкам.
       </p>
-    </header>
+    </PassageRegistrySummary>
 
     <!-- Десктоп: поиск и табы области над карточкой. На мобилке этот блок физически
          переезжает под шапку списка (.employeesview__toolbar) - через v-if, а не

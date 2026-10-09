@@ -121,6 +121,11 @@ func (s *tableSnapshotService) SnapshotTable(ctx context.Context, tableID int, r
 		return 0, err
 	}
 
+	captured := time.Now().UTC()
+	rowsJSON, err = freezeSnapshotPassages(rowsJSON, captured)
+	if err != nil {
+		return 0, err
+	}
 	payloadJSON, err := json.Marshal(models.SnapshotPayload{TableType: table.TableType, Rows: rowsJSON, Fields: fields})
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal snapshot payload: %w", err)
@@ -132,7 +137,7 @@ func (s *tableSnapshotService) SnapshotTable(ctx context.Context, tableID int, r
 
 	snap := models.TableSnapshot{
 		TableID:     tableID,
-		TakenAt:     time.Now().UTC(),
+		TakenAt:     captured,
 		Reason:      reason,
 		ActorUserID: actorUserID,
 		Payload:     payloadJSON,
@@ -200,7 +205,8 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 		if err != nil {
 			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to marshal car rows: %w", err)
 		}
-		return raw, computeSnapshotCounts(statuses), nil
+		counts, err := snapshotPassageCounts(raw)
+		return raw, counts, err
 
 	case models.TableTypePeople:
 		// Сотрудники скоуплены по table_id; territory_status страница берёт отдельным
@@ -211,20 +217,29 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 		}
 		// Спрашивающего нет: слепок снимает планировщик, и признак «отметку можно
 		// отменить» в нём никого не касается (#2437).
-		statusList, err := s.empStatus.GetCurrentStatus(ctx, 0, FullElementScope())
-		if err != nil {
-			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list employee statuses for snapshot: %w", err)
+		statusByID := make(map[int]int)
+		needsLegacyStatus := false
+		for _, emp := range emps {
+			if emp.ServerNow.IsZero() {
+				needsLegacyStatus = true
+				break
+			}
 		}
-		statusByID := make(map[int]int, len(statusList))
-		for _, st := range statusList {
-			statusByID[st.EmployeeID] = st.TerritoryStatus
+		if needsLegacyStatus {
+			statusList, err := s.empStatus.GetCurrentStatus(ctx, 0, FullElementScope())
+			if err != nil {
+				return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list employee statuses for snapshot: %w", err)
+			}
+			for _, st := range statusList {
+				statusByID[st.EmployeeID] = st.TerritoryStatus
+			}
 		}
 
 		rows := make([]snapshotEmployeeRow, len(emps))
 		statuses := make([]*int, len(emps))
 		for i, emp := range emps {
-			var ts *int
-			if v, ok := statusByID[emp.ID]; ok {
+			ts := emp.TerritoryStatus
+			if v, ok := statusByID[emp.ID]; emp.ServerNow.IsZero() && ok {
 				ts = &v
 			}
 			rows[i] = snapshotEmployeeRow{TableEmployeeResponse: emp, TerritoryStatus: ts}
@@ -234,7 +249,8 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 		if err != nil {
 			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to marshal employee rows: %w", err)
 		}
-		return raw, computeSnapshotCounts(statuses), nil
+		counts, err := snapshotPassageCounts(raw)
+		return raw, counts, err
 
 	default:
 		return nil, models.SnapshotCounts{}, echo.NewHTTPError(http.StatusUnprocessableEntity, "Unsupported table type for snapshot")

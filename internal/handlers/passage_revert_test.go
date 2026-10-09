@@ -42,13 +42,36 @@ func setupRevertEnv(t *testing.T, tableName, login string) revertEnv {
 
 	token := testutil.RegisterAndLogin(t, e, login, "pass123", 1, td.OrgID, td.CompanyID)
 	guardID := getUserID(t, db, login)
+	testutil.GrantTableVerb(t, guardID, tableName, "view")
 	testutil.GrantTableVerb(t, guardID, tableName, "entry")
 	testutil.GrantTableVerb(t, guardID, tableName, "exit")
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	require.NoError(t, db.Create(&models.CarTargetTable{CarID: carID, TableID: table.ID, Source: "application"}).Error)
 
 	return revertEnv{e: e, db: db, table: table, guardID: guardID, token: token, carID: carID, td: td}
+}
+
+func TestPassage2667FreshViewDenyBlocksLegacyMark(t *testing.T) {
+	env := setupRevertEnv(t, "passage_view_deny", "passage_view_guard")
+	require.NoError(t, env.db.Model(&models.UserPermissionOverride{}).
+		Where("user_id=? AND permission_key=?", env.guardID, "table."+env.table.Name+".view").
+		Update("value", "deny").Error)
+	var before int64
+	require.NoError(t, env.db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ?", models.AuditEntityCar, env.carID).Count(&before).Error)
+	statusBefore, entryBefore := env.carRow(t)
+	rec := testutil.PUT(t, env.e, fmt.Sprintf("/cars/%d/territory-status", env.carID),
+		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, env.table.ID), testutil.AuthHeader(env.token))
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	statusAfter, entryAfter := env.carRow(t)
+	assert.Equal(t, statusBefore, statusAfter)
+	assert.Equal(t, entryBefore, entryAfter)
+	var after int64
+	require.NoError(t, env.db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ?", models.AuditEntityCar, env.carID).Count(&after).Error)
+	assert.Equal(t, before, after)
 }
 
 // mark ставит отметку прохода тем же запросом, каким её ставит охранник на КПП.
@@ -177,6 +200,7 @@ func TestPassageRevert_ForeignAndStaleNeedAdmin(t *testing.T) {
 	env := setupRevertEnv(t, "kpp_revert_gate", "revguard2")
 	other := testutil.RegisterAndLogin(t, env.e, "revguard_other", "pass123", 1, env.td.OrgID, env.td.CompanyID)
 	otherID := getUserID(t, env.db, "revguard_other")
+	testutil.GrantTableVerb(t, otherID, env.table.Name, "view")
 	testutil.GrantTableVerb(t, otherID, env.table.Name, "entry")
 	testutil.GrantTableVerb(t, otherID, env.table.Name, "exit")
 
@@ -281,7 +305,9 @@ func TestPassageRevert_OtherPostRejected(t *testing.T) {
 	dn := "КПП Б"
 	other := models.SystemTable{Name: "kpp_revert_post_b", DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, env.db.Create(&other).Error)
+	testutil.GrantTableVerb(t, env.guardID, other.Name, "view")
 	testutil.GrantTableVerb(t, env.guardID, other.Name, "entry")
+	require.NoError(t, env.db.Create(&models.CarTargetTable{CarID: env.carID, TableID: other.ID, Source: "application"}).Error)
 
 	env.mark(t, 1, env.token, env.guardID)
 

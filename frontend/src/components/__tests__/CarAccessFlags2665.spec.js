@@ -4,6 +4,7 @@ import CarAccessFlagRows from '../CreateApplication/CarAccessFlagRows.vue';
 import CarsTable from '../CarsTable.vue';
 import { carsTablePeriodDetails, carsRegistryPeriodDetails, applicationPeriodDetails } from '../entityPeriodParentMixins';
 import { apiRequest } from '@/api/client';
+import { passageFields } from '@/utils/passageProjection';
 
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }));
 const flags = { roof_access: true, free_parking: true, individual_roof_access: true, individual_free_parking: false };
@@ -25,7 +26,7 @@ describe('car own and effective flags #2665', () => {
   });
   it('preserves four server flags through the actual active-table reader and open-card mapper', async () => {
     apiRequest.mockResolvedValueOnce({ ok: true, json: async () => [{ id: 17, status: 1, car_number: 'TEST', car_brand: 'Synthetic', ...flags }] });
-    const ctx = { tableId: 4, itemsData: [], organizationsMap: {}, fetchOrganizations: vi.fn().mockResolvedValue(undefined) };
+    const ctx = { tableId: 4, itemsData: [], organizationsMap: {}, passageFields, fetchOrganizations: vi.fn().mockResolvedValue(undefined) };
     await CarsTable.methods.fetchCarsData.call(ctx);
     expect(ctx.itemsData[0]).toMatchObject(flags);
     carsTablePeriodDetails.methods.openVehicleDetails.call(ctx, ctx.itemsData[0]);

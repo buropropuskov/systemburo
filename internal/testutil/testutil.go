@@ -435,8 +435,8 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, uploadDir)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
-	carHandler := handlers.NewCarHandler(carService, elementScopes)
-	employeeHandler := handlers.NewEmployeeHandler(employeeService)
+	carHandler := handlers.NewCarHandler(carService, elementScopes, db)
+	employeeHandler := handlers.NewEmployeeHandler(employeeService, db)
 	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService))
@@ -596,6 +596,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
 		EntityPeriod:        handlers.NewEntityPeriodHandler(services.NewEntityPeriodCommandService(db, auditRecorder)),
+		OpenPassages:        handlers.NewOpenPassagesHandler(services.NewPassageOpenService(db), services.NewPassageCommandService(db, auditRecorder)),
 		AttachmentPeriod:    handlers.NewAttachmentPeriodHandler(services.NewAttachmentPeriodCommandService(db, auditRecorder)),
 		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,

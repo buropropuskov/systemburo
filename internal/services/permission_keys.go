@@ -68,6 +68,7 @@ const (
 	KeyActionBanUser               = "action.ban.user"
 	KeyApplicationPeriodChange     = "application.period.change"
 	KeyDetailPeriodChange          = "detail.period.change"
+	KeyDetailPassageCorrect        = "detail.passage.correct"
 )
 
 // Audit-level keys (просмотр и управление журналами).
@@ -107,6 +108,7 @@ func AllStaticKeys() []string {
 		KeyActionBanUser,
 		KeyApplicationPeriodChange,
 		KeyDetailPeriodChange,
+		KeyDetailPassageCorrect,
 		KeyAuditRead,
 		KeyAuditManage,
 	}

@@ -84,8 +84,10 @@ func TestEmployees_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "empflip1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
-	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "empflip1"), "people")
+	require.NoError(t, db.Create(&models.EmployeeTargetTable{EmployeeID: empID, TableID: passTbl, Source: "application"}).Error)
 
 	// Прогоняем все основные действия через endpoint-ы. restore требует предварительной
 	// деактивации, поэтому delete встречается дважды.

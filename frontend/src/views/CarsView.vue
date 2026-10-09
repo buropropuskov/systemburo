@@ -4,14 +4,14 @@
     class="carsview"
     data-testid="cars-page"
   >
-    <header class="carsview__header">
+    <PassageRegistrySummary kind="car" class="carsview__header">
       <h2 class="carsview__title">
         Список <span class="blue">автомобилей</span>
       </h2>
       <p class="carsview__subtitle">
         Вкладка для просмотра автомобилей, которые вы или ваша организация/компания когда-либо привязывали к заявкам.
       </p>
-    </header>
+    </PassageRegistrySummary>
 
     <!-- Десктоп: поиск и табы области над карточкой. На мобилке этот блок физически
          переезжает под шапку списка (.carsview__toolbar) - через v-if, а не скрытой

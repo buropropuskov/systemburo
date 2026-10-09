@@ -44,6 +44,7 @@ type TableSnapshot struct {
 type SnapshotCounts struct {
 	OnTerritory int `json:"on_territory"`
 	Exited      int `json:"exited"`
+	Corrected   int `json:"corrected,omitempty"`
 	NotEntered  int `json:"not_entered"`
 	Total       int `json:"total"`
 }

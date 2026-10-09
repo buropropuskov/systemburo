@@ -510,6 +510,7 @@
 </template>
 
 <script>
+import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
@@ -539,6 +540,7 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'VehicleDetailsModal',
+    mixins: [passageDetailsIntegration],
     components: {
         CarAccessFlagRows,
         DetailHeaderActions,
@@ -701,11 +703,14 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
             return detailHeaderTitle('car', this.isNarrow, this.visibleActionsCount);
         },
         getStatusClass() {
+            if (this.correctionStatus(this.currentPassageState ?? this.vehicle?.passage_state)) return 'status-not-entered';
             if (this.entryChecked && !this.exitChecked) return 'status-on-territory';
             if (this.exitChecked) return 'status-exited';
             return 'status-not-entered';
         },
         getStatusText() {
+            const correction = this.correctionStatus(this.currentPassageState ?? this.vehicle?.passage_state);
+            if (correction) return correction;
             if (this.entryChecked && !this.exitChecked) return 'На территории';
             if (this.exitChecked) return 'Выехал';
             return 'Не въезжал';
@@ -717,7 +722,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         },
         // Только события въезда/выезда
         entryExitHistory() {
-            return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+            return this.history.filter(this.isPassageHistoryAction);
         },
         // Места прохода и снятые привязки - общий разбор для карточек машины и
         // сотрудника: формы ответа и правила подписи у них одни (#2551).
@@ -1014,26 +1019,8 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
             return formatMoscowDateTime(new Date(dateTimeString));
         },
 
-        getActionClass(item) {
-            // Если пользователь не указан (системное действие), делаем точку фиолетовой
-            if (!item.user_id) {
-                return 'dot-system';
-            }
-            const classes = {
-                'entry': 'dot-entry',
-                'exit': 'dot-exit'
-            };
-            return classes[item.action_type] || 'dot-default';
-        },
 
-        getActionText(item) {
-            if (item.action_type === 'entry') {
-                return 'Отметил о прибытии';
-            } else if (item.action_type === 'exit') {
-                return 'Машина уехала';
-            }
-            return item.action_type; // на всякий случай
-        },
+        getActionText(item) { return this.passageHistoryText(item); },
 
         getActionComment(item) {
             const userName = item.user_name || 'Система';
@@ -1111,8 +1098,9 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
                     const statuses = await response.json();
                     const status = statuses.find(s => s.car_id === statusCarId);
                     if (status) {
+                        this.currentPassageState = status.passage_state ?? null;
                         this.entryChecked = status.territory_status === 1;
-                        this.exitChecked = status.territory_status === 2;
+                        this.exitChecked = status.passage_state ? status.passage_state.last_event_kind === 'exit' && !status.passage_state.open : status.territory_status === 2;
                     } else {
                         this.entryChecked = false;
                         this.exitChecked = false;

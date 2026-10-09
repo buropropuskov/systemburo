@@ -267,6 +267,18 @@ func (r *PermissionResolver) computeSet(ctx context.Context, userID int) (Permis
 	allows := make(map[string]string)
 	denies := make(map[string]struct{})
 
+	// Принимающие получают исправление учёта по умолчанию. Это исходный
+	// управляемый grant: запреты роли/группы и личное исключение ниже сильнее.
+	var receives bool
+	if err := r.db.WithContext(ctx).Raw(
+		"SELECT EXISTS(SELECT 1 FROM application_approvers WHERE user_id = ?)", userID,
+	).Scan(&receives).Error; err != nil {
+		return PermissionSet{}, fmt.Errorf("failed to resolve passage correction default: %w", err)
+	}
+	if receives {
+		allows[KeyDetailPassageCorrect] = SourceRole
+	}
+
 	// 1a. Собственные точечные grants роли.
 	if user.RoleID != nil {
 		if err := r.collectRoleGrants(ctx, *user.RoleID, allows, denies); err != nil {

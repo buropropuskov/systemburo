@@ -60,7 +60,8 @@
            строке, а счётчик с тумблерами уезжают ниже. Десктоп не меняется -
            .card-header__settings прижат вправо margin-left: auto, кнопка идёт
            сразу за ним с тем же зазором. -->
-      <RefreshButton
+      <PassageTableTools v-if="!preview" kind="employee" :table-i-d="currentTableId" :rows="itemsData" @refresh="_loadData(true)" />
+        <RefreshButton
         v-if="!preview"
         class="card-header__refresh"
         :loading="refreshing"
@@ -375,7 +376,7 @@
                   <button
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
-                    :disabled="preview || (item.entry_checked && !canRevertMark(item, 'entry'))"
+                    :disabled="preview || (!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     @click="preview ? null : onPassButton(item, 'entry')"
                   >
                     {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Вход' }}
@@ -390,7 +391,7 @@
                   <button
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
-                    :disabled="preview || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
+                    :disabled="preview || (!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     @click="preview ? null : onPassButton(item, 'exit')"
                   >
                     {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выход' }}
@@ -404,6 +405,7 @@
                   data-label="Фамилия"
                 >
                   {{ item.last_name }}
+                  <PassageStateIndicator v-if="!isFieldInDom('valid_until')" :passage-state="item.passage_state" :expired="passageExpired(item)" />
                 </div>
                 <div
                   v-if="isFieldInDom('first_name')"
@@ -459,15 +461,9 @@
                 >
                   {{ item.company || '-' }}
                 </div>
-                <div
-                  v-if="isFieldInDom('valid_until')"
-                  class="col date-col"
+                <PassageValidityCell v-if="isFieldInDom('valid_until')" :item="item"
                   :class="fieldColClass('valid_until')"
-                  :style="getColStyle('valid_until')"
-                  data-label="Действует до"
-                >
-                  {{ formatDate(item.entry_date_to) }}
-                </div>
+                  :style="getColStyle('valid_until')" />
                 <div
                   v-if="isFieldInDom('pass_time')"
                   class="col time-col"
@@ -638,6 +634,7 @@
 </template>
 
 <script>
+import passageTableIntegration from './passageTableIntegration';
 import { peopleTablePeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
@@ -693,7 +690,7 @@ const MOBILE_CARD_FIELDS = [
 ];
 
 export default {
-    mixins: [peopleTablePeriodDetails],
+    mixins: [peopleTablePeriodDetails, passageTableIntegration],
   name: 'PeopleTable',
   components: {
     RefreshButton,
@@ -1194,7 +1191,8 @@ export default {
             territory_status: territoryStatus,
             // Число таблиц «Проход», к которым привязан сотрудник (#1194 S5) -
             // >1 включает per-row подменю «Убрать из этой/из всех».
-            target_tables_count: emp.target_tables_count || 0
+            target_tables_count: emp.target_tables_count || 0,
+            ...this.passageFields(emp)
           };
         });
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
@@ -1218,13 +1216,7 @@ export default {
           statuses.forEach(status => { statusMap[status.employee_id] = status; });
           this.itemsData.forEach(item => {
             const status = statusMap[item.id];
-            if (status) {
-              item.territory_status = status.territory_status;
-              item.entry_checked = status.territory_status === 1;
-              item.exit_checked = status.territory_status === 2;
-              item.can_revert = status.can_revert;
-              item.last_mark_table_id = status.last_mark_table_id;
-            }
+            if (status) this.mergePassageStatus(item, status);
           });
         }
       } catch (error) {
@@ -1262,22 +1254,19 @@ export default {
     },
 
     async handleEntryExit(item, type) {
+      if (!this.passageAllowed(item, type) && !this.canRevertMark(item, type)) return;
       if (!this.currentUserId || !this.currentTableId) return;
       try {
         const response = await markPassage({
           kind: 'employees', id: item.id, direction: type,
-          tableId: this.currentTableId,
+          tableId: this.currentTableId, expectedLastEventID: this.expectedPassageEvent(item),
         });
         if (!response.ok) {
+          if (response.status === 409) await this._loadData(true);
           useDeletionsStore().notify({ prefix: 'Не удалось отметить проход: ', bold: 'повторите', type: 'error' });
           return;
         }
-        item.entry_checked = type === 'entry';
-        item.exit_checked = type === 'exit';
-        item.territory_status = type === 'entry' ? 1 : 2;
-        // Отметка своя и свежая - отмена доступна сразу, не дожидаясь опроса статусов.
-        item.can_revert = true;
-        item.last_mark_table_id = this.currentTableId;
+        await this._loadData(true);
       } catch (error) {
         console.error('Ошибка сети:', error);
       }
@@ -1287,9 +1276,10 @@ export default {
     onPassButton(item, type) {
       if (!this.canRevertMark(item, type)) return this.handleEntryExit(item, type);
       return usePassageRevertStore().ask({
-        kind: 'employees', id: item.id, direction: type, tableId: this.currentTableId,
+        kind: 'employees', id: item.id, direction: type, tableId: this.currentTableId, expectedLastEventID: this.expectedPassageEvent(item),
         subject: `${item.last_name || ''} ${item.first_name || ''}`.trim() || 'сотрудник',
-        onDone: () => this.fetchEmployeesStatus(),
+        onDone: () => this._loadData(true),
+        onRefresh: () => this._loadData(true),
       });
     },
 

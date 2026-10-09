@@ -682,3 +682,30 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     );
   });
 });
+
+// Additive #2667 regression; existing version scenarios remain unchanged.
+describe('TableVersionsView corrected snapshot counts #2667', () => {
+  it('shows correction separately from exit and not-entered counts', async () => {
+    mockTable();
+    const counts = { on_territory: 0, exited: 0, not_entered: 0, corrected: 1, total: 1 };
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1, { counts })], total: 1 });
+    getTableSnapshot.mockResolvedValue(carsSnapshot(1, [{ id: 17, car_number: 'TEST-17', territory_status: 2,
+      admission: { can_enter: false, can_exit: false, reason: 'expired' },
+      passage_state: { open: false, last_event_kind: 'passage_close', can_revert_correction: true } }], { counts }));
+    wrapper = mountView(); const wr = wrapper; await flushPromises();
+    expect(wr.text()).toContain('Учёт исправлен: 1');
+    expect(wr.text()).toContain('Выехал: 0');
+    expect(wr.text()).toContain('Не въезжал: 0');
+    const [frozen] = wr.findComponent('[data-testid="tv-cars"]').props('previewItems');
+    expect(frozen.exit_checked).toBe(false); expect(frozen.entry_checked).toBe(false);
+    expect(frozen.passage_state.can_revert_correction).toBe(false);
+    expect(frozen.admission.reason).toBe('expired');
+  });
+  it('keeps old payload counts readable and hides an absent correction count', async () => {
+    mockTable(); listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    getTableSnapshot.mockResolvedValue(carsSnapshot(1, [{ id: 1, car_number: 'TEST-1', territory_status: 2 }]));
+    wrapper = mountView(); const wr = wrapper; await flushPromises();
+    expect(wr.text()).not.toContain('Учёт исправлен:');
+    expect(wr.text()).toContain('Выехал: 0');
+  });
+});

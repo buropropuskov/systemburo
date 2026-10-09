@@ -91,25 +91,21 @@ func (passagesStep) Run(ctx context.Context, env *Env) error {
 			models.StatusInWork)
 	}
 
-	recorder := services.NewAuditRecorder(env.DB)
-	carSvc := services.NewCarService(env.DB, recorder)
-	empSvc := services.NewEmployeeService(env.DB, recorder)
-
 	streams := newPassageStreams(env.Seed)
 	now := time.Now().UTC()
 
-	markedCars, err := runCarPassages(ctx, carSvc, env.DB, cars, actors, streams, now)
+	markedCars, err := runCarPassages(ctx, env.DB, cars, actors, streams, now)
 	if err != nil {
 		return fmt.Errorf("проходы машин: %w", err)
 	}
-	markedEmployees, err := runEmployeePassages(ctx, empSvc, env.DB, employees, actors, streams, now)
+	markedEmployees, err := runEmployeePassages(ctx, env.DB, employees, actors, streams, now)
 	if err != nil {
 		return fmt.Errorf("проходы сотрудников: %w", err)
 	}
 	// Не Batch.Add: машина и сотрудник уже принадлежат заявке партии и уйдут вместе с
 	// ней, а отметка -- действие над ними, удалять по ней нечего. Счёт нужен отчёту:
 	// фактическое число всегда меньше плана (до поста доходят только принятые в работу
-	// и с непросроченным пропуском), и разницу человек должен видеть числом.
+	// и с действующим пропуском на момент прохода), и разницу человек должен видеть числом.
 	env.Batch.Mark(models.AuditEntityCar, markedCars)
 	env.Batch.Mark(models.AuditEntityEmployee, markedEmployees)
 	return nil
@@ -164,24 +160,37 @@ func loadBatchAdminIDs(ctx context.Context, db *gorm.DB, batchID int) ([]int, er
 // физически один за раз, даже если запись видна в нескольких таблицах проходной) и
 // момент принятия заявки в работу -- отправная точка окна историчности прохода.
 type passageCandidate struct {
-	ID         int       `gorm:"column:id"`
-	TableID    int       `gorm:"column:table_id"`
-	AcceptedAt time.Time `gorm:"column:accepted_at"`
-	// EntryDateTo -- последний день, когда пропуск действует. Проход обязан попасть в
-	// окно допуска: заявки разложены по прошлому на срок до года, а пропуск выдают на
-	// неделю-другую, поэтому у большинства принятых заявок окно давно закрыто, и
-	// сегодняшний въезд по такому пропуску охрана бы не пропустила.
-	EntryDateTo time.Time `gorm:"column:entry_date_to"`
+	ID         int                `gorm:"column:id"`
+	TableID    int                `gorm:"column:table_id"`
+	AcceptedAt time.Time          `gorm:"column:accepted_at"`
+	Period     models.EntryPeriod `gorm:"embedded"`
+	Source     string             `gorm:"column:period_source"`
+	ValidMode  bool               `gorm:"column:valid_mode"`
 }
 
-// passageWindowEnd -- до какого момента можно поставить проход: конец последнего дня
-// действия пропуска, но не позже «сейчас».
-func passageWindowEnd(c passageCandidate, now time.Time) time.Time {
-	endOfDay := time.Date(c.EntryDateTo.Year(), c.EntryDateTo.Month(), c.EntryDateTo.Day(), 23, 59, 59, 0, c.EntryDateTo.Location())
-	if endOfDay.Before(now) {
-		return endOfDay
+// historicalPassageWindow intersects the actual whole admission period with
+// acceptance and captured now. Reserve a microsecond for a strictly later exit.
+func historicalPassageWindow(c passageCandidate, now time.Time) (lo, hi time.Time, ok bool) {
+	if !c.ValidMode {
+		return time.Time{}, time.Time{}, false
 	}
-	return now
+	start, end, bounded, err := services.PassageWindowBounds(models.EffectivePeriod{EntryPeriod: c.Period, Source: c.Source})
+	if err != nil || !bounded {
+		return time.Time{}, time.Time{}, false
+	}
+	lo = c.AcceptedAt.UTC().Truncate(time.Microsecond)
+	if lo.Before(c.AcceptedAt) {
+		lo = lo.Add(time.Microsecond)
+	}
+	if start.After(lo) {
+		lo = start.UTC()
+	}
+	hi = now.UTC().Truncate(time.Microsecond)
+	last := end.UTC().Add(-time.Microsecond)
+	if last.Before(hi) {
+		hi = last
+	}
+	return lo, hi, hi.Sub(lo) >= 2*time.Microsecond
 }
 
 // passableCandidates отбрасывает тех, чей пропуск закончился раньше, чем заявку взяли
@@ -190,18 +199,18 @@ func passageWindowEnd(c passageCandidate, now time.Time) time.Time {
 func passableCandidates(all []passageCandidate, now time.Time) []passageCandidate {
 	out := make([]passageCandidate, 0, len(all))
 	for _, c := range all {
-		if passageWindowEnd(c, now).After(stageBase(c.AcceptedAt, now)) {
+		if _, _, ok := historicalPassageWindow(c, now); ok {
 			out = append(out, c)
 		}
 	}
 	return out
 }
 
-// passageWindowOpen -- действует ли пропуск ещё сегодня. Остаться на территории может
-// только тот, у кого он не закончился: иначе на посту висел бы человек с просроченным
-// пропуском, которого там быть не может.
+// The generator leaves only currently valid permits open. This is a fixture
+// distribution policy, not a rule excluding expired real occupants from tables.
 func passageWindowOpen(c passageCandidate, now time.Time) bool {
-	return !c.EntryDateTo.Before(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
+	start, end, bounded, err := services.PassageWindowBounds(models.EffectivePeriod{EntryPeriod: c.Period, Source: c.Source})
+	return c.ValidMode && err == nil && bounded && !now.Before(start) && now.Before(end)
 }
 
 // loadPassageCarCandidates читает машины СТРОГО этой партии (через fake_batch_items
@@ -212,16 +221,21 @@ func passageWindowOpen(c passageCandidate, now time.Time) bool {
 // привязку машины к посту -- тот же пост, куда её включили при принятии в работу.
 func loadPassageCarCandidates(ctx context.Context, db *gorm.DB, batchID int) ([]passageCandidate, error) {
 	var rows []passageCandidate
-	err := db.WithContext(ctx).Raw(`
+	period, err := services.EntityEffectivePeriodSQL("c", "att")
+	if err != nil {
+		return nil, err
+	}
+	err = db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT DISTINCT ON (c.id) c.id AS id, ctt.table_id AS table_id, app.accepted_at AS accepted_at,
-			att.entry_date_to::timestamp AS entry_date_to
+			%s AS entry_date_from, %s AS entry_date_to, %s AS entry_time_from, %s AS entry_time_to,
+			%s AS period_source, %s AS valid_mode
 		FROM cars c
 		JOIN attachments att ON att.id = c.attachment_id
 		JOIN applications app ON app.id = att.application_id
 		JOIN fake_batch_items fbi ON fbi.entity_id = app.id
 		JOIN car_target_tables ctt ON ctt.car_id = c.id
 		WHERE fbi.batch_id = ? AND fbi.entity = ? AND c.status = 1 AND app.accepted_at IS NOT NULL
-		ORDER BY c.id, ctt.id`, batchID, models.AuditEntityApplication).Scan(&rows).Error
+		ORDER BY c.id, ctt.id`, period.DateFrom, period.DateTo, period.TimeFrom, period.TimeTo, period.Source, period.ValidMode), batchID, models.AuditEntityApplication).Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("машины партии для проходов: %w", err)
 	}
@@ -232,16 +246,21 @@ func loadPassageCarCandidates(ctx context.Context, db *gorm.DB, batchID int) ([]
 // (employees/employee_target_tables).
 func loadPassageEmployeeCandidates(ctx context.Context, db *gorm.DB, batchID int) ([]passageCandidate, error) {
 	var rows []passageCandidate
-	err := db.WithContext(ctx).Raw(`
+	period, err := services.EntityEffectivePeriodSQL("e", "att")
+	if err != nil {
+		return nil, err
+	}
+	err = db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT DISTINCT ON (e.id) e.id AS id, ett.table_id AS table_id, app.accepted_at AS accepted_at,
-			att.entry_date_to::timestamp AS entry_date_to
+			%s AS entry_date_from, %s AS entry_date_to, %s AS entry_time_from, %s AS entry_time_to,
+			%s AS period_source, %s AS valid_mode
 		FROM employees e
 		JOIN attachments att ON att.id = e.attachment_id
 		JOIN applications app ON app.id = att.application_id
 		JOIN fake_batch_items fbi ON fbi.entity_id = app.id
 		JOIN employee_target_tables ett ON ett.employee_id = e.id
 		WHERE fbi.batch_id = ? AND fbi.entity = ? AND e.status = 1 AND app.accepted_at IS NOT NULL
-		ORDER BY e.id, ett.id`, batchID, models.AuditEntityApplication).Scan(&rows).Error
+		ORDER BY e.id, ett.id`, period.DateFrom, period.DateTo, period.TimeFrom, period.TimeTo, period.Source, period.ValidMode), batchID, models.AuditEntityApplication).Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("сотрудники партии для проходов: %w", err)
 	}
@@ -321,87 +340,36 @@ func passageMoment(s *Stream, prev, hi time.Time) time.Time {
 	return next
 }
 
-// --- сдвиг дат (сырой SQL -- то же исключение из "сервисный слой, а не SQL", что
-// shift*-хелперы в stages.go): UpdateCarTerritoryStatus/UpdateEmployeeTerritoryStatus
-// пишут NOW() реального времени, и без переноса проход заявки месячной давности
-// выглядел бы совершённым только что ---
-
-// shiftEntityAuditLog переносит запись истории конкретного действия (entry/exit) на
-// исторический момент прохода. entity_id+action уникальны в рамках одной отметки --
-// у каждой машины/сотрудника этого прогона максимум один "entry" и один "exit".
-func shiftEntityAuditLog(ctx context.Context, db *gorm.DB, entityType string, entityID int, action string, at time.Time) error {
-	if err := db.WithContext(ctx).Exec(
-		`UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id = ? AND action = ?`,
-		at, entityType, entityID, action,
-	).Error; err != nil {
-		return fmt.Errorf("сдвиг истории (%s) %s %d: %w", action, entityType, entityID, err)
-	}
-	return nil
+// historicalPassageDB supplies one immutable event clock only to this local GORM
+// session. The production command still performs every admission/access guard;
+// audit insertion and cache update occur atomically at that same historical time.
+func historicalPassageDB(db *gorm.DB, at time.Time) *gorm.DB {
+	at = at.UTC().Truncate(time.Microsecond)
+	return db.Session(&gorm.Session{NowFunc: func() time.Time { return at }})
 }
 
-func shiftCarEntry(ctx context.Context, db *gorm.DB, carID int, at time.Time) error {
-	if err := db.WithContext(ctx).Exec(
-		`UPDATE cars SET territory_entry_time = ?, updated_at = ? WHERE id = ?`, at, at, carID,
-	).Error; err != nil {
-		return fmt.Errorf("сдвиг времени въезда машины %d: %w", carID, err)
-	}
-	return nil
-}
-
-func shiftCarExit(ctx context.Context, db *gorm.DB, carID int, at time.Time) error {
-	if err := db.WithContext(ctx).Exec(
-		`UPDATE cars SET updated_at = ? WHERE id = ?`, at, carID,
-	).Error; err != nil {
-		return fmt.Errorf("сдвиг времени выезда машины %d: %w", carID, err)
-	}
-	return nil
-}
-
-func shiftEmployeeEntry(ctx context.Context, db *gorm.DB, employeeID int, at time.Time) error {
-	if err := db.WithContext(ctx).Exec(
-		`UPDATE employees SET territory_entry_time = ?, updated_at = ? WHERE id = ?`, at, at, employeeID,
-	).Error; err != nil {
-		return fmt.Errorf("сдвиг времени входа сотрудника %d: %w", employeeID, err)
-	}
-	return nil
-}
-
-func shiftEmployeeExit(ctx context.Context, db *gorm.DB, employeeID int, at time.Time) error {
-	if err := db.WithContext(ctx).Exec(
-		`UPDATE employees SET updated_at = ? WHERE id = ?`, at, employeeID,
-	).Error; err != nil {
-		return fmt.Errorf("сдвиг времени выхода сотрудника %d: %w", employeeID, err)
-	}
-	return nil
-}
-
-// --- сценарии: сервисный вызов + перенос дат сразу следом ---
+// --- historical commands through ordinary guarded services ---
 
 // runCarPassages отмечает въезд каждой машины кандидата и выезд -- доле из них
 // (passageStayExitCounts). Порядок кандидатов из SQL детерминирован (ORDER BY c.id),
 // поэтому одно и то же -seed даёт один и тот же состав "остался"/"выехал".
-func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, cars []passageCandidate, actors []int, s *passageStreams, now time.Time) (int, error) {
+func runCarPassages(ctx context.Context, db *gorm.DB, cars []passageCandidate, actors []int, s *passageStreams, now time.Time) (int, error) {
 	cars = passableCandidates(cars, now)
 	stay, _ := passageStayExitCounts(len(cars))
 	for i, c := range cars {
 		actorID := Pick(s.carActor, actors)
-		base := stageBase(c.AcceptedAt, now)
-		windowEnd := passageWindowEnd(c, now)
-		entryAt := passageMoment(s.carEntryGap, base, windowEnd)
+		base, windowEnd, _ := historicalPassageWindow(c, now)
+		entryAt := passageMoment(s.carEntryGap, base, windowEnd.Add(-time.Microsecond)).UTC().Truncate(time.Microsecond)
 
 		req := services.UpdateCarTerritoryStatusRequest{
 			UpdateTerritoryStatusRequest: services.UpdateTerritoryStatusRequest{
 				TerritoryStatus: 1, UserID: &actorID, TableID: &c.TableID,
 			},
 		}
-		if err := svc.UpdateCarTerritoryStatus(ctx, c.ID, req); err != nil {
+		entryDB := historicalPassageDB(db, entryAt)
+		entrySvc := services.NewCarService(entryDB, services.NewAuditRecorder(entryDB))
+		if err := entrySvc.UpdateCarTerritoryStatus(ctx, c.ID, req); err != nil {
 			return 0, fmt.Errorf("въезд машины %d: %w", c.ID, err)
-		}
-		if err := shiftCarEntry(ctx, db, c.ID, entryAt); err != nil {
-			return 0, err
-		}
-		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityCar, c.ID, "entry", entryAt); err != nil {
-			return 0, err
 		}
 
 		if i < stay && passageWindowOpen(c, now) {
@@ -414,38 +382,29 @@ func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, c
 				TerritoryStatus: 2, UserID: &actorID, TableID: &c.TableID,
 			},
 		}
-		if err := svc.UpdateCarTerritoryStatus(ctx, c.ID, exitReq); err != nil {
+		exitDB := historicalPassageDB(db, exitAt)
+		exitSvc := services.NewCarService(exitDB, services.NewAuditRecorder(exitDB))
+		if err := exitSvc.UpdateCarTerritoryStatus(ctx, c.ID, exitReq); err != nil {
 			return 0, fmt.Errorf("выезд машины %d: %w", c.ID, err)
-		}
-		if err := shiftCarExit(ctx, db, c.ID, exitAt); err != nil {
-			return 0, err
-		}
-		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityCar, c.ID, "exit", exitAt); err != nil {
-			return 0, err
 		}
 	}
 	return len(cars), nil
 }
 
 // runEmployeePassages -- зеркало runCarPassages для сотрудников.
-func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *gorm.DB, employees []passageCandidate, actors []int, s *passageStreams, now time.Time) (int, error) {
+func runEmployeePassages(ctx context.Context, db *gorm.DB, employees []passageCandidate, actors []int, s *passageStreams, now time.Time) (int, error) {
 	employees = passableCandidates(employees, now)
 	stay, _ := passageStayExitCounts(len(employees))
 	for i, e := range employees {
 		actorID := Pick(s.empActor, actors)
-		base := stageBase(e.AcceptedAt, now)
-		windowEnd := passageWindowEnd(e, now)
-		entryAt := passageMoment(s.empEntryGap, base, windowEnd)
+		base, windowEnd, _ := historicalPassageWindow(e, now)
+		entryAt := passageMoment(s.empEntryGap, base, windowEnd.Add(-time.Microsecond)).UTC().Truncate(time.Microsecond)
 
 		req := services.UpdateTerritoryStatusRequest{TerritoryStatus: 1, UserID: &actorID, TableID: &e.TableID}
-		if err := svc.UpdateEmployeeTerritoryStatus(ctx, e.ID, req); err != nil {
+		entryDB := historicalPassageDB(db, entryAt)
+		entrySvc := services.NewEmployeeService(entryDB, services.NewAuditRecorder(entryDB))
+		if err := entrySvc.UpdateEmployeeTerritoryStatus(ctx, e.ID, req); err != nil {
 			return 0, fmt.Errorf("вход сотрудника %d: %w", e.ID, err)
-		}
-		if err := shiftEmployeeEntry(ctx, db, e.ID, entryAt); err != nil {
-			return 0, err
-		}
-		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityEmployee, e.ID, "entry", entryAt); err != nil {
-			return 0, err
 		}
 
 		if i < stay && passageWindowOpen(e, now) {
@@ -454,14 +413,10 @@ func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *
 
 		exitAt := passageMoment(s.empExitGap, entryAt, windowEnd)
 		exitReq := services.UpdateTerritoryStatusRequest{TerritoryStatus: 2, UserID: &actorID, TableID: &e.TableID}
-		if err := svc.UpdateEmployeeTerritoryStatus(ctx, e.ID, exitReq); err != nil {
+		exitDB := historicalPassageDB(db, exitAt)
+		exitSvc := services.NewEmployeeService(exitDB, services.NewAuditRecorder(exitDB))
+		if err := exitSvc.UpdateEmployeeTerritoryStatus(ctx, e.ID, exitReq); err != nil {
 			return 0, fmt.Errorf("выход сотрудника %d: %w", e.ID, err)
-		}
-		if err := shiftEmployeeExit(ctx, db, e.ID, exitAt); err != nil {
-			return 0, err
-		}
-		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityEmployee, e.ID, "exit", exitAt); err != nil {
-			return 0, err
 		}
 	}
 	return len(employees), nil

@@ -172,7 +172,8 @@ type AddCarHistoryRequest struct {
 
 // UpdateTerritoryStatusRequest -- тело запроса обновления территориального статуса.
 type UpdateTerritoryStatusRequest struct {
-	TerritoryStatus int `json:"territory_status"`
+	ExpectedLastEventID *int64 `json:"expected_last_event_id,omitempty"`
+	TerritoryStatus     int    `json:"territory_status"`
 	// UserID ставит сервер из токена (#2443), телом запроса не принимается.
 	UserID *int `json:"-"`
 	// TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,
@@ -234,6 +235,10 @@ type UnifiedCarHistoryQuery struct {
 
 // TableCarResponse -- автомобиль для отображения в таблице.
 type TableCarResponse struct {
+	PassageState    PassageState           `json:"passage_state"`
+	EffectivePeriod models.EffectivePeriod `json:"effective_period"`
+	ServerNow       time.Time              `json:"server_now"`
+	Admission       PassageAdmission       `json:"admission"`
 	CarAccessFlags
 	ID                 int      `json:"id"`
 	CarNumber          string   `json:"car_number"`
@@ -331,10 +336,13 @@ type AllCarsHistoryItem struct {
 
 // CarCurrentStatus -- текущий территориальный статус автомобиля.
 type CarCurrentStatus struct {
-	CarID           int     `json:"car_id"`
-	TerritoryStatus int     `json:"territory_status"`
-	EntryTime       *string `json:"entry_time"`
-	LastExitTime    *string `json:"last_exit_time"`
+	PassageState    PassageState           `json:"passage_state"`
+	EffectivePeriod models.EffectivePeriod `json:"effective_period"`
+	ServerNow       time.Time              `json:"server_now"`
+	CarID           int                    `json:"car_id"`
+	TerritoryStatus int                    `json:"territory_status"`
+	EntryTime       *string                `json:"entry_time"`
+	LastExitTime    *string                `json:"last_exit_time"`
 	// CanRevert и LastMarkTableID - см. EmployeeCurrentStatus (#2437).
 	CanRevert       bool `json:"can_revert"`
 	LastMarkTableID *int `json:"last_mark_table_id"`

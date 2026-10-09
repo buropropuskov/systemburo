@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -138,20 +139,24 @@ type ManualEmployeeResponse struct {
 // CitizenshipName / Position / Company / PassPlaces добавлены для отображения
 // соответствующих колонок в PeopleTable.vue (#116 пункт 10).
 type TableEmployeeResponse struct {
-	ID                int     `json:"id"`
-	LastName          string  `json:"last_name"`
-	FirstName         string  `json:"first_name"`
-	MiddleName        *string `json:"middle_name"`
-	Organization      *string `json:"organization"`
-	Company           *string `json:"company"`
-	CitizenshipName   *string `json:"citizenship_name"`
-	Position          *string `json:"position"`
-	PassPlaces        *string `json:"pass_places"`
-	EntryDateTo       *string `json:"entry_date_to"`
-	PassTime          *string `json:"pass_time"`
-	Status            int     `json:"status"`
-	ApplicationID     *int    `json:"application_id"`
-	ApplicationNumber *string `json:"application_number"`
+	PassageState      PassageState           `json:"passage_state"`
+	EffectivePeriod   models.EffectivePeriod `json:"effective_period"`
+	ServerNow         time.Time              `json:"server_now"`
+	Admission         PassageAdmission       `json:"admission"`
+	ID                int                    `json:"id"`
+	LastName          string                 `json:"last_name"`
+	FirstName         string                 `json:"first_name"`
+	MiddleName        *string                `json:"middle_name"`
+	Organization      *string                `json:"organization"`
+	Company           *string                `json:"company"`
+	CitizenshipName   *string                `json:"citizenship_name"`
+	Position          *string                `json:"position"`
+	PassPlaces        *string                `json:"pass_places"`
+	EntryDateTo       *string                `json:"entry_date_to"`
+	PassTime          *string                `json:"pass_time"`
+	Status            int                    `json:"status"`
+	ApplicationID     *int                   `json:"application_id"`
+	ApplicationNumber *string                `json:"application_number"`
 	// TerritoryStatus - территориальный статус сотрудника (0 - не отмечен, 1 - вошёл,
 	// 2 - вышел) из той же колонки employees.territory_status, что читает
 	// /employees/history/current-status. Отдаём вместе со строкой, чтобы счётчик
@@ -344,23 +349,42 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 // Включает citizenship / position / company / pass_places (#116 пункт 10) чтобы
 // PeopleTable.vue мог отрисовать соответствующие колонки.
 func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableID int) ([]TableEmployeeResponse, error) {
+	var out []TableEmployeeResponse
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var one int
+		if err := tx.Raw("SELECT 1").Scan(&one).Error; err != nil {
+			return err
+		}
+		scoped := *s
+		scoped.db = tx
+		var err error
+		out, err = scoped.getActiveEmployeesForTableSnapshot(ctx, tableID, time.Now().UTC())
+		return err
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	return out, err
+}
+func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context, tableID int, now time.Time) ([]TableEmployeeResponse, error) {
 	type employeeRow struct {
-		ID                int
-		LastName          string
-		FirstName         string
-		MiddleName        *string
-		Organization      *string
-		Company           *string
-		CitizenshipName   *string
-		Position          *string
-		PassPlaces        *string
-		EntryDateTo       *string
-		PassTime          *string
-		Status            *int
-		ApplicationID     *int
-		ApplicationNumber *string
-		TerritoryStatus   *int
-		TargetTablesCount int
+		EntryDateFrom, EntryTimeFrom, EntryTimeTo *string
+		PeriodSource                              string
+		Bounded                                   bool
+		Retained                                  bool
+		ID                                        int
+		LastName                                  string
+		FirstName                                 string
+		MiddleName                                *string
+		Organization                              *string
+		Company                                   *string
+		CitizenshipName                           *string
+		Position                                  *string
+		PassPlaces                                *string
+		EntryDateTo                               *string
+		PassTime                                  *string
+		Status                                    *int
+		ApplicationID                             *int
+		ApplicationNumber                         *string
+		TerritoryStatus                           *int
+		TargetTablesCount                         int
 	}
 
 	rows := make([]employeeRow, 0)
@@ -368,9 +392,18 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 	if err != nil {
 		return nil, err
 	}
-	// Оконная функция считается после GROUP BY: для каждого непустого паспорта
+	// Оконная функция: для каждого непустого паспорта
 	// оставляем строку с максимальным entry_date_to (rn=1). Строки с NULL-паспортом
 	// ("По факту") не схлопываем - условие (hmac IS NULL OR rn = 1).
+	join, err := PassageProjectionSQL(ElementEmployee, "e", "p")
+	if err != nil {
+		return nil, err
+	}
+	retention, retentionArgs, err := PassageRetentionSQL("e", "p", now)
+	if err != nil {
+		return nil, err
+	}
+	archive, archiveArgs := archivedApplicationCond("app")
 	err = s.db.WithContext(ctx).Raw(`
 		SELECT
 			id,
@@ -388,7 +421,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			application_id,
 			application_number,
 			territory_status,
-			target_tables_count
+			target_tables_count,entry_date_from,entry_time_from,entry_time_to,period_source,bounded,retained
 		FROM (
 			SELECT
 				e.id,
@@ -406,6 +439,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 					WHERE ett2.employee_id = e.id
 				) AS pass_places,
 				`+period.DateTo+` AS entry_date_to,
+ `+period.DateFrom+` AS entry_date_from,`+period.TimeFrom+` AS entry_time_from,`+period.TimeTo+` AS entry_time_to,`+period.Source+` AS period_source,`+period.Bounded+` AS bounded,keep.retained,
 				CONCAT(`+period.TimeFrom+`, ' - ', `+period.TimeTo+`) AS pass_time,
 				e.status,
 				app.id AS application_id,
@@ -427,32 +461,25 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			-- (a.application_id IS NULL, a.is_manual). org/company тогда берутся с самого
 			-- вложения (COALESCE), а app.* остаются NULL - это и есть метка «добавлено вручную».
 			LEFT JOIN applications app ON a.application_id = app.id
+ `+join+` LEFT JOIN LATERAL(SELECT `+retention+` AS retained) keep ON TRUE
 			LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
 			LEFT JOIN companies co ON co.id = COALESCE(app.company_id, a.company_id)
 			LEFT JOIN citizenships c ON e.citizenship_id = c.id
 			WHERE ett.table_id = ?
-			AND e.status = 1
+			AND NOT e.is_purged AND e.date_deleted IS NULL AND NOT (`+archive+`)
+ AND (e.status = 1 OR keep.retained)
 			-- Заявочные сотрудники видны только по согласованной активной заявке в окне
 			-- действия пропуска; ручные минуют оба требования - заявки у них нет вовсе,
 			-- гейт видимости берёт на себя принадлежность целевой таблице (employee_target_tables)
 			-- + security-видимость (S6). Конечный ручной срок проверяется ниже.
 			AND (a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))
-			-- Окно дней считается по московскому календарю (#2327), но КРАЙНЕЕ ВРЕМЯ
-			-- пребывания здесь намеренно не учитывается: иначе сотрудник, вошедший в
-			-- 17:50 по пропуску до 18:00, исчезнет со стола поста ровно в 18:00, и
-			-- отметить его выход будет некому. Видимость на посту и право прохода -
-			-- разные вещи; признака «пропуск на сегодня истёк» в таблице пока нет.
-			AND `+period.ValidMode+`
-			AND (`+period.Source+` = 'manual_unbounded' OR `+moscowTodaySQL+` BETWEEN (`+period.DateFrom+`)::date AND (`+period.DateTo+`)::date)
-			GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
-					 o.name, co.name, c.name, e.position,
-					 a.id, a.entry_date_to, a.entry_time_from,
-					 a.entry_time_to, e.status, app.id, app.application_number,
-					 e.territory_status, e.passport_series_number_hmac
-		) sub
-		WHERE sub.passport_series_number_hmac IS NULL OR sub.rn = 1
+			-- Calendar visibility remains unchanged for active permits. Open and
+			-- five-minute departure rows survive expiration inside the same scope.
+			AND (keep.retained OR (`+period.ValidMode+` AND (`+period.Source+` = 'manual_unbounded' OR ?::date BETWEEN (`+period.DateFrom+`)::date AND (`+period.DateTo+`)::date)))
+			) sub
+		WHERE sub.retained OR sub.passport_series_number_hmac IS NULL OR sub.rn = 1
 		ORDER BY last_name, first_name
-	`, tableID, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted).Scan(&rows).Error
+	`, append(append(append([]any{}, retentionArgs...), tableID), append(archiveArgs, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted, now.In(MoscowLocation()).Format("2006-01-02"))...)...).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active employees")
 	}
@@ -466,14 +493,20 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		return nil, err
 	}
 
+	states, err := LoadPassageStates(ctx, s.db, ElementEmployee, employeeIDs, now)
+	if err != nil {
+		return nil, err
+	}
 	employees := make([]TableEmployeeResponse, 0, len(rows))
 	for _, r := range rows {
 		status := 0
 		if r.Status != nil {
 			status = *r.Status
 		}
+		territory := PassageTerritoryStatus(states[r.ID], r.TerritoryStatus)
 		employees = append(employees, TableEmployeeResponse{
-			ID:                r.ID,
+			ID:           r.ID,
+			PassageState: states[r.ID], EffectivePeriod: models.EffectivePeriod{EntryPeriod: models.EntryPeriod{EntryDateFrom: r.EntryDateFrom, EntryDateTo: r.EntryDateTo, EntryTimeFrom: r.EntryTimeFrom, EntryTimeTo: r.EntryTimeTo}, Source: r.PeriodSource, Bounded: r.Bounded}, ServerNow: now,
 			LastName:          r.LastName,
 			FirstName:         r.FirstName,
 			MiddleName:        r.MiddleName,
@@ -487,7 +520,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			Status:            status,
 			ApplicationID:     r.ApplicationID,
 			ApplicationNumber: r.ApplicationNumber,
-			TerritoryStatus:   r.TerritoryStatus,
+			TerritoryStatus:   territory,
 			TargetTablesCount: r.TargetTablesCount,
 			TargetTables:      targetTablesMap[r.ID],
 		})
@@ -530,84 +563,23 @@ func (s *employeeService) loadEmployeeTargetTables(ctx context.Context, employee
 // (въезд=1 / выезд=2) и пишет в employees_history запись с action_type. Полный
 // аналог UpdateCarTerritoryStatus из car_status_service.go.
 func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, employeeID int, req UpdateTerritoryStatusRequest) error {
-	now := time.Now().UTC()
-	actionType := "unknown"
-	if req.TerritoryStatus == 1 {
-		actionType = "entry"
-	} else if req.TerritoryStatus == 2 {
-		actionType = "exit"
+	actor := 0
+	if req.UserID != nil {
+		actor = *req.UserID
 	}
-
-	var employee models.Employee
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status", "attachment_id").
-			First(&employee, employeeID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
-			}
-			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-		}
-
-		updates := map[string]interface{}{
-			"territory_status": req.TerritoryStatus,
-			"updated_at":       now,
-		}
-		if req.TerritoryStatus == 1 {
-			updates["territory_entry_time"] = now
-		}
-		if err := tx.Model(&models.Employee{}).Where("id = ?", employeeID).Updates(updates).Error; err != nil {
-			slog.Error("не удалось обновить территориальный статус сотрудника", "employee_id", employeeID, "status", req.TerritoryStatus, "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating employee territory status")
-		}
-
-		fullName := ""
-		if employee.LastName != nil {
-			fullName += *employee.LastName
-		}
-		if employee.FirstName != nil {
-			fullName += " " + *employee.FirstName
-		}
-		var comment string
-		if req.TerritoryStatus == 1 {
-			comment = fmt.Sprintf("Сотрудник %s прошёл на территорию", fullName)
-		} else if req.TerritoryStatus == 2 {
-			comment = fmt.Sprintf("Сотрудник %s вышел с территории", fullName)
-		}
-
-		details := carAuditDetails{Comment: &comment, TableID: req.TableID}
-		// Снимок ФИО прямо в отметке (#2485): сотрудника могут удалить, а журнал проходов
-		// доказывает, кто был на объекте, - его и не обезличивают по сроку намеренно
-		// (см. entityarchive/application_anonymize.go).
-		if subject := passageSubject(employee.LastName, employee.FirstName, employee.MiddleName); subject != "" {
-			details.Subject = &subject
-		}
-
-		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, details); err != nil {
-			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
-		}
-		slog.Info("территориальный статус сотрудника обновлён", "employee_id", employeeID, "action_type", actionType, "status", req.TerritoryStatus)
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	// Въезд/выезд изменил строку сотрудника - обновляем его целевые таблицы live
-	// (#840 V2.3).
-	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
-
-	return nil
+	commands := NewPassageCommandService(s.db, s.recorder)
+	commands.SetAfterChange(func(ctx context.Context, _ ElementKind, id int) { s.tablesProducer.NotifyEmployeeChanged(ctx, id) })
+	_, err := commands.Mark(ctx, actor, ElementEmployee, employeeID, PassageCommandRequest{TableID: req.TableID, ExpectedLastEventID: req.ExpectedLastEventID, TerritoryStatus: req.TerritoryStatus})
+	return err
 }
 
 // RevertEmployeePassage отменяет последнюю отметку прохода сотрудника и откатывает
 // его территориальный статус (#2437). Полный аналог RevertCarPassage.
 func (s *employeeService) RevertEmployeePassage(ctx context.Context, employeeID int, req RevertPassageRequest) error {
-	if err := revertPassage(ctx, s.db, s.recorder, time.Now, models.AuditEntityEmployee, employeeID, req); err != nil {
-		return err
-	}
-	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
-	return nil
+	commands := NewPassageCommandService(s.db, s.recorder)
+	commands.SetAfterChange(func(ctx context.Context, _ ElementKind, id int) { s.tablesProducer.NotifyEmployeeChanged(ctx, id) })
+	_, err := commands.Revert(ctx, req.ActorUserID, ElementEmployee, employeeID, PassageCommandRequest{TableID: req.TableID, ExpectedLastEventID: req.ExpectedLastEventID, TerritoryStatus: req.TerritoryStatus, Reason: req.Reason})
+	return err
 }
 
 // DeactivateEmployee деактивирует сотрудника и записывает удаление в историю.

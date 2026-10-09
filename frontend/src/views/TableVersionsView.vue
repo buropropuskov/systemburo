@@ -197,6 +197,7 @@
         <div class="versions-meta__counts">
           <span class="versions-count versions-count--on">На территории: {{ detailCounts.on_territory }}</span>
           <span class="versions-count versions-count--exit">Выехал: {{ detailCounts.exited }}</span>
+          <span v-if="detailCounts.corrected > 0" class="versions-count">Учёт исправлен: {{ detailCounts.corrected }}</span>
           <span class="versions-count versions-count--not">Не въезжал: {{ detailCounts.not_entered }}</span>
           <span class="versions-count versions-count--total">Всего: {{ detailCounts.total }}</span>
         </div>
@@ -478,7 +479,7 @@ const selectedItem = computed(
   () => items.value.find((s) => s.id === selectedId.value) || null,
 );
 const detailCounts = computed(
-  () => selectedItem.value?.counts || { on_territory: 0, exited: 0, not_entered: 0, total: 0 },
+  () => selectedItem.value?.counts || { on_territory: 0, exited: 0, not_entered: 0, corrected: 0, total: 0 },
 );
 
 async function fetchTable() {

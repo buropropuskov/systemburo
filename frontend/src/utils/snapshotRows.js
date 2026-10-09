@@ -1,3 +1,5 @@
+import { passageFields } from './passageProjection';
+
 /**
  * Приведение сырых строк снимка таблицы (payload.rows) к форме, которую ожидают
  * CarsTable/PeopleTable в preview-режиме.
@@ -41,13 +43,15 @@ function normalizeCarRow(r) {
     // Снимок не хранит id мест разгрузки (только человекочитаемую строку) -
     // formatUnloadPlaces упадёт на фолбэк item.unload_place.
     unload_place_ids: [],
-    entry_date_to: r.entry_date_to || '',
+    entry_date_from: r.entry_date_from || '',
     entry_time_from: r.entry_time_from || '',
     entry_time_to: r.entry_time_to || '',
+    entry_date_to: r.entry_date_to || '',
     status: 'В работе',
     applicationId: r.application_id ?? null,
     applicationNumber: r.application_number || null,
     ...territoryChecks(r.territory_status),
+    ...passageFields(r, { snapshot: true }),
   };
 }
 
@@ -65,11 +69,15 @@ function normalizeEmployeeRow(r) {
     citizenshipName: r.citizenship_name || null,
     pass_time: r.pass_time || '',
     pass_places: r.pass_places || '',
+    entry_date_from: r.entry_date_from || '',
+    entry_time_from: r.entry_time_from || '',
+    entry_time_to: r.entry_time_to || '',
     entry_date_to: r.entry_date_to || '',
     status: 'Активен',
     applicationId: r.application_id ?? null,
     applicationNumber: r.application_number || null,
     ...territoryChecks(r.territory_status),
+    ...passageFields(r, { snapshot: true }),
   };
 }
 
