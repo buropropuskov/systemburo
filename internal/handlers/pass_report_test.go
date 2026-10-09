@@ -74,6 +74,7 @@ func TestPassReport_LiveScopeAndGate(t *testing.T) {
 	guard2ID := getUserID(t, db, "prguard2")
 	adminToken := testutil.RegisterAndLogin(t, e, "pradmin", "pass123", 6, td.OrgID, td.CompanyID)
 	grantTableReport(t, db, guardID, "kpp_pass")
+	testutil.GrantTableVerb(t, guardID, "kpp_pass", "view")
 	testutil.GrantTableVerb(t, guardID, "kpp_pass", "entry")
 	testutil.GrantTableVerb(t, guardID, "kpp_pass", "exit")
 
@@ -81,6 +82,7 @@ func TestPassReport_LiveScopeAndGate(t *testing.T) {
 	// охранником guard (ловит реальный SQL агрегата, а не только билд).
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, guardToken, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	bindPassageFixtureCar2667(t, db, carID, table.ID)
 	for _, status := range []int{1, 2} {
 		rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
 			fmt.Sprintf(`{"territory_status": %d, "user_id": %d, "table_id": %d}`, status, guardID, table.ID),

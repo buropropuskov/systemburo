@@ -22,6 +22,7 @@ func TestCarTerritoryStatus_EntryThenExitWithHistory(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carentry1"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 
 	// Entry: territory_status = 1
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
@@ -74,8 +75,13 @@ func TestCarTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carentrytbl1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
-	tableID := seedSystemTable(t, db)
+	displayName := "Test Table"
+	table := models.SystemTable{Name: "test_table", DisplayName: &displayName, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&table).Error)
+	tableID := table.ID
+	testutil.GrantTableVerb(t, getUserID(t, db, "carentrytbl1"), "test_table", "view")
 	testutil.GrantTableVerb(t, getUserID(t, db, "carentrytbl1"), "test_table", "entry")
+	bindPassageFixtureCar2667(t, db, carID, tableID)
 
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
 		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, tableID), testutil.AuthHeader(token))
@@ -119,6 +125,7 @@ func TestCarTerritoryStatus_EntryWithFactPassData(t *testing.T) {
 	}
 
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carfact1"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 	body := fmt.Sprintf(`{"territory_status":1,"table_id":%d,"pass":{"number":"А 123 ВС 77","format_name":"Стандартный","mark_name":"BMW"}}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -166,6 +173,7 @@ func TestCarTerritoryStatus_ExitWithoutPassNoMetadata(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td)
 
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carfact2"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 	// Въезд без данных пропуска, затем выезд.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
 		fmt.Sprintf(`{"territory_status":1,"table_id":%d}`, passTbl), testutil.AuthHeader(token))

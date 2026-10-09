@@ -184,11 +184,12 @@ func LoadPassageStates(ctx context.Context, db *gorm.DB, kind ElementKind, ids [
 	return out, nil
 }
 
-// passageWindow admits one continuous Moscow window, with a half-open end.
+// PassageWindowBounds resolves one continuous Moscow window, with a half-open end.
 // Missing legacy clocks mean midnight/start and next midnight/end, respectively.
-func passageWindow(p models.EffectivePeriod, now time.Time) (bool, string) {
+// Bounds alone do not grant admission: callers retain lifecycle and access guards.
+func PassageWindowBounds(p models.EffectivePeriod) (start, end time.Time, bounded bool, err error) {
 	if p.Source == "manual_unbounded" {
-		return true, ""
+		return time.Time{}, time.Time{}, false, nil
 	}
 	value := func(s *string) string {
 		if s == nil {
@@ -207,19 +208,30 @@ func passageWindow(p models.EffectivePeriod, now time.Time) (bool, string) {
 		}
 		return time.Time{}, fmt.Errorf("invalid passage period")
 	}
-	start, err := parse(value(p.EntryDateFrom), value(p.EntryTimeFrom))
+	start, err = parse(value(p.EntryDateFrom), value(p.EntryTimeFrom))
 	if err != nil {
-		return false, "invalid_period"
+		return time.Time{}, time.Time{}, true, err
 	}
-	end, err := parse(value(p.EntryDateTo), value(p.EntryTimeTo))
+	end, err = parse(value(p.EntryDateTo), value(p.EntryTimeTo))
 	if err != nil {
-		return false, "invalid_period"
+		return time.Time{}, time.Time{}, true, err
 	}
 	if value(p.EntryTimeTo) == "" {
 		end = end.AddDate(0, 0, 1)
 	}
 	if !end.After(start) {
+		return time.Time{}, time.Time{}, true, fmt.Errorf("invalid passage period")
+	}
+	return start, end, true, nil
+}
+
+func passageWindow(p models.EffectivePeriod, now time.Time) (bool, string) {
+	start, end, bounded, err := PassageWindowBounds(p)
+	if err != nil {
 		return false, "invalid_period"
+	}
+	if !bounded {
+		return true, ""
 	}
 	if now.Before(start) {
 		return false, "not_started"

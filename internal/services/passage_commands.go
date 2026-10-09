@@ -21,7 +21,13 @@ type PassageCommandService struct {
 }
 
 func NewPassageCommandService(db *gorm.DB, recorder AuditRecorder) *PassageCommandService {
-	return &PassageCommandService{db: db, recorder: recorder, now: func() time.Time { return time.Now().UTC() }}
+	clock := func() time.Time { return time.Now().UTC() }
+	if db != nil && db.NowFunc != nil {
+		// A trusted local GORM session may supply a historical clock. Admission,
+		// audit auto timestamps and cache updates must use the same clock.
+		clock = func() time.Time { return db.NowFunc().UTC() }
+	}
+	return &PassageCommandService{db: db, recorder: recorder, now: clock}
 }
 
 // Configure before serving; publishing must never happen inside a transaction.
@@ -80,6 +86,15 @@ func passageAccess(ctx context.Context, tx *gorm.DB, actor int, kind ElementKind
 			return set, err
 		}
 		if !exists {
+			// Preserve the missing-record contract only after table authorization.
+			// An existing record on another post remains forbidden.
+			var recordExists bool
+			if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM "+string(kind)+" WHERE id=?)", id).Scan(&recordExists).Error; err != nil {
+				return set, err
+			}
+			if !recordExists {
+				return set, echo.NewHTTPError(http.StatusNotFound, "Запись не найдена")
+			}
 			return set, echo.NewHTTPError(http.StatusForbidden, "Нет доступа к записи в выбранной таблице")
 		}
 	}

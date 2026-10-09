@@ -67,6 +67,7 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	testutil.RegisterAndLogin(t, e, "guard_a", "pass123", 1, td.OrgID, td.CompanyID)
 	guardID := getUserID(t, db, "guard_a")
 	grantTableView(t, db, guardID, "kpp_a")
+	testutil.GrantTableVerb(t, guardID, "kpp_a", "entry")
 
 	// Юзер без права table.kpp_a.view - не должен попасть в аудиторию.
 	testutil.RegisterAndLogin(t, e, "guard_nogrant", "pass123", 1, td.OrgID, td.CompanyID)
@@ -160,6 +161,7 @@ func TestTablesRefresh_EmployeeEntry(t *testing.T) {
 	testutil.RegisterAndLogin(t, e, "guard_p", "pass123", 1, td.OrgID, td.CompanyID)
 	guardID := getUserID(t, db, "guard_p")
 	grantTableView(t, db, guardID, "kpp_people")
+	testutil.GrantTableVerb(t, guardID, "kpp_people", "entry")
 
 	// Сотрудник с целевой таблицей (target table) - без заявки, прямой вставкой.
 	ln := "Иванов"
@@ -168,6 +170,7 @@ func TestTablesRefresh_EmployeeEntry(t *testing.T) {
 	emp := models.Employee{LastName: &ln, FirstName: &fn, Status: &statusActive}
 	require.NoError(t, db.Create(&emp).Error)
 	require.NoError(t, db.Create(&models.EmployeeTargetTable{EmployeeID: emp.ID, TableID: peopleTable.ID}).Error)
+	preparePassageFixtureEmployee2667(t, db, emp.ID, peopleTable.ID, td.OrgID, false)
 
 	fake := &fakePublisher{}
 	resolver := services.NewPermissionResolver(db)

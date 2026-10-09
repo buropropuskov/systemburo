@@ -94,6 +94,7 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carflip1"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 
 	// Прогоняем все основные действия через endpoint-ы.
 	steps := []struct {

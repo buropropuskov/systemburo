@@ -360,11 +360,13 @@ func TestRecentPassages_ResolvesPostFromTableID(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "recentpasspost1", "pass123", 1, td.OrgID, td.CompanyID)
-	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
 
 	var st models.SystemTable
 	require.NoError(t, db.Where("name = ?", "test_table").First(&st).Error)
 	testutil.GrantTableVerb(t, getUserID(t, db, "recentpasspost1"), "test_table", "entry")
+	testutil.GrantTableVerb(t, getUserID(t, db, "recentpasspost1"), "test_table", "view")
 
 	// Реальная отметка входа через тот же endpoint, что и страница /table.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID),

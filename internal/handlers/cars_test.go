@@ -518,6 +518,7 @@ func TestUpdateCarTerritoryStatus_Success(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carterr1"), "cars")
+	bindPassageFixtureCar2667(t, db, carID, passTbl)
 
 	body := fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), body, testutil.AuthHeader(token))
@@ -662,7 +663,7 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	require.GreaterOrEqual(t, len(activeCars), 1, "expected active car after activation")
 
 	// 4. Update territory status (car enters territory)
-	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carlc1"), "cars")
+	passTbl := lcTable
 	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
