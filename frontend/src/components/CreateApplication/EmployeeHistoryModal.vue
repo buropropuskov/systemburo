@@ -291,10 +291,9 @@
 </template>
 
 <script>
-import HistoryEntityCard from '@/components/HistoryEntityCard.vue';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { EMPLOYEE_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
-import { ref } from 'vue';
+import { ref, defineAsyncComponent } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
@@ -307,7 +306,7 @@ import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'EmployeeHistoryModal',
-  components: { HistoryEntityCard, DateFilter, AppIcon },
+  components: { HistoryEntityCard: defineAsyncComponent(() => import('@/components/HistoryEntityCard.vue')), DateFilter, AppIcon },
   props: {
     lastName: {
       type: String,

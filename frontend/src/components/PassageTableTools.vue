@@ -6,8 +6,8 @@
     @close="show = false" @changed="$emit('refresh')" @open-entity="$emit('open-entity', $event)" />
 </template>
 <script setup>
-import { computed, ref, watch } from 'vue';
-import OpenPassagesModal from './OpenPassagesModal.vue';
+import { computed, ref, watch, defineAsyncComponent } from 'vue';
+const OpenPassagesModal = defineAsyncComponent(() => import('./OpenPassagesModal.vue'));
 import { usePermissionsStore } from '@/stores/permissions';
 import { usePassageClock } from '@/composables/usePassageClock';
 import { passageDeadlines } from '@/utils/passageProjection';

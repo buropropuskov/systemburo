@@ -276,10 +276,9 @@
 </template>
 
 <script>
-import HistoryEntityCard from '@/components/HistoryEntityCard.vue';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { PASSAGE_CORRECTION_ACTIONS, tablePassageHistoryText } from '@/utils/passageHistoryActions';
-import { ref } from 'vue';
+import { ref, defineAsyncComponent } from 'vue';
 import {
   PASSAGE_EXPORT_LIMIT,
   PASSAGE_PAGE_SIZE,
@@ -297,7 +296,7 @@ import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'EmployeesTableHistoryModal',
-  components: { HistoryEntityCard, AppIcon },
+  components: { HistoryEntityCard: defineAsyncComponent(() => import('@/components/HistoryEntityCard.vue')), AppIcon },
   props: {
     tableId: {
       type: Number,
