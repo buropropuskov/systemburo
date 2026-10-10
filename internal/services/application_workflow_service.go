@@ -64,6 +64,17 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 			return echo.NewHTTPError(http.StatusBadRequest, "Application is already in work")
 		}
 
+		// Expiry is authoritative even before the scheduled lifecycle worker runs.
+		expired, err := applicationAdmissionsExpired(tx, applicationID)
+		if err != nil {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить срок действия заявки")
+		}
+		if expired {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusConflict, "Заявку нельзя принять в работу: срок всех допусков истёк")
+		}
+
 		// Гейт согласования: принять в работу можно только когда заявка согласована
 		// (confirmation='Согласовано' = все обязательные approved, при отсутствии обязательных -
 		// хотя бы один approved). Исключение - заявка вообще без согласующих (согласовывать

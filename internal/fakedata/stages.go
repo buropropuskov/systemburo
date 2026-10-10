@@ -556,6 +556,14 @@ func rejectOneRequired(ctx context.Context, appSvc services.ApplicationService, 
 // TakeApplicationToWork требует confirmation="Согласовано" (или полное отсутствие
 // согласующих), поэтому approveFully обязан отработать раньше этого вызова.
 func acceptToWork(ctx context.Context, appSvc services.ApplicationService, db *gorm.DB, approver stageApprover, appID int, at time.Time) error {
+	// Replay acceptance at its historical time using the same session clock
+	// as passage commands. All ordinary access and admission checks still run.
+	historicalDB := historicalPassageDB(db, at)
+	recorder := services.NewAuditRecorder(historicalDB)
+	appSvc = services.NewApplicationService(historicalDB,
+		services.NewPermissionService(historicalDB), services.NewNotificationService(historicalDB),
+		services.NewVehicleBlacklistService(historicalDB, recorder),
+		services.NewPersonBlacklistService(historicalDB, recorder), recorder)
 	req := services.TakeToWorkRequest{Action: "accept"}
 	if err := appSvc.TakeApplicationToWork(ctx, approver.Username, appID, req); err != nil {
 		return fmt.Errorf("принятие в работу принимающим %s: %w", approver.Username, err)
@@ -602,6 +610,20 @@ func overridePendingBlacklistFlags(ctx context.Context, appSvc services.Applicat
 	return shiftAttachmentItemsAuditLog(ctx, db, appID, "blacklist_override", at)
 }
 
+// Generated acceptance must precede the original admission deadline, even
+// when the batch contains applications from months before the generation run.
+func stageAdmissionHorizon(ctx context.Context, db *gorm.DB, appID int, now time.Time) (time.Time, error) {
+	var window struct{ Deadline *time.Time }
+	if err := db.WithContext(ctx).Raw(`SELECT MAX(entry_date_to::date + COALESCE(NULLIF(entry_time_to, '')::time, TIME '23:59:59'))
+	 AT TIME ZONE 'Europe/Moscow' AS deadline FROM attachments WHERE application_id=?`, appID).Scan(&window).Error; err != nil {
+		return now, err
+	}
+	if window.Deadline != nil && !now.Before(*window.Deadline) {
+		return window.Deadline.Add(-time.Microsecond), nil
+	}
+	return now, nil
+}
+
 // --- сценарии стадий ---
 
 // runApprovedOnlyStage -- заявка прочитана и полностью согласована, но принимающий её
@@ -633,6 +655,11 @@ func runRejectedStage(ctx context.Context, appSvc services.ApplicationService, d
 // runAcceptedStage -- "счастливый путь" большинства партии: прочитана, согласована,
 // принята в работу. status="В работе", confirmation="Согласовано".
 func runAcceptedStage(ctx context.Context, appSvc services.ApplicationService, db *gorm.DB, approver stageApprover, app batchApplication, s *stageStreams, now time.Time) error {
+	var err error
+	now, err = stageAdmissionHorizon(ctx, db, app.ID, now)
+	if err != nil {
+		return err
+	}
 	base := stageBase(app.SentAt, now)
 	tRead := nextStageMoment(s.readGap, base, now)
 	tDecide := nextStageMoment(s.decideGap, tRead, now)
@@ -653,6 +680,11 @@ func runAcceptedStage(ctx context.Context, appSvc services.ApplicationService, d
 // его не трогает. Тот же принимающий, что принимал: реалистичнее, чем случайный другой
 // человек передумывает за него.
 func runRevokedStage(ctx context.Context, appSvc services.ApplicationService, db *gorm.DB, approver stageApprover, app batchApplication, s *stageStreams, now time.Time) error {
+	var err error
+	now, err = stageAdmissionHorizon(ctx, db, app.ID, now)
+	if err != nil {
+		return err
+	}
 	base := stageBase(app.SentAt, now)
 	tRead := nextStageMoment(s.readGap, base, now)
 	tDecide := nextStageMoment(s.decideGap, tRead, now)

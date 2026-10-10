@@ -41,6 +41,7 @@
                 :source="source"
                 :readonly="readonly"
                 :period-table-id="periodTableId"
+                :license-plate-formats="licensePlateFormats"
                 :history-visible="showCarFeatures && canSeeFullHistory"
                 :application-visible="!readonly && canOpenApplication"
                 :blacklist-visible="!readonly && canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
@@ -50,24 +51,7 @@
                 @period-changed="$emit('period-changed', $event)"
                 @manual-attached="$emit('manual-attached', $event)"
               />
-              <button
-                class="modal-close"
-                @click="close"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                >
-                  <path
-                    d="M13 1L1 13M1 1L13 13"
-                    stroke="#666"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
+              <DetailCloseButton @click="close" />
             </div>
                     
             <div
@@ -232,7 +216,6 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
-                    <CarAccessFlagRows :flags="vehicle" />
                     <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
                          подписью под блоком, а не строкой наравне с данными машины.
                          Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
@@ -510,6 +493,7 @@
 </template>
 
 <script>
+import DetailCloseButton from '@/components/ui/DetailCloseButton.vue';
 import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
@@ -518,7 +502,6 @@ import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import TableInfoModal from './TableInfoModal.vue';
 import { canEditEntityPeriod } from '@/components/EntityPeriodEditor.vue';
 import DetailHeaderActions, { detailHeaderTitle } from './DetailHeaderActions.vue';
-import CarAccessFlagRows from './CarAccessFlagRows.vue';
 import { vehicleDetailsIdentityComputed } from './vehicleDetailsIdentity';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -542,7 +525,7 @@ export default {
     name: 'VehicleDetailsModal',
     mixins: [passageDetailsIntegration],
     components: {
-        CarAccessFlagRows,
+        DetailCloseButton,
         DetailHeaderActions,
         AppIcon,
         UnloadPlaceModal,
@@ -615,7 +598,7 @@ export default {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
 // то же значение, что у оверлея, чтобы Escape закрывал именно верхнее окно.
-useEscapeClose(() => emit('close'), () => props.show, props.source === 'application' ? 10003 : 10001);
+useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'history' ? 14000 : props.source === 'application' ? 10003 : 10001);
         // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
         // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
         const sheetBody = ref(null);
@@ -665,9 +648,6 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         // Карточка, открытая ИЗ ApplicationDetail (source='application'), лежит ПОВЕРХ его
         // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
-        overlayZIndex() {
-            return this.source === 'application' ? 10003 : 10001;
-        },
         // Намеренно НЕ зависит от showCarFeatures: на вкладке Автомобили features выкл,
         // но переход в заявку нужен. Гейт: право detail.open_application по контексту
         // (карта detailModalActions, как у EmployeeDetailsModal) И наличие заявки.
@@ -1158,6 +1138,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
 </script>
 
 <style scoped>
+@import '@/assets/detail-card-header.css';
 /* Все предыдущие стили остаются, добавляем новый класс для системной точки */
 .dot-system {
     background: #8b5cf6; /* фиолетовый */
@@ -1251,16 +1232,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
   pointer-events: auto;
 }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 30px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  height: 70px;
-  box-sizing: border-box;
-}
+
 
 
 .bl-section {

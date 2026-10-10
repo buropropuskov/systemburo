@@ -17,7 +17,7 @@ class CreateApplicationPage {
     this.categories = page.locator('.category');
     this.phoneInput = page.getByPlaceholder('Номер телефона');
     this.recipientChips = page.locator('.recipient-chip__name');
-    this.oneDayCheckbox = page.locator('.one-day input.one-day__checkbox');
+    this.oneDayCheckbox = page.getByLabel('Однодневная заявка', { exact: true });
     this.dateInputs = page.locator('input.input__date');
     this.timeInputs = page.locator('input.input__time');
     // Промежуточный шаг перед отправкой: новых людей и машины предлагают сохранить

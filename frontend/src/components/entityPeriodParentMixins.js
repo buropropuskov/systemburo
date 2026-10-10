@@ -13,6 +13,14 @@ function refreshedPeriodRow(rows, id, previous) {
 }
 
 export const carsTablePeriodDetails = {
+  watch: {
+    itemsData(rows) {
+      if (!this.showVehicleDetails || !this.selectedVehicle) return;
+      const row = rows.find(item => item.id === this.selectedVehicle.id);
+      if (row) this.openVehicleDetails(row);
+      else this.closeVehicleDetails();
+    },
+  },
   computed: {
     entityDetailsProps() {
       return {
@@ -70,6 +78,14 @@ export const carsTablePeriodDetails = {
 };
 
 export const peopleTablePeriodDetails = {
+  watch: {
+    itemsData(rows) {
+      if (!this.showDetailsModal || !this.selectedEmployee) return;
+      const row = rows.find(item => item.id === this.selectedEmployee.id);
+      if (row) this.openEmployeeDetails(row);
+      else this.closeDetailsModal();
+    },
+  },
   computed: {
     entityDetailsProps() {
       return {

@@ -193,6 +193,7 @@
                       <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                     </div>
 
+                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [item.car_number, item.car_brand].filter(Boolean).join(' — ') }}</button>
                     <div class="action-text">
                       {{ getActionText(item) }}
                       <span
@@ -245,12 +246,14 @@
         </div>
       </div>
     </transition>
+    <HistoryEntityCard v-if="visible && selectedHistoryEntity" :kind="'car'" :row="selectedHistoryEntity" @close="selectedHistoryEntity = null" />
   </Teleport>
 </template>
 
 <script>
+import { useEscapeClose } from '@/composables/useEscapeClose';
 import { CAR_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
-import { ref } from 'vue';
+import { ref, defineAsyncComponent } from 'vue';
 import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -263,7 +266,7 @@ import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'CarHistoryModal',
-  components: { LoaderSpinner, DateFilter, AppIcon },
+  components: { HistoryEntityCard: defineAsyncComponent(() => import('@/components/HistoryEntityCard.vue')), LoaderSpinner, DateFilter, AppIcon },
   props: {
     carId: {
       type: Number,
@@ -309,6 +312,7 @@ export default {
     // размонтирует мгновенно и анимация не проиграется.
     const visible = ref(false);
     const requestClose = () => { visible.value = false; };
+    useEscapeClose(requestClose, () => visible.value, 12000);
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
     // Bottom-sheet на мобилке: свайп вниз за ползунок/с прокрученного вверх контента
@@ -330,6 +334,7 @@ export default {
   },
   data() {
     return {
+      selectedHistoryEntity: null,
       loading: false,
       history: [],
       sortOrder: 'desc',
@@ -447,13 +452,14 @@ export default {
     this.visible = true;
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
-    document.addEventListener('keydown', this.onKeydown);
+
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
-    document.removeEventListener('keydown', this.onKeydown);
+
   },
   methods: {
+    canOpenHistoryEntity(item) { const id = item.car_id; return Number.isSafeInteger(id) && id > 0 && !item.entity_deleted; },
     async loadHistory() {
       this.loading = true;
       try {
@@ -646,23 +652,13 @@ export default {
       }
     },
 
-    onKeydown(e) {
-      if (e.key === 'Escape') this.requestClose();
-    },
   }
 };
 </script>
 
 <style scoped>
-.history-date-separator {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-text);
-  padding: 8px 0 4px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
-  letter-spacing: 0.02em;
-}
+@import '@/assets/history-entity-link.css';
+
 
 .place-name {
   font-size: 11px;

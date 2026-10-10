@@ -218,7 +218,7 @@
 
                   <div class="history-content">
                     <div class="history-header">
-                      <span class="car-info">{{ getCarInfo(item) }}<span
+                      <span class="car-info"><button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ getCarInfo(item) }}</button><template v-else>{{ getCarInfo(item) }}</template><span
                         v-if="item.entity_deleted"
                         class="deleted-badge"
                       >запись удалена</span></span>
@@ -277,12 +277,14 @@
         </div>
       </div>
     </transition>
+    <HistoryEntityCard v-if="visible && selectedHistoryEntity" :kind="'car'" :row="selectedHistoryEntity" :table-id="tableId" @close="selectedHistoryEntity = null" />
   </Teleport>
 </template>
 
 <script>
+import { useEscapeClose } from '@/composables/useEscapeClose';
 import { PASSAGE_CORRECTION_ACTIONS, tablePassageHistoryText } from '@/utils/passageHistoryActions';
-import { ref } from 'vue';
+import { ref, defineAsyncComponent } from 'vue';
 import {
   PASSAGE_EXPORT_LIMIT,
   PASSAGE_PAGE_SIZE,
@@ -299,7 +301,7 @@ import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'CarsTableHistoryModal',
-  components: { LoaderSpinner, AppIcon },
+  components: { HistoryEntityCard: defineAsyncComponent(() => import('@/components/HistoryEntityCard.vue')), LoaderSpinner, AppIcon },
   props: {
     cars: {
       type: Array,
@@ -332,12 +334,14 @@ export default {
     // размонтирует мгновенно и анимация не проиграется.
     const visible = ref(false);
     const requestClose = () => { visible.value = false; };
+    useEscapeClose(requestClose, () => visible.value, 13000);
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
     return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
   },
   data() {
     return {
+      selectedHistoryEntity: null,
       loading: false,
       history: [],
       sortOrder: 'desc',
@@ -420,7 +424,7 @@ export default {
     this.loadHistory();
     this.loadFilterUsers();
     document.addEventListener('click', this.handleClickOutside);
-    document.addEventListener('keydown', this.onKeydown);
+
 
     this.cars.forEach(car => {
       this.carsMap[car.id] = this.formatCarName(car);
@@ -428,9 +432,10 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
-    document.removeEventListener('keydown', this.onKeydown);
+
   },
   methods: {
+    canOpenHistoryEntity(item) { const id = item.car_id; return Number.isSafeInteger(id) && id > 0 && !item.entity_deleted; },
     formatCarName(car) {
       if (car.car_number && car.car_number.toLowerCase().includes('по факту')) {
         return `По факту (${car.organization_name || car.organization || 'Не указана'})`;
@@ -671,15 +676,12 @@ export default {
       }
     },
 
-    onKeydown(e) {
-      if (e.key === 'Escape') this.requestClose();
-    },
   }
 };
 </script>
 
 <style scoped>
-@import '@/assets/passage-history.css';
+@import '@/assets/history-entity-link.css';
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;

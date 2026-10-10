@@ -74,6 +74,19 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     });
   });
 
+  it('сохраняет просроченную незакрытую строку, разрешённую сервером, несмотря на неактивный статус', async () => {
+    const expired = { id: 17, car_number: 'TEST-2674', car_brand: 'Fixture', status: 0, territory_status: 1,
+      entry_date_to: '2034-12-30', server_now: '2035-01-01T12:00:00Z',
+      passage_state: {has_event:true,last_event_id:81,last_event_kind:'entry',open:true,entry_time_known:true,entry_at:'2034-12-30T10:00:00Z'},
+      admission: { can_enter: false, can_exit: true } };
+    apiRequest.mockImplementation(url => okResponse(url.startsWith('/cars/active-for-table/') ? [expired] : []));
+    const wrapper = mountTable();
+    await flushPromises();
+    expect(wrapper.vm.itemsData).toHaveLength(1);
+    expect(wrapper.vm.itemsData[0]).toMatchObject({id:17,territory_status:1,admission:{can_enter:false,can_exit:true}});
+    wrapper.unmount();
+  });
+
   it('пока отмена недоступна, отмеченный въезд остаётся неактивной кнопкой', async () => {
     const wrapper = mountTable();
     await flushPromises();
@@ -94,7 +107,7 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     });
 
     const { entry } = passButtons(wrapper);
-    expect(entry.text()).toBe('Отменить');
+    expect(entry.text()).toBe('Отмена');
     expect(entry.attributes('disabled')).toBeUndefined();
 
     await entry.trigger('click');
@@ -134,7 +147,7 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     });
 
     const { exit } = passButtons(wrapper);
-    expect(exit.text()).toBe('Отменить');
+    expect(exit.text()).toBe('Отмена');
     expect(exit.attributes('disabled')).toBeUndefined();
   });
 
@@ -164,7 +177,7 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     const row = wrapper.vm.itemsData[0];
     expect(row.can_revert).toBe(true);
     expect(row.last_mark_table_id).toBe(TABLE_ID);
-    expect(passButtons(wrapper).entry.text()).toBe('Отменить');
+    expect(passButtons(wrapper).entry.text()).toBe('Отмена');
   });
 
 // На стенде подпись у кнопки менялась, а зелёная заливка «отмечено» оставалась:

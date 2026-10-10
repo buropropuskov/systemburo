@@ -353,15 +353,15 @@
                   data-label="Въезд"
                   @click.stop
                 >
-                  <button
-                    class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
+                  <PassageMarkButton
+                    direction="entry"
+                    :checked="item.entry_checked"
+                    :revertable="canRevertMark(item, 'entry')"
+                    label="Въезд"
                     :disabled="preview || (!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     data-testid="ob-pass-entry"
                     @click="preview ? null : onPassButton(item, 'entry')"
-                  >
-                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Въезд' }}
-                  </button>
+                  />
                 </div>
                 <!-- Выезд - кнопка -->
                 <div
@@ -370,15 +370,15 @@
                   data-label="Выезд"
                   @click.stop
                 >
-                  <button
-                    class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
+                  <PassageMarkButton
+                    direction="exit"
+                    :checked="item.exit_checked"
+                    :revertable="canRevertMark(item, 'exit')"
+                    label="Выезд"
                     :disabled="preview || (!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-pass-exit"
                     @click="preview ? null : onPassButton(item, 'exit')"
-                  >
-                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выезд' }}
-                  </button>
+                  />
                 </div>
                 <div
                   v-if="isFieldInDom('car_number')"
@@ -1072,11 +1072,7 @@ export default {
             territory_status: item.territory_status,
           }])
         );
-        const regularCars = cars.filter(car => {
-          if (car.status !== 1) return false;
-          const carNumber = car.car_number?.toLowerCase().trim();
-          return carNumber !== 'по факту';
-        });
+        const regularCars = cars.filter(car => car.car_number?.toLowerCase().trim() !== 'по факту');
         // Преобразуем в нужный формат
         const newItems = regularCars.map(car => {
           const orgName = car.organization || '';

@@ -61,7 +61,7 @@
           />
         </fieldset>
         <p v-else class="entity-period__note">
-          Собственный срок будет удалён. {{ manual ? 'Будет действовать срок ручного основания; если он не ограничен, допуск останется бессрочным.' : 'Будет действовать актуальный срок вложения.' }}
+          Собственный срок будет удалён. Срок {{ manual ? 'ручного основания' : 'вложения' }}: {{ inheritedPeriod }}.
         </p>
         <FormField label="Причина изменения" required :error="validated && !reason.trim() ? 'Укажите причину изменения' : ''">
           <textarea
@@ -129,6 +129,11 @@ export default {
       return `/${this.kind === 'employee' ? 'employees' : 'cars'}/${this.entityID}/period`;
     },
     manual() { return this.snapshot?.application_id == null; },
+    inheritedPeriod() {
+      const period = this.snapshot?.source_period;
+      if (!period) return 'не удалось загрузить — обновите данные';
+      return period.entry_date_to ? formatPeriod(period) : 'без ограничения';
+    },
     currentPeriod() { return this.snapshot.effective_period.bounded ? formatPeriod(this.snapshot.effective_period) : 'Бессрочно'; },
     currentSource() {
       return { individual: 'Индивидуальный срок', attachment: 'Наследуется от вложения', manual_unbounded: 'Ручной бессрочный допуск' }[this.snapshot.effective_period.source] || 'Срок основания';

@@ -21,6 +21,7 @@
 </template>
 
 <script>
+import { formatNumberForDisplay } from '@/composables/useNumberFormat';
 import EntityPeriodModal from '@/components/EntityPeriodModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 
@@ -54,6 +55,7 @@ export default {
     entity: { type: Object, default: null },
     readonly: { type: Boolean, default: false },
     tableId: { type: Number, default: null },
+    licensePlateFormats: { type: Array, default: () => [] },
   },
   emits: ['changed'],
   data() { return { open: false }; },
@@ -67,7 +69,7 @@ export default {
     title() {
       return this.kind === 'employee'
         ? [this.entity?.last_name, this.entity?.first_name, this.entity?.middle_name].filter(Boolean).join(' ')
-        : (this.entity?.plateNumber || this.entity?.car_number || '');
+        : [formatNumberForDisplay(this.entity?.plateNumber || this.entity?.car_number || '', this.licensePlateFormats), this.entity?.mark || this.entity?.car_brand].filter(Boolean).join(' — ');
     },
   },
   watch: {

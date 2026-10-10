@@ -43,7 +43,7 @@ describe('open passage real modal #2667', () => {
   afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); vi.useRealTimers(); });
   it('loads current table attention by default using real project controls without autofocus', async () => {
     const wrapper = create(); await flushPromises();
-    expect(listOpenPassages).toHaveBeenCalledWith('car', 4, { source: 'table', attentionOnly: true, view: 'open', search: '', organizationID: null, page: 1, perPage: 25 });
+    expect(listOpenPassages).toHaveBeenCalledWith('car', 4, { source: 'table', attentionOnly: true, expiredOnly: false, view: 'open', search: '', organizationID: null, page: 1, perPage: 25 });
     expect(wrapper.text()).toContain('Незакрытых: 3');
     expect(wrapper.text()).toContain('49 ч 0 мин');
     expect(wrapper.find('[autofocus]').exists()).toBe(false);

@@ -16,7 +16,7 @@ import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHand
  *   необязательный guard для всегда-смонтированных модалок (store-driven, visible-prop):
  *   Escape сработает только когда isActive истинно. Для модалок, монтируемых по v-if
  *   (присутствуют в DOM только когда открыты), guard не нужен - не передавай.
- * @param {number} [zIndex] слой окна для стопки: при равных слоях верхним считается
+ * @param {number | (() => number)} [zIndex] слой окна для стопки: при равных слоях верхним считается
  *   открытое последним, поэтому значение обязательно только там, где слои неравные.
  */
 export function useEscapeClose(onEscape, isActive, zIndex = 0) {
@@ -28,6 +28,8 @@ export function useEscapeClose(onEscape, isActive, zIndex = 0) {
         if (isActive === undefined) return true;
         return typeof isActive === 'function' ? !!isActive() : !!unref(isActive);
     };
+
+    const layer = () => typeof zIndex === 'function' ? zIndex() : zIndex;
 
     const handler = (e) => {
         if (e.key !== 'Escape') return;
@@ -43,11 +45,11 @@ export function useEscapeClose(onEscape, isActive, zIndex = 0) {
         document.addEventListener('keydown', handler);
         // Окна по v-if смонтированы только открытыми, поэтому регистрируем сразу;
         // окна с guard'ом встают в стопку через watchEffect ниже.
-        if (isActive === undefined) setModalOpen(owner, true, zIndex);
+        if (isActive === undefined) setModalOpen(owner, true, layer());
     });
 
     if (isActive !== undefined) {
-        watchEffect(() => setModalOpen(owner, isOpen(), zIndex));
+        watchEffect(() => setModalOpen(owner, isOpen(), layer()));
     }
 
     onBeforeUnmount(() => {

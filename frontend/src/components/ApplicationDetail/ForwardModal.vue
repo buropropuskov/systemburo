@@ -3,7 +3,7 @@
   <BaseModal
     :show="show"
     title="Переслать заявку"
-    width="600px"
+    width="940px"
     :z-index="20000"
     content-class="forward-modal"
     @close="close"
@@ -19,6 +19,7 @@
         просмотра. Назначать согласующих и ответственных вправе отправитель.</template>
       </div>
 
+      <div class="forward-selection">
       <div class="filters-row">
         <div v-for="(label, key) in { organization: 'Организации', company: 'Компании', position: 'Должности' }" :key="key" class="filters-row__control">
           <BaseDropdown
@@ -47,6 +48,7 @@
           @input="searchUsers"
           @focus="onSearchFocus"
         >
+        <Transition name="forward-chooser">
         <div
           v-if="showDropdown && filteredUsers.length > 0"
           class="forward-user-dropdown"
@@ -92,6 +94,7 @@
             </div>
           </div>
         </div>
+        </Transition>
       </div>
 
       <button type="button" class="reset-filters-btn" :disabled="!Object.values(filters).some(Boolean)" @click="resetFilters">Сбросить фильтры</button>
@@ -101,6 +104,7 @@
         class="selected-forward-users"
       >
         <h4>Выбранные пользователи ({{ selectedUsers.length }})</h4>
+        <small v-if="selectedUsers.length > 2" class="forward-scroll-note">{{ selectedUsers.length }} получателей — список прокручивается</small>
         <div class="forward-users-list-container">
           <div class="forward-users-list"><p v-if="selectedUsers.length === 0" class="forward-empty">Выберите пользователей для пересылки заявки</p>
             <div
@@ -172,6 +176,8 @@
         </div>
       </div>
 
+      </div>
+      <div class="forward-materials">
       <div
         v-if="attachments.length > 0"
         class="forward-attachments"
@@ -217,14 +223,7 @@
             </span>
           </label>
         </div>
-        <p
-          v-show="selectedAttachmentIds.length === 0"
-          role="alert"
-          id="forward-attachments-warning"
-          class="forward-attachments-hint forward-message-warning"
-        >
-          <span class="forward-message-warning-icon" aria-hidden="true">⚠</span><span>Выберите хотя бы одно вложение для пересылки</span>
-        </p>
+
       </div>
 
       <FormField
@@ -255,6 +254,10 @@
       >
         <span class="forward-message-warning-icon">⚠</span>
         <span>Ваше сообщение увидят все получатели заявки и бюро пропусков, а не только выбранные вами.</span>
+      </div>
+      <div class="forward-validation-slot">
+        <p v-if="attachments.length && !selectedAttachmentIds.length" id="forward-attachments-warning" role="alert" class="forward-validation-alert">⚠ Выберите хотя бы одно вложение для пересылки</p>
+      </div>
       </div>
     </div>
 
@@ -551,6 +554,8 @@ export default {
 </script>
 
 <style scoped>
+.forward-chooser-enter-active, .forward-chooser-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
+.forward-chooser-enter-from, .forward-chooser-leave-to { opacity: 0; transform: translateY(-8px); }
 .forward-body {
     padding: 20px;
 }
@@ -899,11 +904,6 @@ export default {
     border-radius: 8px;
 }
 
-.forward-attachments-hint {
-    margin: 8px 0 0;
-    font-size: 12px;
-    color: var(--danger-text);
-}
 
 .forward-user-dropdown-content::-webkit-scrollbar,
 .forward-users-list-container::-webkit-scrollbar,
@@ -989,12 +989,19 @@ export default {
 .filters-row { display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap; }
 .filters-row__control {flex:1 1 0;min-width:150px;max-width:210px;}
 .filters-row :deep(.base-dropdown__button) {padding:6px 12px;font-size:12px;border-radius:20px;}
-.forward-search-row {display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.forward-search-row {display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 .forward-search-row .user-search-section {flex:1;min-width:0;margin-bottom:0;}
 .reset-filters-btn {padding:7px 14px;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-pill);cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;}
 .reset-filters-btn:disabled {opacity:.5;cursor:default;}
-.forward-body {padding:16px;}
-.selected-forward-users {height:144px;min-height:144px;max-height:144px;display:flex;flex-direction:column;margin-bottom:12px;}
+.forward-body {padding:16px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start;}
+.forward-selection,.forward-materials {min-width:0;}
+.forward-reader-note {grid-column:1/-1;}
+.forward-search-row .lk-input {padding:7px 12px;font-size:13px;min-height:34px;}
+.forward-validation-slot {height:34px;position:relative;}
+.forward-validation-alert {position:absolute;inset:0;margin:0;display:flex;align-items:center;padding:4px 8px;border-radius:var(--radius-md);background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-text);font-size:12px;}
+.forward-scroll-note {font-size:11px;color:var(--text-muted);margin-bottom:4px;}
+@media(max-width:760px){.forward-body{grid-template-columns:minmax(0,1fr);}.selected-forward-users{height:240px!important;min-height:240px!important;max-height:240px!important;}}
+.selected-forward-users {height:310px;min-height:310px;max-height:310px;display:flex;flex-direction:column;margin-bottom:12px;}
 .selected-forward-users h4 {font-size:14px;margin:0 0 8px;line-height:1.4;flex:0 0 auto;}
 .forward-users-list-container {flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;padding-bottom:2px;}
 .forward-selected-user {padding:8px 10px;flex-shrink:0;}
@@ -1002,16 +1009,14 @@ export default {
 .forward-selected-user-main {flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:6px;}
 .forward-selected-user-settings {gap:4px;margin-top:0;}
 .forward-users-list {gap:8px;}
-.forward-attachments-hint {box-sizing:border-box;height:34px;min-height:34px;margin:8px 0 0;visibility:visible;align-items:center;color:var(--danger-text);background:var(--danger-tint,var(--surface-2));border-color:var(--danger-text);border-radius:var(--radius-md);padding:6px 10px;font-size:12px;line-height:20px;}
-.forward-attachments-hint[style*="display: none"] {display:flex!important;visibility:hidden;}
 .forward-empty {font-size:12px;color:var(--text-muted);text-align:center;padding:20px 0;}
 .forward-attachments-list {max-height:240px;}
-.forward-attachments {margin-top:12px;}
+.forward-attachments {margin-top:0;}
 .forward-message-field {margin-top:12px;}
 .forward-message-warning {font-size:11px;}
 .forward-message-textarea {min-height:62px!important;}
 .forward-reader-note {font-size:12px;}
-@media(max-width:600px) {.filters-row__control{min-width:140px}.forward-search-row{flex-wrap:wrap}}
+@media(max-width:600px) {.filters-row__control{min-width:140px}.forward-search-row{flex-wrap:wrap}.forward-validation-slot{height:52px}.forward-validation-alert{line-height:1.3}}
 </style>
 <style>
 .base-modal.forward-modal {display:flex;flex-direction:column;max-height:92vh;overflow:hidden!important;border-radius:30px;}

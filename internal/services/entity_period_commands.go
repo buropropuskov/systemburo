@@ -53,6 +53,7 @@ type EntityPeriodCommandResult struct {
 	PeriodMode     models.PeriodMode      `json:"period_mode"`
 	Individual     *models.EntryPeriod    `json:"individual_period"`
 	Effective      models.EffectivePeriod `json:"effective_period"`
+	SourcePeriod   models.EntryPeriod     `json:"source_period"`
 	Revision       string                 `json:"period_revision"`
 	ApprovalsReset bool                   `json:"approvals_reset"`
 }
@@ -371,6 +372,7 @@ func entityPeriodResult(actorID int, kind ElementKind, snapshot entityPeriodSnap
 		return nil, err
 	}
 	result := &EntityPeriodCommandResult{EntityID: snapshot.ID, AttachmentID: snapshot.AttachmentID, ApplicationID: snapshot.ApplicationID, PeriodMode: snapshot.PeriodMode, Effective: effective, Revision: revision}
+	result.SourcePeriod = snapshot.Parent
 	if snapshot.PeriodMode == models.PeriodIndividual {
 		own := snapshot.Own
 		result.Individual = &own

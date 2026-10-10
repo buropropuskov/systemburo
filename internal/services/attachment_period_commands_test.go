@@ -219,10 +219,10 @@ func TestAttachmentPeriod2665LifecycleScope(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rejected.Code)
 	}
 	set := PermissionSet{allows: map[string]string{KeyApplicationPeriodChange: "override"}}
-	for _, status := range []string{models.StatusUnread, models.StatusProcessing} {
+	for _, status := range []string{models.StatusUnread, models.StatusProcessing, models.StatusInWork} {
 		require.NoError(t, AuthorizeAttachmentPeriodChange(set, PeriodChangeTarget{Visible: true, ApplicationStatus: status}))
 	}
-	for _, status := range []string{models.StatusInWork, models.StatusCompleted, models.StatusWithdrawn, models.StatusRefused, ""} {
+	for _, status := range []string{models.StatusCompleted, models.StatusWithdrawn, models.StatusRefused, ""} {
 		require.Error(t, AuthorizeAttachmentPeriodChange(set, PeriodChangeTarget{Visible: true, ApplicationStatus: status}))
 	}
 	var forbidden *echo.HTTPError

@@ -15,6 +15,7 @@
       :source="source"
       :readonly="readonly"
       :table-id="periodTableId"
+      :license-plate-formats="licensePlateFormats"
       @changed="$emit('period-changed', $event)"
     />
     <button v-if="historyVisible" class="history-btn" @click="$emit('history')">
@@ -51,6 +52,7 @@ export default {
     source: { type: String, default: 'general' },
     readonly: { type: Boolean, default: false },
     periodTableId: { type: Number, default: null },
+    licensePlateFormats: { type: Array, default: () => [] },
     historyVisible: { type: Boolean, default: false },
     applicationVisible: { type: Boolean, default: false },
     blacklistVisible: { type: Boolean, default: false },
@@ -69,9 +71,13 @@ export default {
 <style scoped>
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
+  order: 3;
+  flex-basis: 100%;
+  min-width: 0;
   align-items: center;
-  gap: 10px;
-  margin-right: 10px;
+  gap: 8px;
+  margin-top: 8px;
 }
 .history-btn, .application-btn {
   padding: 6px 12px;

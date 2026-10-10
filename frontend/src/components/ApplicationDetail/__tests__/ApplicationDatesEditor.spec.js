@@ -52,7 +52,7 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     expect(mountEditor({ isApprover: true }).find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
     expect(apiRequest).not.toHaveBeenCalled();
   });
-  it.each(['В работе', 'Завершено', 'Отозвано', 'Отказано'])('retains the old group lifecycle boundary: %s', status => {
+  it.each(['Завершено', 'Отозвано', 'Отказано'])('retains the old group lifecycle boundary: %s', status => {
     expect(mountEditor({ application: { id: 42, status } }).find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
   });
   it('permits Unread/Processing including approved; rejects empty or nonpersisted IDs', () => {
@@ -60,6 +60,9 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     expect(mountEditor({ attachments: [] }).find('button').exists()).toBe(false);
     expect(mountEditor({ application: { id: '42', status: 'В обработке' } }).find('button').exists()).toBe(false);
     expect(mountEditor({ attachments: [{ id: -1 }] }).find('button').exists()).toBe(false);
+  });
+  it('allows the approved group period change in work', () => {
+    expect(mountEditor({ application: { id: 42, status: 'В работе' } }).find('[data-testid="app-detail-change-dates"]').exists()).toBe(true);
   });
   it('opens with all attachments and preserve, requires a reason and a selection', async () => {
     const wrapper = mountEditor();
@@ -69,7 +72,7 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     expect(wrapper.find('[data-testid="dates-editor-current"]').text()).toContain('01.10.2099 09:00 - 03.10.2099 18:00');
     expect(wrapper.find('[data-testid="dates-editor-preview-button"]').attributes('disabled')).toBeDefined();
     await wrapper.find('[data-testid="dates-editor-reason"]').setValue('Причина');
-    await wrapper.find('[data-testid="dates-editor-all"]').setValue(false);
+    await wrapper.find('[data-testid="dates-editor-all"] input').setValue(false);
     expect(wrapper.find('[role="alert"]').text()).toContain('Выберите хотя бы одно вложение');
     expect(wrapper.find('[data-testid="dates-editor-preview-button"]').attributes('disabled')).toBeDefined();
     expect(apiRequest).not.toHaveBeenCalled();
@@ -87,12 +90,12 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     const wrapper = mountEditor();
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
     await openWithReason(wrapper);
-    await wrapper.find('[data-testid="dates-editor-attachment-2"]').setValue(false);
+    await wrapper.find('[data-testid="dates-editor-attachment-2"] input').setValue(false);
     await preview(wrapper, result([1]));
     const body = { attachment_ids: [1], period: PERIOD, individual_policy: 'preserve', reason: 'Исправление срока' };
     expect(apiRequest).toHaveBeenNthCalledWith(1, '/applications/42/attachment-period/preview', { method: 'POST', body: JSON.stringify(body) });
-    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('Людей: 1');
-    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('Машин: 1');
+    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('Людей / машин');
+    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('1 / 1');
     apiRequest.mockResolvedValueOnce(response(result([1])));
     await wrapper.find('[data-testid="dates-editor-save"]').trigger('click');
     await flushPromises();
@@ -105,7 +108,8 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     const wrapper = mountEditor();
     await openWithReason(wrapper);
     await preview(wrapper);
-    await wrapper.find('[data-testid="dates-editor-policy"]').setValue('replace');
+    await wrapper.findComponent({ name: 'BaseDropdown' }).vm.$emit('update:modelValue', 'replace');
+    await wrapper.vm.$nextTick();
     expect(wrapper.vm.snapshot).toBeNull();
     expect(wrapper.find('[data-testid="dates-editor-save"]').exists()).toBe(false);
     await preview(wrapper, result([1, 2], 'replace'));
@@ -176,5 +180,18 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     expect(wrapper.vm.snapshot).toBeNull();
     expect(wrapper.find('[data-testid="app-detail-change-dates"]').exists()).toBe(false);
     expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+  it('loads a single selected source from mixed periods and preserves a subsequent draft', async () => {
+    const wrapper = mountEditor({ attachments: [ATTACHMENTS[0], { ...ATTACHMENTS[1], entry_date_to: '2099-10-05' }] });
+    await openWithReason(wrapper);
+    expect(wrapper.vm.mixedPeriods).toBe(true);
+    expect(wrapper.vm.form.endDate).toBe('');
+    wrapper.vm.toggleAttachment(1, false);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.form.endDate).toBe('05.10.2099');
+    wrapper.vm.form.endDate = '07.10.2099';
+    wrapper.vm.toggleAttachment(1, true);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.form.endDate).toBe('07.10.2099');
   });
 });

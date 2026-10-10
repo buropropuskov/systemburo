@@ -7,7 +7,7 @@ import { moscowParts } from './serverTime';
  */
 
 /** Статусы, в которых принимающий может сдвинуть срок - зеркало серверного белого списка. */
-export const DATES_EDITABLE_STATUSES = ['Непрочитано', 'В обработке'];
+export const DATES_EDITABLE_STATUSES = ['Непрочитано', 'В обработке', 'В работе'];
 
 /** Допустимые итоги согласования — зеркало серверного белого списка. */
 const DATES_EDITABLE_CONFIRMATIONS = [null, undefined, '', 'Согласование', 'Согласовано'];

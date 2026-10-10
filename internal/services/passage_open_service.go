@@ -24,6 +24,7 @@ func NewPassageOpenService(db *gorm.DB) *PassageOpenService {
 type PassageOpenFilter struct {
 	View           string
 	AttentionOnly  bool
+	ExpiredOnly    bool
 	Search         string
 	OrganizationID *int
 	Page           int
@@ -44,6 +45,7 @@ type PassageOpenCounts struct {
 	AllOpen     int64 `json:"all_open"`
 	Attention   int64 `json:"attention"`
 	UnknownTime int64 `json:"unknown_time"`
+	Expired     int64 `json:"expired"`
 }
 type PassageOpenList struct {
 	Items     []PassageOpenItem `json:"items"`
@@ -146,9 +148,16 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 		if f.View == "corrections" && !set.Has(passageCorrectionPermission) {
 			return echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав")
 		}
+		if f.OrganizationID != nil {
+			base = base.Where("COALESCE(app.organization_id,a.organization_id)=?", *f.OrganizationID)
+		}
+		if search := strings.TrimSpace(f.Search); search != "" {
+			base = base.Where("("+name+" ILIKE ? OR COALESCE(app.application_number,'') ILIKE ?)", "%"+escapeLikePattern(search)+"%", "%"+escapeLikePattern(search)+"%")
+		}
 		openSQL := "(p.action='entry' OR (p.id IS NULL AND e.territory_status=1))"
 		attentionSQL := "(p.action='entry' AND p.created_at < ?)"
-		if err := base.Session(&gorm.Session{}).Select("COUNT(*) FILTER(WHERE "+openSQL+") AS all_open,COUNT(*) FILTER(WHERE "+attentionSQL+") AS attention,COUNT(*) FILTER(WHERE p.id IS NULL AND e.territory_status=1) AS unknown_time", now.Add(-48*time.Hour)).Scan(&out.Counts).Error; err != nil {
+		expiredSQL := "(" + period.ValidMode + " AND " + period.Bounded + " AND (NULLIF(BTRIM(" + period.DateTo + "), '')::date + COALESCE(NULLIF(BTRIM(" + period.TimeTo + "), '')::time, TIME '23:59:59')) <= (CAST(? AS timestamptz) AT TIME ZONE 'Europe/Moscow'))"
+		if err := base.Session(&gorm.Session{}).Select("COUNT(*) FILTER(WHERE "+openSQL+") AS all_open,COUNT(*) FILTER(WHERE "+attentionSQL+") AS attention,COUNT(*) FILTER(WHERE p.id IS NULL AND e.territory_status=1) AS unknown_time,COUNT(*) FILTER(WHERE "+openSQL+" AND "+expiredSQL+") AS expired", now.Add(-48*time.Hour), now).Scan(&out.Counts).Error; err != nil {
 			return err
 		}
 		filtered := base.Session(&gorm.Session{})
@@ -159,12 +168,9 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 			if f.AttentionOnly {
 				filtered = filtered.Where(attentionSQL, now.Add(-48*time.Hour))
 			}
-		}
-		if f.OrganizationID != nil {
-			filtered = filtered.Where("COALESCE(app.organization_id,a.organization_id)=?", *f.OrganizationID)
-		}
-		if search := strings.TrimSpace(f.Search); search != "" {
-			filtered = filtered.Where("("+name+" ILIKE ? OR COALESCE(app.application_number,'') ILIKE ?)", "%"+escapeLikePattern(search)+"%", "%"+escapeLikePattern(search)+"%")
+			if f.ExpiredOnly {
+				filtered = filtered.Where(expiredSQL, now)
+			}
 		}
 		if err := filtered.Session(&gorm.Session{}).Count(&out.Total).Error; err != nil {
 			return err

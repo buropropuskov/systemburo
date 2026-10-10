@@ -265,13 +265,7 @@
         </Teleport>
       </div>
       <div class="one-day">
-        <input
-          type="checkbox"
-          class="one-day__checkbox"
-          :checked="isOneDay"
-          @change="onCheckboxChange"
-        >
-        <p>однодневная заявка</p>
+        <ToggleSwitch :model-value="isOneDay" @update:model-value="toggleOneDay">Однодневная заявка</ToggleSwitch>
       </div>
     </div>
     <div

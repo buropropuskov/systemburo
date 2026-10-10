@@ -93,6 +93,13 @@ func (h *OpenPassagesHandler) list(c echo.Context, kind services.ElementKind, su
 		}
 		f.OrganizationID = &parsed
 	}
+	if value := c.QueryParam("expired_only"); value != "" {
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Некорректный фильтр просроченных отметок")
+		}
+		f.ExpiredOnly = parsed
+	}
 	result, err := h.reader.List(c.Request().Context(), actor, kind, tableID, f)
 	if err != nil {
 		return err

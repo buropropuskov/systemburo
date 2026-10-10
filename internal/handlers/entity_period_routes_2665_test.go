@@ -194,6 +194,22 @@ func TestEntityPeriod2665HTTPEntityRoundtripAndJWTActor(t *testing.T) {
 	}
 }
 
+func TestAttachmentPeriod2674HTTPInWork(t *testing.T) {
+	w := setupPeriodRoutes2665World(t, false, false)
+	path := fmt.Sprintf("/applications/%d/attachment-period", w.application)
+	headers := testutil.AuthHeader(w.token)
+	request := services.ChangeAttachmentPeriodRequest{AttachmentIDs: []int{w.peopleAttachment, w.carAttachment}, Period: w.period(), Reason: "Update period in work", IndividualPolicy: services.IndividualPolicyPreserve}
+	var preview, changed services.AttachmentPeriodCommandResult
+	periodRoutes2665Envelope(t, testutil.POST(t, w.e, path+"/preview", periodRoutes2665Body(t, request, w.actor), headers), http.StatusOK, &preview)
+	request.ExpectedRevision = preview.Revision
+	periodRoutes2665Envelope(t, testutil.PUT(t, w.e, path, periodRoutes2665Body(t, request, w.actor), headers), http.StatusOK, &changed)
+	require.False(t, changed.ApprovalsReset)
+	var application models.Application
+	require.NoError(t, w.db.First(&application, w.application).Error)
+	require.Equal(t, models.StatusInWork, *application.Status)
+	require.Equal(t, models.ConfirmationApproved, *application.Confirmation)
+}
+
 func TestEntityPeriod2665HTTPGroupRoundtripAndForeignSelection(t *testing.T) {
 	for _, foreignKind := range []services.ElementKind{"", services.ElementEmployee, services.ElementCar} {
 		t.Run("foreign_"+string(foreignKind), func(t *testing.T) {

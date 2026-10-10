@@ -15,7 +15,7 @@ const window = {
 };
 const snapshot = (overrides = {}) => ({
   entity_id: 17, attachment_id: 31, application_id: 9,
-  period_mode: 'inherit', individual_period: null,
+  period_mode: 'inherit', individual_period: null, source_period: window,
   effective_period: { ...window, bounded: true, source: 'attachment' },
   period_revision: revision, approvals_reset: false, ...overrides,
 });

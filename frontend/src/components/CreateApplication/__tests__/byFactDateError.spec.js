@@ -149,9 +149,10 @@ describe('CreateApplication — предупреждение о сроке ма�
     expect(разметка, 'указатель у подсказки убран').toContain('hint-anchor--noarrow');
     expect(разметка, 'вбок подсказку больше не уводят').not.toContain('hint-anchor--aside');
     expect(разметка, 'место в потоке под подсказку не резервируется').not.toContain('hint-anchor--reserve');
+    expect(разметка, 'блок однодневного срока на месте').toContain('class="one-day"');
     expect(
-      разметка.indexOf('period-hint-anchor') < разметка.indexOf('однодневная заявка'),
-      'якорь стоит у полей, а не под чекбоксом',
+      разметка.indexOf('period-hint-anchor') < разметка.indexOf('class="one-day"'),
+      'якорь стоит у полей, а не под тумблером',
     ).toBe(true);
   });
 });
