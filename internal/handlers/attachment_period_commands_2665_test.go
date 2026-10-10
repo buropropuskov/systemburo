@@ -308,7 +308,7 @@ func TestAttachmentPeriod2665DBStaleAndActorBoundRevision(t *testing.T) {
 }
 
 func TestAttachmentPeriod2665DBPermissionAccountAndWorkGates(t *testing.T) {
-	for _, scenario := range []string{"personal_deny_admin", "banned_super", "archived_super", "invisible_actor", "work"} {
+	for _, scenario := range []string{"personal_deny_admin", "banned_super", "archived_super", "invisible_actor", "completed"} {
 		t.Run(scenario, func(t *testing.T) {
 			w := setupAttachmentPeriod2665World(t, services.ElementCar)
 			ctx := context.Background()
@@ -331,18 +331,18 @@ func TestAttachmentPeriod2665DBPermissionAccountAndWorkGates(t *testing.T) {
 				require.NoError(t, w.db.Create(&other).Error)
 				require.NoError(t, w.db.Create(&models.UserPermissionOverride{UserID: other.ID, PermissionKey: services.KeyApplicationPeriodChange, Value: "allow", GrantedAt: w.clock.UTC()}).Error)
 				actorID = other.ID
-			case "work":
-				require.NoError(t, w.db.Table("applications").Where("id=?", w.application).Update("status", models.StatusInWork).Error)
+			case "completed":
+				require.NoError(t, w.db.Table("applications").Where("id=?", w.application).Update("status", models.StatusCompleted).Error)
 			}
 			before, audits := w.snapshot(t), w.auditCount(t)
 			_, err = w.service.Preview(ctx, actorID, w.application, req)
 			want := http.StatusForbidden
-			if scenario == "work" {
+			if scenario == "completed" {
 				want = http.StatusBadRequest
 			}
 			period2665RequireHTTPError(t, err, want)
 			_, err = w.service.Change(ctx, actorID, w.application, req)
-			if scenario == "work" {
+			if scenario == "completed" {
 				want = http.StatusConflict
 			}
 			period2665RequireHTTPError(t, err, want)

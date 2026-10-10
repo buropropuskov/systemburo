@@ -68,6 +68,18 @@ func TestFakeStages_RunCoversAllApplicationStates(t *testing.T) {
 		Pluck("entity_id", &appIDs).Error)
 	require.Len(t, appIDs, profile.Applications)
 
+	// The live transition window must be restored to the original historical
+	// period before passage generation; copied car windows must match as well.
+	var wrongPeriods int64
+	require.NoError(t, db.Raw(`SELECT COUNT(*) FROM attachments a
+	 JOIN applications app ON app.id=a.application_id
+	 WHERE app.id IN ? AND a.entry_date_from::date <> (app.sending_datetime AT TIME ZONE 'UTC')::date`, appIDs).Scan(&wrongPeriods).Error)
+	require.Zero(t, wrongPeriods, "исторический срок вложений восстановлен")
+	require.NoError(t, db.Raw(`SELECT COUNT(*) FROM cars c JOIN attachments a ON a.id=c.attachment_id
+	 WHERE a.application_id IN ? AND c.period_mode='inherit'
+	 AND (c.entry_date_from IS DISTINCT FROM a.entry_date_from OR c.entry_date_to IS DISTINCT FROM a.entry_date_to)`, appIDs).Scan(&wrongPeriods).Error)
+	require.Zero(t, wrongPeriods, "скопированный срок машины совпадает с историческим вложением")
+
 	rows := readStageAppRows(t, db, appIDs)
 	require.Len(t, rows, profile.Applications)
 

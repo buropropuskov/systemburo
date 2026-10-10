@@ -6,6 +6,8 @@ import (
 	"gorm.io/gorm"
 )
 
+// Use the local GORM command clock, as passage commands do. A trusted
+// generator session can replay historical events without bypassing admission.
 // Lock in the same order as expiry and period changes. Inactive rows are
 // intentional here: before acceptance the application's admissions are inactive.
 func applicationAdmissionsExpired(tx *gorm.DB, applicationID int) (bool, error) {
@@ -44,9 +46,9 @@ func applicationAdmissionsExpired(tx *gorm.DB, applicationID int) (bool, error) 
 		OR (a.attachment_type = 'cars' AND NOT EXISTS (SELECT 1 FROM cars e WHERE e.attachment_id=a.id AND NOT e.is_purged AND e.date_removed IS NULL)))`
 	query := `SELECT NOT EXISTS (SELECT 1 FROM (` + child("employees", "people", "date_deleted") + ` UNION ALL ` + child("cars", "cars", "date_removed") + ` UNION ALL ` + fallback + `) admission
 		WHERE admission.valid_mode AND (NULLIF(BTRIM(admission.date_to), '') IS NULL
-		OR (NULLIF(BTRIM(admission.date_to), '')::date + COALESCE(NULLIF(BTRIM(admission.time_to), '')::time, TIME '23:59:59')) > ` + moscowNowSQL + `)) AS expired`
+		OR (NULLIF(BTRIM(admission.date_to), '')::date + COALESCE(NULLIF(BTRIM(admission.time_to), '')::time, TIME '23:59:59')) > (?::timestamptz AT TIME ZONE 'Europe/Moscow'))) AS expired`
 	var result struct{ Expired bool }
-	if err := tx.Raw(query, applicationID, applicationID, applicationID).Scan(&result).Error; err != nil {
+	if err := tx.Raw(query, applicationID, applicationID, applicationID, tx.NowFunc().UTC()).Scan(&result).Error; err != nil {
 		return false, err
 	}
 	return result.Expired, nil
