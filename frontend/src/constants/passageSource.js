@@ -36,7 +36,7 @@ export function activePassageTables(raw, getTableName) {
     const source = плоский ? null : (t.source || null);
     return {
       id,
-      name: (плоский ? null : t.name) || getTableName(id),
+      name: (плоский ? null : t.display_name) || getTableName(id) || (плоский ? null : t.name),
       source,
       sourceLabel: passageSourceLabel(source),
       sourceVariant: passageSourceVariant(source),

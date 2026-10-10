@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, enableAutoUnmount } from '@vue/test-utils';
+import { ref, nextTick } from 'vue';
 
 // Окна снимаются после каждого кейса: их слушатели висят на document, и живое окно
 // из прошлого теста перехватывало Escape у нового - стопка о нём уже не знала.
@@ -62,6 +63,20 @@ describe('useEscapeClose', () => {
 
     pressEscape();
     expect(lower.emitted('close')).toHaveLength(1);
+  });
+
+  it('после смены источника карточки учитывает её новый слой', async () => {
+    const layer = ref(10001);
+    const card = mount({ emits: ['close'], setup(_, { emit }) {
+      useEscapeClose(() => emit('close'), () => true, () => layer.value);
+      return () => null;
+    } });
+    const history = mount(makeModal(13000));
+    layer.value = 14000;
+    await nextTick();
+    pressEscape();
+    expect(card.emitted('close')).toHaveLength(1);
+    expect(history.emitted('close')).toBeUndefined();
   });
 
   it('нажатие, уже разобранное другим слоем, окно не берёт', () => {

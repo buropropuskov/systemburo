@@ -41,6 +41,7 @@
                 :source="source"
                 :readonly="readonly"
                 :period-table-id="periodTableId"
+                :license-plate-formats="licensePlateFormats"
                 :history-visible="showCarFeatures && canSeeFullHistory"
                 :application-visible="!readonly && canOpenApplication"
                 :blacklist-visible="!readonly && canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
@@ -52,6 +53,7 @@
               />
               <button
                 class="modal-close"
+                aria-label="Закрыть карточку"
                 @click="close"
               >
                 <svg
@@ -232,7 +234,6 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
-                    <CarAccessFlagRows :flags="vehicle" />
                     <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
                          подписью под блоком, а не строкой наравне с данными машины.
                          Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
@@ -518,7 +519,6 @@ import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import TableInfoModal from './TableInfoModal.vue';
 import { canEditEntityPeriod } from '@/components/EntityPeriodEditor.vue';
 import DetailHeaderActions, { detailHeaderTitle } from './DetailHeaderActions.vue';
-import CarAccessFlagRows from './CarAccessFlagRows.vue';
 import { vehicleDetailsIdentityComputed } from './vehicleDetailsIdentity';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -542,7 +542,6 @@ export default {
     name: 'VehicleDetailsModal',
     mixins: [passageDetailsIntegration],
     components: {
-        CarAccessFlagRows,
         DetailHeaderActions,
         AppIcon,
         UnloadPlaceModal,
@@ -615,7 +614,7 @@ export default {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
 // то же значение, что у оверлея, чтобы Escape закрывал именно верхнее окно.
-useEscapeClose(() => emit('close'), () => props.show, props.source === 'application' ? 10003 : 10001);
+useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'history' ? 14000 : props.source === 'application' ? 10003 : 10001);
         // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
         // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
         const sheetBody = ref(null);
@@ -666,7 +665,7 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
         // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
         overlayZIndex() {
-            return this.source === 'application' ? 10003 : 10001;
+            return this.source === 'history' ? 14000 : this.source === 'application' ? 10003 : 10001;
         },
         // Намеренно НЕ зависит от showCarFeatures: на вкладке Автомобили features выкл,
         // но переход в заявку нужен. Гейт: право detail.open_application по контексту
@@ -1253,12 +1252,14 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
 
 .modal-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   padding: 20px 30px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  height: 70px;
+  min-height: 70px;
+  height: auto;
   box-sizing: border-box;
 }
 

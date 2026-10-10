@@ -356,11 +356,12 @@
                   <button
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
+                    :title="canRevertMark(item, 'entry') ? 'Отменить последнюю отметку въезда' : undefined"
                     :disabled="preview || (!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     data-testid="ob-pass-entry"
                     @click="preview ? null : onPassButton(item, 'entry')"
                   >
-                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Въезд' }}
+                    {{ canRevertMark(item, 'entry') ? 'Отмена' : 'Въезд' }}
                   </button>
                 </div>
                 <!-- Выезд - кнопка -->
@@ -373,11 +374,12 @@
                   <button
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
+                    :title="canRevertMark(item, 'exit') ? 'Отменить последнюю отметку выезда' : undefined"
                     :disabled="preview || (!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-pass-exit"
                     @click="preview ? null : onPassButton(item, 'exit')"
                   >
-                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выезд' }}
+                    {{ canRevertMark(item, 'exit') ? 'Отмена' : 'Выезд' }}
                   </button>
                 </div>
                 <div
@@ -1073,7 +1075,8 @@ export default {
           }])
         );
         const regularCars = cars.filter(car => {
-          if (car.status !== 1) return false;
+          // The server retains expired open passages and their exit grace.
+          // Status alone must not hide a row still returned for this table.
           const carNumber = car.car_number?.toLowerCase().trim();
           return carNumber !== 'по факту';
         });

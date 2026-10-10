@@ -37,7 +37,13 @@ func TestPeriodChangeAuthorization(t *testing.T) {
 		status     int
 	}{
 		{"granted entity in work", allowed, active, false, 0},
-		{"group in work stays prohibited", allowed, active, true, http.StatusBadRequest},
+		{"group in work allowed", allowed, active, true, 0},
+		{"group missing permission", PermissionSet{}, active, true, http.StatusForbidden},
+		{"group personal deny", PermissionSet{adminAll: true, denies: map[string]struct{}{KeyApplicationPeriodChange: {}}}, active, true, http.StatusForbidden},
+		{"group hidden", allowed, PeriodChangeTarget{ApplicationStatus: models.StatusInWork}, true, http.StatusForbidden},
+		{"group archived", allowed, PeriodChangeTarget{Visible: true, Archived: true, ApplicationStatus: models.StatusInWork}, true, http.StatusBadRequest},
+		{"group removed", allowed, PeriodChangeTarget{Visible: true, Removed: true, ApplicationStatus: models.StatusInWork}, true, http.StatusBadRequest},
+		{"group completed", allowed, PeriodChangeTarget{Visible: true, ApplicationStatus: models.StatusCompleted}, true, http.StatusBadRequest},
 		{"individual unread not approved", allowed, PeriodChangeTarget{Visible: true, Active: true, ApplicationStatus: models.StatusUnread}, false, http.StatusBadRequest},
 		{"individual processing not approved", allowed, PeriodChangeTarget{Visible: true, Active: true, ApplicationStatus: models.StatusProcessing}, false, http.StatusBadRequest},
 		{"group unread preactivation", allowed, PeriodChangeTarget{Visible: true, ApplicationStatus: models.StatusUnread}, true, 0},

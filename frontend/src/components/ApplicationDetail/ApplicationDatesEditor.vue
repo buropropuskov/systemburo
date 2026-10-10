@@ -15,7 +15,7 @@
     <BaseModal
       :show="show"
       title="Изменить срок вложений"
-      width="560px"
+      width="680px"
       radius="30px"
       :z-index="10005"
       content-class="dates-editor-modal"
@@ -24,32 +24,32 @@
     >
       <div class="dates-editor__body">
         <p class="dates-editor__lead">
-          Новый срок применяется к выбранным вложениям, людям и машинам, которые наследуют их срок. Участники получат уведомление,
-          а поданные голоса согласующих сохранятся. Изменение и его автор будут записаны в историю.
+          Новый срок получат выбранные вложения и наследующие его записи. Участники будут уведомлены; голоса согласующих сохранятся.
         </p>
 
         <div
           class="dates-editor__current"
           data-testid="dates-editor-current"
         >
-          Сейчас: {{ currentPeriods }}
+          <div v-for="item in currentPeriods" :key="item.id" class="dates-editor__period-row">
+            <strong>{{ item.label }}</strong><small>{{ item.period }}</small>
+          </div>
         </div>
 
         <fieldset class="dates-editor__fields" :disabled="busy">
           <legend>Выберите вложения</legend>
-          <label class="dates-editor__choice">
-            <input type="checkbox" :checked="allSelected" data-testid="dates-editor-all" @change="selectAll($event.target.checked)"> Все вложения
-          </label>
+          <ToggleSwitch :model-value="allSelected" :disabled="busy" data-testid="dates-editor-all" @update:model-value="selectAll">Все вложения</ToggleSwitch>
           <div class="dates-editor__attachments">
-            <label v-for="attachment in selectableAttachments" :key="attachment.id" class="dates-editor__choice">
-              <input v-model="selectedIDs" type="checkbox" :value="attachment.id" :data-testid="`dates-editor-attachment-${attachment.id}`">
+            <div v-for="attachment in selectableAttachments" :key="attachment.id" class="dates-editor__choice">
+              <ToggleSwitch :model-value="selectedIDs.includes(attachment.id)" :disabled="busy" :data-testid="`dates-editor-attachment-${attachment.id}`" @update:model-value="toggleAttachment(attachment.id, $event)">
               <span>{{ attachment.attachment_display_name || attachment.attachment_name || `Вложение №${attachment.id}` }}
-                <small>{{ formatPeriod(attachment) }}</small></span>
-            </label>
+                </span></ToggleSwitch>
+            </div>
           </div>
           <p v-if="!selectedIDs.length" class="dates-editor__error" role="alert">Выберите хотя бы одно вложение.</p>
         </fieldset>
         <fieldset class="dates-editor__fields" :disabled="busy">
+        <p v-if="mixedPeriods" class="dates-editor__lead">Сроки различаются. Укажите новый общий срок или выберите одно вложение. Введённые даты сохранятся.</p>
         <DateRangeSection
           :is-one-day="form.isOneDay"
           :start-date="form.startDate"
@@ -68,12 +68,9 @@
         />
 
         <FormField label="Индивидуальные сроки">
-          <select v-model="individualPolicy" class="lk-select" data-testid="dates-editor-policy">
-            <option value="preserve">Сохранить индивидуальные сроки</option>
-            <option value="replace">Заменить индивидуальные сроки новым сроком</option>
-          </select>
+          <BaseDropdown v-model="individualPolicy" :options="policyOptions" label-key="label" value-key="id" :disabled="busy" teleport :menu-z-index="10007" data-testid="dates-editor-policy" />
         </FormField>
-        <p class="dates-editor__lead">При замене индивидуальный режим сохранится. Вернуть наследование можно отдельно в карточке человека или машины.</p>
+        <p class="dates-editor__lead">{{ policyHint }}</p>
         <FormField
           label="Причина изменения"
           required
@@ -81,18 +78,14 @@
           <textarea
             v-model="reason"
             class="lk-textarea"
-            rows="3"
+            rows="2"
             maxlength="1000"
             placeholder="Например: заявитель ошибся датой"
             data-testid="dates-editor-reason"
           />
         </FormField>
         </fieldset>
-        <div v-if="snapshot" class="dates-editor__current" data-testid="dates-editor-preview" aria-live="polite">
-          Вложений: {{ snapshot.attachment_count }}. Людей: {{ snapshot.employee_count }}. Машин: {{ snapshot.car_count }}.
-          Индивидуальных сроков: {{ snapshot.individual_count }} — {{ individualPolicy === 'preserve' ? 'сохранятся' : 'будут заменены' }}.
-          <small>Новый срок: {{ formatPeriod(snapshot.new_period) }}</small>
-        </div>
+
         <p v-if="error" class="dates-editor__error" role="alert">{{ error }}</p>
       </div>
 
@@ -105,17 +98,26 @@
         >
           Отмена
         </button>
-        <button v-if="!snapshot" type="button" class="lk-button lk-button--primary" :disabled="!canPreview"
+        <button type="button" class="lk-button lk-button--primary" :disabled="!canPreview"
           data-testid="dates-editor-preview-button" @click="preview">{{ conflict ? 'Обновить данные' : 'Проверить изменения' }}</button>
-        <button v-else
-          type="button"
-          class="lk-button lk-button--primary"
-          :disabled="!canSubmit"
-          data-testid="dates-editor-save"
-          @click="submit"
-        >
-          Сохранить
-        </button>
+
+      </template>
+    </BaseModal>
+    <BaseModal :show="show && !!snapshot" title="Подтвердить изменение срока" width="580px" :z-index="10006" :closable="!busy" :close-on-overlay="!busy" content-testid="dates-editor-confirmation" @close="snapshot = null">
+      <div v-if="snapshot" class="dates-editor__body" data-testid="dates-editor-preview">
+        <div v-for="item in snapshot.attachments" :key="item.attachment_id" class="dates-editor__current">
+          <strong>{{ attachmentLabel(item.attachment_id) }}</strong>
+          <small>Было: {{ formatPeriod(item.old_period) }}</small>
+          <small>Станет: {{ formatPeriod(snapshot.new_period) }}</small>
+        </div>
+        <dl class="dates-editor__summary"><dt>Людей / машин</dt><dd>{{ snapshot.employee_count }} / {{ snapshot.car_count }}</dd>
+          <dt>Индивидуальных сроков</dt><dd>{{ snapshot.individual_count }} — {{ individualPolicy === 'preserve' ? 'сохранятся' : 'будут заменены' }}</dd>
+          <dt>Причина</dt><dd>{{ reason }}</dd></dl>
+        <p class="dates-editor__lead">Голоса согласующих сохранятся. Время указано по Москве.</p>
+      </div>
+      <template #actions>
+        <button type="button" class="lk-button lk-button--ghost" :disabled="busy" @click="snapshot = null">Назад</button>
+        <button type="button" class="lk-button lk-button--primary" :disabled="!canSubmit" data-testid="dates-editor-save" @click="submit">{{ submitting ? 'Сохранение…' : 'Подтвердить' }}</button>
       </template>
     </BaseModal>
   </div>
@@ -124,6 +126,8 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
+import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue'
 import { previewApplicationPeriods, changeApplicationPeriods } from '@/api/applicationPeriodCommands'
 import { usePermissionsStore } from '@/stores/permissions'
@@ -139,7 +143,7 @@ import {
 // Selected attachment periods use managed rights and a server preview revision.
 export default {
     name: 'ApplicationDatesEditor',
-    components: { BaseModal, FormField, DateRangeSection },
+    components: { BaseModal, FormField, DateRangeSection, ToggleSwitch, BaseDropdown },
     // Крыша и парковка живут в том же блоке, но к сроку не относятся.
     fieldConfig: {
         roof_access: { visible: false },
@@ -173,6 +177,7 @@ export default {
             loading: false,
             error: '',
             conflict: false,
+            formSourceKey: '',
             requestVersion: 0
         }
     },
@@ -185,10 +190,15 @@ export default {
         busy() { return this.loading || this.submitting },
         allSelected() { return this.selectableAttachments.length > 0 && this.selectedIDs.length === this.selectableAttachments.length },
         currentPeriods() {
-            const periods = this.snapshot ? this.snapshot.attachments.map(item => item.old_period)
-                : this.selectableAttachments.filter(item => this.selectedIDs.includes(item.id))
-            return [...new Set(periods.map(formatPeriod))].join('; ') || '—'
+            return this.selectableAttachments.filter(item => this.selectedIDs.includes(item.id))
+                .map(item => ({ id: item.id, label: this.attachmentLabel(item.id), period: formatPeriod(item) }))
         },
+        policyOptions() { return [{ id: 'preserve', label: 'Сохранить индивидуальные сроки' }, { id: 'replace', label: 'Заменить индивидуальные сроки' }] },
+        policyHint() { return this.individualPolicy === 'preserve'
+            ? 'Собственные сроки не изменятся: если вложение до 18 октября, а человек до 20 октября, у него останется 20 октября.'
+            : 'Собственные даты заменятся новыми. Индивидуальный режим сохранится; наследование можно включить в карточке.' },
+        mixedPeriods() { return new Set(this.currentPeriods.map(item => item.period)).size > 1 },
+        formDirty() { return JSON.stringify(this.form) !== this.formSourceKey },
         errors() {
             return periodFormErrors(this.form)
         },
@@ -208,18 +218,27 @@ export default {
     },
     watch: {
         requestKey() { this.invalidate() },
+        selectedIDs() { if (this.show && !this.formDirty) this.syncFormSource() },
         identity() { this.invalidate(); this.show = false }
     },
     beforeUnmount() { this.requestVersion++ },
     methods: {
         formatPeriod,
         invalidate() { this.requestVersion++; this.snapshot = null; this.error = ''; this.conflict = false; this.loading = false },
+        attachmentLabel(id) { const item = this.selectableAttachments.find(item => item.id === id); return item?.attachment_display_name || item?.attachment_name || `Вложение №${id}` },
+        toggleAttachment(id, checked) { this.selectedIDs = checked ? [...new Set([...this.selectedIDs, id])] : this.selectedIDs.filter(value => value !== id) },
+        syncFormSource() {
+            const selected = this.selectableAttachments.filter(item => this.selectedIDs.includes(item.id))
+            const periods = new Set(selected.map(formatPeriod))
+            this.form = periodFormFromAttachment(periods.size === 1 ? selected[0] : null)
+            this.formSourceKey = JSON.stringify(this.form)
+        },
         selectAll(checked) { this.selectedIDs = checked ? this.selectableAttachments.map(item => item.id) : [] },
         open() {
             if (!this.canEdit) return
             this.invalidate()
-            this.form = periodFormFromAttachment(this.selectableAttachments[0])
             this.selectAll(true)
+            this.syncFormSource()
             this.individualPolicy = 'preserve'
             this.reason = ''
             this.validated = false
@@ -297,15 +316,20 @@ export default {
 .dates-editor__body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   padding: 16px 20px;
   min-width: 0;
 }
 .dates-editor__fields { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .dates-editor__fields legend { margin-bottom: 8px; }
-.dates-editor__attachments { max-height: 140px; overflow-y: auto; }
+.dates-editor__attachments { max-height: 90px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
 .dates-editor__choice { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 4px 0; }
-.dates-editor__choice input { accent-color: var(--primary); }
+.dates-editor__summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: 13px; }
+.dates-editor__summary dd { margin: 0; overflow-wrap: anywhere; }
+.dates-editor__period-row { display: grid; grid-template-columns: minmax(90px, 1fr) 2fr; gap: 8px; align-items: center; }
+.dates-editor__body :deep(.lk-textarea) { min-height: 64px; height: 64px; }
+@media(max-width:600px) { .dates-editor__attachments { grid-template-columns: 1fr; } .dates-editor__period-row { grid-template-columns: 1fr; gap: 2px; } }
+.dates-editor__period-row + .dates-editor__period-row { margin-top: 8px; }
 .dates-editor__current small, .dates-editor__choice small { display: block; font-weight: normal; color: var(--text-muted); }
 .dates-editor__error { margin: 0; color: var(--danger-text); font-size: 13px; }
 

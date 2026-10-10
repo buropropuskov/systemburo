@@ -225,7 +225,7 @@
 
                   <div class="history-content">
                     <div class="history-header">
-                      <span class="employee-info">{{ getEmployeeName(item) }}<span
+                      <span class="employee-info"><button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ getEmployeeName(item) }}</button><template v-else>{{ getEmployeeName(item) }}</template><span
                         v-if="item.entity_deleted"
                         class="deleted-badge"
                       >запись удалена</span></span>
@@ -271,10 +271,13 @@
         </div>
       </div>
     </transition>
+    <HistoryEntityCard v-if="visible && selectedHistoryEntity" :kind="'employee'" :row="selectedHistoryEntity" :table-id="tableId" @close="selectedHistoryEntity = null" />
   </Teleport>
 </template>
 
 <script>
+import HistoryEntityCard from '@/components/HistoryEntityCard.vue';
+import { useEscapeClose } from '@/composables/useEscapeClose';
 import { PASSAGE_CORRECTION_ACTIONS, tablePassageHistoryText } from '@/utils/passageHistoryActions';
 import { ref } from 'vue';
 import {
@@ -294,7 +297,7 @@ import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'EmployeesTableHistoryModal',
-  components: { AppIcon },
+  components: { HistoryEntityCard, AppIcon },
   props: {
     tableId: {
       type: Number,
@@ -316,6 +319,7 @@ export default {
     // размонтирует мгновенно и анимация не проиграется.
     const visible = ref(false);
     const requestClose = () => { visible.value = false; };
+    useEscapeClose(requestClose, () => visible.value, 13000);
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
     // Bottom-sheet на мобилке: свайп вниз за ползунок закрывает (как в истории сотрудника).
@@ -336,6 +340,7 @@ export default {
   },
   data() {
     return {
+      selectedHistoryEntity: null,
       loading: false,
       history: [],
       sortOrder: 'desc',
@@ -420,15 +425,16 @@ export default {
     this.loadHistory();
     this.loadFilterOptions();
     document.addEventListener('click', this.handleClickOutside);
-    document.addEventListener('keydown', this.onKeydown);
+
     setBodyScrollLock(this, true);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
-    document.removeEventListener('keydown', this.onKeydown);
+
     releaseBodyScrollLock(this);
   },
   methods: {
+    canOpenHistoryEntity(item) { const id = item.employee_id; return Number.isSafeInteger(id) && id > 0 && !item.entity_deleted; },
     journalFilters() {
       return {
         search: this.searchQuery,
@@ -642,15 +648,13 @@ export default {
       }
     },
 
-    onKeydown(e) {
-      if (e.key === 'Escape') this.requestClose();
-    },
   }
 };
 </script>
 
 <style scoped>
 @import '@/assets/passage-history.css';
+.history-entity-link { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;

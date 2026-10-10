@@ -31,18 +31,20 @@ function normalizeRow(row, kind) {
       typeof row.effective_period?.bounded !== 'boolean') throw new Error('Не удалось прочитать состояние прохода');
   return { ...row, entity_kind: kind };
 }
-export async function listOpenPassages(kind, tableID, { attentionOnly = true, view = 'open', search = '', organizationID = null, page = 1, perPage = 25, source = 'table' } = {}) {
+export async function listOpenPassages(kind, tableID, { attentionOnly = true, expiredOnly = false, view = 'open', search = '', organizationID = null, page = 1, perPage = 25, source = 'table' } = {}) {
   const plural = base(kind, tableID, source);
-  if (!['open', 'corrections'].includes(view) || typeof attentionOnly !== 'boolean' ||
+  if (!['open', 'corrections'].includes(view) || typeof attentionOnly !== 'boolean' || typeof expiredOnly !== 'boolean' ||
       !Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100 ||
       (organizationID !== null && (!Number.isSafeInteger(organizationID) || organizationID <= 0))) throw new Error('Некорректный фильтр проходов');
   const query = new URLSearchParams({ view, page: String(page), per_page: String(perPage) });
   if (view === 'open') query.set('attention_only', String(attentionOnly));
+  if (view === 'open' && expiredOnly) query.set('expired_only', 'true');
   if (search.trim()) query.set('search', search.trim());
   if (organizationID !== null) query.set('organization_id', String(organizationID));
   const data = await read(await apiRequest(`/${plural}/${source === 'admin_summary' ? 'open-admin-summary' : `open-for-table/${tableID}`}?${query}`), 'Не удалось загрузить незакрытые отметки');
   if (!Array.isArray(data?.items) || !validInstant(data.server_now) ||
       ['all_open', 'attention', 'unknown_time'].some(key => !Number.isSafeInteger(data.counts?.[key]) || data.counts[key] < 0) ||
+      (data.counts?.expired !== undefined && (!Number.isSafeInteger(data.counts.expired) || data.counts.expired < 0)) ||
       !Number.isSafeInteger(data.total) || data.total < 0 || data.page !== page || data.per_page !== perPage) {
     throw new Error('Не удалось прочитать список незакрытых отметок');
   }

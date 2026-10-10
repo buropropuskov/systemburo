@@ -78,8 +78,8 @@ func authorizePeriodChange(permissions PermissionSet, target PeriodChangeTarget,
 		if target.Manual || target.ApplicationStatus == models.StatusInWork {
 			return nil
 		}
-	} else if !target.Manual && (target.ApplicationStatus == models.StatusUnread || target.ApplicationStatus == models.StatusProcessing) {
-		// Keep the existing pre-acceptance scope of the group date operation.
+	} else if !target.Manual && (target.ApplicationStatus == models.StatusUnread || target.ApplicationStatus == models.StatusProcessing || target.ApplicationStatus == models.StatusInWork) {
+		// The managed group operation also preserves approvals while in work.
 		return nil
 	}
 	return echo.NewHTTPError(http.StatusBadRequest, "В этом состоянии срок изменять нельзя")

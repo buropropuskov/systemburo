@@ -48,6 +48,7 @@
               />
               <button
                 class="modal-close"
+                aria-label="Закрыть карточку"
                 @click="close"
               >
                 <svg
@@ -631,7 +632,7 @@ export default {
         // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
         overlayZIndex() {
-            return this.source === 'application' ? 10003 : 10001;
+            return this.source === 'history' ? 14000 : this.source === 'application' ? 10003 : 10001;
         },
         // Предупреждение о возможном обходе ЧС - только в контексте заявки (#481, срез C).
         blacklistSimilar() {
@@ -733,6 +734,7 @@ export default {
         }
     },
     watch: {
+        overlayZIndex(value) { setModalOpen(this, this.show, value); },
         show: {
         immediate: true,
         handler(val) {
@@ -1113,13 +1115,15 @@ export default {
 }
 
 .modal-header {
+    flex-wrap: wrap;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px 16px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    height: 70px;
+    min-height: 70px;
+    height: auto;
     box-sizing: border-box;
 }
 

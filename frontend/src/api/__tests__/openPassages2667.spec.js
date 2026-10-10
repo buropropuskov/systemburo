@@ -12,6 +12,14 @@ const data = { items: [row], counts: { all_open: 5, attention: 2, unknown_time: 
 const response = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
 describe('scoped open passage API #2667', () => {
   beforeEach(() => apiRequest.mockReset());
+  it('requests expired rows before server pagination and reads scoped counts', async () => {
+    apiRequest.mockResolvedValue(response({ ...data, counts: { ...data.counts, expired: 2 } }));
+    const result = await listOpenPassages('car', 4, { expiredOnly: true, attentionOnly: false });
+    expect(apiRequest).toHaveBeenCalledWith('/cars/open-for-table/4?view=open&page=1&per_page=25&attention_only=false&expired_only=true');
+    expect(result.counts.expired).toBe(2);
+    apiRequest.mockResolvedValue(response({ ...data, counts: { ...data.counts, expired: -1 } }));
+    await expect(listOpenPassages('car', 4)).rejects.toThrow('список');
+  });
   it('uses only the scoped table path and canonical query, normalizing plural wire kind', async () => {
     apiRequest.mockResolvedValue(response(data));
     expect((await listOpenPassages('car', 4, { search: '  TEST  ', organizationID: 7 })).items[0].entity_kind).toBe('car');

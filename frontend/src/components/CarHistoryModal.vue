@@ -193,6 +193,7 @@
                       <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                     </div>
 
+                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [item.car_number, item.car_brand].filter(Boolean).join(' — ') }}</button>
                     <div class="action-text">
                       {{ getActionText(item) }}
                       <span
@@ -245,10 +246,13 @@
         </div>
       </div>
     </transition>
+    <HistoryEntityCard v-if="visible && selectedHistoryEntity" :kind="'car'" :row="selectedHistoryEntity" @close="selectedHistoryEntity = null" />
   </Teleport>
 </template>
 
 <script>
+import HistoryEntityCard from '@/components/HistoryEntityCard.vue';
+import { useEscapeClose } from '@/composables/useEscapeClose';
 import { CAR_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
@@ -263,7 +267,7 @@ import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
   name: 'CarHistoryModal',
-  components: { LoaderSpinner, DateFilter, AppIcon },
+  components: { HistoryEntityCard, LoaderSpinner, DateFilter, AppIcon },
   props: {
     carId: {
       type: Number,
@@ -309,6 +313,7 @@ export default {
     // размонтирует мгновенно и анимация не проиграется.
     const visible = ref(false);
     const requestClose = () => { visible.value = false; };
+    useEscapeClose(requestClose, () => visible.value, 12000);
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
     // Bottom-sheet на мобилке: свайп вниз за ползунок/с прокрученного вверх контента
@@ -330,6 +335,7 @@ export default {
   },
   data() {
     return {
+      selectedHistoryEntity: null,
       loading: false,
       history: [],
       sortOrder: 'desc',
@@ -447,13 +453,14 @@ export default {
     this.visible = true;
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
-    document.addEventListener('keydown', this.onKeydown);
+
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
-    document.removeEventListener('keydown', this.onKeydown);
+
   },
   methods: {
+    canOpenHistoryEntity(item) { const id = item.car_id; return Number.isSafeInteger(id) && id > 0 && !item.entity_deleted; },
     async loadHistory() {
       this.loading = true;
       try {
@@ -646,14 +653,12 @@ export default {
       }
     },
 
-    onKeydown(e) {
-      if (e.key === 'Escape') this.requestClose();
-    },
   }
 };
 </script>
 
 <style scoped>
+.history-entity-link { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
