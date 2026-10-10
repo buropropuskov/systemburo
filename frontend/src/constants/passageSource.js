@@ -34,9 +34,11 @@ export function activePassageTables(raw, getTableName) {
     const плоский = typeof t === 'number';
     const id = плоский ? t : t.id;
     const source = плоский ? null : (t.source || null);
+    const directoryName = getTableName(id);
+    const resolvedName = directoryName?.startsWith('Неизвестное место') ? null : directoryName;
     return {
       id,
-      name: (плоский ? null : t.display_name) || getTableName(id) || (плоский ? null : t.name),
+      name: (плоский ? null : t.display_name) || resolvedName || (плоский ? null : t.name) || directoryName,
       source,
       sourceLabel: passageSourceLabel(source),
       sourceVariant: passageSourceVariant(source),

@@ -681,16 +681,8 @@ export default {
 </script>
 
 <style scoped>
-.history-entity-link { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.history-date-separator {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-text);
-  padding: 8px 0 4px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
-  letter-spacing: 0.02em;
-}
+@import '@/assets/history-entity-link.css';
+
 
 /* Стили полностью совпадают с предыдущей версией, можно скопировать из EmployeeHistoryModal ранее */
 .modal-overlay {

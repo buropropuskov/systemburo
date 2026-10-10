@@ -373,15 +373,14 @@
                   data-label="Вход"
                   @click.stop
                 >
-                  <button
-                    class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
-                    :title="canRevertMark(item, 'entry') ? 'Отменить последнюю отметку входа' : undefined"
+                  <PassageMarkButton
+                    direction="entry"
+                    :checked="item.entry_checked"
+                    :revertable="canRevertMark(item, 'entry')"
+                    label="Вход"
                     :disabled="preview || (!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     @click="preview ? null : onPassButton(item, 'entry')"
-                  >
-                    {{ canRevertMark(item, 'entry') ? 'Отмена' : 'Вход' }}
-                  </button>
+                  />
                 </div>
                 <div
                   class="col exit-col"
@@ -389,15 +388,14 @@
                   data-label="Выход"
                   @click.stop
                 >
-                  <button
-                    class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
-                    :title="canRevertMark(item, 'exit') ? 'Отменить последнюю отметку выхода' : undefined"
+                  <PassageMarkButton
+                    direction="exit"
+                    :checked="item.exit_checked"
+                    :revertable="canRevertMark(item, 'exit')"
+                    label="Выход"
                     :disabled="preview || (!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     @click="preview ? null : onPassButton(item, 'exit')"
-                  >
-                    {{ canRevertMark(item, 'exit') ? 'Отмена' : 'Выход' }}
-                  </button>
+                  />
                 </div>
                 <div
                   v-if="isFieldInDom('last_name')"

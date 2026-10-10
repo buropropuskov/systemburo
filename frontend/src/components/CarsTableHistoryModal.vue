@@ -682,8 +682,7 @@ export default {
 </script>
 
 <style scoped>
-@import '@/assets/passage-history.css';
-.history-entity-link { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+@import '@/assets/history-entity-link.css';
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;

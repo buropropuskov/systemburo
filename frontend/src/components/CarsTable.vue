@@ -353,16 +353,15 @@
                   data-label="Въезд"
                   @click.stop
                 >
-                  <button
-                    class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked, 'revertable': canRevertMark(item, 'entry') }"
-                    :title="canRevertMark(item, 'entry') ? 'Отменить последнюю отметку въезда' : undefined"
+                  <PassageMarkButton
+                    direction="entry"
+                    :checked="item.entry_checked"
+                    :revertable="canRevertMark(item, 'entry')"
+                    label="Въезд"
                     :disabled="preview || (!canRevertMark(item, 'entry') && !passageAllowed(item, 'entry')) || (item.entry_checked && !canRevertMark(item, 'entry'))"
                     data-testid="ob-pass-entry"
                     @click="preview ? null : onPassButton(item, 'entry')"
-                  >
-                    {{ canRevertMark(item, 'entry') ? 'Отмена' : 'Въезд' }}
-                  </button>
+                  />
                 </div>
                 <!-- Выезд - кнопка -->
                 <div
@@ -371,16 +370,15 @@
                   data-label="Выезд"
                   @click.stop
                 >
-                  <button
-                    class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked, 'revertable': canRevertMark(item, 'exit') }"
-                    :title="canRevertMark(item, 'exit') ? 'Отменить последнюю отметку выезда' : undefined"
+                  <PassageMarkButton
+                    direction="exit"
+                    :checked="item.exit_checked"
+                    :revertable="canRevertMark(item, 'exit')"
+                    label="Выезд"
                     :disabled="preview || (!canRevertMark(item, 'exit') && !passageAllowed(item, 'exit')) || (!item.entry_checked && !item.exit_checked) || (item.exit_checked && !canRevertMark(item, 'exit'))"
                     data-testid="ob-pass-exit"
                     @click="preview ? null : onPassButton(item, 'exit')"
-                  >
-                    {{ canRevertMark(item, 'exit') ? 'Отмена' : 'Выезд' }}
-                  </button>
+                  />
                 </div>
                 <div
                   v-if="isFieldInDom('car_number')"
@@ -1074,12 +1072,7 @@ export default {
             territory_status: item.territory_status,
           }])
         );
-        const regularCars = cars.filter(car => {
-          // The server retains expired open passages and their exit grace.
-          // Status alone must not hide a row still returned for this table.
-          const carNumber = car.car_number?.toLowerCase().trim();
-          return carNumber !== 'по факту';
-        });
+        const regularCars = this.excludeFactCars(cars);
         // Преобразуем в нужный формат
         const newItems = regularCars.map(car => {
           const orgName = car.organization || '';

@@ -51,25 +51,7 @@
                 @period-changed="$emit('period-changed', $event)"
                 @manual-attached="$emit('manual-attached', $event)"
               />
-              <button
-                class="modal-close"
-                aria-label="Закрыть карточку"
-                @click="close"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                >
-                  <path
-                    d="M13 1L1 13M1 1L13 13"
-                    stroke="#666"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
+              <DetailCloseButton @click="close" />
             </div>
                     
             <div
@@ -511,6 +493,7 @@
 </template>
 
 <script>
+import DetailCloseButton from '@/components/ui/DetailCloseButton.vue';
 import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
@@ -542,6 +525,7 @@ export default {
     name: 'VehicleDetailsModal',
     mixins: [passageDetailsIntegration],
     components: {
+        DetailCloseButton,
         DetailHeaderActions,
         AppIcon,
         UnloadPlaceModal,
@@ -664,9 +648,6 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
         // Карточка, открытая ИЗ ApplicationDetail (source='application'), лежит ПОВЕРХ его
         // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
-        overlayZIndex() {
-            return this.source === 'history' ? 14000 : this.source === 'application' ? 10003 : 10001;
-        },
         // Намеренно НЕ зависит от showCarFeatures: на вкладке Автомобили features выкл,
         // но переход в заявку нужен. Гейт: право detail.open_application по контексту
         // (карта detailModalActions, как у EmployeeDetailsModal) И наличие заявки.
@@ -1157,6 +1138,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
 </script>
 
 <style scoped>
+@import '@/assets/detail-card-header.css';
 /* Все предыдущие стили остаются, добавляем новый класс для системной точки */
 .dot-system {
     background: #8b5cf6; /* фиолетовый */
@@ -1250,18 +1232,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
   pointer-events: auto;
 }
 
-.modal-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 30px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  min-height: 70px;
-  height: auto;
-  box-sizing: border-box;
-}
+
 
 
 .bl-section {

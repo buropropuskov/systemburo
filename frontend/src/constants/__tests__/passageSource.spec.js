@@ -29,6 +29,12 @@ describe('подпись источника места прохода', () => {
 });
 
 describe('разбор мест прохода', () => {
+  it('не подменяет серверное название заглушкой неизвестного поста', () => {
+    expect(activePassageTables([{ id: 7, name: 'КПП №4' }], () => 'Неизвестное место (ID: 7)')[0].name).toBe('КПП №4');
+  });
+  it('предпочитает актуальное название справочника техническому имени', () => {
+    expect(activePassageTables([{ id: 7, name: 'table.7' }], () => 'КПП №4')[0].name).toBe('КПП №4');
+  });
   it('понимает объекты с источником и подписывает их', () => {
     const [пост] = activePassageTables([{ id: 7, name: 'table.7', display_name: 'КПП №4', source: 'approver' }], имяПоста);
     expect(пост).toMatchObject({ id: 7, name: 'КПП №4', source: 'approver', sourceLabel: 'назначил принимающий' });

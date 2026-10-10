@@ -46,25 +46,7 @@
                 @period-changed="$emit('period-changed', $event)"
                 @manual-attached="$emit('manual-attached', $event)"
               />
-              <button
-                class="modal-close"
-                aria-label="Закрыть карточку"
-                @click="close"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                >
-                  <path
-                    d="M13 1L1 13M1 1L13 13"
-                    stroke="#666"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
+              <DetailCloseButton @click="close" />
             </div>
                     
             <div
@@ -504,6 +486,7 @@
 </template>
 
 <script>
+import DetailCloseButton from '@/components/ui/DetailCloseButton.vue';
 import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
@@ -532,6 +515,7 @@ export default {
     name: 'EmployeeDetailsModal',
     mixins: [passageDetailsIntegration],
     components: {
+        DetailCloseButton,
         DetailHeaderActions,
         AppIcon,
         TableInfoModal,
@@ -631,9 +615,6 @@ export default {
         // Карточка, открытая ИЗ ApplicationDetail (source='application'), лежит ПОВЕРХ его
         // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
-        overlayZIndex() {
-            return this.source === 'history' ? 14000 : this.source === 'application' ? 10003 : 10001;
-        },
         // Предупреждение о возможном обходе ЧС - только в контексте заявки (#481, срез C).
         blacklistSimilar() {
             return this.source === 'application' ? (this.employee?.blacklist_similar || null) : null;
@@ -734,7 +715,6 @@ export default {
         }
     },
     watch: {
-        overlayZIndex(value) { setModalOpen(this, this.show, value); },
         show: {
         immediate: true,
         handler(val) {
@@ -1029,6 +1009,7 @@ export default {
 
 
 <style scoped>
+@import '@/assets/detail-card-header.css';
 /* Все стили остаются без изменений, как в предыдущей версии */
 .place-name {
     font-size: 10px;
@@ -1114,18 +1095,7 @@ export default {
     pointer-events: auto;
 }
 
-.modal-header {
-    flex-wrap: wrap;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 30px 16px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    min-height: 70px;
-    height: auto;
-    box-sizing: border-box;
-}
+
 
 
 .bl-section {

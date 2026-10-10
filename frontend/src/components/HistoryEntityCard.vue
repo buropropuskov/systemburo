@@ -1,6 +1,6 @@
 <template>
   <BaseModal v-if="!entity" :show="true" title="Карточка записи" width="460px" :z-index="14000" @close="$emit('close')">
-    <p role="status">{{ error || 'Загрузка карточки…' }}</p>
+    <p class="card-status" role="status">{{ error || 'Загрузка карточки…' }}</p>
   </BaseModal>
   <VehicleDetailsModal v-if="kind === 'car' && entity" :show="true" :vehicle="entity" source="history" readonly @close="$emit('close')" />
   <EmployeeDetailsModal v-if="kind === 'employee' && entity" :show="true" :employee="entity" source="history" readonly @close="$emit('close')" />
@@ -37,3 +37,7 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.card-status { margin: 0; padding: 16px 20px; }
+</style>
