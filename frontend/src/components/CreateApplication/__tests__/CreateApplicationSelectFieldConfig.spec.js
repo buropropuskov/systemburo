@@ -135,7 +135,7 @@ describe('DateRangeSection - тумблеры «Дополнительно»', (
 
   it('используют общий ToggleSwitch, а не самодельный переключатель', () => {
     const w = mountSection();
-    const toggles = w.findAllComponents(ToggleSwitch);
+    const toggles = w.find('.additional-options').findAllComponents(ToggleSwitch);
 
     expect(toggles).toHaveLength(2);
     // Выключенный и включённый различимы состоянием, а не только цветом трека
@@ -146,7 +146,7 @@ describe('DateRangeSection - тумблеры «Дополнительно»', (
 
   it('скрытое конфигом поле не рисует свой тумблер', () => {
     const w = mountSection({ roof_access: { visible: false, required: false } });
-    const toggles = w.findAllComponents(ToggleSwitch);
+    const toggles = w.find('.additional-options').findAllComponents(ToggleSwitch);
 
     expect(toggles).toHaveLength(1);
     expect(w.text()).not.toContain('Доступ на крышу');

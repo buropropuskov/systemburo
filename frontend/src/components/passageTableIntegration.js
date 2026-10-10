@@ -5,5 +5,5 @@ import PassageStateIndicator from './PassageStateIndicator.vue';
 import { passageAllowed, passageExpired, passageFields, mergePassageStatus, expectedPassageEvent } from '@/utils/passageProjection';
 export default {
   components: { PassageMarkButton, PassageTableTools, PassageStateIndicator, PassageValidityCell },
-  methods: { excludeFactCars: cars => cars.filter(car => car.car_number?.toLowerCase().trim() !== 'по факту'), passageAllowed, passageExpired, passageFields, mergePassageStatus, expectedPassageEvent },
+  methods: { passageAllowed, passageExpired, passageFields, mergePassageStatus, expectedPassageEvent },
 };

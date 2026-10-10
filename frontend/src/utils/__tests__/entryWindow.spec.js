@@ -27,8 +27,11 @@ describe('canEditApplicationDates', () => {
     expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'Согласовано' })).toBe(true);
   });
 
-  it('закрыта в работе, после итога согласования и без заявки', () => {
-    expect(canEditApplicationDates({ status: 'В работе', confirmation: null })).toBe(false);
+  it.each([null, 'Согласование', 'Согласовано'])('доступна в работе при допустимом итоге %s', (confirmation) => {
+    expect(canEditApplicationDates({ status: 'В работе', confirmation })).toBe(true);
+  });
+
+  it('закрыта после неподходящего итога, завершения и без заявки', () => {
     expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'неизвестный статус' })).toBe(false);
     expect(canEditApplicationDates({ status: 'Завершено', confirmation: 'Согласовано' })).toBe(false);
     expect(canEditApplicationDates({ status: 'В обработке', confirmation: 'Не согласовано' })).toBe(false);

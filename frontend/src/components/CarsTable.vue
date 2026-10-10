@@ -1072,7 +1072,7 @@ export default {
             territory_status: item.territory_status,
           }])
         );
-        const regularCars = this.excludeFactCars(cars);
+        const regularCars = cars.filter(car => car.car_number?.toLowerCase().trim() !== 'по факту');
         // Преобразуем в нужный формат
         const newItems = regularCars.map(car => {
           const orgName = car.organization || '';
