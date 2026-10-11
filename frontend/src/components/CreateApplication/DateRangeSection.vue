@@ -354,7 +354,7 @@ import { singleMomentCalendarPosition } from '@/utils/singleMomentCalendar';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
-import { markEscapeHandled } from '@/utils/modalStack';
+import { handleDateCalendarEscape } from '@/utils/dateCalendarEscape';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 export default {
     name: 'DateRangeSection',
@@ -1047,15 +1047,7 @@ export default {
             }
             if (this.singleMoment && input && window.innerWidth >= 768) this.$nextTick(() => { if (this.showSingleDatepicker) this.datepickerStyle = { ...this.datepickerStyle, ...singleMomentCalendarPosition(input, getViewportZoom()) }; });
         },
-        handleDatepickerEscape(event) {
-            if (event.key !== 'Escape') return;
-            if (this.showStartDatepicker || this.showEndDatepicker || this.showSingleDatepicker) {
-                markEscapeHandled(event);
-                event.preventDefault();
-                event.stopPropagation();
-                this.closeDatepicker();
-            }
-        },
+        handleDatepickerEscape: handleDateCalendarEscape,
 
         closeDatepicker() {
             this.resetSheetSwipe();
