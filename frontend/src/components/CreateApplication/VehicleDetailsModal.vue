@@ -186,7 +186,7 @@
                     <div class="details-grid two-columns">
                       <div class="detail-item">
                         <span class="detail-label">Номер Т/С:</span>
-                        <span class="detail-value">{{ vehicle.plateNumber || 'Не указано' }}</span>
+                        <span class="detail-value">{{ vehicleDisplayNumber || 'Не указано' }}</span>
                       </div>
                       <div class="detail-item">
                         <span class="detail-label">Марка:</span>

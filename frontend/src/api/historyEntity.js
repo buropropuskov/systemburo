@@ -12,7 +12,7 @@ async function readRows(path) {
 }
 
 // History permission alone does not grant access to the current entity.
-// Reuse current table/application readers, which enforce their own visibility.
+// Point table reads retain expired rows without restoring admission.
 export async function loadHistoryEntity(kind, history, tableID = null) {
   if (!['car', 'employee'].includes(kind)) throw unavailable();
   const id = history?.[kind === 'car' ? 'car_id' : 'employee_id'];
@@ -22,8 +22,10 @@ export async function loadHistoryEntity(kind, history, tableID = null) {
   let row = null;
   let attachment = null;
   if (validID(table)) {
-    const rows = await readRows(`/${plural}/active-for-table/${table}`);
-    row = rows.find(item => item.id === id);
+    const response = await apiRequest(`/${plural}/history-for-table/${table}/${id}`, { method: 'GET' });
+    if (!response.ok) throw unavailable();
+    row = await response.json();
+    if (!row || row.id !== id) throw unavailable();
   }
   if (!row && validID(history.application_id)) {
     const attachments = await readRows(`/applications/${history.application_id}/attachments`);

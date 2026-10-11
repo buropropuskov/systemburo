@@ -6,9 +6,10 @@ const response = (data, status = 200) => ({ ok: status === 200, json: async () =
 describe('current history card visibility #2674', () => {
   beforeEach(() => vi.clearAllMocks());
   it('opens only the exact current ID from the authorized table, not the old name snapshot', async () => {
-    apiRequest.mockResolvedValue(response([{ id: 18, car_number: 'OLD' }, { id: 17, car_number: 'CURRENT', car_brand: 'Fixture', entry_date_to: null }]));
+    apiRequest.mockResolvedValue(response({ id: 17, car_number: 'CURRENT', car_brand: 'Fixture', entry_date_to: null }));
     expect(await loadHistoryEntity('car', {car_id:17,car_number:'OLD',table_id:4})).toMatchObject({id:17,plateNumber:'CURRENT',entry_date_to:null});
     expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledWith('/cars/history-for-table/4/17', { method: 'GET' });
   });
   it.each([{car_id:'17'}, {car_id:17,entity_deleted:true}, {car_number:'OLD'}])('does not search for missing/deleted IDs', async row => {
     await expect(loadHistoryEntity('car', row)).rejects.toThrow('недоступна');

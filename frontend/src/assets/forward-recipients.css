@@ -1,0 +1,206 @@
+.forward-user-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  z-index: 1000;
+  box-shadow: 0 4px 12px var(--shadow-drop);
+  margin-top: 5px;
+}
+.forward-user-dropdown-content {
+  max-height: 382px;
+  overflow-y: auto;
+}
+.forward-user-item {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.forward-user-item:hover {
+  background-color: var(--border);
+}
+.forward-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.forward-user-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.forward-user-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.forward-user-username {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.forward-user-details {
+  display: flex;
+  gap: 5px;
+}
+.forward-user-position,
+.forward-user-organization {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.selected-forward-users {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+  height: 192px;
+  min-height: 192px;
+  max-height: 192px;
+}
+.selected-forward-users h4 {
+  color: var(--color-text);
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 8px;
+  line-height: 1.4;
+  flex: 0 0 auto;
+}
+.forward-users-list-container {
+  padding-right: 5px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior: contain;
+  padding-bottom: 2px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 6px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  background: transparent;
+}
+.forward-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.forward-selected-user {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: var(--color-bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  min-height: 66px;
+}
+.forward-selected-user:hover {
+  border-color: var(--accent);
+  background: var(--color-bg);
+}
+.forward-selected-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.forward-selected-user-main {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 16px;
+}
+.forward-selected-user-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+.forward-selected-user-username {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.forward-selected-user-details {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0;
+  line-height: 14px;
+}
+.forward-selected-user-position,
+.forward-selected-user-organization {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-block;
+}
+.forward-selected-user-settings {
+  display: flex;
+  margin-top: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  line-height: 16px;
+}
+.remove-forward-user-btn {
+  background: none;
+  border: none;
+  color: var(--danger-text);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+.remove-forward-user-btn:hover {
+  background-color: var(--danger-bg);
+}
+.forward-user-dropdown-content::-webkit-scrollbar,
+.forward-users-list-container::-webkit-scrollbar,
+.forward-attachments-list::-webkit-scrollbar {
+  width: 6px;
+}
+.forward-user-dropdown-content::-webkit-scrollbar-track,
+.forward-users-list-container::-webkit-scrollbar-track,
+.forward-attachments-list::-webkit-scrollbar-track {
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.forward-user-dropdown-content::-webkit-scrollbar-thumb,
+.forward-users-list-container::-webkit-scrollbar-thumb,
+.forward-attachments-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+.forward-user-dropdown-content::-webkit-scrollbar-thumb:hover,
+.forward-users-list-container::-webkit-scrollbar-thumb:hover,
+.forward-attachments-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+.forward-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px 0;
+}
+.forward-user-settings-dropdown {
+  max-width: 100%
+}
+.forward-selected-user-settings .setting-toggle {
+  font-size: 11px
+}
+.forward-selected-user-position,.forward-selected-user-organization {
+  padding: 0;
+  font-size: 11px;
+  background: transparent
+}

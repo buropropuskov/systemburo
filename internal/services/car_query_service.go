@@ -38,7 +38,7 @@ type tableCarRow struct {
 // не nil, добавляет scope по «Проезду» (car_target_tables): машина видна только в
 // выбранной таблице. tableID == nil — все активные машины (legacy-эндпоинт до
 // перевода потребителей на scoped; #1036).
-func (s *carService) tableCarsBase(ctx context.Context, tableID *int, now time.Time) *gorm.DB {
+func (s *carService) tableCarsBase(ctx context.Context, tableID *int, now time.Time, historyID ...int) *gorm.DB {
 	period, err := EntityEffectivePeriodSQL("c", "a")
 	if err != nil {
 		q := s.db.WithContext(ctx)
@@ -56,6 +56,9 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int, now time.T
 		q := s.db.WithContext(ctx)
 		q.AddError(err)
 		return q
+	}
+	if len(historyID) > 0 {
+		eligibility, args = "c.id = ?", []any{historyID[0]}
 	}
 	q := s.db.WithContext(ctx).
 		Table("cars c").

@@ -193,7 +193,7 @@
                       <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                     </div>
 
-                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [item.car_number, item.car_brand].filter(Boolean).join(' — ') }}</button>
+                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [displayPlate(item.car_number), item.car_brand].filter(Boolean).join(' — ') }}</button>
                     <div class="action-text">
                       {{ getActionText(item) }}
                       <span
@@ -251,6 +251,7 @@
 </template>
 
 <script>
+import { useLicensePlateDisplay } from '@/composables/useLicensePlateDisplay';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { CAR_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
 import { ref, defineAsyncComponent } from 'vue';
@@ -307,6 +308,7 @@ export default {
   },
   emits: ['close', 'open-application'],
   setup(_, { emit }) {
+    const plateDisplay = useLicensePlateDisplay();
     // Анимация закрытия: внутренний visible (enter по mounted, leave по requestClose),
     // emit('close') только ПОСЛЕ leave-перехода (@after-leave) - иначе родитель
     // размонтирует мгновенно и анимация не проиграется.
@@ -323,7 +325,7 @@ export default {
       handleSelector: '.sheet-handle',
     });
     return {
-      visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
+      ...plateDisplay, visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
       scrollContainer,
       sheetOffset: swipe.offset,
       sheetDragging: swipe.isDragging,
@@ -523,7 +525,7 @@ export default {
     getActionComment(item) {
       const userName = item.user_name || 'Система';
       
-      const carNumber = item.car_number || this.carNumber;
+      const carNumber = this.displayPlate(item.car_number || this.carNumber);
       const carBrand = item.car_brand || this.carBrand;
       
       switch (item.action_type) {

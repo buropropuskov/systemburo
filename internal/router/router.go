@@ -733,6 +733,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.POST("/:id/attach-to-application/preview", d.SingleManualAttach.PreviewCar, requireAdmin)
 	carsGroup.POST("/:id/attach-to-application", d.SingleManualAttach.AttachCar, requireAdmin)
 	carsGroup.PUT("/:id/period", d.EntityPeriod.ChangeCarPeriod, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailPeriodChange))
+	carsGroup.GET("/history-for-table/:id/:entityID", cars.GetHistoryCarForTable, d.TableViewGate)
 	carsGroup.GET("/active-for-table/:id", cars.GetActiveCarsForTable, d.TableViewGate)
 	// Ручное добавление машин без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.cars.manual_add.
@@ -783,6 +784,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// остальные - по гранту entity.employees.manual_add.
 	empGroup.POST("/manual", employees.CreateManualEmployees,
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesManualAdd))
+	empGroup.GET("/history-for-table/:id/:entityID", employees.GetHistoryEmployeeForTable, d.TableViewGate)
 	empGroup.GET("/active-for-table/:id", employees.GetActiveEmployeesForTable, d.TableViewGate)
 	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus, d.TablePassGate)
 	empGroup.PUT("/:id/territory-status/revert", employees.RevertEmployeePassage, d.TablePassGate)
