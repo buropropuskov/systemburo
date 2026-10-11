@@ -21,6 +21,10 @@ afterEach(() => {
 });
 
 describe('Пересылка #2666', () => {
+  it('показывает идентификатор вложения без названия', async () => {
+    const wrapper = await open({ attachments: [{ id: 42 }] });
+    expect(wrapper.find('.forward-attachment-name').text()).toBe('Вложение №42');
+  });
   it('Tab-переход фокуса на кандидата не удаляет его через 200мс; уход наружу закрывает список', async () => {
     vi.useFakeTimers();
     const wrapper = await open();

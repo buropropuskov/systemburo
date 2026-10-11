@@ -215,7 +215,7 @@
             <span class="toggle-slider" />
             <span class="forward-attachment-info">
               <span class="forward-attachment-name">
-                {{ attachment.attachment_display_name || attachment.attachment_name }}
+                {{ attachment.attachment_display_name || attachment.attachment_name || `Вложение №${attachment.id}` }}
               </span>
               <span
                 v-if="attachment.unique_attachment_title"
