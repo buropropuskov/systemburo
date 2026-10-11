@@ -94,8 +94,8 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     await preview(wrapper, result([1]));
     const body = { attachment_ids: [1], period: PERIOD, individual_policy: 'preserve', reason: 'Исправление срока' };
     expect(apiRequest).toHaveBeenNthCalledWith(1, '/applications/42/attachment-period/preview', { method: 'POST', body: JSON.stringify(body) });
-    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('Людей / машин');
-    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('1 / 1');
+    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('Людей');
+    expect(wrapper.findAll('.confirmation-stats strong').map(item => item.text())).toEqual(['1', '1', '1']);
     apiRequest.mockResolvedValueOnce(response(result([1])));
     await wrapper.find('[data-testid="dates-editor-save"]').trigger('click');
     await flushPromises();
@@ -114,7 +114,7 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
     expect(wrapper.find('[data-testid="dates-editor-save"]').exists()).toBe(false);
     await preview(wrapper, result([1, 2], 'replace'));
     expect(JSON.parse(apiRequest.mock.calls[1][1].body).individual_policy).toBe('replace');
-    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('будут заменены');
+    expect(wrapper.find('[data-testid="dates-editor-preview"]').text()).toContain('Будут заменены');
     await wrapper.find('[data-testid="dates-editor-reason"]').setValue('Другая причина');
     expect(wrapper.vm.snapshot).toBeNull();
   });

@@ -25,6 +25,7 @@ type CarService interface {
 	CreateManualCars(ctx context.Context, req ManualCarRequest, userID int) (*ManualCarResponse, error)
 	// GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
 	GetActiveCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
+	GetHistoryCarForTable(ctx context.Context, actor, tableID, entityID int) (*TableCarResponse, error)
 	// GetFactCarsForTable возвращает машины «по факту» конкретной таблицы «Проезд» (#1036).
 	GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
 	// GetCarUnloadPlaces возвращает связи активных машин с местами разгрузки.
@@ -249,6 +250,7 @@ type TableCarResponse struct {
 	CompanyID          *int     `json:"company_id"`
 	UnloadPlace        *string  `json:"unload_place"`
 	UnloadPlaces       []string `json:"unload_places"`
+	UnloadPlaceIDs     []int    `json:"unload_place_ids,omitempty"`
 	EntryDateTo        *string  `json:"entry_date_to"`
 	EntryTimeFrom      *string  `json:"entry_time_from"`
 	EntryTimeTo        *string  `json:"entry_time_to"`

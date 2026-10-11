@@ -1,7 +1,12 @@
+import { formatNumberForDisplay } from '@/composables/useNumberFormat';
+
 // Canonical and legacy field names are both accepted by existing card callers.
 // Keep these computed properties together: blacklist actions use the same
 // identity as the label shown in confirmations and result notifications.
 export const vehicleDetailsIdentityComputed = {
+  vehicleDisplayNumber() {
+    return formatNumberForDisplay(this.vehicleNumber, this.licensePlateFormats);
+  },
   vehicleNumber() {
     return (this.vehicle?.plateNumber || this.vehicle?.car_number || '').trim();
   },

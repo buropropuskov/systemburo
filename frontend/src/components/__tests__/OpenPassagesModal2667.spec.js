@@ -32,6 +32,15 @@ async function openCorrection(wrapper, revert = false) {
   await wrapper.findAll('button').find(button => button.text() === label).trigger('click');
   await wrapper.find('[data-testid="passage-correction-reason"]').setValue('Synthetic correction reason');
 }
+
+async function setActualExit(wrapper, value) {
+  const [date, time] = value.split('T');
+  const calendar = wrapper.findComponent({ name: 'DateRangeSection' });
+  calendar.vm.$emit('update:single-date', date.split('-').reverse().join('.'));
+  await wrapper.vm.$nextTick();
+  calendar.vm.$emit('update:start-time', time);
+  await wrapper.vm.$nextTick();
+}
 describe('open passage real modal #2667', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
@@ -86,7 +95,7 @@ describe('open passage real modal #2667', () => {
   it('converts known Moscow time explicitly and checks it against server time rather than client time', async () => {
     const wrapper = create(); await openCorrection(wrapper);
     await wrapper.find('input[type="checkbox"]').setValue(true);
-    const actual = wrapper.find('[data-testid="passage-correction-actual"]');
+    const actual = { setValue: value => setActualExit(wrapper, value) };
     await actual.setValue('2035-01-03T16:00');
     expect(wrapper.find('[data-testid="passage-correction-save"]').attributes('disabled')).toBeDefined();
     await actual.setValue('2035-01-03T14:30');
@@ -174,7 +183,7 @@ describe('open passage real modal #2667', () => {
   it('requires explicit reselection when a background refresh replaces event 81 with 83', async () => {
     const wrapper = create(); await openCorrection(wrapper);
     await wrapper.find('input[type="checkbox"]').setValue(true);
-    await wrapper.find('[data-testid="passage-correction-actual"]').setValue('2035-01-03T14:30');
+    await setActualExit(wrapper, '2035-01-03T14:30');
     listOpenPassages.mockResolvedValue(result([{ ...row, passage_state: { ...passage, last_event_id: 83 } }]));
     vi.advanceTimersByTime(30000); await flushPromises();
     expect(wrapper.find('[data-testid="passage-correction-form"]').exists()).toBe(false);

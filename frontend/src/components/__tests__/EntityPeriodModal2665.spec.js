@@ -223,4 +223,19 @@ describe('EntityPeriodModal #2665', () => {
     expect(apiRequest).toHaveBeenCalledTimes(1);
     expect(wrapper.find('[data-testid="entity-period-save"]').attributes('disabled')).toBeDefined();
   });
+  it('does not offer refresh for an unchanged period and allows editing/retry after a failed save', async () => {
+    const wrapper = modal(); await flushPromises(); await selectIndividual(wrapper);
+    apiRequest.mockResolvedValueOnce(response({ message: 'Срок не изменился' }, 400));
+    await wrapper.find('[data-testid="entity-period-save"]').trigger('click'); await flushPromises();
+    expect(wrapper.find('[role="status"]').text()).toContain('Срок не изменился');
+    expect(wrapper.find('[data-testid="entity-period-refresh"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="entity-period-save"]').attributes('disabled')).toBeUndefined();
+    await wrapper.find('[data-testid="entity-period-reason"]').setValue('Уточнение срока');
+    expect(wrapper.vm.error).toBe('');
+    apiRequest.mockResolvedValueOnce(response({ message: 'Сбой' }, 500));
+    await wrapper.find('[data-testid="entity-period-save"]').trigger('click'); await flushPromises();
+    expect(wrapper.find('[data-testid="entity-period-refresh"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="entity-period-save"]').attributes('disabled')).toBeUndefined();
+  });
+
 });

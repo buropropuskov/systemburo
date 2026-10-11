@@ -39,6 +39,8 @@ type PassageOpenItem struct {
 	OrganizationID    *int    `json:"organization_id"`
 	Organization      *string `json:"organization"`
 	DisplayName       string  `json:"display_name"`
+	CarNumber         *string `json:"car_number,omitempty"`
+	CarBrand          *string `json:"car_brand,omitempty"`
 }
 
 type PassageOpenCounts struct {
@@ -183,6 +185,7 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 			OrganizationID                                         *int
 			Organization                                           *string
 			DisplayName                                            string
+			CarNumber, CarBrand                                    *string
 			EntryDateFrom, EntryDateTo, EntryTimeFrom, EntryTimeTo *string
 			Bounded                                                bool
 			PeriodSource                                           string
@@ -190,7 +193,11 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 			Status                                                 *int
 			AttachmentStatus                                       *int
 		}
-		selection := "e.id AS entity_id,e.territory_status,p.*,e.attachment_id,app.id AS application_id,app.application_number,COALESCE(app.organization_id,a.organization_id) AS organization_id,o.name AS organization," + name + " AS display_name," + period.DateFrom + " AS entry_date_from," + period.DateTo + " AS entry_date_to," + period.TimeFrom + " AS entry_time_from," + period.TimeTo + " AS entry_time_to," + period.Bounded + " AS bounded," + period.Source + " AS period_source," + period.ValidMode + " AS valid_mode,e.status,a.status AS attachment_status"
+		carFields := "NULL AS car_number,NULL AS car_brand,"
+		if kind == ElementCar {
+			carFields = "e.car_number,e.car_brand,"
+		}
+		selection := carFields + "e.id AS entity_id,e.territory_status,p.*,e.attachment_id,app.id AS application_id,app.application_number,COALESCE(app.organization_id,a.organization_id) AS organization_id,o.name AS organization," + name + " AS display_name," + period.DateFrom + " AS entry_date_from," + period.DateTo + " AS entry_date_to," + period.TimeFrom + " AS entry_time_from," + period.TimeTo + " AS entry_time_to," + period.Bounded + " AS bounded," + period.Source + " AS period_source," + period.ValidMode + " AS valid_mode,e.status,a.status AS attachment_status"
 		if err := filtered.Session(&gorm.Session{}).Select(selection).Order("p.created_at ASC NULLS FIRST,e.id ASC").Limit(f.PerPage).Offset((f.Page - 1) * f.PerPage).Scan(&rows).Error; err != nil {
 			return err
 		}
@@ -212,7 +219,7 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 				active := row.Status != nil && *row.Status == 1 && row.AttachmentStatus != nil && *row.AttachmentStatus == 1
 				admission = PassageAdmission{CanEnter: valid && active && !state.Open && set.Has("table."+tableName+".entry"), CanExit: state.Open && set.Has("table."+tableName+".exit"), Reason: reason}
 			}
-			out.Items = append(out.Items, PassageOpenItem{PassageResult: PassageResult{EntityID: row.Projection.EntityID, EntityKind: kind, PassageState: state, EffectivePeriod: effective, Admission: admission, ServerNow: now}, AttachmentID: row.AttachmentID, ApplicationID: row.ApplicationID, ApplicationNumber: row.ApplicationNumber, OrganizationID: row.OrganizationID, Organization: row.Organization, DisplayName: row.DisplayName})
+			out.Items = append(out.Items, PassageOpenItem{PassageResult: PassageResult{EntityID: row.Projection.EntityID, EntityKind: kind, PassageState: state, EffectivePeriod: effective, Admission: admission, ServerNow: now}, AttachmentID: row.AttachmentID, ApplicationID: row.ApplicationID, ApplicationNumber: row.ApplicationNumber, OrganizationID: row.OrganizationID, Organization: row.Organization, DisplayName: row.DisplayName, CarNumber: row.CarNumber, CarBrand: row.CarBrand})
 		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})

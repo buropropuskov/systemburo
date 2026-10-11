@@ -282,6 +282,7 @@
 </template>
 
 <script>
+import { useLicensePlateDisplay } from '@/composables/useLicensePlateDisplay';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { PASSAGE_CORRECTION_ACTIONS, tablePassageHistoryText } from '@/utils/passageHistoryActions';
 import { ref, defineAsyncComponent } from 'vue';
@@ -329,6 +330,7 @@ export default {
   },
   emits: ['close'],
   setup(_, { emit }) {
+    const plateDisplay = useLicensePlateDisplay();
     // Анимация закрытия: внутренний visible (enter по mounted, leave по requestClose),
     // emit('close') только ПОСЛЕ leave-перехода (@after-leave) - иначе родитель
     // размонтирует мгновенно и анимация не проиграется.
@@ -337,7 +339,7 @@ export default {
     useEscapeClose(requestClose, () => visible.value, 13000);
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
-    return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
+    return { ...plateDisplay, visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
   },
   data() {
     return {
@@ -440,7 +442,7 @@ export default {
       if (car.car_number && car.car_number.toLowerCase().includes('по факту')) {
         return `По факту (${car.organization_name || car.organization || 'Не указана'})`;
       }
-      return `${car.car_number || 'Без номера'} ${car.car_brand || ''} (${car.organization_name || car.organization || 'Не указана'})`.trim();
+      return `${this.displayPlate(car.car_number) || 'Без номера'} ${car.car_brand || ''} (${car.organization_name || car.organization || 'Не указана'})`.trim();
     },
 
     getCarNameById(carId) {
@@ -465,7 +467,7 @@ export default {
         if (item.car_number && item.car_number.toLowerCase().includes('по факту')) {
           return `По факту (${item.organization || 'Не указана'})`;
         }
-        return `${item.car_number || 'Без номера'} ${item.car_brand || ''} (${item.organization || 'Не указана'})`.trim();
+        return `${this.displayPlate(item.car_number) || 'Без номера'} ${item.car_brand || ''} (${item.organization || 'Не указана'})`.trim();
       }
       return this.getCarNameById(item.car_id);
     },
@@ -474,9 +476,9 @@ export default {
 
     getActionComment(item) {
       if (item.action_type === 'entry') {
-        return `Пользователь ${item.user_name || 'Система'} отметил о прибытии автомобиля ${item.car_number || ''} ${item.car_brand || ''} на территорию`.trim();
+        return `Пользователь ${item.user_name || 'Система'} отметил о прибытии автомобиля ${this.displayPlate(item.car_number)} ${item.car_brand || ''} на территорию`.trim();
       } else if (item.action_type === 'exit') {
-        return `Пользователь ${item.user_name || 'Система'} отметил об убытии автомобиля ${item.car_number || ''} ${item.car_brand || ''} с территории`.trim();
+        return `Пользователь ${item.user_name || 'Система'} отметил об убытии автомобиля ${this.displayPlate(item.car_number)} ${item.car_brand || ''} с территории`.trim();
       }
       return item.comment || '';
     },

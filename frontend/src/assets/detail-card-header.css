@@ -1,5 +1,5 @@
 .modal-header {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -10,3 +10,5 @@
     height: auto;
     box-sizing: border-box;
 }
+
+.modal-header .modal-title{flex:0 1 auto;min-width:0;font-size:17px}.modal-header{gap:10px}

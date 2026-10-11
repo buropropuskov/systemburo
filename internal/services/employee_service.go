@@ -23,6 +23,7 @@ type EmployeeService interface {
 	CreateManualEmployees(ctx context.Context, req ManualEmployeeRequest, userID int) (*ManualEmployeeResponse, error)
 	// GetActiveEmployeesForTable возвращает активных сотрудников для конкретной таблицы.
 	GetActiveEmployeesForTable(ctx context.Context, tableID int) ([]TableEmployeeResponse, error)
+	GetHistoryEmployeeForTable(ctx context.Context, actor, tableID, entityID int) (*TableEmployeeResponse, error)
 	// UpdateEmployeeTerritoryStatus обновляет статус нахождения сотрудника на территории (въезд/выезд).
 	// Аналогично UpdateCarTerritoryStatus: пишет в employees_history запись
 	// с action_type=entry/exit, обновляет territory_status + territory_entry_time.
@@ -363,7 +364,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	return out, err
 }
-func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context, tableID int, now time.Time) ([]TableEmployeeResponse, error) {
+func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context, tableID int, now time.Time, historyID ...int) ([]TableEmployeeResponse, error) {
 	type employeeRow struct {
 		EntryDateFrom, EntryTimeFrom, EntryTimeTo *string
 		PeriodSource                              string
@@ -404,6 +405,14 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 		return nil, err
 	}
 	archive, archiveArgs := archivedApplicationCond("app")
+	activeCondition := "(e.status = 1 OR keep.retained)"
+	calendarCondition := "(keep.retained OR (" + period.ValidMode + " AND (" + period.Source + " = 'manual_unbounded' OR ?::date BETWEEN (" + period.DateFrom + ")::date AND (" + period.DateTo + ")::date)))"
+	dedupCondition := "sub.retained OR sub.passport_series_number_hmac IS NULL OR sub.rn = 1"
+	calendarArg := any(now.In(MoscowLocation()).Format("2006-01-02"))
+	if len(historyID) > 0 {
+		activeCondition, calendarCondition, dedupCondition = "TRUE", "e.id = ?", "TRUE"
+		calendarArg = historyID[0]
+	}
 	err = s.db.WithContext(ctx).Raw(`
 		SELECT
 			id,
@@ -467,7 +476,7 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 			LEFT JOIN citizenships c ON e.citizenship_id = c.id
 			WHERE ett.table_id = ?
 			AND NOT e.is_purged AND e.date_deleted IS NULL AND NOT (`+archive+`)
- AND (e.status = 1 OR keep.retained)
+ AND `+activeCondition+`
 			-- Заявочные сотрудники видны только по согласованной активной заявке в окне
 			-- действия пропуска; ручные минуют оба требования - заявки у них нет вовсе,
 			-- гейт видимости берёт на себя принадлежность целевой таблице (employee_target_tables)
@@ -475,11 +484,11 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 			AND (a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))
 			-- Calendar visibility remains unchanged for active permits. Open and
 			-- five-minute departure rows survive expiration inside the same scope.
-			AND (keep.retained OR (`+period.ValidMode+` AND (`+period.Source+` = 'manual_unbounded' OR ?::date BETWEEN (`+period.DateFrom+`)::date AND (`+period.DateTo+`)::date)))
+			AND `+calendarCondition+`
 			) sub
-		WHERE sub.retained OR sub.passport_series_number_hmac IS NULL OR sub.rn = 1
+		WHERE `+dedupCondition+`
 		ORDER BY last_name, first_name
-	`, append(append(append([]any{}, retentionArgs...), tableID), append(archiveArgs, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted, now.In(MoscowLocation()).Format("2006-01-02"))...)...).Scan(&rows).Error
+	`, append(append(append([]any{}, retentionArgs...), tableID), append(archiveArgs, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted, calendarArg)...)...).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active employees")
 	}

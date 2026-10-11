@@ -272,7 +272,7 @@
       v-if="fieldVisible('entry_time_from')"
       class="date__input time-section"
     >
-      <label class="input__label">Время пребывания (проезда) <span
+      <label class="input__label">{{ singleMoment ? "Время выхода" : "Время пребывания (проезда)" }} <span
         v-if="fieldRequired('entry_time_from')"
         class="required"
       >*</span></label>
@@ -295,7 +295,7 @@
             @paste="preventNonNumericPaste"
           >
         </div>
-        <div class="time-input-group">
+        <div v-if="!singleMoment" class="time-input-group">
           <p class="date__text">
             по
           </p>
@@ -350,16 +350,16 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
+import { singleMomentCalendarPosition } from '@/utils/singleMomentCalendar';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-
 export default {
     name: 'DateRangeSection',
     components: { ToggleSwitch },
     props: {
-        isOneDay: Boolean,
+        isOneDay: Boolean, singleMoment: Boolean,
         startDate: { type: String, default: null },
         endDate: { type: String, default: null },
         singleDate: { type: String, default: null },
@@ -717,7 +717,7 @@ export default {
             return result;
         },
 
-        autoCompleteDate(input) {
+        autoCompleteDate(input) { if (this.singleMoment) return this.formatDateWithDots(input || '');
             if (!input) return '';
             const digits = input.replace(/[^\d]/g, '');
             if (digits.length === 0) return '';
@@ -782,7 +782,7 @@ export default {
             return new Date(date.getFullYear(), date.getMonth(), date.getDate());
         },
 
-        isPastDate(dateStr) {
+        isPastDate(dateStr) { if (this.singleMoment) return false;
             const date = this.parseDate(dateStr);
             if (!date) return false;
             const today = new Date();
@@ -1044,8 +1044,8 @@ export default {
                 const parsed = this.parseDate(this.singleDate);
                 if (parsed) this.currentDate = parsed;
             }
+            if (this.singleMoment && input && window.innerWidth >= 768) this.$nextTick(() => { if (this.showSingleDatepicker) this.datepickerStyle = { ...this.datepickerStyle, ...singleMomentCalendarPosition(input, getViewportZoom()) }; });
         },
-
         handleDatepickerEscape(event) {
             if (event.key !== 'Escape') return;
             if (this.showStartDatepicker || this.showEndDatepicker || this.showSingleDatepicker) {

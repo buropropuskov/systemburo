@@ -16,7 +16,7 @@
       <div v-if="!loading && items.length" class="open-passages__list">
         <article v-for="row in items" :key="row.entity_id" class="open-passages__row" :data-testid="`open-passage-${row.entity_id}`">
           <div class="open-passages__identity">
-            <strong>{{ row.display_name }}</strong>
+            <strong>{{ displayName(row) }}</strong>
             <span>{{ row.organization || 'Организация не указана' }} · {{ row.application_number || 'Ручное основание' }} · основание № {{ row.attachment_id }}</span>
           </div>
           <div class="open-passages__facts">
@@ -38,14 +38,17 @@
       <button class="lk-button lk-button--ghost" :disabled="saving" @click="close">Закрыть</button>
     </template>
   </BaseModal>
-  <BaseModal :show="show && !!selected" :title="reverting ? 'Отменить исправление учёта' : 'Исправить учёт'" width="560px" :z-index="10005" :closable="!saving" :close-on-overlay="!saving" content-testid="passage-correction-modal" @close="selected = null">
+  <BaseModal :show="show && !!selected" :title="reverting ? 'Отменить исправление учёта' : 'Исправить учёт'" width="560px" radius="30px" :z-index="10005" :closable="!saving" :close-on-overlay="!saving" content-testid="passage-correction-modal" @close="selected = null">
       <section v-if="selected" class="open-passages__correction" data-testid="passage-correction-form">
-        <strong>{{ selected.display_name }}</strong>
+        <strong>{{ displayName(selected) }}</strong>
         <p class="open-passages__note">{{ reverting ? 'Восстановится прежняя открытая отметка. Отмена разрешена только в течение 15 минут, если после исправления не было другого события.' : 'Это исправление незакрытой отметки, а не подтверждение наблюдавшегося выхода.' }}</p>
         <FormField label="Причина" required><textarea v-model="reason" class="lk-textarea" rows="2" maxlength="1000" :disabled="saving || conflict" data-testid="passage-correction-reason" /></FormField>
         <template v-if="!reverting">
           <ToggleSwitch v-model="actualKnown" :disabled="saving || conflict">Фактическое время выхода известно</ToggleSwitch>
-          <FormField v-if="actualKnown" label="Фактическое время выхода (Москва)" required><input v-model="actualExit" class="lk-input" type="datetime-local" :disabled="saving || conflict" data-testid="passage-correction-actual" /></FormField>
+          <fieldset v-if="actualKnown" class="correction-date" :disabled="saving || conflict" data-testid="passage-correction-actual">
+            <legend>Фактическое время выхода (Москва) <span class="required">*</span></legend>
+            <DateRangeSection single-moment :is-one-day="true" :single-date="actualDate" :start-time="actualTime" :field-config="correctionDateFields" @update:single-date="actualDate = $event" @update:start-time="actualTime = $event" />
+          </fieldset>
           <p v-else class="open-passages__note">Фактическое время выхода будет записано как неизвестное; время регистрации исправления сохранит сервер.</p>
         </template>
         <p v-if="error" class="open-passages__error" role="alert">{{ error }}</p>
@@ -57,9 +60,11 @@
   </BaseModal>
 </template>
 <script setup>
+import { useLicensePlateDisplay } from '@/composables/useLicensePlateDisplay';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue';
 import FormField from '@/components/ui/FormField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { listOpenPassages, closeOpenPassage, revertPassageCorrection } from '@/api/openPassages';
@@ -70,12 +75,23 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 import { formatPeriod } from '@/utils/entryWindow';
 
 const props = defineProps({ show: Boolean, kind: { type: String, required: true }, source: { type: String, default: 'table', validator: value => ['table', 'admin_summary'].includes(value) }, tableID: { type: Number, default: null }, organizations: { type: Array, default: () => [] } });
+const { displayPlate } = useLicensePlateDisplay();
+const displayName = row => props.kind === 'car' ? [displayPlate(row.car_number), row.car_brand].filter(Boolean).join(' — ') || row.display_name : row.display_name;
 const emit = defineEmits(['close', 'changed', 'open-entity']);
 const permissions = usePermissionsStore();
 const mode = ref('attention'), organizationID = ref(null), search = ref(''), page = ref(1), perPage = 25;
 const items = ref([]), counts = ref({ all_open: 0, attention: 0, unknown_time: 0 }), total = ref(0), serverNow = ref(null);
 const loading = ref(false), saving = ref(false), error = ref(''), selected = ref(null), reverting = ref(false), reason = ref('');
 const actualKnown = ref(false), actualExit = ref(''), conflict = ref(false), corrected = ref(false);
+const correctionDateFields = { entry_date_from: { visible: true }, entry_time_from: { visible: true }, roof_access: { visible: false }, free_parking: { visible: false } };
+const actualDate = computed({
+  get: () => { const date = actualExit.value.split('T')[0]; return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.split('-').reverse().join('.') : ''; },
+  set: value => { const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value || ''); actualExit.value = `${match ? `${match[3]}-${match[2]}-${match[1]}` : ''}T${actualTime.value}`; },
+});
+const actualTime = computed({
+  get: () => actualExit.value.split('T')[1] || '',
+  set: value => { actualExit.value = `${actualExit.value.split('T')[0] || ''}T${value || ''}`; },
+});
 let version = 0, searchTimer = null, pollTimer = null;
 const canCorrect = computed(() => permissions.hasPermission('detail.passage.correct'));
 const modeOptions = computed(() => [{ id: 'attention', label: 'Более 48 часов' }, { id: 'all', label: 'Все незакрытые' }, { id: 'expired', label: 'Незакрытые просроченные' },
@@ -107,6 +123,9 @@ function revertWithinWindow(row) {
 const actualISO = computed(() => {
   if (!actualKnown.value) return null;
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(actualExit.value)) return '';
+  const [year, month, day] = actualExit.value.slice(0, 10).split('-').map(Number);
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+  if (calendarDate.getUTCFullYear() !== year || calendarDate.getUTCMonth() !== month - 1 || calendarDate.getUTCDate() !== day) return '';
   const instant = Date.parse(`${actualExit.value}:00+03:00`);
   return Number.isFinite(instant) ? new Date(instant).toISOString() : '';
 });
@@ -194,4 +213,17 @@ onBeforeUnmount(() => { version++; clearTimeout(searchTimer); clearInterval(poll
 .open-passages__choice { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .open-passages__actions { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
 .open-passages__error { margin: 0; color: var(--danger-text); font-size: 13px; }
+
+.correction-date { margin:5px 0 0; padding:0; border:0; min-width:0; }
+.correction-date legend { margin-bottom:10px; font-size:13px; }
+.correction-date .required { color:var(--danger-text); }
+.correction-date :deep(.toggle-switch), .correction-date :deep(.date__label-row), .correction-date :deep(.time-section > .input__label) { display:none; }
+.correction-date :deep(.date-range-section) { display:grid; grid-template-columns:150px minmax(0,1fr); gap:12px; align-items:end; }
+.correction-date :deep(.date-container), .correction-date :deep(.single-date) { width:100%; }
+.correction-date :deep(.date-container) { min-height:40px; }
+.correction-date :deep(.date__text) { display:none; }
+.correction-date :deep(.time-wrapper) { display:flex; min-height:40px; }
+.correction-date :deep(.date__input) { gap:0; margin:0; }
+.correction-date :deep(.input__time), .correction-date :deep(.input__date) { height:40px; box-sizing:border-box; }
+@media(max-width:380px) { .correction-date :deep(.date-range-section) { grid-template-columns:1fr; } }
 </style>

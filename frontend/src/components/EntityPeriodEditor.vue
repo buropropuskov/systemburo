@@ -1,16 +1,18 @@
 <template>
-  <button
+  <HintTooltip v-if="eligible" text="Изменить срок" :width="180"><button
     v-if="eligible"
     type="button"
     class="lk-button lk-button--ghost lk-button--sm"
+    :class="{ 'entity-period-icon': iconOnly }"
     data-testid="entity-period-open"
+    aria-label="Изменить срок"
     @click="open = true"
   >
-    Изменить срок
-  </button>
+    <AppIcon name="calendar" :size="16" /><span v-if="!iconOnly">Изменить срок</span>
+  </button></HintTooltip>
   <EntityPeriodModal
-    v-if="eligible && open"
-    :show="true"
+    v-if="eligible"
+    :show="open"
     :kind="kind"
     :entityID="entityId"
     :tableID="tableId"
@@ -21,6 +23,8 @@
 </template>
 
 <script>
+import HintTooltip from '@/components/ui/HintTooltip.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatNumberForDisplay } from '@/composables/useNumberFormat';
 import EntityPeriodModal from '@/components/EntityPeriodModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -47,9 +51,10 @@ export function canEditEntityPeriod(kind, source, entity, readonly = false) {
 
 export default {
   name: 'EntityPeriodEditor',
-  components: { EntityPeriodModal },
+  components: { EntityPeriodModal, HintTooltip, AppIcon },
   props: {
     show: { type: Boolean, default: false },
+    iconOnly: { type: Boolean, default: false },
     kind: { type: String, required: true, validator: value => ['employee', 'car'].includes(value) },
     source: { type: String, default: 'general' },
     entity: { type: Object, default: null },
@@ -83,3 +88,7 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.entity-period-icon { width: 30px; height: 30px; padding: 0; border-radius: 20px; }
+</style>

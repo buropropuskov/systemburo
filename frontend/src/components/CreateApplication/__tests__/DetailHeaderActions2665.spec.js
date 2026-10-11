@@ -23,7 +23,7 @@ describe('DetailHeaderActions extraction #2665', () => {
 
   it('keeps existing action classes, labels and click events', async () => {
     const wrapper = actions({ historyVisible: true, applicationVisible: true, blacklistVisible: true });
-    for (const [css, event, label] of [['history-btn', 'history', 'Полная история'], ['application-btn', 'application', 'Открыть заявку'], ['blacklist-add-btn', 'blacklist', 'В ЧС']]) {
+    for (const [css, event, label] of [['history-btn', 'history', 'История'], ['application-btn', 'application', 'Открыть заявку'], ['blacklist-add-btn', 'blacklist', 'В ЧС']]) {
       expect(wrapper.find(`.${css}`).text()).toBe(label);
       await wrapper.find(`.${css}`).trigger('click');
       expect(wrapper.emitted(event)).toEqual([[]]);

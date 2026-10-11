@@ -1,5 +1,15 @@
 <template>
   <div v-if="visible" class="header-actions">
+    <HintTooltip v-if="historyVisible" text="Полная история" :width="210">
+    <button v-if="historyVisible" class="history-btn" title="Полная история" aria-label="Полная история" @click="$emit('history')">
+      <AppIcon name="history" :size="16" /><span class="header-action-label">История</span>
+    </button>
+    </HintTooltip>
+    <HintTooltip v-if="applicationVisible" text="Открыть заявку" :width="210">
+    <button v-if="applicationVisible" class="application-btn" title="Открыть заявку" aria-label="Открыть заявку" @click="$emit('application')">
+      <AppIcon name="applicationOpen" :size="16" /><span class="header-action-label">Открыть заявку</span>
+    </button>
+    </HintTooltip>
     <ManualAttachCardAction
       :show="show"
       :kind="kind"
@@ -9,6 +19,7 @@
       @changed="$emit('manual-attached', $event)"
     />
     <EntityPeriodEditor
+      icon-only
       :show="show"
       :kind="kind"
       :entity="entity"
@@ -18,19 +29,17 @@
       :license-plate-formats="licensePlateFormats"
       @changed="$emit('period-changed', $event)"
     />
-    <button v-if="historyVisible" class="history-btn" @click="$emit('history')">
-      <span>Полная история</span>
+    <HintTooltip v-if="blacklistVisible" text="Добавить в чёрный список" :width="210">
+    <button v-if="blacklistVisible" class="blacklist-add-btn" title="Добавить в чёрный список" aria-label="Добавить в чёрный список" @click="$emit('blacklist')">
+      <AppIcon name="ban" :size="16" /><span class="header-action-label">В ЧС</span>
     </button>
-    <button v-if="applicationVisible" class="application-btn" @click="$emit('application')">
-      <span>Открыть заявку</span>
-    </button>
-    <button v-if="blacklistVisible" class="blacklist-add-btn" @click="$emit('blacklist')">
-      <span>В ЧС</span>
-    </button>
+    </HintTooltip>
   </div>
 </template>
 
 <script>
+import HintTooltip from '@/components/ui/HintTooltip.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import EntityPeriodEditor from '@/components/EntityPeriodEditor.vue';
 import ManualAttachCardAction from '@/components/ManualAttachCardAction.vue';
 
@@ -43,7 +52,7 @@ export function detailHeaderTitle(kind, narrow, actionCount) {
 
 export default {
   name: 'DetailHeaderActions',
-  components: { EntityPeriodEditor, ManualAttachCardAction },
+  components: { HintTooltip, AppIcon, EntityPeriodEditor, ManualAttachCardAction },
   props: {
     visible: { type: Boolean, default: true },
     show: { type: Boolean, default: false },
@@ -69,52 +78,11 @@ export default {
 </script>
 
 <style scoped>
-.header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  order: 3;
-  flex-basis: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.history-btn, .application-btn {
-  padding: 6px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-.history-btn:hover, .application-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--accent);
-}
-.blacklist-add-btn {
-  padding: 6px 12px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--danger-text);
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  white-space: nowrap;
-}
-.blacklist-add-btn:hover {
-  background: var(--danger-bg);
-  border-color: var(--danger);
-}
-@media (max-width: 767.98px) {
-  .header-actions {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-    margin-top: 10px;
-  }
-}
+.header-actions { display: flex; flex-wrap: nowrap; flex: 0 1 auto; min-width: 0; align-items: center; gap: 6px; margin-left: auto; }
+.history-btn, .application-btn, .blacklist-add-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text); cursor: pointer; white-space: nowrap; transition: background-color .2s ease, border-color .2s ease; }
+.application-btn, .blacklist-add-btn { width: 30px; padding: 0; }
+.application-btn .header-action-label, .blacklist-add-btn .header-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.history-btn:hover, .application-btn:hover { background: var(--surface-2); border-color: var(--accent); }
+.blacklist-add-btn { color: var(--danger-text); }
+.blacklist-add-btn:hover { background: var(--danger-bg); border-color: var(--danger); }
 </style>

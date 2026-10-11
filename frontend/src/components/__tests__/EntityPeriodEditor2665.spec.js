@@ -65,7 +65,7 @@ describe('EntityPeriodEditor #2665', () => {
     modal.vm.$emit('changed', result);
     await flushPromises();
     expect(wrapper.emitted('changed')).toEqual([[result]]);
-    expect(wrapper.findComponent(EntityPeriodModal).exists()).toBe(false);
+    expect(wrapper.findComponent(EntityPeriodModal).props('show')).toBe(false);
   });
 
   it('requires the managed permission, honors deny and closes after revocation', async () => {
@@ -92,7 +92,7 @@ describe('EntityPeriodEditor #2665', () => {
     const wrapper = editor();
     await wrapper.find('[data-testid="entity-period-open"]').trigger('click');
     await wrapper.setProps({ entity: { id: 19 } });
-    expect(wrapper.findComponent(EntityPeriodModal).exists()).toBe(false);
+    expect(wrapper.findComponent(EntityPeriodModal).props('show')).toBe(false);
   });
 
   it('defers lifecycle authorization to real Inspect instead of assuming application means Work', async () => {

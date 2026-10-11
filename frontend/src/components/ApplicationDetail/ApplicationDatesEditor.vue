@@ -27,29 +27,20 @@
           Новый срок получат выбранные вложения и наследующие его записи. Участники будут уведомлены; голоса согласующих сохранятся.
         </p>
 
-        <div
-          class="dates-editor__current"
-          data-testid="dates-editor-current"
-        >
-          <div v-for="item in currentPeriods" :key="item.id" class="dates-editor__period-row">
-            <strong>{{ item.label }}</strong><small>{{ item.period }}</small>
-          </div>
-        </div>
-
         <fieldset class="dates-editor__fields" :disabled="busy">
-          <legend>Выберите вложения</legend>
-          <ToggleSwitch :model-value="allSelected" :disabled="busy" data-testid="dates-editor-all" @update:model-value="selectAll">Все вложения</ToggleSwitch>
-          <div class="dates-editor__attachments">
+          <legend class="dates-editor__selection-heading"><span>Вложения для изменения</span>
+          <ToggleSwitch :model-value="allSelected" :disabled="busy" data-testid="dates-editor-all" @update:model-value="selectAll">Все вложения</ToggleSwitch></legend>
+          <div class="dates-editor__attachments" data-testid="dates-editor-current">
             <div v-for="attachment in selectableAttachments" :key="attachment.id" class="dates-editor__choice">
               <ToggleSwitch :model-value="selectedIDs.includes(attachment.id)" :disabled="busy" :data-testid="`dates-editor-attachment-${attachment.id}`" @update:model-value="toggleAttachment(attachment.id, $event)">
               <span>{{ attachment.attachment_display_name || attachment.attachment_name || `Вложение №${attachment.id}` }}
-                </span></ToggleSwitch>
+                <small>{{ formatPeriod(attachment) }}</small></span></ToggleSwitch>
             </div>
           </div>
           <p v-if="!selectedIDs.length" class="dates-editor__error" role="alert">Выберите хотя бы одно вложение.</p>
         </fieldset>
         <fieldset class="dates-editor__fields" :disabled="busy">
-        <p v-if="mixedPeriods" class="dates-editor__lead">Сроки различаются. Укажите новый общий срок или выберите одно вложение. Введённые даты сохранятся.</p>
+        <p v-if="mixedPeriods" class="dates-editor__mixed"><span aria-hidden="true">ⓘ</span> Сроки различаются. Укажите новый общий срок или выберите одно вложение. Введённые даты сохранятся.</p>
         <DateRangeSection
           :is-one-day="form.isOneDay"
           :start-date="form.startDate"
@@ -67,10 +58,10 @@
           @update:end-time="form.endTime = $event"
         />
 
-        <FormField label="Индивидуальные сроки">
+        <div class="dates-editor__policy-title">Индивидуальные сроки <HintTooltip :text="policyHint" /></div><FormField>
           <BaseDropdown v-model="individualPolicy" :options="policyOptions" label-key="label" value-key="id" :disabled="busy" teleport :menu-z-index="10007" data-testid="dates-editor-policy" />
         </FormField>
-        <p class="dates-editor__lead">{{ policyHint }}</p>
+
         <FormField
           label="Причина изменения"
           required
@@ -103,17 +94,16 @@
 
       </template>
     </BaseModal>
-    <BaseModal :show="show && !!snapshot" title="Подтвердить изменение срока" width="580px" :z-index="10006" :closable="!busy" :close-on-overlay="!busy" content-testid="dates-editor-confirmation" @close="snapshot = null">
+    <BaseModal :show="show && !!snapshot" title="Подтвердить изменение срока" width="580px" radius="30px" :z-index="10006" :closable="!busy" :close-on-overlay="!busy" content-testid="dates-editor-confirmation" @close="snapshot = null">
       <div v-if="snapshot" class="dates-editor__body" data-testid="dates-editor-preview">
         <div v-for="item in snapshot.attachments" :key="item.attachment_id" class="dates-editor__current">
           <strong>{{ attachmentLabel(item.attachment_id) }}</strong>
           <small>Было: {{ formatPeriod(item.old_period) }}</small>
           <small>Станет: {{ formatPeriod(snapshot.new_period) }}</small>
         </div>
-        <dl class="dates-editor__summary"><dt>Людей / машин</dt><dd>{{ snapshot.employee_count }} / {{ snapshot.car_count }}</dd>
-          <dt>Индивидуальных сроков</dt><dd>{{ snapshot.individual_count }} — {{ individualPolicy === 'preserve' ? 'сохранятся' : 'будут заменены' }}</dd>
-          <dt>Причина</dt><dd>{{ reason }}</dd></dl>
-        <p class="dates-editor__lead">Голоса согласующих сохранятся. Время указано по Москве.</p>
+        <div class="confirmation-stats"><div><span>Людей</span><strong>{{ snapshot.employee_count }}</strong></div><div><span>Машин</span><strong>{{ snapshot.car_count }}</strong></div><div><span>Индивидуальных сроков</span><strong>{{ snapshot.individual_count }}</strong><small>{{ individualPolicy === 'preserve' ? 'Сохранятся' : 'Будут заменены' }}</small></div></div>
+        <div class="confirmation-reason"><span>Причина изменения</span><p>{{ reason }}</p></div>
+        <div class="confirmation-policy">✓ Голоса согласующих сохранятся <span>Время указано по Москве</span></div>
       </div>
       <template #actions>
         <button type="button" class="lk-button lk-button--ghost" :disabled="busy" @click="snapshot = null">Назад</button>
@@ -128,6 +118,7 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import HintTooltip from '@/components/ui/HintTooltip.vue'
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue'
 import { previewApplicationPeriods, changeApplicationPeriods } from '@/api/applicationPeriodCommands'
 import { usePermissionsStore } from '@/stores/permissions'
@@ -143,7 +134,7 @@ import {
 // Selected attachment periods use managed rights and a server preview revision.
 export default {
     name: 'ApplicationDatesEditor',
-    components: { BaseModal, FormField, DateRangeSection, ToggleSwitch, BaseDropdown },
+    components: { BaseModal, FormField, DateRangeSection, ToggleSwitch, BaseDropdown, HintTooltip },
     // Крыша и парковка живут в том же блоке, но к сроку не относятся.
     fieldConfig: {
         roof_access: { visible: false },
@@ -308,45 +299,222 @@ export default {
 .dates-editor {
   padding-bottom: 12px;
 }
-
 .dates-editor__open {
   width: 100%;
 }
-
 .dates-editor__body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   padding: 16px 20px;
   min-width: 0;
+  gap: 14px;
 }
-.dates-editor__fields { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.dates-editor__fields legend { margin-bottom: 8px; }
-.dates-editor__attachments { max-height: 90px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
-.dates-editor__choice { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 4px 0; }
-.dates-editor__summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: 13px; }
-.dates-editor__summary dd { margin: 0; overflow-wrap: anywhere; }
-.dates-editor__period-row { display: grid; grid-template-columns: minmax(90px, 1fr) 2fr; gap: 8px; align-items: center; }
-.dates-editor__body :deep(.lk-textarea) { min-height: 64px; height: 64px; }
-@media(max-width:600px) { .dates-editor__attachments { grid-template-columns: 1fr; } .dates-editor__period-row { grid-template-columns: 1fr; gap: 2px; } }
-.dates-editor__period-row + .dates-editor__period-row { margin-top: 8px; }
-.dates-editor__current small, .dates-editor__choice small { display: block; font-weight: normal; color: var(--text-muted); }
-.dates-editor__error { margin: 0; color: var(--danger-text); font-size: 13px; }
-
-.dates-editor__lead {
+.dates-editor__fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dates-editor__fields legend {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.dates-editor__attachments {
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 160px;
+  gap: 8px;
+}
+.dates-editor__choice {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  align-items: center;
+  padding: 9px 10px;
+}
+.dates-editor__summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
+}
+.dates-editor__summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.dates-editor__period-row {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(140px,1fr) minmax(0,2fr);
+  gap: 12px;
+}
+.dates-editor__body :deep(.lk-textarea) {
+  height: 55px;
+  min-height: 55px;
+}
+@media(max-width:600px) {
+.dates-editor__attachments {
+  grid-template-columns: 1fr;
+}
+.dates-editor__period-row {
+  grid-template-columns: 1fr;
+  gap: 2px;
+} }
+.dates-editor__period-row + .dates-editor__period-row {
+  margin-top: 8px;
+}
+.dates-editor__current small, .dates-editor__choice small {
+  display: block;
+  font-weight: normal;
   color: var(--text-muted);
 }
-
+.dates-editor__error {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: 13px;
+}
+.dates-editor__lead {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--text-muted);
+  font-size: 12px;
+}
 .dates-editor__current {
-  padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: var(--surface-2);
   color: var(--text);
-  font-weight: 600;
-  font-size: 14px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 400;
+}
+.dates-editor__period-row strong {
+  font-weight: 500;
+  font-size: 12px
+}
+.dates-editor__period-row small {
+  font-size: 11px;
+  line-height: 1.5
+}
+.dates-editor__period-row+.dates-editor__period-row {
+  margin-top: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 8px
+}
+.dates-editor__choice :deep(.toggle-switch) {
+  width: 100%;
+  align-items: flex-start
+}
+.dates-editor__mixed {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-size: 11px;
+  padding: 8px 10px
+}
+.dates-editor__policy-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  margin-top: 8px
+}
+.dates-editor__body :deep(.form-field) {
+  margin-bottom: 0
+}
+.dates-editor__body :deep(.date-range-section) {
+  gap: 14px
+}
+.dates-editor__body :deep(.toggle-container) {
+  font-size: 12px
+}
+.dates-editor__choice span {
+  font-size: 12px;
+  line-height: 1.4
+}
+.dates-editor__choice small {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-muted)
+}
+.dates-editor__body :deep(.form-field__label) {
+  font-size: 12px
+}
+.dates-editor__body :deep(.date__label-row) {
+  font-size: 12px
+}
+.dates-editor__selection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--text-muted)
+}
+.confirmation-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 10px
+}
+.confirmation-stats>div {
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-2)
+}
+.confirmation-stats span,.confirmation-stats small {
+  font-size: 12px;
+  color: var(--text-muted)
+}
+.confirmation-stats strong {
+  font-size: 18px
+}
+.confirmation-reason {
+  padding: 12px;
+  border-radius: 15px;
+  border: 1px solid var(--border)
+}
+.confirmation-reason>span {
+  font-size: 12px;
+  color: var(--text-muted)
+}
+.confirmation-reason p {
+  margin: 8px 0 0;
+  font-size: 13px
+}
+.confirmation-policy {
+  padding: 10px 12px;
+  border-radius: 15px;
+  background: var(--surface-2);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px
+}
+.confirmation-policy span {
+  font-size: 11px;
+  color: var(--text-muted)
 }
 </style>
-

@@ -10,21 +10,18 @@
     content-testid="entity-period-modal"
     @close="close"
   >
+    <template #header>
+      <div class="period-header"><h3 class="base-modal__title">Изменить срок</h3>
+        <div class="period-header__status" :role="error && !noChange ? 'alert' : 'status'">
+          <span v-if="error" class="entity-period__sr-only">{{ error }}</span>
+          <HintTooltip v-if="error" :text="error" :width="320"><span class="period-header__notice">{{ statusLabel }}</span></HintTooltip>
+          <button v-if="error && (conflict || !snapshot) && !saving && !loading" type="button" class="lk-button lk-button--ghost lk-button--sm" data-testid="entity-period-refresh" @click="load">Обновить срок</button>
+        </div>
+      </div>
+    </template>
     <div class="entity-period__body" :aria-busy="loading || saving">
       <strong v-if="title">{{ title }}</strong>
       <p v-if="loading" role="status">Загрузка текущего срока…</p>
-      <div v-if="error" class="entity-period__error" role="alert">
-        {{ error }}
-        <button
-          v-if="!saving"
-          type="button"
-          class="lk-button lk-button--ghost lk-button--sm"
-          data-testid="entity-period-refresh"
-          @click="load"
-        >
-          Обновить срок
-        </button>
-      </div>
       <template v-if="snapshot && !loading">
         <div class="entity-period__current" data-testid="entity-period-current">
           Сейчас: {{ currentPeriod }}
@@ -96,6 +93,7 @@
 </template>
 
 <script>
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FormField from '@/components/ui/FormField.vue';
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue';
@@ -105,7 +103,7 @@ import { formatPeriod, periodFormErrors, periodFormFromAttachment, periodPayload
 
 export default {
   name: 'EntityPeriodModal',
-  components: { BaseModal, FormField, DateRangeSection },
+  components: { BaseModal, FormField, DateRangeSection, HintTooltip },
   fieldConfig: { roof_access: { visible: false }, free_parking: { visible: false } },
   props: {
     show: { type: Boolean, default: false },
@@ -122,6 +120,8 @@ export default {
     };
   },
   computed: {
+    noChange() { return this.error === 'Срок не изменился'; },
+    statusLabel() { return this.noChange ? 'Срок не изменился' : this.conflict ? 'Данные изменились' : !this.snapshot ? 'Ошибка загрузки' : 'Не удалось сохранить'; },
     identity() { return `${this.show}:${this.kind}:${this.entityID}:${this.tableID}`; },
     endpoint() {
       if (!['employee', 'car'].includes(this.kind) || !Number.isInteger(this.entityID) || this.entityID <= 0) return '';
@@ -139,9 +139,12 @@ export default {
       return { individual: 'Индивидуальный срок', attachment: 'Наследуется от вложения', manual_unbounded: 'Ручной бессрочный допуск' }[this.snapshot.effective_period.source] || 'Срок основания';
     },
     dateErrors() { return this.mode === 'individual' ? periodFormErrors(this.form) : {}; },
-    canSave() { return !!this.snapshot && !!this.endpoint && !this.loading && !this.saving && !this.conflict && !this.error && !!this.reason.trim(); },
+    canSave() { return !!this.snapshot && !!this.endpoint && !this.loading && !this.saving && !this.conflict && !!this.reason.trim(); },
   },
   watch: {
+    form: { deep: true, handler() { if (!this.conflict && this.snapshot) this.error = ''; } },
+    mode() { if (!this.conflict && this.snapshot) this.error = ''; },
+    reason() { if (!this.conflict && this.snapshot) this.error = ''; },
     identity: {
       immediate: true,
       handler() {
@@ -190,6 +193,7 @@ export default {
       this.validated = true;
       if (Object.keys(this.dateErrors).length) return;
       const version = this.requestVersion;
+      this.error = '';
       this.saving = true;
       try {
         const body = {
@@ -231,4 +235,11 @@ export default {
 .entity-period__note { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 .entity-period__error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--danger-text); font-size: 13px; }
 .entity-period__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.period-header { display:flex; align-items:center; gap:12px; min-width:0; flex:1; min-height:32px; }
+.period-header__status { display:flex; justify-content:flex-end; align-items:center; gap:8px; flex:1; min-width:0; font-size:12px; }
+.period-header__notice { padding:5px 10px; border-radius:var(--radius-md); background:var(--surface-2); color:var(--text-muted); white-space:nowrap; }
+.entity-period__body :deep(.form-field) { margin-bottom:0; }
+.entity-period__modes { padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-md); }
+@media(max-width:480px) { .period-header { flex-wrap:wrap; } .period-header__status { flex-basis:100%; min-height:30px; justify-content:flex-start; } }
 </style>
