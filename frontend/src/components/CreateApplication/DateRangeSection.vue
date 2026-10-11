@@ -354,6 +354,7 @@ import { singleMomentCalendarPosition } from '@/utils/singleMomentCalendar';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
+import { markEscapeHandled } from '@/utils/modalStack';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 export default {
     name: 'DateRangeSection',
@@ -538,14 +539,14 @@ export default {
         document.addEventListener('click', this.onDocumentClick, true);
         // Меню позиционируется fixed от триггера - при скролле отрываться нельзя, закрываем.
         window.addEventListener('scroll', this.closeQuickMenuOnScroll, true);
-        document.addEventListener('keydown', this.handleDatepickerEscape);
+        document.addEventListener('keydown', this.handleDatepickerEscape, true);
         this.validateDateRange();
         this.validateTimeCrossing();
     },
     beforeUnmount() {
         document.removeEventListener('click', this.onDocumentClick, true);
         window.removeEventListener('scroll', this.closeQuickMenuOnScroll, true);
-        document.removeEventListener('keydown', this.handleDatepickerEscape);
+        document.removeEventListener('keydown', this.handleDatepickerEscape, true);
         releaseBodyScrollLock(this);
     },
     methods: {
@@ -1049,6 +1050,9 @@ export default {
         handleDatepickerEscape(event) {
             if (event.key !== 'Escape') return;
             if (this.showStartDatepicker || this.showEndDatepicker || this.showSingleDatepicker) {
+                markEscapeHandled(event);
+                event.preventDefault();
+                event.stopPropagation();
                 this.closeDatepicker();
             }
         },
