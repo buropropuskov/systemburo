@@ -59,7 +59,26 @@ func passCounts(m map[string]interface{}) (carE, carX, pplE, pplX int) {
 // Охранник с правом видит СВОИ строки + итог по таблице, админ - разбивку по
 // всем, юзер без права - 403 с required_permission (гейт RequireTableVerb).
 func TestPassReport_LiveScopeAndGate(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
+	loc := services.AnalyticsLocation()
+	for _, tc := range []struct {
+		name string
+		hour, minute, eventHour, eventMinute int
+	}{
+		{"before_boundary", 21, 29, 20, 0},
+		{"previous_shift_grace", 21, 38, 20, 0},
+		{"after_grace", 22, 0, 21, 50},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Date(2026, 7, 21, tc.hour, tc.minute, 0, 0, loc)
+			eventAt := time.Date(2026, 7, 21, tc.eventHour, tc.eventMinute, 0, 0, loc)
+			testPassReportLiveScopeAndGateAt(t, now, eventAt)
+		})
+	}
+}
+
+func testPassReportLiveScopeAndGateAt(t *testing.T, now, eventAt time.Time) {
+	t.Helper()
+	e, db, cleanup := testutil.SetupTestAppWithPassReportClock(t, func() time.Time { return now })
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
@@ -90,9 +109,16 @@ func TestPassReport_LiveScopeAndGate(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 	}
 	// Проходы людей вторым охранником - прямые записи audit_log в текущем окне.
-	nowUTC := time.Now().UTC()
-	seedPassAudit(t, db, models.AuditEntityEmployee, "entry", &guard2ID, &table.ID, nowUTC)
-	seedPassAudit(t, db, models.AuditEntityEmployee, "exit", &guard2ID, &table.ID, nowUTC)
+	// Keep the real passage flow, then place its two audit events in the
+	// controlled report window. Admission checks still use the normal clock.
+	result := db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND actor_user_id = ?", models.AuditEntityCar, carID, guardID).
+		Where("action IN ?", []string{"entry", "exit"}).
+		Update("created_at", eventAt.UTC())
+	require.NoError(t, result.Error)
+	require.EqualValues(t, 2, result.RowsAffected)
+	seedPassAudit(t, db, models.AuditEntityEmployee, "entry", &guard2ID, &table.ID, eventAt.UTC())
+	seedPassAudit(t, db, models.AuditEntityEmployee, "exit", &guard2ID, &table.ID, eventAt.UTC())
 
 	// Охранник: только своя строка, итог - по всей таблице.
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/pass-report/live", table.ID), testutil.AuthHeader(guardToken))
