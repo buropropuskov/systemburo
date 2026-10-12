@@ -1,3 +1,5 @@
+import { lastMarkTime, QUICK_REVERT_WINDOW_MS } from './passageMarks';
+
 /** Preserve server facts separately from viewer/table grants. */
 export function passageFields(row, { snapshot = false } = {}) {
   const state = row?.passage_state;
@@ -44,8 +46,10 @@ export function expectedPassageEvent(item) {
 export function passageDeadlines(rows) {
   return rows.flatMap(row => {
     const state = row.passage_state;
-    if (!state) return [];
-    return [state.grace_until, ...periodBoundaries(row.effective_period), state.open && state.entry_time_known && state.entry_at
+    const markTime = lastMarkTime(row);
+    const quickDeadline = markTime === null ? null : markTime + QUICK_REVERT_WINDOW_MS;
+    if (!state) return quickDeadline ? [quickDeadline] : [];
+    return [quickDeadline, state.grace_until, ...periodBoundaries(row.effective_period), state.open && state.entry_time_known && state.entry_at
       ? Date.parse(state.entry_at) + 48 * 3600000 + 1 : null].filter(Boolean);
   });
 }
@@ -58,4 +62,10 @@ function periodBoundaries(period) {
     return Number.isFinite(value) ? value + (end && !clock ? 86400000 : 0) : null;
   };
   return [instant(period.entry_date_from, period.entry_time_from), instant(period.entry_date_to, period.entry_time_to, true)];
+}
+
+export function historicalPeriodExpired(row) {
+  const end = periodBoundaries(row?.effective_period)[1];
+  const now = Date.parse(row?.server_now || '');
+  return Number.isFinite(end) && Number.isFinite(now) && now >= end;
 }

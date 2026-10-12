@@ -1,0 +1,21 @@
+/* Анимация календаря */
+.calendar-enter-active,
+.calendar-leave-active {
+    transition: all 0.2s ease;
+}
+
+.calendar-enter-from {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.calendar-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+
+.datepicker--compact.calendar-enter-from, .datepicker--compact.calendar-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}

@@ -15,7 +15,7 @@
         </h3>
       </div>
       <div class="card-header__settings">
-        <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" />
+        <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" @clock="passageNow = $event" />
         <RefreshButton
           :loading="refreshing"
           @refresh="handleManualRefresh"
@@ -216,7 +216,7 @@
                     data-testid="ob-fact-entry"
                     @click="handleEntryExit(item, 'entry')"
                   >
-                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Въезд' }}
+                    {{ canRevertMark(item, 'entry') ? 'Отмена' : 'Въезд' }}
                   </button>
                 </div>
                 <div
@@ -233,7 +233,7 @@
                     data-testid="ob-fact-exit"
                     @click="handleEntryExit(item, 'exit')"
                   >
-                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выезд' }}
+                    {{ canRevertMark(item, 'exit') ? 'Отмена' : 'Выезд' }}
                   </button>
                 </div>
                 <!-- Конфигурируемые столбцы -->
@@ -427,7 +427,7 @@ import { idFilterSet } from '@/utils/idFilter';
 import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
 import { formatUnloadPlaces as unloadPlacesLabel } from '@/utils/unloadPlaces';
 import { usePassageRevertStore } from '@/stores/passageRevert';
-import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
+import { canQuickRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import AppIcon from '@/components/icons/AppIcon.vue';
@@ -985,7 +985,7 @@ export default {
 
     /** Отменяется только последняя отметка, поэтому направление обязано совпасть (#2437). */
     canRevertMark(item, type) {
-      return lastMarkDirection(item) === type && canRevertMark(item, this.tableId);
+      return lastMarkDirection(item) === type && canQuickRevertMark(item, this.tableId, this.passageNow);
     },
     
     async handleEntryExit(item, type) {

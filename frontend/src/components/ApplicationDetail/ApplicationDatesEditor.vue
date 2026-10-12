@@ -37,10 +37,11 @@
                 <small>{{ formatPeriod(attachment) }}</small></span></ToggleSwitch>
             </div>
           </div>
-          <p v-if="!selectedIDs.length" class="dates-editor__error" role="alert">Выберите хотя бы одно вложение.</p>
         </fieldset>
+        <div class="dates-editor__notice-slot" aria-live="polite">
+          <p v-if="notice" :class="['dates-editor__notice', { 'dates-editor__notice--error': error || !selectedIDs.length }]" :role="error || !selectedIDs.length ? 'alert' : 'status'">{{ notice }}</p>
+        </div>
         <fieldset class="dates-editor__fields" :disabled="busy">
-        <p v-if="mixedPeriods" class="dates-editor__mixed"><span aria-hidden="true">ⓘ</span> Сроки различаются. Укажите новый общий срок или выберите одно вложение. Введённые даты сохранятся.</p>
         <DateRangeSection
           :is-one-day="form.isOneDay"
           :start-date="form.startDate"
@@ -77,7 +78,6 @@
         </FormField>
         </fieldset>
 
-        <p v-if="error" class="dates-editor__error" role="alert">{{ error }}</p>
       </div>
 
       <template #actions>
@@ -103,7 +103,7 @@
         </div>
         <div class="confirmation-stats"><div><span>Людей</span><strong>{{ snapshot.employee_count }}</strong></div><div><span>Машин</span><strong>{{ snapshot.car_count }}</strong></div><div><span>Индивидуальных сроков</span><strong>{{ snapshot.individual_count }}</strong><small>{{ individualPolicy === 'preserve' ? 'Сохранятся' : 'Будут заменены' }}</small></div></div>
         <div class="confirmation-reason"><span>Причина изменения</span><p>{{ reason }}</p></div>
-        <div class="confirmation-policy">✓ Голоса согласующих сохранятся <span>Время указано по Москве</span></div>
+        <div class="confirmation-policy">Голоса согласующих сохранятся <span>Время указано по Москве</span></div>
       </div>
       <template #actions>
         <button type="button" class="lk-button lk-button--ghost" :disabled="busy" @click="snapshot = null">Назад</button>
@@ -188,6 +188,7 @@ export default {
         policyHint() { return this.individualPolicy === 'preserve'
             ? 'Собственные сроки не изменятся: если вложение до 18 октября, а человек до 20 октября, у него останется 20 октября.'
             : 'Собственные даты заменятся новыми. Индивидуальный режим сохранится; наследование можно включить в карточке.' },
+        notice() { return this.error || (!this.selectedIDs.length ? 'Выберите хотя бы одно вложение.' : this.mixedPeriods ? 'Сроки различаются. Укажите новый общий срок или выберите одно вложение. Введённые даты сохранятся.' : '') },
         mixedPeriods() { return new Set(this.currentPeriods.map(item => item.period)).size > 1 },
         formDirty() { return JSON.stringify(this.form) !== this.formSourceKey },
         errors() {
@@ -462,6 +463,9 @@ export default {
   font-size: 12px
 }
 .dates-editor__selection-heading {
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -517,4 +521,9 @@ export default {
   font-size: 11px;
   color: var(--text-muted)
 }
+
+.dates-editor__notice-slot { height: 56px; overflow-y: auto; flex: none; }
+.dates-editor__notice { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 15px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.dates-editor__notice--error { color: var(--danger-text); border-color: var(--danger-text); background: var(--danger-bg); }
+@media (max-width: 600px) { .dates-editor__notice-slot { height: 76px; } }
 </style>

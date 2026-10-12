@@ -1,0 +1,16 @@
+
+.history-header > .history-entity-link { font-size: 13px; font-weight: 600; color: var(--accent-text); }
+.history-header { align-items: baseline; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; }
+.history-header .user-name { font-size: 13px; font-weight: 500; }
+.action-time { font-size: 11px; }
+.action-text { font-size: 12px; }
+
+
+@media (min-width: 900px) {
+  :is(.cars-history-modal, .employees-history-modal) .history-filters .filter-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; }
+  :is(.cars-history-modal, .employees-history-modal) .history-filters .search-filter { grid-column: 1 / 3; min-width: 0; }
+  :is(.cars-history-modal, .employees-history-modal) .history-filters .user-filter { grid-column: 3; min-width: 0; }
+  :is(.cars-history-modal, .employees-history-modal) .history-filters .car-filter, :is(.cars-history-modal, .employees-history-modal) .history-filters .employee-filter { grid-column: 1; min-width: 0; }
+  :is(.cars-history-modal, .employees-history-modal) .history-filters .date-filter { grid-column: 2; min-width: 0; }
+  :is(.cars-history-modal, .employees-history-modal) .history-filters .sort-filter { grid-column: 3; min-width: 0; }
+}

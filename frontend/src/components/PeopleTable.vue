@@ -60,7 +60,7 @@
            строке, а счётчик с тумблерами уезжают ниже. Десктоп не меняется -
            .card-header__settings прижат вправо margin-left: auto, кнопка идёт
            сразу за ним с тем же зазором. -->
-      <PassageTableTools v-if="!preview" kind="employee" :table-i-d="currentTableId" :rows="itemsData" @refresh="_loadData(true)" />
+      <PassageTableTools v-if="!preview" kind="employee" :table-i-d="currentTableId" :rows="itemsData" @refresh="_loadData(true)" @clock="passageNow = $event" />
         <RefreshButton
         v-if="!preview"
         class="card-header__refresh"
@@ -588,7 +588,7 @@
 
     <!-- Модальное окно деталей сотрудника -->
     <EmployeeDetailsModal
-      v-if="!preview && showDetailsModal"
+      v-if="!preview"
       v-bind="entityDetailsProps"
       @period-changed="onEntityPeriodChanged"
       @manual-attached="onManualEntityAttached"
@@ -642,7 +642,7 @@ import { idFilterSet } from '@/utils/idFilter';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadExcelSheet } from '@/utils/excelSheet';
 import { usePassageRevertStore } from '@/stores/passageRevert';
-import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
+import { canQuickRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
 import { readEnlarged, writeEnlarged } from '@/utils/enlargedRows';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -1285,7 +1285,7 @@ export default {
 
     /** Отменяется только последняя отметка, поэтому направление обязано совпасть. */
     canRevertMark(item, type) {
-      return lastMarkDirection(item) === type && canRevertMark(item, this.currentTableId);
+      return lastMarkDirection(item) === type && canQuickRevertMark(item, this.currentTableId, this.passageNow);
     },
 
     removeItemWithNotification(item) {
@@ -1476,7 +1476,6 @@ export default {
     },
     closeDetailsModal() {
       this.showDetailsModal = false;
-      this.selectedEmployee = null;
     },
 
     // Сотрудник добавлен вручную без заявки (#1049): application_id === null (BE отдаёт

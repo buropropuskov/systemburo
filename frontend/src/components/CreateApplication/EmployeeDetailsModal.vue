@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <transition name="modal-fade">
+    <transition name="modal-fade" appear @after-leave="$emit('closed')">
       <div
         v-if="show"
         class="modal-overlay"
@@ -26,11 +26,8 @@
               class="sheet-handle"
               aria-hidden="true"
             />
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ modalTitle }}
-              </h3>
-              <DetailHeaderActions
+            <DetailCardHeader :title="modalTitle" @close="close">
+              <DetailHeaderActions v-if="!loading && !loadError"
                 :show="show"
                 kind="employee"
                 :entity="employee"
@@ -46,13 +43,16 @@
                 @period-changed="$emit('period-changed', $event)"
                 @manual-attached="$emit('manual-attached', $event)"
               />
-              <DetailCloseButton @click="close" />
-            </div>
+            </DetailCardHeader>
                     
+            <p v-if="loading || loadError" class="detail-load-status" role="status">{{ loadError || 'Загрузка карточки…' }}</p>
             <div
+              v-if="!loading && !loadError"
               ref="sheetBody"
               class="modal-body"
             >
+              <PassageCardRevertAction :status="currentRevertStatus" kind="employee" :entity-i-d="employee?.id" :table-i-d="periodTableId" :subject="[personLast, personFirst, personMiddle].filter(Boolean).join(' ')" :active="show && !readonly && source === 'peopletable'" @changed="refreshPassage" />
+              <HistoryCardNotice v-if="source === 'history'" :entity="employee" />
               <!-- Секция статуса ЧС -->
               <div
                 v-if="isBlacklisted"
@@ -486,7 +486,7 @@
 </template>
 
 <script>
-import DetailCloseButton from '@/components/ui/DetailCloseButton.vue';
+import employeeSidePanels from './employeeSidePanels';
 import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
@@ -513,9 +513,8 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'EmployeeDetailsModal',
-    mixins: [passageDetailsIntegration],
+    mixins: [passageDetailsIntegration, employeeSidePanels],
     components: {
-        DetailCloseButton,
         DetailHeaderActions,
         AppIcon,
         TableInfoModal,
@@ -565,7 +564,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
+    emits: ['passage-changed', 'closed', 'close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
     setup() {
         // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). onDismiss зовёт метод
         // close() компонента (полная очистка таймеров/подмодалок) через proxy, не голый emit.
@@ -847,35 +846,6 @@ export default {
             return `Неизвестное место (ID: ${tableId})`;
         },
 
-        showTableDetails(tableId) {
-            const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
-            if (!tableData) {
-                useDeletionsStore().notify({ bold: 'Информация о месте прохода недоступна', type: 'error' });
-                return;
-            }
-            this.selectedTable = {
-                table: tableData.table || tableData,
-                time_slots: tableData.time_slots || [],
-                photos: tableData.photos || [],
-                current_status: tableData.current_status || 'closed'
-            };
-            if (this.shiftTimer) clearTimeout(this.shiftTimer);
-            this.isMainShifted = true;
-            this.shiftTimer = setTimeout(() => {
-                this.showPlaceModal = true;
-                this.shiftTimer = null;
-            }, 300);
-        },
-
-        closeTableDetails() {
-            this.showPlaceModal = false;
-        },
-
-        onPlaceLeave() {
-            this.isMainShifted = false;
-            this.selectedTable = null;
-        },
-
         // Отметка согласия хранится полной меткой времени, а formatDate ниже рассчитан
         // на «ГГГГ-ММ-ДД» из полей срока заявки: разбор по дефисам даёт «Invalid Date».
         // Человеку нужен день, поэтому печатаем только дату.
@@ -942,12 +912,15 @@ export default {
             // activeEmployeeId (без отката на employee.id - id-пространства разные).
             // В прочих источниках employee.id уже = employees.id.
             const statusEmployeeId = this.source === 'employeesview' ? this.employee?.activeEmployeeId : this.employee?.id;
-            if (!statusEmployeeId) return;
+            if (!statusEmployeeId || !this.show) return;
+            const version = ++this.statusReadVersion;
             try {
                 const response = await apiRequest('/employees/history/current-status', { method: 'GET' });
                 if (response.ok) {
                     const statuses = await response.json();
+                    if (version !== this.statusReadVersion || !this.show) return;
                     const status = statuses.find(s => s.employee_id === statusEmployeeId);
+                    this.currentRevertStatus = status ?? null;
                     if (status) {
                         this.currentPassageState = status.passage_state ?? null;
                         this.territoryStatus = status.territory_status;
@@ -1009,6 +982,7 @@ export default {
 
 
 <style scoped>
+@import "@/assets/detail-card-state.css";
 @import '@/assets/detail-card-header.css';
 /* Все стили остаются без изменений, как в предыдущей версии */
 .place-name {
@@ -1241,28 +1215,7 @@ export default {
     color: var(--success-text);
 }
 
-.modal-title {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text);
-}
 
-.modal-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.modal-close:hover {
-    background-color: var(--surface-2);
-}
 
 .modal-body {
     padding: 20px 30px;
@@ -1778,4 +1731,5 @@ export default {
         align-self: flex-start;
     }
 }
+
 </style>

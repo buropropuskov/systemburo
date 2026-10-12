@@ -56,29 +56,31 @@
   display: flex;
   flex-direction: column;
   margin-bottom: 0;
-  height: 192px;
-  min-height: 192px;
-  max-height: 192px;
+  min-height: 0;
 }
 .selected-forward-users h4 {
   color: var(--color-text);
   margin-bottom: 10px;
   font-weight: 600;
   font-size: 14px;
-  margin: 0 0 8px;
+  margin: 0;
   line-height: 1.4;
   flex: 0 0 auto;
 }
-.forward-users-list-container {
-  padding-right: 5px;
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-  overscroll-behavior: contain;
-  padding-bottom: 2px;
+.forward-users-frame {
   border: 1px solid var(--border);
   border-radius: 15px;
+  overflow: hidden;
   padding: 6px;
+  background: transparent;
+}
+.forward-users-list-container {
+  padding-right: 5px;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 148px;
+  overscroll-behavior: contain;
+  padding: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
   background: transparent;
@@ -106,6 +108,8 @@
   background: var(--color-bg);
 }
 .forward-selected-user-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -130,6 +134,7 @@
 }
 .forward-selected-user-details {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 0;
   line-height: 14px;
@@ -191,7 +196,8 @@
   font-size: 12px;
   color: var(--text-muted);
   text-align: center;
-  padding: 20px 0;
+  padding: 8px 0;
+  margin: 0;
 }
 .forward-user-settings-dropdown {
   max-width: 100%
@@ -204,3 +210,6 @@
   font-size: 11px;
   background: transparent
 }
+
+.forward-users-list-container--full { height: 148px; }
+@media (max-width: 600px) { .forward-users-list-container { max-height: 224px; } .forward-users-list-container--full { height: 224px; } }

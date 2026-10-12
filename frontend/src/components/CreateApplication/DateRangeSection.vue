@@ -182,7 +182,7 @@
             <div
               v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
               class="datepicker"
-              :class="{ 'is-dragging': sheetDragging }"
+              :class="{ 'is-dragging': sheetDragging, 'datepicker--compact': singleMoment }"
               :style="sheetOffset ? { ...datepickerStyle, transform: `translateY(${sheetOffset}px)` } : datepickerStyle"
               @click.stop
               @touchstart="onSheetTouchStart"
@@ -1112,6 +1112,7 @@ export default {
 </script>
 
 <style scoped>
+@import "@/assets/calendar-motion.css";
 .date-range-section {
     display: flex;
     gap: 30px;
@@ -1527,22 +1528,6 @@ export default {
 @keyframes errorFadeIn {
     0% { opacity: 0; }
     100% { opacity: 1; }
-}
-
-/* Анимация календаря */
-.calendar-enter-active,
-.calendar-leave-active {
-    transition: all 0.2s ease;
-}
-
-.calendar-enter-from {
-    opacity: 0;
-    transform: translateY(-8px);
-}
-
-.calendar-leave-to {
-    opacity: 0;
-    transform: translateY(-8px);
 }
 
 .datepicker-overlay-fade-enter-active,
