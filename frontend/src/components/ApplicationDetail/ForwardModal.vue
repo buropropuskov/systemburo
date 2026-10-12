@@ -13,7 +13,7 @@
       <div class="forward-heading">
         <h3 class="base-modal__title">Переслать заявку</h3>
         <div class="forward-validation-slot">
-          <p v-if="attachments.length && !selectedAttachmentIds.length" id="forward-attachments-warning" role="alert" class="forward-validation-alert">⚠ Выберите хотя бы одно вложение для пересылки</p>
+          <HintTooltip v-if="attachments.length && !selectedAttachmentIds.length" text="Выберите хотя бы одно вложение для пересылки" :z-index="20020"><span id="forward-attachments-warning" role="alert" aria-label="Выберите хотя бы одно вложение для пересылки" class="forward-validation-alert">⚠ Выберите вложение</span></HintTooltip>
         </div>
       </div>
     </template>
@@ -290,6 +290,7 @@
 </template>
 
 <script>
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
@@ -297,7 +298,7 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
     name: 'ForwardModal',
-    components: { BaseModal, FormField, BaseDropdown },
+    components: { BaseModal, FormField, BaseDropdown, HintTooltip },
     props: {
         withdrawn: { type: Boolean, default: false },
         show: {
@@ -738,8 +739,10 @@ export default {
 }
 .forward-attachment-info {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
   min-width: 0;
 }
 .forward-attachment-name {
@@ -747,11 +750,11 @@ export default {
   font-weight: 500;
   color: var(--color-text);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .forward-attachment-group {
-  align-self: flex-start;
+  flex-shrink: 0;
   font-size: 11px;
   font-weight: 500;
   color: var(--accent-text);
@@ -853,27 +856,10 @@ export default {
   font-size: 13px;
   min-height: 34px;
 }
-.forward-validation-slot {
-  position: relative;
-  height: 34px;
-  margin-top: 0;
-  flex: none;
-  min-height: 34px;
-}
-.forward-validation-alert {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: var(--radius-md);
-  background: var(--danger-bg);
-  color: var(--danger-text);
-  border: 1px solid var(--danger-text);
-  font-size: 12px;
-}
-.forward-heading { flex: 1; min-width: 0; }
+.forward-heading { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.forward-heading .base-modal__title { margin: 0; }
+.forward-validation-slot { width: 160px; height: 24px; flex: 0 0 160px; }
+.forward-validation-alert { display: inline-flex; align-items: center; gap: 4px; margin: 0; padding: 2px 6px; min-height: 24px; box-sizing: border-box; border-radius: var(--radius-md); background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-text); font-size: 12px; line-height: 18px; white-space: nowrap; }
 .forward-users-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 24px; }
 .forward-scroll-note {
   margin-left: auto;
@@ -893,12 +879,8 @@ export default {
 .forward-search-row {
   flex-wrap: wrap
 }
-.forward-validation-slot {
-  height: 52px
-}
-.forward-validation-alert {
-  line-height: 1.3
-}}
+.forward-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.forward-validation-slot { width: auto; height: 24px; }}
 .forward-materials {
   display: flex;
   flex-direction: column;

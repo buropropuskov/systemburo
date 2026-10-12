@@ -103,7 +103,8 @@ describe('Пересылка #2666', () => {
     const hint = wrapper.find('#forward-attachments-warning');
     expect(hint.attributes('role')).toBe('alert');
     expect(hint.isVisible()).toBe(true);
-    expect(hint.text()).toBe('⚠ Выберите хотя бы одно вложение для пересылки');
+    expect(hint.text()).toBe('⚠ Выберите вложение');
+    expect(hint.attributes('aria-label')).toBe('Выберите хотя бы одно вложение для пересылки');
     expect(wrapper.find('[data-testid="forward-modal-button-send"]').attributes('disabled')).toBeDefined();
     expect(wrapper.find('[data-testid="forward-modal-attachments"]').attributes('aria-describedby')).toBe('forward-attachments-warning');
   });

@@ -96,7 +96,8 @@ describe('ForwardModal — выбор вложений (#680, срез fe-select
     await wrapper.find('[data-testid="forward-modal-attachments-all"]').setValue(false);
     expect(wrapper.vm.selectedAttachmentIds).toEqual([]);
     expect(sendBtn.attributes('disabled')).toBeDefined();
-    expect(wrapper.find('#forward-attachments-warning[role="alert"]').text()).toContain('Выберите хотя бы одно вложение для пересылки');
+    expect(wrapper.find('#forward-attachments-warning[role="alert"]').text()).toContain('Выберите вложение');
+    expect(wrapper.find('#forward-attachments-warning[role="alert"]').attributes('aria-label')).toBe('Выберите хотя бы одно вложение для пересылки');
   });
 
   it('без вложений секция скрыта и отправка не блокируется по вложениям', async () => {

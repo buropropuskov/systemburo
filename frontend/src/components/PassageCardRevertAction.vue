@@ -30,5 +30,5 @@ function ask() {
 }
 </script>
 <style scoped>
-.card-revert-action { margin-bottom: 12px; }
+.card-revert-action { margin: 0; }
 </style>
