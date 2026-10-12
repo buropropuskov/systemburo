@@ -22,6 +22,7 @@ function commonActions(subject) {
     ...PASSAGE_CORRECTION_ACTIONS,
     create: `Подана заявка на ${subject === 'Автомобиль' ? 'автомобиль' : 'сотрудника'}`,
     update: 'Данные обновлены',
+    dates_changed: 'Изменён срок действия',
     delete: `${subject} удалён`,
     activate: `${subject} введён в работу`,
     deactivate: `${subject} выведен из работы`,
@@ -71,4 +72,14 @@ export function historyActionText(item, actions) {
 export function tablePassageHistoryText(item, kind) {
   return historyActionText(item, { ...(kind === 'car' ? CAR_HISTORY_ACTIONS : EMPLOYEE_HISTORY_ACTIONS),
     delete: 'Удаление из таблицы', restore: 'Восстановление в таблице', purge: 'Безвозвратное удаление' });
+}
+
+/** Presentation only: stored values and audit records remain unchanged. */
+export function historyFieldLabel(field) {
+  return field === 'period' ? 'Срок действия' : field;
+}
+export function historyValueText(item, value) {
+  if (item?.field_name !== 'period' || typeof value !== 'string') return value;
+  return value.replace(/^individual:\s*/, 'Индивидуальный срок: ')
+    .replace(/^inherit:\s*/, 'Срок вложения: ');
 }

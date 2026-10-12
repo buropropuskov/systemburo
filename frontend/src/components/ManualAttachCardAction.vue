@@ -1,11 +1,13 @@
 <template>
   <template v-if="eligible">
-    <button v-if="context" type="button" class="lk-button lk-button--ghost lk-button--sm" data-testid="manual-attach-card-action" @click="open = true">
-      Привязать к заявке
+    <HintTooltip :text="context ? 'Привязать к заявке' : error" compact>
+    <button v-if="context" type="button" class="lk-button lk-button--ghost lk-button--sm" :class="{ 'manual-attach-icon': iconOnly }" aria-label="Привязать к заявке" data-testid="manual-attach-card-action" @click="open = true">
+      <AppIcon v-if="iconOnly" name="applicationOpen" :size="16" /><span v-else>Привязать к заявке</span>
     </button>
-    <button v-else-if="error" type="button" class="lk-button lk-button--ghost lk-button--sm" :title="error" data-testid="manual-attach-card-retry" @click="load">
-      Повторить проверку привязки
+    <button v-else-if="error" type="button" class="lk-button lk-button--ghost lk-button--sm" :class="{ 'manual-attach-icon': iconOnly }" aria-label="Повторить проверку привязки" :title="error" data-testid="manual-attach-card-retry" @click="load">
+      <AppIcon v-if="iconOnly" name="refresh" :size="16" /><span v-else>Повторить проверку привязки</span>
     </button>
+    </HintTooltip>
     <ManualAttachExistingModal
       :show="open && !!context" :kind="kind" :entity-i-d="entityID" :table-i-d="tableID" :title="title"
       @close="open = false" @changed="changed"
@@ -14,14 +16,17 @@
 </template>
 
 <script>
+import HintTooltip from '@/components/ui/HintTooltip.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ManualAttachExistingModal from './ManualAttachExistingModal.vue';
 import { getManualAttachContext } from '@/api/manualAttachSingle';
 import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
   name: 'ManualAttachCardAction',
-  components: { ManualAttachExistingModal },
+  components: { ManualAttachExistingModal, HintTooltip, AppIcon },
   props: {
+    iconOnly: { type: Boolean, default: false },
     show: { type: Boolean, default: false },
     kind: { type: String, required: true },
     entityID: { type: Number, default: null },
@@ -71,3 +76,7 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.manual-attach-icon { width: 30px; height: 30px; padding: 0; flex-shrink: 0; }
+</style>

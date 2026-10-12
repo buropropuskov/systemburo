@@ -111,7 +111,7 @@ export default {
       type: Number,
       default: 1000,
     },
-    // Радиус скругления окна. Пусто -> дефолт var(--radius-md). Задаётся окном, т.к.
+    // Радиус скругления окна. Пусто -> стандартное скругление окна 30px. Задаётся окном, т.к.
     // content-class телепортируется в body и scoped :deep из родителя до него не
     // достаёт - пробрасываем значение CSS-переменной инлайном.
     radius: {
@@ -260,7 +260,7 @@ export default {
 
 .base-modal {
   background: var(--surface);
-  border-radius: var(--base-modal-radius, var(--radius-md));
+  border-radius: var(--base-modal-radius, 30px);
   box-shadow: 0 8px 30px var(--shadow-drop);
   /* Не голый 92vh: на >1440 корень зумлен (viewportScale.js), vh считается от
      НЕзумленной высоты и завышает кап в zoom раз - на 2500px окно вылезало за

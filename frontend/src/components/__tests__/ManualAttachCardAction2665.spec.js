@@ -26,6 +26,16 @@ describe('manual attach card action #2665', () => {
     getAttachableApplications.mockReset().mockResolvedValue([]);
   });
   afterEach(() => wrappers.splice(0).forEach(w => w.unmount()));
+  it('supports an accessible compact icon without changing the modal action', async () => {
+    const wrapper = create({ iconOnly: true });
+    await flushPromises();
+    const button = wrapper.get('[data-testid="manual-attach-card-action"]');
+    expect(button.attributes('aria-label')).toBe('Привязать к заявке');
+    expect(button.text()).toBe('');
+    expect(button.find('svg').exists()).toBe(true);
+    await button.trigger('click');
+    expect(wrapper.findComponent(ManualAttachExistingModal).props('show')).toBe(true);
+  });
   it('shows only after fresh server context and opens the real modal with the actual ID', async () => {
     const wrapper = create();
     expect(wrapper.find('[data-testid="manual-attach-card-action"]').exists()).toBe(false);

@@ -11,6 +11,7 @@
     </button>
     </HintTooltip>
     <ManualAttachCardAction
+      icon-only
       :show="show"
       :kind="kind"
       :entityID="manualEntityID"

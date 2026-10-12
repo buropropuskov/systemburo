@@ -230,8 +230,8 @@
                     @click="handleHistoryClick(item)"
                   >
                     <div class="history-header">
-                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ') }}</button>
-                      <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">Запись: {{ [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ') }}</button>
+                      <span class="user-name">{{ item.action_type === 'dates_changed' ? 'Изменил: ' : 'Автор: ' }}{{ item.user_name || 'Система' }}</span>
                       <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                     </div>
 
@@ -259,18 +259,18 @@
 
                     <div
                       v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
-                      class="value-change"
+                      class="value-change" :class="{ 'value-change--period': item.field_name === 'period' }"
                     >
-                      <span class="old-value">{{ item.old_value }}</span>
+                      <span class="old-value"><template v-if="item.field_name === 'period'">Было: </template>{{ historyValueText(item, item.old_value) }}</span>
                       <span class="arrow">→</span>
-                      <span class="new-value">{{ item.new_value }}</span>
+                      <span class="new-value"><template v-if="item.field_name === 'period'">Стало: </template>{{ historyValueText(item, item.new_value) }}</span>
                     </div>
 
                     <div
                       v-if="item.field_name"
                       class="field-name"
                     >
-                      Поле: {{ item.field_name }}
+                      Поле: {{ historyFieldLabel(item.field_name) }}
                     </div>
                     <div
                       v-if="item.table_name"
@@ -292,7 +292,7 @@
 
 <script>
 import { useEscapeClose } from '@/composables/useEscapeClose';
-import { EMPLOYEE_HISTORY_ACTIONS, historyActionText } from '@/utils/passageHistoryActions';
+import { EMPLOYEE_HISTORY_ACTIONS, historyActionText, historyFieldLabel, historyValueText } from '@/utils/passageHistoryActions';
 import { ref, defineAsyncComponent } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -559,6 +559,8 @@ export default {
       }
     },
 
+    historyFieldLabel,
+    historyValueText,
     getActionText(item) {
       return historyActionText(item, EMPLOYEE_HISTORY_ACTIONS);
     },
@@ -655,9 +657,9 @@ export default {
             this.getActionText(item),
             item.comment || '',
             item.action_type,
-            item.old_value || '',
-            item.new_value || '',
-            item.field_name || '',
+            historyValueText(item, item.old_value) || '',
+            historyValueText(item, item.new_value) || '',
+            historyFieldLabel(item.field_name) || '',
             item.employee_id,
             item.table_name || '',
           ]),
