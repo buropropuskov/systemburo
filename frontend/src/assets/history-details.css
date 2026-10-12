@@ -1,5 +1,5 @@
 
-.history-header > .history-entity-link { font-size: 13px; font-weight: 600; color: var(--accent-text); }
+.history-header > .history-entity-link { font-size: 13px; font-weight: 600; color: var(--text); }
 .history-header { align-items: baseline; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; }
 .history-header .user-name { font-size: 13px; font-weight: 500; }
 .action-time { font-size: 11px; }
@@ -15,3 +15,5 @@
   :is(.cars-history-modal, .employees-history-modal) .history-filters .date-filter { grid-column: 2; min-width: 0; }
   :is(.cars-history-modal, .employees-history-modal) .history-filters .sort-filter { grid-column: 3; min-width: 0; }
 }
+
+.history-header :is(.car-info, .employee-info) { color: var(--text); }

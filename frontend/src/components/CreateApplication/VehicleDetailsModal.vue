@@ -56,7 +56,6 @@
               ref="sheetBody"
               class="modal-body"
             >
-              <PassageCardRevertAction :status="currentRevertStatus" kind="car" :entity-i-d="vehicle?.id" :table-i-d="periodTableId" :subject="vehicleNumber" :active="show && !readonly && ['carstable', 'facttable'].includes(source)" @changed="refreshPassage" />
               <HistoryCardNotice v-if="source === 'history'" :entity="vehicle" />
               <!-- Секция статуса ЧС -->
               <div
@@ -308,13 +307,14 @@
                       Статус
                     </h4>
                   </div>
-                  <div class="section-body">
+                  <div class="section-body status-actions-row">
                     <div
                       class="status-badge"
                       :class="getStatusClass"
                     >
                       {{ getStatusText }}
                     </div>
+                    <PassageCardRevertAction :status="currentRevertStatus" kind="car" :entity-i-d="vehicle?.id" :table-i-d="periodTableId" :subject="vehicleNumber" :active="show && !readonly && ['carstable', 'facttable'].includes(source)" @changed="refreshPassage" />
                   </div>
                 </div>
 

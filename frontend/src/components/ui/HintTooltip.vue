@@ -49,6 +49,7 @@ const props = defineProps({
   /** Максимальная ширина пузырька, px (клампится по вьюпорту). */
   width: { type: Number, default: 260 },
   compact: { type: Boolean, default: false },
+  zIndex: { type: Number, default: 15000 },
 });
 
 /*
@@ -69,7 +70,6 @@ const GAP = 8; // зазор между иконкой и пузырьком
 const EDGE = 8; // минимальный отступ от краёв вьюпорта
 // Ниже глобальных диалогов (ConfirmDialog 20000) - подсказка не должна перекрывать
 // блокирующие окна, но обязана быть выше контента страницы.
-const Z_INDEX = 15000;
 
 function bubbleWidth(zoom) {
   const z = zoom || getViewportZoom();
@@ -110,7 +110,7 @@ function updatePosition() {
     width: `${w}px`,
     left: `${Math.max(EDGE, Math.min(anchorCenter - w / 2, vw - w - EDGE))}px`,
     top: `${top}px`,
-    zIndex: Z_INDEX,
+    zIndex: props.zIndex,
   };
 }
 
@@ -123,7 +123,7 @@ async function open() {
     maxWidth: `${bubbleWidth()}px`,
     left: '0px',
     top: '-9999px',
-    zIndex: Z_INDEX,
+    zIndex: props.zIndex,
   };
   visible.value = true;
   await nextTick();
