@@ -350,7 +350,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
-import { singleMomentCalendarPosition } from '@/utils/singleMomentCalendar';
+import { prepareSingleMomentCalendar } from '@/utils/singleMomentCalendar';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
@@ -1045,7 +1045,7 @@ export default {
                 const parsed = this.parseDate(this.singleDate);
                 if (parsed) this.currentDate = parsed;
             }
-            if (this.singleMoment && input && window.innerWidth >= 768) this.$nextTick(() => { if (this.showSingleDatepicker) this.datepickerStyle = { ...this.datepickerStyle, ...singleMomentCalendarPosition(input, getViewportZoom()) }; });
+            if (this.singleMoment && input && window.innerWidth >= 768) prepareSingleMomentCalendar(this, input, getViewportZoom());
         },
         handleDatepickerEscape: handleDateCalendarEscape,
 

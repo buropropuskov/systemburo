@@ -19,3 +19,7 @@
   opacity: 0;
   transform: translateY(-8px);
 }
+
+.datepicker--compact.calendar-enter-active, .datepicker--compact.calendar-leave-active {
+  transition: opacity .2s ease, transform .2s ease;
+}
