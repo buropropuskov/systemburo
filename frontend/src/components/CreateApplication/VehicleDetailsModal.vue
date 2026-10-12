@@ -1776,7 +1776,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
   }
   
   .modal-header {
-    padding: 16px 20px;
+    padding: 6px 16px;
     flex-wrap: wrap;
     height: auto;
   }

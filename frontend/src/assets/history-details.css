@@ -1,6 +1,6 @@
 
 .history-header > .history-entity-link { font-size: 13px; font-weight: 600; color: var(--text); }
-.history-header { align-items: baseline; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; }
+.history-header { align-items: baseline; gap: 5px 12px; flex-wrap: wrap; margin-bottom: 4px; }
 .history-header .user-name { font-size: 13px; font-weight: 500; }
 .action-time { font-size: 11px; }
 .action-text { font-size: 12px; }
@@ -17,3 +17,6 @@
 }
 
 .history-header :is(.car-info, .employee-info) { color: var(--text); }
+.value-change.value-change--period { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.value-change--period .arrow { display: none; }
+.value-change--period :is(.old-value, .new-value) { font-size: 12px; overflow-wrap: anywhere; text-decoration: none; }
