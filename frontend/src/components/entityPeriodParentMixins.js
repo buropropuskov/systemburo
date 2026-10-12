@@ -365,3 +365,18 @@ export const applicationPeriodDetails = {
     },
   },
 };
+
+export const factTableDetails = {
+  computed: {
+    factDetailsProps() {
+      return { show: this.showDetailsModal, vehicle: this.selectedVehicle,
+        allUnloadingPlaces: this.allUnloadingPlaces, licensePlateFormats: this.licensePlateFormats,
+        currentUserId: this.currentUserId, currentUserName: this.currentUserName,
+        showCarFeatures: true, source: 'facttable', periodTableId: this.tableId,
+        onClosed: this.clearClosedFactDetails, onPassageChanged: () => this._loadData(true) };
+    },
+  },
+  methods: {
+    clearClosedFactDetails() { if (!this.showDetailsModal) this.selectedVehicle = null; },
+  },
+};

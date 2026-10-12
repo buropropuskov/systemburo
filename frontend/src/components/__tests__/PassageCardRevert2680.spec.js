@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick as tick } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
+import { factTableDetails } from '../entityPeriodParentMixins';
 import PassageCardRevertAction from '../PassageCardRevertAction.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { usePassageRevertStore } from '@/stores/passageRevert';
@@ -38,4 +39,15 @@ describe('explicit administrative cancellation', () => {
     const wrapper = mount(PassageCardRevertAction, { props: props({ status: { ...props().status, server_now: stamp } }) });
     expect(wrapper.find('button').exists()).toBe(false); wrapper.unmount();
   });
+});
+
+it('the fact-car card preserves the exact post and refreshes through its parent', () => {
+  const ctx = { tableId: 7, selectedVehicle: { id: 17 }, showDetailsModal: true,
+    clearClosedFactDetails() {}, _loadData(force) { this.refreshed = force; } };
+  const card = factTableDetails.computed.factDetailsProps.call(ctx);
+  expect(card).toMatchObject({ source: 'facttable', periodTableId: 7, vehicle: { id: 17 }, show: true });
+  card.onPassageChanged(); expect(ctx.refreshed).toBe(true);
+  factTableDetails.methods.clearClosedFactDetails.call(ctx); expect(ctx.selectedVehicle).not.toBeNull();
+  ctx.showDetailsModal = false;
+  factTableDetails.methods.clearClosedFactDetails.call(ctx); expect(ctx.selectedVehicle).toBeNull();
 });

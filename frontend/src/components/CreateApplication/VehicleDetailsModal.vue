@@ -56,7 +56,7 @@
               ref="sheetBody"
               class="modal-body"
             >
-              <PassageCardRevertAction :status="currentRevertStatus" kind="car" :entity-i-d="vehicle?.id" :table-i-d="periodTableId" :subject="vehicleNumber" :active="show && !readonly && source === 'carstable'" @changed="refreshPassage" />
+              <PassageCardRevertAction :status="currentRevertStatus" kind="car" :entity-i-d="vehicle?.id" :table-i-d="periodTableId" :subject="vehicleNumber" :active="show && !readonly && ['carstable', 'facttable'].includes(source)" @changed="refreshPassage" />
               <HistoryCardNotice v-if="source === 'history'" :entity="vehicle" />
               <!-- Секция статуса ЧС -->
               <div

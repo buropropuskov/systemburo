@@ -388,14 +388,7 @@
     <!-- Модальное окно с деталями автомобиля (для машин) -->
     <VehicleDetailsModal
       v-if="tableType === 'cars'"
-      :show="showDetailsModal"
-      :vehicle="selectedVehicle"
-      :all-unloading-places="allUnloadingPlaces"
-      :license-plate-formats="licensePlateFormats"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      :show-car-features="true"
-      :source="'facttable'"
+      v-bind="factDetailsProps"
       @close="closeDetailsModal"
       @open-application="$emit('open-application', $event)"
     />
@@ -413,6 +406,7 @@
 </template>
 
 <script>
+import { factTableDetails } from './entityPeriodParentMixins';
 import passageTableIntegration from './passageTableIntegration';
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui';
@@ -437,7 +431,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
   name: 'FactTable',
-  mixins: [passageTableIntegration],
+  mixins: [passageTableIntegration, factTableDetails],
   components: {
     AppIcon,
     RefreshButton,
@@ -1123,7 +1117,6 @@ export default {
 
     closeDetailsModal() {
       this.showDetailsModal = false;
-      this.selectedVehicle = null;
     },
 
     startPolling() {
