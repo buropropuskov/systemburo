@@ -1,12 +1,13 @@
 <template>
-  <div class="theme-controls">
+  <div class="theme-controls" :class="{ 'theme-controls--disabled': disabled }">
     <div
       v-for="item in items"
       :key="item.testid"
       class="nav-item nav-item--theme"
       :data-testid="item.icon === 'moon' ? 'nav-theme-toggle' : 'nav-style-toggle'"
       role="switch"
-      tabindex="0"
+      :tabindex="disabled ? -1 : 0"
+      :aria-disabled="disabled ? 'true' : 'false'"
       :aria-checked="item.checked ? 'true' : 'false'"
       :aria-label="item.title"
       :title="item.title"
@@ -38,10 +39,14 @@ import { computed } from 'vue';
 import NavIcon from '@/components/icons/NavIcon.vue';
 import SwitchToggle from '@/components/ui/SwitchToggle.vue';
 import { useThemeStore } from '@/stores/theme';
+const props = defineProps({ disabled: { type: Boolean, default: false } });
 const theme = useThemeStore();
 const dark = computed(() => theme.current === 'dark' || theme.current === 'glass-dark');
 const alternative = computed(() => theme.current.startsWith('glass-'));
-const select = (alt, isDark) => theme.setTheme((alt ? 'glass-' : '') + (isDark ? 'dark' : 'light'));
+const select = (alt, isDark) => {
+  if (props.disabled) return;
+  return theme.setTheme((alt ? 'glass-' : '') + (isDark ? 'dark' : 'light'));
+};
 const items = computed(() => [
   { testid: 'nav-style-toggle', icon: 'theme', label: 'Альтернативное',
     title: 'Оформление: ' + (alternative.value ? 'Альтернативное' : 'Обычное'),
@@ -65,5 +70,10 @@ const items = computed(() => [
 @media (max-width:1366px), (hover:none) and (pointer:coarse) {
   .nav-text, .nav-theme-switch { opacity:1; }
   .nav-item { min-height:44px; }
+}
+.theme-controls--disabled .nav-item {
+  pointer-events: none;
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

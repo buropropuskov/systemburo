@@ -31,3 +31,21 @@ describe('independent theme controls', () => {
     wrapper.unmount();
   });
 });
+
+it('preserves disabled navigation for a blocked user, including keyboard input', async () => {
+  const wrapper = mount(ThemeControls, { props: { disabled: true } });
+  const store = useThemeStore();
+  const initial = store.current;
+  for (const id of ['nav-style-toggle', 'nav-theme-toggle']) {
+    const control = wrapper.get(`[data-testid="${id}"]`);
+    expect(control.attributes('aria-disabled')).toBe('true');
+    expect(control.attributes('tabindex')).toBe('-1');
+    await control.trigger('click');
+    await control.trigger('keydown', { key: 'Enter' });
+    await control.trigger('keydown', { key: ' ' });
+  }
+  await flushPromises();
+  expect(store.current).toBe(initial);
+  expect(saveTheme).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
