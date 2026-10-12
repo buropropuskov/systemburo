@@ -82,6 +82,9 @@ export default {
 }
 
 [data-theme="dark"] .rt-tag {
+  border-color: currentColor;
+}
+[data-theme="glass-dark"] .rt-tag {
     border-color: currentColor;
 }
 

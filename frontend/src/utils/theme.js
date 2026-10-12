@@ -24,6 +24,8 @@ export const DEFAULT_THEME = 'light';
 export const THEMES = [
   { id: 'light', name: 'Светлая', dot: '#4F5BDF' },
   { id: 'dark', name: 'Тёмная', dot: '#14161c' },
+  { id: 'glass-light', name: 'Альтернативная светлая', dot: '#4F5BDF' },
+  { id: 'glass-dark', name: 'Альтернативная тёмная', dot: '#15181e' },
 ];
 
 const THEME_IDS = THEMES.map((t) => t.id);
@@ -52,10 +54,21 @@ export function findTheme(id) {
  * @param {string} id
  * @returns {string} реально применённая тема
  */
-export function applyTheme(id) {
+export function applyTheme(id, { animate = false } = {}) {
   const theme = isValidTheme(id) ? id : DEFAULT_THEME;
   const root = document.documentElement;
-  suppressTransitions(root);
+  if (animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    root.classList.remove(SWITCH_CLASS);
+    root.classList.add('theme-colors-changing');
+    // Commit the common transition before changing inherited tokens.
+    if (document.body) getComputedStyle(document.body).backgroundColor;
+    clearTimeout(colorTransitionTimer);
+    colorTransitionTimer = setTimeout(() => root.classList.remove('theme-colors-changing'), 300);
+  } else {
+    clearTimeout(colorTransitionTimer);
+    root.classList.remove('theme-colors-changing');
+    suppressTransitions(root);
+  }
   root.setAttribute('data-theme', theme);
   return theme;
 }
@@ -70,6 +83,7 @@ export function applyTheme(id) {
  * На экране это читается как «одни элементы прокрашиваются, другие следуют».
  */
 const SWITCH_CLASS = 'theme-switching';
+let colorTransitionTimer;
 
 /**
  * Ставит класс, снимает после отрисовки нового кадра. Два кадра, потому что

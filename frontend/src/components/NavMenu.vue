@@ -424,32 +424,7 @@
             />
             <span class="nav-text">Личный кабинет</span>
           </div>
-          <!-- Тёмная тема: тумблер, тем осталось две (#1415) -->
-          <div
-            v-show="true"
-            class="nav-item nav-item--theme"
-            data-testid="nav-theme-toggle"
-            role="switch"
-            :aria-checked="isDarkTheme ? 'true' : 'false'"
-            @click="toggleTheme"
-          >
-            <div class="nav-item-content">
-              <NavIcon
-                name="moon"
-                :size="18"
-                class="nav-icon"
-              />
-              <span class="nav-text">Тёмная тема</span>
-            </div>
-            <!-- Индикатор: клик обрабатывает вся строка, поэтому сам тумблер
-                 события не ловит (иначе переключение сработало бы дважды). -->
-            <SwitchToggle
-              :model-value="isDarkTheme"
-              label=""
-              title="Переключить светлую и тёмную тему"
-              class="nav-theme-switch"
-            />
-          </div>
+          <ThemeControls />
 
           <div
             class="nav-item"
@@ -644,7 +619,7 @@ import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useEdgeSwipeOpen } from '@/composables/useEdgeSwipeOpen'
 import { useRailExpand } from '@/composables/useRailExpand'
 import NavIcon from '@/components/icons/NavIcon.vue'
-import SwitchToggle from '@/components/ui/SwitchToggle.vue'
+import ThemeControls from '@/components/ui/ThemeControls.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
 
 // Длительность анимации ухода drawer'а (transform 0.28s) - ждём её перед показом
@@ -656,7 +631,7 @@ const DRAWER_WIDTH = 280
 
 export default {
   name: 'NavMenu',
-  components: { NavIcon, FeedbackModal, SwitchToggle },
+  components: { NavIcon, FeedbackModal, ThemeControls },
   emits: ['logout'],
   setup() {
     // Сторы берём в setup для реактивности в шаблоне: authStore - гейт
@@ -749,7 +724,7 @@ export default {
   computed: {
     /** Тумблер в меню: включён на тёмной теме (#1415). */
     isDarkTheme() {
-      return this.themeStore.current === 'dark';
+      return this.themeStore.current === 'dark' || this.themeStore.current === 'glass-dark';
     },
     /**
      * Затемнение густеет вместе с вытянутой панелью. Считаем от номинальной ширины
@@ -1064,7 +1039,8 @@ export default {
      * сразу и сохраняет в профиль.
      */
     toggleTheme() {
-      this.themeStore.setTheme(this.isDarkTheme ? 'light' : 'dark');
+      const prefix = this.themeStore.current.startsWith('glass-') ? 'glass-' : '';
+      this.themeStore.setTheme(prefix + (this.isDarkTheme ? 'light' : 'dark'));
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {

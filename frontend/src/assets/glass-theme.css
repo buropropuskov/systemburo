@@ -1,0 +1,38 @@
+/* Alternative theme paints existing surfaces without changing geometry. */
+:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(.nav-menu, .theheader, .header):not([data-theme="light"]):not([data-theme="light"] *) {
+  background-color: var(--glass-chrome);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+/* No filter on layout parents: it would capture fixed descendants. */
+:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(
+  .applications-table, .center__filters, .create__form, .create .selector,
+  .fact-table-card, .selected-table-card, .people-table-card
+):not([data-theme="light"]):not([data-theme="light"] *) {
+  background-color: var(--glass-panel);
+  box-shadow: 0 10px 28px var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+}
+:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(
+  .create__blank-title--header, .create__blank-title--inline
+):not([data-theme="light"]):not([data-theme="light"] *) {
+  background-color: var(--surface);
+  border-color: var(--attachment-title-border);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+/* Blur only isolated overlay surfaces; opaque fallback remains readable. */
+@supports (backdrop-filter: blur(1px)) {
+  :root:is([data-theme="glass-light"], [data-theme="glass-dark"]) .base-modal:not([data-theme="light"]):not([data-theme="light"] *) {
+    background-color: var(--glass-panel);
+    backdrop-filter: blur(16px) saturate(105%);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(
+    .base-modal, .nav-menu, .header, .theheader, .applications-table,
+    .center__filters, .create__form, .create .selector,
+    .fact-table-card, .selected-table-card, .people-table-card
+  ):not([data-theme="light"]):not([data-theme="light"] *) {
+    background-color: var(--surface);
+    backdrop-filter: none;
+  }
+}

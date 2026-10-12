@@ -28,7 +28,7 @@ function palette(theme) {
   return vars;
 }
 
-const THEMES = ['light', 'dark'];
+const THEMES = ['light', 'dark', 'glass-light', 'glass-dark'];
 
 describe('слои поверхностей в палитрах', () => {
   it.each(THEMES)('%s: слои объявлены', (theme) => {

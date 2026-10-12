@@ -20,7 +20,7 @@ describe('utils/theme', () => {
 
   it('реестр содержит светлую и тёмную тему', () => {
     const ids = THEMES.map((t) => t.id)
-    expect(ids).toEqual(['light', 'dark'])
+    expect(ids).toEqual(['light', 'dark', 'glass-light', 'glass-dark'])
     expect(new Set(ids).size).toBe(ids.length)
     THEMES.forEach((t) => {
       expect(t.name).toBeTruthy()
@@ -118,7 +118,7 @@ describe('utils/theme', () => {
       const id = block.slice(0, block.indexOf('"'))
       const scheme = block.match(/color-scheme:\s*(\w+);/)
       expect(scheme, `тема ${id} не объявила color-scheme`).not.toBeNull()
-      expect(scheme[1], `тема ${id}`).toBe(id.startsWith('dark') ? 'dark' : 'light')
+      expect(scheme[1], `тема ${id}`).toBe(id.endsWith('dark') ? 'dark' : 'light')
     })
   })
 
@@ -133,7 +133,7 @@ describe('utils/theme', () => {
     const shift = (a, b) => a.reduce((s, v, i) => s + Math.abs(v - b[i]), 0)
 
     css.split(/:root(?:,\s*:root)?\[data-theme="/).slice(1)
-      .filter((block) => block.startsWith('dark'))
+      .filter((block) => block.slice(0, block.indexOf('"')).endsWith('dark'))
       .forEach((block) => {
         const id = block.slice(0, block.indexOf('"'))
         const val = (name) => rgb(block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6});`))[1])
@@ -160,7 +160,7 @@ describe('utils/theme', () => {
       return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
     css.split(/:root(?:,\s*:root)?\[data-theme="/).slice(1)
-      .filter((block) => block.startsWith('dark'))
+      .filter((block) => block.slice(0, block.indexOf('"')).endsWith('dark'))
       .forEach((block) => {
         const id = block.slice(0, block.indexOf('"'))
         const hint = block.match(/--hint-card-bg:\s*(#[0-9a-fA-F]{6});/)
@@ -228,7 +228,7 @@ describe('utils/theme', () => {
       expect(value(block, '--fill-text'), `${id}: нет --fill-text`).toBeTruthy()
     })
 
-    ;['dark'].forEach((id) => {
+    ;['dark', 'glass-dark'].forEach((id) => {
       const block = blockOf(id)
       const fill = value(block, '--fill-text')
       ;['--accent', '--danger', '--success', '--warning', '--info'].forEach((name) => {

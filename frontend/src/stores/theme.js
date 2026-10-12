@@ -26,10 +26,12 @@ export const useThemeStore = defineStore('theme', () => {
   // Счётчик выбора: ответ /users/me/theme, приехавший ПОСЛЕ клика юзера по теме,
   // не должен откатывать его выбор (last-resolve-wins на общий ref).
   let choiceSeq = 0
+  // Preserve server order even when successive choices happen faster than PUTs.
+  let saveQueue = Promise.resolve()
 
   /** Применяет тему к DOM + localStorage, без обращения к бэку. */
-  function applyLocal(id) {
-    current.value = applyTheme(id)
+  function applyLocal(id, options) {
+    current.value = applyTheme(id, options)
     storeTheme(current.value)
   }
 
@@ -47,9 +49,9 @@ export const useThemeStore = defineStore('theme', () => {
   async function setTheme(id) {
     if (!isValidTheme(id) || id === current.value) return
     choiceSeq += 1
-    applyLocal(id)
+    applyLocal(id, { animate: true })
     try {
-      await saveTheme(id)
+      await (saveQueue = saveQueue.catch(() => {}).then(() => saveTheme(id)))
     } catch (e) {
       useDeletionsStore().notify({
         type: 'error',
