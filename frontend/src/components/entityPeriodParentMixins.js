@@ -1,3 +1,4 @@
+import { formatNumberForDisplay } from '@/composables/useNumberFormat';
 import PassageRegistrySummary from './PassageRegistrySummary.vue';
 import { passageFields } from '@/utils/passageProjection';
 // Shared card contracts keep each source's original row mapper and refresh flow together.
@@ -24,6 +25,7 @@ export const carsTablePeriodDetails = {
   computed: {
     entityDetailsProps() {
       return {
+        onClosed: this.clearClosedVehicle, onPassageChanged: () => this._loadData(true),
         show: this.showVehicleDetails, vehicle: this.selectedVehicle,
         allUnloadingPlaces: this.allUnloadingPlaces, allTables: this.allTables,
         licensePlateFormats: this.licensePlateFormats,
@@ -33,6 +35,8 @@ export const carsTablePeriodDetails = {
     },
   },
   methods: {
+    displayCarNumber(value) { return formatNumberForDisplay(value, this.licensePlateFormats); },
+    clearClosedVehicle() { if (!this.showVehicleDetails) this.selectedVehicle = null; },
     async onManualEntityAttached(result) {
       const id = this.selectedVehicle?.id;
       if (!id || result.entity_id !== id || result.entity_kind !== 'car') return;
@@ -89,6 +93,7 @@ export const peopleTablePeriodDetails = {
   computed: {
     entityDetailsProps() {
       return {
+        onClosed: this.clearClosedDetails, onPassageChanged: () => this._loadData(true),
         show: this.showDetailsModal, employee: this.selectedEmployee,
         allTables: this.allTables, currentUserId: this.currentUserId,
         currentUserName: this.currentUserName, source: 'peopletable',
@@ -97,6 +102,7 @@ export const peopleTablePeriodDetails = {
     },
   },
   methods: {
+    clearClosedDetails() { if (!this.showDetailsModal) this.selectedEmployee = null; },
     async onManualEntityAttached(result) {
       const id = this.selectedEmployee?.id;
       if (!id || result.entity_id !== id || result.entity_kind !== 'employee') return;
@@ -357,5 +363,20 @@ export const applicationPeriodDetails = {
         };
         this.showEmployeeModal = true;
     },
+  },
+};
+
+export const factTableDetails = {
+  computed: {
+    factDetailsProps() {
+      return { show: this.showDetailsModal, vehicle: this.selectedVehicle,
+        allUnloadingPlaces: this.allUnloadingPlaces, licensePlateFormats: this.licensePlateFormats,
+        currentUserId: this.currentUserId, currentUserName: this.currentUserName,
+        showCarFeatures: true, source: 'facttable', periodTableId: this.tableId,
+        onClosed: this.clearClosedFactDetails, onPassageChanged: () => this._loadData(true) };
+    },
+  },
+  methods: {
+    clearClosedFactDetails() { if (!this.showDetailsModal) this.selectedVehicle = null; },
   },
 };

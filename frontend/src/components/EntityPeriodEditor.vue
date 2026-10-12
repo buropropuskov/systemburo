@@ -1,5 +1,5 @@
 <template>
-  <HintTooltip v-if="eligible" text="Изменить срок" :width="180"><button
+  <HintTooltip v-if="eligible" text="Изменить срок" compact><button
     v-if="eligible"
     type="button"
     class="lk-button lk-button--ghost lk-button--sm"

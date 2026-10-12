@@ -9,6 +9,14 @@
     content-class="forward-modal"
     @close="close"
   >
+    <template #header>
+      <div class="forward-heading">
+        <h3 class="base-modal__title">Переслать заявку</h3>
+        <div class="forward-validation-slot">
+          <p v-if="attachments.length && !selectedAttachmentIds.length" id="forward-attachments-warning" role="alert" class="forward-validation-alert">⚠ Выберите хотя бы одно вложение для пересылки</p>
+        </div>
+      </div>
+    </template>
     <div class="forward-body">
       <div
         v-if="viewOnly"
@@ -104,9 +112,9 @@
       <div
         class="selected-forward-users"
       >
-        <h4>Выбранные пользователи ({{ selectedUsers.length }})</h4>
-        <small v-if="selectedUsers.length > 2" class="forward-scroll-note">{{ selectedUsers.length }} получателей — список прокручивается</small>
-        <div class="forward-users-list-container">
+        <div class="forward-users-heading"><h4>Выбранные пользователи ({{ selectedUsers.length }})</h4>
+        <small class="forward-scroll-note">{{ selectedUsers.length > 2 ? 'Список прокручивается' : '' }}</small></div>
+        <div class="forward-users-frame"><div class="forward-users-list-container" :class="{ 'forward-users-list-container--full': selectedUsers.length >= 2 }">
           <div class="forward-users-list"><p v-if="selectedUsers.length === 0" class="forward-empty">Выберите пользователей для пересылки заявки</p>
             <div
               v-for="user in selectedUsers"
@@ -175,7 +183,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </div></div>
 
       </div>
       <div class="forward-materials">
@@ -255,9 +263,6 @@
       >
         <span class="forward-message-warning-icon">⚠</span>
         <span>Ваше сообщение увидят все получатели заявки и бюро пропусков, а не только выбранные вами.</span>
-      </div>
-      <div class="forward-validation-slot">
-        <p v-if="attachments.length && !selectedAttachmentIds.length" id="forward-attachments-warning" role="alert" class="forward-validation-alert">⚠ Выберите хотя бы одно вложение для пересылки</p>
       </div>
       </div>
     </div>
@@ -585,7 +590,7 @@ export default {
   align-items: start;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 14px;
   padding: 16px 20px;
   padding-top: 10px;
   padding-bottom: 10px;
@@ -686,7 +691,7 @@ export default {
   margin-bottom: 6px;
 }
 .forward-attachments-header h4 {
-  font-size: 16px;
+  font-size: 13px;
   color: var(--color-text);
   font-weight: 600;
   margin: 0;
@@ -738,7 +743,7 @@ export default {
   min-width: 0;
 }
 .forward-attachment-name {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--color-text);
   overflow: hidden;
@@ -868,7 +873,10 @@ export default {
   border: 1px solid var(--danger-text);
   font-size: 12px;
 }
+.forward-heading { flex: 1; min-width: 0; }
+.forward-users-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 24px; }
 .forward-scroll-note {
+  margin-left: auto;
   font-size: 11px;
   color: var(--text-muted);
   margin-bottom: 4px;
@@ -877,11 +885,7 @@ export default {
 .forward-body {
   grid-template-columns: minmax(0,1fr);
 }
-.selected-forward-users {
-  height: 192px;
-  min-height: 192px;
-  max-height: 192px;
-}}
+}
 @media(max-width:600px) {
 .filters-row__control {
   min-width: 140px

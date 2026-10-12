@@ -189,11 +189,11 @@
                     @click="handleHistoryClick(item)"
                   >
                     <div class="history-header">
+                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [displayPlate(item.car_number), item.car_brand].filter(Boolean).join(' — ') }}</button>
                       <span class="user-name">{{ item.user_name || 'Система' }}</span>
                       <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                     </div>
 
-                    <button v-if="canOpenHistoryEntity(item)" type="button" class="history-entity-link" @click.stop="selectedHistoryEntity = item">{{ [displayPlate(item.car_number), item.car_brand].filter(Boolean).join(' — ') }}</button>
                     <div class="action-text">
                       {{ getActionText(item) }}
                       <span

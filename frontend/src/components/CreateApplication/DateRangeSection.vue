@@ -182,7 +182,7 @@
             <div
               v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
               class="datepicker"
-              :class="{ 'is-dragging': sheetDragging }"
+              :class="{ 'is-dragging': sheetDragging, 'datepicker--compact': singleMoment }"
               :style="sheetOffset ? { ...datepickerStyle, transform: `translateY(${sheetOffset}px)` } : datepickerStyle"
               @click.stop
               @touchstart="onSheetTouchStart"
@@ -350,7 +350,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
-import { singleMomentCalendarPosition } from '@/utils/singleMomentCalendar';
+import { prepareSingleMomentCalendar } from '@/utils/singleMomentCalendar';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
@@ -1045,7 +1045,7 @@ export default {
                 const parsed = this.parseDate(this.singleDate);
                 if (parsed) this.currentDate = parsed;
             }
-            if (this.singleMoment && input && window.innerWidth >= 768) this.$nextTick(() => { if (this.showSingleDatepicker) this.datepickerStyle = { ...this.datepickerStyle, ...singleMomentCalendarPosition(input, getViewportZoom()) }; });
+            if (this.singleMoment && input && window.innerWidth >= 768) prepareSingleMomentCalendar(this, input, getViewportZoom());
         },
         handleDatepickerEscape: handleDateCalendarEscape,
 
@@ -1112,6 +1112,7 @@ export default {
 </script>
 
 <style scoped>
+@import "@/assets/calendar-motion.css";
 .date-range-section {
     display: flex;
     gap: 30px;
@@ -1527,22 +1528,6 @@ export default {
 @keyframes errorFadeIn {
     0% { opacity: 0; }
     100% { opacity: 1; }
-}
-
-/* Анимация календаря */
-.calendar-enter-active,
-.calendar-leave-active {
-    transition: all 0.2s ease;
-}
-
-.calendar-enter-from {
-    opacity: 0;
-    transform: translateY(-8px);
-}
-
-.calendar-leave-to {
-    opacity: 0;
-    transform: translateY(-8px);
 }
 
 .datepicker-overlay-fade-enter-active,

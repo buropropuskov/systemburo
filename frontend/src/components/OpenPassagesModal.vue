@@ -218,11 +218,11 @@ onBeforeUnmount(() => { version++; clearTimeout(searchTimer); clearInterval(poll
 .correction-date legend { margin-bottom:10px; font-size:13px; }
 .correction-date .required { color:var(--danger-text); }
 .correction-date :deep(.toggle-switch), .correction-date :deep(.date__label-row), .correction-date :deep(.time-section > .input__label) { display:none; }
-.correction-date :deep(.date-range-section) { display:grid; grid-template-columns:150px minmax(0,1fr); gap:12px; align-items:end; }
+.correction-date :deep(.date-range-section) { display:grid; grid-template-columns:105px minmax(0,1fr); gap:10px !important; align-items:start; }
 .correction-date :deep(.date-container), .correction-date :deep(.single-date) { width:100%; }
-.correction-date :deep(.date-container) { min-height:40px; }
+.correction-date :deep(.date-container) { min-height:40px; margin:0; }
 .correction-date :deep(.date__text) { display:none; }
-.correction-date :deep(.time-wrapper) { display:flex; min-height:40px; }
+.correction-date :deep(.time-wrapper) { display:flex; min-height:40px; margin:0; }
 .correction-date :deep(.date__input) { gap:0; margin:0; }
 .correction-date :deep(.input__time), .correction-date :deep(.input__date) { height:40px; box-sizing:border-box; }
 @media(max-width:380px) { .correction-date :deep(.date-range-section) { grid-template-columns:1fr; } }

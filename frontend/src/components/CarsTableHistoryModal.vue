@@ -141,14 +141,14 @@
               <div class="date-filter">
                 <span class="filter-label">Период:</span>
                 <input 
-                  v-model="dateFrom" 
+                  v-model="dateFrom" aria-label="Начало периода"
                   type="date" 
                   class="date-input"
                   @change="applyFilters({ immediate: true })"
                 >
                 <span class="date-separator">—</span>
                 <input 
-                  v-model="dateTo" 
+                  v-model="dateTo" aria-label="Конец периода"
                   type="date" 
                   class="date-input"
                   @change="applyFilters({ immediate: true })"

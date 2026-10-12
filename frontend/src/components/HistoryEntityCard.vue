@@ -1,22 +1,17 @@
 <template>
-  <BaseModal v-if="!entity" :show="true" title="Карточка записи" width="460px" :z-index="14000" @close="$emit('close')">
-    <p class="card-status" role="status">{{ error || 'Загрузка карточки…' }}</p>
-  </BaseModal>
-  <VehicleDetailsModal v-if="kind === 'car' && entity" :show="true" :vehicle="entity" source="history" :license-plate-formats="licensePlateFormats" :all-unloading-places="historyUnloadPlaces" readonly @close="$emit('close')" />
-  <EmployeeDetailsModal v-if="kind === 'employee' && entity" :show="true" :employee="entity" source="history" readonly @close="$emit('close')" />
+  <VehicleDetailsModal v-if="kind === 'car'" :show="visible" :vehicle="entity" :loading="loading" :load-error="error" source="history" :license-plate-formats="licensePlateFormats" :all-unloading-places="historyUnloadPlaces" readonly @close="close" @closed="$emit('close')" />
+  <EmployeeDetailsModal v-else :show="visible" :employee="entity" :loading="loading" :load-error="error" source="history" readonly @close="close" @closed="$emit('close')" />
 </template>
 
 <script>
 import { useLicensePlateDisplay } from '@/composables/useLicensePlateDisplay';
 import { defineAsyncComponent } from 'vue';
-import BaseModal from '@/components/ui/BaseModal.vue';
 import { loadHistoryEntity } from '@/api/historyEntity';
 
 export default {
   name: 'HistoryEntityCard',
   setup() { return useLicensePlateDisplay(); },
   components: {
-    BaseModal,
     VehicleDetailsModal: defineAsyncComponent(() => import('./CreateApplication/VehicleDetailsModal.vue')),
     EmployeeDetailsModal: defineAsyncComponent(() => import('./CreateApplication/EmployeeDetailsModal.vue')),
   },
@@ -27,24 +22,23 @@ export default {
       return (this.entity?.unload_place_ids || []).map((id, i) => ({ id, name: this.entity.unload_places?.[i] || `ID: ${id}` }));
     },
   },
-  data: () => ({ entity: null, error: '', loadSequence: 0 }),
+  data: () => ({ entity: null, error: '', loading: true, visible: true, loadSequence: 0 }),
   watch: { row: { immediate: true, handler: 'load' } },
   beforeUnmount() { this.loadSequence++; },
   methods: {
+    close() { this.visible = false; this.loadSequence++; },
     async load() {
       const sequence = ++this.loadSequence;
-      this.entity = null; this.error = '';
+      this.entity = null; this.error = ''; this.loading = true;
       try {
         const entity = await loadHistoryEntity(this.kind, this.row, this.tableId);
         if (sequence === this.loadSequence) this.entity = entity;
       } catch (error) {
         if (sequence === this.loadSequence) this.error = error.message;
+      } finally {
+        if (sequence === this.loadSequence) this.loading = false;
       }
     },
   },
 };
 </script>
-
-<style scoped>
-.card-status { margin: 0; padding: 16px 20px; }
-</style>

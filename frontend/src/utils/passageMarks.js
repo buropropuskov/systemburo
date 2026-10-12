@@ -37,6 +37,26 @@ export function canRevertMark(item, tableId) {
   return item.last_mark_table_id === tableId;
 }
 
+export const QUICK_REVERT_WINDOW_MS = 15 * 60000;
+
+export function lastMarkTime(item) {
+  const state = item?.passage_state;
+  const stamp = state ? state.last_event_kind === 'entry' ? state.entry_at
+    : state.last_event_kind === 'exit' ? state.exit_recorded_at : null
+    : item?.territory_status === 1 ? item.entry_time : item?.territory_status === 2 ? item.exit_time : null;
+  const value = Date.parse(stamp || '');
+  return Number.isFinite(value) ? value : null;
+}
+
+// Visibility of the quick action is separate from the authoritative server grant.
+export function canQuickRevertMark(item, tableId, now) {
+  if (!canRevertMark(item, tableId)) return false;
+  const markTime = lastMarkTime(item);
+  const current = typeof now === 'number' ? now : Date.parse(item?.server_now || '');
+  return markTime !== null && Number.isFinite(current) && current >= markTime
+    && current < markTime + QUICK_REVERT_WINDOW_MS;
+}
+
 /**
  * Направление последней отметки строки: вход отменяют, пока человек «на
  * территории», выход - пока «вышел».

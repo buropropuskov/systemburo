@@ -17,6 +17,7 @@
       v-if="visible"
       ref="bubbleEl"
       class="hint-tooltip__bubble"
+      :class="{ 'hint-tooltip__bubble--compact': compact }"
       role="tooltip"
       :style="bubbleStyle"
     >
@@ -47,6 +48,7 @@ const props = defineProps({
   text: { type: String, required: true },
   /** Максимальная ширина пузырька, px (клампится по вьюпорту). */
   width: { type: Number, default: 260 },
+  compact: { type: Boolean, default: false },
 });
 
 /*
@@ -92,7 +94,7 @@ function updatePosition() {
 
   const vw = window.innerWidth / z;
   const vh = window.innerHeight / z;
-  const w = bubbleWidth(z);
+  const w = props.compact && bubbleEl.value ? bubbleEl.value.offsetWidth : bubbleWidth(z);
   const h = bubbleEl.value ? bubbleEl.value.offsetHeight : 0;
 
   // Над иконкой; если сверху не влезает - под ней. И в любом случае не ниже
@@ -117,7 +119,8 @@ async function open() {
   // не мигнуть пузырьком в неправильном месте.
   bubbleStyle.value = {
     position: 'fixed',
-    width: `${bubbleWidth()}px`,
+    width: props.compact ? 'max-content' : `${bubbleWidth()}px`,
+    maxWidth: `${bubbleWidth()}px`,
     left: '0px',
     top: '-9999px',
     zIndex: Z_INDEX,
@@ -193,4 +196,5 @@ onBeforeUnmount(close);
   box-shadow: 0 4px 12px var(--shadow-drop);
   pointer-events: none;
 }
+.hint-tooltip__bubble--compact { text-align: center; border-radius: 15px; overflow-wrap: anywhere; }
 </style>

@@ -15,7 +15,7 @@
         </h3>
       </div>
       <div class="card-header__settings">
-        <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" />
+        <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" @clock="passageNow = $event" />
         <RefreshButton
           :loading="refreshing"
           @refresh="handleManualRefresh"
@@ -216,7 +216,7 @@
                     data-testid="ob-fact-entry"
                     @click="handleEntryExit(item, 'entry')"
                   >
-                    {{ canRevertMark(item, 'entry') ? 'Отменить' : 'Въезд' }}
+                    {{ canRevertMark(item, 'entry') ? 'Отмена' : 'Въезд' }}
                   </button>
                 </div>
                 <div
@@ -233,7 +233,7 @@
                     data-testid="ob-fact-exit"
                     @click="handleEntryExit(item, 'exit')"
                   >
-                    {{ canRevertMark(item, 'exit') ? 'Отменить' : 'Выезд' }}
+                    {{ canRevertMark(item, 'exit') ? 'Отмена' : 'Выезд' }}
                   </button>
                 </div>
                 <!-- Конфигурируемые столбцы -->
@@ -388,14 +388,7 @@
     <!-- Модальное окно с деталями автомобиля (для машин) -->
     <VehicleDetailsModal
       v-if="tableType === 'cars'"
-      :show="showDetailsModal"
-      :vehicle="selectedVehicle"
-      :all-unloading-places="allUnloadingPlaces"
-      :license-plate-formats="licensePlateFormats"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      :show-car-features="true"
-      :source="'facttable'"
+      v-bind="factDetailsProps"
       @close="closeDetailsModal"
       @open-application="$emit('open-application', $event)"
     />
@@ -413,6 +406,7 @@
 </template>
 
 <script>
+import { factTableDetails } from './entityPeriodParentMixins';
 import passageTableIntegration from './passageTableIntegration';
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui';
@@ -427,7 +421,7 @@ import { idFilterSet } from '@/utils/idFilter';
 import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
 import { formatUnloadPlaces as unloadPlacesLabel } from '@/utils/unloadPlaces';
 import { usePassageRevertStore } from '@/stores/passageRevert';
-import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
+import { canQuickRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import AppIcon from '@/components/icons/AppIcon.vue';
@@ -437,7 +431,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
   name: 'FactTable',
-  mixins: [passageTableIntegration],
+  mixins: [passageTableIntegration, factTableDetails],
   components: {
     AppIcon,
     RefreshButton,
@@ -985,7 +979,7 @@ export default {
 
     /** Отменяется только последняя отметка, поэтому направление обязано совпасть (#2437). */
     canRevertMark(item, type) {
-      return lastMarkDirection(item) === type && canRevertMark(item, this.tableId);
+      return lastMarkDirection(item) === type && canQuickRevertMark(item, this.tableId, this.passageNow);
     },
     
     async handleEntryExit(item, type) {
@@ -1123,7 +1117,6 @@ export default {
 
     closeDetailsModal() {
       this.showDetailsModal = false;
-      this.selectedVehicle = null;
     },
 
     startPolling() {

@@ -13,7 +13,7 @@ import { usePassageClock } from '@/composables/usePassageClock';
 import { passageDeadlines } from '@/utils/passageProjection';
 const props = defineProps({ kind: { type: String, required: true }, tableID: { type: Number, default: null },
   source: { type: String, default: 'table', validator: value => ['table', 'admin_summary'].includes(value) }, rows: { type: Array, default: () => [] } });
-const emit = defineEmits(['refresh', 'open-entity']);
+const emit = defineEmits(['refresh', 'open-entity', 'clock']);
 const permissions = usePermissionsStore(), show = ref(false);
 const available = computed(() => props.source === 'admin_summary'
   ? permissions.hasPermission('detail.passage.correct') : Number.isSafeInteger(props.tableID) && props.tableID > 0);
@@ -22,6 +22,7 @@ const organizations = computed(() => [...new Map(props.rows.filter(row => row.or
 const serverNow = computed(() => props.rows.find(row => row.server_now)?.server_now ?? null);
 const active = computed(() => available.value && props.source === 'table');
 const deadlines = computed(() => passageDeadlines(props.rows));
-usePassageClock(serverNow, { active, deadlines, onBoundary: () => emit('refresh') });
+const clock = usePassageClock(serverNow, { active, deadlines, onBoundary: () => emit('refresh') });
+watch(clock.now, value => emit('clock', value), { immediate: true });
 watch(() => [props.kind, props.tableID, props.source, available.value], () => { show.value = false; });
 </script>

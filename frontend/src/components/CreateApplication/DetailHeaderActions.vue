@@ -1,12 +1,12 @@
 <template>
   <div v-if="visible" class="header-actions">
-    <HintTooltip v-if="historyVisible" text="Полная история" :width="210">
-    <button v-if="historyVisible" class="history-btn" title="Полная история" aria-label="Полная история" @click="$emit('history')">
+    <HintTooltip v-if="historyVisible" text="Полная история" compact>
+    <button v-if="historyVisible" class="history-btn" aria-label="Полная история" @click="$emit('history')">
       <AppIcon name="history" :size="16" /><span class="header-action-label">История</span>
     </button>
     </HintTooltip>
-    <HintTooltip v-if="applicationVisible" text="Открыть заявку" :width="210">
-    <button v-if="applicationVisible" class="application-btn" title="Открыть заявку" aria-label="Открыть заявку" @click="$emit('application')">
+    <HintTooltip v-if="applicationVisible" text="Открыть заявку" compact>
+    <button v-if="applicationVisible" class="application-btn" aria-label="Открыть заявку" @click="$emit('application')">
       <AppIcon name="applicationOpen" :size="16" /><span class="header-action-label">Открыть заявку</span>
     </button>
     </HintTooltip>
@@ -29,8 +29,8 @@
       :license-plate-formats="licensePlateFormats"
       @changed="$emit('period-changed', $event)"
     />
-    <HintTooltip v-if="blacklistVisible" text="Добавить в чёрный список" :width="210">
-    <button v-if="blacklistVisible" class="blacklist-add-btn" title="Добавить в чёрный список" aria-label="Добавить в чёрный список" @click="$emit('blacklist')">
+    <HintTooltip v-if="blacklistVisible" text="Добавить в чёрный список" compact>
+    <button v-if="blacklistVisible" class="blacklist-add-btn" aria-label="Добавить в чёрный список" @click="$emit('blacklist')">
       <AppIcon name="ban" :size="16" /><span class="header-action-label">В ЧС</span>
     </button>
     </HintTooltip>

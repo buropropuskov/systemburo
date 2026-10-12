@@ -63,7 +63,7 @@
            строке, а счётчик с тумблерами уезжают ниже. Десктоп не меняется -
            .card-header__settings прижат вправо margin-left: auto, кнопка идёт
            сразу за ним с тем же зазором. -->
-      <PassageTableTools v-if="!preview" kind="car" :table-i-d="tableId" :rows="itemsData" @refresh="_loadData(true)" />
+      <PassageTableTools v-if="!preview" kind="car" :table-i-d="tableId" :rows="itemsData" @refresh="_loadData(true)" @clock="passageNow = $event" />
         <RefreshButton
         v-if="!preview"
         class="card-header__refresh"
@@ -387,7 +387,7 @@
                   :style="getColStyle('car_number')"
                   data-label="Номер Т/С"
                 >
-                  {{ item.car_number }}
+                  {{ displayCarNumber(item.car_number) }}
                   <PassageStateIndicator v-if="!isFieldInDom('valid_until')" :passage-state="item.passage_state" :expired="passageExpired(item)" />
                 </div>
                 <div
@@ -622,7 +622,7 @@ import { readEnlarged, writeEnlarged } from '@/utils/enlargedRows';
 import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
 import { formatUnloadPlaces as unloadPlacesLabel } from '@/utils/unloadPlaces';
 import { usePassageRevertStore } from '@/stores/passageRevert';
-import { canRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
+import { canQuickRevertMark, lastMarkDirection, markPassage } from '@/utils/passageMarks';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadExcelSheet } from '@/utils/excelSheet';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -1152,7 +1152,7 @@ export default {
 
     /** Отменяется только последняя отметка, поэтому направление обязано совпасть. */
     canRevertMark(item, type) {
-      return lastMarkDirection(item) === type && canRevertMark(item, this.tableId);
+      return lastMarkDirection(item) === type && canQuickRevertMark(item, this.tableId, this.passageNow);
     },
 
     async fetchCarHistoryStatus(seq) {
@@ -1460,7 +1460,6 @@ export default {
     },
     closeVehicleDetails() {
       this.showVehicleDetails = false;
-      this.selectedVehicle = null;
     },
 
     openCarsTableHistory() {
@@ -1653,7 +1652,7 @@ export default {
 
     portraitFieldValue(item, name) {
       switch (name) {
-        case 'car_number': return item.car_number || '-';
+        case 'car_number': return this.displayCarNumber(item.car_number) || '-';
         case 'car_brand': return item.car_brand || '-';
         case 'organization': return item.organization_name || '-';
         case 'company': return item.company || '-';

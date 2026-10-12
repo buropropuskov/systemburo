@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <transition name="modal-fade">
+    <transition name="modal-fade" appear @after-leave="$emit('closed')">
       <div
         v-if="show"
         class="modal-overlay"
@@ -29,11 +29,8 @@
               class="sheet-handle"
               aria-hidden="true"
             />
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ modalTitle }}
-              </h3>
-              <DetailHeaderActions
+            <DetailCardHeader :title="modalTitle" @close="close">
+              <DetailHeaderActions v-if="!loading && !loadError"
                 :visible="showCarFeatures || (!readonly && canManageBlacklist && hasVehicleIdentity) || visibleActionsCount > 0"
                 :show="show"
                 kind="car"
@@ -51,13 +48,16 @@
                 @period-changed="$emit('period-changed', $event)"
                 @manual-attached="$emit('manual-attached', $event)"
               />
-              <DetailCloseButton @click="close" />
-            </div>
+            </DetailCardHeader>
                     
+            <p v-if="loading || loadError" class="detail-load-status" role="status">{{ loadError || 'Загрузка карточки…' }}</p>
             <div
+              v-if="!loading && !loadError"
               ref="sheetBody"
               class="modal-body"
             >
+              <PassageCardRevertAction :status="currentRevertStatus" kind="car" :entity-i-d="vehicle?.id" :table-i-d="periodTableId" :subject="vehicleNumber" :active="show && !readonly && ['carstable', 'facttable'].includes(source)" @changed="refreshPassage" />
+              <HistoryCardNotice v-if="source === 'history'" :entity="vehicle" />
               <!-- Секция статуса ЧС -->
               <div
                 v-if="isBlacklisted"
@@ -428,36 +428,10 @@
           </div>
 
           <!-- Дополнительное модальное окно с деталями места разгрузки -->
-          <transition 
-            name="place-slide"
-            @after-leave="onPlaceLeave"
-          >
-            <div
-              v-if="showPlaceModal"
-              class="place-modal-container"
-            >
-              <UnloadPlaceModal
-                :place="selectedUnloadPlace"
-                :all-unloading-places="allUnloadingPlaces"
-                @close="closeUnloadPlaceDetails"
-              />
-            </div>
-          </transition>
-
-          <!-- Дополнительное модальное окно с деталями таблицы «Проезд» (#1036) -->
-          <transition
-            name="place-slide"
-            @after-leave="onTableLeave"
-          >
-            <div
-              v-if="showTableModal"
-              class="place-modal-container"
-            >
-              <TableInfoModal
-                :table="selectedTable"
-                :all-tables="allTables"
-                @close="closeTableDetails"
-              />
+          <transition name="place-slide" mode="out-in" @after-leave="onSidePanelLeave">
+            <div v-if="showPlaceModal || showTableModal" :key="showPlaceModal ? 'place' : 'table'" class="place-modal-container">
+              <UnloadPlaceModal v-if="showPlaceModal" :place="selectedUnloadPlace" :all-unloading-places="allUnloadingPlaces" @close="closeUnloadPlaceDetails" />
+              <TableInfoModal v-else :table="selectedTable" :all-tables="allTables" @close="closeTableDetails" />
             </div>
           </transition>
         </div>
@@ -493,7 +467,7 @@
 </template>
 
 <script>
-import DetailCloseButton from '@/components/ui/DetailCloseButton.vue';
+import vehicleSidePanels from './vehicleSidePanels';
 import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
@@ -523,9 +497,8 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 
 export default {
     name: 'VehicleDetailsModal',
-    mixins: [passageDetailsIntegration],
+    mixins: [passageDetailsIntegration, vehicleSidePanels],
     components: {
-        DetailCloseButton,
         DetailHeaderActions,
         AppIcon,
         UnloadPlaceModal,
@@ -593,7 +566,7 @@ export default {
             default: false
         }
     },
-    emits: ['close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
+    emits: ['passage-changed', 'closed', 'close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
@@ -624,6 +597,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
             showPlaceModal: false,
             isMainShifted: false,
             shiftTimer: null,
+            selectedSidePanel: null,
             // Drill-down таблиц «Проезд» (#1036): отдельный набор состояний от места
             // разгрузки - общий слот place-modal-container один, поэтому подмодалки
             // взаимоисключаются (открытие одной закрывает другую).
@@ -840,95 +814,6 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
             }
         },
 
-        showUnloadPlaceDetails(placeId) {
-            const place = this.allUnloadingPlaces.find(p => p.id === placeId);
-            if (!place) return;
-
-            // Взаимоисключение с drill-down таблицы: слот place-modal-container один,
-            // поэтому гасим подмодалку таблицы, если открыта.
-            if (this.tableShiftTimer) {
-                clearTimeout(this.tableShiftTimer);
-                this.tableShiftTimer = null;
-            }
-            this.showTableModal = false;
-            this.selectedTable = null;
-
-            this.selectedUnloadPlace = place;
-
-            if (this.shiftTimer) {
-                clearTimeout(this.shiftTimer);
-                this.shiftTimer = null;
-            }
-
-            this.isMainShifted = true;
-
-            this.shiftTimer = setTimeout(() => {
-                this.showPlaceModal = true;
-                this.shiftTimer = null;
-            }, 300);
-        },
-
-        closeUnloadPlaceDetails() {
-            if (this.shiftTimer) {
-                clearTimeout(this.shiftTimer);
-                this.shiftTimer = null;
-            }
-            this.showPlaceModal = false;
-        },
-
-        onPlaceLeave() {
-            this.isMainShifted = false;
-            this.selectedUnloadPlace = null;
-        },
-
-        showTableDetails(tableId) {
-            const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
-            if (!tableData) {
-                useDeletionsStore().notify({ bold: 'Информация о месте проезда недоступна', type: 'error' });
-                return;
-            }
-
-            // Взаимоисключение с drill-down места разгрузки (общий слот).
-            if (this.shiftTimer) {
-                clearTimeout(this.shiftTimer);
-                this.shiftTimer = null;
-            }
-            this.showPlaceModal = false;
-            this.selectedUnloadPlace = null;
-
-            this.selectedTable = {
-                table: tableData.table || tableData,
-                time_slots: tableData.time_slots || [],
-                photos: tableData.photos || [],
-                current_status: tableData.current_status || 'closed'
-            };
-
-            if (this.tableShiftTimer) {
-                clearTimeout(this.tableShiftTimer);
-                this.tableShiftTimer = null;
-            }
-
-            this.isMainShifted = true;
-
-            this.tableShiftTimer = setTimeout(() => {
-                this.showTableModal = true;
-                this.tableShiftTimer = null;
-            }, 300);
-        },
-
-        closeTableDetails() {
-            if (this.tableShiftTimer) {
-                clearTimeout(this.tableShiftTimer);
-                this.tableShiftTimer = null;
-            }
-            this.showTableModal = false;
-        },
-
-        onTableLeave() {
-            this.isMainShifted = false;
-            this.selectedTable = null;
-        },
-
         getPlaceName(placeId) {
             if (!this.allUnloadingPlaces || this.allUnloadingPlaces.length === 0) {
                 return `ID: ${placeId}`;
@@ -1071,12 +956,15 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
             // activeCarId (без отката на vehicle.id - id-пространства разные, возможно ложное
             // совпадение). В прочих источниках vehicle.id уже = cars.id.
             const statusCarId = this.source === 'carsview' ? this.vehicle?.activeCarId : this.vehicle?.id;
-            if (!statusCarId) return;
+            if (!statusCarId || !this.show) return;
+            const version = ++this.statusReadVersion;
             try {
                 const response = await apiRequest('/cars/history/current-status', {});
                 if (response.ok) {
                     const statuses = await response.json();
+                    if (version !== this.statusReadVersion || !this.show) return;
                     const status = statuses.find(s => s.car_id === statusCarId);
+                    this.currentRevertStatus = status ?? null;
                     if (status) {
                         this.currentPassageState = status.passage_state ?? null;
                         this.entryChecked = status.territory_status === 1;
@@ -1138,6 +1026,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
 </script>
 
 <style scoped>
+@import "@/assets/detail-card-state.css";
 @import '@/assets/detail-card-header.css';
 /* Все предыдущие стили остаются, добавляем новый класс для системной точки */
 .dot-system {
@@ -1379,12 +1268,6 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
   color: var(--success-text);
 }
 
-.modal-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-}
 
 .modal-close {
   background: none;
@@ -1932,4 +1815,5 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
     font-size: 11px;
   }
 }
+
 </style>

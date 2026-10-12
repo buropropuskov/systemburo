@@ -1,0 +1,2 @@
+.place-item.active :deep(.badge) { color: var(--accent-contrast, #fff); background: transparent; border-color: currentColor; }
+.detail-load-status { margin: 0; padding: 20px; min-height: 360px; box-sizing: border-box; color: var(--text-muted); }
