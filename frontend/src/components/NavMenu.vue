@@ -611,7 +611,6 @@ import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { ADMIN_GROUPS } from '@/constants/navSections';
-import { useThemeStore } from '@/stores/theme'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
@@ -641,7 +640,6 @@ export default {
     const uiStore = useUiStore()
     const soundStore = useSoundStore()
     const permissionsStore = usePermissionsStore()
-    const themeStore = useThemeStore()
     // Онбординг-тур просит раскрыть колонку Админки на своих шагах (reveal.open).
     const onboardingStore = useOnboardingStore()
     // Свайп открытия drawer'а (W4.1). Состояние drawer'а живёт в data(), поэтому до
@@ -660,7 +658,7 @@ export default {
         && document.body.style.overflow !== 'hidden',
     })
     return {
-      authStore, uiStore, soundStore, permissionsStore, themeStore, onboardingStore,
+      authStore, uiStore, soundStore, permissionsStore, onboardingStore,
       swipeOffset: drawerSwipe.offset,
       swipeDragging: drawerSwipe.isDragging,
       expandMenu: rail.expandMenu,
@@ -722,10 +720,6 @@ export default {
     };
   },
   computed: {
-    /** Тумблер в меню: включён на тёмной теме (#1415). */
-    isDarkTheme() {
-      return this.themeStore.current === 'dark' || this.themeStore.current === 'glass-dark';
-    },
     /**
      * Затемнение густеет вместе с вытянутой панелью. Считаем от номинальной ширины
      * drawer'а: на узком экране он упирается в 85vw и доходит до края раньше, поэтому
@@ -1033,14 +1027,6 @@ export default {
     // Таблицы и оформление: дропдаун раскрывается/сворачивается по клику (не hover).
     toggleDropdown(type) {
       this.dropdowns[type] = !this.dropdowns[type];
-    },
-    /**
-     * Переключение светлой и тёмной темы (#1415). Стор применяет тему к <html>
-     * сразу и сохраняет в профиль.
-     */
-    toggleTheme() {
-      const prefix = this.themeStore.current.startsWith('glass-') ? 'glass-' : '';
-      this.themeStore.setTheme(prefix + (this.isDarkTheme ? 'light' : 'dark'));
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {
