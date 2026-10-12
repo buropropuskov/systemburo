@@ -156,3 +156,21 @@ describe('theme store', () => {
     expect(document.startViewTransition).toBeUndefined();
   });
 });
+
+describe('theme save ordering', () => {
+  it('serializes rapid choices without delaying the visible selection', async () => {
+    localStorage.clear(); setActivePinia(createPinia()); saveTheme.mockReset();
+    let finishFirst;
+    saveTheme.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }))
+      .mockResolvedValue({ message: 'ok' });
+    const store = useThemeStore();
+    const first = store.setTheme('glass-dark');
+    await Promise.resolve(); await Promise.resolve();
+    const second = store.setTheme('glass-light');
+    expect(store.current).toBe('glass-light');
+    expect(saveTheme).toHaveBeenCalledTimes(1);
+    finishFirst({ message: 'ok' });
+    await Promise.all([first, second]);
+    expect(saveTheme.mock.calls.map(args => args[0])).toEqual(['glass-dark', 'glass-light']);
+  });
+});

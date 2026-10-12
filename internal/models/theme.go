@@ -4,8 +4,10 @@ package models
 // (frontend/src/utils/theme.js) и блоки :root[data-theme] в assets/tokens.css:
 // добавляя тему, править надо оба места плюс bootstrap-скрипт index.html.
 const (
-	ThemeLight = "light"
-	ThemeDark  = "dark"
+	ThemeLight      = "light"
+	ThemeDark       = "dark"
+	ThemeGlassLight = "glass-light"
+	ThemeGlassDark  = "glass-dark"
 )
 
 // DefaultTheme - оформление для тех, кто тему не выбирал (текущий светлый вид).
@@ -15,6 +17,8 @@ const DefaultTheme = ThemeLight
 var ThemeIDs = []string{
 	ThemeLight,
 	ThemeDark,
+	ThemeGlassLight,
+	ThemeGlassDark,
 }
 
 // IsValidTheme сообщает, знает ли система такую тему. Неизвестное значение

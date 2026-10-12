@@ -14,7 +14,7 @@
       (function () {
         try {
           var stored = localStorage.getItem('app-theme');
-          var known = ['light', 'dark'];
+          var known = ['light', 'dark', 'glass-light', 'glass-dark'];
           if (known.indexOf(stored) !== -1) {
             document.documentElement.setAttribute('data-theme', stored);
           }
