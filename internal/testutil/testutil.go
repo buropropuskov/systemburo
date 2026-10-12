@@ -190,6 +190,14 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	return e, db, cleanup
 }
 
+// SetupTestAppWithPassReportClock keeps the normal routes and permission gates,
+// but supplies a controlled clock to the pass report service only.
+func SetupTestAppWithPassReportClock(t *testing.T, now func() time.Time) (*echo.Echo, *gorm.DB, func()) {
+	t.Helper()
+	e, db, _, _, cleanup := setupTestApp(t, false, false, nil, now)
+	return e, db, cleanup
+}
+
 // SetupTestAppWithUploads -- то же приложение плюс каталог загрузок: тестам файлов
 // заявки нужно видеть, что именно легло на диск. Отдельной функцией по той же
 // причине, что и вариант с архивом, - чтобы не трогать три сотни чужих вызовов.
@@ -268,7 +276,7 @@ func SetupTestAppWithAllGates(t *testing.T) (*echo.Echo, *gorm.DB, *SecurityGate
 	return e, db, gates, cleanup
 }
 
-func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *SecurityGateServices) (*echo.Echo, *gorm.DB, string, string, func()) {
+func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *SecurityGateServices, passReportClocks ...func() time.Time) (*echo.Echo, *gorm.DB, string, string, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -440,7 +448,11 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService))
-	passReportHandler := handlers.NewPassReportHandler(services.NewDailyPassReportService(db), permissionResolver)
+	passReportClock := time.Now
+	if len(passReportClocks) > 0 {
+		passReportClock = passReportClocks[0]
+	}
+	passReportHandler := handlers.NewPassReportHandler(services.NewDailyPassReportServiceAt(db, passReportClock), permissionResolver)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService, permissionResolver)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService, permissionResolver)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)

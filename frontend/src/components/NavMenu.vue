@@ -424,7 +424,7 @@
             />
             <span class="nav-text">Личный кабинет</span>
           </div>
-          <ThemeControls />
+          <ThemeControls :disabled="isBanned" />
 
           <div
             class="nav-item"
