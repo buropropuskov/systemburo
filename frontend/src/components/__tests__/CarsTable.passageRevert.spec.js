@@ -19,6 +19,8 @@ import CarsTable from '../CarsTable.vue';
 import { usePassageRevertStore } from '@/stores/passageRevert';
 
 const TABLE_ID = 42;
+const TEST_NOW = '2035-01-01T12:00:00Z';
+const TEST_MARK_TIME = '2035-01-01T11:59:00Z';
 
 function okResponse(data) {
   return { ok: true, json: async () => data };
@@ -30,7 +32,10 @@ function baseItem(overrides) {
     car_number: 'А111АА',
     car_brand: 'BMW',
     status: 'В работе',
-    entry_date_to: '2026-06-05',
+    entry_date_to: '2035-01-02',
+    server_now: TEST_NOW,
+    entry_time: TEST_MARK_TIME,
+    exit_time: TEST_MARK_TIME,
     entry_checked: false,
     exit_checked: false,
     unloadPlaces: [],
@@ -159,7 +164,7 @@ describe('CarsTable - отмена ошибочной отметки (#2437)', (
     let marked = false;
     const projectedRow = () => ({
       ...baseItem(), status: 1, territory_status: marked ? 1 : null,
-      passage_state: { has_event: marked, open: marked, last_event_id: marked ? 17 : 0, last_event_kind: marked ? 'entry' : null },
+      passage_state: { has_event: marked, open: marked, last_event_id: marked ? 17 : 0, last_event_kind: marked ? 'entry' : null, entry_at: marked ? TEST_MARK_TIME : null, entry_time_known: marked },
       admission: { can_enter: !marked, can_exit: marked },
     });
     apiRequest.mockImplementation((url) => {
