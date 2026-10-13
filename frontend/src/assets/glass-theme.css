@@ -36,3 +36,7 @@
     backdrop-filter: none;
   }
 }
+/* Expanded navigation covers the page: keep underlying table text unreadable. */
+:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) .nav-menu.expanded {
+  background-color: var(--surface);
+}

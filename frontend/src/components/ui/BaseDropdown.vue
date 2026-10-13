@@ -88,41 +88,43 @@
           >
             {{ selectedValues.length > 0 ? `Сбросить выбор (${selectedValues.length})` : 'Ничего не выбрано' }}
           </button>
-          <div
-            ref="options"
-            class="base-dropdown__options"
-            :style="optionsStyle"
-          >
+          <slot name="content">
             <div
-              v-for="option in filteredOptions"
-              :key="option[valueKey]"
-              class="base-dropdown__item"
-              :class="{
-                'base-dropdown__item--selected': isSelected(option),
-                'base-dropdown__item--multi': multiple,
-              }"
-              @click="select(option)"
+              ref="options"
+              class="base-dropdown__options"
+              :style="optionsStyle"
             >
-              <span
-                v-if="multiple"
-                class="base-dropdown__check"
-                :class="{ 'base-dropdown__check--on': isSelected(option) }"
-                aria-hidden="true"
-              />
-              <slot
-                name="option"
-                :option="option"
+              <div
+                v-for="option in filteredOptions"
+                :key="option[valueKey]"
+                class="base-dropdown__item"
+                :class="{
+                  'base-dropdown__item--selected': isSelected(option),
+                  'base-dropdown__item--multi': multiple,
+                }"
+                @click="select(option)"
               >
-                <span class="base-dropdown__item-text">{{ option[labelKey] }}</span>
-              </slot>
+                <span
+                  v-if="multiple"
+                  class="base-dropdown__check"
+                  :class="{ 'base-dropdown__check--on': isSelected(option) }"
+                  aria-hidden="true"
+                />
+                <slot
+                  name="option"
+                  :option="option"
+                >
+                  <span class="base-dropdown__item-text">{{ option[labelKey] }}</span>
+                </slot>
+              </div>
+              <div
+                v-if="filteredOptions.length === 0"
+                class="base-dropdown__empty"
+              >
+                Ничего не найдено
+              </div>
             </div>
-            <div
-              v-if="filteredOptions.length === 0"
-              class="base-dropdown__empty"
-            >
-              Ничего не найдено
-            </div>
-          </div>
+          </slot>
         </div>
       </transition>
     </teleport>

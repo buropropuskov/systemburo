@@ -186,7 +186,7 @@ export default {
   border-radius: 50px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
   white-space: nowrap;
 }
 

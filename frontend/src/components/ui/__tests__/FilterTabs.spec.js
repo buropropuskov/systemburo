@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import FilterTabs from '../FilterTabs.vue';
@@ -107,4 +109,12 @@ describe('FilterTabs - сворачивание в список', () => {
     const wrapper = await mountWith(210, 728);
     expect(wrapper.vm.dropdownOptions).toEqual(tabs.map((t) => ({ value: t.key, label: t.label })));
   });
+});
+it('does not animate visibility when replacing tabs with a dropdown', () => {
+  const source = readFileSync(resolve(__dirname, '../FilterTabs.vue'), 'utf8');
+  const tabRule = source.match(/\n\.filter-tab \{([\s\S]*?)\}/)[1];
+  expect(tabRule).not.toMatch(/transition:\s*all/);
+  expect(tabRule).toContain('transition: background-color');
+  const hiddenRule = source.match(/\.filter-tabs--collapsed \.filter-tab \{([\s\S]*?)\}/)[1];
+  expect(hiddenRule).toMatch(/visibility:\s*hidden/);
 });
