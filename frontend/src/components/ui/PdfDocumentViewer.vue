@@ -71,7 +71,7 @@ const status = ref('idle'); // 'idle' | 'loading' | 'ready' | 'error'
 const PAGES_PADDING_X = 24;
 
 let pdfjsLib = null;
-let pdfDoc = null;
+let loadingTask = null;
 // Токен последовательности: при быстрой смене blob / размонтировании старый рендер
 // не должен дописывать canvas'ы и переключать статус поверх актуального.
 let renderToken = 0;
@@ -89,11 +89,12 @@ async function ensurePdfjs() {
 }
 
 function destroyDoc() {
-  if (!pdfDoc) return;
-  const doc = pdfDoc;
-  pdfDoc = null;
-  // best-effort: destroy отклоняет промис при незавершённом рендере - для очистки не важно.
-  Promise.resolve(doc.destroy?.()).catch(() => {});
+  if (!loadingTask) return;
+  const task = loadingTask;
+  loadingTask = null;
+  // destroy есть у загрузочной задачи, включая ещё не открытый документ.
+  // Отмена освобождает страницы и незавершённые рендеры; ошибки очистки глушим.
+  task.destroy().catch(() => {});
 }
 
 function clearPages() {
@@ -114,14 +115,17 @@ async function render() {
   status.value = 'loading';
   try {
     const lib = await ensurePdfjs();
+    if (token !== renderToken) return;
     const data = new Uint8Array(await blob.arrayBuffer());
     if (token !== renderToken) return;
 
-    pdfDoc = await lib.getDocument({ data }).promise;
-    if (token !== renderToken) {
-      destroyDoc();
-      return;
-    }
+    // Явно переданный PDFWorker принадлежит приложению: task.destroy() очищает
+    // только документ, не уничтожая общий wrapper/port нового или соседнего PDF.
+    const worker = lib.PDFWorker.create({ port: lib.GlobalWorkerOptions.workerPort });
+    const task = lib.getDocument({ data, worker });
+    loadingTask = task;
+    const pdfDoc = await task.promise;
+    if (token !== renderToken) return;
 
     const host = pagesEl.value;
     if (!host) return;
@@ -135,6 +139,7 @@ async function render() {
     for (let n = 1; n <= pdfDoc.numPages; n += 1) {
       if (token !== renderToken) return;
       const page = await pdfDoc.getPage(n);
+      if (token !== renderToken) return;
       const base = page.getViewport({ scale: 1 });
       const viewport = page.getViewport({ scale: (cssWidth / base.width) * dpr });
 
