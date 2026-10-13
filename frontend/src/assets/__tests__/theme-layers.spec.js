@@ -186,12 +186,13 @@ describe('подложка под карточками темнее карточ
   });
 });
 
-it('expanded navigation is opaque and outranks the general chrome surface', () => {
+it('navigation is opaque in every state and follows the general chrome surface', () => {
   const css = fs.readFileSync(path.join(SRC, 'assets/glass-theme.css'), 'utf8');
-  const rule = css.match(/(\.nav-menu:is\(\.expanded, \.nav-menu--mobile-open\)[^{]*)\{([^}]+)\}/);
+  const rule = css.match(/(\.nav-menu:not\(\[data-theme="light"\]\)[^{]*)\{([^}]+)\}/);
   expect(rule).not.toBeNull();
   // Preserve both exclusions from the generic chrome rule. The extra expanded
-  // state then gives this override higher specificity without !important.
+  // exclusions give equal specificity; the later opaque rule wins without !important.
   expect(rule[1]).toContain(':not([data-theme="light"]):not([data-theme="light"] *)');
   expect(rule[2]).toMatch(/background-color:\s*var\(--surface\)/);
+  expect(css.indexOf(rule[0])).toBeGreaterThan(css.indexOf('background-color: var(--glass-chrome)'));
 });
