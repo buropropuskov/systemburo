@@ -121,10 +121,11 @@ async function render() {
 
     // Явно переданный PDFWorker принадлежит приложению: task.destroy() очищает
     // только документ, не уничтожая общий wrapper/port нового или соседнего PDF.
-    const worker = lib.PDFWorker.create({ port: lib.GlobalWorkerOptions.workerPort });
-    const task = lib.getDocument({ data, worker });
-    loadingTask = task;
-    const pdfDoc = await task.promise;
+    loadingTask = lib.getDocument({
+      data,
+      worker: lib.PDFWorker.create({ port: lib.GlobalWorkerOptions.workerPort }),
+    });
+    const pdfDoc = await loadingTask.promise;
     if (token !== renderToken) return;
 
     const host = pagesEl.value;
