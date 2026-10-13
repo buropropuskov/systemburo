@@ -26,6 +26,24 @@ describe('manual attach card action #2665', () => {
     getAttachableApplications.mockReset().mockResolvedValue([]);
   });
   afterEach(() => wrappers.splice(0).forEach(w => w.unmount()));
+  it.each([403, 404, 409, 422])('does not leave an empty tooltip for unavailable context %s', async status => {
+    getManualAttachContext.mockRejectedValueOnce(Object.assign(new Error('Unavailable'), { status }));
+    const wrapper = create();
+    expect(wrapper.findComponent({ name: 'HintTooltip' }).exists()).toBe(false);
+    await flushPromises();
+    expect(wrapper.findComponent({ name: 'HintTooltip' }).exists()).toBe(false);
+  });
+  it('keeps the retry tooltip on connection error and hides it after successful context is cleared', async () => {
+    getManualAttachContext.mockRejectedValueOnce(new Error('Connection failed'));
+    const wrapper = create();
+    await flushPromises();
+    expect(wrapper.findComponent({ name: 'HintTooltip' }).exists()).toBe(true);
+    await wrapper.get('[data-testid="manual-attach-card-retry"]').trigger('click');
+    await flushPromises();
+    wrapper.vm.changed({});
+    await flushPromises();
+    expect(wrapper.findComponent({ name: 'HintTooltip' }).exists()).toBe(false);
+  });
   it('supports an accessible compact icon without changing the modal action', async () => {
     const wrapper = create({ iconOnly: true });
     await flushPromises();

@@ -99,7 +99,7 @@
                 </div>
               </div>
               <div class="notification-message">
-                {{ notif.message }}
+                {{ notificationMessageText(notif) }}
               </div>
             </div>
             <button
@@ -174,7 +174,7 @@ import eventStream from '@/services/eventStream'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { formatTimeAgo } from '@/utils/datetime'
-import { parseNotificationData } from '@/utils/notificationDetails'
+import { parseNotificationData, notificationMessageText } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
@@ -263,6 +263,7 @@ export default {
   },
 
   methods: {
+    notificationMessageText,
     // fetchPage для useInfiniteList (#1748 S7): limit/offset + filter текущей вкладки.
     // meta.unread_count независим от страницы/фильтра - обновляет счётчик в шапке
     // на КАЖДОМ ответе, не только на первой странице.
