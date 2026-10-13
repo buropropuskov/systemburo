@@ -145,6 +145,7 @@ describe('theme panel navigation lifecycle', () => {
     await wrapper.find('[data-testid="nav-theme-toggle"]').trigger('click');
     await flushPromises();
     const panel = document.querySelector('.theme-options');
+    wrapper.vm.$refs.navigation.matches = vi.fn(() => false);
     panel.matches = vi.fn(() => true);
     wrapper.vm.collapseMenu();
     await new Promise(resolve => setTimeout(resolve, 180));
