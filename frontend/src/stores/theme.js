@@ -30,8 +30,8 @@ export const useThemeStore = defineStore('theme', () => {
   let saveQueue = Promise.resolve()
 
   /** Применяет тему к DOM + localStorage, без обращения к бэку. */
-  function applyLocal(id, options) {
-    current.value = applyTheme(id, options)
+  function applyLocal(id) {
+    current.value = applyTheme(id)
     storeTheme(current.value)
   }
 
@@ -49,7 +49,7 @@ export const useThemeStore = defineStore('theme', () => {
   async function setTheme(id) {
     if (!isValidTheme(id) || id === current.value) return
     choiceSeq += 1
-    applyLocal(id, { animate: true })
+    applyLocal(id)
     try {
       await (saveQueue = saveQueue.catch(() => {}).then(() => saveTheme(id)))
     } catch (e) {

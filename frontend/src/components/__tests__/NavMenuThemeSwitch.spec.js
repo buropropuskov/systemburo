@@ -26,6 +26,7 @@ vi.mock('@/api/theme', () => ({
 
 function mountNav() {
   return mount(NavMenu, {
+    attachTo: document.body,
     global: {
       mocks: {
         $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
@@ -56,92 +57,63 @@ afterEach(() => {
 describe('NavMenu: переключатель темы (#1415)', () => {
   const toggle = () => wrapper.find('[data-testid="nav-theme-toggle"]');
 
-  it('показывает тумблер с подписью, выключенный на светлой теме', async () => {
+  it('показывает один пункт Оформление без немедленной смены темы', async () => {
     wrapper = mountNav();
     await flushPromises();
-
-    expect(toggle().exists()).toBe(true);
-    expect(toggle().text()).toContain('Тёмная тема');
-    expect(toggle().attributes('aria-checked')).toBe('false');
-    // Тем осталось две, поэтому списка выбора в меню больше нет.
-    expect(wrapper.findAll('.theme-item')).toHaveLength(0);
+    expect(toggle().text()).toBe('Оформление');
+    expect(toggle().element.tagName).toBe('BUTTON');
+    await toggle().trigger('click');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(saveTheme).not.toHaveBeenCalled();
+    expect(document.querySelectorAll('.theme-option')).toHaveLength(2);
   });
 
-  it('клик включает тёмную тему и сохраняет выбор', async () => {
+  async function changeDark(checked) {
+    const input = document.querySelector('[data-testid="theme-dark-toggle"] input');
+    input.checked = checked;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+  }
+
+  it('настройка включает тёмную тему и сохраняет выбор', async () => {
     wrapper = mountNav();
     await flushPromises();
-
     await toggle().trigger('click');
-    await flushPromises();
-
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    await changeDark(true);
+    expect(document.documentElement.dataset.theme).toBe('dark');
     expect(localStorage.getItem('app-theme')).toBe('dark');
     expect(saveTheme).toHaveBeenCalledWith('dark');
-    expect(toggle().attributes('aria-checked')).toBe('true');
+    expect(document.querySelector('.base-dropdown__menu')).not.toBeNull();
   });
 
-  it('повторный клик возвращает светлую тему', async () => {
+  it('повторный выбор возвращает светлую тему', async () => {
     wrapper = mountNav();
     await flushPromises();
-
     await toggle().trigger('click');
-    await flushPromises();
-    await toggle().trigger('click');
-    await flushPromises();
-
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    await changeDark(true);
+    await changeDark(false);
+    expect(document.documentElement.dataset.theme).toBe('light');
     expect(saveTheme).toHaveBeenLastCalledWith('light');
-    expect(toggle().attributes('aria-checked')).toBe('false');
   });
 
-  it('иконка пункта - луна', async () => {
+  it('использует иконку оформления из существующего реестра', async () => {
     wrapper = mountNav();
     await flushPromises();
-
-    // Палитра тут ни о чём не говорит: пункт называется «Тёмная тема».
-    expect(toggle().findComponent({ name: 'NavIcon' }).props('name')).toBe('moon');
-    expect(navIcons.moon, 'иконки moon нет в реестре').toBeTruthy();
+    expect(toggle().findComponent({ name: 'NavIcon' }).props('name')).toBe('theme');
+    expect(navIcons.theme).toBeTruthy();
   });
 
-  it('ползунок не попадает под гашение переходов смены темы', async () => {
-    // html.theme-switching гасит ВСЕ transition на два кадра, чтобы цвета встали
-    // одним кадром. Без исключения ползунок телепортируется (замер: 0
-    // промежуточных положений против 12 с исключением).
+  it('переход темы не включает анимацию всех элементов', () => {
     const css = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8');
-    const rule = css.match(/html\.theme-switching\s+\.nav-theme-switch[^{]*\{([^}]*)\}/);
-    expect(rule, 'нет исключения для тумблера темы').not.toBeNull();
-    expect(rule[1]).toMatch(/transition:[^;]*transform[^;]*!important/);
+    expect(css).not.toContain('html.theme-colors-changing');
+    expect(css).toMatch(/html\.theme-switching[^{]*\{[\s\S]*?transition:\s*none\s*!important/);
   });
 
-  it('в drawer на телефоне и планшете ползунок видим и стоит справа', () => {
-    // Индикатор проявляется правилом .nav-menu.expanded, а drawer этот класс
-    // никогда не получает (expandMenu гейтит разворот на мобилке), поэтому
-    // тач-медиа-блок обязан показать ползунок сам.
-    // Блок включается по двум признакам сразу (#2473): ширина до 1366 включительно
-    // и отдельно - отсутствие мыши, чтобы тач-экран любого размера тоже получил
-    // drawer. Рельс разворачивается по наведению, а его на планшете не бывает.
-    const sfc = readFileSync(resolve(__dirname, '../NavMenu.vue'), 'utf8');
-    const start = sfc.indexOf('@media (max-width: 1366px), (hover: none) and (pointer: coarse)');
-    expect(start, 'нет мобильного медиа-блока').toBeGreaterThan(-1);
-
-    let depth = 0;
-    let end = sfc.length;
-    for (let i = sfc.indexOf('{', start); i < sfc.length; i += 1) {
-      if (sfc[i] === '{') depth += 1;
-      if (sfc[i] === '}') {
-        depth -= 1;
-        if (depth === 0) { end = i; break; }
-      }
-    }
-    const mobile = sfc.slice(start, end);
-
-    const shown = mobile.match(/\.nav-menu \.nav-theme-switch[^{]*\{([^}]*)\}/);
-    expect(shown, 'ползунок темы остаётся скрытым в drawer').not.toBeNull();
-    expect(shown[1]).toMatch(/opacity:\s*1\s*!important/);
-
-    const placed = mobile.match(/\.nav-menu \.nav-item--theme[^{]*\{([^}]*)\}/);
-    expect(placed, 'строка темы не разведена по краям').not.toBeNull();
-    expect(placed[1]).toMatch(/justify-content:\s*space-between/);
+  it('подпись доступна в мобильном drawer и на тач-экране', () => {
+    const sfc = readFileSync(resolve(__dirname, '../ui/ThemeControls.vue'), 'utf8');
+    const media = sfc.slice(sfc.indexOf('@media (max-width: 1366px), (hover: none) and (pointer: coarse)'));
+    expect(media).toContain('.nav-text { opacity: 1; }');
+    expect(media).toContain('min-height: 44px');
   });
 
   it('пункт находится поиском по рельсу и не пропадает у юзера без прав', async () => {

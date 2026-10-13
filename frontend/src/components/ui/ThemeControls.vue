@@ -1,79 +1,122 @@
 <template>
-  <div class="theme-controls" :class="{ 'theme-controls--disabled': disabled }">
-    <div
-      v-for="item in items"
-      :key="item.testid"
-      class="nav-item nav-item--theme"
-      :data-testid="item.icon === 'moon' ? 'nav-theme-toggle' : 'nav-style-toggle'"
-      role="switch"
-      :tabindex="disabled ? -1 : 0"
-      :aria-disabled="disabled ? 'true' : 'false'"
-      :aria-checked="item.checked ? 'true' : 'false'"
-      :aria-label="item.title"
-      :title="item.title"
-      @click="item.toggle"
-      @keydown.enter.prevent="item.toggle"
-      @keydown.space.prevent="item.toggle"
-    >
-      <div class="nav-item-content">
+  <BaseDropdown
+    ref="dropdown"
+    :key="disabled ? 'disabled' : 'enabled'"
+    class="theme-controls"
+    teleport
+    :disabled="disabled"
+    :menu-min-width="260"
+    :options="[]"
+  >
+    <template #trigger="{ toggle, isOpen }">
+      <button
+        ref="trigger"
+        type="button"
+        class="nav-item theme-trigger"
+        data-testid="nav-theme-toggle"
+        title="Оформление"
+        aria-haspopup="true"
+        :aria-expanded="isOpen"
+        :disabled="disabled"
+        @click="open(toggle, $event)"
+      >
         <NavIcon
-          :name="item.icon"
+          name="theme"
           :size="18"
           class="nav-icon"
         />
-        <span class="nav-text">{{ item.label }}</span>
-      </div>
-      <SwitchToggle
-        :model-value="item.checked"
-        label=""
-        :title="item.title"
-        class="nav-theme-switch"
-        aria-hidden="true"
-        inert
-      />
-    </div>
-  </div>
+        <span class="nav-text">Оформление</span>
+      </button>
+    </template>
+    <template #content>
+      <fieldset
+        ref="panel"
+        class="theme-options"
+        :disabled="disabled"
+        aria-label="Настройка оформления"
+      >
+        <SwitchToggle
+          class="theme-option"
+          data-testid="theme-alternative-toggle"
+          label="Альтернативное"
+          title="Альтернативное оформление"
+          :model-value="alternative"
+          @update:model-value="select($event, dark)"
+        />
+        <SwitchToggle
+          class="theme-option"
+          data-testid="theme-dark-toggle"
+          label="Тёмная тема"
+          title="Тёмная тема"
+          :model-value="dark"
+          @update:model-value="select(alternative, $event)"
+        />
+      </fieldset>
+    </template>
+  </BaseDropdown>
 </template>
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import NavIcon from '@/components/icons/NavIcon.vue';
 import SwitchToggle from '@/components/ui/SwitchToggle.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useThemeStore } from '@/stores/theme';
+
 const props = defineProps({ disabled: { type: Boolean, default: false } });
 const theme = useThemeStore();
-const dark = computed(() => theme.current === 'dark' || theme.current === 'glass-dark');
+const dropdown = ref(null);
+const trigger = ref(null);
+const panel = ref(null);
+let keyboardOpen = false;
+const open = (toggle, event) => {
+  if (props.disabled) return;
+  keyboardOpen = event.detail === 0;
+  toggle();
+};
+watch(() => dropdown.value?.isOpen, async (isOpen, wasOpen) => {
+  if (isOpen && keyboardOpen) {
+    await nextTick();
+    panel.value?.querySelector('input')?.focus();
+  } else if (!isOpen && wasOpen && !props.disabled && panel.value?.contains(document.activeElement)) {
+    trigger.value?.focus();
+  }
+});
 const alternative = computed(() => theme.current.startsWith('glass-'));
+const dark = computed(() => theme.current.endsWith('dark'));
 const select = (alt, isDark) => {
   if (props.disabled) return;
   return theme.setTheme((alt ? 'glass-' : '') + (isDark ? 'dark' : 'light'));
 };
-const items = computed(() => [
-  { testid: 'nav-style-toggle', icon: 'theme', label: 'Альтернативное',
-    title: 'Оформление: ' + (alternative.value ? 'Альтернативное' : 'Обычное'),
-    checked: alternative.value, toggle: () => select(!alternative.value, dark.value) },
-  { testid: 'nav-theme-toggle', icon: 'moon', label: 'Тёмная тема',
-    title: 'Переключить светлую и тёмную тему', checked: dark.value,
-    toggle: () => select(alternative.value, !dark.value) },
-]);
 </script>
 <style scoped>
-.nav-item { display:flex; align-items:center; justify-content:space-between; gap:12px;
-  min-height:40px; padding:0 12px 0 9px; margin:4px 7px; border-radius:12px;
-  cursor:pointer; overflow:hidden; color:var(--nav-text); flex-shrink:0; }
-.nav-item:hover { background-color:var(--nav-hover); }
-.nav-item:focus-visible { outline:2px solid var(--accent-text); outline-offset:-2px; }
-.nav-item-content { display:flex; align-items:center; gap:12px; min-width:0; }
-.nav-icon { flex-shrink:0; }
-.nav-text { white-space:nowrap; font-size:12px; opacity:0; }
-.nav-theme-switch { flex-shrink:0; pointer-events:none; opacity:0; }
-:global(.nav-menu.expanded) .nav-text, :global(.nav-menu.expanded) .nav-theme-switch { opacity:1; }
-@media (max-width:1366px), (hover:none) and (pointer:coarse) {
-  .nav-text, .nav-theme-switch { opacity:1; }
-  .nav-item { min-height:44px; }
+.theme-trigger {
+  width: calc(100% - 14px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 9px;
+  margin: 4px 7px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+  color: var(--nav-text);
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
 }
-.theme-controls--disabled .nav-item {
-  pointer-events: none;
-  opacity: 0.4;
-  cursor: not-allowed;
+.theme-trigger:hover { background-color: var(--nav-hover); }
+.theme-trigger:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
+.theme-trigger:disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-icon { flex-shrink: 0; }
+.nav-text { font-size: 13px; font-weight: 500; line-height: 16px; white-space: nowrap; opacity: 0; }
+.nav-menu.expanded .nav-text { opacity: 1; }
+.theme-options { margin: 0; border: 0; min-width: 0; padding: 4px 14px; display: flex; flex-direction: column; }
+.theme-option { width: 100%; justify-content: space-between; flex-direction: row-reverse; min-height: 40px; font-size: 13px; }
+.theme-option + .theme-option { border-top: 1px solid var(--border); }
+@media (max-width: 1366px), (hover: none) and (pointer: coarse) {
+  .nav-text { opacity: 1; }
+  .theme-trigger { min-height: 44px; }
 }
 </style>

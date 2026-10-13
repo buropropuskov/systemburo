@@ -468,20 +468,3 @@ html.theme-switching .nav-theme-switch .switch-toggle__switch,
 html.theme-switching .nav-theme-switch .switch-toggle__thumb {
   transition: background-color 0.2s ease, transform 0.2s ease !important;
 }
-
-/* One common color transition; no layout or disappearance animation. */
-html.theme-colors-changing,
-html.theme-colors-changing *:not([class*="-enter-"]):not([class*="-leave-"]),
-html.theme-colors-changing *::before,
-html.theme-colors-changing *::after {
-  transition: background-color 250ms ease, color 250ms ease,
-    border-color 250ms ease, box-shadow 250ms ease,
-    fill 250ms ease, stroke 250ms ease, transform 200ms ease, opacity 200ms ease !important;
-  transition-delay: 0s !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  html.theme-colors-changing, html.theme-colors-changing *,
-  html.theme-colors-changing *::before, html.theme-colors-changing *::after {
-    transition: none !important;
-  }
-}
