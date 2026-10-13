@@ -219,3 +219,15 @@ export function groupNotificationsByDay(notifications) {
   }
   return groups;
 }
+
+/** Translate only the known legacy system sentence; keep comments and storage untouched. */
+export function notificationMessageText(notification) {
+  const message = notification?.message || '';
+  if (notification?.type !== 'application_dates_changed' || typeof message !== 'string') return message;
+  const period = '(?:\\d{2}\\.\\d{2}\\.\\d{4}(?: \\d{2}:\\d{2})? - \\d{2}\\.\\d{2}\\.\\d{4}(?: \\d{2}:\\d{2})?|без ограничения срока)';
+  const legacy = new RegExp('^Изменён срок (человека|машины): было (inherit|individual): (' + period + '), стало (inherit|individual): (' + period + ')\\. Причина: ([\\s\\S]*)$');
+  const match = message.match(legacy);
+  if (!match) return message;
+  const label = mode => mode === 'inherit' ? 'срок вложения' : 'индивидуальный срок';
+  return 'Изменён срок ' + match[1] + ': было ' + label(match[2]) + ': ' + match[3] + ', стало ' + label(match[4]) + ': ' + match[5] + '. Причина: ' + match[6];
+}

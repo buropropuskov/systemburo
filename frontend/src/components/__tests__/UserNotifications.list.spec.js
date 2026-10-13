@@ -41,6 +41,14 @@ describe('UserNotifications — список: дозагрузка/фильтр/
     apiRequestRaw.mockReset();
   });
 
+  it('renders readable periods in the notification list', async () => {
+    apiRequestRaw.mockResolvedValue(page([{ id: 1, is_read: false, type: 'application_dates_changed', title: 'Изменён индивидуальный срок', message: 'Изменён срок машины: было inherit: 01.02.2030 00:00 - 15.02.2030 23:59, стало individual: 01.02.2030 00:00 - 18.02.2030 23:59. Причина: По обращению', created_at: '2030-02-01T10:00:00Z' }], 1, 1));
+    const wrapper = mountN();
+    await flushPromises();
+    expect(wrapper.get('.notification-item__message').text()).toContain('было срок вложения:');
+    expect(wrapper.get('.notification-item__message').text()).toContain('стало индивидуальный срок:');
+    wrapper.unmount();
+  });
   it('счётчик непрочитанных берётся из meta.unread_count, а не из длины загруженного массива', async () => {
     // Массив несёт 2 элемента (оба непрочитаны), meta.unread_count = 50 - реальное
     // число по всему набору пользователя, не совпадающее с длиной загруженной страницы.

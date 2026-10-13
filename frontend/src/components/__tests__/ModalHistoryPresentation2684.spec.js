@@ -25,7 +25,7 @@ describe('modal history presentation', () => {
     expect(css).toContain('border-radius: var(--base-modal-radius, 30px)');
     expect(css).toContain('border-radius: 16px 16px 0 0');
     const header = readFileSync('src/assets/detail-card-header.css', 'utf8');
-    expect(header).toContain('height: 50px');
+    expect(header).toContain('height: 60px');
     expect(header).not.toContain('70px');
   });
 });

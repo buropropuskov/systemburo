@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 // ConfigureEntityPeriodUpdates wires the existing application/table/archive
@@ -37,7 +38,7 @@ func ConfigureEntityPeriodUpdates(commands *EntityPeriodCommandService, applicat
 		if kind == ElementCar {
 			entity = "машины"
 		}
-		message := fmt.Sprintf("Изменён срок %s: было %s, стало %s. Причина: %s", entity, describeEntityPeriod(old), describeEntityPeriod(next), reason)
+		message := fmt.Sprintf("Изменён срок %s: было %s, стало %s. Причина: %s", entity, notificationEntityPeriodDescription(old), notificationEntityPeriodDescription(next), reason)
 		payload, err := json.Marshal(map[string]any{
 			"application_id": applicationID, "entity_id": next.EntityID,
 			"entity_kind": kind, "approvals_reset": false,
@@ -127,4 +128,17 @@ func ConfigureSingleManualAttachUpdates(attach *SingleManualAttachCommandService
 		app.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	})
 	return nil
+}
+
+// Notification wording is separate from the stable technical audit format.
+func notificationEntityPeriodDescription(result EntityPeriodCommandResult) string {
+	label := "срок действия"
+	switch string(result.PeriodMode) {
+	case "inherit":
+		label = "срок вложения"
+	case "individual":
+		label = "индивидуальный срок"
+	}
+	_, period, _ := strings.Cut(describeEntityPeriod(result), ": ")
+	return label + ": " + period
 }

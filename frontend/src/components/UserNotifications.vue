@@ -124,7 +124,7 @@
                   v-if="item.message"
                   class="notification-item__message"
                 >
-                  {{ item.message }}
+                  {{ notificationMessageText(item) }}
                 </p>
               </div>
               <button
@@ -188,7 +188,7 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { formatTimeAgo } from '@/utils/datetime'
-import { parseNotificationData } from '@/utils/notificationDetails'
+import { parseNotificationData, notificationMessageText } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
@@ -333,6 +333,7 @@ export default {
     eventStream.disconnect()
   },
   methods: {
+    notificationMessageText,
     // fetchPage для useInfiniteList (#1748 S7): limit/offset + filter текущей вкладки.
     // meta.unread_count независим от страницы/фильтра - обновляет счётчик в шапке
     // на КАЖДОМ ответе (первичном и догрузке), не только на первой странице.

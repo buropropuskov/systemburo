@@ -11,7 +11,7 @@ defineProps({ title: { type: String, default: '' } });
 defineEmits(['close']);
 </script>
 <style scoped>
-.modal-header.detail-card-header { height: 50px; min-height: 50px; flex-wrap: nowrap; }
+.modal-header.detail-card-header { height: 60px; min-height: 60px; flex-wrap: nowrap; }
 .detail-card-header .modal-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-card-header :deep(.modal-close) { flex-shrink: 0; }
 @media (max-width: 767.98px) {

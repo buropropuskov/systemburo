@@ -1,6 +1,6 @@
 <template>
   <template v-if="eligible">
-    <HintTooltip :text="context ? 'Привязать к заявке' : error" compact>
+    <HintTooltip v-if="context || error" :text="context ? 'Привязать к заявке' : error" compact>
     <button v-if="context" type="button" class="lk-button lk-button--ghost lk-button--sm" :class="{ 'manual-attach-icon': iconOnly }" aria-label="Привязать к заявке" data-testid="manual-attach-card-action" @click="open = true">
       <AppIcon v-if="iconOnly" name="applicationOpen" :size="16" /><span v-else>Привязать к заявке</span>
     </button>

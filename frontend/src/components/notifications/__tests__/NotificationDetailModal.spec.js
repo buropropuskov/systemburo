@@ -15,6 +15,13 @@ describe('NotificationDetailModal', () => {
     document.body.innerHTML = '';
   });
 
+  it('renders a readable legacy period notification without changing its comment', () => {
+    const wrapper = mountModal({ type: 'application_dates_changed', message: 'Изменён срок человека: было inherit: 01.02.2030 00:00 - 15.02.2030 23:59, стало individual: 01.02.2030 00:00 - 18.02.2030 23:59. Причина: individual: комментарий' });
+    expect(wrapper.get('[data-testid="notif-detail-message"]').text()).toContain('было срок вложения:');
+    expect(wrapper.get('[data-testid="notif-detail-message"]').text()).toContain('стало индивидуальный срок:');
+    expect(wrapper.get('[data-testid="notif-detail-message"]').text()).toContain('Причина: individual: комментарий');
+    wrapper.unmount();
+  });
   it('рендерит полный текст сообщения без обрезки (без line-clamp)', () => {
     const longMessage = 'Очень длинное сообщение уведомления. '.repeat(10);
     const wrapper = mountModal({ id: 1, title: 'Заголовок', message: longMessage, created_at: '2026-08-06T10:00:00', data: null });

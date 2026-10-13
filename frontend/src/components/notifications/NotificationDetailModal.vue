@@ -152,6 +152,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import {
+  notificationMessageText,
   notificationDetailFields,
   notificationCategory,
   notificationCategoryLabel,
@@ -185,7 +186,7 @@ watch(() => props.show, (visible) => setBodyScrollLock(scrollLockOwner, visible)
 onBeforeUnmount(() => releaseBodyScrollLock(scrollLockOwner));
 
 const title = computed(() => props.notification?.title || 'Уведомление');
-const message = computed(() => props.notification?.message || '');
+const message = computed(() => notificationMessageText(props.notification));
 const fields = computed(() => notificationDetailFields(props.notification));
 const actionLabel = computed(() => notificationActionLabel(props.notification));
 const relativeTime = computed(() => formatTimeAgo(props.notification?.created_at));
