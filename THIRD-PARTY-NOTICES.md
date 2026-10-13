@@ -326,7 +326,7 @@
 | `github.com/go-pdf/fpdf` | v0.9.0 | MIT | Copyright (c) 2021 The Go-PDF authors; Copyright (c) 2020 David Barnes; Copyright (c) 2017 Kurt Jung and contributors acknowledged in the documentation |
 | `github.com/go-playground/locales` | v0.14.1 | MIT | Copyright (c) 2016 Go Playground |
 | `github.com/go-playground/universal-translator` | v0.18.1 | MIT | Copyright (c) 2016 Go Playground |
-| `github.com/go-playground/validator/v10` | v10.30.4 | MIT | Copyright (c) 2015 Dean Karn |
+| `github.com/go-playground/validator/v10` | v10.30.5 | MIT | Copyright (c) 2015 Dean Karn |
 | `github.com/golang-jwt/jwt/v5` | v5.3.1 | MIT | Copyright (c) 2012 Dave Grijalva; Copyright (c) 2021 golang-jwt maintainers |
 | `github.com/google/uuid` | v1.6.0 | BSD-3-Clause | Copyright (c) 2009,2014 Google Inc. All rights reserved |
 | `github.com/jackc/pgpassfile` | v1.0.0 | MIT | Copyright (c) 2019 Jack Christensen |
@@ -337,7 +337,7 @@
 | `github.com/jinzhu/now` | v1.1.5 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
 | `github.com/josharian/intern` | v1.0.0 | MIT | Copyright (c) 2019 Josh Bleecher Snyder |
 | `github.com/KyleBanks/depth` | v1.2.1 | MIT | Copyright (c) 2017 Kyle Banks |
-| `github.com/labstack/echo/v4` | v4.15.4 | MIT | Copyright (c) 2021 LabStack |
+| `github.com/labstack/echo/v4` | v4.16.0 | MIT | Copyright (c) 2021 LabStack |
 | `github.com/labstack/gommon` | v0.5.0 | MIT | Copyright (c) 2018 labstack |
 | `github.com/leodido/go-urn` | v1.5.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
 | `github.com/mailru/easyjson` | v0.7.7 | MIT | Copyright (c) 2016 Mail.Ru Group |
@@ -4437,7 +4437,7 @@ SOFTWARE.
 
 ### 7.80. MIT
 
-Компоненты: `github.com/go-playground/validator/v10` v10.30.4
+Компоненты: `github.com/go-playground/validator/v10` v10.30.5
 
 ```text
 The MIT License (MIT)
@@ -4714,7 +4714,7 @@ SOFTWARE.
 
 ### 7.90. MIT
 
-Компоненты: `github.com/labstack/echo/v4` v4.15.4
+Компоненты: `github.com/labstack/echo/v4` v4.16.0
 
 ```text
 The MIT License (MIT)
