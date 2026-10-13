@@ -10,7 +10,7 @@
 
 | Показатель | Значение |
 |---|---|
-| Компонентов интерфейса | 224 |
+| Компонентов интерфейса | 233 |
 | Сборок под конкретную платформу | 38 |
 | Компонентов серверной части | 59 |
 | Различных текстов лицензий | 173 |
@@ -42,9 +42,13 @@
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
 | `@babel/helper-string-parser` | 7.29.7 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
+| `@babel/helper-string-parser` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/helper-validator-identifier` | 7.29.7 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
+| `@babel/helper-validator-identifier` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/parser` | 7.29.8 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
+| `@babel/parser` | 8.0.7 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
 | `@babel/types` | 7.29.8 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
+| `@babel/types` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@fast-csv/format` | 4.3.5 | MIT | Copyright (c) 2011-2019 C2FO |
 | `@fast-csv/parse` | 4.3.6 | MIT | Copyright (c) 2011-2019 C2FO |
 | `@floating-ui/core` | 1.8.0 | MIT | Copyright (c) 2021-present Floating UI contributors |
@@ -56,41 +60,42 @@
 | `@jridgewell/sourcemap-codec` | 1.6.0 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@jridgewell/trace-mapping` | 0.3.31 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@kurkle/color` | 0.3.4 | MIT | Copyright (c) 2018-2024 Jukka Kurkela |
-| `@napi-rs/canvas` | 1.0.8 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
+| `@napi-rs/canvas` | 1.0.10 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
 | `@noble/ciphers` | 1.3.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com); Copyright (c) 2016 Thomas Pornin <pornin@bolet.org> |
 | `@noble/hashes` | 1.8.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com) |
-| `@oxc-project/types` | 0.148.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
+| `@oxc-project/types` | 0.153.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
 | `@rolldown/pluginutils` | 1.0.1 | MIT | Copyright (c) 2026-present, rolldown/plugins repository contributors |
 | `@swc/helpers` | 0.5.23 | Apache-2.0 | Copyright 2024 SWC contributors |
-| `@tiptap/core` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-blockquote` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bold` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bubble-menu` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bullet-list` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code-block` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-document` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-dropcursor` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-floating-menu` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-gapcursor` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-hard-break` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-heading` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-horizontal-rule` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-image` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-italic` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-link` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-item` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-keymap` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-ordered-list` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-paragraph` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-strike` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-text` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-underline` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extensions` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/pm` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/starter-kit` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/vue-3` | 3.31.3 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/core` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-blockquote` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bold` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bubble-menu` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bullet-list` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code-block` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-document` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-dropcursor` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-floating-menu` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-gapcursor` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-hard-break` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-heading` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-horizontal-rule` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-image` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-italic` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-link` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-item` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-keymap` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-ordered-list` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-paragraph` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-strike` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-text` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-underline` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extensions` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/pm` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/starter-kit` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/vue-3` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@types/estree` | 1.0.8 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/node` | 14.18.63 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/trusted-types` | 2.0.7 | MIT | Copyright (c) Microsoft Corporation |
 | `@vue-macros/common` | 3.1.4 | MIT | Copyright (c) 2022-PRESENT Kevin Deng |
@@ -110,7 +115,8 @@
 | `acorn` | 8.16.0 | MIT | Copyright (C) 2012-2022 by various contributors (see AUTHORS) |
 | `archiver` | 8.0.0 | MIT | Copyright (c) 2012-2014 Chris Talkington, contributors |
 | `ast-kit` | 2.2.0 | MIT | Copyright © 2023-PRESENT Kevin Deng (https://github.com/sxzz) |
-| `ast-walker-scope` | 0.9.0 | MIT | Copyright © 2022-PRESENT Kevin Deng (https://github.com/sxzz) |
+| `ast-kit` | 3.0.0 | MIT | Copyright © 2023-PRESENT Kevin Deng (https://github.com/sxzz) |
+| `ast-walker-scope` | 0.10.0 | MIT | Copyright © 2022-PRESENT Kevin Deng (https://github.com/sxzz) |
 | `async` | 3.2.6 | MIT | Copyright (c) 2010-2018 Caolan McMahon |
 | `b4a` | 1.8.1 | Apache-2.0 | Holepunch |
 | `balanced-match` | 4.0.4 | MIT | не указан в поставке пакета |
@@ -134,6 +140,7 @@
 | `compress-commons` | 7.0.1 | MIT | Copyright (c) 2014 Chris Talkington, contributors |
 | `confbox` | 0.1.8 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io>; Copyright (C) 2011-2015 by Vitaly Puzrin; Copyright (c) Squirrel Chat et al., All rights reserved; Copyright (c) Microsoft; Copyright (c) 2012-2018 Aseem Kishore, and others (https://github.com/json5/json5/graphs/contributors); Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com) |
 | `confbox` | 0.2.4 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
+| `confbox` | 0.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `core-util-is` | 1.0.3 | MIT | Copyright Node.js contributors. All rights reserved |
 | `crc-32` | 1.2.2 | Apache-2.0 | Copyright (C) 2014-present   SheetJS LLC |
 | `crc32-stream` | 7.0.1 | MIT | Copyright (c) 2014 Chris Talkington, contributors |
@@ -146,6 +153,7 @@
 | `duplexer2` | 0.1.4 | BSD-3-Clause | Copyright (c) 2013, Deoxxa Development |
 | `entities` | 7.0.1 | BSD-2-Clause | Copyright (c) Felix Böhm |
 | `estree-walker` | 2.0.2 | MIT | Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors) |
+| `estree-walker` | 3.0.3 | MIT | Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors) |
 | `event-target-shim` | 5.0.1 | MIT | Copyright (c) 2015 Toru Nagashima |
 | `events` | 3.3.0 | MIT | Copyright Joyent, Inc. and other Node contributors |
 | `events-universal` | 1.0.1 | Apache-2.0 | Holepunch |
@@ -182,20 +190,21 @@
 | `lodash.isundefined` | 3.0.1 | MIT | Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/> |
 | `lodash.uniq` | 4.5.0 | MIT | Copyright jQuery Foundation and other contributors <https://jquery.org/>; Copyright and related rights for sample code are waived via CC0. Sample |
 | `magic-string` | 0.30.21 | MIT | Copyright 2018 Rich Harris |
+| `magic-string` | 1.4.3 | MIT | Copyright 2018 Rich Harris |
 | `magic-string-ast` | 1.0.3 | MIT | Copyright © 2023-PRESENT Kevin Deng (https://github.com/sxzz) |
 | `minimatch` | 10.2.5 | BlueOak-1.0.0 | Copyright |
 | `mitt` | 3.0.1 | MIT | Copyright (c) 2021 Jason Miller |
 | `mlly` | 1.8.2 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `muggle-string` | 0.4.1 | MIT | Copyright (c) 2022-present Johnson Chu |
-| `nanoid` | 3.3.18 | MIT | Copyright 2017 Andrey Sitnik <andrey@sitnik.ru> |
+| `nanoid` | 3.3.20 | MIT | Copyright 2017 Andrey Sitnik <andrey@sitnik.ru> |
 | `node-int64` | 0.4.0 | MIT | Copyright (c) 2014 Robert Kieffer |
 | `normalize-path` | 3.0.0 | MIT | Copyright (c) 2014-2018, Jon Schlinkert |
-| `nostics` | 1.2.0 | MIT | Copyright (c) 2026-present Vercel Inc |
+| `nostics` | 1.3.0 | MIT | Copyright (c) 2026-present Vercel Inc |
 | `orderedmap` | 2.1.1 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `pako` | 0.2.9 | MIT | Copyright (C) 2014-2016 by Vitaly Puzrin |
 | `pako` | 1.0.11 | (MIT AND Zlib) | Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn |
 | `pathe` | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors; Copyright (c) 2023-present Fabio Spampinato |
-| `pdfjs-dist` | 6.3.289 | Apache-2.0 | не указан в поставке пакета |
+| `pdfjs-dist` | 6.4.299 | Apache-2.0 | не указан в поставке пакета |
 | `pdfkit` | 0.19.1 | MIT | Copyright (c) 2014 Devon Govett |
 | `pdfmake` | 0.3.11 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
@@ -205,7 +214,7 @@
 | `pkg-types` | 1.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `pkg-types` | 2.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `png-js` | 1.1.0 | MIT | Copyright (c) 2017 Devon Govett |
-| `postcss` | 8.5.28 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
+| `postcss` | 8.5.29 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
 | `process` | 0.11.10 | MIT | Copyright (c) 2013 Roman Shtylman <shtylman@gmail.com> |
 | `process-nextick-args` | 2.0.1 | MIT | Copyright (c) 2015 Calvin Metcalf |
 | `prosemirror-changeset` | 2.4.1 | MIT | Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
@@ -228,7 +237,7 @@
 | `readdir-glob` | 3.0.0 | Apache-2.0 | Copyright 2020 Yann Armelin |
 | `readdirp` | 5.0.0 | MIT | Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com) |
 | `restructure` | 3.0.2 | MIT | Copyright (c) 2015-present Devon Govett |
-| `rolldown` | 1.2.7 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors |
+| `rolldown` | 1.2.13 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors |
 | `rope-sequence` | 1.3.4 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> |
 | `safe-buffer` | 5.1.2 | MIT | Copyright (c) Feross Aboukhadijeh |
 | `safe-buffer` | 5.2.1 | MIT | Copyright (c) Feross Aboukhadijeh |
@@ -251,14 +260,14 @@
 | `unicode-properties` | 1.4.1 | MIT | Copyright 2018 |
 | `unicode-trie` | 2.0.0 | MIT | Copyright 2018 |
 | `universalify` | 2.0.1 | MIT | Copyright (c) 2017, Ryan Zimmerman <opensrc@ryanzim.com> |
-| `unplugin` | 3.3.0 | MIT | Copyright (c) 2021-PRESENT Nuxt Contrib |
+| `unplugin` | 3.4.0 | MIT | Copyright (c) 2021-PRESENT Nuxt Contrib |
 | `unplugin-utils` | 0.3.2 | MIT | Copyright © 2025-PRESENT Kevin Deng (https://github.com/sxzz); Copyright (c) 2019 RollupJS Plugin Contributors (https://github.com/rollup/plugins/graphs/contributors) |
 | `unzipper` | 0.12.5 | MIT | Copyright (c) 2012 - 2013 Near Infinity Corporation |
 | `util-deprecate` | 1.0.2 | MIT | Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net> |
 | `uuid` | 8.3.2 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
-| `vite` | 8.3.0 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
+| `vite` | 8.3.4 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
 | `vue` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `vue-router` | 5.3.1 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
+| `vue-router` | 5.4.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `vue-select` | 4.0.0-beta.6 | MIT | Copyright (c) 2016 Jeff Sagal & vue-select contributors |
 | `w3c-keyname` | 2.2.8 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `webpack-virtual-modules` | 0.6.2 | MIT | Copyright (c) 2017 SysGears |
@@ -272,32 +281,32 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `@napi-rs/canvas-android-arm64` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-darwin-arm64` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-darwin-x64` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm-gnueabihf` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm64-gnu` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm64-musl` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-riscv64-gnu` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-x64-gnu` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-x64-musl` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-win32-arm64-msvc` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-win32-x64-msvc` | 1.0.8 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-android-arm-eabi` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-android-arm64` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-darwin-arm64` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-darwin-x64` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-freebsd-x64` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-arm64-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-arm64-musl` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-ppc64-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-s390x-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-x64-gnu` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-x64-musl` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-openharmony-arm64` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-win32-arm64-msvc` | 1.2.7 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-win32-x64-msvc` | 1.2.7 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-android-arm64` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-darwin-arm64` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-darwin-x64` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm-gnueabihf` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm64-gnu` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm64-musl` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-riscv64-gnu` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-x64-gnu` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-x64-musl` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-win32-arm64-msvc` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-win32-x64-msvc` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-android-arm-eabi` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-android-arm64` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-darwin-arm64` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-darwin-x64` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-freebsd-x64` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm64-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm64-musl` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-ppc64-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-s390x-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-x64-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-x64-musl` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-openharmony-arm64` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-win32-arm64-msvc` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-win32-x64-msvc` | 1.2.13 | MIT | не указан в поставке пакета |
 | `fsevents` | 2.3.3 | не указана | не указан в поставке пакета |
 | `lightningcss-android-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 | `lightningcss-darwin-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
@@ -389,7 +398,7 @@
 
 ### 7.1. MIT
 
-Компоненты: `@tiptap/core` 3.31.3, `@tiptap/extension-blockquote` 3.31.3, `@tiptap/extension-bold` 3.31.3, `@tiptap/extension-bubble-menu` 3.31.3, `@tiptap/extension-bullet-list` 3.31.3, `@tiptap/extension-code` 3.31.3, `@tiptap/extension-code-block` 3.31.3, `@tiptap/extension-document` 3.31.3, `@tiptap/extension-dropcursor` 3.31.3, `@tiptap/extension-floating-menu` 3.31.3, `@tiptap/extension-gapcursor` 3.31.3, `@tiptap/extension-hard-break` 3.31.3, `@tiptap/extension-heading` 3.31.3, `@tiptap/extension-horizontal-rule` 3.31.3, `@tiptap/extension-image` 3.31.3, `@tiptap/extension-italic` 3.31.3, `@tiptap/extension-link` 3.31.3, `@tiptap/extension-list` 3.31.3, `@tiptap/extension-list-item` 3.31.3, `@tiptap/extension-list-keymap` 3.31.3, `@tiptap/extension-ordered-list` 3.31.3, `@tiptap/extension-paragraph` 3.31.3, `@tiptap/extension-strike` 3.31.3, `@tiptap/extension-text` 3.31.3, `@tiptap/extension-underline` 3.31.3, `@tiptap/extensions` 3.31.3, `@tiptap/pm` 3.31.3, `@tiptap/starter-kit` 3.31.3, `@tiptap/vue-3` 3.31.3
+Компоненты: `@tiptap/core` 3.31.4, `@tiptap/extension-blockquote` 3.31.4, `@tiptap/extension-bold` 3.31.4, `@tiptap/extension-bubble-menu` 3.31.4, `@tiptap/extension-bullet-list` 3.31.4, `@tiptap/extension-code` 3.31.4, `@tiptap/extension-code-block` 3.31.4, `@tiptap/extension-document` 3.31.4, `@tiptap/extension-dropcursor` 3.31.4, `@tiptap/extension-floating-menu` 3.31.4, `@tiptap/extension-gapcursor` 3.31.4, `@tiptap/extension-hard-break` 3.31.4, `@tiptap/extension-heading` 3.31.4, `@tiptap/extension-horizontal-rule` 3.31.4, `@tiptap/extension-image` 3.31.4, `@tiptap/extension-italic` 3.31.4, `@tiptap/extension-link` 3.31.4, `@tiptap/extension-list` 3.31.4, `@tiptap/extension-list-item` 3.31.4, `@tiptap/extension-list-keymap` 3.31.4, `@tiptap/extension-ordered-list` 3.31.4, `@tiptap/extension-paragraph` 3.31.4, `@tiptap/extension-strike` 3.31.4, `@tiptap/extension-text` 3.31.4, `@tiptap/extension-underline` 3.31.4, `@tiptap/extensions` 3.31.4, `@tiptap/pm` 3.31.4, `@tiptap/starter-kit` 3.31.4, `@tiptap/vue-3` 3.31.4
 
 ```text
 MIT License
@@ -713,6 +722,35 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### 7.6. MIT
 
+Компоненты: `@babel/helper-string-parser` 7.29.7, `@babel/helper-string-parser` 8.0.6, `@babel/helper-validator-identifier` 7.29.7, `@babel/helper-validator-identifier` 8.0.6, `@babel/types` 7.29.8, `@babel/types` 8.0.6
+
+```text
+MIT License
+
+Copyright (c) 2014-present Sebastian McKenzie and other contributors
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### 7.7. MIT
+
 Компоненты: `readable-stream` 2.3.8, `readable-stream` 3.6.2, `readable-stream` 4.7.0, `string_decoder` 1.1.1, `string_decoder` 1.3.0
 
 ```text
@@ -765,7 +803,7 @@ IN THE SOFTWARE.
 """
 ```
 
-### 7.7. MIT
+### 7.8. MIT
 
 Компоненты: `@jridgewell/gen-mapping` 0.3.13, `@jridgewell/remapping` 2.3.5, `@jridgewell/sourcemap-codec` 1.6.0, `@jridgewell/trace-mapping` 0.3.31
 
@@ -791,7 +829,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.8. MIT
+### 7.9. MIT
 
 Компоненты: `mlly` 1.8.2, `perfect-debounce` 2.1.0, `scule` 1.3.0, `ufo` 1.6.4
 
@@ -817,35 +855,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-### 7.9. MIT
-
-Компоненты: `@babel/helper-string-parser` 7.29.7, `@babel/helper-validator-identifier` 7.29.7, `@babel/types` 7.29.8
-
-```text
-MIT License
-
-Copyright (c) 2014-present Sebastian McKenzie and other contributors
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### 7.10. MIT
@@ -905,6 +914,34 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### 7.12. MIT
 
+Компоненты: `@types/estree` 1.0.8, `@types/node` 14.18.63, `@types/trusted-types` 2.0.7
+
+```text
+MIT License
+
+    Copyright (c) Microsoft Corporation.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE
+```
+
+### 7.13. MIT
+
 Компоненты: `@vue/devtools-api` 8.2.1, `@vue/devtools-kit` 8.2.1, `@vue/devtools-shared` 8.2.1
 
 ```text
@@ -931,7 +968,35 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.13. MIT
+### 7.14. MIT
+
+Компоненты: `ast-kit` 2.2.0, `ast-kit` 3.0.0, `magic-string-ast` 1.0.3
+
+```text
+The MIT License (MIT)
+
+Copyright © 2023-PRESENT Kevin Deng (https://github.com/sxzz)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### 7.15. MIT
 
 Компоненты: `compress-commons` 7.0.1, `crc32-stream` 7.0.1, `zip-stream` 7.0.5
 
@@ -960,7 +1025,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.14. MIT
+### 7.16. MIT
 
 Компоненты: `lodash.escaperegexp` 4.1.2, `lodash.groupby` 4.6.0, `lodash.uniq` 4.5.0
 
@@ -1014,42 +1079,12 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
 
-### 7.15. MIT
+### 7.17. MIT
 
-Компоненты: `@types/node` 14.18.63, `@types/trusted-types` 2.0.7
-
-```text
-MIT License
-
-    Copyright (c) Microsoft Corporation.
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE
-```
-
-### 7.16. MIT
-
-Компоненты: `ast-kit` 2.2.0, `magic-string-ast` 1.0.3
+Компоненты: `@babel/parser` 7.29.8, `@babel/parser` 8.0.7
 
 ```text
-The MIT License (MIT)
-
-Copyright © 2023-PRESENT Kevin Deng (https://github.com/sxzz)
+Copyright (C) 2012-2014 by various contributors (see AUTHORS)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -1058,19 +1093,19 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
-### 7.17. MIT
+### 7.18. MIT
 
 Компоненты: `birpc` 2.9.0, `local-pkg` 1.2.1
 
@@ -1098,7 +1133,55 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.18. MIT
+### 7.19. MIT
+
+Компоненты: `confbox` 0.2.4, `confbox` 0.3.1
+
+```text
+MIT License
+
+Copyright (c) Pooya Parsa <pooya@pi0.io>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## Third-Party Licenses
+
+This software includes bundled third-party dependencies. The licenses and
+copyright notices for these dependencies are available in
+`dist/THIRD-PARTY-LICENSES.md` within the distributed package.
+```
+
+### 7.20. MIT
+
+Компоненты: `estree-walker` 2.0.2, `estree-walker` 3.0.3
+
+```text
+Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### 7.21. MIT
 
 Компоненты: `fast-fifo` 1.3.2, `streamx` 2.28.0
 
@@ -1126,7 +1209,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.19. MIT
+### 7.22. MIT
 
 Компоненты: `github.com/go-playground/locales` v0.14.1, `github.com/go-playground/universal-translator` v0.18.1
 
@@ -1154,7 +1237,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.20. MIT
+### 7.23. MIT
 
 Компоненты: `github.com/jinzhu/now` v1.1.5, `gorm.io/driver/postgres` v1.6.3
 
@@ -1182,7 +1265,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.21. MIT
+### 7.24. MIT
 
 Компоненты: `github.com/swaggo/swag` v1.16.6, `github.com/swaggo/swag/v2` v2.0.0-rc4
 
@@ -1210,7 +1293,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.22. MIT
+### 7.25. MIT
 
 Компоненты: `lodash.isboolean` 3.0.3, `lodash.isnil` 4.0.0
 
@@ -1239,7 +1322,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.23. MIT
+### 7.26. MIT
 
 Компоненты: `lodash.isequal` 4.5.0, `lodash.isfunction` 3.0.9
 
@@ -1293,7 +1376,21 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
 
-### 7.24. MIT
+### 7.27. MIT
+
+Компоненты: `magic-string` 0.30.21, `magic-string` 1.4.3
+
+```text
+Copyright 2018 Rich Harris
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### 7.28. MIT
 
 Компоненты: `orderedmap` 2.1.1, `w3c-keyname` 2.2.8
 
@@ -1319,9 +1416,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.25. MIT
+### 7.29. MIT
 
-Компоненты: `pinia` 4.0.3, `vue-router` 5.3.1
+Компоненты: `pinia` 4.0.3, `vue-router` 5.4.0
 
 ```text
 The MIT License (MIT)
@@ -1347,7 +1444,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.26. MIT
+### 7.30. MIT
 
 Компоненты: `pkg-types` 1.3.1, `pkg-types` 2.3.1
 
@@ -1398,7 +1495,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.27. MIT
+### 7.31. MIT
 
 Компоненты: `restructure` 3.0.2, `tiny-inflate` 1.0.3
 
@@ -1426,7 +1523,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.28. MIT
+### 7.32. MIT
 
 Компоненты: `safe-buffer` 5.1.2, `safe-buffer` 5.2.1
 
@@ -1454,7 +1551,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.29. MIT
+### 7.33. MIT
 
 Компоненты: `unicode-properties` 1.4.1, `unicode-trie` 2.0.0
 
@@ -1468,33 +1565,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.30. MIT
-
-Компоненты: `@babel/parser` 7.29.8
-
-```text
-Copyright (C) 2012-2014 by various contributors (see AUTHORS)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-```
-
-### 7.31. MIT
+### 7.34. MIT
 
 Компоненты: `@jridgewell/resolve-uri` 3.1.2
 
@@ -1520,7 +1591,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.32. MIT
+### 7.35. MIT
 
 Компоненты: `@kurkle/color` 0.3.4
 
@@ -1536,9 +1607,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.33. MIT
+### 7.36. MIT
 
-Компоненты: `@napi-rs/canvas` 1.0.8
+Компоненты: `@napi-rs/canvas` 1.0.10
 
 ```text
 MIT License
@@ -1564,7 +1635,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.34. MIT
+### 7.37. MIT
 
 Компоненты: `@noble/ciphers` 1.3.0
 
@@ -1593,7 +1664,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.35. MIT
+### 7.38. MIT
 
 Компоненты: `@noble/hashes` 1.8.0
 
@@ -1621,9 +1692,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.36. MIT
+### 7.39. MIT
 
-Компоненты: `@oxc-project/types` 0.148.0
+Компоненты: `@oxc-project/types` 0.153.0
 
 ```text
 MIT License
@@ -1650,7 +1721,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.37. MIT
+### 7.40. MIT
 
 Компоненты: `@rolldown/pluginutils` 1.0.1
 
@@ -1678,7 +1749,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.38. Apache-2.0
+### 7.41. Apache-2.0
 
 Компоненты: `@swc/helpers` 0.5.23
 
@@ -1886,7 +1957,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### 7.39. MIT
+### 7.42. MIT
 
 Компоненты: `@vue-macros/common` 3.1.4
 
@@ -1914,7 +1985,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.40. MIT
+### 7.43. MIT
 
 Компоненты: `abort-controller` 3.0.0
 
@@ -1942,7 +2013,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.41. MIT
+### 7.44. MIT
 
 Компоненты: `acorn` 8.16.0
 
@@ -1970,7 +2041,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.42. MIT
+### 7.45. MIT
 
 Компоненты: `archiver` 8.0.0
 
@@ -1999,9 +2070,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.43. MIT
+### 7.46. MIT
 
-Компоненты: `ast-walker-scope` 0.9.0
+Компоненты: `ast-walker-scope` 0.10.0
 
 ```text
 The MIT License (MIT)
@@ -2027,7 +2098,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.44. MIT
+### 7.47. MIT
 
 Компоненты: `async` 3.2.6
 
@@ -2053,7 +2124,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.45. MIT
+### 7.48. MIT
 
 Компоненты: `balanced-match` 4.0.4
 
@@ -2083,7 +2154,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.46. MIT
+### 7.49. MIT
 
 Компоненты: `base64-js` 0.0.8
 
@@ -2111,7 +2182,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.47. MIT
+### 7.50. MIT
 
 Компоненты: `base64-js` 1.5.1
 
@@ -2139,7 +2210,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.48. MIT
+### 7.51. MIT
 
 Компоненты: `bluebird` 3.7.2
 
@@ -2167,7 +2238,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.49. MIT
+### 7.52. MIT
 
 Компоненты: `brace-expansion` 5.0.12
 
@@ -2197,7 +2268,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.50. MIT
+### 7.53. MIT
 
 Компоненты: `browserify-zlib` 0.2.0
 
@@ -2274,7 +2345,7 @@ IN THE SOFTWARE.
 """
 ```
 
-### 7.51. MIT
+### 7.54. MIT
 
 Компоненты: `buffer` 6.0.3
 
@@ -2302,7 +2373,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.52. MIT
+### 7.55. MIT
 
 Компоненты: `buffer-crc32` 1.0.0
 
@@ -2328,7 +2399,7 @@ FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TOR
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.53. MIT
+### 7.56. MIT
 
 Компоненты: `chart.js` 4.5.1
 
@@ -2344,7 +2415,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.54. MIT
+### 7.57. MIT
 
 Компоненты: `chokidar` 5.0.0
 
@@ -2372,7 +2443,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.55. MIT
+### 7.58. MIT
 
 Компоненты: `clone` 2.1.2
 
@@ -2397,7 +2468,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.56. MIT
+### 7.59. MIT
 
 Компоненты: `confbox` 0.1.8
 
@@ -2522,41 +2593,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.57. MIT
-
-Компоненты: `confbox` 0.2.4
-
-```text
-MIT License
-
-Copyright (c) Pooya Parsa <pooya@pi0.io>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-## Third-Party Licenses
-
-This software includes bundled third-party dependencies. The licenses and
-copyright notices for these dependencies are available in
-`dist/THIRD-PARTY-LICENSES.md` within the distributed package.
-```
-
-### 7.58. MIT
+### 7.60. MIT
 
 Компоненты: `core-util-is` 1.0.3
 
@@ -2582,7 +2619,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 ```
 
-### 7.59. Apache-2.0
+### 7.61. Apache-2.0
 
 Компоненты: `crc-32` 1.2.2
 
@@ -2790,7 +2827,7 @@ Apache License
    limitations under the License.
 ```
 
-### 7.60. MIT
+### 7.62. MIT
 
 Компоненты: `csstype` 3.2.3
 
@@ -2816,7 +2853,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.61. MIT
+### 7.63. MIT
 
 Компоненты: `dayjs` 1.11.19
 
@@ -2844,7 +2881,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.62. Apache-2.0
+### 7.64. Apache-2.0
 
 Компоненты: `detect-libc` 2.1.2
 
@@ -3052,7 +3089,7 @@ Apache License
    limitations under the License.
 ```
 
-### 7.63. (MPL-2.0 OR Apache-2.0)
+### 7.65. (MPL-2.0 OR Apache-2.0)
 
 Компоненты: `dompurify` 3.4.16
 
@@ -3636,7 +3673,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
-### 7.64. MIT
+### 7.66. MIT
 
 Компоненты: `driver.js` 1.8.0
 
@@ -3664,7 +3701,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.65. BSD-3-Clause
+### 7.67. BSD-3-Clause
 
 Компоненты: `duplexer2` 0.1.4
 
@@ -3697,7 +3734,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.66. BSD-2-Clause
+### 7.68. BSD-2-Clause
 
 Компоненты: `entities` 7.0.1
 
@@ -3715,21 +3752,7 @@ THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRE
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.67. MIT
-
-Компоненты: `estree-walker` 2.0.2
-
-```text
-Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
-
-### 7.68. MIT
+### 7.69. MIT
 
 Компоненты: `event-target-shim` 5.0.1
 
@@ -3757,7 +3780,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.69. MIT
+### 7.70. MIT
 
 Компоненты: `events` 3.3.0
 
@@ -3786,7 +3809,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.70. MIT
+### 7.71. MIT
 
 Компоненты: `exceljs` 4.4.0
 
@@ -3814,7 +3837,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.71. MIT
+### 7.72. MIT
 
 Компоненты: `exsolve` 1.1.1
 
@@ -3932,7 +3955,7 @@ IN THE SOFTWARE.
 """
 ```
 
-### 7.72. MIT
+### 7.73. MIT
 
 Компоненты: `fast-deep-equal` 3.1.3
 
@@ -3960,7 +3983,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.73. MIT
+### 7.74. MIT
 
 Компоненты: `fdir` 6.5.0
 
@@ -3974,7 +3997,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.74. BSD-3-Clause
+### 7.75. BSD-3-Clause
 
 Компоненты: `filippo.io/age` v1.3.2
 
@@ -4010,7 +4033,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.75. MIT
+### 7.76. MIT
 
 Компоненты: `fs-extra` 11.3.1
 
@@ -4032,7 +4055,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.76. MIT
+### 7.77. MIT
 
 Компоненты: `github.com/caarlos0/env/v11` v11.4.1
 
@@ -4060,7 +4083,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.77. MIT
+### 7.78. MIT
 
 Компоненты: `github.com/gabriel-vasile/mimetype` v1.4.15
 
@@ -4088,7 +4111,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.78. Apache-2.0
+### 7.79. Apache-2.0
 
 Компоненты: `github.com/go-openapi/spec` v0.20.9
 
@@ -4405,7 +4428,7 @@ func TestIntegrationLicense(t *testing.T) {
 }
 ```
 
-### 7.79. MIT
+### 7.80. MIT
 
 Компоненты: `github.com/go-pdf/fpdf` v0.9.0
 
@@ -4435,7 +4458,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.80. MIT
+### 7.81. MIT
 
 Компоненты: `github.com/go-playground/validator/v10` v10.30.5
 
@@ -4463,7 +4486,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.81. MIT
+### 7.82. MIT
 
 Компоненты: `github.com/golang-jwt/jwt/v5` v5.3.1
 
@@ -4478,7 +4501,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.82. BSD-3-Clause
+### 7.83. BSD-3-Clause
 
 Компоненты: `github.com/google/uuid` v1.6.0
 
@@ -4512,7 +4535,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.83. MIT
+### 7.84. MIT
 
 Компоненты: `github.com/jackc/pgpassfile` v1.0.0
 
@@ -4541,7 +4564,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.84. MIT
+### 7.85. MIT
 
 Компоненты: `github.com/jackc/pgservicefile` v0.0.0-20240606120523-5a60cdf6a761
 
@@ -4570,7 +4593,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.85. MIT
+### 7.86. MIT
 
 Компоненты: `github.com/jackc/pgx/v5` v5.11.0
 
@@ -4599,7 +4622,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.86. MIT
+### 7.87. MIT
 
 Компоненты: `github.com/jackc/puddle/v2` v2.2.2
 
@@ -4628,7 +4651,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.87. MIT
+### 7.88. MIT
 
 Компоненты: `github.com/jinzhu/inflection` v1.0.0
 
@@ -4656,7 +4679,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.88. MIT
+### 7.89. MIT
 
 Компоненты: `github.com/josharian/intern` v1.0.0
 
@@ -4684,7 +4707,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.89. MIT
+### 7.90. MIT
 
 Компоненты: `github.com/KyleBanks/depth` v1.2.1
 
@@ -4712,7 +4735,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.90. MIT
+### 7.91. MIT
 
 Компоненты: `github.com/labstack/echo/v4` v4.16.0
 
@@ -4740,7 +4763,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.91. MIT
+### 7.92. MIT
 
 Компоненты: `github.com/labstack/gommon` v0.5.0
 
@@ -4768,7 +4791,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.92. MIT
+### 7.93. MIT
 
 Компоненты: `github.com/leodido/go-urn` v1.5.0
 
@@ -4796,7 +4819,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.93. MIT
+### 7.94. MIT
 
 Компоненты: `github.com/mailru/easyjson` v0.7.7
 
@@ -4810,7 +4833,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.94. MIT
+### 7.95. MIT
 
 Компоненты: `github.com/mattn/go-colorable` v0.1.15
 
@@ -4838,7 +4861,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.95. MIT
+### 7.96. MIT
 
 Компоненты: `github.com/mattn/go-isatty` v0.0.22
 
@@ -4854,7 +4877,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.96. BSD-2-Clause
+### 7.97. BSD-2-Clause
 
 Компоненты: `github.com/pkg/errors` v0.9.1
 
@@ -4884,7 +4907,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.97. MIT
+### 7.98. MIT
 
 Компоненты: `github.com/SherClockHolmes/webpush-go` v1.4.0
 
@@ -4912,7 +4935,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.98. MIT
+### 7.99. MIT
 
 Компоненты: `github.com/sv-tools/openapi` v0.2.1
 
@@ -4940,7 +4963,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.99. MIT
+### 7.100. MIT
 
 Компоненты: `github.com/swaggo/echo-swagger` v1.5.2
 
@@ -4968,7 +4991,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.100. MIT
+### 7.101. MIT
 
 Компоненты: `github.com/swaggo/files/v2` v2.0.0
 
@@ -4996,7 +5019,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.101. MIT
+### 7.102. MIT
 
 Компоненты: `github.com/tiendc/go-deepcopy` v1.7.2
 
@@ -5024,7 +5047,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.102. MIT
+### 7.103. MIT
 
 Компоненты: `github.com/valyala/bytebufferpool` v1.0.0
 
@@ -5052,7 +5075,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.103. MIT
+### 7.104. MIT
 
 Компоненты: `github.com/valyala/fasttemplate` v1.2.2
 
@@ -5080,7 +5103,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.104. MIT
+### 7.105. MIT
 
 Компоненты: `github.com/wneessen/go-mail` v0.8.1
 
@@ -5108,7 +5131,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.105. BSD-3-Clause
+### 7.106. BSD-3-Clause
 
 Компоненты: `github.com/xuri/efp` v0.0.2
 
@@ -5143,7 +5166,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.106. BSD-3-Clause
+### 7.107. BSD-3-Clause
 
 Компоненты: `github.com/xuri/excelize/v2` v2.11.1-0.20261003002531-6258dcebc4e2
 
@@ -5180,7 +5203,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.107. BSD-3-Clause
+### 7.108. BSD-3-Clause
 
 Компоненты: `github.com/xuri/nfp` v0.0.2-0.20250530014748-2ddeb826f9a9
 
@@ -5215,7 +5238,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.108. MIT
+### 7.109. MIT
 
 Компоненты: `gopkg.in/natefinch/lumberjack.v2` v2.2.1
 
@@ -5243,7 +5266,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.109. Apache-2.0
+### 7.110. Apache-2.0
 
 Компоненты: `gopkg.in/yaml.v2` v2.4.0
 
@@ -5485,7 +5508,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.110. Apache-2.0
+### 7.111. Apache-2.0
 
 Компоненты: `gopkg.in/yaml.v3` v3.0.1
 
@@ -5541,7 +5564,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### 7.111. MIT
+### 7.112. MIT
 
 Компоненты: `gorm.io/gorm` v1.31.2
 
@@ -5569,7 +5592,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.112. ISC
+### 7.113. ISC
 
 Компоненты: `graceful-fs` 4.2.11
 
@@ -5591,7 +5614,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### 7.113. MIT
+### 7.114. MIT
 
 Компоненты: `hookable` 5.5.3
 
@@ -5619,7 +5642,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.114. BSD-3-Clause
+### 7.115. BSD-3-Clause
 
 Компоненты: `ieee754` 1.2.1
 
@@ -5637,7 +5660,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 7.115. MIT
+### 7.116. MIT
 
 Компоненты: `immediate` 3.0.6
 
@@ -5664,7 +5687,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.116. ISC
+### 7.117. ISC
 
 Компоненты: `inherits` 2.0.4
 
@@ -5686,7 +5709,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### 7.117. MIT
+### 7.118. MIT
 
 Компоненты: `is-stream` 4.0.1
 
@@ -5702,7 +5725,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.118. MIT
+### 7.119. MIT
 
 Компоненты: `js-md5` 0.8.3
 
@@ -5729,7 +5752,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.119. MIT
+### 7.120. MIT
 
 Компоненты: `jsonfile` 6.2.1
 
@@ -5751,7 +5774,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.120. (MIT OR GPL-3.0-or-later)
+### 7.121. (MIT OR GPL-3.0-or-later)
 
 Компоненты: `jszip` 3.10.2
 
@@ -6409,7 +6432,7 @@ copy of the Program in return for a fee.
                      END OF TERMS AND CONDITIONS
 ```
 
-### 7.121. MIT
+### 7.122. MIT
 
 Компоненты: `lazystream` 1.0.1
 
@@ -6438,7 +6461,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 7.122. MIT
+### 7.123. MIT
 
 Компоненты: `lie` 3.3.0
 
@@ -6452,7 +6475,7 @@ The above copyright notice and this permission notice shall be included in all c
 **THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.**
 ```
 
-### 7.123. MPL-2.0
+### 7.124. MPL-2.0
 
 Компоненты: `lightningcss` 1.33.0
 
@@ -6832,7 +6855,7 @@ This Source Code Form is "Incompatible With Secondary Licenses", as
 defined by the Mozilla Public License, v. 2.0.
 ```
 
-### 7.124. MIT
+### 7.125. MIT
 
 Компоненты: `linebreak` 1.1.0
 
@@ -6860,7 +6883,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 7.125. MIT
+### 7.126. MIT
 
 Компоненты: `linkifyjs` 4.3.3
 
@@ -6886,7 +6909,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7.126. MIT
+### 7.127. MIT
 
 Компоненты: `lodash.isundefined` 3.0.1
 
@@ -6913,20 +6936,6 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
-
-### 7.127. MIT
-
-Компоненты: `magic-string` 0.30.21
-
-```text
-Copyright 2018 Rich Harris
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### 7.128. BlueOak-1.0.0
@@ -7049,7 +7058,7 @@ SOFTWARE.
 
 ### 7.131. MIT
 
-Компоненты: `nanoid` 3.3.18
+Компоненты: `nanoid` 3.3.20
 
 ```text
 The MIT License (MIT)
@@ -7130,7 +7139,7 @@ THE SOFTWARE.
 
 ### 7.134. MIT
 
-Компоненты: `nostics` 1.2.0
+Компоненты: `nostics` 1.3.0
 
 ```text
 The MIT License (MIT)
@@ -7291,7 +7300,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### 7.138. Apache-2.0
 
-Компоненты: `pdfjs-dist` 6.3.289
+Компоненты: `pdfjs-dist` 6.4.299
 
 ```text
 Apache License
@@ -7595,7 +7604,7 @@ SOFTWARE.
 
 ### 7.144. MIT
 
-Компоненты: `postcss` 8.5.28
+Компоненты: `postcss` 8.5.29
 
 ```text
 The MIT License (MIT)
@@ -7993,7 +8002,7 @@ SOFTWARE.
 
 ### 7.152. MIT
 
-Компоненты: `rolldown` 1.2.7
+Компоненты: `rolldown` 1.2.13
 
 ```text
 MIT License
@@ -8389,7 +8398,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### 7.164. MIT
 
-Компоненты: `unplugin` 3.3.0
+Компоненты: `unplugin` 3.4.0
 
 ```text
 MIT License
@@ -8546,7 +8555,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.169. MIT
 
-Компоненты: `vite` 8.3.0
+Компоненты: `vite` 8.3.4
 
 ```text
 # Vite core license
@@ -9225,35 +9234,6 @@ Repository: https://github.com/expressjs/cors
 
 ---------------------------------------
 
-## cross-spawn
-License: MIT
-By: André Cruz
-Repository: https://github.com/moxystudio/node-cross-spawn
-
-> The MIT License (MIT)
-> 
-> Copyright (c) 2018 Made With MOXY Lda <hello@moxy.studio>
-> 
-> Permission is hereby granted, free of charge, to any person obtaining a copy
-> of this software and associated documentation files (the "Software"), to deal
-> in the Software without restriction, including without limitation the rights
-> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-> copies of the Software, and to permit persons to whom the Software is
-> furnished to do so, subject to the following conditions:
-> 
-> The above copyright notice and this permission notice shall be included in
-> all copies or substantial portions of the Software.
-> 
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-> THE SOFTWARE.
-
----------------------------------------
-
 ## cssesc
 License: MIT
 By: Mathias Bynens
@@ -9777,29 +9757,6 @@ Repository: https://github.com/Rich-Harris/is-reference
 
 ---------------------------------------
 
-## isexe, which
-License: ISC
-By: Isaac Z. Schlueter
-Repositories: https://github.com/isaacs/isexe, https://github.com/isaacs/node-which
-
-> The ISC License
-> 
-> Copyright (c) Isaac Z. Schlueter and Contributors
-> 
-> Permission to use, copy, modify, and/or distribute this software for any
-> purpose with or without fee is hereby granted, provided that the above
-> copyright notice and this permission notice appear in all copies.
-> 
-> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-> WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-> MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-> ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-> WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-> ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
-> IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
----------------------------------------
-
 ## js-tokens
 License: MIT
 By: Simon Lydell
@@ -10220,23 +10177,6 @@ Repository: https://github.com/pillarjs/parseurl
 
 ---------------------------------------
 
-## path-key, shebang-regex
-License: MIT
-By: Sindre Sorhus
-Repositories: https://github.com/sindresorhus/path-key, https://github.com/sindresorhus/shebang-regex
-
-> MIT License
-> 
-> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-> 
-> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-> 
-> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-> 
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
----------------------------------------
-
 ## periscopic
 License: MIT
 Repository: https://github.com/Rich-Harris/periscopic
@@ -10547,23 +10487,6 @@ Repositories: https://github.com/lukeed/resolve.exports, https://github.com/luke
 
 ---------------------------------------
 
-## shebang-command
-License: MIT
-By: Kevin Mårtensson
-Repository: https://github.com/kevva/shebang-command
-
-> MIT License
-> 
-> Copyright (c) Kevin Mårtensson <kevinmartensson@gmail.com> (github.com/kevva)
-> 
-> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-> 
-> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-> 
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
----------------------------------------
-
 ## shell-quote
 License: MIT
 By: James Halliday
@@ -10648,6 +10571,35 @@ Repository: https://github.com/antfu/strip-literal
 > MIT License
 > 
 > Copyright (c) 2022 Anthony Fu <https://github.com/antfu>
+> 
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+> 
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+> 
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
+---------------------------------------
+
+## tinyexec
+License: MIT
+By: James Garbutt
+Repository: https://github.com/tinylibs/tinyexec
+
+> MIT License
+> 
+> Copyright (c) 2024 Tinylibs
 > 
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
