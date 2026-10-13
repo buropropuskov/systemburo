@@ -12,7 +12,7 @@
     </transition>
 
     <nav
-      class="nav-menu"
+      ref="navigation" class="nav-menu"
       role="navigation"
       aria-label="Основная навигация"
       data-testid="ob-nav-rail"
@@ -424,7 +424,7 @@
             />
             <span class="nav-text">Личный кабинет</span>
           </div>
-          <ThemeControls :disabled="isBanned" />
+          <ThemeControls ref="themeControls" :disabled="isBanned" @open-change="onThemePanelChange" />
 
           <div
             class="nav-item"
@@ -661,8 +661,7 @@ export default {
       authStore, uiStore, soundStore, permissionsStore, onboardingStore,
       swipeOffset: drawerSwipe.offset,
       swipeDragging: drawerSwipe.isDragging,
-      expandMenu: rail.expandMenu,
-      collapseMenu: rail.collapseMenu,
+      ...rail,
     }
   },
   data() {
@@ -993,6 +992,7 @@ export default {
       document.body.style.setProperty('--nav-ml', width);
     },
     toggleMobile() {
+      if (this.mobileOpen) this.$refs.themeControls?.close();
       this.mobileOpen = !this.mobileOpen;
       // Блокируем scroll body когда drawer открыт
       document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
@@ -1003,11 +1003,6 @@ export default {
       if (this.mobileOpen) return;
       this.mobileOpen = true;
       document.body.classList.add('nav-drawer-open');
-    },
-    closeMobile() {
-      if (!this.mobileOpen) return;
-      this.mobileOpen = false;
-      document.body.classList.remove('nav-drawer-open');
     },
     /**
      * Открыть форму обратной связи из drawer'а. Закрываем drawer и ЖДЁМ конца его
@@ -1029,6 +1024,7 @@ export default {
       this.dropdowns[type] = !this.dropdowns[type];
     },
     closeAllDropdowns() {
+      this.$refs.themeControls?.close();
       Object.keys(this.dropdowns).forEach(key => {
         this.dropdowns[key] = false;
       });

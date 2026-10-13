@@ -1,4 +1,4 @@
-import { onBeforeUnmount } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 
 /** Задержка сворачивания: курсор успевает перейти с рельса на выехавшую подпись. */
 const COLLAPSE_DELAY = 150;
@@ -19,6 +19,7 @@ const COLLAPSE_DELAY = 150;
  */
 export function useRailExpand(instance) {
   let hoverTimeout = null;
+  const themePanelOpen = ref(false);
 
   const vm = () => instance.proxy;
 
@@ -41,6 +42,11 @@ export function useRailExpand(instance) {
   function collapseMenu() {
     hoverTimeout = setTimeout(() => {
       const menu = vm();
+      // Keep the rail open while the pointer is over its teleported settings.
+      if (menu.themePanelOpen) {
+        hoverTimeout = null;
+        return;
+      }
       menu.isExpanded = false;
       // Схлопнулся по-настоящему (не закреплён пином) - закрываем и раскрытые
       // дропдауны, чтобы при следующем заходе они были свёрнуты.
@@ -49,9 +55,22 @@ export function useRailExpand(instance) {
     }, COLLAPSE_DELAY);
   }
 
+  function onThemePanelChange(open) {
+    themePanelOpen.value = open;
+    if (!open && !vm().$refs.navigation?.matches(':hover')) collapseMenu();
+  }
+
+  function closeMobile() {
+    const menu = vm();
+    menu.$refs.themeControls?.close();
+    if (!menu.mobileOpen) return;
+    menu.mobileOpen = false;
+    document.body.classList.remove('nav-drawer-open');
+  }
+
   onBeforeUnmount(() => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
   });
 
-  return { expandMenu, collapseMenu };
+  return { expandMenu, collapseMenu, themePanelOpen, onThemePanelChange, closeMobile };
 }

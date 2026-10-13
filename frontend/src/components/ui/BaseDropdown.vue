@@ -209,6 +209,11 @@ export default {
     // триггера; когда триггер узкий, а пункты содержательные (название + описание),
     // ширину задаём отдельно - и тогда же прижимаем меню к правому краю экрана,
     // чтобы уширение не вынесло его за вьюпорт.
+    menuPlacement: {
+      type: String,
+      default: 'auto',
+      validator: value => ['auto', 'right'].includes(value),
+    },
     menuMinWidth: {
       type: Number,
       default: 0,
@@ -453,6 +458,22 @@ export default {
       };
       const vh = window.innerHeight / z;
       const vw = window.innerWidth / z;
+      if (this.menuPlacement === 'right') {
+        const margin = 8;
+        const gap = 8;
+        const width = Math.min(this.menuMinWidth || Math.round(r.width), vw - margin * 2);
+        const height = Math.min(this.$refs.menu?.offsetHeight || 88, this.menuMaxHeight, vh - margin * 2);
+        const right = r.left + r.width;
+        const fitsRight = right + gap + width <= vw - margin;
+        const left = fitsRight ? right + gap : Math.max(margin, vw - width - margin);
+        const top = Math.max(margin, Math.min(r.top + (r.bottom - r.top - height) / 2, vh - height - margin));
+        this.menuStyle = {
+          position: 'fixed', left: Math.round(left) + 'px', top: Math.round(top) + 'px', bottom: 'auto',
+          width: Math.round(width) + 'px', maxHeight: Math.min(this.menuMaxHeight, Math.max(0, vh - margin * 2)) + 'px', zIndex: this.menuZIndex,
+        };
+        if (this.isOpen) this.$nextTick(this.updateOptionsHeight);
+        return;
+      }
       const gap = 5;
       const margin = 8; // не впритык к краю экрана
       const spaceBelow = vh - r.bottom - gap - margin;
