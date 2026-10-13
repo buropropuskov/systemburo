@@ -37,6 +37,6 @@
   }
 }
 /* Expanded navigation covers the page: keep underlying table text unreadable. */
-:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) .nav-menu:is(.expanded, .nav-menu--mobile-open) {
+:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) .nav-menu:is(.expanded, .nav-menu--mobile-open):not([data-theme="light"]):not([data-theme="light"] *) {
   background-color: var(--surface);
 }

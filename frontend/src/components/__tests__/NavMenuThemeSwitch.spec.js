@@ -126,3 +126,35 @@ describe('NavMenu: переключатель темы (#1415)', () => {
     expect(toggle().isVisible()).toBe(true);
   });
 });
+
+describe('theme panel navigation lifecycle', () => {
+  it.each(['closeMobile', 'hideRail', 'closeAllDropdowns'])('closes settings through %s', async (method) => {
+    wrapper = mountNav();
+    await flushPromises();
+    await wrapper.find('[data-testid="nav-theme-toggle"]').trigger('click');
+    await flushPromises();
+    expect(document.querySelector('.theme-options')).not.toBeNull();
+    wrapper.vm[method]();
+    await flushPromises();
+    expect(document.querySelector('.theme-options')).toBeNull();
+  });
+  it('keeps navigation expanded while the pointer crosses to settings', async () => {
+    wrapper = mountNav();
+    await flushPromises();
+    wrapper.vm.isExpanded = true;
+    await wrapper.find('[data-testid="nav-theme-toggle"]').trigger('click');
+    await flushPromises();
+    const panel = document.querySelector('.theme-options');
+    wrapper.vm.$refs.navigation.matches = vi.fn(() => false);
+    panel.matches = vi.fn(() => true);
+    wrapper.vm.collapseMenu();
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(wrapper.vm.isExpanded).toBe(true);
+    panel.matches = vi.fn(() => false);
+    wrapper.vm.collapseMenu();
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(wrapper.vm.isExpanded).toBe(false);
+    wrapper.vm.closeAllDropdowns();
+    await flushPromises();
+  });
+});

@@ -6,6 +6,7 @@
     teleport
     :disabled="disabled"
     :menu-min-width="260"
+    menu-placement="right"
     :options="[]"
   >
     <template #trigger="{ toggle, isOpen }">
@@ -34,6 +35,7 @@
         class="theme-options"
         :disabled="disabled"
         aria-label="Настройка оформления"
+        @mouseleave="emit('panel-leave')"
       >
         <SwitchToggle
           class="theme-option"
@@ -63,6 +65,7 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useThemeStore } from '@/stores/theme';
 
 const props = defineProps({ disabled: { type: Boolean, default: false } });
+const emit = defineEmits(['open-change', 'panel-leave']);
 const theme = useThemeStore();
 const dropdown = ref(null);
 const trigger = ref(null);
@@ -74,6 +77,7 @@ const open = (toggle, event) => {
   toggle();
 };
 watch(() => dropdown.value?.isOpen, async (isOpen, wasOpen) => {
+  emit('open-change', Boolean(isOpen));
   if (isOpen && keyboardOpen) {
     await nextTick();
     panel.value?.querySelector('input')?.focus();
@@ -81,6 +85,8 @@ watch(() => dropdown.value?.isOpen, async (isOpen, wasOpen) => {
     trigger.value?.focus();
   }
 });
+const close = () => { if (dropdown.value) dropdown.value.isOpen = false; };
+defineExpose({ close, isHovered: () => Boolean(panel.value?.matches(':hover')) });
 const alternative = computed(() => theme.current.startsWith('glass-'));
 const dark = computed(() => theme.current.endsWith('dark'));
 const select = (alt, isDark) => {

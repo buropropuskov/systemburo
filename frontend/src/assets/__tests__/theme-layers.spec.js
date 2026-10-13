@@ -186,9 +186,12 @@ describe('подложка под карточками темнее карточ
   });
 });
 
-it('expanded navigation is opaque on desktop and in the mobile drawer', () => {
+it('expanded navigation is opaque and outranks the general chrome surface', () => {
   const css = fs.readFileSync(path.join(SRC, 'assets/glass-theme.css'), 'utf8');
-  const rule = css.match(/\.nav-menu:is\(\.expanded, \.nav-menu--mobile-open\)\s*\{([^}]+)\}/);
+  const rule = css.match(/(\.nav-menu:is\(\.expanded, \.nav-menu--mobile-open\)[^{]*)\{([^}]+)\}/);
   expect(rule).not.toBeNull();
-  expect(rule[1]).toMatch(/background-color:\s*var\(--surface\)/);
+  // Preserve both exclusions from the generic chrome rule. The extra expanded
+  // state then gives this override higher specificity without !important.
+  expect(rule[1]).toContain(':not([data-theme="light"]):not([data-theme="light"] *)');
+  expect(rule[2]).toMatch(/background-color:\s*var\(--surface\)/);
 });

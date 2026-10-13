@@ -48,3 +48,31 @@ describe('BaseDropdown позиционирование меню под корн
     expect(w.vm.menuStyle.top).toBe('399px'); // round(630/1.6)+5 = round(393.75)+5
   });
 });
+
+describe('optional side placement', () => {
+  it('opens to the right with an eight pixel gap', async () => {
+    zoom.value = 1;
+    Object.defineProperty(window, 'innerWidth', { value: 1000, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    const w = mountDd();
+    await w.setProps({ menuPlacement: 'right', menuMinWidth: 260 });
+    w.vm.$refs.dropdown.getBoundingClientRect = () => ({ left: 0, top: 650, bottom: 690, width: 248 });
+    w.vm.updateMenuPosition();
+    expect(w.vm.menuStyle.left).toBe('256px');
+    expect(w.vm.menuStyle.top).toBe('626px');
+    expect(w.vm.menuStyle.bottom).toBe('auto');
+    w.unmount();
+  });
+  it('clamps the panel inside a narrow viewport', async () => {
+    zoom.value = 1;
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 844, configurable: true });
+    const w = mountDd();
+    await w.setProps({ menuPlacement: 'right', menuMinWidth: 260 });
+    w.vm.$refs.dropdown.getBoundingClientRect = () => ({ left: 0, top: 760, bottom: 804, width: 280 });
+    w.vm.updateMenuPosition();
+    expect(w.vm.menuStyle.left).toBe('122px');
+    expect(parseFloat(w.vm.menuStyle.top) + 88).toBeLessThanOrEqual(836);
+    w.unmount();
+  });
+});
