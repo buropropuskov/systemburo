@@ -144,9 +144,15 @@ describe('theme panel navigation lifecycle', () => {
     wrapper.vm.isExpanded = true;
     await wrapper.find('[data-testid="nav-theme-toggle"]').trigger('click');
     await flushPromises();
+    const panel = document.querySelector('.theme-options');
+    panel.matches = vi.fn(() => true);
     wrapper.vm.collapseMenu();
     await new Promise(resolve => setTimeout(resolve, 180));
     expect(wrapper.vm.isExpanded).toBe(true);
+    panel.matches = vi.fn(() => false);
+    wrapper.vm.collapseMenu();
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(wrapper.vm.isExpanded).toBe(false);
     wrapper.vm.closeAllDropdowns();
     await flushPromises();
   });

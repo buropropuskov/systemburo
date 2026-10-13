@@ -43,7 +43,7 @@ export function useRailExpand(instance) {
     hoverTimeout = setTimeout(() => {
       const menu = vm();
       // Keep the rail open while the pointer is over its teleported settings.
-      if (menu.themePanelOpen) {
+      if (menu.themePanelOpen && (menu.$refs.navigation?.matches(':hover') || menu.$refs.themeControls?.isHovered())) {
         hoverTimeout = null;
         return;
       }
@@ -57,6 +57,7 @@ export function useRailExpand(instance) {
 
   function onThemePanelChange(open) {
     themePanelOpen.value = open;
+    if (open) { expandMenu(); return; }
     if (!open && !vm().$refs.navigation?.matches(':hover')) collapseMenu();
   }
 
