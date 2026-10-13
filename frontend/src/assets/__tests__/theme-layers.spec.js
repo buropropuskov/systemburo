@@ -185,3 +185,10 @@ describe('подложка под карточками темнее карточ
     expect(rootBackgrounds(src, cls).join(' ')).toMatch(/var\(--surface-sunken\)/);
   });
 });
+
+it('expanded navigation is opaque on desktop and in the mobile drawer', () => {
+  const css = fs.readFileSync(path.join(SRC, 'assets/glass-theme.css'), 'utf8');
+  const rule = css.match(/\.nav-menu:is\(\.expanded, \.nav-menu--mobile-open\)\s*\{([^}]+)\}/);
+  expect(rule).not.toBeNull();
+  expect(rule[1]).toMatch(/background-color:\s*var\(--surface\)/);
+});
