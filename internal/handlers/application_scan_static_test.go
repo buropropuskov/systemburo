@@ -113,16 +113,37 @@ func TestApplicationScans_StaticGate(t *testing.T) {
 			"cookie тоже называет пользователя, значит проверка принадлежности применима")
 	})
 
-	t.Run("процентное кодирование не проносит путь мимо гейта", func(t *testing.T) {
-		// Раздача echo снимает кодировку сама, уже после выбора маршрута: путь
-		// вида a/%2e%2e/application_files/x доезжает до того же файла.
+	t.Run("кодированный обход каталога запрещён всем", func(t *testing.T) {
+		// Echo отвергает сегмент .. после снятия кодировки, даже если
+		// проверка принадлежности разрешает владельцу доступ к самому скану.
 		sneaky := "/api/uploads/unload_places/%2e%2e/application_files/" + stored
 
-		owner := getStatic(t, e, sneaky, testutil.AuthHeader(ownerToken))
-		require.Equal(t, http.StatusOK, owner.Code,
-			"путь должен вести к тому же файлу, иначе проверка ниже ничего не значит")
+		for _, user := range []struct{ name, token string }{
+			{"владелец", ownerToken},
+			{"посторонний", strangerToken},
+			{"суперадминистратор", adminToken},
+		} {
+			t.Run(user.name, func(t *testing.T) {
+				r := getStatic(t, e, sneaky, testutil.AuthHeader(user.token))
+				require.Equal(t, http.StatusNotFound, r.Code, r.Body.String())
+			})
+		}
+	})
 
-		stranger := getStatic(t, e, sneaky, testutil.AuthHeader(strangerToken))
+	t.Run("процентное кодирование не проносит путь мимо гейта", func(t *testing.T) {
+		// Кодирование обычного символа сохраняет достижимый путь к скану:
+		// гейт должен проверить тот же файл, который затем отдаст Echo.
+		encoded := "/api/uploads/application%5ffiles/" + stored
+
+		owner := getStatic(t, e, encoded, testutil.AuthHeader(ownerToken))
+		require.Equal(t, http.StatusOK, owner.Code, owner.Body.String())
+		require.NotEmpty(t, owner.Body.Bytes(), "файл должен отдаться содержимым")
+		plain := getStatic(t, e, scanURL(stored), testutil.AuthHeader(ownerToken))
+		require.Equal(t, http.StatusOK, plain.Code, plain.Body.String())
+		require.Equal(t, plain.Body.Bytes(), owner.Body.Bytes(),
+			"кодированный путь должен отдавать тот же скан")
+
+		stranger := getStatic(t, e, encoded, testutil.AuthHeader(strangerToken))
 		require.Equal(t, http.StatusNotFound, stranger.Code, stranger.Body.String())
 	})
 }
