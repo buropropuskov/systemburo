@@ -6,6 +6,7 @@
     teleport
     :disabled="disabled"
     :menu-min-width="260"
+    :menu-z-index="10010"
     menu-placement="right"
     :options="[]"
   >

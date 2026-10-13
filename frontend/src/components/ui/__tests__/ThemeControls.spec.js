@@ -80,3 +80,10 @@ describe('single dropdown theme setting', () => {
     expect(saveTheme).not.toHaveBeenCalled();
   });
 });
+
+it('places settings above the mobile navigation layer', () => {
+  const w = create();
+  const layer = w.findComponent({ name: 'BaseDropdown' }).props('menuZIndex');
+  expect(layer).toBeGreaterThan(10000);
+  expect(layer).toBeLessThan(11000);
+});
