@@ -107,7 +107,8 @@ function updatePosition() {
 
   bubbleStyle.value = {
     position: 'fixed',
-    width: `${w}px`,
+    width: props.compact ? 'max-content' : `${w}px`,
+    maxWidth: `${bubbleWidth(z)}px`,
     left: `${Math.max(EDGE, Math.min(anchorCenter - w / 2, vw - w - EDGE))}px`,
     top: `${top}px`,
     zIndex: props.zIndex,
@@ -184,6 +185,7 @@ onBeforeUnmount(close);
 <style>
 /* Пузырёк живёт в <body> (Teleport) - scoped-хэш до него не достаёт. */
 .hint-tooltip__bubble {
+  box-sizing: border-box;
   padding: 8px 10px;
   background: var(--hint-bg);
   color: var(--hint-text);
@@ -196,5 +198,5 @@ onBeforeUnmount(close);
   box-shadow: 0 4px 12px var(--shadow-drop);
   pointer-events: none;
 }
-.hint-tooltip__bubble--compact { text-align: center; border-radius: 15px; overflow-wrap: anywhere; }
+.hint-tooltip__bubble--compact { padding: 6px 10px; text-align: center; border-radius: 8px; overflow-wrap: anywhere; }
 </style>

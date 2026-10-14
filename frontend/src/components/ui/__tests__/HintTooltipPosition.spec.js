@@ -82,4 +82,16 @@ describe('HintTooltip позиционирование под корневым z
     // не ниже, чем vh - h - EDGE = 1080 - 100 - 8
     expect(parseFloat(style.top)).toBeLessThanOrEqual(972);
   });
+
+  it('compact сохраняет естественную ширину после замера и ограничение экрана', async () => {
+    const w = mount(HintTooltip, { props: { text: 'Открыть заявку', compact: true }, attachTo: document.body });
+    const style = await showAt(w, { top: 500, bottom: 514, left: 800, width: 14 });
+    expect(style.width).toBe('max-content');
+    expect(style.maxWidth).toBe('260px');
+    Object.defineProperty(window, 'innerWidth', { value: 200, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+    await w.vm.$nextTick();
+    expect(document.querySelector('.hint-tooltip__bubble').style.maxWidth).toBe('184px');
+    w.unmount();
+  });
 });

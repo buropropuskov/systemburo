@@ -10,6 +10,26 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Только статические зависимости входа: страницы и тяжёлые функции
+        // остаются отложенными. Не создаём десятки стартовых микрофайлов.
+        codeSplitting: {
+          groups: [{
+            name: 'app-shell',
+            tags: ['$initial'],
+            // main содержит top-level await router.isReady(). Если включить его
+            // в общий файл, lazy-страница начнёт ждать собственный bootstrap.
+            test: (id) => {
+              const file = id.replaceAll('\\', '/').split('?')[0];
+              return !file.endsWith('/src/main.js') && !file.endsWith('/index.html');
+            },
+          }],
+        },
+      },
+    },
+  },
   server: {
     port: 8081,
     /*

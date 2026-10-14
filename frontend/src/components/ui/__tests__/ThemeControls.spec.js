@@ -87,3 +87,24 @@ it('places settings above the mobile navigation layer', () => {
   expect(layer).toBeGreaterThan(10000);
   expect(layer).toBeLessThan(11000);
 });
+
+it('keeps mobile settings inside navigation and closes when switching layout', async () => {
+  const w = create({ inline: true });
+  await w.get('button').trigger('click');
+  expect(w.find('.theme-options').exists()).toBe(true);
+  expect(w.findComponent({ name: 'BaseDropdown' }).props('teleport')).toBe(false);
+  await w.setProps({ inline: false });
+  expect(document.querySelector('.theme-options')).toBeNull();
+  await w.get('button').trigger('click');
+  expect(w.find('.theme-options').exists()).toBe(false);
+  expect(document.querySelector('.theme-options')).not.toBeNull();
+});
+it('updates the disclosure arrow with the setting state', async () => {
+  const w = create({ inline: true });
+  expect(w.get('.theme-arrow').classes()).not.toContain('theme-arrow--open');
+  await w.get('button').trigger('click');
+  expect(w.get('.theme-arrow').classes()).toContain('theme-arrow--open');
+  expect(w.get('button').attributes('aria-expanded')).toBe('true');
+  await w.get('button').trigger('click');
+  expect(w.get('.theme-arrow').classes()).not.toContain('theme-arrow--open');
+});
