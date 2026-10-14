@@ -56,22 +56,45 @@ func TestPDObjection_LocksPersonalFieldsButNotBinding(t *testing.T) {
 		Select("COALESCE(last_name, '')").Row().Scan(&last))
 	assert.Equal(t, "Возражаев", last, "прежнее значение сохранено")
 
-	// Привязка к подразделению - не сведения о человеке, её менять можно. Но
-	// персональные поля обязаны прийти в запросе неизменными: метод правки пишет
-	// весь набор разом, и короткий запрос стёр бы ФИО (поймано на стенде).
+	// Привязка меняется и при возражении; полный запрос с прежними ПД допустим.
 	rec = testutil.PUT(t, e, path,
 		`{"last_name":"Возражаев","first_name":"Пётр","position":"Мастер","passport_series_number":"4501 111111","company_id":`+itoa(td.CompanyID)+`,"pd_consent":true}`, h)
 	assert.Equal(t, http.StatusOK, rec.Code, "привязка меняется и при возражении: "+rec.Body.String())
 
-	// А короткий запрос, где персональных полей нет вовсе, отклоняется: иначе он
-	// молча обнулил бы фамилию, имя и должность у записи, которую возражение как раз
-	// и должно защищать.
-	rec = testutil.PUT(t, e, path, `{"company_id":`+itoa(td.CompanyID)+`}`, h)
-	assert.Equal(t, http.StatusConflict, rec.Code, "запрос без персональных полей стирает их - отклоняем")
+	var before models.UniqueEmployee
+	require.NoError(t, db.First(&before, id).Error)
+	// Короткий запрос действительно меняет привязку, не повторяя персональные поля.
+	rec = testutil.PUT(t, e, path, `{"organization_id":`+itoa(td.OrgID)+`}`, h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var after models.UniqueEmployee
+	require.NoError(t, db.First(&after, id).Error)
+	assert.Equal(t, &td.OrgID, after.OrganizationID)
+	assert.Nil(t, after.CompanyID)
+	assert.Equal(t, before.LastName, after.LastName)
+	assert.Equal(t, before.FirstName, after.FirstName)
+	assert.Equal(t, before.Position, after.Position)
+	assert.Equal(t, before.PassportSeriesNumber, after.PassportSeriesNumber)
+	assert.Equal(t, before.PDObjectionAt, after.PDObjectionAt)
+	assert.Equal(t, before.PDObjectionSource, after.PDObjectionSource)
 
-	require.NoError(t, db.Model(&models.UniqueEmployee{}).Where("id = ?", id).
-		Select("COALESCE(last_name, '')").Row().Scan(&last))
-	assert.Equal(t, "Возражаев", last, "фамилия на месте после отказа")
+	// JSON null имеет ту же семантику для ПД, что и отсутствующее поле.
+	rec = testutil.PUT(t, e, path, `{"organization_id":`+itoa(td.OrgID)+`,"last_name":null,"citizenship_id":null}`, h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	// Запрещённое изменение не должно частично менять привязку.
+	for _, body := range []string{
+		`{"last_name":"","company_id":` + itoa(td.CompanyID) + `}`,
+		`{"passport_series_number":"4501 999999","company_id":` + itoa(td.CompanyID) + `}`,
+	} {
+		rec = testutil.PUT(t, e, path, body, h)
+		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	}
+	var unchanged models.UniqueEmployee
+	require.NoError(t, db.First(&unchanged, id).Error)
+	assert.Equal(t, after.LastName, unchanged.LastName)
+	assert.Equal(t, after.PassportSeriesNumber, unchanged.PassportSeriesNumber)
+	assert.Equal(t, after.OrganizationID, unchanged.OrganizationID)
+	assert.Nil(t, unchanged.CompanyID)
+	assert.Equal(t, before.PDObjectionAt, unchanged.PDObjectionAt)
 }
 
 func TestPDObjection_StoresWhoWhenAndSource(t *testing.T) {
