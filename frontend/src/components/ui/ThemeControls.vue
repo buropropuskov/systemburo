@@ -1,9 +1,10 @@
 <template>
   <BaseDropdown
     ref="dropdown"
-    :key="disabled ? 'disabled' : 'enabled'"
+    :key="`${disabled}-${inline}`"
     class="theme-controls"
-    teleport
+    :class="{ 'theme-controls--inline': inline }"
+    :teleport="!inline"
     :disabled="disabled"
     :menu-min-width="260"
     :menu-z-index="10010"
@@ -28,6 +29,12 @@
           class="nav-icon"
         />
         <span class="nav-text">Оформление</span>
+        <AppIcon
+          name="arrow"
+          :size="14"
+          class="theme-arrow"
+          :class="{ 'theme-arrow--open': isOpen }"
+        />
       </button>
     </template>
     <template #content>
@@ -61,11 +68,12 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import NavIcon from '@/components/icons/NavIcon.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import SwitchToggle from '@/components/ui/SwitchToggle.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useThemeStore } from '@/stores/theme';
 
-const props = defineProps({ disabled: { type: Boolean, default: false } });
+const props = defineProps({ disabled: { type: Boolean, default: false }, inline: { type: Boolean, default: false } });
 const emit = defineEmits(['open-change', 'panel-leave']);
 const theme = useThemeStore();
 const dropdown = ref(null);
@@ -117,6 +125,9 @@ const select = (alt, isDark) => {
 .theme-trigger:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 .theme-trigger:disabled { opacity: 0.4; cursor: not-allowed; }
 .nav-icon { flex-shrink: 0; }
+.theme-arrow { margin-left: auto; flex-shrink: 0; color: var(--nav-text-muted); opacity: 0; transform: rotate(90deg); transition: transform 0.2s ease; }
+.theme-arrow--open { transform: rotate(270deg); }
+.nav-menu.expanded .theme-arrow { opacity: 1; }
 .nav-text { font-size: 13px; font-weight: 500; line-height: 16px; white-space: nowrap; opacity: 0; }
 .nav-menu.expanded .nav-text { opacity: 1; }
 .theme-options { margin: 0; border: 0; min-width: 0; padding: 4px 14px; display: flex; flex-direction: column; }
@@ -124,6 +135,36 @@ const select = (alt, isDark) => {
 .theme-option + .theme-option { border-top: 1px solid var(--border); }
 @media (max-width: 1366px), (hover: none) and (pointer: coarse) {
   .nav-text { opacity: 1; }
+  .theme-arrow { opacity: 1; }
   .theme-trigger { min-height: 44px; }
 }
+.theme-controls--inline :deep(.base-dropdown__menu) {
+  position: static;
+  width: auto;
+  min-width: 0;
+  margin: 0 7px 4px;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.theme-controls--inline .theme-options {
+  margin: 2px 8px 8px 23px;
+  padding: 2px 0;
+  border-left: 2px solid var(--nav-active-text, var(--accent));
+  border-radius: 0 12px 12px 0;
+  background: var(--nav-hover);
+}
+.theme-controls--inline .theme-option {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 12px 0 14px;
+  color: var(--nav-text);
+  font-size: 13px;
+  font-weight: 500;
+  border: 0;
+  border-radius: 12px;
+}
+.theme-controls--inline .theme-option:hover { background: var(--nav-hover); }
 </style>

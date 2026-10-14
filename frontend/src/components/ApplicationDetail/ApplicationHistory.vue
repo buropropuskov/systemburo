@@ -250,6 +250,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { ACTION_DOT_CLASS, ACTION_TEXT } from '@/utils/applicationHistoryActions';
 import { formatMoscow, formatMoscowDateTime } from '@/utils/serverTime';
@@ -286,11 +287,15 @@ export default {
         // контента) закрывает окно истории (useSwipeDismiss, как в ApplicationDetail).
         const scrollContainer = ref(null);
         const requestClose = ref(null);
-        const swipe = useSwipeDismiss(() => { if (requestClose.value) requestClose.value(); }, {
+        const showModal = ref(false);
+        const closeHistory = () => requestClose.value?.();
+        useEscapeClose(closeHistory, showModal, 20000);
+        const swipe = useSwipeDismiss(closeHistory, {
             getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
             handleSelector: '.sheet-handle',
         });
         return {
+            showModal,
             scrollContainer,
             requestClose,
             sheetOffset: swipe.offset,
@@ -303,7 +308,6 @@ export default {
     },
     data() {
         return {
-            showModal: false,
             // Журнал открыл тур - только такое окно он и закрывает за собой.
             historyOpenedByTour: false,
             loading: false,

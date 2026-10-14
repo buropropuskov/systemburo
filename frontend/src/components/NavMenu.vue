@@ -424,7 +424,7 @@
             />
             <span class="nav-text">Личный кабинет</span>
           </div>
-          <ThemeControls ref="themeControls" :disabled="isBanned" @open-change="onThemePanelChange" @panel-leave="collapseMenu" />
+          <ThemeControls ref="themeControls" :disabled="isBanned" :inline="mobileOpen" @open-change="onThemePanelChange" @panel-leave="collapseMenu" />
 
           <div
             class="nav-item"

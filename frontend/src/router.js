@@ -7,15 +7,6 @@ import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import { usePDConsentStore } from '@/stores/pdConsent';
 import { buildLoginRedirect } from '@/utils/postLoginRedirect';
-import LoginComponent from './components/LoginComponent.vue';
-import TablesComponent from './components/TablesComponent.vue';
-import AccountComponent from './components/AccountComponent.vue';
-import CreateApplication from './components/CreateApplication/CreateApplication.vue';
-import CarsView from './views/CarsView.vue';
-import ApplicationsCenter from './views/ApplicationsCenter.vue';
-import TableConstructor from './components/TableConstructor.vue';
-import EmployeeView from './views/EmployeeView.vue';
-import NewsAndReview from './views/NewsAndReview.vue';
 
 // Гейтинг прав (#187, Фаза 2): admin/table-маршруты несут meta.permission и
 // проверяются в beforeEach через usePermissionsStore.hasPermission. super/admin
@@ -31,7 +22,7 @@ const routes = [
   {
     path: '/',
     name: 'LoginComponent',
-    component: LoginComponent,
+    component: () => import('./components/LoginComponent.vue'),
     meta: { requiresAuth: false }
   },
   // Привычный адрес формы входа. Сама форма живёт на '/', поэтому '/login' без
@@ -43,7 +34,7 @@ const routes = [
   {
     path: '/new-application',
     name: 'NewApplication',
-    component: CreateApplication,
+    component: () => import('./components/CreateApplication/CreateApplication.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -57,7 +48,7 @@ const routes = [
   {
     path: '/table/:tableName',
     name: 'DynamicTable',
-    component: TablesComponent,
+    component: () => import('./components/TablesComponent.vue'),
     meta: { requiresAuth: true, permission: (to) => `table.${to.params.tableName}.view` }
   },
   {
@@ -75,7 +66,7 @@ const routes = [
   {
     path: '/personal-cabinet',
     name: 'Account',
-    component: AccountComponent,
+    component: () => import('./components/AccountComponent.vue'),
     meta: { requiresAuth: true }
   },
   // Тонкая настройка уведомлений (#1748, S8) - своя, не админская: доступна
@@ -89,13 +80,13 @@ const routes = [
   {
     path: '/carsview',
     name: 'CarsView',
-    component: CarsView,
+    component: () => import('./views/CarsView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/center',
     name: 'ApplicationsCenter',
-    component: ApplicationsCenter,
+    component: () => import('./views/ApplicationsCenter.vue'),
     meta: { requiresAuth: true, permission: 'page.center' }
   },
   // "Доступные мне": вложения согласованных заявок, совпавших по месту с местами
@@ -110,20 +101,20 @@ const routes = [
   {
     path: '/table-constructor',
     name: 'TableConstructor',
-    component: TableConstructor,
+    component: () => import('./components/TableConstructor.vue'),
     meta: { requiresAuth: true, permission: 'page.admin.tables_constructor' }
   },
   { path: '/number-format', redirect: '/admin/number-formats' },
   {
     path: '/employeesview',
     name: 'EmployeeView',
-    component: EmployeeView,
+    component: () => import('./views/EmployeeView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/news',
     name: 'NewsAndReview',
-    component: NewsAndReview,
+    component: () => import('./views/NewsAndReview.vue'),
     meta: { requiresAuth: true }
   },
   ...adminRoutes,

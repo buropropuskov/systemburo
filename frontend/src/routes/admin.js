@@ -8,13 +8,12 @@
  * Каталог routes, а не router: рядом с router.js каталог router/ сбивал бы
  * разрешение импорта './router' - он резолвится и в файл, и в каталог.
  */
-import FeedbackPage from '../views/FeedbackPage.vue';
 
 export const adminRoutes = [
   {
     path: '/admin/feedback',
     name: 'FeedbackPage',
-    component: FeedbackPage,
+    component: () => import('../views/FeedbackPage.vue'),
     meta: { requiresAuth: true, permission: 'page.admin.feedback' }
   },
   {
