@@ -8,9 +8,12 @@ import { tryRestoreSession } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
-import { installBeforeUnloadGuard } from '@/utils/dirtyTracker'
+import { hasAnyDirty, installBeforeUnloadGuard } from '@/utils/dirtyTracker'
 import { initViewportScale } from '@/utils/viewportScale'
 import { attachPushNavigationListener } from '@/utils/pushNavigation'
+import { useUiStore } from '@/stores/ui'
+import { useDeletionsStore } from '@/stores/deletions'
+import { installAssetLoadRecovery, isAssetLoadError } from '@/utils/assetLoadRecovery'
 import './assets/fonts.css'
 import './assets/tokens.css'
 import './assets/forms.css'
@@ -50,13 +53,29 @@ const boot = [useMaintenanceStore().fetchStatus()]
 if (useAuthStore().token) boot.push(useThemeStore().syncFromServer())
 await Promise.all(boot)
 
+let markAppReady
+const appReady = new Promise((resolve) => { markAppReady = resolve })
+installAssetLoadRecovery({
+  router, ready: appReady,
+  confirm: (options) => useUiStore().confirm(options),
+  notify: (options) => useDeletionsStore().notify(options),
+  isDirty: hasAnyDirty,
+  isConfirmOpen: () => !!useUiStore().confirmState,
+  reload: () => window.location.reload(),
+})
 app.use(router)
 // Клик по push-уведомлению у открытой вкладки обрабатывается тут, а не
 // перезагрузкой страницы service worker'ом (#974).
 attachPushNavigationListener(router)
-await router.isReady()
+try {
+  await router.isReady()
+} catch (error) {
+  // Оболочка нужна и при отказе первого route chunk: в ней живёт ConfirmDialog.
+  if (!isAssetLoadError(error)) throw error
+}
 installBeforeUnloadGuard()
 app.mount('#app')
+markAppReady()
 // Масштаб UI под эталон 1440 на больших мониторах - после mount, чтобы корень
 // уже существовал и первый zoom применился к готовому дереву.
 initViewportScale()
