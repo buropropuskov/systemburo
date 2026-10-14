@@ -152,6 +152,38 @@ describe('DownloadBlanksModal - выбор вложений и скачиван�
     expect(zipFile).toHaveBeenCalledTimes(ATTACHMENTS.length);
     expect(saveBlobAs).toHaveBeenCalledWith(expect.any(Blob), expect.stringMatching(/^20260801-601.*\.zip$/));
   });
+
+  it('повторный запуск не создаёт второй архив до окончания первого', async () => {
+    wrapper = await mountModal();
+    wrapper.vm.selectedIds = [1, 2];
+    let finish;
+    zipGenerate.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const first = wrapper.vm.downloadSelected();
+    await flushPromises();
+    expect(wrapper.vm.downloadingAll).toBe(true);
+    await wrapper.vm.downloadSelected();
+    expect(zipGenerate).toHaveBeenCalledTimes(1);
+    finish(new Blob(['zip']));
+    await first;
+    expect(wrapper.vm.downloadingAll).toBe(false);
+    expect(saveBlobAs).toHaveBeenCalledTimes(1);
+    await wrapper.vm.downloadSelected();
+    expect(zipGenerate).toHaveBeenCalledTimes(2);
+  });
+
+  it('ошибка подготовки ZIP показана пользователю, состояние сброшено и повтор доступен', async () => {
+    wrapper = await mountModal();
+    wrapper.vm.selectedIds = [1, 2];
+    zipGenerate.mockRejectedValueOnce(new Error('ZIP unavailable'));
+    await wrapper.vm.downloadSelected();
+    expect(wrapper.vm.downloadingAll).toBe(false);
+    expect(saveBlobAs).not.toHaveBeenCalled();
+    expect(useDeletionsStore().notify).toHaveBeenCalledWith(expect.objectContaining({
+      prefix: 'Не удалось подготовить архив: ', bold: 'ZIP unavailable', type: 'error',
+    }));
+    await wrapper.vm.downloadSelected();
+    expect(saveBlobAs).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('DownloadBlanksModal - гейт сведений документов', () => {

@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   build: {
+    manifest: true,
     rolldownOptions: {
       output: {
         // Только статические зависимости входа: страницы и тяжёлые функции
