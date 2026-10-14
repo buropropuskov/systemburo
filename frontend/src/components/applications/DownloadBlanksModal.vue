@@ -129,7 +129,6 @@
 </template>
 
 <script>
-import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
@@ -265,7 +264,7 @@ export default {
       }
     },
     async downloadSelected() {
-      if (!this.selectedIds.length) return;
+      if (!this.selectedIds.length || this.downloadingAll) return;
       this.downloadingAll = true;
       try {
         if (this.selectedIds.length === 1) {
@@ -273,11 +272,14 @@ export default {
         } else {
           await this.downloadAsZip(this.selectedIds);
         }
+      } catch (err) {
+        useDeletionsStore().notify({ prefix: 'Не удалось подготовить архив: ', bold: err.message || 'ошибка загрузки', type: 'error' });
       } finally {
         this.downloadingAll = false;
       }
     },
     async downloadAsZip(ids) {
+      const { default: JSZip } = await import('jszip');
       const zip = new JSZip();
       for (const id of ids) {
         try {
@@ -300,6 +302,7 @@ export default {
       useDeletionsStore().notify({ prefix: 'Скачано: ', bold: `${ids.length} файлов в ZIP` });
     },
     async downloadAll() {
+      if (this.downloadingAll) return;
       this.selectedIds = this.eligibleAttachments.map(a => a.id);
       await this.downloadSelected();
     },

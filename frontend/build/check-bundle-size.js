@@ -1,92 +1,59 @@
 #!/usr/bin/env node
-/*
- * Бюджет стартовой загрузки.
- *
- * Считаем ровно то, что браузер тянет до первого экрана: модуль-точку входа,
- * все modulepreload и стили из dist/index.html. Ленивые чанки роутов сюда не
- * попадают, поэтому число отражает цену открытия страницы логина, а не размер
- * сборки целиком.
- *
- * Меряем в gzip: по сети едет он, и разница существенная - ExcelJS весит
- * 908 КБ сырыми и 249 КБ сжатыми. Уровень сжатия фиксирован, чтобы число не
- * плавало между машинами.
- *
- * Бюджет держится чуть выше текущего размера и опускается по мере работы над
- * бандлом. Вырос - CI краснеет и показывает, какой файл потяжелел.
- *
- * Запуск: npm run build && node build/check-bundle-size.js [--update]
- */
+// Расчётный gzip JS/CSS: shell и shell + выбранный экран, включая static imports.
+// Это воспроизводимая метрика сборки, а не измерение реального сетевого сжатия.
 import fs from 'node:fs'
 import path from 'node:path'
-import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
+import { collectAssets, measureAssets, checkLimits } from './bundle-metrics.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = path.join(ROOT, 'dist')
-const INDEX = path.join(DIST, 'index.html')
 const BUDGET_PATH = path.join(ROOT, 'build', 'bundle-budget.json')
 
-if (!fs.existsSync(INDEX)) {
-  console.error('Нет dist/index.html. Сначала "npm run build".')
-  process.exit(1)
-}
+try {
+  const manifest = JSON.parse(fs.readFileSync(path.join(DIST, '.vite', 'manifest.json'), 'utf8'))
+  const budget = JSON.parse(fs.readFileSync(BUDGET_PATH, 'utf8'))
+  if (!budget.routes || !Object.keys(budget.routes).length) throw new Error('Не заданы проверяемые экраны')
+  const screens = { shell: 'index.html', ...budget.routes }
+  const results = Object.entries(screens).map(([name, config]) => {
+    const entry = typeof config === 'string' ? config : config.entry
+    const metrics = measureAssets(DIST, collectAssets(manifest, ['index.html', entry]))
+    const limits = {
+      gzipKb: name === 'shell' ? budget.initialGzipKb : config.gzipKb,
+      requests: name === 'shell' ? budget.initialRequests : config.requests,
+      largestChunkGzipKb: budget.largestChunkGzipKb,
+    }
+    if (!(limits.gzipKb > 0) || !(limits.requests > 0)) throw new Error(`Не заданы лимиты: ${name}`)
+    return { name, metrics, limits, ...checkLimits(metrics, limits) }
+  })
 
-const budget = JSON.parse(fs.readFileSync(BUDGET_PATH, 'utf8'))
-const KB = 1024
-
-/** Ассеты, которые браузер грузит до первого экрана: точка входа, modulepreload, стили. */
-function initialAssets() {
-  const html = fs.readFileSync(INDEX, 'utf8')
-  return [...new Set([...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]))]
-}
-
-function gzipSize(relUrl) {
-  const file = path.join(DIST, relUrl.replace(/^\//, ''))
-  return zlib.gzipSync(fs.readFileSync(file), { level: 9 }).length
-}
-
-const assets = initialAssets()
-  .map((url) => ({ url, gzip: gzipSize(url) }))
-  .sort((a, b) => b.gzip - a.gzip)
-
-const totalGzip = assets.reduce((sum, a) => sum + a.gzip, 0)
-const largest = assets[0]
-
-if (process.argv.includes('--update')) {
-  const next = {
-    ...budget,
-    initialGzipKb: Math.ceil((totalGzip / KB) * 1.02),
-    largestChunkGzipKb: Math.ceil((largest.gzip / KB) * 1.02),
+  if (process.argv.includes('--update')) {
+    // Обновление — только явное ужесточение существующих лимитов; рост требует ручного решения.
+    const shell = results[0]
+    const next = structuredClone(budget)
+    next.initialGzipKb = Math.min(budget.initialGzipKb, Math.ceil(shell.total / 1024 * 1.02))
+    next.initialRequests = Math.min(budget.initialRequests, shell.requests)
+    next.largestChunkGzipKb = Math.min(budget.largestChunkGzipKb,
+      Math.ceil(Math.max(...results.map((result) => result.largest)) / 1024 * 1.02))
+    for (const result of results.slice(1)) {
+      next.routes[result.name].gzipKb = Math.min(budget.routes[result.name].gzipKb,
+        Math.ceil(result.total / 1024 * 1.02))
+      next.routes[result.name].requests = Math.min(budget.routes[result.name].requests, result.requests)
+    }
+    fs.writeFileSync(BUDGET_PATH, `${JSON.stringify(next, null, 2)}\n`)
+    console.log('Существующие лимиты ужесточены по измеренной сборке; повышения не выполнялись.')
   }
-  fs.writeFileSync(BUDGET_PATH, `${JSON.stringify(next, null, 2)}\n`)
-  console.log(`Бюджет обновлён: стартовая загрузка ${next.initialGzipKb} КБ, крупнейший чанк ${next.largestChunkGzipKb} КБ.`)
-  process.exit(0)
-}
 
-console.log('Стартовая загрузка (gzip):')
-for (const a of assets.slice(0, 8)) {
-  console.log(`  ${(a.gzip / KB).toFixed(0).padStart(5)} КБ  ${a.url}`)
-}
-if (assets.length > 8) console.log(`  ... и ещё ${assets.length - 8} файлов`)
-
-const totalKb = totalGzip / KB
-const largestKb = largest.gzip / KB
-const problems = []
-if (totalKb > budget.initialGzipKb) {
-  problems.push(`стартовая загрузка ${totalKb.toFixed(0)} КБ при бюджете ${budget.initialGzipKb} КБ`)
-}
-if (largestKb > budget.largestChunkGzipKb) {
-  problems.push(`крупнейший чанк ${largest.url} ${largestKb.toFixed(0)} КБ при бюджете ${budget.largestChunkGzipKb} КБ`)
-}
-
-console.log(`Итого: ${totalKb.toFixed(0)} КБ gzip в ${assets.length} файлах, бюджет ${budget.initialGzipKb} КБ.`)
-
-if (problems.length > 0) {
-  console.error('')
-  console.error('Бюджет бандла превышен:')
-  for (const p of problems) console.error(`  ${p}`)
-  console.error('')
-  console.error('Либо унеси тяжёлое в динамический import(), либо, если рост осознанный,')
-  console.error('подними бюджет через "npm run lint:bundle -- --update" и объясни в описании PR.')
-  process.exit(1)
+  const problems = []
+  console.log('Расчётный gzip JS/CSS, level 9; каждый экран включает общую оболочку:')
+  for (const result of results) {
+    console.log(`${result.name}: ${result.total} bytes (${(result.total / 1024).toFixed(2)} KiB), ` +
+      `${result.requests} ресурсов; запас ${result.limits.gzipKb * 1024 - result.total} bytes`)
+    for (const problem of result.problems) problems.push(`${result.name}: ${problem}`)
+  }
+  if (problems.length) throw new Error(`Бюджет превышен:\n${problems.join('\n')}`)
+} catch (error) {
+  console.error(error.message)
+  console.error('Нужна production-сборка с manifest. Проверь состав ресурсов и утверждённые лимиты.')
+  process.exitCode = 1
 }

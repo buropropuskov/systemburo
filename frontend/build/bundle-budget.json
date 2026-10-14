@@ -1,4 +1,32 @@
 {
-  "initialGzipKb": 969,
-  "largestChunkGzipKb": 400
+  "initialRequests": 4,
+  "largestChunkGzipKb": 400,
+  "routes": {
+    "login": {
+      "requests": 8,
+      "entry": "src/components/LoginComponent.vue",
+      "gzipKb": 215
+    },
+    "news": {
+      "requests": 16,
+      "entry": "src/views/NewsAndReview.vue",
+      "gzipKb": 225
+    },
+    "applications": {
+      "requests": 60,
+      "entry": "src/views/ApplicationsCenter.vue",
+      "gzipKb": 500
+    },
+    "table": {
+      "requests": 64,
+      "entry": "src/components/TablesComponent.vue",
+      "gzipKb": 520
+    },
+    "createApplication": {
+      "requests": 55,
+      "entry": "src/components/CreateApplication/CreateApplication.vue",
+      "gzipKb": 410
+    }
+  },
+  "initialGzipKb": 220
 }
