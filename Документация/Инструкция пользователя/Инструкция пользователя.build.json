@@ -1,0 +1,10 @@
+{
+  "document": "user_howto",
+  "version": "1.1",
+  "pages": 59,
+  "code_revision": "9657f889443ba84525f53759c572b578b412b3c4",
+  "source_sha256": "84fff9eba1d962dc5c05e5c5c2a63b3b47e1897d20d430bfec74ec911ec9dd96",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "968b9d39af8c1f1c4373ce734b54f1b416c849c3a02d1ecf96ccc45badbf701a",
+  "pdf_sha256": "5520ff84209c86ac3f6365686a727a7aeef5054558b2a88761131a8280eeacf1"
+}

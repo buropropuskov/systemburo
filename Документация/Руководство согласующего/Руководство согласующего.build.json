@@ -1,0 +1,10 @@
+{
+  "document": "approver",
+  "version": "1.8",
+  "pages": 23,
+  "code_revision": "09e756eba5ae472f141d067b8fc18aac2df88917",
+  "source_sha256": "23934d95365835ccb4619d5e025c82d12a9da517b1c585154d830343163a02e4",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "5d51e3d997bd0a6da28dbdac7e4418751e3fea218cd176fb1acada95359b01ca",
+  "pdf_sha256": "d680c294e60d4718490091753b88ad5ea353c4295a89a7a2c300656bbab87bac"
+}

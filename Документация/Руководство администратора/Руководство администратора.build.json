@@ -1,0 +1,10 @@
+{
+  "document": "admin",
+  "version": "1.18",
+  "pages": 79,
+  "code_revision": "9657f889443ba84525f53759c572b578b412b3c4",
+  "source_sha256": "aeb3c122f2e10ad37f5ff7cbc0e5f727056ddc6b6338852fffeabc90c32b4e5a",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "750b667e765baaaca29191966451c3c2a00d312cbaff92870ea1a6a5794aab40",
+  "pdf_sha256": "f8bcc8ea01636a40856001eb485d5c087db6c13e4256314e2903c340ea218767"
+}

@@ -1,0 +1,10 @@
+{
+  "document": "pilot",
+  "version": "1.9",
+  "pages": 15,
+  "code_revision": "09e756eba5ae472f141d067b8fc18aac2df88917",
+  "source_sha256": "294bef940fb7383a37c8bfbb3d7bfeff2885c38bdd013cccaab99960b01914e2",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "187f799a2caf828977fbdbc896e43fbe5dc361ad00228c1ee9d64695273bafb8",
+  "pdf_sha256": "ae20dfd732f36b16e08e03693d183430e912a627c4b091bf3176607d5cbecd6c"
+}

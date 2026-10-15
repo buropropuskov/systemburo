@@ -16,7 +16,7 @@
 | `table.<slug>.<verb>` | Динамические таблицы (auto-generate) | `table.checkpoint_a.view` |
 | `permission.audit.*` | Журналы и аудит | `permission.audit.read \| manage` |
 
-Константы зашиты в [`internal/services/permission_keys.go`](../../internal/services/permission_keys.go) и продублированы для UI-дерева в [`frontend/src/constants/permissionKeys.js`](../../frontend/src/constants/permissionKeys.js).
+Фиксированные ключи определены в [`internal/services/permission_keys.go`](../../internal/services/permission_keys.go); каталог формируется сервером и читается через API. Общие операции UI-дерева и подписи действий таблиц — [`frontend/src/utils/permissionCatalog.js`](../../frontend/src/utils/permissionCatalog.js).
 
 ## Структура данных
 
@@ -39,7 +39,9 @@ users
 user_groups                 # явные группы юзера поверх роли
   user_id, group_id, granted_by, granted_at
 
-user_permission_overrides   # точечные override (deny приоритетнее всего)
+role_permission_grants      # прямые права роли
+
+user_permission_overrides   # личные allow/deny поверх групп
   user_id, permission_key, value=allow|deny
 
 access_denials              # журнал отказов (3 мес активно)
@@ -70,7 +72,7 @@ myMW := mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityCarsWr
 protected.POST("/cars", carHandler.Create, myMW)
 ```
 
-`RequirePermissionV2` сама логирует отказ в `access_denials` через goroutine и возвращает 403 JSON `{error, required_permission, banned}`.
+Разрешение операции не заменяет проверку видимости объекта. `RequirePermissionV2` сама логирует отказ в `access_denials` через goroutine и возвращает 403 JSON `{error, required_permission, banned}`.
 
 Для super-admin-only эндпоинтов используйте `IsSuperAdmin(c)`:
 
@@ -95,11 +97,7 @@ func (h *X) AdminOnly(c echo.Context) error {
 }
 ```
 
-Глобальный `beforeEach` guard:
-
-1. Проверит `is_super_admin` (bypass).
-2. Загрузит permissions (если кэш stale).
-3. Если право отсутствует → редирект на `/403?permission=...`.
+Глобальный beforeEach ждёт состояние согласия для защищённой страницы, обновляет stale permissions и использует hasPermission с режимами super/admin/normal/banned. Отсутствие права ведёт на /403; заблокированный направляется в кабинет. Признак type_id не является bypass.
 
 ## Защитить кнопку или компонент
 
@@ -112,9 +110,9 @@ func (h *X) AdminOnly(c echo.Context) error {
   Сохранить
 </button>
 
-<PermissionScope :key="'page.admin.users'" mode="hide">
-  <RouterLink to="/admin/users">Пользователи</RouterLink>
-</PermissionScope>
+<RouterLink v-permission-scope="'page.admin.users'" to="/admin/users">
+  Пользователи
+</RouterLink>
 ```
 
 Modes:
@@ -123,7 +121,7 @@ Modes:
 
 ## Vite-plugin: автогенерация списка ключей
 
-При `npm run build` плагин `frontend/build/vite-plugin-permissions.js` сканирует `*.vue/.ts/.js` на статические ключи в `v-permission-scope` и `<PermissionScope key="...">` и пишет `frontend/src/generated/permission-keys.json`:
+При `npm run build` плагин `frontend/build/vite-plugin-permissions.js` сканирует `*.vue/.ts/.js` на статические ключи в `v-permission-scope` (в плагине также остался шаблон распознавания PermissionScope; наличие шаблона не означает наличие компонента в приложении) и пишет `frontend/src/generated/permission-keys.json`:
 
 ```json
 {
@@ -132,7 +130,7 @@ Modes:
 }
 ```
 
-Этот файл — источник правды для проверки, какие ключи реально используются. Плагин не парсит динамические выражения; такие ключи нужно явно перечислить в `constants/permissionKeys.js`.
+Этот файл — результат статического обнаружения части использований, не полный каталог прав и не доказательство серверной защиты. Плагин не доказывает полноту динамических выражений; их серверную регистрацию и фактическое использование проверяют отдельно. Не создавать отсутствующий constants/permissionKeys.js по старой инструкции.
 
 ## Журнал отказов
 
@@ -171,7 +169,7 @@ has, err := resolver.HasPermission(ctx, user.ID, "page.center")
 ### Frontend
 
 ```js
-authStore.setTokens(createMockJWT({ type_id: 6, is_super_admin: true }));
+authStore.setTokens(createMockJWT({ is_super_admin: true }));
 // Все права доступны через bypass
 
 const store = usePermissionsStore();
@@ -182,7 +180,7 @@ expect(store.hasPermission('page.center')).toBe(true);
 ## Чек-лист добавления новой защищённой возможности
 
 1. Придумать ключ согласно naming convention.
-2. Если статический — добавить в `internal/services/permission_keys.go` и `frontend/src/constants/permissionKeys.js`.
+2. Зарегистрировать статический ключ в internal/services/permission_keys.go и серверном каталоге; для динамического — проверить существующий механизм генерации. При новом действии таблицы синхронизировать подписи permissionCatalog.js.
 3. Защитить backend endpoint через `RequirePermissionV2`.
 4. Защитить frontend (route `meta.permission` или `v-permission-scope`).
 5. Запустить `npm run build` — plugin подхватит ключ в JSON.

@@ -1,0 +1,10 @@
+{
+  "document": "overview",
+  "version": "1.83",
+  "pages": 78,
+  "code_revision": "9657f889443ba84525f53759c572b578b412b3c4",
+  "source_sha256": "a88f72203bef4126d5d5847f60e4d673caec2bc94a13d44b3edeff231a58f6fe",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "82312154ebe2ae34c2b8c123202339f7465548f31cbf5da0853dab51e6ae0e9e",
+  "pdf_sha256": "4cd12e0e03e2863e8b389d73f9023e2f1000874ca11ec389b4f5915ddc9a12d8"
+}

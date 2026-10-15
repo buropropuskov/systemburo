@@ -19,13 +19,19 @@ Role (бизнес-роль) ──many──< RoleDefaultGroup >──many─�
                                                               │
 User ──many──< UserGroup ─────────────────────────────────────┘
   │
-  └──many──< UserPermissionOverride (deny приоритетнее всего)
+  └──many──< UserPermissionOverride (личный allow/deny поверх групп)
 ```
 
 - **Один user → одна Role**, **много PermissionGroup**.
 - `is_super_admin BOOLEAN` — bypass всех проверок.
-- `is_banned BOOLEAN` — 0 прав, refresh-токены revoked.
+- Бан или неактивность — 0 прав; запрет проверяется прежде super-admin.
 - Резолвер: `internal/services/permission_resolver.go`. Кэш TTL 30s.
+
+## Приоритет и ограничения (сверено 14.10.2026)
+
+Источник — permission_resolver.go. Сначала бан/неактивность, затем super-admin, затем admin и обычные права. Для admin исключаются super-only ключи и личные deny. У обычного пользователя объединяются прямые права роли, её default-группы и группы пользователя; личный override применяется поверх. Личный allow может перекрыть групповой deny, личный deny запрещает действие. Одна строковая часть page.admin не даёт неявно все дочерние ключи.
+
+Права операции и видимость объекта проверяются отдельно. Проверка по JWT/type_id не заменяет текущий резолвер. Каталог включает отдельные права общих и индивидуальных сроков, исправления учёта и работы с ПД; точные ключи — в permission_keys.go. Кэш сервера и клиента ограничен 30 секундами и инвалидируется при изменениях; не считать эту оценку гарантией доставки при оборванной сети.
 
 ## Naming convention
 
@@ -39,4 +45,4 @@ table.<slug>.<verb>            динамические таблицы (auto-gen
 permission.audit.<verb>        журналы и аудит
 ```
 
-См. константы в [`internal/services/permission_keys.go`](../../internal/services/permission_keys.go) и [`frontend/src/constants/permissionKeys.js`](../../frontend/src/constants/permissionKeys.js).
+См. константы в [`internal/services/permission_keys.go`](../../internal/services/permission_keys.go) ; обработка каталога в интерфейсе — [`frontend/src/utils/permissionCatalog.js`](../../frontend/src/utils/permissionCatalog.js).
