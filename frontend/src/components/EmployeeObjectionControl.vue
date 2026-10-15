@@ -272,6 +272,27 @@ export default {
     margin-top: 12px;
 }
 
+.input__label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.consent-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: pointer;
+    margin-top: 6px;
+}
+
+.consent-option input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
 .pd-section__objection {
     margin-top: 14px;
 }
