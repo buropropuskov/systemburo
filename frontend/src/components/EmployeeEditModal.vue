@@ -1035,21 +1035,6 @@ export default {
     margin-top: 14px;
 }
 
-.consent-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    font-size: 11px;
-    line-height: 1.3;
-    cursor: pointer;
-    margin-top: 6px;
-}
-
-.consent-option input[type="checkbox"] {
-    margin-top: 2px;
-    flex-shrink: 0;
-}
-
 .consent-granted {
     margin: 6px 0 0;
     font-size: 11px;
