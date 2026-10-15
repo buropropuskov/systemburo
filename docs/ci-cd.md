@@ -1,57 +1,43 @@
-# CI/CD контракт
+# CI/CD: поведение workflow
 
-## Ветки и защита
+Сверено с файлами репозитория 14.10.2026. YAML описывает запуск, но не доказывает текущие настройки защиты веток, required checks и reviewers GitHub Environments. Тарифные лимиты и старые ответы API не являются постоянным контрактом проекта.
 
-| Ветка | Что значит | Deploy куда | Защита (когда доступно) |
-|---|---|---|---|
-| `dev` | Рабочая интеграционная, все feature-PR сюда | автоматически на staging | ruleset: нельзя удалить/force-push, PR + `ci-summary` зелёный |
-| `staging` | Синхронизируется с `dev` после успешного deploy | — (читается нами, для истории) | ruleset |
-| `prod` | Production, default-ветка | автоматически на production (через environment approval) | ruleset + required review 1 |
+## Ветки и ревизии
 
-Feature-ветки (`issue/N`, `fix/...`) — без защиты, автоматически удаляются после merge (`delete_branch_on_merge: true`).
+`dev` — интеграция; изменения идут через отдельный PR. После успешной поставки workflow синхронизирует `staging` из `dev`. `prod` запускает production workflow; стандартный релиз готовится PR из проверенного `dev` в `prod`, не обратной правкой зеркала staging. Production требует отдельного согласования.
 
-### Текущее ограничение
+Проверки и deploy относятся к SHA, не только к номеру PR. После нового push нужно дождаться результатов нового HEAD. Зелёный PR или skipped deploy не подтверждают, что код выложен. Фактическую версию приложения проверяют после Deploy to Staging.
 
-На 2026-04-21 API `/rulesets` и `/branches/.../protection` возвращают **403 Upgrade required** для этой org. Это означает что защита настраивается либо вручную через `Settings → Branches → Add rule` в UI (если функция открыта), либо через обходной workflow, либо после апгрейда плана. Пока ветка `dev` защищена только аккуратностью — `delete_branch_on_merge` включён на репо-уровне и будет чистить source-branch при merge; **для target-ветки (`dev`, `prod`) это безопасно** — GitHub удаляет только source PR, не target.
+## Основные конвейеры
 
-Важный момент: **merge PR с target = `dev`/`prod` НЕ удаляет `dev`/`prod`** (удалялась только source: ранее `dev` была source в PR #72 `dev → prod`). Feature-ветки (source) будут удалены как обычно.
+| Файл | Событие и результат |
+|---|---|
+| `ci.yml` | Push dev/staging/prod, PR dev/prod; paths-filter определяет профиль проверок |
+| `e2e.yml` | Недрафтовый PR dev с соответствующими paths либо ручной запуск; Playwright в четырёх shards |
+| `security.yml` | Push/PR dev/prod, понедельник 06:00 UTC; секреты, Go, npm, образ |
+| `deploy-production.yml` | Push prod или ручной dispatch с вводом deploy; environment production |
 
-Запрет force-push настроен опосредованно через политику репо (можно включить через UI в Rules → New branch ruleset, даже если API недоступен).
+В CI backend vet предшествует backend test; frontend lint — тестам и проверке bundle. Docker Build учитывает пропущенные профильные jobs. Deploy to Staging выполняется только для push dev после успешного Docker Build. `ci-summary` собирает результаты; перечень required checks проверяют отдельно перед merge.
 
-## Workflows
+E2E поднимает тестовый PostgreSQL и приложение с фикстурами. Это не ручная приёмка staging. Пути, draft и отмена старого запуска могут объяснить отсутствие проверки; отсутствие запуска не считать PASS.
 
-- **`ci.yml`** — главный пайплайн на `push`/`pull_request`. `paths-filter` скипает Go при frontend-only PR и наоборот. DAG: vet/lint → test → docker-build → deploy-staging (только `push:dev`) → `ci-summary`. `concurrency: cancel-in-progress` на PR.
-- **`deploy-production.yml`** — `push:prod` или `workflow_dispatch` (нужно ввести `deploy`). Environment `production` с required reviewer.
-- **`e2e.yml`** — Playwright на PR в `dev`. Поднимает postgres, собирает бэк, seed-юзер `buropropuskov`, фронт на 8081. Пока **не required** gate — стабилизируется.
-- **`security.yml`** — govulncheck + npm audit + Trivy (`ignore-unfixed: true`) + `actions/dependency-review-action` на PR. Schedule Mon 06:00.
-- **`dependabot.yml`** — weekly PR по gomod / npm / github-actions / docker. Группы: gorm+pgx, vue/vite, playwright.
+## Поставка staging
 
-## Composite actions (`.github/actions/`)
+Собранные frontend/backend образы публикуются в GHCR с SHA; staging скачивает их, пересобирает внешний nginx и пересоздаёт службы. Mutable-метка dev приводится к текущему образу. Проверяется `/health`, затем синхронизируется ветка staging. Сам health не проверяет изменённую бизнес-операцию.
 
-- `setup-go` — setup-go@v5 с cache + go mod download.
-- `setup-frontend` — setup-node@v4 + npm ci в `frontend/`.
-- `playwright-cache` — cache `~/.cache/ms-playwright` по версии пакета.
+В текущем SSH action есть параметры и password, и key из secrets. Нельзя утверждать «парольный SSH удалён», не изменив фактический workflow. Наличие параметра не доказывает, какой метод принял сервер. Секреты и их значения в документацию не копируются.
 
-## Secrets и environments
+## Production
 
-`staging` и `production` — GitHub Environments. Хранят `VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_SSH_KEY`, `STAGING_DOMAIN`/`PROD_DOMAIN`. Password SSH удалён, только key. `deployment_branch_policy` ограничивает какие ветки могут деплоить в этот env (dev → staging, prod → production).
+Workflow привязан к environment production. Фактическое требование ручного approve настраивается в GitHub, не выводится из одного `environment: production`. Автоматическая ветка push и ручной dispatch различаются: ввод deploy проверяется для dispatch. Ручное включение workflow также является production-действием.
 
-## Как выкатить фикс в prod
+На время согласованного обновления применяется порядок техработ из руководства сопровождения. Сохранение старых frontend-выпусков не входит в текущую схему поставки; механизм ошибки загрузки предлагает безопасное обновление страницы.
 
-1. PR в `dev` → merge после зелёного `ci-summary` → auto deploy staging.
-2. Ручная проверка на `https://stagingburo.washka17.ru`.
-3. PR `dev → prod` → merge после зелёного CI + 1 approve.
-4. GitHub отправит event `push:prod`, `deploy-production.yml` запустится, environment `production` попросит approve → deploy.
+## Приёмка и сбой
 
-## Как чинить упавший деплой
+1. Зафиксировать HEAD PR и результаты применимых CI, Security, E2E; устранить блокирующие замечания.
+2. После merge сохранить merge SHA и успешный Deploy to Staging этой ревизии.
+3. Проверить фактическую версию, изменённый API, экран и консоль; для документационного пакета — сборку и скачиваемый файл, если он публиковался в приложении.
+4. При ошибке сохранить job/шаг/лог без секретов и установить причину. Откат кода не считать автоматическим откатом БД/файлов.
 
-- **deploy-staging упал в `ci.yml`**: SSH на VPS, `cd /opt/systemburo && docker compose -f docker-compose.base.yml -f docker-compose.staging.yml logs backend --tail=200`. Откатить через `git revert` проблемного коммита → push → переедет.
-- **deploy-production упал**: то же самое, но `prod.yml`. Плюс можно откатить PR `dev → prod` (revert merge commit на prod).
-- **CI красный после изменения workflow**: Ruleset в `evaluate` mode для отладки, потом обратно в `active`.
-
-## Лимиты GitHub Free
-
-- 2000 минут actions / месяц на org private.
-- 10 GB cache per repo, LRU-вытеснение (TTL 7 дней без доступа).
-- 20 concurrent jobs (Linux).
-- Ruleset + Environments + required status checks — доступны бесплатно для org private.
+Не выполнять `reset`, очистку Docker, восстановление БД или повторный seed из инструкции без оценки среды и последствий. Наличие таких команд внутри deployment workflow не разрешает их произвольный ручной запуск.

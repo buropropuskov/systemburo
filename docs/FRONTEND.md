@@ -1,151 +1,76 @@
-# Frontend — Архитектура
+# Frontend — архитектура и доставка
 
-Vue 3 (Options API), Vue Router 4, Pinia, CSS custom properties.
+Сверено с кодом 14.10.2026. Vue 3, Vue Router 5, Pinia 4, Vite 8; объявленные диапазоны — `package.json`, точная установка — `package-lock.json`. CI использует Node.js 22. Сохраняется JavaScript и существующий стиль компонентов.
 
-## Инициализация
+## Загрузка приложения
 
-`main.js`: createApp → Pinia → Router → `v-permission` directive → mount.
+`main.js` подключает токены/общие стили, создаёт приложение и Pinia, регистрирует `v-permission-scope`. Сначала `tryRestoreSession()` восстанавливает access-токен через HttpOnly refresh-cookie, затем подключается router. Параллельно подгружаются состояние техработ и настройка оформления. После готовности маршрута монтируется приложение; обработчик ошибки загрузки ресурса сохраняет возможность показать подтверждение обновления.
 
-## Структура
+Access-токен хранится в памяти `stores/auth.js`, refresh недоступен JavaScript. В localStorage токены не сохраняются. `setTokens(token)` принимает один access-токен; `isAdmin` — устаревший alias `isSuperAdmin`, а не сравнение `type_id` с 6. Роли и права берутся из текущего профиля/permissions.
 
-```
-frontend/src/
-├── main.js                  # Точка входа
-├── App.vue                  # Корневой компонент (auth, session, page transitions)
-├── router.js                # 14 маршрутов, beforeEach guard
-├── assets/tokens.css        # Design tokens (цвета, отступы, радиусы)
-├── stores/
-│   ├── auth.js              # JWT-токены, isAuthenticated, isAdmin
-│   ├── permissions.js       # Права доступа (key → allow/deny)
-│   └── ui.js                # Toast-уведомления, sidebar
-├── api/
-│   ├── client.js            # apiRequest / apiRequestRaw
-│   ├── applications.js      # 15 функций
-│   ├── cars.js, employees.js, users.js, ...
-│   └── settings.js
-├── components/
-│   ├── ui/                  # Переиспользуемые примитивы (12 шт.)
-│   ├── CreateApplication/   # Форма создания заявки
-│   ├── ApplicationDetail/   # Детали заявки
-│   ├── UnloadPlaces/        # Места выгрузки
-│   └── NavMenu.vue, TheHeader.vue, LoginComponent.vue, ...
-├── views/                   # Страницы (7 шт.)
-├── composables/             # useFormValidation, useToast, useDropdownState, useEntitySelection
-└── directives/permission.js # v-permission
-```
+## Страницы и доступ
 
-## Маршрутизация
+`router.js` и `routes/admin.js` содержат фактические пути и `meta`. Основные страницы подключаются через `() => import(...)`; это одно SPA, общие stores и сессия остаются общими. При переходе браузер получает код нужной страницы, а не запускает вторую независимую систему.
 
-| Путь | Компонент | Auth | Admin |
-|------|-----------|------|-------|
-| `/` | LoginComponent | — | — |
-| `/personal-cabinet` | AccountComponent | Да | — |
-| `/submit-form` | CreateApplication | Да | — |
-| `/center` | ApplicationsCenter | Да | — |
-| `/carsview` | CarsView | Да | — |
-| `/employeesview` | EmployeeView | Да | — |
-| `/news` | NewsAndReview | Да | — |
-| `/table`, `/table/:name` | TablesComponent | Да | Да |
-| `/table-constructor` | TableConstructor | Да | Да |
-| `/number-format` | NumberFormat | Да | Да |
-| `/admin/feedback` | FeedbackPage | Да | Да |
-| `/admin/settings` | AdminSettings | Да | Да |
-| `/admin/users` | AdminUsers | Да | Да |
+| Путь | Назначение/особенность |
+|---|---|
+| `/`, `/login` | Вход; `/login` перенаправляет на `/` с сохранением query |
+| `/personal-cabinet` | Личный кабинет |
+| `/new-application` | Оформление и подача; `/submit-form` — старый адрес с перенаправлением |
+| `/center` | Центр заявок, `page.center` |
+| `/carsview`, `/employeesview` | Реестры машин и людей |
+| `/table/:tableName` | Таблица, динамическое право по маршруту |
+| `/accessible-attachments` | Доступные вложения, отдельная проверка категории/права |
+| `/table-constructor` | `page.admin.tables_constructor` |
+| `/admin/*` | Страницы с отдельными ключами, не общим признаком type_id |
 
-Guard: `authStore.isAuthenticated` + `authStore.isAdmin`. Неавторизованные → `/`, не-админы → `/personal-cabinet`.
+Guard ждёт состояние согласия для защищённой страницы и обновляет устаревшие permissions. Неавторизованного направляет на вход с адресом возврата, отсутствие права — на `/403`, заблокированного — в кабинет. Сервер повторно проверяет доступ независимо от скрытия кнопки.
 
-## Stores
+## API и общие состояния
 
-### auth.js
+`api/client.js` добавляет `/api`, Bearer и `credentials: include`. JSON Content-Type не навязывается FormData. Обычный таймаут — 10 секунд; тяжёлая операция может передать свой AbortSignal через `createExtendedTimeoutSignal`.
 
-Единственный источник правды для токенов. Все компоненты читают/пишут через store, не через localStorage напрямую.
+`apiRequest()` возвращает Response: `await response.json()` раскрывает `data` успешного envelope; `apiRequestRaw()` сохраняет `data/meta`. Сохранять проверку HTTP-статуса; нормализованный `.json()` ошибки сам по себе не означает успех. Не терять вложенность DTO.
 
-- **State:** `token`, `refreshToken` (инициализируются из localStorage)
-- **Getters:** `isAuthenticated` (проверка exp), `isAdmin` (type_id === 6), `username`, `userPayload`
-- **Actions:** `setTokens(token, refresh)` → пишет в state + localStorage, `clearTokens()` → чистит оба
+При 401 выполняется дедуплицированное продление и повтор; реальный отказ сессии отличается от временной недоступности сервера. Для 429 действуют ограниченные повторы, одинаковые сообщения 403 дедуплицируются. Маркеры согласия, блокировки и смены пароля включают соответствующий экран вместо множества общих уведомлений.
 
-### permissions.js
+`stores/permissions.js` поддерживает режимы super/admin/normal/banned и набор denied; кэш клиента — 30 секунд. `v-permission-scope` скрывает/отключает элементы. Они не заменяют серверную проверку видимости объекта.
 
-- **State:** `permissions` (объект key→value), `loaded`
-- **Getter:** `hasPermission(key)` — админы всегда true, остальные проверяют `permissions[key] === 'allow'`
-- **Actions:** `fetchPermissions()`, `clearPermissions()`
+## Общие компоненты и оформление
 
-### ui.js
+Перед новым компонентом искать существующие `BaseModal`, `BaseDropdown`, `HintTooltip`, `RefreshButton` и компоненты истории. Базовые стили — `assets/tokens.css` и `forms.css`; дополнительное оформление — `glass-theme.css`, состояние — `stores/theme.js`, сохранение — `api/theme.js`.
 
-- Toast-уведомления: `success(msg)`, `error(msg)`, `warning(msg)`
-- Состояние sidebar
+Светлая/тёмная тема и обычное/альтернативное оформление — независимые настройки одного пункта «Оформление». Смена темы мгновенная; анимация тумблера не означает анимацию всей страницы. На узком экране настройки раскрываются внутри навигации, на широком — сбоку; закрытие навигации закрывает панель.
 
-## API-клиент
+Окна используют общие механизмы overlay, Teleport и Escape. При вложенных окнах закрывается верхнее. Не копировать произвольные локальные отступы/радиусы как новый эталон. Уведомления результата — через существующий стор `deletions`, не `alert`/собственный toast.
 
-`api/client.js` — центральная точка для всех HTTP-запросов:
+PDF-просмотр и архивирование требуют освобождения ресурсов и обработки ошибки: см. реализации PDF-компонентов и `utils`. JSZip подключается динамически при скачивании; отказ импорта должен завершить операцию понятной ошибкой, а не оставить вечную загрузку.
 
-1. Берёт токен из `useAuthStore().token`
-2. Добавляет `Authorization: Bearer ${token}` и `Content-Type: application/json`
-3. Таймаут 10 секунд (AbortController)
-4. **Envelope unwrapping:** `{success: true, data: {...}}` → возвращает `data`; `{success: false, error: "msg"}` → возвращает `{message: "msg"}`
+## Бюджет сборки и раздача
 
-`apiRequestRaw()` — без unwrapping, для запросов с пагинацией (meta + data).
+`npm run build` создаёт Vite manifest. `npm run lint:bundle` читает его через `build/bundle-metrics.js`: считает JS/CSS оболочки и оболочки вместе с каждым указанным экраном, рекурсивно включая static imports. Чужие dynamic imports автоматически к экрану не прибавляются. CSS входит в расчёт; шрифты/изображения и реальное время сети этой метрикой не измеряются.
 
-## UI-компоненты
+Лимиты — `build/bundle-budget.json`. Расчётный gzip level 9 даёт воспроизводимое сравнение сборок, но не доказывает размер фактической HTTP-передачи. `--update` может только ужесточать лимиты; повышение требует отдельного решения.
 
-`components/ui/` — 12 переиспользуемых примитивов:
+Frontend nginx сжимает `/assets/` и задаёт immutable-кэш для хешированных файлов; отсутствующий ресурс возвращает ошибку без кэширования. Внешний nginx передаёт Accept-Encoding для assets, а HTML получает несжатым для подстановки CSP nonce. HTML не кэшируется как хешированный JS.
 
-| Компонент | Назначение |
-|-----------|------------|
-| FormField | Обёртка для input с label, required-индикатором, inline-ошибкой |
-| BaseModal | Модальное окно с overlay и scale-анимацией |
-| BaseDropdown | Выпадающий список |
-| FilterTabs | Вкладки-фильтры |
-| StatusBadge | Бейдж статуса |
-| GridSelector | Сеточный мультиселект |
-| SelectionModal | Модал для выбора элементов |
-| SkeletonLine | Линия-заглушка (shimmer) |
-| SkeletonBlock | Блок-заглушка |
-| SkeletonTable | Таблица-заглушка (header + rows) |
-| SkeletonCard | Карточка-заглушка |
-| SkeletonTransition | Обёртка skeleton→content с fade-переходом |
+`utils/assetLoadRecovery.js` обрабатывает ошибку устаревшего файла: предлагает обновить страницу с учётом несохранённых данных. Хранение старых выпусков не реализовано этим механизмом. Порядок техработ и выкладки — в документации сопровождения.
 
-## Skeleton-система
+## Команды
 
-`SkeletonTransition` управляет показом заглушек:
-
-- **delay** (200ms) — не показывать skeleton, если данные пришли быстро
-- **minDuration** (400ms) — если показали, держать минимум 400ms (без мерцания)
-- **Transition:** opacity fade, `cubic-bezier(0.4, 0, 0.2, 1)`
-
-Интегрирован в 8 страниц: ApplicationsCenter, AdminUsers, CarsView, EmployeeView, AdminSettings, FeedbackPage, TheHeader, AccountComponent.
-
-## Composables
-
-| Composable | Назначение |
-|------------|------------|
-| `useFormValidation` | Правила валидации, field-level ошибки, `validateField()`, `validateAll()`, `getFieldError()` |
-| `useToast` | Обёртка над UIStore для toast-уведомлений |
-| `useDropdownState` | Открытие/закрытие dropdown с click-outside |
-| `useEntitySelection` | Мультиселект с temp/confirmed состояниями |
-
-## Директива v-permission
-
-```vue
-<button v-permission="'can_edit_tables'">Редактировать</button>
+```bash
+cd frontend
+npm ci
+npm run dev
+# Проверки и сборка на согласованной вехе:
+npm run lint
+npm run test:run
+npm run build
+npm run lint:bundle
 ```
 
-Проверяет `permissionsStore.hasPermission(key)`. Если нет доступа — `display: none`. Админы проходят всегда.
+`npm run preview` показывает локальную production-сборку; `npm run serve` не существует. E2E использует конфигурацию `frontend/playwright.config.cjs` и фикстуры проекта. Результат проверки конкретного запуска фиксируется отдельно от описания команды.
 
-## Page transitions
+## Состояния загрузки
 
-`App.vue` оборачивает `<router-view>` в `<transition name="page-fade" mode="out-in">` — плавный fade при смене страниц (0.25s enter, 0.15s leave).
-
-## Design tokens
-
-`assets/tokens.css`:
-
-```css
---color-primary: #4F5BDF
---color-border: #e6e6e6
---color-bg: #f8f9ff
---color-skeleton: #e9eaef
---color-skeleton-shine: #f4f5f9
---radius-sm: 8px / --radius-md: 15px
---spacing-sm: 10px / --spacing-md: 20px
-```
+`SkeletonTransition` откладывает показ заглушки на 200 мс; уже показанную удерживает минимум 400 мс. Это защита от мерцания, а не дополнительная задержка каждого API-запроса. Использовать существующие SkeletonLine/Block/Table/Card, сохраняя размеры содержимого и обработку ошибки. Анимацию перехода маршрута не смешивать с мгновенной сменой темы.

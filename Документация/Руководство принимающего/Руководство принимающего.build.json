@@ -1,0 +1,10 @@
+{
+  "document": "acceptor",
+  "version": "1.10",
+  "pages": 27,
+  "code_revision": "09e756eba5ae472f141d067b8fc18aac2df88917",
+  "source_sha256": "814fcaefb1b7d50beacfa8d72540bfd68b3aae7de1adcfee1e9788945430aeef",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "6926c5998cdbf820132c057affc8afec32d24f9c68e7a5b342cb2b9d63e59821",
+  "pdf_sha256": "a2dc3240a4a999a142a82d02afd1cb55bf8c2340be8899dd2e3371ae1ec11e9c"
+}

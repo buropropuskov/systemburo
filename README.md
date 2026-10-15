@@ -6,7 +6,7 @@
 
 | Слой | Технологии |
 |------|------------|
-| Backend | Go 1.25, Echo v4, GORM, PostgreSQL 16 |
+| Backend | Go (go.mod: 1.26.9; Docker: 1.27.2), Echo v4, GORM, PostgreSQL 16 |
 | Frontend | Vue 3, Vue Router, Pinia |
 | Инфраструктура | Docker Compose, nginx, GitHub Actions CI/CD |
 
@@ -15,6 +15,7 @@
 ```bash
 git clone <repo> && cd systemburo
 cp .env.example .env
+# Заполнить .env: отдельные JWT-секреты, ключ шифрования, параметры локального HTTP
 make init   # git hooks
 make up     # запустить все сервисы
 make seed   # создать тестового админа (buropropuskov / admin123)
@@ -86,14 +87,16 @@ make deploy-seed    # создать админа на production
 | [Backend](docs/BACKEND.md) | Архитектура Go, middleware, модели, сервисы, шифрование |
 | [Frontend](docs/FRONTEND.md) | Архитектура Vue, stores, API-клиент, компоненты, skeleton |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, ручной деплой, production, бэкапы |
-| [Security](docs/SECURITY.md) | 152-ФЗ, шифрование, аудит, авторизация, rate limiting |
+| [Security](docs/SECURITY.md) | Технические меры: шифрование, аудит, сессии, права и ограничения |
 | [Access Control](docs/access-control/) | Система прав: роли, группы, журнал отказов, ban, миграция type_id=6 |
 | [ADR](docs/adr/) | Архитектурные решения (Go vs Rust, GORM, AES-GCM, Pinia и др.) |
 | [Contributing](CONTRIBUTING.md) | Рабочий процесс: ветки, коммиты, PR, issues, CI/CD |
 
 ## Конфигурация
 
-Все настройки через переменные окружения — см. `.env.example`.
+Все настройки через переменные окружения; валидируемые значения и умолчания — `internal/config/config.go`, стартовый пример — `.env.example`. Шифрование требуется по умолчанию. Перед первым входом по HTTP на localhost проверить `COOKIE_SECURE=false`; на staging/production оставить true.
+
+Сборка клиентских руководств и сверка фактов: [инструкция](Документация/src/README.md). Исходники Markdown находятся рядом с документами; PDF/DOCX принимаются после сверки и визуальной проверки, а не по одному наличию файла.
 
 ## Лицензия
 

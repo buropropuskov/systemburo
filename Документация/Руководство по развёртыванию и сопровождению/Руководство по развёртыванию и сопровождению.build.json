@@ -1,0 +1,10 @@
+{
+  "document": "deploy",
+  "version": "1.74",
+  "pages": 189,
+  "code_revision": "9657f889443ba84525f53759c572b578b412b3c4",
+  "source_sha256": "6c8936e287105199ea3bc3da7a160ccadf3457fbad5e0b518cc0b976ed596b79",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "0c5184d6ce43fd08dc8cc542e25a659b7d5657ce0003b9e269c4f6e23659d048",
+  "pdf_sha256": "ac1abec397995be9be762d702d41970b6ec7a104dd6f46cfbbb7e171eab6eda9"
+}

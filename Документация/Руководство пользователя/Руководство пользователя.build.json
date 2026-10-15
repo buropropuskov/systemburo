@@ -1,0 +1,10 @@
+{
+  "document": "user",
+  "version": "1.12",
+  "pages": 80,
+  "code_revision": "09e756eba5ae472f141d067b8fc18aac2df88917",
+  "source_sha256": "fa4d4c04880b8c98e63d54feec1c1ea1731a572009807b5257892f780004823e",
+  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
+  "docx_sha256": "b22a03e9c18986a3fc5d50471b2017b4db6713d099d6edb630ab31c8447710f3",
+  "pdf_sha256": "cc8a43bb4163a4a02171ed44392abc9b5304827e5a2a56c8e0714afd85404683"
+}
