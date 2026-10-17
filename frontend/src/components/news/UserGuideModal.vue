@@ -671,6 +671,11 @@ export default {
   }
   .role-pill {
     flex: 1 1 auto;
+    padding: 0 14px;
+    white-space: nowrap;
+  }
+  .role-pill__dot {
+    flex-shrink: 0;
   }
   .guide__body {
     padding: 16px 16px 8px;
@@ -685,7 +690,27 @@ export default {
     padding: 0 20px;
   }
   .file-card {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .file-card__name {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  .file-card__meta {
+    display: block;
+    line-height: 1.6;
+  }
+  .file-card__meta .sep {
+    margin: 0 5px;
+  }
+  .file-card__dl {
+    grid-column: 1 / -1;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
   }
 }
 
