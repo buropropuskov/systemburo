@@ -150,9 +150,9 @@ func TestSessionLifecycle_MaintenanceRefreshBothOrders(t *testing.T) {
 			releaseFirst()
 			require.NoError(t, <-first)
 			if maintenanceFirst {
-				var unavailable *apperr.Error
-				require.ErrorAs(t, <-second, &unavailable)
-				assert.Equal(t, http.StatusServiceUnavailable, unavailable.Code)
+				var denied *apperr.Error
+				require.ErrorAs(t, <-second, &denied)
+				assert.Equal(t, http.StatusUnauthorized, denied.Code)
 			} else {
 				require.NoError(t, <-second)
 			}
@@ -160,6 +160,24 @@ func TestSessionLifecycle_MaintenanceRefreshBothOrders(t *testing.T) {
 			assert.Positive(t, liveSessionCount(t, db, admin.ID))
 		})
 	}
+}
+
+func TestSessionLifecycle_MaintenanceDeniesLiveRefresh(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	raw, owner := loginForRefreshTests(t, e, db, "session_live_maintenance")
+	// Simulate a live token surviving an external settings change: fresh settings
+	// must prevent issuance even without the ordinary Enable revocation path.
+	require.NoError(t, db.Exec(`INSERT INTO system_settings (key, value) VALUES ('maintenance.enabled', 'true'), ('maintenance.planned_end', '') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`).Error)
+	before := liveSessionCount(t, db, owner)
+	response, err := newRefreshService(db).RefreshToken(context.Background(), models.RefreshTokenRequest{RefreshToken: raw}, nil)
+	var unavailable *apperr.Error
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, http.StatusServiceUnavailable, unavailable.Code)
+	assert.Nil(t, response)
+	assert.Equal(t, before, liveSessionCount(t, db, owner))
+	assert.EqualValues(t, 1, before)
 }
 
 func awaitSessionBarrier(t *testing.T, ctx context.Context, reached <-chan struct{}) {

@@ -552,10 +552,6 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 			return apperr.Forbidden("Учётная запись отключена")
 		}
 		now := time.Now().UTC()
-		stage = "maintenance lookup"
-		if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
-			return err
-		}
 		var stored models.RefreshToken
 		stage = "token lookup"
 		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND token_hash = ?", user.ID, hashRefreshToken(raw)).First(&stored).Error
@@ -580,6 +576,10 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 			reused = true
 			reusedFamily = stored.FamilyID
 			return nil
+		}
+		stage = "maintenance lookup"
+		if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
+			return err
 		}
 		response.Token, err = s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin)
 		if err != nil {
