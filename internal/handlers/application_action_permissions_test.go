@@ -17,6 +17,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestS5Action_PreserveExistingDirectoryAssignment(t *testing.T) {
+	for _, company := range []bool{false, true} {
+		t.Run(fmt.Sprint(company), func(t *testing.T) {
+			e, db, cleanup := testutil.SetupTestApp(t)
+			defer cleanup()
+			testutil.CleanDB(t, db)
+			td := testutil.SeedTestData(t, db)
+			testutil.RegisterUser(t, e, "s5_retained", "pass123", 1, td.OrgID, td.CompanyID)
+			testutil.RegisterUser(t, e, "s5_new", "pass123", 1, td.OrgID, td.CompanyID)
+			oldID, newID := getUserID(t, db, "s5_retained"), getUserID(t, db, "s5_new")
+			yes, primary := true, true
+			update := func(includeNew bool) error {
+				if company {
+					users := []services.CompanyUserRequest{{Username: "s5_retained", IsPrimary: &primary, RequiredApproval: &yes}}
+					if includeNew {
+						users = append(users, services.CompanyUserRequest{Username: "s5_new", RequiredApproval: &yes})
+					}
+					return services.NewCompanyService(db).UpdateUsers(context.Background(), oldID, td.CompanyID, services.UpdateCompanyUsersRequest{Users: users})
+				}
+				users := []services.OrganizationUserRequest{{Username: "s5_retained", IsPrimary: &primary, RequiredApproval: &yes}}
+				if includeNew {
+					users = append(users, services.OrganizationUserRequest{Username: "s5_new", RequiredApproval: &yes})
+				}
+				return services.NewOrganizationService(db).UpdateOrganizationUsers(context.Background(), oldID, td.OrgID, services.UpdateOrganizationUsersRequest{Users: users})
+			}
+			require.NoError(t, update(false))
+			require.NoError(t, db.Model(&models.User{}).Where("id = ?", oldID).Update("is_active", false).Error)
+			require.NoError(t, update(true), "unchanged historical assignment must survive an unrelated addition")
+			var archived models.User
+			require.NoError(t, db.First(&archived, oldID).Error)
+			require.False(t, archived.IsActive)
+			primary = false
+			require.Error(t, update(true), "changing the retained primary flag must still check availability")
+			primary = true
+			table, column, directoryID := "organization_users", "organization_id", td.OrgID
+			if company {
+				table, column, directoryID = "companies_users", "company_id", td.CompanyID
+			}
+			var count int64
+			require.NoError(t, db.Table(table).Where(column+" = ? AND user_id = ? AND required_approval AND is_primary", directoryID, oldID).Count(&count).Error)
+			require.EqualValues(t, 1, count)
+			// Removing a prior assignment does not let a later request recreate it.
+			require.NoError(t, db.Table(table).Where(column+" = ? AND user_id = ?", directoryID, oldID).Delete(&models.OrganizationUser{}).Error)
+			require.Error(t, update(true), "archived target cannot be newly assigned")
+			require.NoError(t, db.Table(table).Where(column+" = ? AND user_id = ?", directoryID, newID).Count(&count).Error)
+			require.EqualValues(t, 1, count, "failed update preserves other existing assignments")
+		})
+	}
+}
+
 func TestS5Action_ForwardAndAssignment(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

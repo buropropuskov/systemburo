@@ -53,6 +53,17 @@ type applicationAssignee struct {
 	RequiredApproval bool
 }
 
+// Replacing a directory roster may retain an unchanged historical assignment.
+// It does not restore an account or authorize voting or a new application.
+func preservesDirectoryAssignee(previous []applicationAssignee, userID int, isPrimary bool) bool {
+	for _, row := range previous {
+		if row.UserID == userID && row.RequiredApproval && row.IsPrimary == isPrimary {
+			return true
+		}
+	}
+	return false
+}
+
 func prepareApplicationAssignees(ctx context.Context, db *gorm.DB, applicationID, actorID int, users []applicationAssignee, primary *int, now time.Time) ([]applicationAssignee, *int, error) {
 	eligible := make([]applicationAssignee, 0, len(users))
 	for _, user := range users {
