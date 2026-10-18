@@ -19,6 +19,8 @@ func TestCarTerritoryStatus_EntryThenExitWithHistory(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carentry1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carentry1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carentry1"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carentry1"), "cars")
@@ -73,6 +75,8 @@ func TestCarTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carentrytbl1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carentrytbl1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carentrytbl1"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	displayName := "Test Table"

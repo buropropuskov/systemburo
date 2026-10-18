@@ -423,7 +423,7 @@ func main() {
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
-	carHandler := handlers.NewCarHandler(carService, elementScopes, db)
+	carHandler := handlers.NewCarHandler(carService, elementScopes, permissionResolver, db)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService, db)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, cfg.UploadMaxFileSize, cfg.UploadPath)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(tableSnapshotService)
@@ -435,7 +435,7 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
-	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService, elementScopes)
+	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService, elementScopes, permissionResolver)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	// Типы файлов заявки: картинки и документы одним списком. Разделять их незачем -
 	// заявитель прикладывает и снимок, и pdf в одно поле.

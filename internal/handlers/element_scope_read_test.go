@@ -100,6 +100,7 @@ func TestElementScope_Outsider(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_outsider", "pass123", 1, td.OrgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_outsider"), services.KeyDetailEntryExitHistory)
 
 	got := readElements(t, e, h, fx)
 	assert.Equal(t, elementReads{carHistory: http.StatusForbidden, empHistory: http.StatusForbidden}, got,
@@ -117,6 +118,7 @@ func TestElementScope_PostGuard(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_guard", "pass123", 1, td.OrgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_guard"), services.KeyDetailEntryExitHistory)
 	testutil.GrantTableVerb(t, getUserID(t, db, "scope_guard"), fx.tableName, "view")
 
 	got := readElements(t, e, h, fx)
@@ -137,6 +139,7 @@ func TestElementScope_ApplicationViewer(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_reader", "pass123", 1, td.OrgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_reader"), services.KeyDetailEntryExitHistory)
 	require.NoError(t, db.Create(&models.ApplicationViewer{ApplicationID: fx.appID, UserID: getUserID(t, db, "scope_reader")}).Error)
 
 	got := readElements(t, e, h, fx)
@@ -154,6 +157,7 @@ func TestElementScope_OwnOrganization(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_colleague", "pass123", 1, fx.orgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_colleague"), services.KeyDetailEntryExitHistory)
 
 	got := readElements(t, e, h, fx)
 	assert.Equal(t, elementReads{
@@ -171,6 +175,7 @@ func TestElementScope_BlacklistManager(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_blacklist", "pass123", 1, td.OrgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_blacklist"), services.KeyDetailEntryExitHistory)
 	testutil.GrantPermission(t, getUserID(t, db, "scope_blacklist"), services.KeyPageBlacklist)
 
 	got := readElements(t, e, h, fx)
@@ -203,6 +208,7 @@ func TestElementScope_Approver(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_acceptor", "pass123", 1, td.OrgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_acceptor"), services.KeyDetailEntryExitHistory)
 	require.NoError(t, db.Create(&models.ApplicationApprover{UserID: getUserID(t, db, "scope_acceptor")}).Error)
 
 	got := readElements(t, e, h, fx)

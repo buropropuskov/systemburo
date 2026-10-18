@@ -391,6 +391,7 @@
 </template>
 
 <script>
+import { usePermissionsStore } from '@/stores/permissions';
 import { apiRequest } from '@/api/client'
 import CarHistoryModal from './CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -835,12 +836,11 @@ export default {
       this.photoTranslateX = 0;
       this.photoTranslateY = 0;
     },
-
     async loadCarHistory() {
+      if (!usePermissionsStore().hasPermission('detail.entry_exit_history')) { this.history = []; return; }
       this.loadingHistory = true;
       try {
         const response = await apiRequest(`/cars/${this.car.id}/history`, {});
-        
         if (response.ok) {
           const allHistory = await response.json();
           this.history = allHistory.filter(item => 

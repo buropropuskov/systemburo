@@ -251,6 +251,7 @@
 </template>
 
 <script>
+import { usePermissionsStore } from '@/stores/permissions';
 import { useLicensePlateDisplay } from '@/composables/useLicensePlateDisplay';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { CAR_HISTORY_ACTIONS, historyActionText, historyFieldLabel, historyValueText } from '@/utils/passageHistoryActions';
@@ -463,6 +464,7 @@ export default {
   methods: {
     canOpenHistoryEntity(item) { const id = item.car_id; return Number.isSafeInteger(id) && id > 0 && !item.entity_deleted; },
     async loadHistory() {
+      if (!usePermissionsStore().hasPermission('detail.full_history')) { this.history = []; return; }
       this.loading = true;
       try {
         // apiRequest ожидает строку-путь, не URL object — собираем query руками.

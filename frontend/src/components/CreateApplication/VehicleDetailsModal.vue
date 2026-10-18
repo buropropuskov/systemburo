@@ -632,17 +632,14 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
                 : usePermissionsStore().hasPermission(perm);
             return allowed && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
         },
-        // Право на кнопку «Полная история» / секцию «История въездов и выездов»:
-        // гейтим ТОЛЬКО когда карта задаёт ключ права (string); контекстные false/true
-        // оставляем на showCarFeatures — нулевая регрессия дефолтной видимости,
-        // добавляется лишь возможность отозвать ролью.
+        // Ключ истории и контекстное отключение проверяются независимо от видимости карточки.
         canSeeFullHistory() {
             const v = getModalActionPermission('vehicle', this.source, 'history');
-            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : v === true;
         },
         canSeeEntryExit() {
             const v = getModalActionPermission('vehicle', this.source, 'entryExit');
-            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : v === true;
         },
         // Кнопки в шапке: "Полная история" видна при showCarFeatures + право,
         // "Открыть заявку" - при canOpenApplication.
@@ -910,6 +907,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
         },
 
         async loadCarHistory() {
+            if (!this.canSeeEntryExit && !this.canSeeFullHistory) { this.history = []; return; }
             if (!this.vehicle?.id || !this.showCarFeatures) return;
             
             this.loadingHistory = true;

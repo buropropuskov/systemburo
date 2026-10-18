@@ -16,12 +16,13 @@ type CarHandler struct {
 	service   services.CarService
 	scopes    *services.ElementScopeResolver
 	passageDB *gorm.DB
+	resolver  *services.PermissionResolver
 }
 
 // NewCarHandler создаёт новый экземпляр CarHandler. scopes ограничивает историю, статусы
 // и места разгрузки машинами, которые пользователь вправе видеть.
-func NewCarHandler(service services.CarService, scopes *services.ElementScopeResolver, passageDB ...*gorm.DB) *CarHandler {
-	h := &CarHandler{service: service, scopes: scopes}
+func NewCarHandler(service services.CarService, scopes *services.ElementScopeResolver, resolver *services.PermissionResolver, passageDB ...*gorm.DB) *CarHandler {
+	h := &CarHandler{service: service, scopes: scopes, resolver: resolver}
 	if len(passageDB) > 0 {
 		h.passageDB = passageDB[0]
 	}
@@ -210,6 +211,10 @@ func sameOptionalID(a, b *int) bool {
 // @Success 200 {array} services.CarHistoryItemResponse
 // @Router /cars/{id}/history [get]
 func (h *CarHandler) GetCarHistory(c echo.Context) error {
+	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
+	if err != nil {
+		return err
+	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -221,7 +226,7 @@ func (h *CarHandler) GetCarHistory(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	return RespondSuccess(c, policy.Cars(items))
 }
 
 // AddCarHistoryEntry обрабатывает POST /cars/:id/history.
@@ -572,6 +577,10 @@ func (h *CarHandler) BulkUnbindTable(c echo.Context) error {
 // @Success 200 {array} services.CarHistoryItemResponse
 // @Router /cars/history/unified [get]
 func (h *CarHandler) GetUnifiedCarHistory(c echo.Context) error {
+	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
+	if err != nil {
+		return err
+	}
 	var req services.UnifiedCarHistoryQuery
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -585,5 +594,5 @@ func (h *CarHandler) GetUnifiedCarHistory(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	return RespondSuccess(c, policy.Cars(items))
 }

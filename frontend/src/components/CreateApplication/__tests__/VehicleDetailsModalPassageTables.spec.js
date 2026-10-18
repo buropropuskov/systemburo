@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { usePermissionsStore } from '@/stores/permissions';
 
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
@@ -42,6 +43,10 @@ function mountModal(vehicle, historyItems = [], source = 'carstable') {
 describe('VehicleDetailsModal - секция Проезд: источник и снятые таблицы (#1227 P3)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().effective = {
+      'detail.full_history': { value: 'allow' },
+      'detail.entry_exit_history': { value: 'allow' },
+    };
   });
 
   it('нормализует объектную форму target_tables {id,name,source} (контекст проходной) и рисует бейдж по source', async () => {

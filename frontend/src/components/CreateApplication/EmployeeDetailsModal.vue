@@ -668,17 +668,14 @@ export default {
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
         },
-        // Право на кнопку «Полная история» / секцию «История проходов»: гейтим ТОЛЬКО
-        // когда карта задаёт ключ права (string); контекстные false/true оставляем на
-        // условия видимости выше (showHistoryButton/showHistorySection) — нулевая
-        // регрессия дефолтной видимости, добавляется лишь возможность отозвать ролью.
+        // Ключ истории и контекстное отключение проверяются независимо от видимости карточки.
         canSeeFullHistory() {
             const v = getModalActionPermission('employee', this.source, 'history');
-            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : v === true;
         },
         canSeeEntryExit() {
             const v = getModalActionPermission('employee', this.source, 'entryExit');
-            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : v === true;
         },
         // Сервер определяет доступ к документам; запрет раздела по source сильнее.
         // Без marker локальные/старые данные используют прежнюю карту прав.
@@ -880,6 +877,7 @@ export default {
         },
 
         async loadHistory() {
+            if (!this.canSeeEntryExit && !this.canSeeFullHistory) { this.history = []; return; }
             if (!this.employee) return;
             this.loadingHistory = true;
             try {

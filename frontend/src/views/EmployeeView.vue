@@ -114,7 +114,7 @@
             <!-- Журнал реестра открыт администратору: только там видно, кем и когда
                  удалена запись - самой строки в реестре уже нет. -->
             <button
-              v-if="canManageAllEntities"
+              v-if="canManageAllEntities && canReadRegistryLog"
               class="log-button"
               data-testid="employees-registry-log"
               @click="showRegistryLog = true"
@@ -537,6 +537,7 @@
 </template>
 
 <script>
+import { canReadRegistryHistory } from '@/utils/registryHistoryPermissions';
 import { employeesRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
@@ -648,9 +649,8 @@ export default {
         },
         // Право удалять из реестра сотрудников (кнопка «Удалить»). Базовая роль
         // выдаёт по умолчанию; админ может отозвать ролью, не затрагивая изменение.
-        // Администратор системы: правит и удаляет запись независимо от привязки.
-        // Признак приходит из ownership-info - того же ответа, по которому решает
-        // бэкенд, иначе кнопка появилась бы там, где сервер отвечает 403.
+        // Административная область берётся из серверного ownership-info; журнал дополнительно требует прав чтения.
+        canReadRegistryLog() { return canReadRegistryHistory(usePermissionsStore(), 'employees'); },
         canManageAllEntities() {
             return this.ownershipInfo?.can_manage_all === true;
         },

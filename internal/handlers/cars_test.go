@@ -424,6 +424,8 @@ func TestGetCarHistory_Empty(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carhist1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carhist1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carhist1"), "detail.entry_exit_history")
 	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
@@ -441,6 +443,8 @@ func TestGetCarHistory_InvalidID(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carhistinv", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carhistinv"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carhistinv"), "detail.entry_exit_history")
 
 	rec := testutil.GET(t, e, "/cars/abc/history", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -602,6 +606,8 @@ func TestGetUnifiedCarHistory_Empty(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carunified1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carunified1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carunified1"), "detail.entry_exit_history")
 
 	rec := testutil.GET(t, e, "/cars/history/unified?car_number=NONEXIST&car_brand=Unknown", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -617,6 +623,8 @@ func TestGetUnifiedCarHistory_WithData(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carunified2", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carunified2"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carunified2"), "detail.entry_exit_history")
 	seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 
 	rec := testutil.GET(t, e, "/cars/history/unified?car_number=B002BB799&car_brand=Kamaz", testutil.AuthHeader(token))

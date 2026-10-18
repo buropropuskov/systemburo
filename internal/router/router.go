@@ -758,8 +758,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.POST("/:id/history", cars.AddCarHistoryEntry, requireAdmin)
 	// Журнал проходов поста открывается правом на журнал этого поста; сводный журнал
 	// всех постов и его фильтры без поста - только администратору.
-	carsGroup.GET("/history/all", cars.GetAllCarsHistory, requireAdmin)
-	carsGroup.GET("/history/filter-options", cars.GetCarsHistoryFilterOptions, requireAdmin)
+	carsGroup.GET("/history/all", cars.GetAllCarsHistory, requireAdmin, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailEntryExitHistory))
+	carsGroup.GET("/history/filter-options", cars.GetCarsHistoryFilterOptions, requireAdmin, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailEntryExitHistory))
 	carsGroup.GET("/history/table/:id", cars.GetCarsHistoryByTable, d.TableHistoryGate)
 	carsGroup.GET("/history/table/:id/filter-options", cars.GetCarsHistoryFilterOptions, d.TableHistoryGate)
 	carsGroup.GET("/history/current-status", cars.GetCarsCurrentStatus)
@@ -807,8 +807,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	empGroup.POST("/bulk/unbind-table", employees.BulkUnbindTable, requireAdmin)
 	empGroup.GET("/:id/history", employeesHistory.GetByEmployee)
 	empGroup.GET("/history/unified", employeesHistory.GetUnified)
-	empGroup.GET("/history/all", employeesHistory.GetAll, requireAdmin)
-	empGroup.GET("/history/filter-options", employeesHistory.GetFilterOptions, requireAdmin)
+	empGroup.GET("/history/all", employeesHistory.GetAll, requireAdmin, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailEntryExitHistory))
+	empGroup.GET("/history/filter-options", employeesHistory.GetFilterOptions, requireAdmin, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailEntryExitHistory))
 	empGroup.GET("/history/table/:id/filter-options", employeesHistory.GetFilterOptions, d.TableHistoryGate)
 	empGroup.GET("/history/current-status", employeesHistory.GetCurrentStatus)
 	empGroup.GET("/history/table/:id", employeesHistory.GetByTable, d.TableHistoryGate)
@@ -888,10 +888,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ucg.DELETE("/:id", uc.Delete)
 	ucg.GET("/ownership-info", uc.GetOwnershipInfo)
 	ucg.GET("/lookup", uc.Lookup, requireBlacklist)
-	ucg.GET("/:id/history", uc.GetHistory)
+	ucg.GET("/:id/history", uc.GetHistory, mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityCarsRead), mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailFullHistory))
 	// Журнал всего реестра (включая удалённые записи) - раньше конкретного /:id/history,
 	// иначе «history» попало бы в :id и разбор номера вернул бы 400.
-	ucg.GET("/history", uc.GetRegistryLog)
+	ucg.GET("/history", uc.GetRegistryLog, mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityCarsRead), mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailFullHistory))
 
 	// Реестр сотрудников (unique_employees)
 	ueg := protected.Group("/unique-employees")
@@ -901,13 +901,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.DELETE("/:id", ue.Delete)
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
 	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
-	ueg.GET("/:id/history", ue.GetHistory)
+	ueg.GET("/:id/history", ue.GetHistory, mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesRead), mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailFullHistory))
 	// Возражение субъекта (#2361): доступно тому же кругу, что правка записи -
 	// заявителю у своих работников и администратору бюро. Человек скажет о
 	// возражении работодателю, а не бюро, поэтому отметить должны мочь оба.
 	ueg.POST("/:id/objection", ue.SetObjection)
 	ueg.DELETE("/:id/objection", ue.ClearObjection)
-	ueg.GET("/history", ue.GetRegistryLog)
+	ueg.GET("/history", ue.GetRegistryLog, mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesRead), mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailFullHistory))
 
 	// Обратная связь. Отправка (POST) и свои обращения (GET /my) - любому
 	// авторизованному; админ-операции (список/статистика/статус/прочтение) -

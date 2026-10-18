@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { usePermissionsStore } from '@/stores/permissions';
 
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
@@ -41,6 +42,10 @@ function mountModal(employee, historyItems = [], source = 'peopletable') {
 describe('EmployeeDetailsModal - секция Места прохода: источник и снятые таблицы (#1227 P3)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().effective = {
+      'detail.full_history': { value: 'allow' },
+      'detail.entry_exit_history': { value: 'allow' },
+    };
   });
 
   it('нормализует объектную форму target_tables {id,name,source} (контекст проходной) и рисует бейдж по source', async () => {
@@ -125,6 +130,10 @@ describe('EmployeeDetailsModal - секция Места прохода: ист�
 describe('EmployeeDetailsModal - подсветка открытой таблицы (#1050)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().effective = {
+      'detail.full_history': { value: 'allow' },
+      'detail.entry_exit_history': { value: 'allow' },
+    };
   });
 
   // selectedTable - обёртка {table, time_slots, photos, current_status}, поэтому

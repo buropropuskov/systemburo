@@ -113,7 +113,7 @@
             </button>
             <!-- Журнал реестра открыт администратору, см. EmployeeView. -->
             <button
-              v-if="canManageAllEntities"
+              v-if="canManageAllEntities && canReadRegistryLog"
               class="log-button"
               data-testid="cars-registry-log"
               @click="showRegistryLog = true"
@@ -784,6 +784,7 @@
 </template>
 
 <script>
+import { canReadRegistryHistory } from '@/utils/registryHistoryPermissions';
 import { carsRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
@@ -924,9 +925,8 @@ export default {
         canDeleteCars() {
             return usePermissionsStore().hasPermission('entity.cars.delete');
         },
-        // Администратор системы: правит и удаляет запись независимо от привязки.
-        // Признак приходит из ownership-info - того же ответа, которым решает бэкенд,
-        // иначе кнопка появилась бы там, где сервер отвечает 403.
+        // Административная область берётся из серверного ownership-info; журнал дополнительно требует прав чтения.
+        canReadRegistryLog() { return canReadRegistryHistory(usePermissionsStore(), 'cars'); },
         canManageAllEntities() {
             return this.ownershipInfo?.can_manage_all === true;
         },

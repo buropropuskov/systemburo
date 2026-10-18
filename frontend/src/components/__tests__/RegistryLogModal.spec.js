@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { usePermissionsStore } from '@/stores/permissions';
 
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
@@ -34,6 +35,7 @@ function mountModal(entity = 'employees') {
 describe('RegistryLogModal - журнал реестра', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().mode = 'admin';
     apiRequest.mockReset();
     apiRequest.mockResolvedValue({ ok: true, json: async () => LOG });
   });
@@ -105,4 +107,22 @@ describe('RegistryLogModal - журнал реестра', () => {
     expect(wrapper.find('.reglog__state--error').text()).toContain('403');
     expect(wrapper.findAll('.reglog__row')).toHaveLength(0);
   });
+  it.each(['detail.full_history', 'entity.employees.read'])('does not request the journal when %s is denied', async (key) => {
+    usePermissionsStore().denied = new Set([key]);
+    const wrapper = mountModal();
+    await flushPromises();
+    expect(apiRequest).not.toHaveBeenCalled();
+    expect(wrapper.vm.items).toEqual([]);
+  });
+
+  it('discards an in-flight response after access is revoked', async () => {
+    let resolve;
+    apiRequest.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const wrapper = mountModal();
+    usePermissionsStore().denied = new Set(['detail.full_history']);
+    resolve({ ok: true, json: async () => LOG });
+    await flushPromises();
+    expect(wrapper.vm.items).toEqual([]);
+  });
+
 });

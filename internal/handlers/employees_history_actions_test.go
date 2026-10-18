@@ -318,6 +318,8 @@ func TestEmployeeTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "empentrytbl1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "empentrytbl1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "empentrytbl1"), "detail.entry_exit_history")
 	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
