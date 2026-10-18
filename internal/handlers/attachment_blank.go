@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -206,32 +207,19 @@ func documentsRequested(c echo.Context) bool {
 // Гейт доступа к бланку проверяется отдельно (canDownloadBlank) и раньше: сюда попадают
 // уже те, кому файл положен, вопрос лишь в его наполнении.
 func canExportBlankDocuments(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) (bool, error) {
-	userID, ok := c.Get("user_id").(int)
-	if !ok || userID == 0 {
-		return false, nil
-	}
-
-	if access != nil && appID != 0 {
-		isSender, err := access.IsApplicationSender(c.Request().Context(), appID, userID)
-		if err != nil {
-			return false, err
-		}
-		if isSender {
-			return true, nil
-		}
-	}
-
-	// Без резолвера прав вычислить нечем - отказываем, а не пропускаем. Такая сборка
-	// бывает только в тестах, и молчаливое «разрешено» превратило бы их в проверку
-	// пустоты.
-	if resolver == nil {
-		return false, nil
-	}
-	set, err := resolver.ResolveFresh(c.Request().Context(), userID)
+	userID := GetUserID(c)
+	policy, err := services.ResolveDocumentAccess(c.Request().Context(), resolver, userID)
 	if err != nil {
 		return false, err
 	}
-	return set.Has(services.KeyDetailDocuments) && set.Has(services.KeyDetailDocumentsExport), nil
+	own := false
+	if access != nil && appID != 0 {
+		own, err = access.IsApplicationSender(c.Request().Context(), appID, userID)
+		if err != nil {
+			return false, apperr.New(http.StatusServiceUnavailable, "Не удалось проверить владельца документов", err)
+		}
+	}
+	return policy.ExportAllowed(own), nil
 }
 
 // canDownload повторяет обе точки, откуда бланк запрашивают: деталь заявки (DownloadBlanksModal)

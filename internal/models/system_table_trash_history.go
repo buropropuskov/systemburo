@@ -22,24 +22,26 @@ type TrashItem struct {
 	ApplicationID     *int       `json:"application_id,omitempty"`
 	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
 	DeletedByName     string     `json:"deleted_by_name,omitempty"`
-	Organization  string  `json:"organization,omitempty"`
-	Company       string  `json:"company,omitempty"`
-	EntryDateTo   *string `json:"entry_date_to,omitempty"`
-	EntryTimeFrom *string `json:"entry_time_from,omitempty"`
-	EntryTimeTo   *string `json:"entry_time_to,omitempty"`
+	Organization      string     `json:"organization,omitempty"`
+	Company           string     `json:"company,omitempty"`
+	EntryDateTo       *string    `json:"entry_date_to,omitempty"`
+	EntryTimeFrom     *string    `json:"entry_time_from,omitempty"`
+	EntryTimeTo       *string    `json:"entry_time_to,omitempty"`
 	// Cars-only
 	CarNumber    *string         `json:"car_number,omitempty"`
 	MarkName     *string         `json:"mark_name,omitempty"`
 	UnloadPlaces json.RawMessage `json:"unload_places,omitempty" gorm:"type:jsonb" swaggerignore:"true"`
 	// Employees-only
-	LastName        *string         `json:"last_name,omitempty"`
-	FirstName       *string         `json:"first_name,omitempty"`
-	MiddleName      *string         `json:"middle_name,omitempty"`
+	LastName             *string         `json:"last_name,omitempty"`
+	FirstName            *string         `json:"first_name,omitempty"`
+	MiddleName           *string         `json:"middle_name,omitempty"`
 	Position             *string         `json:"position,omitempty"`
 	CitizenshipName      string          `json:"citizenship_name,omitempty"`
-	PassportSeriesNumber *string         `json:"passport_series_number,omitempty"`
-	PatentNumber         *string         `json:"patent_number,omitempty"`
-	OtherPermission      *string         `json:"other_permission,omitempty"`
+	PassportSeriesNumber *string         `json:"passport_series_number"`
+	PatentNumber         *string         `json:"patent_number"`
+	OtherPermission      *string         `json:"other_permission"`
+	DocumentsHidden      bool            `json:"documents_hidden"`
+	DocumentOwnerID      *int            `json:"-" gorm:"column:document_owner_id"`
 	PassPlaces           json.RawMessage `json:"pass_places,omitempty" gorm:"type:jsonb" swaggerignore:"true"`
 }
 

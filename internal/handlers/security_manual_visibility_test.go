@@ -371,7 +371,7 @@ func TestGetAttachmentEmployees_ManualAttachmentHasOrganization(t *testing.T) {
 
 	attID := w.newManualAttachment(t, "people")
 
-	emps, err := w.svc.GetAttachmentEmployees(ctx, attID, services.SupplementScopeAdmitted)
+	emps, err := w.svc.GetAttachmentEmployees(ctx, attID, services.SupplementScopeAdmitted, s1FixtureActor(t, w.db))
 	require.NoError(t, err)
 	require.Len(t, emps, 1)
 	require.NotNil(t, emps[0].Organization)

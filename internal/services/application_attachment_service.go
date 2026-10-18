@@ -444,11 +444,26 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 // GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами. scope
 // решает, попадают ли в выдачу сотрудники ещё не принятого дополнения (#1685); выборка
 // несёт серию и номер паспорта и номер патента, поэтому охране идёт только допущенное.
-func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error) {
+func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope, viewerID int) ([]EmployeeWithTables, error) {
 	period, err := EntityEffectivePeriodSQL("e", "a")
 	if err != nil {
 		return nil, err
 	}
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), viewerID)
+	if err != nil {
+		return nil, err
+	}
+	var owner struct {
+		ID *int `gorm:"column:owner_id"`
+	}
+	ownerResult := s.db.WithContext(ctx).Table("attachments a").
+		Select("COALESCE(app.sender_user_id, a.created_by_user_id) AS owner_id").
+		Joins("LEFT JOIN applications app ON app.id = a.application_id").
+		Where("a.id = ?", attachmentID).Take(&owner)
+	if ownerResult.Error != nil {
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось проверить владельца вложения")
+	}
+	documentsHidden := !policy.ReadAllowed(policy.owns(owner.ID))
 	type empRow struct {
 		ID                   int
 		LastName             string  `gorm:"column:last_name"`
@@ -518,6 +533,10 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
 	for i := range employees {
+		if documentsHidden {
+			clearDocuments(&employees[i].PassportSeriesNumber, &employees[i].PatentNumber, &employees[i].OtherPermission)
+			continue
+		}
 		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
 		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
 		employees[i].OtherPermission = crypto.DecryptOptional(employees[i].OtherPermission)
@@ -541,6 +560,7 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		}
 
 		result = append(result, EmployeeWithTables{
+			DocumentsHidden:      documentsHidden,
 			IsBlacklisted:        emp.IsBlacklisted,
 			ID:                   emp.ID,
 			LastName:             emp.LastName,

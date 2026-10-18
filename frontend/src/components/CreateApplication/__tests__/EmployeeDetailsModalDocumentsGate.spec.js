@@ -18,13 +18,13 @@ const stubs = { teleport: true, EmployeeHistoryModal: true, TableInfoModal: true
 
 const PASSPORT_LABEL = 'Серия и номер паспорта';
 
-function mountEmployee(source, setupStore) {
+function mountEmployee(source, setupStore, fields = {}) {
   setActivePinia(createPinia());
   setupStore(usePermissionsStore());
   return mount(EmployeeDetailsModal, {
     props: {
       show: true,
-      employee: { id: 1, last_name: 'Иваноф', first_name: 'Иван', passport_series_number: '1234 567890', target_tables: [] },
+      employee: { id: 1, last_name: 'Иваноф', first_name: 'Иван', passport_series_number: '1234 567890', target_tables: [], ...fields },
       source,
     },
     global: { stubs },
@@ -59,4 +59,23 @@ describe('EmployeeDetailsModal - гейтинг раздела Документ�
     const w = mountEmployee('trash', (s) => { s.mode = 'super'; });
     expect(w.text()).not.toContain(PASSPORT_LABEL);
   });
+  it('server hidden marker hides documents even with stale super permissions', () => {
+    const w = mountEmployee('employeesview', (s) => { s.mode = 'super'; }, { documents_hidden: true, passport_series_number: null });
+    expect(w.text()).not.toContain(PASSPORT_LABEL);
+  });
+
+  it('server visible marker allows own documents despite a local deny', () => {
+    const w = mountEmployee('employeesview', (s) => {
+      s.mode = 'normal';
+      s.effective = {};
+      s.denied = ['detail.documents'];
+    }, { documents_hidden: false });
+    expect(w.text()).toContain(PASSPORT_LABEL);
+  });
+
+  it.each(['trash', 'blacklist'])('source %s remains hidden despite a server visible marker', (source) => {
+    const w = mountEmployee(source, (s) => { s.mode = 'super'; }, { documents_hidden: false });
+    expect(w.text()).not.toContain(PASSPORT_LABEL);
+  });
+
 });

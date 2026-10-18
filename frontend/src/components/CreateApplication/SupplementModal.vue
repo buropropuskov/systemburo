@@ -271,6 +271,7 @@
 </template>
 
 <script>
+import { employeeDocumentErrors } from '@/utils/employeeDocuments';
 import { ref } from 'vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import VehicleForm from '@/components/CreateApplication/VehicleForm.vue';
@@ -482,8 +483,7 @@ export default {
         totalRows() {
             return Object.values(this.rowsByAttachment).reduce((sum, rows) => sum + rows.length, 0);
         },
-        // Подсказка «в других вложениях уже подготовлено» - иначе набранное в
-        // предыдущем вложении не видно после переключения дропдауна и выглядит потерянным.
+        // Подсказка сохраняет видимость строк после переключения вложения.
         otherAttachmentsSummary() {
             const parts = [];
             for (const attachment of this.activeAttachments) {
@@ -525,13 +525,17 @@ export default {
             if (from && to) return `${from === to ? from : `${from} - ${to}`}${time}`;
             return from || to || 'Срок не задан';
         },
+        documentErrors() {
+            return this.activeAttachments.flatMap(a => a.attachment_type === 'people' ? employeeDocumentErrors(this.rowsByAttachment[a.id], this.fieldConfigByAttachment[a.unique_attachment_id]) : []);
+        },
         canSubmit() {
-            return !this.submitting && this.totalRows > 0;
+            return !this.submitting && this.totalRows > 0 && this.documentErrors.length === 0;
         },
         submitHint() {
             if (this.canSubmit || this.submitting) return '';
             if (!this.attachmentOptions.length) return 'У заявки нет действующих вложений';
             if (!this.selectedAttachmentId) return 'Выберите вложение заявки';
+            if (this.documentErrors.length) return this.documentErrors.join('. ');
             return 'Добавьте хотя бы одну строку';
         },
     },
@@ -583,11 +587,8 @@ export default {
             const uaId = this.selectedAttachment?.unique_attachment_id;
             if (uaId) this.loadFieldConfig(uaId);
         },
-        /**
-         * Обязательность и видимость полей у дополнения обязаны совпасть с подачей -
-         * иначе строка пройдёт форму и упрётся в серверную проверку шаблона. Источник
-         * тот же, что у CreateApplication: GET /attachments/{uaId}/field-config.
-         */
+        // Общий с подачей конфиг GET /attachments/{uaId}/field-config:
+        // обязательные документы проверяются до отправки дополнения.
         async loadFieldConfig(uniqueAttachmentId) {
             if (this.fieldConfigByAttachment[uniqueAttachmentId]) return;
             // Быстрое переключение вложений пускает несколько загрузок; пишем только
@@ -624,7 +625,7 @@ export default {
         },
         addRow(row) {
             if (!this.selectedAttachmentId) return;
-            this.rowsBucket().push({ ...row, id: this.rowIdCounter++, isExisting: false });
+            this.rowsBucket().push({ ...row, id: this.rowIdCounter++, isExisting: row.isExisting === true });
         },
         addRows(rows) {
             (rows || []).forEach((row) => this.addRow(row));

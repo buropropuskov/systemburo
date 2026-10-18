@@ -292,7 +292,7 @@ func (h *UniqueEmployeeHandler) Lookup(c echo.Context) error {
 	if lastName == "" || firstName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "last_name и first_name обязательны")
 	}
-	emp, err := h.service.LookupByFIO(c.Request().Context(), lastName, firstName, c.QueryParam("middle_name"))
+	emp, err := h.service.LookupByFIO(c.Request().Context(), lastName, firstName, c.QueryParam("middle_name"), GetUserID(c))
 	if err != nil {
 		return err
 	}

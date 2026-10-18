@@ -119,7 +119,8 @@
         </div>
 
         <!-- Третья строка: Паспорт и Номер патента -->
-        <div class="completion__name-row">
+        <p v-if="documentsHidden" class="binding-note" data-testid="employee-documents-hidden">Документы скрыты. Остальные данные можно изменить.</p>
+        <div v-if="!documentsHidden" class="completion__name-row">
           <div class="completion__passport">
             <div class="completion__passport-header">
               <label class="input__label">Серия и номер паспорта <span class="required">*</span></label>
@@ -150,6 +151,7 @@
 
         <!-- Четвертая строка: Иное разрешение -->
         <div
+          v-if="!documentsHidden"
           class="completion__permission"
           :class="{ 'disabled-field': !isPatentRequired }"
         >
@@ -283,6 +285,7 @@
 </template>
 
 <script>
+import { employeeDocumentPayload } from '@/utils/employeeDocuments';
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -371,6 +374,10 @@ export default {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
         },
 
+        documentsHidden() {
+            return this.editingEmployee?.documents_hidden === true;
+        },
+
         canSaveEmployee() {
             // Сервер всё равно отклонит правку персональных полей (409), но кнопка,
             // ведущая к отказу, - плохая кнопка: гасим сразу и объясняем причину.
@@ -383,13 +390,13 @@ export default {
             if (!this.selectedCitizenship) {
                 return false;
             }
-            if (!this.passportSeriesNumber.trim()) {
+            if (!this.documentsHidden && !this.passportSeriesNumber.trim()) {
                 return false;
             }
             if (!this.position.trim()) {
                 return false;
             }
-            if (this.isPatentRequired) {
+            if (!this.documentsHidden && this.isPatentRequired) {
                 if (!this.patentNumber.trim() && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
                     return false;
                 }
@@ -409,7 +416,7 @@ export default {
             return !!(this.editingEmployee && this.editingEmployee.pd_objection_at);
         },
         consentAlreadyGranted() {
-            return !!(this.editingEmployee && this.editingEmployee.pd_consent_at);
+            return !!(this.editingEmployee && (this.editingEmployee.pd_consent_at || this.originalEmployeeData?.pd_consent_at));
         },
 
         /**
@@ -429,11 +436,11 @@ export default {
             if (!this.lastName.trim()) missing.push('фамилию');
             if (!this.firstName.trim()) missing.push('имя');
             if (!this.position.trim()) missing.push('должность');
-            if (!this.passportSeriesNumber.trim()) missing.push('серию и номер паспорта');
+            if (!this.documentsHidden && !this.passportSeriesNumber.trim()) missing.push('серию и номер паспорта');
 
             const reasons = [];
             if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
-            if (this.isPatentRequired
+            if (!this.documentsHidden && this.isPatentRequired
                 && !this.patentNumber.trim()
                 && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
                 reasons.push('Для этого гражданства нужен номер патента или иное разрешение на работы');
@@ -500,7 +507,8 @@ export default {
                     patent_number: this.editingEmployee.patent_number,
                     other_permission: this.editingEmployee.other_permission,
                     organization_id: this.editingEmployee.organization_id,
-                    company_id: this.editingEmployee.company_id
+                    company_id: this.editingEmployee.company_id,
+                    pd_consent_at: this.editingEmployee.pd_consent_at
                 };
 
                 this.lastName = this.editingEmployee.last_name || '';
@@ -567,15 +575,22 @@ export default {
                 return true;
             }
 
+            if (this.pdConsent && !this.consentAlreadyGranted) {
+                return true;
+            }
+
             if (this.lastName !== this.originalEmployeeData.last_name ||
                 this.firstName !== this.originalEmployeeData.first_name ||
                 this.middleName !== this.originalEmployeeData.middle_name ||
-                this.position !== this.originalEmployeeData.position ||
-                this.passportSeriesNumber !== this.originalEmployeeData.passport_series_number ||
-                this.patentNumber !== this.originalEmployeeData.patent_number ||
-                this.selectedPermission !== this.originalEmployeeData.other_permission) {
+                this.position !== this.originalEmployeeData.position) {
                 return true;
             }
+
+            if (!this.documentsHidden && (
+                this.passportSeriesNumber !== (this.originalEmployeeData.passport_series_number || '') ||
+                this.patentNumber !== (this.originalEmployeeData.patent_number || '') ||
+                this.selectedPermission !== (this.originalEmployeeData.other_permission || 'Не выбрано')
+            )) return true;
 
             if (this.selectedCitizenship.id !== this.originalEmployeeData.citizenship_id) {
                 return true;
@@ -664,9 +679,12 @@ export default {
                     middle_name: this.middleName.trim(),
                     position: this.position.trim(),
                     citizenship_id: this.selectedCitizenship.id,
-                    passport_series_number: this.passportSeriesNumber.trim(),
-                    patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
-                    other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
+                    ...employeeDocumentPayload({
+                        documents_hidden: this.documentsHidden,
+                        passport_series_number: this.passportSeriesNumber.trim(),
+                        patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
+                        other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
+                    }),
                     pd_consent: this.pdConsent || this.consentAlreadyGranted
                 };
                 if (this.foreignRecord) {
@@ -709,11 +727,12 @@ export default {
                             middle_name: this.middleName,
                             position: this.position,
                             citizenship_id: this.selectedCitizenship.id,
-                            passport_series_number: this.passportSeriesNumber,
-                            patent_number: employeeData.patent_number,
-                            other_permission: employeeData.other_permission,
+                            passport_series_number: this.documentsHidden ? savedEmployee.passport_series_number : this.passportSeriesNumber,
+                            patent_number: this.documentsHidden ? savedEmployee.patent_number : employeeData.patent_number,
+                            other_permission: this.documentsHidden ? savedEmployee.other_permission : employeeData.other_permission,
                             organization_id: employeeData.organization_id,
-                            company_id: employeeData.company_id
+                            company_id: employeeData.company_id,
+                            pd_consent_at: savedEmployee.pd_consent_at || this.originalEmployeeData?.pd_consent_at
                         };
                     }
 

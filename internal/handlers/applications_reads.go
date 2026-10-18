@@ -280,7 +280,7 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id, services.SupplementScopeAll)
+	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id, services.SupplementScopeAll, GetUserID(c))
 	if err != nil {
 		return err
 	}

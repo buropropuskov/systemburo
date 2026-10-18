@@ -634,6 +634,7 @@
 </template>
 
 <script>
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import passageTableIntegration from './passageTableIntegration';
 import { peopleTablePeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client';
@@ -1179,9 +1180,7 @@ export default {
             applicationId: emp.application_id,
             applicationNumber: emp.application_number,
             target_tables: emp.target_tables || [],
-            passport_series_number: emp.passport_series_number,
-            patent_number: emp.patent_number,
-            other_permission: emp.other_permission,
+            ...employeeDocumentFields(emp),
             citizenshipName: emp.citizenship_name,
             position: emp.position,
             company: emp.company,

@@ -429,6 +429,7 @@
 </template>
 
 <script>
+import { employeeDocumentErrors } from '@/utils/employeeDocuments';
 import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
@@ -807,8 +808,7 @@ export default {
             this.attachments.forEach(attachment => {
                 const key = this.attachmentKey(attachment);
                 const label = attachment.attachment_display_name || attachment.attachment_name || attachment.display_name || `вложение #${attachment.id}`;
-                // Предварительные строки в подачу не идут, поэтому и в счёт «есть данные»
-                // не идут тоже: вложение из одних серых строк для сервера пустое.
+                // Считаем только строки, которые реально уйдут в заявку.
                 const rows = this.rowsForAttachment(attachment.attachment_type, key);
                 const ready = submittedRows(rows);
                 const pending = rows.length - ready.length;
@@ -820,6 +820,7 @@ export default {
                         break;
                     case 'people':
                         if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
+                        reasons.push(...employeeDocumentErrors(ready, this.fieldConfigByAttachment[attachment.template_id || attachment.id]).map(message => `"${label}": ${message}`));
                         break;
                     case 'items':
                         if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
@@ -829,9 +830,7 @@ export default {
                         break;
                 }
 
-                // Не «предупредим и отправим»: незамеченные серые строки ушли бы в никуда
-                // вместе с черновиком, который подача чистит. Поэтому подача ждёт решения -
-                // добавить их или удалить.
+                // Предварительные строки требуют решения; документы новой заявки - заполнения.
                 if (pending > 0) {
                     reasons.push(`"${label}": строки из бланка ещё предварительные (${pending}) - нажмите «Добавить» в сводке импорта или удалите их`);
                 }
@@ -885,6 +884,7 @@ export default {
                 const allRows = this.rowsForAttachment(type, key);
                 const items = submittedRows(allRows);
                 const pending = allRows.length - items.length;
+                if (type === 'people') errors.push(...employeeDocumentErrors(items, this.fieldConfigByAttachment[attachment.template_id || attachment.id]));
 
                 if (type === 'cars' && items.length === 0 && pending === 0) errors.push('Не добавлено ни одного автомобиля');
                 else if (type === 'people' && items.length === 0 && pending === 0) errors.push('Не добавлено ни одного сотрудника');
@@ -2077,7 +2077,7 @@ export default {
             const employeeWithId = {
                 ...newEmployee,
                 id: this.employeeIdCounter++,
-                isExisting: false
+                isExisting: newEmployee.isExisting === true
             };
             
             if (this.selectedAttachment) {
@@ -2095,7 +2095,7 @@ export default {
                 const employeeWithId = {
                     ...employee,
                     id: this.employeeIdCounter++,
-                    isExisting: false
+                    isExisting: employee.isExisting === true
                 };
                 
                 if (this.selectedAttachment) {

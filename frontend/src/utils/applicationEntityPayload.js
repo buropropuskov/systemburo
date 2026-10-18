@@ -1,3 +1,5 @@
+import { employeeDocumentPayload } from '@/utils/employeeDocuments';
+
 /**
  * Сборка строк вложения под DTO бэкенда (#1685).
  *
@@ -42,9 +44,7 @@ export function toEmployeePayload(employees) {
         middle_name: employee.middleName,
         citizenship_id: employee.citizenshipId,
         position: employee.position,
-        passport_series_number: employee.passportSeriesNumber,
-        patent_number: employee.patentNumber,
-        other_permission: employee.otherPermission,
+        ...employeeDocumentPayload(employee, { fromForm: true }),
         target_tables: employee.targetTables || [],
         // Отметка о согласии субъекта на обработку персональных данных: дату и автора
         // ставит сервер, отсюда уходит только факт подтверждения. Сотрудник, выбранный

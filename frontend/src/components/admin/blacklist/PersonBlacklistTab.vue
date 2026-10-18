@@ -90,6 +90,7 @@
 </template>
 
 <script>
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import BlacklistTabBase from './BlacklistTabBase.vue';
 import BlacklistCreateModal from './BlacklistCreateModal.vue';
 import BlacklistImpactModal from './BlacklistImpactModal.vue';
@@ -175,9 +176,7 @@ export default {
         middle_name: emp.middle_name,
         position: emp.position,
         citizenshipName: emp.citizenship_name,
-        passport_series_number: emp.passport_series_number,
-        patent_number: emp.patent_number,
-        other_permission: emp.other_permission,
+        ...employeeDocumentFields(emp),
         organization: emp.organization_name || null,
         company: emp.company_name || null,
         target_tables: [],

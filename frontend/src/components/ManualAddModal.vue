@@ -308,6 +308,7 @@
 </template>
 
 <script>
+import { employeeDocumentPayload } from '@/utils/employeeDocuments';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
@@ -677,9 +678,7 @@ export default {
                     middle_name: e.middleName || null,
                     citizenship_id: e.citizenshipId || 0,
                     position: e.position || '',
-                    passport_series_number: e.passportSeriesNumber || '',
-                    patent_number: e.patentNumber || null,
-                    other_permission: e.otherPermission || null,
+                    ...employeeDocumentPayload(e, { fromForm: true }),
                     target_tables: e.targetTables || [],
                 })),
             };

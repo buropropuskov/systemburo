@@ -66,7 +66,7 @@ func (h *TrashHandler) List(c echo.Context) error {
 	case "cars":
 		items, err = h.service.ListCarsTrash(c.Request().Context(), tableID, filter)
 	case "people":
-		items, err = h.service.ListEmployeesTrash(c.Request().Context(), tableID, filter)
+		items, err = h.service.ListEmployeesTrash(c.Request().Context(), tableID, filter, GetUserID(c))
 	default:
 		return echo.NewHTTPError(http.StatusBadRequest, "Тип таблицы не поддерживает корзину")
 	}

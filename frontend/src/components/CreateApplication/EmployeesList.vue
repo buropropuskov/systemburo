@@ -275,6 +275,7 @@
 </template>
 
 <script>
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import EmployeeDetailsModal from './EmployeeDetailsModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import Badge from '@/components/ui/Badge.vue';
@@ -398,9 +399,7 @@ export default {
                 middle_name: employee.middleName,
                 position: employee.position,
                 citizenshipName: employee.citizenshipName,
-                passport_series_number: employee.passportSeriesNumber,
-                patent_number: employee.patentNumber,
-                other_permission: employee.otherPermission,
+                ...employeeDocumentFields(employee, { fromForm: true }),
                 target_tables: employee.targetTables || [],
                 // entry_date_to/pass_time/organization/company хранятся на уровне
                 // вложения/заявки, не на сущности формы - берём из detailInfo.

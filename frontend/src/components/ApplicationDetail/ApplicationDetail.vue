@@ -683,6 +683,7 @@
 </template>
 
 <script>
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { applicationPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client'
 import { markAsRead, getApplicationSupplements, getApplicationParticipants } from '@/api/applications'
@@ -1871,9 +1872,7 @@ export default {
                             position: emp.position || '',
                             citizenshipId: emp.citizenship_id || null,
                             citizenshipName: emp.citizenship_name || '',
-                            passportSeriesNumber: emp.passport_series_number || '',
-                            patentNumber: emp.patent_number || null,
-                            otherPermission: emp.other_permission || null,
+                            ...employeeDocumentFields(emp, { toForm: true }),
                             targetTables: emp.target_tables || [],
                             passageTables: '',
                             isExisting: false,
