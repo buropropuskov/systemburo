@@ -10,6 +10,7 @@ vi.mock('@/api/applications', () => ({ markAsRead: vi.fn().mockResolvedValue(und
 const confirmMock = vi.fn();
 vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmMock }) }));
 
+import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
 import ApplicationDetail from '../ApplicationDetail.vue';
 
@@ -26,6 +27,7 @@ function mountDetail(application = {}) {
 describe('ApplicationDetail - отзыв своей заявки (#951)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
     apiRequest.mockReset().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
     confirmMock.mockReset();
   });
@@ -76,6 +78,7 @@ describe('ApplicationDetail - отзыв своей заявки (#951)', () => 
 describe('ApplicationDetail - отображение отозванной заявки (#951)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
     apiRequest.mockReset().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
     confirmMock.mockReset();
   });

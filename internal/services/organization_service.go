@@ -765,6 +765,11 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, calle
 	var applied []auditUserState
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var previous []applicationAssignee
+		if err := tx.Model(&models.OrganizationUser{}).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("user_id, is_primary, required_approval").Where("organization_id = ?", orgID).Order("user_id").Find(&previous).Error; err != nil {
+			return echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось проверить состав согласующих")
+		}
 		// Удаляем старые связи
 		if err := tx.Where("organization_id = ?", orgID).Delete(&models.OrganizationUser{}).Error; err != nil {
 			slog.Error("Не удалось удалить старых пользователей организации", "error", err)
@@ -787,6 +792,15 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, calle
 			requiredApproval := false
 			if userReq.RequiredApproval != nil {
 				requiredApproval = *userReq.RequiredApproval
+			}
+			if requiredApproval && !preservesDirectoryAssignee(previous, user.ID, isPrimary) {
+				allowed, err := applicationActionAvailable(ctx, tx, user.ID, KeyActionApproveApplication)
+				if err != nil {
+					return err
+				}
+				if !allowed {
+					return echo.NewHTTPError(http.StatusBadRequest, "Этот пользователь не может согласовать заявку. Выберите другого согласующего")
+				}
 			}
 
 			ou := models.OrganizationUser{

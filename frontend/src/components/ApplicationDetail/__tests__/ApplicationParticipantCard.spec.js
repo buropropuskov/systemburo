@@ -188,3 +188,11 @@ describe('ApplicationParticipantCard (#1952)', () => {
     wrapper.unmount();
   });
 });
+
+
+it('shows unavailable approval without disclosing its cause', () => {
+  const wrapper = mountCard({ participant: { ...FULL, approval_status: 'pending', can_approve: false } })
+  expect(wrapper.get('[data-testid="app-participant-card-vote"]').text()).toBe('Не может согласовать')
+  expect(wrapper.text()).not.toContain('настройки прав')
+  wrapper.unmount()
+})

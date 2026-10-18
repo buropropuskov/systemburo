@@ -640,6 +640,7 @@ type ApprovalStatusResponse struct {
 
 // ResponsibleUserInfo информация об ответственном пользователе с данными согласования.
 type ResponsibleUserInfo struct {
+	CanApprove       *bool      `json:"can_approve,omitempty"`
 	ID               int        `json:"id"`
 	Username         string     `json:"username"`
 	LastName         *string    `json:"last_name"`
@@ -1635,21 +1636,19 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 	}
 
 	// Собираем ответственных из организации и компании
-	type respUser struct {
-		UserID    int
-		IsPrimary bool
-	}
+	type respUser = applicationAssignee
 	var responsibleUsers []respUser
 	var primaryResponsibleID *int
 
 	if req.OrganizationID != nil {
 		var orgResp []struct {
-			UserID    int  `gorm:"column:user_id"`
-			IsPrimary bool `gorm:"column:is_primary"`
+			UserID           int  `gorm:"column:user_id"`
+			IsPrimary        bool `gorm:"column:is_primary"`
+			RequiredApproval bool `gorm:"column:required_approval"`
 		}
-		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary FROM organization_users WHERE organization_id = ?", *req.OrganizationID).Scan(&orgResp)
+		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM organization_users WHERE organization_id = ?", *req.OrganizationID).Scan(&orgResp)
 		for _, r := range orgResp {
-			responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary})
+			responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
 			if r.IsPrimary {
 				primaryResponsibleID = &r.UserID
 			}
@@ -1658,20 +1657,22 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 
 	if req.CompanyID != nil {
 		var compResp []struct {
-			UserID    int  `gorm:"column:user_id"`
-			IsPrimary bool `gorm:"column:is_primary"`
+			UserID           int  `gorm:"column:user_id"`
+			IsPrimary        bool `gorm:"column:is_primary"`
+			RequiredApproval bool `gorm:"column:required_approval"`
 		}
-		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary FROM companies_users WHERE company_id = ?", *req.CompanyID).Scan(&compResp)
+		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM companies_users WHERE company_id = ?", *req.CompanyID).Scan(&compResp)
 		for _, r := range compResp {
 			exists := false
-			for _, ru := range responsibleUsers {
-				if ru.UserID == r.UserID {
+			for i := range responsibleUsers {
+				if responsibleUsers[i].UserID == r.UserID {
+					responsibleUsers[i].RequiredApproval = responsibleUsers[i].RequiredApproval || r.RequiredApproval
 					exists = true
 					break
 				}
 			}
 			if !exists {
-				responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary})
+				responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
 				if r.IsPrimary && primaryResponsibleID == nil {
 					primaryResponsibleID = &r.UserID
 				}
@@ -1679,16 +1680,21 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 		}
 	}
 
+	responsibleUsers, primaryResponsibleID, err = prepareApplicationAssignees(ctx, tx, app.ID, user.ID, responsibleUsers, primaryResponsibleID, now)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 	if primaryResponsibleID != nil {
 		tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, app.ID)
 	}
 
 	for _, ru := range responsibleUsers {
 		tx.Exec(`
-			INSERT INTO application_responsible_users (application_id, user_id, is_primary, approval_status, created_at)
-			VALUES (?, ?, ?, 'pending', NOW())
+			INSERT INTO application_responsible_users (application_id, user_id, is_primary, required_approval, approval_status, created_at)
+			VALUES (?, ?, ?, ?, 'pending', ?)
 			ON CONFLICT (application_id, user_id) DO NOTHING
-		`, app.ID, ru.UserID, ru.IsPrimary)
+		`, app.ID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, now)
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -2371,11 +2377,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		applicationAuditDetails{NewValue: &applicationNumber, Metadata: metaCreate})
 
 	// Собираем ответственных
-	type respUser struct {
-		UserID           int
-		IsPrimary        bool
-		RequiredApproval bool
-	}
+	type respUser = applicationAssignee
 	var responsibleUsers []respUser
 	var primaryResponsibleID *int
 
@@ -2403,8 +2405,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM companies_users WHERE company_id = ?", *companyID).Scan(&compResp)
 		for _, r := range compResp {
 			exists := false
-			for _, ru := range responsibleUsers {
-				if ru.UserID == r.UserID {
+			for i := range responsibleUsers {
+				if responsibleUsers[i].UserID == r.UserID {
+					responsibleUsers[i].RequiredApproval = responsibleUsers[i].RequiredApproval || r.RequiredApproval
 					exists = true
 					break
 				}
@@ -2449,6 +2452,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 	}
 
+	responsibleUsers, primaryResponsibleID, err = prepareApplicationAssignees(ctx, tx, appID, user.ID, responsibleUsers, primaryResponsibleID, baseTime)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 	if primaryResponsibleID != nil {
 		tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, appID)
 	}

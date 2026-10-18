@@ -696,6 +696,12 @@ func (s *companyService) UpdateUsers(ctx context.Context, callerUserID, companyI
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
+	var previous []applicationAssignee
+	if err := tx.Model(&models.CompaniesUser{}).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("user_id, is_primary, required_approval").Where("company_id = ?", companyID).Order("user_id").Find(&previous).Error; err != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось проверить состав согласующих")
+	}
 	// Удаляем старые связи
 	if err := tx.Where("company_id = ?", companyID).Delete(&models.CompaniesUser{}).Error; err != nil {
 		tx.Rollback()
@@ -719,6 +725,17 @@ func (s *companyService) UpdateUsers(ctx context.Context, callerUserID, companyI
 		requiredApproval := false
 		if userReq.RequiredApproval != nil {
 			requiredApproval = *userReq.RequiredApproval
+		}
+		if requiredApproval && !preservesDirectoryAssignee(previous, user.ID, isPrimary) {
+			allowed, err := applicationActionAvailable(ctx, tx, user.ID, KeyActionApproveApplication)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			if !allowed {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusBadRequest, "Этот пользователь не может согласовать заявку. Выберите другого согласующего")
+			}
 		}
 
 		cu := models.CompaniesUser{

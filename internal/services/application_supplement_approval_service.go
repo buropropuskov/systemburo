@@ -73,6 +73,9 @@ func (s *applicationService) ApproveSupplement(ctx context.Context, username str
 	if err != nil {
 		return nil, err
 	}
+	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionApproveApplication); err != nil {
+		return nil, err
+	}
 	// Членство в раунде - до всего остального и по одному supplement_id: посторонний
 	// получает 403 и на существующий раунд, и на выдуманный, и перебором id состав чужих
 	// заявок не нащупывает.
@@ -186,6 +189,9 @@ func (s *applicationService) ApproveSupplement(ctx context.Context, username str
 func (s *applicationService) RevokeSupplementApproval(ctx context.Context, username string, applicationID, supplementID int, req SupplementRevokeApprovalRequest) (*SupplementVoteResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionApproveApplication); err != nil {
 		return nil, err
 	}
 	if err := s.ensureSupplementVoter(ctx, s.db, supplementID, user.ID); err != nil {

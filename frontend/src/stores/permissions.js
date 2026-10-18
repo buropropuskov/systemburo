@@ -74,6 +74,13 @@ export const usePermissionsStore = defineStore('permissions', {
   }),
 
   getters: {
+    // Existing application access/assignment is checked separately by the caller.
+    allowsApplicationAction: (state) => (key) => {
+      if (!['action.approve.application', 'action.forward.application'].includes(key)) return false
+      if (!state.loaded || state.banned || state.mode === 'banned') return false
+      if (state.mode === 'super') return true
+      return !state.denied.has(key) && state.effective[key]?.value !== 'deny'
+    },
     /**
      * Проверяет, разрешён ли ключ для текущего пользователя.
      *

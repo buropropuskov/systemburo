@@ -287,7 +287,7 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 	}
 
 	if inWork {
-		if err := s.snapshotSupplementApprovers(tx, applicationID, supplement.ID, now); err != nil {
+		if err := s.snapshotSupplementApprovers(ctx, tx, applicationID, supplement.ID, now); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -687,14 +687,37 @@ func sameStringPtr(a, b *string) bool {
 // snapshotSupplementApprovers - ветка «заявка в работе»: голоса основного круга не трогаем
 // (иначе updateConfirmationBasedOnApprovals уронил бы confirmation и снял с КПП уже
 // допущенных), а состав голосующих по раунду фиксируем снимком ответственных на этот момент.
-func (s *applicationService) snapshotSupplementApprovers(tx *gorm.DB, applicationID, supplementID int, now time.Time) error {
+func (s *applicationService) snapshotSupplementApprovers(ctx context.Context, tx *gorm.DB, applicationID, supplementID int, now time.Time) error {
+	var users []applicationAssignee
+	if err := tx.WithContext(ctx).Raw("SELECT user_id, COALESCE(required_approval, false) AS required_approval FROM application_responsible_users WHERE application_id = ?", applicationID).Scan(&users).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось загрузить участников заявки").SetInternal(err)
+	}
+	if len(users) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(users))
+	for _, user := range users {
+		allowed, err := applicationActionAvailable(ctx, tx, user.UserID, KeyActionApproveApplication)
+		if err != nil {
+			return err
+		}
+		if allowed {
+			ids = append(ids, user.UserID)
+		} else if user.RequiredApproval {
+			return echo.NewHTTPError(http.StatusBadRequest, "Один из обязательных согласующих не может согласовать вашу заявку. Выберите другого согласующего")
+		}
+	}
+	if len(ids) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Нет доступных согласующих для этого дополнения")
+	}
+
 	err := tx.Exec(`
 		INSERT INTO application_supplement_approvals (supplement_id, user_id, required_approval, approval_status, created_at)
 		SELECT ?, aru.user_id, COALESCE(aru.required_approval, false), 'pending', ?
 		FROM application_responsible_users aru
-		WHERE aru.application_id = ?
+		WHERE aru.application_id = ? AND aru.user_id IN ?
 		ON CONFLICT DO NOTHING
-	`, supplementID, now, applicationID).Error
+	`, supplementID, now, applicationID, ids).Error
 	if err != nil {
 		slog.Error("дополнение: не удалось снять снимок согласующих", "application_id", applicationID, "supplement_id", supplementID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to snapshot supplement approvers")

@@ -159,7 +159,7 @@
             class="action-buttons-track"
           >
             <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-            <template v-if="!busy && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
+            <template v-if="!busy && approvalAllowed && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
               <!-- Если пользователь еще не голосовал -->
               <template v-if="!hasUserVoted">
                 <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
@@ -388,7 +388,7 @@
             </template>
 
             <!-- Для ответственных за согласование (не принимающих) -->
-            <template v-else-if="!busy && isResponsibleUser && application.status !== 'Отозвана'">
+            <template v-else-if="!busy && approvalAllowed && isResponsibleUser && application.status !== 'Отозвана'">
               <!-- Если пользователь еще не голосовал -->
               <template v-if="!hasUserVoted">
                 <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
@@ -568,6 +568,7 @@ export default {
     name: 'ApplicationActionBar',
     components: { BaseModal, Badge },
     props: {
+        approvalAllowed: { type: Boolean, default: true },
         application: {
             type: Object,
             required: true
@@ -780,7 +781,7 @@ export default {
         // Кнопка "Согласовать"/"Согласовать и принять" видна только ответственному,
         // который ещё не голосовал, по не отклонённой и не завершённой заявке.
         showsApproveButton() {
-            if (!this.isResponsibleUser || this.hasUserVoted) return false;
+            if (!this.approvalAllowed || !this.isResponsibleUser || this.hasUserVoted) return false;
             return this.application.confirmation !== 'Не согласовано' && this.application.status !== 'Завершено';
         },
 
@@ -831,13 +832,13 @@ export default {
         // Голосовать можно только по идущему кругу и только один раз - повторно кнопки
         // не предлагаем, вместо них показываем бейдж голоса и отзыв.
         canVoteOnSupplement() {
-            return !!this.actionableRound
+            return this.approvalAllowed && !!this.actionableRound
                 && this.actionableRound.status === SUPPLEMENT_PENDING
                 && this.mySupplementVoteStatus === 'pending';
         },
 
         canRevokeSupplementVote() {
-            return !!this.mySupplementVoteStatus && this.mySupplementVoteStatus !== 'pending';
+            return this.approvalAllowed && !!this.mySupplementVoteStatus && this.mySupplementVoteStatus !== 'pending';
         },
 
         /**
@@ -1003,7 +1004,7 @@ export default {
             }
         },
 
-        async handleCombinedAction(action) {
+        async handleCombinedAction(action) { if (!this.approvalAllowed) return;
             this.$emit('processing-change', true);
             try {
                 const approvalResponse = await apiRequest(`/applications/${this.application.id}/approve`, {
@@ -1139,7 +1140,7 @@ export default {
             }
         },
 
-        async revokeOwnApproval() {
+        async revokeOwnApproval() { if (!this.approvalAllowed) return;
             const ok = await useUiStore().confirm({
                 title: 'Отозвать решение?',
                 message: 'Ваше решение по согласованию этой заявки будет отозвано.',
@@ -1170,8 +1171,7 @@ export default {
             }
         },
 
-        async updateConfirmation(confirmation) {
-            if (!this.isResponsibleUser) return;
+        async updateConfirmation(confirmation) { if (!this.approvalAllowed || !this.isResponsibleUser) return;
 
             this.$emit('updating-confirmation-change', true);
             try {

@@ -103,6 +103,7 @@ async function mountDetail({ props = {}, data = {}, superAdmin = false, allow = 
 describe('ApplicationDetail - кнопка "Переслать" по доступу к заявке (#1948)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
     apiRequest.mockReset();
     apiRequest.mockResolvedValue(okJson([]));
   });
@@ -155,6 +156,7 @@ describe('ApplicationDetail - кнопка "Переслать" по досту�
 describe('ApplicationDetail - выбор роли получателя закрыт читателю (#1948)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
     apiRequest.mockReset();
     apiRequest.mockResolvedValue(okJson([]));
   });
@@ -198,6 +200,7 @@ describe('ApplicationDetail - источник получателей (#1948)', 
 
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
     apiRequest.mockReset();
     apiRequest.mockImplementation((path) => {
       if (path === '/users/recipient-candidates') return Promise.resolve(okJson(CANDIDATES));
@@ -320,6 +323,7 @@ describe('ForwardModal - получатели и роль (#1948)', () => {
 describe('ApplicationDetail — пересылка отозванной #2666', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
     apiRequest.mockReset();
     apiRequest.mockResolvedValue(okJson([]));
   });

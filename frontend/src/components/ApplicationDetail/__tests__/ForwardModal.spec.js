@@ -191,3 +191,16 @@ describe('ForwardModal — сопроводительное сообщение (
     expect(wrapper.vm.message).toBe('');
   });
 });
+
+
+describe('ForwardModal current access', () => {
+  it('hides the window and cannot send after access is removed', async () => {
+    const wrapper = await mountOpened()
+    await wrapper.setProps({ allowed: false })
+    expect(wrapper.emitted('close')).toBeTruthy()
+    wrapper.vm.send()
+    expect(wrapper.emitted('send')).toBeUndefined()
+    expect(wrapper.find('[data-testid="forward-modal-message"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

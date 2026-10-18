@@ -69,12 +69,12 @@
             </Badge>
             <Badge
               v-if="participant.approval_status"
-              :variant="voteVariant(participant.approval_status)"
+              :variant="participant.can_approve === false && participant.approval_status === 'pending' ? 'danger' : voteVariant(participant.approval_status)"
               size="sm"
               dot
               data-testid="app-participant-card-vote"
             >
-              {{ getStatusText(participant.approval_status) }}
+              {{ participant.can_approve === false && participant.approval_status === 'pending' ? 'Не может согласовать' : getStatusText(participant.approval_status) }}
             </Badge>
           </div>
         </div>

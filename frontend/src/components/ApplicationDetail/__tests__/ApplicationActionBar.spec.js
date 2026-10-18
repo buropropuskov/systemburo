@@ -12,6 +12,7 @@ const confirmMock = vi.fn(() => Promise.resolve(true));
 vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmMock }) }));
 
 import ApplicationActionBar from '../ApplicationActionBar.vue';
+import { apiRequest } from '@/api/client';
 
 const APPROVE = '[data-testid="app-detail-button-approve"]';
 const REJECT = '[data-testid="app-detail-button-reject"]';
@@ -453,5 +454,30 @@ describe('ApplicationActionBar - подсказка гейта ЧС держит
     const wrapper = mountBar({ hasUnoverriddenBlacklistFlags: true });
     expect(wrapper.find(HINT).attributes('title'))
       .toBe('Подтвердите пропуск по всем помеченным элементам, чтобы согласовать заявку');
+  });
+});
+
+
+describe('application approval current availability', () => {
+  it('hides voting when unavailable', () => {
+    const wrapper = mountBar({ approvalAllowed: false });
+    expect(wrapper.find(APPROVE).exists()).toBe(false);
+    expect(wrapper.find(REVOKE).exists()).toBe(false);
+    wrapper.unmount();
+  });
+  it('preserves a receiving action for a user who cannot vote', () => {
+    const wrapper = mountBar({ approvalAllowed: false, approvers: [{ user_id: 1 }], application: { id: 1, confirmation: 'Согласовано', status: 'Непрочитано' } });
+    expect(wrapper.find(APPROVE).exists()).toBe(false);
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+    wrapper.unmount();
+  });
+  it('does not submit vote or revoke through an unavailable handler', async () => {
+    const wrapper = mountBar({ approvalAllowed: false });
+    apiRequest.mockClear();
+    await wrapper.vm.handleCombinedAction('accept');
+    await wrapper.vm.updateConfirmation('Согласовано');
+    await wrapper.vm.revokeOwnApproval();
+    expect(apiRequest).not.toHaveBeenCalled();
+    wrapper.unmount();
   });
 });

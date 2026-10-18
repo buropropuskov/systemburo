@@ -13,7 +13,7 @@ vi.mock('@/api/applications', () => ({ markAsRead: vi.fn().mockResolvedValue({})
 const stubs = {
   teleport: true,
   ForwardModal: true,
-  ApplicationActionBar: { name: 'ApplicationActionBar', template: '<div class="action-bar-stub"><slot name="user-actions" /></div>' },
+  ApplicationActionBar: { name: 'ApplicationActionBar', props: ['approvalAllowed'], template: '<div class="action-bar-stub"><slot name="user-actions" /></div>' },
   ApplicationAttachments: true,
   ApplicationMessageModal: true,
   ApplicationAttachmentDetail: true,
@@ -36,9 +36,11 @@ const APP = {
 };
 
 /** Задаёт режим/права в свежем сторе до монтирования детали. */
-function seedPerms({ mode = 'normal', allow = [] } = {}) {
+function seedPerms({ mode = 'normal', allow = [], deny = [] } = {}) {
   const perms = usePermissionsStore();
+  perms.loaded = true;
   perms.mode = mode;
+  perms.denied = new Set(deny);
   perms.effective = Object.fromEntries(allow.map(k => [k, { value: 'allow', source: 'role' }]));
 }
 
@@ -72,8 +74,8 @@ describe('ApplicationDetail — гейтинг центр-действий (ср
       expect(forward(w).exists()).toBe(true);
     });
 
-    it('normal без права, но ответственный: кнопка скрыта (тумблер гейтит)', async () => {
-      seedPerms({ allow: [] });
+    it('normal с запретом, но ответственный: кнопка скрыта', async () => {
+      seedPerms({ deny: ['action.forward.application'] });
       const w = mountDetail();
       await makeResponsible(w);
       expect(forward(w).exists()).toBe(false);
@@ -96,11 +98,11 @@ describe('ApplicationDetail — гейтинг центр-действий (ср
       expect(comment(w).exists()).toBe(true);
     });
 
-    it('normal без права: панель действий и поле комментария скрыты', async () => {
-      seedPerms({ allow: [] });
+    it('normal с запретом: голосование и его комментарий недоступны', async () => {
+      seedPerms({ deny: ['action.approve.application'] });
       const w = mountDetail();
       await makeResponsible(w);
-      expect(actionBar(w).exists()).toBe(false);
+      expect(w.getComponent({ name: 'ApplicationActionBar' }).props('approvalAllowed')).toBe(false);
       expect(comment(w).exists()).toBe(false);
     });
 
@@ -118,6 +120,16 @@ describe('ApplicationDetail — гейтинг центр-действий (ср
       expect(actionBar(w).exists()).toBe(true);
       expect(duplicate(w).exists()).toBe(true);
     });
+  });
+
+  it('explicit denial also blocks voting in a personal application', async () => {
+    seedPerms({ deny: ['action.approve.application'] });
+    const w = mountDetail({ mode: 'user' });
+    await makeResponsible(w);
+    expect(w.getComponent({ name: 'ApplicationActionBar' }).props('approvalAllowed')).toBe(false);
+    expect(comment(w).exists()).toBe(false);
+    expect(duplicate(w).exists()).toBe(true);
+    w.unmount();
   });
 
   describe('История заявки (center.application_history) — Q2: только по ключу', () => {
