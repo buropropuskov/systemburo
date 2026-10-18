@@ -220,13 +220,25 @@ func TestFakeUsers_KeepsArchivedApproverRow(t *testing.T) {
 	require.Equal(t, int64(1), rowsBefore, "строка ответственного должна пережить архивацию пользователя")
 
 	profile, err := fakedata.ProfileByName("small")
-	require.NoError(t, err)
+ require.NoError(t, err)
+ // This case checks preservation of user assignments. Full small-flow tests
+ // remain separate; processing an archived required voter is tracked as S5 debt.
+ profile.Applications = 0
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-archived"), 424, profile.Name)
 	require.NoError(t, err)
 	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 424}))
 
 	require.Equal(t, rowsBefore+1, countOrgUserRows(t, db, org.ID),
 		"наливка должна была добавить согласующего, не удалив архивного")
+ var archived models.User
+ require.NoError(t, db.Where("username = ?", archivedName).First(&archived).Error)
+ require.False(t, archived.IsActive, "генератор не должен восстанавливать архивную учётку")
+ var retained, available int64
+ require.NoError(t, db.Table("organization_users").Where("organization_id = ? AND user_id = ? AND required_approval", org.ID, archived.ID).Count(&retained).Error)
+ require.EqualValues(t, 1, retained, "историческое обязательное назначение сохранено")
+ require.NoError(t, db.Table("organization_users ou").Joins("JOIN users u ON u.id = ou.user_id").
+  Where("ou.organization_id = ? AND ou.required_approval AND u.is_active AND NOT u.is_banned", org.ID).Count(&available).Error)
+ require.Positive(t, available, "добавлен действующий обязательный согласующий")
 }
 
 func countOrgUserRows(t *testing.T, db *gorm.DB, orgID int) int64 {

@@ -1010,7 +1010,9 @@ func (s *applicationService) CanAccessApplicationChecked(ctx context.Context, ap
 	var app models.Application
 	if err := s.db.WithContext(ctx).Select("id, sender_user_id").Where("id = ?", applicationID).First(&app).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
+			// Preserve the active super-admin's downstream 404 contract without
+			// restoring a token-based or banned/inactive bypass.
+			return user.IsSuperAdmin && !user.IsBanned, nil
 		}
 		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 	}

@@ -359,3 +359,24 @@ func TestSecurityS2_DetailPinsActorModeThroughProjection(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, safe, "responsible_users")
 }
+
+func TestSecurityS2_MissingApplicationSuperContract(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+	// A normal user cannot use the caller-provided super flag to enumerate objects.
+	allowed, err := services.CheckApplicationAccess(ctx, w.svc, -1, "sender1", true)
+	require.NoError(t, err)
+	require.False(t, allowed)
+	require.NoError(t, w.db.Model(&models.User{}).Where("id = ?", w.senderID).Update("is_super_admin", true).Error)
+	allowed, err = services.CheckApplicationAccess(ctx, w.svc, -1, "sender1", false)
+	require.NoError(t, err)
+	require.True(t, allowed, "actual active super reaches the endpoint's ordinary not-found response")
+	require.NoError(t, w.db.Model(&models.User{}).Where("id = ?", w.senderID).Update("is_banned", true).Error)
+	allowed, err = services.CheckApplicationAccess(ctx, w.svc, -1, "sender1", true)
+	require.NoError(t, err)
+	require.False(t, allowed)
+	require.NoError(t, w.db.Model(&models.User{}).Where("id = ?", w.senderID).Updates(map[string]interface{}{"is_banned": false, "is_active": false}).Error)
+	allowed, err = services.CheckApplicationAccess(ctx, w.svc, -1, "sender1", true)
+	require.False(t, allowed)
+	s2RequireHTTPStatus(t, err, http.StatusForbidden)
+}
