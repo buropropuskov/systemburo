@@ -83,6 +83,15 @@ func TestS5History_RegistryAndAdminJournals(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	regular := testutil.RegisterAndLogin(t, e, "history_not_admin", "pass123", 1, td.OrgID, td.CompanyID)
+	rid := getUserID(t, db, "history_not_admin")
+	testutil.GrantPermission(t, rid, services.KeyDetailFullHistory)
+	for _, entity := range []string{"cars", "employees"} {
+		testutil.GrantPermission(t, rid, "entity."+entity+".read")
+		r := testutil.GET(t, e, "/unique-"+entity+"/history", testutil.AuthHeader(regular))
+		require.Equal(t, http.StatusForbidden, r.Code, r.Body.String())
+		require.NotContains(t, r.Body.String(), "required_permission", "отказ по административной области после всех ключей")
+	}
 	token := testutil.RegisterManager(t, e, "history_admin", td.OrgID, td.CompanyID)
 	uid := getUserID(t, db, "history_admin")
 	h := testutil.AuthHeader(token)

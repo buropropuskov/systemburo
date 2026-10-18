@@ -80,9 +80,6 @@ func roleProbes(fx roleFixture) map[string]roleProbe {
 		"GET /api/applications/available-attachments":                    {},
 		"GET /api/applications/available-attachments/:id":                {},
 		"POST /api/applications/available-attachments/:id/mark-executed": {},
-
-		"GET /api/unique-cars/history":               {},
-		"GET /api/unique-employees/history":          {},
-		"DELETE /api/unique-employees/:id/objection": {id: fx.uniqueEmployeeID},
+		"DELETE /api/unique-employees/:id/objection":                     {id: fx.uniqueEmployeeID},
 	}
 }
