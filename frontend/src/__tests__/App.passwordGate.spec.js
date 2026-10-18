@@ -80,9 +80,13 @@ describe('App.vue - гейт обязательной смены пароля (#
     authState.isAuthenticated = true;
     authState.isSuperAdmin = false;
     permissionsState.banned = false;
+    fetchPermissions.mockReset();
+    fetchPermissions.mockResolvedValue();
+    authState.clearTokens.mockClear();
     consentState.required = false;
     passwordChangeState.required = true;
-    passwordChangeState.reset.mockClear();
+    passwordChangeState.reset.mockReset();
+    passwordChangeState.reset.mockImplementation(() => { passwordChangeState.required = false; });
     onboardingState.reset.mockClear();
   });
 
@@ -152,16 +156,20 @@ describe('App.vue - гейт обязательной смены пароля (#
     expect(passwordModal(wrapper).props('show')).toBe(false);
   });
 
-  // Окно само чистит сессию и уводит на вход: не сняв требование, оно всплыло бы
-  // поверх формы входа.
-  it('после смены пароля требование снимается', async () => {
+  it('после смены пароля снимает гейт и сохраняет вход', async () => {
     const wrapper = mountApp();
     await flushPromises();
 
+    fetchPermissions.mockClear();
     passwordModal(wrapper).vm.$emit('changed');
     await flushPromises();
 
     expect(passwordChangeState.reset).toHaveBeenCalledTimes(1);
+    expect(fetchPermissions).not.toHaveBeenCalled();
+    expect(passwordModal(wrapper).props('show')).toBe(false);
+    expect(wrapper.findComponent(NavMenu).exists()).toBe(true);
+    expect(authState.clearTokens).not.toHaveBeenCalled();
+    expect(wrapper.vm.$router.push).not.toHaveBeenCalled();
   });
 
   it('выход из окна сбрасывает требование рядом со сбросом тура', async () => {

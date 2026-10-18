@@ -17,6 +17,8 @@ vi.mock('@/router', () => ({
 import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal, _resetDedup403, SILENT_403_PREFIXES } from '../client';
 import { usePDConsentStore } from '@/stores/pdConsent';
 import { usePasswordChangeStore } from '@/stores/passwordChange';
+import { useMaintenanceStore } from '@/stores/maintenance';
+import { useAuthStore } from '@/stores/auth';
 
 function okJson(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -32,6 +34,86 @@ function err429(retryAfterSec) {
   if (retryAfterSec != null) headers['Retry-After'] = String(retryAfterSec);
   return new Response(JSON.stringify({ success: false, error: 'too many' }), { status: 429, headers });
 }
+
+describe('503 session and maintenance handling', () => {
+  let fetchMock;
+  let token;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    routerPush.mockReset();
+    token = 'session-access';
+    useAuthStore().setTokens(token);
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns a database 503 without routing or clearing the current session', async () => {
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Session unavailable' }, 503))
+      .mockResolvedValueOnce(okJson({ success: true, data: { enabled: false } }));
+
+    const response = await apiRequest('/users/me/password', { method: 'PUT', body: '{}' });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ message: 'Session unavailable' });
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/settings/maintenance');
+    expect(useMaintenanceStore().enabled).toBe(false);
+    expect(useAuthStore().token).toBe(token);
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('routes ordinary users to freshly confirmed maintenance', async () => {
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Unavailable' }, 503))
+      .mockResolvedValueOnce(okJson({ success: true, data: { enabled: true } }));
+
+    const response = await apiRequest('/users/me');
+
+    expect(response.status).toBe(503);
+    expect(useMaintenanceStore().enabled).toBe(true);
+    expect(routerPush).toHaveBeenCalledOnce();
+    expect(routerPush).toHaveBeenCalledWith('/maintenance');
+    expect(useAuthStore().token).toBe(token);
+  });
+
+  it.each(['network', 'http', 'malformed', 'invalid-json'])('does not route from stale enabled cache after %s status failure', async (failure) => {
+    useMaintenanceStore().setFromPayload({ enabled: true });
+    fetchMock.mockResolvedValueOnce(errJson({ success: false, error: 'Session unavailable' }, 503));
+    if (failure === 'network') fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    else if (failure === 'http') fetchMock.mockResolvedValueOnce(errJson({ success: false, error: 'Database unavailable' }, 503));
+    else if (failure === 'malformed') fetchMock.mockResolvedValueOnce(okJson({ success: true, data: {} }));
+    else fetchMock.mockResolvedValueOnce(new Response('invalid json', { status: 200 }));
+
+    const response = await apiRequest('/users/me/password', { method: 'PUT', body: '{}' });
+
+    expect(response.status).toBe(503);
+    expect(useMaintenanceStore().enabled).toBe(true);
+    expect(useAuthStore().token).toBe(token);
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('preserves the super administrator exception during confirmed maintenance', async () => {
+    token = `header.${btoa(JSON.stringify({ is_super_admin: true }))}.signature`;
+    useAuthStore().setTokens(token);
+    expect(useAuthStore().isSuperAdmin).toBe(true);
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Session unavailable' }, 503))
+      .mockResolvedValueOnce(okJson({ success: true, data: { enabled: true } }));
+
+    const response = await apiRequest('/users/me');
+
+    expect(response.status).toBe(503);
+    expect(useMaintenanceStore().enabled).toBe(true);
+    expect(useAuthStore().token).toBe(token);
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+});
 
 describe('apiRequest basics', () => {
   let fetchMock;

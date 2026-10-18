@@ -29,6 +29,24 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ clearTokens }),
 }))
 
+const permissionsState = {
+  inflight: null,
+  fetchedAt: 123,
+  invalidate: vi.fn(),
+  fetchPermissions: vi.fn(),
+}
+vi.mock('@/stores/permissions', () => ({
+  usePermissionsStore: () => permissionsState,
+}))
+
+function resetPermissionsMock() {
+  permissionsState.inflight = null
+  permissionsState.fetchedAt = 123
+  permissionsState.invalidate.mockImplementation(() => { permissionsState.fetchedAt = 0 })
+  permissionsState.fetchPermissions.mockReset()
+  permissionsState.fetchPermissions.mockResolvedValue()
+}
+
 const push = vi.fn()
 
 // Стаб объявляет ВСЕ пробрасываемые пропсы: обязательный режим (#1911) выражается
@@ -69,6 +87,7 @@ describe('ChangePasswordModal', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    resetPermissionsMock()
   })
 
   it('не даёт отправить, пока новый пароль не проходит политику', async () => {
@@ -94,9 +113,9 @@ describe('ChangePasswordModal', () => {
     expect(wrapper.vm.canSubmit).toBe(false)
   })
 
-  it('после успешной смены чистит сессию и уводит на вход', async () => {
+  it.each([false, true])('после успешной смены обновляет права и сохраняет вход (mandatory=%s)', async (mandatory) => {
     changeOwnPassword.mockResolvedValue({ ok: true })
-    const wrapper = mountModal()
+    const wrapper = mountModal({ mandatory })
     await fillForm(wrapper, { current: 'oldpass12345', next: 'newpass12345' })
 
     expect(wrapper.vm.canSubmit).toBe(true)
@@ -104,8 +123,61 @@ describe('ChangePasswordModal', () => {
     await flushPromises()
 
     expect(changeOwnPassword).toHaveBeenCalledWith('oldpass12345', 'newpass12345')
-    expect(clearTokens).toHaveBeenCalled()
-    expect(push).toHaveBeenCalledWith('/')
+    expect(clearTokens).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(permissionsState.invalidate).toHaveBeenCalledTimes(1)
+    expect(permissionsState.fetchPermissions).toHaveBeenCalledWith(true)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({
+      bold: 'Пароль изменён', suffix: ', на других устройствах потребуется войти заново',
+    }))
+    expect(wrapper.find('.cp-note').text()).toContain('на других устройствах')
+  })
+
+  it('дожидается старого запроса прав и запрашивает свежие до событий успеха', async () => {
+    changeOwnPassword.mockResolvedValue({ ok: true })
+    let finishOldRequest
+    let finishFreshRequest
+    permissionsState.inflight = new Promise((resolve) => { finishOldRequest = resolve })
+    permissionsState.fetchPermissions.mockImplementation(() => new Promise((resolve) => { finishFreshRequest = resolve }))
+    const wrapper = mountModal({ mandatory: true })
+    await fillForm(wrapper, { current: 'oldpass12345', next: 'newpass12345' })
+    const submitted = wrapper.vm.submit()
+    await flushPromises()
+
+    expect(permissionsState.fetchPermissions).not.toHaveBeenCalled()
+    expect(wrapper.emitted('changed')).toBeUndefined()
+    permissionsState.inflight = null
+    finishOldRequest()
+    await flushPromises()
+    expect(permissionsState.invalidate).toHaveBeenCalledTimes(1)
+    expect(permissionsState.fetchPermissions).toHaveBeenCalledWith(true)
+    expect(wrapper.emitted('changed')).toBeUndefined()
+    expect(wrapper.emitted('close')).toBeUndefined()
+    finishFreshRequest()
+    await submitted
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(clearTokens).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('ошибка чтения прав после смены оставляет кэш устаревшим и позволяет снять обязательный гейт', async () => {
+    changeOwnPassword.mockResolvedValue({ ok: true })
+    // Штатный store перехватывает ошибку API, сохраняя прежнюю карту прав.
+    permissionsState.fetchPermissions.mockResolvedValue()
+    const wrapper = mountModal({ mandatory: true })
+    await fillForm(wrapper, { current: 'oldpass12345', next: 'newpass12345' })
+    await wrapper.vm.submit()
+
+    expect(permissionsState.fetchedAt).toBe(0)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.vm.saving).toBe(false)
+    expect(clearTokens).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ bold: 'Пароль изменён' }))
   })
 
   it('показывает текст ошибки сервера и оставляет сессию живой', async () => {
@@ -127,6 +199,25 @@ describe('ChangePasswordModal', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
+  it('при 503 сохраняет форму и текущий вход без события успеха', async () => {
+    changeOwnPassword.mockResolvedValue({
+      ok: false, status: 503,
+      json: vi.fn().mockResolvedValue({ message: 'Повторите попытку позже' }),
+    })
+    const wrapper = mountModal({ mandatory: true })
+    await fillForm(wrapper, { current: 'oldpass12345', next: 'newpass12345' })
+    await wrapper.vm.submit()
+    await flushPromises()
+
+    expect(clearTokens).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(wrapper.emitted('changed')).toBeUndefined()
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.vm.currentPassword).toBe('oldpass12345')
+    expect(wrapper.vm.saving).toBe(false)
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', bold: 'Повторите попытку позже' }))
+  })
+
   it('чеклист требований считается по политике с сервера', async () => {
     const wrapper = mountModal()
     await fillForm(wrapper, { current: 'oldpass12345', next: 'abcdefgh' })
@@ -145,6 +236,7 @@ describe('ChangePasswordModal в обязательном режиме', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    resetPermissionsMock()
   })
 
   it('окно не закрывается ни крестиком, ни по затемнению, ни Escape', async () => {

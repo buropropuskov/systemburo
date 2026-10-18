@@ -387,10 +387,8 @@ func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, 
 
 		// Старые сессии обрываем: пароль сменился, и прежние маркеры продления
 		// не должны доживать до своего срока.
-		if err := tx.Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = false", u.ID).
-			Update("is_revoked", true).Error; err != nil {
-			return fmt.Errorf("отзыв маркеров продления: %w", err)
+		if _, err := revokeUserSessions(ctx, tx, u.ID, "", now); err != nil {
+			return err
 		}
 
 		// Выданный пароль запоминается наравне с придуманным вручную: иначе
@@ -647,7 +645,10 @@ func (s *PasswordRotationService) RotateOne(ctx context.Context, username string
 		if errors.Is(err, errRotationNoMail) {
 			return apperr.Validation("У работника не указан адрес почты, отправить новый пароль некуда")
 		}
-		return err
+		if errors.Is(err, ErrRotationMailNotConfigured) {
+			return err
+		}
+		return sessionTransactionError(err)
 	}
 	s.notifyRotated(ctx, *u)
 	slog.Info("пароль сменён по кнопке в карточке", "user_id", u.ID, "started_by", startedBy)

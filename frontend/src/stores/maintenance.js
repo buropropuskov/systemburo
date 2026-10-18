@@ -23,6 +23,7 @@ export const useMaintenanceStore = defineStore('maintenance', {
   actions: {
     /**
      * Публичный GET без auth - доступен и неавторизованному юзеру на /login.
+     * Возвращает true только после успешного чтения свежего статуса.
      */
     async fetchStatus() {
       try {
@@ -32,15 +33,16 @@ export const useMaintenanceStore = defineStore('maintenance', {
           headers: { 'Accept': 'application/json' },
         })
         if (!r.ok) {
-          this.loaded = true
-          return
+          return false
         }
         const body = await r.json()
         const data = body && typeof body === 'object' && 'success' in body ? body.data : body
+        if (body?.success === false || typeof data?.enabled !== 'boolean') return false
         this.setFromPayload(data)
+        return true
       } catch {
-        // Сетевая ошибка - считаем, что режим не включён, иначе положим сайт
-        // неверным результатом.
+        // Старый кэш сохраняется, но не подтверждает причину нового 503.
+        return false
       } finally {
         this.loaded = true
       }

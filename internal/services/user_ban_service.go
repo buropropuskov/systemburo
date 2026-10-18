@@ -160,6 +160,13 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 
 	now := time.Now()
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		current, err := lockSessionUser(ctx, tx, targetUserID)
+		if err != nil {
+			return err
+		}
+		if current.IsSuperAdmin {
+			return echo.NewHTTPError(http.StatusForbidden, "Нельзя заблокировать супер-администратора")
+		}
 		if err := tx.Model(&models.User{}).Where("id = ?", targetUserID).
 			Updates(map[string]any{
 				"is_banned":  true,
@@ -170,10 +177,8 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 			return fmt.Errorf("update user: %w", err)
 		}
 		// Отзываем все активные refresh-токены: следующий /refresh даст 401 -> логаут.
-		if err := tx.Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = ?", targetUserID, false).
-			Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
-			return fmt.Errorf("revoke refresh tokens: %w", err)
+		if _, err := revokeUserSessions(ctx, tx, targetUserID, "", now); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -189,7 +194,7 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 		s.notifyBanChanged(targetUserID, "user.banned")
 		s.notifyBanned(ctx, targetUserID, actorUserID, trimmedReason)
 	}
-	return err
+	return sessionWriterError(err)
 }
 
 // targetUserID резолвит username -> id (0 если не найден). Bulk-операции ключуются

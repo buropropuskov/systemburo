@@ -296,6 +296,12 @@ func (s *maintenanceService) Enable(ctx context.Context, adminUserID int, adminU
 		{keyMaintenanceSupportPhone, params.SupportPhone},
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Тот же порядок, что у login/refresh: users по ID, затем refresh.
+		// Отзываем ровно заблокированный набор, без повторного расширения подзапросом.
+		var userIDs []int
+		if err := tx.Raw("SELECT id FROM users WHERE is_super_admin = false ORDER BY id FOR UPDATE").Scan(&userIDs).Error; err != nil {
+			return fmt.Errorf("lock maintenance users: %w", err)
+		}
 		for _, setting := range settings {
 			if err := upsertSetting(tx, setting.key, setting.value); err != nil {
 				return fmt.Errorf("upsert %s: %w", setting.key, err)
@@ -303,13 +309,12 @@ func (s *maintenanceService) Enable(ctx context.Context, adminUserID int, adminU
 		}
 		// Отзываем refresh-токены всех не-супер-админов. Через ≤15 мин access
 		// истечёт и их выкинет на /login, где получат 503 → /maintenance.
-		if err := tx.Exec(`
-			UPDATE refresh_tokens
-			SET is_revoked = true
-			WHERE user_id IN (SELECT id FROM users WHERE is_super_admin = false)
-			  AND is_revoked = false
-		`).Error; err != nil {
-			return fmt.Errorf("revoke non-admin refresh tokens: %w", err)
+		if len(userIDs) > 0 {
+			if err := tx.Model(&models.RefreshToken{}).
+				Where("user_id IN ? AND is_revoked = false", userIDs).
+				Updates(map[string]any{"is_revoked": true, "revoked_at": time.Now().UTC()}).Error; err != nil {
+				return fmt.Errorf("revoke non-admin refresh tokens: %w", err)
+			}
 		}
 		auditUserID := &adminUserID
 		return tx.Create(&models.AuthEvent{
@@ -322,7 +327,7 @@ func (s *maintenanceService) Enable(ctx context.Context, adminUserID int, adminU
 	})
 	if err != nil {
 		slog.Error("enable maintenance failed", "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "не удалось включить режим обслуживания")
+		return sessionWriterError(err)
 	}
 	s.InvalidateCache()
 	s.notifyMaintenanceScheduled(ctx, adminUserID, params)
