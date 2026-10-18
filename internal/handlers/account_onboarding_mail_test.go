@@ -222,7 +222,7 @@ func TestUpdatePassword_ByAdmin_SendsThatPassword(t *testing.T) {
 	require.NoError(t, db.Create(&target).Error)
 
 	const newPassword = "adminchosen12345"
-	require.NoError(t, svc.UpdatePassword(context.Background(), target.ID+1000, target.Username,
+	require.NoError(t, svc.UpdatePassword(context.Background(), s1FixtureActor(t, db), target.Username,
 		models.UpdatePasswordRequest{Password: newPassword}, nil))
 
 	after := fetchUser(t, db, target.Username)
@@ -251,7 +251,7 @@ func TestUpdatePassword_ByAdmin_NoEmail_NoLetter(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&target).Error)
 
-	require.NoError(t, svc.UpdatePassword(context.Background(), target.ID+1000, target.Username,
+	require.NoError(t, svc.UpdatePassword(context.Background(), s1FixtureActor(t, db), target.Username,
 		models.UpdatePasswordRequest{Password: "adminchosen12345"}, nil))
 
 	after := fetchUser(t, db, target.Username)
@@ -271,14 +271,14 @@ func TestUpdatePassword_SelfChange_NoLetterNoFlag(t *testing.T) {
 	svc := onboardingUserService(t, db, true)
 	email := "self.change@example.org"
 	target := models.User{
-		Username: "pwd_letter_self", Password: "старый-хэш", TypeID: 1,
+		Username: "pwd_letter_self", Password: services.HashPassword("oldpassword12345"), TypeID: 1,
 		OrganizationID: &td.OrgID, CompanyID: &td.CompanyID, Email: &email,
 		MustChangePassword: true,
 	}
 	require.NoError(t, db.Create(&target).Error)
 
-	require.NoError(t, svc.UpdatePassword(context.Background(), target.ID, target.Username,
-		models.UpdatePasswordRequest{Password: "selfchosen12345"}, nil))
+	require.NoError(t, svc.ChangeOwnPassword(context.Background(), target.ID,
+		models.ChangeOwnPasswordRequest{CurrentPassword: "oldpassword12345", NewPassword: "selfchosen12345"}, nil, ""))
 
 	after := fetchUser(t, db, target.Username)
 	assert.False(t, after.MustChangePassword, "требование должно сниматься сменой пароля самим работником")
