@@ -156,7 +156,15 @@ func Retire(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder, e
 		if err != nil {
 			return err
 		}
-		userIDs, err := deactivate(tx, "users", "organization_id = ? AND NOT COALESCE(is_super_admin, false)", id)
+		// Bulk UPDATE сам не гарантирует порядок row locks. Сначала блокируем
+		// конкретных пользователей по ID, как login/refresh и одиночный archive.
+		var lockedUserIDs []int
+		if err := tx.Raw(`SELECT id FROM users
+			WHERE organization_id = ? AND NOT COALESCE(is_super_admin, false) AND is_active = true
+			ORDER BY id FOR UPDATE`, id).Scan(&lockedUserIDs).Error; err != nil {
+			return fmt.Errorf("блокировка пользователей организации: %w", err)
+		}
+		userIDs, err := deactivate(tx, "users", "id IN ?", lockedUserIDs)
 		if err != nil {
 			return err
 		}

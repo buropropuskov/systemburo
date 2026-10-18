@@ -20,6 +20,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/argon2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	_ "crypto/rand"
 	goargon2 "golang.org/x/crypto/argon2"
@@ -418,61 +419,66 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		return nil, s.loginFailureResponse(ip, user.Username, lockedUntil)
 	}
 
-	// Архивная учётка (is_active=false): пароль верный, аутентификация прошла,
-	// но доступа нет - токен не выдаём. Пользователь видит, что учётка отключена.
-	if !user.IsActive {
-		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "account disabled")
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена. Обратитесь к администратору.")
+	verifiedHash := user.Password
+	disabled := false
+	loginStage := "user lock"
+	var accessToken, refreshJWT string
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		current, err := lockSessionUser(ctx, tx, user.ID)
+		if err != nil {
+			return err
+		}
+		if current.Password != verifiedHash {
+			return apperr.Unauthorized("Неверный логин или пароль")
+		}
+		now := time.Now().UTC()
+		if current.LockedUntil != nil && current.LockedUntil.After(now) {
+			return s.lockoutError(secondsUntil(*current.LockedUntil))
+		}
+		if !current.IsActive {
+			disabled = true
+			return apperr.Forbidden("Учётная запись отключена. Обратитесь к администратору.")
+		}
+		loginStage = "maintenance lookup"
+		if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
+			return err
+		}
+		loginStage = "user preload"
+		if err := tx.Preload("Organization").Preload("Company").Preload("UserType").First(current, current.ID).Error; err != nil {
+			return err
+		}
+		accessToken, err = s.createAccessToken(current.Username, current.ID, current.TypeID, current.IsSuperAdmin)
+		if err != nil {
+			return err
+		}
+		refreshJWT, err = s.createRefreshJWT(current.Username)
+		if err != nil {
+			return err
+		}
+		loginStage = "successful login state"
+		if err := tx.Model(current).Updates(map[string]any{"last_login_at": now, "failed_login_count": 0, "locked_until": nil, "lockout_level": 0, "last_failed_login_at": nil}).Error; err != nil {
+			return err
+		}
+		rt := models.RefreshToken{UserID: current.ID, FamilyID: uuid.NewString(), TokenHash: hashRefreshToken(refreshJWT), ExpiresAt: now.Add(s.refreshTTL), IPAddress: metaIPPtr(meta), UserAgent: metaUAPtr(meta)}
+		loginStage = "refresh token store"
+		if err := tx.Create(&rt).Error; err != nil {
+			return err
+		}
+		user = *current
+		return nil
+	})
+	if err != nil {
+		if disabled {
+			s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "account disabled")
+		}
+		var domain *apperr.Error
+		if !errors.As(err, &domain) || (domain.Code == http.StatusServiceUnavailable && errors.Unwrap(domain) != nil) {
+			slog.Error("вход не выполнен из-за ошибки транзакции", "stage", loginStage, "user_id", user.ID, "error", err)
+			s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginError, false, meta, loginStage)
+		}
+		return nil, sessionTransactionError(err)
 	}
-
-	// Успешный вход - сбрасываем счётчик неудачных попыток и lock (и per-IP, и per-user).
-	// Также апдейтим last_login_at для аудита активности.
 	s.loginGuard.reset(ip)
-	now := time.Now().UTC()
-	updates := map[string]interface{}{"last_login_at": now}
-	if user.FailedLoginCount > 0 || user.LockedUntil != nil || user.LockoutLevel > 0 {
-		updates["failed_login_count"] = 0
-		updates["locked_until"] = nil
-		// Лестницу тоже опускаем на первую ступень: человек доказал, что он хозяин
-		// учётки, и следующая серия опечаток не должна встречать его получасом.
-		updates["lockout_level"] = 0
-		updates["last_failed_login_at"] = nil
-	}
-	if err := s.db.WithContext(ctx).Model(&user).Updates(updates).Error; err != nil {
-		// Пароль уже проверен, вход состоялся - ронять его из-за отметки активности
-		// незачем. Но потерянный сброс счётчика встретит человека блокировкой на
-		// ровном месте, и разбирать это придётся по логу.
-		slog.Error("не удалось сохранить состояние успешного входа", "username", user.Username, "error", err)
-	}
-
-	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin)
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
-	}
-
-	refreshJWT, err := s.createRefreshJWT(user.Username)
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create refresh token")
-	}
-
-	// Store hashed refresh token in DB. FamilyID генерируется при login,
-	// наследуется всеми refresh-токенами одной сессии. IP/UA - soft-binding
-	// для аудита и детекции аномалий.
-	familyID := uuid.NewString()
-	rt := models.RefreshToken{
-		UserID:    user.ID,
-		FamilyID:  familyID,
-		TokenHash: hashRefreshToken(refreshJWT),
-		ExpiresAt: time.Now().UTC().Add(s.refreshTTL),
-		IPAddress: metaIPPtr(meta),
-		UserAgent: metaUAPtr(meta),
-	}
-	if err := s.db.WithContext(ctx).Create(&rt).Error; err != nil {
-		// Ошибку тут глотать нельзя: refresh-токен на руках есть, а в базе его нет,
-		// и сессия тихо умрёт на первом же продлении - человек вылетит посреди работы
-		// без объяснения. Честнее отказать сразу тем же ответом, что и при сбое базы.
-		return nil, s.loginUnavailable(ctx, user.Username, meta, "refresh token store", err)
-	}
 
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginSuccess, true, meta, "")
 
@@ -493,7 +499,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 // logRefreshDBError пишет сбой обращения к базе при обновлении токена в системный
 // лог и в журнал событий, НЕ решая при этом, каким будет ответ вызывающему коду -
 // вызывающий код мог уже принять решение по другой причине (см. reuse detection
-// ниже, где ответ 401 не зависит от исхода инвалидации семьи). Detail - только
+// ниже, где сбой инвалидации семьи возвращает 503). Detail - только
 // стадия, без текста ошибки драйвера: если userID уже известен, запись видна в
 // личной истории входов пользователя (ListForUser фильтрует по user_id), а туда
 // нельзя пересылать "pq: sorry, too many clients already" и подобное.
@@ -504,13 +510,13 @@ func (s *authService) logRefreshDBError(ctx context.Context, userID *int, userna
 
 // refreshUnavailable - ответ на СБОЙ обновления токена, а не на его невалидность:
 // недоступная база, исчерпанный пул, сорванная запись ротации. Аналог
-// loginUnavailable (#2006): 500, а не 401 - секундная авария базы не должна
+// loginUnavailable (#2006): 503, а не 401 - секундная авария базы не должна
 // разлогинивать того, у кого в этот момент фоном продлевалась сессия (#2016),
 // хотя его refresh-токен ещё вполне действителен. Клиент вправе повторить запрос
 // тем же токеном.
 func (s *authService) refreshUnavailable(ctx context.Context, userID *int, username string, meta *RequestMeta, stage string, cause error) error {
 	s.logRefreshDBError(ctx, userID, username, meta, stage, cause)
-	return apperr.Internal("Не удалось обновить сессию из-за ошибки на сервере. Повторите попытку позже.", cause)
+	return apperr.New(http.StatusServiceUnavailable, "Не удалось обновить сессию из-за ошибки на сервере. Повторите попытку позже.", cause)
 }
 
 // RefreshToken обновляет пару access/refresh токенов с ротацией.
@@ -519,156 +525,161 @@ func (s *authService) refreshUnavailable(ctx context.Context, userID *int, usern
 // после ротации). Реакция: инвалидировать всю семью (family_id) и заставить
 // перелогиниться. См. Auth0 refresh token rotation pattern.
 func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest, meta *RequestMeta) (*models.TokenPairResponse, error) {
-	refreshToken := req.GetRefreshToken()
-	claims, err := s.decodeRefreshToken(refreshToken)
+	raw := req.GetRefreshToken()
+	claims, err := s.decodeRefreshToken(raw)
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
+		return nil, apperr.Unauthorized("Invalid refresh token")
 	}
-
 	username, _ := claims.GetSubject()
-
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
-		// Ошибка запроса - это не только отсутствующая строка: недоступная база,
-		// исчерпанный пул, таймаут. Считать их "юзера нет" значит выкидывать на
-		// форму входа того, у кого сейчас просто не работает база (#2016).
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, s.refreshUnavailable(ctx, nil, username, meta, "user lookup", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperr.Unauthorized("User not found")
 		}
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+		return nil, s.refreshUnavailable(ctx, nil, username, meta, "user lookup", err)
 	}
-
-	// Архивная учётка не может обновлять токены - существующая сессия гаснет.
-	if !user.IsActive {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена")
-	}
-
-	// Ищем запись без фильтра is_revoked - чтобы отличить "не существует" от
-	// "существует, но отозван" (второе - признак replay-атаки).
-	tokenHash := hashRefreshToken(refreshToken)
-	var storedToken models.RefreshToken
-	err = s.db.WithContext(ctx).
-		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
-		First(&storedToken).Error
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, s.refreshUnavailable(ctx, &user.ID, user.Username, meta, "token lookup", err)
-		}
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
-	}
-
-	if storedToken.IsRevoked {
-		// Grace-window: если токен был revoked совсем недавно (< refreshReuseGraceWindow),
-		// это скорее race-condition между двумя табами (общий HttpOnly cookie),
-		// чем настоящий reuse. Возвращаем 401 retry без family kill -
-		// клиент повторит refresh, теперь уже с обновлённым cookie от первого таба.
-		if storedToken.RevokedAt != nil &&
-			time.Since(*storedToken.RevokedAt) < refreshReuseGraceWindow {
-			slog.Info("refresh token grace-window hit, treating as race not reuse",
-				"user_id", user.ID, "family_id", storedToken.FamilyID,
-				"revoked_age_ms", time.Since(*storedToken.RevokedAt).Milliseconds())
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token recently rotated, please retry")
-		}
-
-		// Reuse detection: токен валиден по подписи, отозван давно.
-		// Инвалидируем всю семью - включая текущий активный refresh attacker-а
-		// или legitimate user-а. Оба будут вынуждены перелогиниться.
-		now := time.Now().UTC()
-		if err := s.db.WithContext(ctx).
-			Model(&models.RefreshToken{}).
-			Where("family_id = ? AND is_revoked = false", storedToken.FamilyID).
-			Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
-			// Отказ по reuse уже принят и не меняется от исхода этой записи - токен
-			// и так пойман на повторном использовании. Но если сама инвалидация
-			// семьи не прошла, токены атакующего/легитимного юзера могли остаться
-			// рабочими - это должно быть видно, а не потеряно молча.
-			s.logRefreshDBError(ctx, &user.ID, user.Username, meta, "family invalidation", err)
-		}
-		slog.Warn("refresh token reuse detected - family invalidated",
-			"user_id", user.ID, "family_id", storedToken.FamilyID)
-		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventTokenReuseDetected, false, meta,
-			"family_id="+storedToken.FamilyID)
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Refresh token reuse detected, please log in again")
-	}
-
-	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID, user.IsSuperAdmin)
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
-	}
-
-	newRefresh, err := s.createRefreshJWT(username)
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create refresh token")
-	}
-
-	rt := models.RefreshToken{
-		UserID:    user.ID,
-		FamilyID:  storedToken.FamilyID,
-		TokenHash: hashRefreshToken(newRefresh),
-		ExpiresAt: time.Now().UTC().Add(s.refreshTTL),
-		IPAddress: metaIPPtr(meta),
-		UserAgent: metaUAPtr(meta),
-	}
-
-	// Ротация: помечаем старый revoked + пишем новый ОДНОЙ транзакцией. Раздельными
-	// запросами (как было) старый токен мог оказаться отозван, а новый - не
-	// записан: сессия тихо умирала бы на следующем продлении без всякой связи с
-	// причиной (#2016). В транзакции любой сбой откатывает обе записи - старый
-	// токен остаётся рабочим, и клиент может безопасно повторить запрос им же.
-	now := time.Now().UTC()
-	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&storedToken).
-			Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
+	var response models.TokenPairResponse
+	var reused bool
+	var reusedFamily string
+	stage := "user lock"
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		current, err := lockSessionUser(ctx, tx, user.ID)
+		if err != nil {
 			return err
 		}
-		return tx.Create(&rt).Error
-	}); err != nil {
-		return nil, s.refreshUnavailable(ctx, &user.ID, user.Username, meta, "token rotation", err)
+		user = *current
+		if !user.IsActive {
+			return apperr.Forbidden("Учётная запись отключена")
+		}
+		now := time.Now().UTC()
+		var stored models.RefreshToken
+		stage = "token lookup"
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND token_hash = ?", user.ID, hashRefreshToken(raw)).First(&stored).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.Unauthorized("Invalid refresh token")
+		}
+		if err != nil {
+			return err
+		}
+		if stored.FamilyID == "" || !stored.ExpiresAt.After(now) {
+			return apperr.Unauthorized("Invalid refresh token, please log in again")
+		}
+		if stored.IsRevoked {
+			if stored.RevokedAt != nil && now.Sub(*stored.RevokedAt) < refreshReuseGraceWindow {
+				slog.Info("refresh token grace-window hit, treating as race not reuse", "user_id", user.ID, "family_id", stored.FamilyID, "revoked_age_ms", now.Sub(*stored.RevokedAt).Milliseconds())
+				return apperr.Unauthorized("Token recently rotated, please retry")
+			}
+			stage = "family invalidation"
+			if err := tx.Model(&models.RefreshToken{}).Where("user_id = ? AND family_id = ? AND is_revoked = false", user.ID, stored.FamilyID).Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
+				return err
+			}
+			reused = true
+			reusedFamily = stored.FamilyID
+			return nil
+		}
+		stage = "maintenance lookup"
+		if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
+			return err
+		}
+		response.Token, err = s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin)
+		if err != nil {
+			return err
+		}
+		response.RefreshToken, err = s.createRefreshJWT(user.Username)
+		if err != nil {
+			return err
+		}
+		stage = "token rotation"
+		result := tx.Model(&models.RefreshToken{}).Where("id = ? AND user_id = ? AND is_revoked = false", stored.ID, user.ID).Updates(map[string]any{"is_revoked": true, "revoked_at": now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return apperr.Unauthorized("Token recently rotated, please retry")
+		}
+		return tx.Create(&models.RefreshToken{UserID: user.ID, FamilyID: stored.FamilyID, TokenHash: hashRefreshToken(response.RefreshToken), ExpiresAt: now.Add(s.refreshTTL), IPAddress: metaIPPtr(meta), UserAgent: metaUAPtr(meta)}).Error
+	})
+	if err != nil {
+		var domain *apperr.Error
+		if errors.As(err, &domain) {
+			if domain.Code == http.StatusServiceUnavailable && errors.Unwrap(domain) != nil {
+				s.logRefreshDBError(ctx, &user.ID, username, meta, stage, err)
+			}
+			return nil, err
+		}
+		return nil, s.refreshUnavailable(ctx, &user.ID, username, meta, stage, err)
 	}
-
+	if reused {
+		slog.Warn("refresh token reuse detected - family invalidated", "user_id", user.ID, "family_id", reusedFamily)
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventTokenReuseDetected, false, meta, "family_id="+reusedFamily)
+		return nil, apperr.Unauthorized("Refresh token reuse detected, please log in again")
+	}
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventRefresh, true, meta, "")
-
-	return &models.TokenPairResponse{
-		Token:        newAccess,
-		RefreshToken: newRefresh,
-	}, nil
+	return &response, nil
 }
 
-// Logout отзывает refresh-токен пользователя.
+// Logout revokes the owner-bound family, including descendants of a rotated cookie.
 func (s *authService) Logout(ctx context.Context, username string, req models.LogoutRequest, meta *RequestMeta) error {
-	var user models.User
-	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	if req.GetRefreshToken() == "" {
+		return nil
 	}
-
-	tokenHash := hashRefreshToken(req.GetRefreshToken())
-	s.db.WithContext(ctx).
-		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
-		Delete(&models.RefreshToken{})
-
-	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLogout, true, meta, "")
-
+	var user models.User
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("username = ?", username).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if _, err := lockSessionUser(ctx, tx, user.ID); err != nil {
+			return err
+		}
+		var stored models.RefreshToken
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND token_hash = ?", user.ID, hashRefreshToken(req.GetRefreshToken())).First(&stored).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		q := tx.Model(&models.RefreshToken{}).Where("user_id = ? AND is_revoked = false", user.ID)
+		if stored.FamilyID == "" {
+			q = q.Where("id = ?", stored.ID)
+		} else {
+			q = q.Where("family_id = ?", stored.FamilyID)
+		}
+		return q.Updates(map[string]any{"is_revoked": true, "revoked_at": time.Now().UTC()}).Error
+	})
+	if err != nil {
+		return sessionTransactionError(err)
+	}
+	if user.ID != 0 {
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLogout, true, meta, "")
+	}
 	return nil
 }
 
-// LogoutAll отзывает ВСЕ активные refresh_tokens пользователя. Использовать
-// когда подозревается компрометация (юзер сам инициировал "выйти везде"),
-// или автоматически при смене пароля. Возвращает количество отозванных токенов.
 func (s *authService) LogoutAll(ctx context.Context, username string) (int, error) {
-	var user models.User
-	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
-		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	var count int64
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := tx.Where("username = ?", username).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return apperr.Unauthorized("User not found")
+			}
+			return err
+		}
+		if _, err := lockSessionUser(ctx, tx, user.ID); err != nil {
+			return err
+		}
+		var err error
+		count, err = revokeUserSessions(ctx, tx, user.ID, "", time.Now().UTC())
+		return err
+	})
+	if err != nil {
+		return 0, sessionTransactionError(err)
 	}
-
-	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).
-		Model(&models.RefreshToken{}).
-		Where("user_id = ? AND is_revoked = false", user.ID).
-		Updates(map[string]any{"is_revoked": true, "revoked_at": now})
-	if result.Error != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke sessions")
-	}
-	return int(result.RowsAffected), nil
+	return int(count), nil
 }
 
 // GetUserData возвращает профильные данные пользователя по username.

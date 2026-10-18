@@ -567,39 +567,45 @@ func (s *userService) updatePassword(ctx context.Context, callerUserID int, user
 			"password_changed_at":  time.Now(),
 			"must_change_password": !selfChange,
 		}).Error; err != nil {
-			return apperr.Internal("Error updating password", err)
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось сменить пароль", err)
 		}
 		if err := recordUsedPassword(ctx, tx, user.ID, hashed); err != nil {
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось сохранить историю паролей", err)
+		}
+		now := time.Now().UTC()
+		keepFamily := ""
+		if selfChange {
+			keepFamily, err = sessionFamilyFromRefresh(ctx, tx, user.ID, keepRefreshToken, now)
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := revokeUserSessions(ctx, tx, user.ID, keepFamily, now); err != nil {
 			return err
 		}
 		if selfChange || !s.mailReady() || user.Email == nil || *user.Email == "" {
 			return nil
 		}
-		return s.mail.Enqueue(ctx, tx, MailMessage{
+		if err := s.mail.Enqueue(ctx, tx, MailMessage{
 			To:           *user.Email,
 			Subject:      "Новый пароль в системе бюро пропусков",
 			Body:         passwordSetByAdminLetterBody(user, req.Password, s.baseURL),
 			TemplateCode: MailTemplatePasswordSetByAdmin,
 			UserID:       &user.ID,
-		})
+		}); err != nil {
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось поставить письмо в очередь", err)
+		}
+		return nil
 	}); err != nil {
+		var domainErr *apperr.Error
+		var httpErr *echo.HTTPError
+		if !errors.As(err, &domainErr) && !errors.As(err, &httpErr) {
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось сменить пароль", err)
+		}
 		return err
 	}
 
-	// Revoke all active refresh tokens: чтобы существующие сессии с этой учёткой
-	// (возможно скомпрометированные) не дожили до своего TTL. Юзеру придётся
-	// перелогиниться на всех устройствах.
 	{
-		revoke := s.db.WithContext(ctx).
-			Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = false", user.ID)
-		if keepRefreshToken != "" {
-			// Сессию, из которой шла смена, оставляем живой - её владелец только
-			// что подтвердил личность текущим паролем.
-			revoke = revoke.Where("token_hash <> ?", hashRefreshToken(keepRefreshToken))
-		}
-		revoke.Update("is_revoked", true)
-
 		// Аудит: факт сброса пароля без значения.
 		s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, models.UserActionPasswordReset, &callerUserID, nil)
 
@@ -630,7 +636,7 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 	securityAccount, err := isSecurityUser(ctx, s.db, userID)
 	if err != nil {
 		slog.Error("не удалось определить тип учётной записи", "user_id", userID, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сменить пароль")
+		return apperr.New(http.StatusServiceUnavailable, "Не удалось сменить пароль", err)
 	}
 	if securityAccount {
 		return echo.NewHTTPError(http.StatusForbidden, "Пароль работника поста меняет бюро пропусков")
@@ -641,7 +647,7 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "Пользователь не найден")
 		}
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error loading user")
+		return apperr.New(http.StatusServiceUnavailable, "Не удалось прочитать пользователя", err)
 	}
 
 	currentMatches, err := verifyPassword(user.Password, req.CurrentPassword)
@@ -935,13 +941,30 @@ func (s *userService) Restore(ctx context.Context, callerUserID int, username st
 	return s.setActive(ctx, username, true, callerUserID)
 }
 
+// sessionWriterError keeps policy denials while reporting failed session writes
+// and commits as unavailable. Callers emit success only after a committed write.
+func sessionWriterError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var domain *apperr.Error
+	if errors.As(err, &domain) && (domain.Code < http.StatusInternalServerError || domain.Code == http.StatusServiceUnavailable) {
+		return err
+	}
+	var httpErr *echo.HTTPError
+	if errors.As(err, &httpErr) && httpErr.Code < http.StatusInternalServerError {
+		return err
+	}
+	return apperr.New(http.StatusServiceUnavailable, "Не удалось изменить сессии. Повторите попытку позже.", err)
+}
+
 func (s *userService) setActive(ctx context.Context, username string, active bool, callerUserID int) error {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "User not found")
 		}
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user")
+		return apperr.New(http.StatusServiceUnavailable, "Не удалось прочитать пользователя", err)
 	}
 	if user.IsActive == active {
 		return nil // no-op
@@ -952,21 +975,26 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 		return echo.NewHTTPError(http.StatusForbidden, "Нельзя архивировать супер-администратора")
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		current, err := lockSessionUser(ctx, tx, user.ID)
+		if err != nil {
+			return err
+		}
+		if !active && current.IsSuperAdmin {
+			return apperr.Forbidden("Нельзя архивировать супер-администратора")
+		}
 		if err := tx.Model(&models.User{}).Where("id = ?", user.ID).Update("is_active", active).Error; err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user")
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось изменить состояние пользователя", err)
 		}
 		if !active {
 			// Отзываем активные refresh-токены: существующая сессия гаснет в пределах
 			// TTL access-токена (login/refresh уже блокируются по is_active).
-			if err := tx.Model(&models.RefreshToken{}).
-				Where("user_id = ? AND is_revoked = ?", user.ID, false).
-				Updates(map[string]any{"is_revoked": true, "revoked_at": time.Now().UTC()}).Error; err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking tokens")
+			if _, err := revokeUserSessions(ctx, tx, user.ID, "", time.Now().UTC()); err != nil {
+				return err
 			}
 		}
 		return nil
 	}); err != nil {
-		return err
+		return sessionWriterError(err)
 	}
 	action := models.UserActionRestored
 	if !active {

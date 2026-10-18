@@ -165,8 +165,8 @@ func TestRefreshToken_UserLookupDBFailureIsNotUnauthorized(t *testing.T) {
 	require.Error(t, err)
 
 	var ae *apperr.Error
-	require.ErrorAs(t, err, &ae, "сбой базы обязан приходить доменной ошибкой 500, а не 401 echo.HTTPError")
-	assert.Equal(t, http.StatusInternalServerError, ae.Code)
+	require.ErrorAs(t, err, &ae, "сбой базы обязан приходить доменной ошибкой 503, а не 401 echo.HTTPError")
+	assert.Equal(t, http.StatusServiceUnavailable, ae.Code)
 	assert.NotContains(t, ae.Message, "User not found")
 	assert.ErrorIs(t, err, errUsersQueryDown, "первопричина обязана доехать до логов")
 }
@@ -189,8 +189,8 @@ func TestRefreshToken_TokenLookupDBFailureIsNotUnauthorized(t *testing.T) {
 	require.Error(t, err)
 
 	var ae *apperr.Error
-	require.ErrorAs(t, err, &ae, "сбой базы обязан приходить доменной ошибкой 500, а не 401 echo.HTTPError")
-	assert.Equal(t, http.StatusInternalServerError, ae.Code)
+	require.ErrorAs(t, err, &ae, "сбой базы обязан приходить доменной ошибкой 503, а не 401 echo.HTTPError")
+	assert.Equal(t, http.StatusServiceUnavailable, ae.Code)
 	assert.NotContains(t, ae.Message, "Invalid refresh token")
 	assert.ErrorIs(t, err, errRefreshTokenQueryDown)
 
@@ -226,7 +226,7 @@ func TestRefreshToken_RotationCreateFailureRollsBackRevoke(t *testing.T) {
 
 	var ae *apperr.Error
 	require.ErrorAs(t, err, &ae)
-	assert.Equal(t, http.StatusInternalServerError, ae.Code)
+	assert.Equal(t, http.StatusServiceUnavailable, ae.Code)
 	assert.ErrorIs(t, err, errRefreshTokenWriteDown)
 
 	// Старый токен обязан остаться РАБОЧИМ: транзакция откатила его revoke вместе
@@ -270,11 +270,7 @@ func TestRefreshToken_RotationUpdateFailureDoesNotDuplicateSession(t *testing.T)
 	assert.False(t, rows[0].IsRevoked)
 }
 
-// TestRefreshToken_ReuseFamilyInvalidationFailureIsLogged: при обнаружении reuse
-// ответ (401, отказ) не зависит от того, удалось ли инвалидировать всю семью
-// токенов - он и так отказ. Но раньше ошибка записи терялась молча: если семья не
-// инвалидирована, токены атакующего/легитимного юзера остаются рабочими, и никто
-// об этом не узнаёт. Теперь это уходит в журнал событий.
+// A failed family revocation returns 503 and preserves the database cause.
 func TestRefreshToken_ReuseFamilyInvalidationFailureIsLogged(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -303,10 +299,13 @@ func TestRefreshToken_ReuseFamilyInvalidationFailureIsLogged(t *testing.T) {
 		models.RefreshTokenRequest{RefreshToken: refreshToken}, &services.RequestMeta{})
 	require.Error(t, err)
 
-	var he *echo.HTTPError
-	require.ErrorAs(t, err, &he, "reuse detection остаётся echo.HTTPError - ответ не должен меняться")
-	assert.Equal(t, http.StatusUnauthorized, he.Code)
-	assert.Equal(t, "Refresh token reuse detected, please log in again", he.Message)
+	var ae *apperr.Error
+	require.ErrorAs(t, err, &ae)
+	assert.Equal(t, http.StatusServiceUnavailable, ae.Code)
+	assert.ErrorIs(t, err, errRefreshTokenWriteDown)
+	var active int64
+	require.NoError(t, db.Model(&models.RefreshToken{}).Where("user_id = ? AND is_revoked = false", userID).Count(&active).Error)
+	assert.EqualValues(t, 1, active, "failed revocation must roll back")
 
 	var logged models.AuthEvent
 	require.NoError(t, db.Where("username = ? AND event_type = ?", "refreshuser5", models.AuthEventRefreshError).

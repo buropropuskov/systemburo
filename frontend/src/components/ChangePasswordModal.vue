@@ -83,7 +83,7 @@
       </div>
 
       <p class="cp-note">
-        После смены пароля вход на всех устройствах потребуется выполнить заново.
+        После смены пароля повторный вход потребуется на других устройствах.
       </p>
     </form>
 
@@ -129,7 +129,7 @@ import { changeOwnPassword } from '@/api/users';
 import { getPasswordPolicy } from '@/api/settings';
 import { DEFAULT_PASSWORD_POLICY, evaluatePassword, passwordMeetsPolicy } from '@/utils/passwordPolicy';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useAuthStore } from '@/stores/auth';
+import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
   name: 'ChangePasswordModal',
@@ -189,22 +189,33 @@ export default {
         console.error('Не удалось загрузить политику паролей:', error);
       }
     },
+    async refreshPermissionsAfterChange() {
+      const permissionsStore = usePermissionsStore();
+      try {
+        // force не обходит выполняющийся запрос: он мог начаться до смены.
+        if (permissionsStore.inflight) await permissionsStore.inflight;
+      } catch (error) {
+        console.error('Не удалось завершить предыдущую загрузку прав:', error);
+      }
+      permissionsStore.invalidate();
+      try {
+        await permissionsStore.fetchPermissions(true);
+      } catch (error) {
+        // Пароль уже сохранён. Ошибка прав не отменяет смену и не завершает
+        // сессию; кэш остаётся устаревшим для следующей попытки загрузки.
+        console.error('Не удалось обновить права после смены пароля:', error);
+      }
+    },
     async submit() {
       if (!this.canSubmit) return;
       this.saving = true;
       try {
         const response = await changeOwnPassword(this.currentPassword, this.newPassword);
         if (response.ok) {
-          useDeletionsStore().notify({ bold: 'Пароль изменён', suffix: ', войдите заново' });
+          await this.refreshPermissionsAfterChange();
+          useDeletionsStore().notify({ bold: 'Пароль изменён', suffix: ', на других устройствах потребуется войти заново' });
           this.$emit('changed');
-          // Сервер отозвал все маркеры продления, включая маркер этой вкладки:
-          // держать интерфейс залогиненным нечестно - он умрёт на первом же
-          // продлении. Чистим сессию сами и уводим на вход, как это делает
-          // client.js при истёкшей сессии.
-          useAuthStore().clearTokens();
-          if (this.$router.currentRoute.value.path !== '/') {
-            this.$router.push('/');
-          }
+          this.$emit('close');
           return;
         }
         const errorData = await response.json().catch(() => ({}));

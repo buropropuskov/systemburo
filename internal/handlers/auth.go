@@ -97,8 +97,12 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	// учёток (одинаковая задержка на верный и неверный пароль).
 	if h.maintenance != nil && !resp.IsSuperAdmin {
 		if st := h.maintenance.GetStatusCached(c.Request().Context()); st != nil && st.Enabled {
-			_ = h.service.Logout(c.Request().Context(), req.Username,
+			err := h.service.Logout(c.Request().Context(), req.Username,
 				models.LogoutRequest{RefreshToken: resp.RefreshToken}, requestMeta(c))
+			h.clearRefreshCookie(c)
+			if err != nil {
+				return err
+			}
 			return echo.NewHTTPError(http.StatusServiceUnavailable,
 				"Сервис временно недоступен: технические работы")
 		}

@@ -274,24 +274,23 @@ async function baseRequest(path, options = {}) {
   if (demo) return demo
   const authStore = useAuthStore()
   let response = await doFetch(path, options, authStore.token)
-
-  // 503 Service Unavailable = maintenance. Только что узнали об этом на лету -
-  // обновляем стор (чтобы guard начал редиректить сразу) и шлём юзера на
-  // /maintenance. Не путаем с 500 - у maintenance отдельная страница и нет
-  // bug-report'а.
-  if (response.status === 503 && router.currentRoute.value.path !== '/maintenance') {
+  // Для 503 подтверждаем включённые техработы свежим чтением, без старого кэша.
+  if (response.status === 503) {
+    const maintenance = useMaintenanceStore()
+    let fresh = false
     try {
-      await useMaintenanceStore().fetchStatus()
+      fresh = await maintenance.fetchStatus()
     } catch {
-      // не критично
+      // Ошибка чтения статуса не завершает текущую сессию.
     }
-    router.push('/maintenance')
+    if (fresh && maintenance.enabled && !authStore.isSuperAdmin
+      && router.currentRoute.value.path !== '/maintenance') {
+      router.push('/maintenance')
+    }
     return response
   }
-
-  // 5xx -> сохраняем безопасный контекст и редиректим на /500.
-  // Ответ не читаем: тело может содержать детали ошибки, которые нам
-  // показывать юзеру нельзя (leak архитектуры). Используем только status и path.
+  // 5xx -> безопасный контекст и /500. Тело ответа может раскрыть детали ошибки:
+  // используем только status и path.
   if (shouldHandleAsServerError(path, response.status)) {
     saveBugContext(buildBugContext({
       route: `${options.method || 'GET'} ${path}`,
