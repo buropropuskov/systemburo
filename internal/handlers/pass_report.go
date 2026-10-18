@@ -29,7 +29,7 @@ func (h *PassReportHandler) scopeFor(c echo.Context) (services.PassReportScope, 
 	if userID == 0 {
 		return services.PassReportScope{}, echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
 	}
-	set, err := h.resolver.Resolve(c.Request().Context(), userID)
+	set, err := h.resolver.ResolveFresh(c.Request().Context(), userID)
 	if err != nil {
 		return services.PassReportScope{}, err
 	}

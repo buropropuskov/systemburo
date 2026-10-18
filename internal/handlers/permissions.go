@@ -29,7 +29,7 @@ func NewPermissionHandler(service services.PermissionService, resolver *services
 //
 // Источник данных -- PermissionResolver (роли + группы + grants + overrides).
 func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
-	set, err := h.resolver.Resolve(c.Request().Context(), GetUserID(c))
+	set, err := h.resolver.ResolveFresh(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
 	}

@@ -284,7 +284,7 @@ func banCheckHarness(userID int, svc *services.BanCheckService) *echo.Echo {
 }
 
 func TestBanCheck_DeniesBannedUser(t *testing.T) {
-	// Забаненный: чтение (GET) проходит read-only, мутация (POST) -- 403.
+	// Произвольный защищённый GET и мутации запрещены забаненному; кабинет проверяется отдельно.
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewBanCheckService(db, time.Minute)
 
@@ -295,8 +295,8 @@ func TestBanCheck_DeniesBannedUser(t *testing.T) {
 
 	recGet := httptest.NewRecorder()
 	e.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/test", nil))
-	if recGet.Code != http.StatusOK {
-		t.Errorf("expected 200 GET for banned user (read-only), got %d (body: %s)", recGet.Code, recGet.Body.String())
+	if recGet.Code != http.StatusForbidden {
+		t.Errorf("expected 403 GET outside banned cabinet whitelist, got %d (body: %s)", recGet.Code, recGet.Body.String())
 	}
 
 	recPost := httptest.NewRecorder()
@@ -307,7 +307,7 @@ func TestBanCheck_DeniesBannedUser(t *testing.T) {
 }
 
 func TestBanCheck_DeniesArchivedUser(t *testing.T) {
-	// Архивный (is_active=false) с живым access-токеном: read-only, мутации -- 403.
+	// Архивный (is_active=false) с живым access-токеном не имеет доступа к защищённым GET/POST.
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewBanCheckService(db, time.Minute)
 
@@ -321,8 +321,8 @@ func TestBanCheck_DeniesArchivedUser(t *testing.T) {
 
 	recGet := httptest.NewRecorder()
 	e.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/test", nil))
-	if recGet.Code != http.StatusOK {
-		t.Errorf("expected 200 GET for archived user (read-only), got %d (body: %s)", recGet.Code, recGet.Body.String())
+	if recGet.Code != http.StatusForbidden {
+		t.Errorf("expected 403 GET for archived user, got %d (body: %s)", recGet.Code, recGet.Body.String())
 	}
 
 	recPost := httptest.NewRecorder()

@@ -181,11 +181,13 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 		OrganizationName *string `gorm:"column:organization_name"`
 		CompanyName      *string `gorm:"column:company_name"`
 		CanManageAll     bool    `gorm:"column:can_manage_all"`
+		IsActive         bool
+		IsBanned         bool
 	}
 
 	err := s.db.WithContext(ctx).
 		Table("users u").
-		Select(`u.id as user_id, u.organization_id, u.company_id,
+		Select(`u.id as user_id, u.is_active, u.is_banned, u.organization_id, u.company_id,
 			CASE WHEN o.id IS NOT NULL THEN true ELSE false END as has_organization,
 			CASE WHEN c.id IS NOT NULL THEN true ELSE false END as has_company,
 			o.name as organization_name, c.name as company_name,
@@ -195,7 +197,11 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 		Where("u.username = ?", username).
 		Scan(&result).Error
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user info")
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+
+	if result.UserID == 0 || !result.IsActive || result.IsBanned {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Доступ запрещён")
 	}
 
 	return &CarOwnerInfo{
@@ -247,7 +253,7 @@ func (s *uniqueCarService) LookupByNumberMark(ctx context.Context, number, mark 
 // getEmployeeOwnerInfo) берут признак отсюда. Две формулы рядом разъехались бы при
 // первой же правке модели прав, а от этого признака зависит и видимость системного
 // среза, и право править чужую запись.
-const systemAdminExpr = "(u.is_super_admin OR u.is_admin)"
+const systemAdminExpr = "(u.is_active AND NOT u.is_banned AND (u.is_super_admin OR u.is_admin))"
 
 // maskCarOwners заполняет «за кем закреплена запись» администратору и убирает поле у
 // остальных. Зеркало maskEmployeeOwners: причина, маска имени и оговорка про write-path

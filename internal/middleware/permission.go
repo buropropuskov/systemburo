@@ -26,15 +26,21 @@ func RequirePermission(db *gorm.DB, permService services.PermissionService, key 
 				return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
 			}
 
-			var userID int
-			err := db.Table("users").Select("id").Where("username = ?", username).Row().Scan(&userID)
-			if err != nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Пользователь не найден")
+			var actor models.User
+			if err := db.WithContext(c.Request().Context()).Select("id, is_active, is_banned").Where("username = ?", username).First(&actor).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					return echo.NewHTTPError(http.StatusForbidden, "Учётная запись недоступна")
+				}
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 			}
+			if !actor.IsActive || actor.IsBanned {
+				return echo.NewHTTPError(http.StatusForbidden, "Доступ запрещён")
+			}
+			userID := actor.ID
 
 			has, err := permService.HasPermission(c.Request().Context(), userID, key)
 			if err != nil {
-				return err
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 			}
 			if !has {
 				return echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав")
@@ -63,9 +69,9 @@ func RequirePermissionV2(resolver *services.PermissionResolver, denialLog *servi
 				return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
 			}
 
-			set, err := resolver.Resolve(c.Request().Context(), userID)
+			set, err := resolver.ResolveFresh(c.Request().Context(), userID)
 			if err != nil {
-				return err
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 			}
 			if set.Has(key) {
 				return next(c)
@@ -125,16 +131,16 @@ func RequireTableVerb(db *gorm.DB, resolver *services.PermissionResolver, denial
 				Select("name").
 				Where("id = ?", tableID).
 				Scan(&name).Error; err != nil {
-				return fmt.Errorf("failed to resolve table name for permission gate: %w", err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 			}
 			if name == "" {
 				return echo.NewHTTPError(http.StatusNotFound, "Таблица не найдена")
 			}
 			key := fmt.Sprintf("table.%s.%s", name, verb)
 
-			set, err := resolver.Resolve(c.Request().Context(), userID)
+			set, err := resolver.ResolveFresh(c.Request().Context(), userID)
 			if err != nil {
-				return err
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 			}
 			if set.Has(key) {
 				return next(c)

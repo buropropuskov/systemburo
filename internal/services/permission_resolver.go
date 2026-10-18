@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/realtime"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -30,7 +33,7 @@ type permissionRealtimePublisher interface {
 //     затем UserPermissionOverride (deny побеждает allow). Super-only режутся для всех,
 //     кроме super-admin.
 //
-// Кэш: in-memory sync.Map с TTL 30s, инвалидируется по Invalidate(userID).
+// Resolve использует TTL для справочных ответов; защитные проверки вызывают ResolveFresh.
 type PermissionResolver struct {
 	db                *gorm.DB
 	cache             sync.Map   // userID -> *cacheEntry
@@ -56,6 +59,7 @@ const (
 type PermissionSet struct {
 	allowAll  bool                // super-admin: всё разрешено
 	adminAll  bool                // admin: всё, кроме super-only и личных deny
+	inactive  bool                // отсутствующая или архивная учётка
 	banned    bool                // забанен: ничего
 	banReason string              // причина бана (для забаненного)
 	allows    map[string]string   // key -> источник (role|group|override) -- для обычного юзера
@@ -69,7 +73,7 @@ func NewPermissionResolver(db *gorm.DB) *PermissionResolver {
 
 // Has проверяет наличие конкретного permission_key у юзера.
 func (s *PermissionSet) Has(key string) bool {
-	if s.banned {
+	if s.banned || s.inactive {
 		return false
 	}
 	if s.allowAll {
@@ -89,6 +93,8 @@ func (s *PermissionSet) Has(key string) bool {
 
 // IsBanned сообщает, что юзер заблокирован.
 func (s *PermissionSet) IsBanned() bool { return s.banned }
+
+func (s *PermissionSet) IsInactive() bool { return s.inactive }
 
 // BanReason возвращает причину блокировки (пусто, если не забанен).
 func (s *PermissionSet) BanReason() string { return s.banReason }
@@ -170,9 +176,18 @@ func (r *PermissionResolver) Resolve(ctx context.Context, userID int) (Permissio
 	return set, nil
 }
 
-// HasPermission -- удобный shortcut поверх Resolve.
+// ResolveFresh явно обозначает свежий расчёт для объектных проверок.
+func (r *PermissionResolver) ResolveFresh(ctx context.Context, userID int) (PermissionSet, error) {
+	set, err := r.computeSet(ctx, userID)
+	if err != nil {
+		return PermissionSet{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+	}
+	return set, nil
+}
+
+// HasPermission проверяет право свежим защитным расчётом.
 func (r *PermissionResolver) HasPermission(ctx context.Context, userID int, key string) (bool, error) {
-	set, err := r.Resolve(ctx, userID)
+	set, err := r.ResolveFresh(ctx, userID)
 	if err != nil {
 		return false, err
 	}
@@ -234,7 +249,10 @@ func (r *PermissionResolver) computeSet(ctx context.Context, userID int) (Permis
 	if err := r.db.WithContext(ctx).
 		Select("id, role_id, is_super_admin, is_admin, is_active, is_banned, ban_reason").
 		First(&user, userID).Error; err != nil {
-		return PermissionSet{}, fmt.Errorf("user not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return PermissionSet{inactive: true}, nil
+		}
+		return PermissionSet{}, fmt.Errorf("user state unavailable: %w", err)
 	}
 
 	// Бан проверяется до super-admin: бан сильнее (защита от случайной самоблокировки).
@@ -249,7 +267,7 @@ func (r *PermissionResolver) computeSet(ctx context.Context, userID int) (Permis
 	// Проверка выше admin/super-admin: безопасный GET кабинета не должен
 	// сохранять доступ к административным данным после архивирования.
 	if !user.IsActive {
-		return PermissionSet{}, nil
+		return PermissionSet{inactive: true}, nil
 	}
 	if user.IsSuperAdmin {
 		return PermissionSet{allowAll: true}, nil

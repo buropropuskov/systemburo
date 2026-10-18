@@ -146,8 +146,7 @@ func TestSecurityGates_RouteMatrix(t *testing.T) {
 			count := 0
 			for _, key := range securityProtectedRoutes(t, w.e) {
 				method, path, _ := strings.Cut(key, " ")
-				safe := method == "GET" || method == "HEAD" || method == "OPTIONS"
-				if (state == "ban" || state == "archive") && safe {
+				if state == "ban" && mw.BannedReadWhitelist[key] {
 					continue
 				}
 				if state == "consent" && mw.PDConsentWhitelist[key] {
@@ -158,6 +157,10 @@ func TestSecurityGates_RouteMatrix(t *testing.T) {
 				}
 				t.Run(key, func(t *testing.T) {
 					rec := securityGateRequest(w.e, method, concreteRoutePath(path, w.userID), `{}`, w.user)
+     if (state == "ban" || state == "archive") && method == http.MethodPost && (path == "/api/logout" || path == "/api/logout-all") {
+      require.Equal(t, http.StatusOK, rec.Code, "выход должен оставаться доступным: %s", rec.Body.String())
+      return
+     }
 					assertSecurityGateDenied(t, rec, state)
 				})
 				count++
@@ -179,7 +182,9 @@ func TestSecurityGates_CacheAndReadOnlyCabinet(t *testing.T) {
 			if state == "maintenance" {
 				assertSecurityGateDenied(t, rec, state)
 			} else {
-				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+    want := http.StatusOK
+    if state == "archive" { want = http.StatusForbidden }
+    require.Equal(t, want, rec.Code, rec.Body.String())
 				rec = testutil.GET(t, w.e, "/file-archive/settings", testutil.AuthHeader(w.user))
 				require.Equal(t, http.StatusForbidden, rec.Code, "заблокированный пользователь сохранил права: %s", rec.Body.String())
 			}

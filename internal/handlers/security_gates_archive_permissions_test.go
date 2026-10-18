@@ -33,7 +33,7 @@ func TestSecurityGates_ArchivePermissions(t *testing.T) {
 				}
 				w.change(t, "archive")
 				rec := testutil.GET(t, w.e, "/users/me", testutil.AuthHeader(w.user))
-				require.Equal(t, http.StatusOK, rec.Code, "read-only cabinet: %s", rec.Body.String())
+				require.Equal(t, http.StatusForbidden, rec.Code, "archived account has no cabinet access: %s", rec.Body.String())
 				rec = testutil.GET(t, w.e, "/file-archive/settings", testutil.AuthHeader(w.user))
 				require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 				// Новый resolver проверяет предикат без возможности попадания в старый кэш.

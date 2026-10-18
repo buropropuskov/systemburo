@@ -75,9 +75,9 @@ func (s *searchService) Search(ctx context.Context, userID int, q string, types 
 		limit = searchMaxLimit
 	}
 
-	set, err := s.resolver.Resolve(ctx, userID)
+	set, err := s.resolver.ResolveFresh(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("сквозной поиск: не удалось получить права: %w", err)
+		return nil, err
 	}
 	// У забаненного Has всегда false, поэтому ни один провайдер не прошёл бы отбор и
 	// ответ вышел бы пустым. Отвечаем явным отказом: пустая выдача читается как

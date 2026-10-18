@@ -53,9 +53,20 @@ type securityUserChecker interface {
 // и не носитель page.available.
 func securityScope(c echo.Context, svc securityUserChecker, resolver *services.PermissionResolver) (int, bool, error) {
 	userID := GetUserID(c)
-	if IsSuperAdmin(c) {
+	if resolver == nil {
+		return 0, false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	set, err := resolver.ResolveFresh(c.Request().Context(), userID)
+	if err != nil {
+		return 0, false, err
+	}
+	if set.IsBanned() || set.IsInactive() {
+		return 0, false, echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+	if set.IsSuperAdmin() {
 		return userID, true, nil
 	}
+
 	// Работник поста видит только свои места - и тогда, когда право page.available
 	// ему выдано. Право открывает саму страницу (пункт меню и вход), а не снимает
 	// ограничение по местам: иначе выдача права роли охраны показывала бы посту
@@ -67,12 +78,7 @@ func securityScope(c echo.Context, svc securityUserChecker, resolver *services.P
 	if isSecurity {
 		return userID, false, nil
 	}
-	// Has(page.available) истинно для админа (allowAll) и для явного гранта роли/группы/override.
-	// Резолвер учитывает бан (у забаненного Has=false) и личные deny-override.
-	set, err := resolver.Resolve(c.Request().Context(), userID)
-	if err != nil {
-		return 0, false, err
-	}
+
 	if set.Has(services.KeyPageAvailable) {
 		return userID, true, nil
 	}

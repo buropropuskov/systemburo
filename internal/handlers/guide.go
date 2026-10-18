@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/download"
 	"systemburo/internal/services"
 
@@ -48,6 +49,10 @@ func (h *GuideHandler) ListSections(c echo.Context) error {
 	userID := GetUserID(c)
 	sections, err := h.service.ListForUser(c.Request().Context(), userID)
 	if err != nil {
+		var accessErr *apperr.Error
+		if errors.As(err, &accessErr) && accessErr.Code == http.StatusServiceUnavailable {
+			return err
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load guide sections")
 	}
 	return RespondSuccess(c, sections)
@@ -71,6 +76,10 @@ func (h *GuideHandler) Download(c echo.Context) error {
 
 	sec, allowed, err := h.service.GetSectionForUser(c.Request().Context(), userID, role)
 	if err != nil {
+		var accessErr *apperr.Error
+		if errors.As(err, &accessErr) && accessErr.Code == http.StatusServiceUnavailable {
+			return err
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load guide section")
 	}
 	if !allowed {
