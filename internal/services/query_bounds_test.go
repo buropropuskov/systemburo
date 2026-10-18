@@ -12,8 +12,13 @@ import (
 
 func TestQueryBounds_TrashRejectsInvalidDatesWithoutDB(t *testing.T) {
 	svc := NewTrashService(nil, nil)
+	// Validation must reject these bounds before any actor or data lookup.
+	const actorID = 1
+	listEmployees := func(ctx context.Context, tableID int, filter models.TrashFilter) ([]models.TrashItem, error) {
+		return svc.ListEmployeesTrash(ctx, tableID, filter, actorID)
+	}
 	for _, filter := range []models.TrashFilter{{DateFrom: "2026-02-29"}, {DateTo: "bad"}, {DateFrom: "2026-10-08", DateTo: "2026-10-07"}} {
-		for _, list := range []func(context.Context, int, models.TrashFilter) ([]models.TrashItem, error){svc.ListCarsTrash, svc.ListEmployeesTrash} {
+		for _, list := range []func(context.Context, int, models.TrashFilter) ([]models.TrashItem, error){svc.ListCarsTrash, listEmployees} {
 			_, err := list(context.Background(), 1, filter)
 			var validation *apperr.Error
 			if !errors.As(err, &validation) || validation.Code != http.StatusBadRequest {

@@ -111,7 +111,7 @@ func TestAttachmentRows_NoQueryPerRow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cars, rows)
 
-	emps, err := svc.GetAttachmentEmployees(context.Background(), attachmentID, services.SupplementScopeAll)
+	emps, err := svc.GetAttachmentEmployees(context.Background(), attachmentID, services.SupplementScopeAll, s1FixtureActor(t, db))
 	require.NoError(t, err)
 	require.Len(t, emps, rows)
 
@@ -149,7 +149,7 @@ func TestAttachmentRows_BatchKeepsRowsIntact(t *testing.T) {
 		seenPlaces[c.UnloadPlaces[0].Name] = true
 	}
 
-	emps, err := svc.GetAttachmentEmployees(context.Background(), attachmentID, services.SupplementScopeAll)
+	emps, err := svc.GetAttachmentEmployees(context.Background(), attachmentID, services.SupplementScopeAll, s1FixtureActor(t, db))
 	require.NoError(t, err)
 	for _, e := range emps {
 		require.Len(t, e.TargetTables, 1, "у каждого сотрудника ровно своё место прохода")
@@ -172,7 +172,7 @@ func TestAttachmentRows_EmptyAttachmentSkipsLinkQueries(t *testing.T) {
 	cars, err := svc.GetAttachmentCars(context.Background(), attachmentID, services.SupplementScopeAll)
 	require.NoError(t, err)
 	assert.Empty(t, cars)
-	emps, err := svc.GetAttachmentEmployees(context.Background(), attachmentID, services.SupplementScopeAll)
+	emps, err := svc.GetAttachmentEmployees(context.Background(), attachmentID, services.SupplementScopeAll, s1FixtureActor(t, db))
 	require.NoError(t, err)
 	assert.Empty(t, emps)
 

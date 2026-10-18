@@ -233,7 +233,7 @@ type ApplicationService interface {
 	GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error)
 
 	// GetAttachmentEmployees возвращает сотрудников вложения. scope - см. SupplementScope.
-	GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error)
+	GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope, viewerID int) ([]EmployeeWithTables, error)
 
 	// GetAttachmentItems возвращает ТМЦ вложения. scope - см. SupplementScope.
 	GetAttachmentItems(ctx context.Context, attachmentID int, scope SupplementScope) ([]ItemInfo, error)
@@ -789,6 +789,7 @@ type EmployeeWithTables struct {
 	PassportSeriesNumber *string        `json:"passport_series_number"`
 	PatentNumber         *string        `json:"patent_number"`
 	OtherPermission      *string        `json:"other_permission"`
+	DocumentsHidden      bool           `json:"documents_hidden"`
 	EntryDateTo          *string        `json:"entry_date_to"`
 	PassTime             *string        `json:"pass_time"`
 	Organization         *string        `json:"organization"`

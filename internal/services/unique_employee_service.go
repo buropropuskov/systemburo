@@ -95,6 +95,7 @@ type UniqueEmployeeWithRelations struct {
 	PassportSeriesNumber *string    `json:"passport_series_number"`
 	PatentNumber         *string    `json:"patent_number"`
 	OtherPermission      *string    `json:"other_permission"`
+	DocumentsHidden      bool       `json:"documents_hidden"`
 	Status               bool       `json:"status"`
 	CreatedAt            *time.Time `json:"created_at"`
 	OrganizationName     *string    `json:"organization_name"`
@@ -166,6 +167,7 @@ type UniqueEmployeeResponse struct {
 	PassportSeriesNumber *string    `json:"passport_series_number"`
 	PatentNumber         *string    `json:"patent_number"`
 	OtherPermission      *string    `json:"other_permission"`
+	DocumentsHidden      bool       `json:"documents_hidden"`
 	OrganizationID       *int       `json:"organization_id"`
 	CompanyID            *int       `json:"company_id"`
 	UserID               *int       `json:"user_id"`
@@ -207,7 +209,7 @@ type UniqueEmployeeService interface {
 	GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueEmployeeWithRelations, int64, error)
 	// LookupByFIO ищет сотрудника по ФИО (LOWER(TRIM), как ЧС) для открытия карточки со
 	// страницы чёрного списка. Возвращает nil, nil если совпадения нет.
-	LookupByFIO(ctx context.Context, lastName, firstName, middleName string) (*UniqueEmployeeWithRelations, error)
+	LookupByFIO(ctx context.Context, lastName, firstName, middleName string, viewerID int) (*UniqueEmployeeWithRelations, error)
 	// Create и Update: canOverrideOrganization - как у UniqueCarService, см. checkRegistryBinding.
 	Create(ctx context.Context, username string, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error)
 	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error)
@@ -298,9 +300,13 @@ func (s *uniqueEmployeeService) GetOwnerInfo(ctx context.Context, username strin
 
 // LookupByFIO ищет сотрудника по ФИО без скоупинга по владельцу (вызывается из админ-
 // страницы ЧС). Самый свежий при нескольких совпадениях. nil,nil если нет.
-func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, firstName, middleName string) (*UniqueEmployeeWithRelations, error) {
+func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, firstName, middleName string, viewerID int) (*UniqueEmployeeWithRelations, error) {
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), viewerID)
+	if err != nil {
+		return nil, err
+	}
 	rows := make([]UniqueEmployeeWithRelations, 0, 1)
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Table("unique_employees ue").
 		Select(`ue.id, ue.last_name, ue.first_name, ue.middle_name,
 			ue.organization_id, ue.company_id, ue.citizenship_id, ue.user_id,
@@ -322,10 +328,7 @@ func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, first
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	// Паспорт/патент хранятся зашифрованными - расшифровываем, как в GetAll.
-	rows[0].PassportSeriesNumber = crypto.DecryptOptional(rows[0].PassportSeriesNumber)
-	rows[0].PatentNumber = crypto.DecryptOptional(rows[0].PatentNumber)
-	rows[0].OtherPermission = crypto.DecryptOptional(rows[0].OtherPermission)
+	projectEmployeeDocuments(rows, policy)
 	return &rows[0], nil
 }
 
@@ -562,7 +565,11 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 	if err := query.Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
-	decryptEmployees(employees)
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), ownerInfo.UserID)
+	if err != nil {
+		return nil, err
+	}
+	projectEmployeeDocuments(employees, policy)
 	maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll)
 
 	return employees, nil
@@ -602,10 +609,37 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 	if err := dataQuery.Scan(&employees).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
-	decryptEmployees(employees)
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), ownerInfo.UserID)
+	if err != nil {
+		return nil, 0, err
+	}
+	projectEmployeeDocuments(employees, policy)
 	maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll)
 
 	return employees, total, nil
+}
+
+// projectEmployeeDocuments меняет только DTO ответа, а не сохраняемую модель.
+func projectEmployeeDocuments(rows []UniqueEmployeeWithRelations, policy DocumentAccess) {
+	for i := range rows {
+		rows[i].DocumentsHidden = !policy.ReadAllowed(policy.owns(rows[i].UserID))
+		if rows[i].DocumentsHidden {
+			clearDocuments(&rows[i].PassportSeriesNumber, &rows[i].PatentNumber, &rows[i].OtherPermission)
+		}
+	}
+	decryptEmployees(rows)
+}
+
+func projectEmployeeResponse(response *UniqueEmployeeResponse, policy DocumentAccess) *UniqueEmployeeResponse {
+	response.DocumentsHidden = !policy.ReadAllowed(policy.owns(response.UserID))
+	if response.DocumentsHidden {
+		clearDocuments(&response.PassportSeriesNumber, &response.PatentNumber, &response.OtherPermission)
+	}
+	return response
+}
+
+func hasEmployeeDocuments(req NewUniqueEmployeeRequest) bool {
+	return req.PassportSeriesNumber != nil || req.PatentNumber != nil || req.OtherPermission != nil
 }
 
 // decryptEmployees расшифровывает документы строк реестра на месте (общий шаг
@@ -650,6 +684,13 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
+	}
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), ownerInfo.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if hasEmployeeDocuments(req) && !policy.ReadAllowed(true) {
+		return nil, apperr.Forbidden("Изменение документов недоступно")
 	}
 	if err := checkRegistryBinding(
 		registryBinding{OrganizationID: req.OrganizationID, CompanyID: req.CompanyID},
@@ -743,7 +784,13 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	}
 
 	slog.Info("уникальный сотрудник создан", "id", employee.ID)
-	return employeeToResponse(&employee), nil
+	// BeforeSave шифрует поля модели на месте. Открытые значения берём из
+	// запроса только в DTO ответа, не меняя сохраняемую модель.
+	response := employeeToResponse(&employee)
+	response.PassportSeriesNumber = copyStrPtr(req.PassportSeriesNumber)
+	response.PatentNumber = copyStrPtr(req.PatentNumber)
+	response.OtherPermission = copyStrPtr(req.OtherPermission)
+	return projectEmployeeResponse(response, policy), nil
 }
 
 // Update обновляет уникального сотрудника по ID с проверкой прав и уникальности.
@@ -765,6 +812,13 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 
 	if !s.canEditEmployee(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
+	}
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), ownerInfo.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if hasEmployeeDocuments(req) && !policy.ReadAllowed(policy.owns(existing.UserID)) {
+		return nil, apperr.Forbidden("Изменение документов недоступно")
 	}
 	if err := checkRegistryBinding(
 		registryBinding{OrganizationID: req.OrganizationID, CompanyID: req.CompanyID},
@@ -910,7 +964,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		slog.Error("не удалось записать аудит изменений сотрудника", "id", id, "error", err)
 	}
 
-	return employeeToResponse(&updated), nil
+	return projectEmployeeResponse(employeeToResponse(&updated), policy), nil
 }
 
 // recordEmployeeChanges сравнивает старое и новое состояние UniqueEmployee

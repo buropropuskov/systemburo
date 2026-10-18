@@ -680,15 +680,15 @@ export default {
             const v = getModalActionPermission('employee', this.source, 'entryExit');
             return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
         },
-        // Доступные действия/разделы модалки по контексту (source) и правам (#187
-        // Фаза 2). Значение из карты: boolean - по контексту; строка - ключ права,
-        // резолвится через hasPermission. Сейчас гейтит раздел «Документы»
-        // (detail.documents есть в базовой роли -> владелец видит документы своих
-        // сотрудников; в корзине/списке/ЧС - скрыты).
+        // Сервер определяет доступ к документам; запрет раздела по source сильнее.
+        // Без marker локальные/старые данные используют прежнюю карту прав.
         allowedActions() {
             const perms = usePermissionsStore();
             const resolve = (action) => {
                 const v = getModalActionPermission('employee', this.source, action);
+                if (action === 'documents' && typeof this.employee?.documents_hidden === 'boolean') {
+                    return v !== false && !this.employee.documents_hidden;
+                }
                 return typeof v === 'boolean' ? v : perms.hasPermission(v);
             };
             return {

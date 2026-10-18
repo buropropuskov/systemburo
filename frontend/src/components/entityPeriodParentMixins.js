@@ -1,3 +1,5 @@
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
+
 import { formatNumberForDisplay } from '@/composables/useNumberFormat';
 import PassageRegistrySummary from './PassageRegistrySummary.vue';
 import { passageFields } from '@/utils/passageProjection';
@@ -132,9 +134,7 @@ export const peopleTablePeriodDetails = {
         middle_name: item.middle_name,
         position: item.position,
         citizenshipName: item.citizenshipName,
-        passport_series_number: item.passport_series_number,
-        patent_number: item.patent_number,
-        other_permission: item.other_permission,
+        ...employeeDocumentFields(item),
         organization: item.organization_name,
         organizationId: item.organization_id,
         company: item.company,
@@ -248,9 +248,7 @@ export const employeesRegistryPeriodDetails = {
             middle_name: employee.middle_name,
             position: employee.position,
             citizenshipName: employee.citizenship_name,
-            passport_series_number: employee.passport_series_number,
-            patent_number: employee.patent_number,
-            other_permission: employee.other_permission,
+            ...employeeDocumentFields(employee),
             organization: employee.active_app_org_name || employee.organization_name,
             company: employee.active_app_company_name || employee.company_name,
             entry_date_to: employee.active_entry_date_to,
@@ -347,9 +345,7 @@ export const applicationPeriodDetails = {
             middle_name: employee.middle_name,
             position: employee.position,
             citizenshipName: employee.citizenship_name,
-            passport_series_number: employee.passport_series_number,
-            patent_number: employee.patent_number,
-            other_permission: employee.other_permission,
+            ...employeeDocumentFields(employee),
             organization: employee.organization || null,
             organizationId: employee.organization_id || null,
             company: employee.company || null,

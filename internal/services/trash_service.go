@@ -23,7 +23,7 @@ import (
 // Восстановление разрешено только при наличии действующей согласованной заявки.
 type TrashService interface {
 	ListCarsTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error)
-	ListEmployeesTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error)
+	ListEmployeesTrash(ctx context.Context, systemTableID int, filter models.TrashFilter, viewerID int) ([]models.TrashItem, error)
 	RestoreCars(ctx context.Context, systemTableID int, ids []int, userID int) (int, error)
 	RestoreEmployees(ctx context.Context, systemTableID int, ids []int, userID int) (int, error)
 	PurgeCar(ctx context.Context, systemTableID, id, userID int) error
@@ -146,7 +146,7 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 
 // ListEmployeesTrash возвращает удалённых из этой таблицы сотрудников. Скоуп -
 // запись employees_history(action_type='delete', table_id).
-func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error) {
+func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int, filter models.TrashFilter, viewerID int) ([]models.TrashItem, error) {
 	bounds, err := models.ParseQueryDateBounds(filter.DateFrom, filter.DateTo)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 		return nil, err
 	}
 	sql := `
-		SELECT e.id, 'employee' AS type,
+		SELECT e.id, 'employee' AS type, a.sender_user_id AS document_owner_id,
 			a.application_number, a.id AS application_id,
 			e.last_name, e.first_name, e.middle_name,
 			e.position,
@@ -229,7 +229,16 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	rows := s.maskDeletedBy(ctx, scanned)
 	// Паспорт и патент хранятся в зашифрованном виде; raw-scan не вызывает
 	// AfterFind модели Employee, поэтому расшифровываем вручную.
+	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), viewerID)
+	if err != nil {
+		return nil, err
+	}
 	for i := range rows {
+		if !policy.ReadAllowed(policy.owns(rows[i].DocumentOwnerID)) {
+			rows[i].DocumentsHidden = true
+			clearDocuments(&rows[i].PassportSeriesNumber, &rows[i].PatentNumber, &rows[i].OtherPermission)
+			continue
+		}
 		rows[i].PassportSeriesNumber = crypto.DecryptOptional(rows[i].PassportSeriesNumber)
 		rows[i].PatentNumber = crypto.DecryptOptional(rows[i].PatentNumber)
 		rows[i].OtherPermission = crypto.DecryptOptional(rows[i].OtherPermission)

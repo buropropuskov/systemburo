@@ -106,7 +106,7 @@ func TestQueryInput_MoscowDayAcrossApplicationReportsStatisticsTrash(t *testing.
 	cars, err := trash.ListCarsTrash(context.Background(), table.ID, trashFilter)
 	require.NoError(t, err)
 	assert.Len(t, cars, 3)
-	people, err := trash.ListEmployeesTrash(context.Background(), table.ID, trashFilter)
+	people, err := trash.ListEmployeesTrash(context.Background(), table.ID, trashFilter, userID)
 	require.NoError(t, err)
 	assert.Len(t, people, 3)
 

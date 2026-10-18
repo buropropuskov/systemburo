@@ -56,7 +56,7 @@ func TestEntityPeriod2665DBTrashListsEffectivePeriod(t *testing.T) {
 				if kind == services.ElementCar {
 					items, err = trash.ListCarsTrash(ctx, table.ID, models.TrashFilter{})
 				} else {
-					items, err = trash.ListEmployeesTrash(ctx, table.ID, models.TrashFilter{})
+					items, err = trash.ListEmployeesTrash(ctx, table.ID, models.TrashFilter{}, w.actor)
 				}
 				require.NoError(t, err)
 				require.Len(t, items, 1)

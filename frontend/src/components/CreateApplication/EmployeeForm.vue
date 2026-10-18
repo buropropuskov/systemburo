@@ -22,6 +22,7 @@
     >
       <div class="existing-employees-header">
         <span class="existing-employees-count">Сотрудников добавлено: {{ selectedExistingEmployees.length }}</span>
+        <span v-if="selectedExistingEmployees.some(employee => employee.documents_hidden === true)" class="existing-employees-count">Документы справочника скрыты. После добавления откройте правку сотрудника в списке и введите документы для новой заявки.</span>
         <div class="existing-employees-actions">
           <button
             class="view-employees-btn"
@@ -39,7 +40,6 @@
         </div>
       </div>
     </div>
-
     <div
       v-else
       class="completion__body"
@@ -223,7 +223,7 @@
             Добавить этого человека в заявку нельзя.
           </p>
         </div>
-
+        <p v-if="sourceDocumentsHidden" class="existing-employees-info existing-employees-count" data-testid="employee-draft-documents-info">Документы справочника скрыты. Введённые здесь документы используются только в новой заявке; справочник не изменится.</p>
         <div
           v-if="fieldVisible('passport') || fieldVisible('patent')"
           class="completion__name-row"
@@ -242,7 +242,7 @@
               v-model="passportSeriesNumber"
               class="name__input"
               placeholder="Введите паспортные данные"
-              :disabled="editingEmployee && editingEmployee.isExisting"
+              :disabled="editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden"
             >
           </div>
           <div
@@ -260,7 +260,7 @@
               v-model="patentNumber"
               class="name__input"
               :placeholder="effectivePatentRequired ? 'Номер патента' : 'Не требуется'"
-              :disabled="!effectivePatentRequired || patentFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
+              :disabled="!effectivePatentRequired || patentFieldDisabled || (editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden)"
               @input="handlePatentInput"
             >
           </div>
@@ -282,7 +282,7 @@
               type="button"
               class="permission__dropdown-button"
               :class="{ 'permission__dropdown-button--placeholder': !selectedPermission }"
-              :disabled="!effectivePatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
+              :disabled="!effectivePatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden)"
               :title="selectedPermission || null"
               @click="togglePermissionDropdown"
             >
@@ -425,6 +425,7 @@
 </template>
 
 <script>
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { apiRequest } from '@/api/client'
 import { checkPersonBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
@@ -634,6 +635,12 @@ export default {
         selectedCitizenshipText() {
             return this.selectedCitizenship ? this.selectedCitizenship.name : 'Выберите гражданство';
         },
+        sourceDocumentsHidden() { return this.editingEmployee?.documents_hidden === true || this.editingEmployee?.sourceDocumentsHidden === true; },
+        preserveHiddenDocuments() {
+            return this.sourceDocumentsHidden && !this.passportSeriesNumber.trim() && !this.patentNumber.trim()
+                && (!this.selectedPermission || this.selectedPermission === 'Не выбрано');
+        },
+
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
         },
@@ -1042,13 +1049,19 @@ export default {
                 position: this.position.trim(),
                 citizenshipId: this.selectedCitizenship.id,
                 citizenshipName: this.selectedCitizenship.name,
-                passportSeriesNumber: this.passportSeriesNumber.trim(),
-                patentNumber: this.effectivePatentRequired ? this.patentNumber.trim() : null,
-                otherPermission: this.effectivePatentRequired ? this.selectedPermission : null,
+                citizenshipPatentRequired: this.selectedCitizenship.patent_required === true,
+                ...employeeDocumentFields({
+                    documents_hidden: this.preserveHiddenDocuments ? true : this.sourceDocumentsHidden ? false : this.editingEmployee?.documents_hidden,
+                    sourceDocumentsHidden: this.sourceDocumentsHidden,
+                    passportSeriesNumber: this.passportSeriesNumber.trim(),
+                    patentNumber: this.effectivePatentRequired ? this.patentNumber.trim() : null,
+                    otherPermission: this.effectivePatentRequired ? this.selectedPermission : null,
+                }, { fromForm: true, toForm: true }),
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
                 pdConsent: this.pdConsent,
-                isExisting: false
+                isExisting: this.editingEmployee?.isExisting === true,
+                ...(this.editingEmployee?.existingEmployeeId != null ? { existingEmployeeId: this.editingEmployee.existingEmployeeId } : {}),
             };
 
             const duplicate = findDuplicateEmployee(
@@ -1133,15 +1146,12 @@ export default {
                 position: employee.position,
                 citizenshipId: employee.citizenship_id,
                 citizenshipName: employee.citizenship_name,
-                passportSeriesNumber: employee.passport_series_number,
-                patentNumber: employee.patent_number,
-                otherPermission: employee.other_permission,
+                citizenshipPatentRequired: this.availableCitizenships.find(c => c.id === employee.citizenship_id)?.patent_required === true,
+                ...employeeDocumentFields(employee, { toForm: true }),
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
-                // Сотрудник из реестра: согласие получено при заведении записи, поэтому
-                // отметка едет с ним и повторно её не спрашиваем. У записей, заведённых
-                // до появления поля, pd_consent_at пустой - тогда согласие подтверждают
-                // заново в карточке реестра.
+                // Полученное в реестре согласие переносим с записью; без даты его
+                // подтверждают заново в карточке справочника.
                 pdConsent: !!employee.pd_consent_at,
                 isExisting: true,
                 existingEmployeeId: employee.id
@@ -1188,37 +1198,19 @@ export default {
             // Отметку согласия возвращаем в форму: правка фамилии не должна её терять.
             this.pdConsent = employee.pdConsent === true;
             
-            if (employee.isExisting) {
-                this.lastName = employee.lastName;
-                this.firstName = employee.firstName;
-                this.middleName = employee.middleName;
-                this.position = employee.position;
-                this.passportSeriesNumber = employee.passportSeriesNumber;
-                this.patentNumber = employee.patentNumber;
-                this.selectedPermission = employee.otherPermission;
-                this.selectedPassageTables = employee.targetTables || [];
+            this.lastName = employee.lastName;
+            this.firstName = employee.firstName;
+            this.middleName = employee.middleName;
+            this.position = employee.position;
+            this.passportSeriesNumber = employee.passportSeriesNumber || '';
+            this.patentNumber = employee.patentNumber || '';
+            this.selectedPermission = employee.otherPermission || '';
+            this.selectedPassageTables = employee.targetTables || [];
                 
-                if (employee.citizenshipId) {
-                    const citizenship = this.availableCitizenships.find(c => c.id === employee.citizenshipId);
-                    if (citizenship) {
-                        this.selectedCitizenship = citizenship;
-                    }
-                }
-            } else {
-                this.lastName = employee.lastName;
-                this.firstName = employee.firstName;
-                this.middleName = employee.middleName;
-                this.position = employee.position;
-                this.passportSeriesNumber = employee.passportSeriesNumber;
-                this.patentNumber = employee.patentNumber;
-                this.selectedPermission = employee.otherPermission;
-                this.selectedPassageTables = employee.targetTables || [];
-                
-                if (employee.citizenshipId) {
-                    const citizenship = this.availableCitizenships.find(c => c.id === employee.citizenshipId);
-                    if (citizenship) {
-                        this.selectedCitizenship = citizenship;
-                    }
+            if (employee.citizenshipId) {
+                const citizenship = this.availableCitizenships.find(c => c.id === employee.citizenshipId);
+                if (citizenship) {
+                    this.selectedCitizenship = citizenship;
                 }
             }
         },

@@ -308,4 +308,41 @@ describe('SupplementModal - результат отправки (#1685)', () => 
     expect(notify).toHaveBeenCalledWith({ bold: 'Вложение не принадлежит этой заявке', type: 'error' });
     expect(wrapper.emitted('close')).toBeFalsy();
   });
+  it('проверяет документы скрытого сотрудника до дополнения и принимает только новый явный ввод', async () => {
+    const wrapper = await mountModal([PEOPLE_ATTACHMENT]);
+    await flushPromises();
+    await wrapper.setData({ fieldConfigByAttachment: { 102: { passport: { visible: true, required: true } } } });
+    await emitRow(wrapper, 'EmployeeForm', 'employee-added', {
+      ...EMPLOYEE_ROW, isExisting: true, existingEmployeeId: 7, documents_hidden: true,
+      sourceDocumentsHidden: true, passportSeriesNumber: null, patentNumber: null, otherPermission: null,
+    });
+    expect(wrapper.vm.canSubmit).toBe(false);
+    expect(wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0]).toMatchObject({ isExisting: true, existingEmployeeId: 7 });
+    expect(wrapper.vm.submitHint).toContain('паспортные данные для новой заявки');
+    await wrapper.vm.submit();
+    expect(createSupplement).not.toHaveBeenCalled();
+    const row = wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0];
+    await emitRow(wrapper, 'EmployeeForm', 'employee-updated', {
+      ...row, documents_hidden: false, passportSeriesNumber: 'new application passport',
+    });
+    expect(wrapper.vm.canSubmit).toBe(true);
+    expect(wrapper.vm.submitHint).toBe('');
+    expect(wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0].passportSeriesNumber).toBe('new application passport');
+    await wrapper.vm.submit();
+    const person = createSupplement.mock.calls[0][1].additions[0].employees[0];
+    expect(person.passport_series_number).toBe('new application passport');
+    expect(person).not.toHaveProperty('documents_hidden');
+    expect(person).not.toHaveProperty('sourceDocumentsHidden');
+    wrapper.unmount();
+  });
+
+  it('сохраняет идентичность каталоговых сотрудников при массовом добавлении', async () => {
+    const wrapper = await mountModal([PEOPLE_ATTACHMENT]);
+    await emitRow(wrapper, 'EmployeeForm', 'employees-added', [{ ...EMPLOYEE_ROW, isExisting: true, existingEmployeeId: 77,
+      documents_hidden: true, sourceDocumentsHidden: true, passportSeriesNumber: null }]);
+    expect(wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0]).toMatchObject({ isExisting: true, existingEmployeeId: 77,
+      documents_hidden: true, sourceDocumentsHidden: true, passportSeriesNumber: null });
+    wrapper.unmount();
+  });
+
 });

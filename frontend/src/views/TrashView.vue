@@ -360,6 +360,7 @@
 </template>
 
 <script>
+import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadExcelSheet } from '@/utils/excelSheet';
@@ -642,9 +643,7 @@ export default {
           middle_name: item.middle_name,
           position: item.position || '',
           citizenshipName: item.citizenship_name || '',
-          passport_series_number: item.passport_series_number || '',
-          patent_number: item.patent_number || '',
-          other_permission: item.other_permission || '',
+          ...employeeDocumentFields(item),
           organization: item.organization,
           organizationId: null,
           company: item.company || '',

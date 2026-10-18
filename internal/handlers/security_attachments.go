@@ -183,7 +183,7 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 	case "cars":
 		detail.Cars, err = h.service.GetAttachmentCars(ctx, id, services.SupplementScopeAdmitted)
 	case "people":
-		detail.Employees, err = h.service.GetAttachmentEmployees(ctx, id, services.SupplementScopeAdmitted)
+		detail.Employees, err = h.service.GetAttachmentEmployees(ctx, id, services.SupplementScopeAdmitted, userID)
 	case "items":
 		detail.Items, err = h.service.GetAttachmentItems(ctx, id, services.SupplementScopeAdmitted)
 	default:
