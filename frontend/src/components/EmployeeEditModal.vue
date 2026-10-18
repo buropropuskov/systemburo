@@ -416,7 +416,7 @@ export default {
             return !!(this.editingEmployee && this.editingEmployee.pd_objection_at);
         },
         consentAlreadyGranted() {
-            return !!(this.editingEmployee && this.editingEmployee.pd_consent_at);
+            return !!(this.editingEmployee && (this.editingEmployee.pd_consent_at || this.originalEmployeeData?.pd_consent_at));
         },
 
         /**
@@ -507,7 +507,8 @@ export default {
                     patent_number: this.editingEmployee.patent_number,
                     other_permission: this.editingEmployee.other_permission,
                     organization_id: this.editingEmployee.organization_id,
-                    company_id: this.editingEmployee.company_id
+                    company_id: this.editingEmployee.company_id,
+                    pd_consent_at: this.editingEmployee.pd_consent_at
                 };
 
                 this.lastName = this.editingEmployee.last_name || '';
@@ -571,6 +572,10 @@ export default {
 
         hasChanges() {
             if (!this.editingEmployee) {
+                return true;
+            }
+
+            if (this.pdConsent && !this.consentAlreadyGranted) {
                 return true;
             }
 
@@ -726,7 +731,8 @@ export default {
                             patent_number: this.documentsHidden ? savedEmployee.patent_number : employeeData.patent_number,
                             other_permission: this.documentsHidden ? savedEmployee.other_permission : employeeData.other_permission,
                             organization_id: employeeData.organization_id,
-                            company_id: employeeData.company_id
+                            company_id: employeeData.company_id,
+                            pd_consent_at: savedEmployee.pd_consent_at || this.originalEmployeeData?.pd_consent_at
                         };
                     }
 

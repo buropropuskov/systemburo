@@ -81,6 +81,66 @@ describe('EmployeeEditModal - правка записи чужой органи�
     expect(body.company_id).toBeNull();
   });
 
+  it('не отправляет неизменённую запись с доступными документами', async () => {
+    const existing = { ...FOREIGN_EMPLOYEE, pd_consent_at: '2026-01-12T09:00:00Z' };
+    const wrapper = mountModal({ editingEmployee: existing, foreignRecord: true });
+    await wrapper.setData({ selectedCitizenship: CITIZENSHIPS[0] });
+
+    expect(wrapper.vm.documentsHidden).toBe(false);
+    expect(wrapper.vm.canSaveEmployee).toBe(true);
+    expect(wrapper.vm.hasChanges()).toBe(false);
+
+    await wrapper.vm.saveEmployee();
+
+    expect(apiRequest).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it.each([false, true])('сохраняет только новое согласие без смены владельца и привязки (foreignRecord=%s)', async (foreignRecord) => {
+    const existing = foreignRecord ? FOREIGN_EMPLOYEE : {
+      ...FOREIGN_EMPLOYEE, id: 8, organization_id: 10, user_id: 1, user_name: 'testadmin',
+    };
+    const saved = { ...existing, pd_consent_at: '2026-01-12T09:00:00Z' };
+    apiRequest.mockResolvedValueOnce({ ok: true, json: async () => saved });
+    const wrapper = mountModal({ editingEmployee: existing, foreignRecord });
+    await wrapper.setData({ pdConsent: true });
+
+    expect(wrapper.vm.canSaveEmployee).toBe(true);
+    expect(wrapper.vm.hasChanges()).toBe(true);
+    await wrapper.vm.saveEmployee();
+
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    const [url, options] = apiRequest.mock.calls[0];
+    expect(url).toBe(`/unique-employees/${existing.id}`);
+    expect(options.method).toBe('PUT');
+    const body = JSON.parse(options.body);
+    expect(body).toEqual({
+      last_name: existing.last_name,
+      first_name: existing.first_name,
+      middle_name: existing.middle_name,
+      position: existing.position,
+      citizenship_id: existing.citizenship_id,
+      passport_series_number: existing.passport_series_number,
+      patent_number: existing.patent_number,
+      other_permission: existing.other_permission,
+      pd_consent: true,
+      organization_id: existing.organization_id,
+      company_id: existing.company_id,
+      ...(foreignRecord ? {} : { user_id: 1 }),
+    });
+    if (foreignRecord) expect(body).not.toHaveProperty('user_id');
+    expect(wrapper.emitted('saved')).toEqual([[saved]]);
+    expect(wrapper.props('editingEmployee').pd_consent_at).toBeUndefined();
+    expect(wrapper.vm.consentAlreadyGranted).toBe(true);
+    expect(wrapper.vm.hasChanges()).toBe(false);
+
+    await wrapper.setData({ pdConsent: false });
+    expect(wrapper.vm.canSaveEmployee).toBe(true);
+    await wrapper.vm.saveEmployee();
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
   it('вместо переключателей привязки показывает, за кем закреплена запись', () => {
     const wrapper = mountModal({ editingEmployee: FOREIGN_EMPLOYEE, foreignRecord: true });
 
@@ -94,7 +154,7 @@ describe('EmployeeEditModal - правка записи чужой органи�
   it('своя запись правится по-прежнему: привязка из переключателей и свой user_id', async () => {
     const own = { ...FOREIGN_EMPLOYEE, id: 8, organization_id: 10, user_id: 1, user_name: 'testadmin' };
     const wrapper = mountModal({ editingEmployee: own, foreignRecord: false });
-    await wrapper.setData({ lastName: 'Пешков', firstName: 'Иван', selectedCitizenship: CITIZENSHIPS[0], pdConsent: true });
+    await wrapper.setData({ lastName: 'Пешков', firstName: 'Иоанн', selectedCitizenship: CITIZENSHIPS[0], pdConsent: true });
 
     expect(wrapper.find('[data-testid="employee-foreign-binding-note"]').exists()).toBe(false);
     const orgCheckbox = wrapper.findAll('.binding-option input[type="checkbox"]')[0];
@@ -102,8 +162,10 @@ describe('EmployeeEditModal - правка записи чужой органи�
 
     await wrapper.vm.saveEmployee();
 
+    expect(apiRequest).toHaveBeenCalledTimes(1);
     const [, options] = apiRequest.mock.calls[0];
     const body = JSON.parse(options.body);
+    expect(body.first_name).toBe('Иоанн');
     expect(body.user_id).toBe(1);
     expect(body.organization_id).toBe(10);
   });
