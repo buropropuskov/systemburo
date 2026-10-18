@@ -254,6 +254,87 @@ describe('401 auto-refresh', () => {
     vi.restoreAllMocks();
   });
 
+  it('never retries a target POST after the user has returned to the actor', async () => {
+    const auth = useAuthStore();
+    auth.impersonation = { id: 42, username: 'synthetic-target' };
+    auth.setTokens('target-token');
+    let finish;
+    fetchMock.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const pending = apiRequest('/protected-action', { method: 'POST', body: '{}' });
+    auth.impersonation = null;
+    auth.setTokens('actor-token');
+    finish(errJson({ success: false }, 401));
+    expect((await pending).status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(auth.token).toBe('actor-token');
+    expect(auth.isImpersonating).toBe(false);
+  });
+
+  it('does not replay a delayed rate-limit retry after changing identity', async () => {
+    vi.useFakeTimers();
+    try {
+      const auth = useAuthStore();
+      auth.impersonation = { id: 42 };
+      auth.setTokens('target-token');
+      fetchMock.mockResolvedValueOnce(err429(1));
+      const pending = apiRequest('/protected-action', { method: 'POST', body: '{}' });
+      await vi.advanceTimersByTimeAsync(0);
+      auth.impersonation = null;
+      auth.setTokens('actor-token');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect((await pending).status).toBe(429);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(auth.token).toBe('actor-token');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each([200, 401])('keeps a new identity when an older refresh finishes with %s', async (status) => {
+    const auth = useAuthStore();
+    let finish;
+    fetchMock.mockResolvedValueOnce(errJson({}, 401))
+      .mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const pending = apiRequest('/protected-action', { method: 'POST', body: '{}' });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    auth.impersonation = { id: 42, username: 'new-target' };
+    auth.setTokens('new-target-token');
+    finish(status === 200 ? okJson({ success: true, data: { token: 'old-actor-refreshed' } }) : errJson({}, status));
+    expect((await pending).status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(auth.token).toBe('new-target-token');
+    expect(auth.isImpersonating).toBe(true);
+  });
+
+  it.each([500, 403, 503])('ignores a late %s after caller cancellation', async (status) => {
+    let finish;
+    fetchMock.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const controller = new AbortController();
+    const pending = apiRequest('/uploads/system_tables/old.png', { signal: controller.signal });
+    controller.abort();
+    finish(errJson({ consent_required: true }, status));
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(usePDConsentStore().required).toBe(false);
+    expect(usePasswordChangeStore().required).toBe(false);
+    expect(useAuthStore().token).toBe('old-access');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [{ consent_required: true }, 'consent'],
+    [{ code: 'PASSWORD_CHANGE_REQUIRED' }, 'password'],
+  ])('processes the policy response after refresh: %s', async (body, gate) => {
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false }, 401))
+      .mockResolvedValueOnce(okJson({ success: true, data: { token: 'new-access' } }))
+      .mockResolvedValueOnce(errJson(body, 403))
+      .mockResolvedValue(okJson({ success: true, data: { required: true } }));
+    const response = await apiRequest('/protected-download');
+    expect(response.status).toBe(403);
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/protected-download')).toHaveLength(2);
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/refresh-token')).toHaveLength(1);
+    expect(gate === 'consent' ? usePDConsentStore().required : usePasswordChangeStore().required).toBe(true);
+  });
+
   it('on 401 refreshes once and retries with new token', async () => {
     fetchMock
       .mockResolvedValueOnce(errJson({ success: false, error: 'Missing' }, 401))

@@ -100,16 +100,18 @@ func TestMustChangePassword_WhitelistStaysOpen(t *testing.T) {
 func TestMustChangePassword_OpensAfterChange(t *testing.T) {
 	e, _, token, cleanup := setupPasswordGate(t, "mcp_change_user")
 	defer cleanup()
+	token, refresh := testutil.LoginUser(t, e, "mcp_change_user", mcpOldPassword)
+	headers := testutil.AuthHeader(token)
+	headers.Set("Cookie", "refresh_token="+refresh)
 
 	assertPasswordChangeBlocked(t, testutil.GET(t, e, mcpGuardedPath, testutil.AuthHeader(token)))
 
 	rec := testutil.PUT(t, e, "/api/users/me/password",
 		`{"current_password":"`+mcpOldPassword+`","new_password":"`+mcpNewPassword+`"}`,
-		testutil.AuthHeader(token))
+		headers)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	// Тот же маркер доступа: смена пароля отзывает сессии продления, но выданный
-	// маркер живёт до своего срока - и теперь обязан открывать систему.
+	// The current cookie identifies the family retained by a self-service change.
 	after := testutil.GET(t, e, mcpGuardedPath, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, after.Code, after.Body.String())
 	assert.Empty(t, after.Header().Get("X-Password-Change-Required"))

@@ -1,5 +1,4 @@
 import { apiRequest } from './client';
-import { useAuthStore } from '@/stores/auth';
 
 /**
  * API-клиент управления документами (#39).
@@ -141,16 +140,7 @@ export async function listPublicDocuments() {
  */
 export async function downloadDocument(id, fileName) {
   // TODO: бэкенд отдаёт Content-Disposition: attachment — fileName здесь резервный
-  const authStore = useAuthStore();
-  const res = await fetch(
-    `${(import.meta.env.VITE_API_BASE_URL || '') + '/api'}/documents/${id}/download`,
-    {
-      credentials: 'include',
-      headers: {
-        ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}),
-      },
-    }
-  );
+  const res = await apiRequest(`/documents/${id}/download`);
   if (!res.ok) throw new Error(`download failed: ${res.status}`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

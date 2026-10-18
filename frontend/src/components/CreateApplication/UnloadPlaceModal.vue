@@ -167,7 +167,7 @@
                 @wheel="onZoom"
                 @touchstart.stop
               >
-                <img 
+                <img v-auth-image
                   :src="getMainPhotoUrl(place.photos)" 
                   alt="Место разгрузки"
                   class="place-photo"

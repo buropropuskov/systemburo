@@ -176,7 +176,7 @@
                 @mousedown="startDrag"
                 @wheel="onZoom"
               >
-                <img 
+                <img v-auth-image
                   :src="getMainPhotoUrl" 
                   alt="Место прохода"
                   class="place-photo"

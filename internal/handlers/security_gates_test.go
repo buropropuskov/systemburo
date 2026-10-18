@@ -79,9 +79,9 @@ func assertSecurityGateDenied(t *testing.T, rec *httptest.ResponseRecorder, stat
 	status, marker := http.StatusForbidden, ""
 	switch state {
 	case "maintenance":
-		status, marker = http.StatusServiceUnavailable, "технические работы"
+		status, marker = http.StatusUnauthorized, "Сессия завершена"
 	case "ban":
-		marker = "Учётная запись заблокирована"
+		status, marker = http.StatusUnauthorized, "Сессия завершена"
 	case "archive":
 		marker = "Учётная запись отключена"
 	case "consent":
@@ -157,10 +157,15 @@ func TestSecurityGates_RouteMatrix(t *testing.T) {
 				}
 				t.Run(key, func(t *testing.T) {
 					rec := securityGateRequest(w.e, method, concreteRoutePath(path, w.userID), `{}`, w.user)
-     if (state == "ban" || state == "archive") && method == http.MethodPost && (path == "/api/logout" || path == "/api/logout-all") {
-      require.Equal(t, http.StatusOK, rec.Code, "выход должен оставаться доступным: %s", rec.Body.String())
-      return
-     }
+					if state == "maintenance" && method == http.MethodPost && path == "/api/logout" {
+						require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+						require.Contains(t, rec.Body.String(), "технические работы")
+						return
+					}
+					if (state == "ban" || state == "archive") && method == http.MethodPost && path == "/api/logout" {
+						require.Equal(t, http.StatusOK, rec.Code, "выход должен оставаться доступным: %s", rec.Body.String())
+						return
+					}
 					assertSecurityGateDenied(t, rec, state)
 				})
 				count++
@@ -179,14 +184,15 @@ func TestSecurityGates_CacheAndReadOnlyCabinet(t *testing.T) {
 			require.Equal(t, http.StatusOK, testutil.GET(t, w.e, "/file-archive/settings", testutil.AuthHeader(w.user)).Code)
 			w.change(t, state)
 			rec := testutil.GET(t, w.e, "/users/me", testutil.AuthHeader(w.user))
-			if state == "maintenance" {
-				assertSecurityGateDenied(t, rec, state)
-			} else {
-    want := http.StatusOK
-    if state == "archive" { want = http.StatusForbidden }
-    require.Equal(t, want, rec.Code, rec.Body.String())
+			if state == "ban" {
+				require.Equal(t, http.StatusUnauthorized, rec.Code, "old family must be revoked: %s", rec.Body.String())
+				w.user, w.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
+				rec = testutil.GET(t, w.e, "/users/me", testutil.AuthHeader(w.user))
+				require.Equal(t, http.StatusOK, rec.Code, "new blocked login keeps own read: %s", rec.Body.String())
 				rec = testutil.GET(t, w.e, "/file-archive/settings", testutil.AuthHeader(w.user))
-				require.Equal(t, http.StatusForbidden, rec.Code, "заблокированный пользователь сохранил права: %s", rec.Body.String())
+				require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+			} else {
+				assertSecurityGateDenied(t, rec, state)
 			}
 			ctx := context.Background()
 			switch state {
@@ -197,6 +203,7 @@ func TestSecurityGates_CacheAndReadOnlyCabinet(t *testing.T) {
 			case "maintenance":
 				require.NoError(t, w.gates.Maintenance.Disable(ctx, w.adminID, "testadmin"))
 			}
+			w.user, w.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
 			rec = testutil.PUT(t, w.e, "/users/me/theme", `{"theme":"light"}`, testutil.AuthHeader(w.user))
 			require.Equal(t, http.StatusOK, rec.Code, "кэш не инвалидирован: %s", rec.Body.String())
 		})

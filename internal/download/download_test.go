@@ -56,6 +56,7 @@ func TestServe_AttachmentHeaders(t *testing.T) {
 	c, rec := newCtx()
 
 	require.NoError(t, Serve(c, File{Path: p, Name: `от"чёт.pdf`, Mime: "application/pdf"}))
+	assert.Equal(t, "no-store", rec.Header().Get(echo.HeaderCacheControl))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	cd := rec.Header().Get(echo.HeaderContentDisposition)
 	assert.Contains(t, cd, "attachment")
@@ -71,6 +72,15 @@ func TestServe_Inline(t *testing.T) {
 
 	require.NoError(t, Serve(c, File{Path: p, Name: "f.pdf", Inline: true}))
 	assert.Contains(t, rec.Header().Get(echo.HeaderContentDisposition), "inline")
+}
+
+func TestServeEncrypted_NoStore(t *testing.T) {
+	p := writeTemp(t, "synthetic.pdf", "synthetic legacy plaintext")
+	c, rec := newCtx()
+	require.NoError(t, ServeEncrypted(c, Encrypted{File: File{Path: p, Name: "synthetic.pdf"}}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get(echo.HeaderCacheControl))
+	require.Equal(t, "synthetic legacy plaintext", rec.Body.String())
 }
 
 func TestServe_NoNameNoDisposition(t *testing.T) {
@@ -115,6 +125,7 @@ func TestStreamZip_HeadersAndCyrillicNames(t *testing.T) {
 		{Path: p2, Name: "2026/Июль/Пропуск на людей (№2).xlsx"},
 	}
 	require.NoError(t, StreamZip(c, "архив.zip", entries))
+	assert.Equal(t, "no-store", rec.Header().Get(echo.HeaderCacheControl))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "application/zip", rec.Header().Get(echo.HeaderContentType))

@@ -1,5 +1,4 @@
 import { apiRequest } from './client';
-import { useAuthStore } from '@/stores/auth';
 
 /**
  * API-клиент модалки «Руководство» (B2).
@@ -20,19 +19,15 @@ export async function listGuideSections() {
  * Скачать PDF раздела через Blob. Эндпоинт под JWT, поэтому Bearer-токен из Pinia
  * передаём явным заголовком (для blob-URL браузер его сам не добавит).
  * downloadUrl приходит из ответа уже с префиксом /api (GuideFileInfo.download_url),
- * поэтому базу берём из VITE_API_BASE_URL без повторного /api.
+ * поэтому снимаем этот префикс перед вызовом общего apiRequest.
  * @param {string} downloadUrl - section.file.download_url
  * @param {string} fileName - section.file.name для имени сохраняемого файла
  */
 export async function downloadGuideFile(downloadUrl, fileName) {
-  const base = import.meta.env.VITE_API_BASE_URL || '';
-  const authStore = useAuthStore();
-  const res = await fetch(`${base}${downloadUrl}`, {
-    credentials: 'include',
-    headers: {
-      ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}),
-    },
-  });
+  if (typeof downloadUrl !== 'string' || !/^\/api\/guide\/[^?#]+$/.test(downloadUrl) || downloadUrl.includes('..')) {
+    throw new Error('Некорректный адрес руководства');
+  }
+  const res = await apiRequest(downloadUrl.slice('/api'.length));
   if (!res.ok) throw new Error(`download failed: ${res.status}`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

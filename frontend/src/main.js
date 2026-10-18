@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { vPermissionScope } from './directives/permission-scope'
+import { vAuthImage } from './directives/authImage'
 import bus from './eventBus'
 import { tryRestoreSession } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
@@ -35,6 +36,7 @@ const app = createApp(App)
 app.config.globalProperties.$bus = bus
 app.use(createPinia())
 app.directive('permission-scope', vPermissionScope)
+app.directive('auth-image', vAuthImage)
 
 // Bootstrap: восстанавливаем сессию из HttpOnly refresh cookie ДО app.use(router).
 // Vue Router 4.x триггерит initial navigation синхронно при install - если router

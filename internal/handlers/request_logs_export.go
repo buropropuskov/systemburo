@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"systemburo/internal/download"
 	"time"
 
 	"systemburo/internal/export"
@@ -61,6 +62,7 @@ var requestLogsHeaders = []string{
 // @Failure      500 {object} models.HTTPError
 // @Router       /request-logs/export [get]
 func (h *RequestLogsHandler) Export(c echo.Context) error {
+	download.NoStore(c)
 	var q models.RequestLogsQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")

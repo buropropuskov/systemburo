@@ -334,7 +334,7 @@
                         @mouseleave="stopDrag"
                         @wheel="onZoom"
                       >
-                        <img 
+                        <img v-auth-image
                           :src="getMainPhotoUrl(selectedPlace.photos)" 
                           alt="Место разгрузки"
                           class="place-photo"

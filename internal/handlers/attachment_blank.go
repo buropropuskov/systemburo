@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"systemburo/internal/apperr"
+	"systemburo/internal/download"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -58,6 +59,7 @@ func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAc
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/blank [get]
 func (h *AttachmentBlankHandler) Download(c echo.Context) error {
+	download.NoStore(c)
 	appID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid application id")
@@ -135,6 +137,7 @@ func (h *AttachmentBlankHandler) DownloadTemplate(c echo.Context) error {
 // самому вложению уже проверен в Download до вызова. Документы участников внутри файла
 // закрыты отдельно: сохранённая копия собрана с ними (#1615, C6).
 func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID int, withDocuments bool) error {
+	download.NoStore(c)
 	if h.archive == nil {
 		return archiveUnavailable()
 	}

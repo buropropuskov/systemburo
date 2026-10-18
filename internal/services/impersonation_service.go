@@ -102,7 +102,15 @@ func (s *impersonationService) startLocked(ctx context.Context, actorUserID, tar
 		return nil, err
 	}
 
-	token, expiresAt, err := s.signToken(target, actor.ID)
+	identity, ok := SessionIdentityFromContext(ctx)
+	if !ok || identity.OwnerUserID != actor.ID || identity.EffectiveUserID != actor.ID || identity.ImpersonatedBy != nil {
+		return nil, invalidSession()
+	}
+	identity, err = NewSessionAccessService(s.db, "").RequireLive(ctx, identity)
+	if err != nil {
+		return nil, err
+	}
+	token, expiresAt, err := s.signToken(target, actor.ID, identity.FamilyID)
 	if err != nil {
 		return nil, err
 	}
@@ -198,10 +206,13 @@ func (s *impersonationService) checkRank(ctx context.Context, actor, target *mod
 // (идентификатор, логин, тип), инициатор идёт отдельным полем: проверки доступа
 // обязаны считать права по тому, от чьего имени работают, а журнал - знать, кто это
 // затеял. Секрет тот же, что у обычного входа, поэтому проверка маркера не меняется.
-func (s *impersonationService) signToken(target *models.User, actorUserID int) (string, time.Time, error) {
+func (s *impersonationService) signToken(target *models.User, actorUserID int, familyID string) (string, time.Time, error) {
 	expiresAt := time.Now().Add(ImpersonationTokenTTL)
 	actor := actorUserID
 	claims := Claims{
+		TokenVersion:   AccessTokenVersion,
+		SessionID:      familyID,
+		SessionUserID:  actorUserID,
 		UserID:         target.ID,
 		TypeID:         target.TypeID,
 		IsSuperAdmin:   target.IsSuperAdmin,

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"systemburo/internal/download"
 	"time"
 
 	"systemburo/internal/export"
@@ -70,6 +71,7 @@ var registryHeaders = []string{
 // @Failure      500 {object}  models.HTTPError
 // @Router       /applications/export [get]
 func (h *ApplicationHandler) ExportApplications(c echo.Context) error {
+	download.NoStore(c)
 	username := c.Get("username").(string)
 
 	filter, err := bindApplicationListFilter(c)

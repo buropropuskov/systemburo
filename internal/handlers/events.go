@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,8 @@ import (
 	"time"
 
 	"systemburo/internal/httpx"
+	"systemburo/internal/middleware"
+	"systemburo/internal/models"
 	"systemburo/internal/realtime"
 	"systemburo/internal/services"
 
@@ -29,14 +32,45 @@ const eventsStreamMaxLifetime = 10 * time.Minute
 // одноразовые билеты для его установления. См. realtime.TicketStore про то, почему
 // билет, а не access-токен в query.
 type EventsHandler struct {
-	hub         *realtime.Hub
-	tickets     *realtime.TicketStore
-	ownerStatus services.TicketOwnerStatus
+	hub           *realtime.Hub
+	tickets       *realtime.TicketStore
+	ownerStatus   services.TicketOwnerStatus
+	sessions      services.SessionAccess
+	requestPolicy *middleware.SessionRequestPolicy
+	newHeartbeat  func() (<-chan time.Time, func())
 }
 
 // NewEventsHandler создаёт хендлер SSE-потока.
-func NewEventsHandler(hub *realtime.Hub, tickets *realtime.TicketStore, ownerStatus services.TicketOwnerStatus) *EventsHandler {
-	return &EventsHandler{hub: hub, tickets: tickets, ownerStatus: ownerStatus}
+func NewEventsHandler(hub *realtime.Hub, tickets *realtime.TicketStore, ownerStatus services.TicketOwnerStatus, sessions services.SessionAccess) *EventsHandler {
+	return &EventsHandler{hub: hub, tickets: tickets, ownerStatus: ownerStatus, sessions: sessions, newHeartbeat: func() (<-chan time.Time, func()) {
+		ticker := time.NewTicker(eventsHeartbeatInterval)
+		return ticker.C, ticker.Stop
+	}}
+}
+
+func (h *EventsHandler) SetRequestPolicy(policy *middleware.SessionRequestPolicy) {
+	h.requestPolicy = policy
+}
+
+func (h *EventsHandler) live(ctx context.Context, identity models.SessionIdentity, request *http.Request) (models.SessionIdentity, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := services.RequireActiveTicketOwner(ctx, identity.EffectiveUserID, h.ownerStatus); err != nil {
+		return models.SessionIdentity{}, err
+	}
+	if h.sessions == nil {
+		return models.SessionIdentity{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка сессии временно недоступна")
+	}
+	fresh, err := h.sessions.RequireLive(ctx, identity)
+	if err != nil {
+		return models.SessionIdentity{}, err
+	}
+	// The ticket endpoint defines the existing stream policy, including the
+	// consent-notification exception. Do not invent a second whitelist for GET.
+	if err := h.requestPolicy.Check(ctx, fresh, http.MethodPost, "/api/events/ticket", request); err != nil {
+		return models.SessionIdentity{}, err
+	}
+	return fresh, nil
 }
 
 // IssueTicket выдаёт одноразовый билет для подключения к потоку.
@@ -57,7 +91,11 @@ func (h *EventsHandler) IssueTicket(c echo.Context) error {
 	if userID == 0 {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
-	ticket, err := h.tickets.Issue(userID, time.Now())
+	identity, ok := services.SessionIdentityFromContext(c.Request().Context())
+	if !ok || identity.EffectiveUserID != userID {
+		return echo.ErrUnauthorized
+	}
+	ticket, err := h.tickets.Issue(identity, time.Now())
 	if err != nil {
 		slog.Error("events: issue ticket failed", "user_id", userID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to issue ticket")
@@ -88,13 +126,16 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 	if ticket == "" {
 		return echo.NewHTTPError(http.StatusUnauthorized, "missing ticket")
 	}
-	userID, ok := h.tickets.Consume(ticket, time.Now())
+	identity, ok := h.tickets.Consume(ticket, time.Now())
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired ticket")
 	}
-	if err := services.RequireActiveTicketOwner(c.Request().Context(), userID, h.ownerStatus); err != nil {
+	identity, err := h.live(c.Request().Context(), identity, c.Request())
+	if err != nil {
 		return err
 	}
+	middleware.SetSessionIdentity(c, identity)
+	userID := identity.EffectiveUserID
 
 	// Поток живёт eventsStreamMaxLifetime, то есть заведомо дольше общего
 	// HTTP_WRITE_TIMEOUT. Без снятия срока сервер закрыл бы соединение молча,
@@ -120,8 +161,8 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 	}
 	res.Flush()
 
-	heartbeat := time.NewTicker(eventsHeartbeatInterval)
-	defer heartbeat.Stop()
+	heartbeat, stopHeartbeat := h.newHeartbeat()
+	defer stopHeartbeat()
 	start := time.Now()
 
 	ctx := c.Request().Context()
@@ -133,6 +174,9 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 			if !ok { // хаб закрыл подписку
 				return nil
 			}
+			if _, err := h.live(ctx, identity, c.Request()); err != nil {
+				return nil
+			}
 			data, err := json.Marshal(ev)
 			if err != nil {
 				continue
@@ -141,7 +185,10 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 				return nil
 			}
 			res.Flush()
-		case <-heartbeat.C:
+		case <-heartbeat:
+			if _, err := h.live(ctx, identity, c.Request()); err != nil {
+				return nil
+			}
 			if time.Since(start) > eventsStreamMaxLifetime {
 				fmt.Fprint(res, "event: reconnect\ndata: {}\n\n")
 				res.Flush()

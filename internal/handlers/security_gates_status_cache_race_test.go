@@ -53,6 +53,10 @@ func TestSecurityGates_StatusInvalidationDuringRead(t *testing.T) {
 				t.Fatal("чтение статуса не завершилось")
 			}
 			before := w.snapshot(t)
+			banned, active, err := cache.Status(context.Background(), w.userID)
+			require.NoError(t, err)
+			require.Equal(t, state == "ban", banned)
+			require.Equal(t, state != "archive", active)
 			rec := securityGateRequest(w.e, "PUT", "/api/users/me/theme", `{"theme":"light"}`, w.user)
 			assertSecurityGateDenied(t, rec, state)
 			require.Equal(t, before, w.snapshot(t), "запрос после блокировки изменил бизнес-данные")

@@ -76,6 +76,7 @@ func TestSecurityGates_OtherInvalidationDuringRead(t *testing.T) {
 				require.True(t, required, "старое чтение восстановило отсутствие требования пароля")
 			} else {
 				rec := securityGateRequest(w.e, "PUT", "/api/users/me/theme", `{"theme":"light"}`, w.user)
+				require.True(t, w.gates.Maintenance.GetStatusCached(context.Background()).Enabled, "old read must not restore disabled cache")
 				assertSecurityGateDenied(t, rec, "maintenance")
 			}
 		})
