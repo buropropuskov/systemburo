@@ -511,61 +511,68 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 	return s.UpdatePasswordKeepingSession(ctx, callerUserID, username, req, meta, "")
 }
 
-// UpdatePasswordKeepingSession меняет пароль, оставляя живой одну сессию.
-//
-// Человек, сменивший пароль сам, не должен вылетать из системы: он только что
-// подтвердил, что это он, и выкидывать его на форму входа - раздражение без
-// выигрыша в безопасности. Все остальные сессии гаснут, поэтому угнанная на
-// другом устройстве умирает, как и раньше. Так это устроено в системах, где
-// смена пароля - обычное действие, а не аварийная процедура.
+// UpdatePasswordKeepingSession сохраняет совместимость административного API.
+// Подтверждённая собственная смена вызывает закрытый updatePassword напрямую.
 func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta, keepRefreshToken string) error {
+	return s.updatePassword(ctx, callerUserID, username, req, meta, keepRefreshToken, "")
+}
+
+// verifiedHash передаётся только после проверки текущего пароля в ChangeOwnPassword.
+// Повторная сверка под блокировкой отклоняет подтверждение, устаревшее после
+// параллельного административного сброса.
+func (s *userService) updatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta, keepRefreshToken, verifiedHash string) error {
 	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
 		return err
 	}
-
-	// Целевую запись читаем до обновления: от неё зависит признак обязательной
-	// смены, адрес для письма с новым паролем и перечень прежних паролей - он
-	// живёт по id, а сюда приходит логин. Not-found = пользователь не найден;
-	// обновление по username тогда просто не тронет строк.
-	var user models.User
-	found := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error == nil
-
-	if found {
-		if err := ensurePasswordNotReused(ctx, s.db, user.ID, req.Password); err != nil {
-			return err
-		}
+	target, err := loadAdminTarget(ctx, s.db, username)
+	if err != nil {
+		return err
 	}
-
+	var user models.User
 	hashed := hashPassword(req.Password)
-
-	// Пароль, заданный администратором, работник обязан сменить при первом входе:
-	// его придумал не он, а если у работника есть адрес - пароль ещё и лежит
-	// открытым текстом в почтовом ящике. Своя смена под это не подпадает: человек
-	// только что задал пароль сам.
-	adminSet := found && user.ID != callerUserID
-	sendLetter := adminSet && s.mailReady() && user.Email != nil && *user.Email != ""
-
-	// Дата смены двигается вместе с паролем (#1907): от неё считается срок
-	// действия при плановой смене. Письмо о новом пароле и отпечаток пароля в
-	// перечне прежних пишутся той же транзакцией - иначе сбой между записями
-	// оставит работника с паролем, которого он не видел, либо запрет на пароль,
-	// который не сохранился.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table("users").
-			Where("username = ?", username).
-			Updates(map[string]any{
-				"password":             hashed,
-				"password_changed_at":  time.Now(),
-				"must_change_password": adminSet,
-			}).Error; err != nil {
+		actor, current, err := lockAdminTarget(ctx, tx, callerUserID, target.ID)
+		if err != nil {
 			return err
 		}
-		if found {
-			if err := recordUsedPassword(ctx, tx, user.ID, hashed); err != nil {
+		selfChange := verifiedHash != "" && actor.ID == current.ID
+		if selfChange {
+			if !actor.IsActive || actor.IsBanned {
+				return apperr.Forbidden("Учётная запись недоступна")
+			}
+			if current.Password != verifiedHash {
+				return apperr.Conflict("Пароль уже изменён. Повтори смену с текущим паролем")
+			}
+			securityAccount, err := isSecurityUser(ctx, tx, current.ID)
+			if err != nil {
+				return apperr.New(http.StatusServiceUnavailable, "Не удалось определить тип учётной записи", err)
+			}
+			if securityAccount {
+				return apperr.Forbidden("Пароль работника поста меняет бюро пропусков")
+			}
+		} else {
+			if err := authorizeAdminActor(ctx, tx, actor, KeyPageAdminUsers); err != nil {
+				return err
+			}
+			if err := checkAdminTargetRank(actor, current, true); err != nil {
 				return err
 			}
 		}
-		if !sendLetter {
+		if err := ensurePasswordNotReused(ctx, tx, current.ID, req.Password); err != nil {
+			return err
+		}
+		user = *current
+		if err := tx.Table("users").Where("id = ?", user.ID).Updates(map[string]any{
+			"password":             hashed,
+			"password_changed_at":  time.Now(),
+			"must_change_password": !selfChange,
+		}).Error; err != nil {
+			return apperr.Internal("Error updating password", err)
+		}
+		if err := recordUsedPassword(ctx, tx, user.ID, hashed); err != nil {
+			return err
+		}
+		if selfChange || !s.mailReady() || user.Email == nil || *user.Email == "" {
 			return nil
 		}
 		return s.mail.Enqueue(ctx, tx, MailMessage{
@@ -576,14 +583,13 @@ func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUs
 			UserID:       &user.ID,
 		})
 	}); err != nil {
-		slog.Error("не удалось обновить пароль", "username", username, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating password")
+		return err
 	}
 
 	// Revoke all active refresh tokens: чтобы существующие сессии с этой учёткой
 	// (возможно скомпрометированные) не дожили до своего TTL. Юзеру придётся
 	// перелогиниться на всех устройствах.
-	if found {
+	{
 		revoke := s.db.WithContext(ctx).
 			Model(&models.RefreshToken{}).
 			Where("user_id = ? AND is_revoked = false", user.ID)
@@ -597,9 +603,7 @@ func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUs
 		// Аудит: факт сброса пароля без значения.
 		s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, models.UserActionPasswordReset, &callerUserID, nil)
 
-		// Уведомление о смене пароля. selfChange определяется по совпадению id
-		// вызывающего с целевым (гейт page.admin.users допускает и смену
-		// админом собственного пароля).
+		// Собственная смена приходит только через ChangeOwnPassword.
 		s.notifyPasswordChanged(ctx, &user, callerUserID)
 
 		// Событие в истории входов. Модель AuthEvent обещает запись при смене
@@ -667,8 +671,8 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 		return echo.NewHTTPError(http.StatusBadRequest, "Новый пароль совпадает с текущим")
 	}
 
-	return s.UpdatePasswordKeepingSession(ctx, userID, user.Username,
-		models.UpdatePasswordRequest{Password: req.NewPassword}, meta, keepRefreshToken)
+	return s.updatePassword(ctx, userID, user.Username,
+		models.UpdatePasswordRequest{Password: req.NewPassword}, meta, keepRefreshToken, user.Password)
 }
 
 // recordPasswordChangeEvent пишет запись в auth_events. Best-effort по образцу
@@ -741,120 +745,134 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 
 // UpdateInfo обновляет персональные данные пользователя.
 func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username string, req models.UpdateUserInfoRequest) error {
-	// Отозвавший согласие блокирован: данные хранятся и выдаются по запросам
-	// государственных органов, но обработка по прежним целям прекращена, а правка
-	// карточки - это она и есть (#2361). Проверка стоит первой: до снимка старых
-	// значений и до валидации адреса, чтобы отказ не зависел от содержимого запроса.
-	//
-	// Отзыв и отсутствие согласия различаются намеренно: новому работнику карточку
-	// заводят и правят обычным порядком, см. consentRevoked.
-	if targetID, err := s.resolveUserID(ctx, username); err == nil {
-		revoked, err := consentRevoked(ctx, s.db, targetID)
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Отозвавший согласие блокирован: данные хранятся и выдаются по запросам
+		// государственных органов, но обработка по прежним целям прекращена, а правка
+		// карточки - это она и есть (#2361). Проверка стоит первой: до снимка старых
+		// значений и до валидации адреса, чтобы отказ не зависел от содержимого запроса.
+		//
+		// Отзыв и отсутствие согласия различаются намеренно: новому работнику карточку
+		// заводят и правят обычным порядком, см. consentRevoked.
+		target, err := loadAdminTarget(ctx, tx, username)
 		if err != nil {
-			return apperr.New(http.StatusInternalServerError, "Не удалось проверить состояние согласия")
+			return err
+		}
+		actor, target, err := lockAdminTarget(ctx, tx, callerUserID, target.ID)
+		if err != nil {
+			return err
+		}
+		if err := authorizeAdminActor(ctx, tx, actor, KeyPageAdminUsers); err != nil {
+			return err
+		}
+		revoked, err := consentRevoked(ctx, tx, target.ID)
+		if err != nil {
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось проверить состояние согласия", err)
 		}
 		if revoked {
 			return apperr.Conflict("Работник отозвал согласие на обработку персональных данных: его сведения доступны только для чтения. Правка возможна после нового согласия.")
 		}
-	}
 
-	// Снимок старых значений до апдейта - чтобы в историю писать дифф "старое -> новое"
-	// и только по реально изменившимся полям (фронт шлёт все поля каждый раз).
-	var prev struct {
-		LastName    string
-		FirstName   string
-		MiddleName  string
-		Position    string
-		Email       string
-		Phone       string
-		IsImportant bool
-	}
-	s.db.WithContext(ctx).
-		Table("users").
-		Where("username = ?", username).
-		Select("last_name", "first_name", "middle_name", "position", "email", "phone", "is_important").
-		Scan(&prev)
-	// Контакты лежат шифротекстом, а сравниваются ниже с открытым значением из запроса:
-	// без расшифровки каждое сохранение писало в историю «почта изменена» (#2566).
-	prev.Email = *crypto.DecryptOptional(&prev.Email)
-	prev.Phone = *crypto.DecryptOptional(&prev.Phone)
-
-	updates := map[string]interface{}{
-		"position": req.Position,
-	}
-	// ФИО пишем, только если поле пришло. Пустая строка по-прежнему очищает его, а
-	// отсутствие поля означает "не трогай": форма редактирования не показывает ФИО
-	// работника, скрытое до его согласия на обработку данных, и не должна затирать
-	// настоящее значение правкой соседнего поля.
-	if req.LastName != nil {
-		updates["last_name"] = *req.LastName
-	}
-	if req.FirstName != nil {
-		updates["first_name"] = *req.FirstName
-	}
-	if req.MiddleName != nil {
-		updates["middle_name"] = *req.MiddleName
-	}
-	// Контакты скрываются вместе с ФИО, и правило для них то же: нет поля в
-	// запросе - не трогаем, пустая строка по-прежнему очищает.
-	if req.Email != nil {
-		// Адрес проверяется на формат и на занятость (#1908): он стал каналом
-		// доставки паролей, и опечатка в нём означает пароль в никуда.
-		normalized, err := validateUserEmail(ctx, s.db, *req.Email, s.targetUserID(ctx, username))
-		if err != nil {
-			return err
+		// Снимок старых значений до апдейта - чтобы в историю писать дифф "старое -> новое"
+		// и только по реально изменившимся полям (фронт шлёт все поля каждый раз).
+		var prev struct {
+			LastName    string
+			FirstName   string
+			MiddleName  string
+			Position    string
+			Email       string
+			Phone       string
+			IsImportant bool
 		}
-		// Правка идёт колонками, мимо модели, поэтому хук шифрования не сработает -
-		// шифруем здесь же (#2351). Свёртка считается от нормализованного значения:
-		// по ней проверяется занятость адреса и работает точный поиск.
-		enc, encErr := crypto.Encrypt(normalized, crypto.GetGlobalKey())
-		if encErr != nil {
-			return apperr.New(http.StatusInternalServerError, "Не удалось сохранить адрес почты")
+		if err := tx.WithContext(ctx).Table("users").Where("id = ?", target.ID).
+			Select("last_name", "first_name", "middle_name", "position", "email", "phone", "is_important").
+			Scan(&prev).Error; err != nil {
+			return apperr.New(http.StatusServiceUnavailable, "Не удалось прочитать пользователя", err)
 		}
-		updates["email"] = enc
-		updates["email_hmac"] = crypto.ComputeHMAC(models.NormalizeEmailForHMAC(normalized), crypto.GetGlobalKey())
-	}
-	if req.Phone != nil {
-		enc, encErr := crypto.Encrypt(*req.Phone, crypto.GetGlobalKey())
-		if encErr != nil {
-			return apperr.New(http.StatusInternalServerError, "Не удалось сохранить телефон")
+		// Контакты лежат шифротекстом, а сравниваются ниже с открытым значением из запроса:
+		// без расшифровки каждое сохранение писало в историю «почта изменена» (#2566).
+		prev.Email = *crypto.DecryptOptional(&prev.Email)
+		prev.Phone = *crypto.DecryptOptional(&prev.Phone)
+
+		updates := map[string]interface{}{
+			"position": req.Position,
 		}
-		updates["phone"] = enc
-		updates["phone_hmac"] = crypto.ComputeHMAC(models.NormalizePhoneForHMAC(*req.Phone), crypto.GetGlobalKey())
-	}
-	if req.IsImportant != nil {
-		updates["is_important"] = *req.IsImportant
-	}
+		// ФИО пишем, только если поле пришло. Пустая строка по-прежнему очищает его, а
+		// отсутствие поля означает "не трогай": форма редактирования не показывает ФИО
+		// работника, скрытое до его согласия на обработку данных, и не должна затирать
+		// настоящее значение правкой соседнего поля.
+		if req.LastName != nil {
+			updates["last_name"] = *req.LastName
+		}
+		if req.FirstName != nil {
+			updates["first_name"] = *req.FirstName
+		}
+		if req.MiddleName != nil {
+			updates["middle_name"] = *req.MiddleName
+		}
+		// Контакты скрываются вместе с ФИО, и правило для них то же: нет поля в
+		// запросе - не трогаем, пустая строка по-прежнему очищает.
+		if req.Email != nil && normalizeUserEmail(*req.Email) != normalizeUserEmail(prev.Email) {
+			if err := checkAdminTargetRank(actor, target, false); err != nil {
+				return err
+			}
+			// Адрес проверяется на формат и на занятость (#1908): он стал каналом
+			// доставки паролей, и опечатка в нём означает пароль в никуда.
+			normalized, err := validateUserEmail(ctx, tx, *req.Email, target.ID)
+			if err != nil {
+				return err
+			}
+			// Правка идёт колонками, мимо модели, поэтому хук шифрования не сработает -
+			// шифруем здесь же (#2351). Свёртка считается от нормализованного значения:
+			// по ней проверяется занятость адреса и работает точный поиск.
+			enc, encErr := crypto.Encrypt(normalized, crypto.GetGlobalKey())
+			if encErr != nil {
+				return apperr.New(http.StatusInternalServerError, "Не удалось сохранить адрес почты")
+			}
+			updates["email"] = enc
+			updates["email_hmac"] = crypto.ComputeHMAC(models.NormalizeEmailForHMAC(normalized), crypto.GetGlobalKey())
+		}
+		if req.Phone != nil {
+			enc, encErr := crypto.Encrypt(*req.Phone, crypto.GetGlobalKey())
+			if encErr != nil {
+				return apperr.New(http.StatusInternalServerError, "Не удалось сохранить телефон")
+			}
+			updates["phone"] = enc
+			updates["phone_hmac"] = crypto.ComputeHMAC(models.NormalizePhoneForHMAC(*req.Phone), crypto.GetGlobalKey())
+		}
+		if req.IsImportant != nil {
+			updates["is_important"] = *req.IsImportant
+		}
 
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Where("username = ?", username).
-		Updates(updates).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user info")
-	}
+		if err := tx.WithContext(ctx).
+			Table("users").
+			Where("username = ?", username).
+			Updates(updates).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user info")
+		}
 
-	if id := s.targetUserID(ctx, username); id != 0 {
-		// Только изменившиеся поля, как {old, new}. Если ничего не поменялось - не логируем.
-		details := map[string]any{}
-		diff := func(key string, np *string, old string) {
-			if np != nil && *np != old {
-				details[key] = map[string]any{"old": old, "new": *np}
+		if id := target.ID; id != 0 {
+			// Только изменившиеся поля, как {old, new}. Если ничего не поменялось - не логируем.
+			details := map[string]any{}
+			diff := func(key string, np *string, old string) {
+				if np != nil && *np != old {
+					details[key] = map[string]any{"old": old, "new": *np}
+				}
+			}
+			diff("last_name", req.LastName, prev.LastName)
+			diff("first_name", req.FirstName, prev.FirstName)
+			diff("middle_name", req.MiddleName, prev.MiddleName)
+			diff("position", req.Position, prev.Position)
+			diff("email", req.Email, prev.Email)
+			diff("phone", req.Phone, prev.Phone)
+			if req.IsImportant != nil && *req.IsImportant != prev.IsImportant {
+				details["is_important"] = map[string]any{"old": prev.IsImportant, "new": *req.IsImportant}
+			}
+			if len(details) > 0 {
+				s.recorder.Log(ctx, tx, models.AuditEntityUser, &id, models.UserActionUpdated, &callerUserID, details)
 			}
 		}
-		diff("last_name", req.LastName, prev.LastName)
-		diff("first_name", req.FirstName, prev.FirstName)
-		diff("middle_name", req.MiddleName, prev.MiddleName)
-		diff("position", req.Position, prev.Position)
-		diff("email", req.Email, prev.Email)
-		diff("phone", req.Phone, prev.Phone)
-		if req.IsImportant != nil && *req.IsImportant != prev.IsImportant {
-			details["is_important"] = map[string]any{"old": prev.IsImportant, "new": *req.IsImportant}
-		}
-		if len(details) > 0 {
-			s.recorder.Log(ctx, nil, models.AuditEntityUser, &id, models.UserActionUpdated, &callerUserID, details)
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // UpdateOrganization обновляет organization_id пользователя.

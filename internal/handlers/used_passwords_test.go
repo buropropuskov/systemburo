@@ -81,11 +81,11 @@ func TestUsedPasswords_AdminChangeRejectsReuse(t *testing.T) {
 	svc := usedPwdSvc(db)
 	u := mkUsedPwdUser(t, db, td, "usedpwd_admin_reuse", first)
 
-	require.NoError(t, svc.UpdatePassword(context.Background(), 0, u.Username,
+	require.NoError(t, svc.UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: second}, nil))
 	afterSecond := currentPasswordHash(t, db, u.ID)
 
-	err := svc.UpdatePassword(context.Background(), 0, u.Username,
+	err := svc.UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: first}, nil)
 	require.Error(t, err, "повтор прежнего пароля должен отклоняться")
 	assert.Contains(t, err.Error(), "уже использовался")
@@ -143,7 +143,7 @@ func TestUsedPasswords_WrittenOnEveryPath(t *testing.T) {
 	require.Len(t, rows, 1, "заведение учётной записи запоминает первый пароль")
 	assert.Equal(t, currentPasswordHash(t, db, u.ID), rows[0].PasswordHash)
 
-	require.NoError(t, usedPwdSvc(db).UpdatePassword(context.Background(), 0, u.Username,
+	require.NoError(t, usedPwdSvc(db).UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: byAdmin}, nil))
 	rows = usedPasswordRows(t, db, u.ID)
 	require.Len(t, rows, 2, "смена администратором запоминает пароль")
@@ -172,7 +172,7 @@ func TestUsedPasswords_RotationRecordsIssuedPassword(t *testing.T) {
 	svc, _ := rotationEnv(t, db)
 	u := mkRotationUser(t, db, td, "usedpwd_rotation", "rot@example.org", time.Now().AddDate(0, 0, -200))
 
-	result, err := svc.Run(context.Background(), 1)
+	result, err := svc.Run(context.Background(), s1FixtureActor(t, db))
 	require.NoError(t, err)
 	require.Equal(t, 1, result.Changed)
 
@@ -211,12 +211,12 @@ func TestUsedPasswords_BeyondDepthAllowed(t *testing.T) {
 	}
 
 	svc := usedPwdSvc(db)
-	require.NoError(t, svc.UpdatePassword(context.Background(), 0, u.Username,
+	require.NoError(t, svc.UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: ancient}, nil),
 		"пароль за пределами глубины проверки должен приниматься")
 
 	// А заполнитель внутри глубины - по-прежнему нет.
-	err := svc.UpdatePassword(context.Background(), 0, u.Username,
+	err := svc.UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: filler}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "уже использовался")
@@ -243,7 +243,7 @@ func TestUsedPasswords_TrimsBeyondDepth(t *testing.T) {
 		}).Error)
 	}
 
-	require.NoError(t, usedPwdSvc(db).UpdatePassword(context.Background(), 0, u.Username,
+	require.NoError(t, usedPwdSvc(db).UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: "trimmednewpass12"}, nil))
 
 	rows := usedPasswordRows(t, db, u.ID)
@@ -274,7 +274,7 @@ func TestUsedPasswords_RollbackTakesPasswordWithIt(t *testing.T) {
 		db.Exec(`ALTER TABLE used_passwords DROP CONSTRAINT IF EXISTS usedpwd_test_block`)
 	})
 
-	err := usedPwdSvc(db).UpdatePassword(context.Background(), 0, u.Username,
+	err := usedPwdSvc(db).UpdatePassword(context.Background(), s1FixtureActor(t, db), u.Username,
 		models.UpdatePasswordRequest{Password: "rollbacknewpass12"}, nil)
 	require.Error(t, err, "сорванная запись прежнего пароля должна валить всю смену")
 

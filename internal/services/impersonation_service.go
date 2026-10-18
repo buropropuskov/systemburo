@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"systemburo/internal/apperr"
@@ -52,16 +54,31 @@ func NewImpersonationService(db *gorm.DB, jwtSecret string, resolver *Permission
 }
 
 func (s *impersonationService) Start(ctx context.Context, actorUserID, targetUserID int) (*models.ImpersonationResponse, error) {
+	var response *models.ImpersonationResponse
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		locked := *s
+		locked.db = tx
+		locked.resolver = NewPermissionResolver(tx)
+		var err error
+		response, err = locked.startLocked(ctx, actorUserID, targetUserID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (s *impersonationService) startLocked(ctx context.Context, actorUserID, targetUserID int) (*models.ImpersonationResponse, error) {
 	if actorUserID == targetUserID {
 		return nil, apperr.Validation("Вы уже работаете под этой учётной записью")
 	}
 
-	actor, err := s.loadUser(ctx, actorUserID)
+	actor, target, err := lockAdminTarget(ctx, s.db, actorUserID, targetUserID)
 	if err != nil {
 		return nil, err
 	}
-	target, err := s.loadUser(ctx, targetUserID)
-	if err != nil {
+	if err := authorizeAdminActor(ctx, s.db, actor, KeyUserImpersonate); err != nil {
 		return nil, err
 	}
 
@@ -93,7 +110,7 @@ func (s *impersonationService) Start(ctx context.Context, actorUserID, targetUse
 	// Запись входа в режим критична: без неё режим превращается в тот же безымянный
 	// доступ под чужой учётной записью, ради ухода от которого он и заводится.
 	// Поэтому Record с проверкой ошибки, а не best-effort Log.
-	if err := s.audit.Record(ctx, nil, models.AuditEntityUser, &target.ID,
+	if err := s.audit.Record(ctx, s.db, models.AuditEntityUser, &target.ID,
 		models.AuditActionImpersonateStart, &actor.ID,
 		models.ImpersonationAuditDetails{
 			Comment:        fmt.Sprintf("Вход в систему от имени пользователя %s", displayName(target)),
@@ -159,13 +176,13 @@ func (s *impersonationService) checkRank(ctx context.Context, actor, target *mod
 	// Супер-администратор - потолок прав: от его имени не входит никто, включая
 	// другого супер-администратора (равный уровень ничего не даёт, а спутанность
 	// двух полных доступов в журнале дороже удобства).
-	if targetSet.IsSuperAdmin() {
+	if target.IsSuperAdmin {
 		return apperr.Forbidden("Нельзя войти от имени супер-администратора")
 	}
-	if targetSet.IsAdmin() && !actorSet.IsSuperAdmin() {
+	if target.IsAdmin && !actor.IsSuperAdmin {
 		return apperr.Forbidden("Войти от имени администратора может только супер-администратор")
 	}
-	if actorSet.IsSuperAdmin() {
+	if actor.IsSuperAdmin {
 		return nil
 	}
 	for _, key := range targetSet.Keys() {
@@ -204,7 +221,10 @@ func (s *impersonationService) signToken(target *models.User, actorUserID int) (
 func (s *impersonationService) loadUser(ctx context.Context, userID int) (*models.User, error) {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
-		return nil, apperr.NotFound("Пользователь не найден")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperr.NotFound("Пользователь не найден")
+		}
+		return nil, apperr.New(http.StatusServiceUnavailable, "Не удалось прочитать пользователя", err)
 	}
 	return &user, nil
 }

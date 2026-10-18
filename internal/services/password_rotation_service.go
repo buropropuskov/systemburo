@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"gorm.io/gorm"
@@ -43,6 +45,8 @@ var ErrRotationInProgress = errors.New("прогон по паролям уже 
 // человека, не имея канала доставки, значит запереть его снаружи. Плановой
 // проверки сроков не касается: она паролей не придумывает и писем не шлёт.
 var ErrRotationMailNotConfigured = errors.New("почта не настроена, смена паролей не запускается")
+
+var errRotationNoMail = errors.New("у работника не указан адрес почты")
 
 // RotationResult - итог прогона. Плановая проверка и ручное обновление делают
 // разное, поэтому счётчика два: Marked - скольким пароль помечен истёкшим,
@@ -161,11 +165,26 @@ func (s *PasswordRotationService) MarkExpired(ctx context.Context) (*RotationRes
 	return result, nil
 }
 
+// AuthorizeRun проверяет инициатора до ответа 202 при фоновом запуске.
+// Run и транзакция каждой цели повторяют проверку в рабочем процессе.
+func (s *PasswordRotationService) AuthorizeRun(ctx context.Context, startedBy int) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		actor, _, err := lockAdminTarget(ctx, tx, startedBy, startedBy)
+		if err != nil {
+			return err
+		}
+		return authorizeAdminActor(ctx, tx, actor, KeyActionRotatePasswords)
+	})
+}
+
 // Run - ручное обновление паролей всем работникам. В отличие от планового
 // прогона придумывает пароль и высылает его письмом, поэтому срок действия здесь
 // ни при чём: берутся все действующие работники с адресом почты. Инструмент на
 // случай инцидента, когда прежние пароли нужно обнулить разом.
 func (s *PasswordRotationService) Run(ctx context.Context, startedBy int) (*RotationResult, error) {
+	if err := s.AuthorizeRun(ctx, startedBy); err != nil {
+		return nil, err
+	}
 	if err := s.begin(); err != nil {
 		return nil, err
 	}
@@ -182,13 +201,6 @@ func (s *PasswordRotationService) Run(ctx context.Context, startedBy int) (*Rota
 	policy := s.settings.GetPasswordPolicy()
 	result := &RotationResult{StartedAt: time.Now(), Manual: true, StartedBy: startedBy}
 
-	noMail, err := s.loginsWithoutEmail(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result.SkippedNoMail = len(noMail)
-	result.NoMailLogins = noMail
-
 	targets, err := s.selectTargets(ctx)
 	if err != nil {
 		return nil, err
@@ -200,7 +212,14 @@ func (s *PasswordRotationService) Run(ctx context.Context, startedBy int) (*Rota
 			// смененными, письма к ним лежат в очереди.
 			break
 		}
-		if err := s.rotateOne(ctx, u, policy, "обновление паролей всем работникам"); err != nil {
+		if err := s.rotateOne(ctx, u, policy, "обновление паролей всем работникам", startedBy, KeyActionRotatePasswords); err != nil {
+			if errors.Is(err, errRotationNoMail) {
+				result.SkippedNoMail++
+				result.NoMailLogins = append(result.NoMailLogins, u.Username)
+				continue
+			}
+			// Запрещённые цели, включая себя, учитываются как ошибки.
+			// Частичный результат позволяет продолжать разрешённые изменения.
 			result.Failed++
 			slog.Error("обновление паролей: пароль не сменён",
 				"user_id", u.ID, "username", u.Username, "error", err)
@@ -210,6 +229,7 @@ func (s *PasswordRotationService) Run(ctx context.Context, startedBy int) (*Rota
 		s.notifyRotated(ctx, u)
 	}
 
+	sort.Strings(result.NoMailLogins)
 	result.FinishedAt = time.Now()
 	s.mu.Lock()
 	s.last = result
@@ -248,14 +268,13 @@ func (s *PasswordRotationService) IsRunning() bool {
 }
 
 // selectTargets отбирает работников для ручного обновления. Условия те же, по
-// которым считает экран настроек: действующая незаблокированная учётная запись с
-// адресом почты - придуманный пароль надо куда-то выслать. Архивных и
-// заблокированных обновление не касается - им и входить некуда.
+// которым считает экран настроек: действующая незаблокированная учётная запись.
+// Ранг и наличие почты проверяются по заблокированной строке перед записью.
+// Архивных и заблокированных обновление не касается - им и входить некуда.
 func (s *PasswordRotationService) selectTargets(ctx context.Context) ([]models.User, error) {
 	var users []models.User
 	err := s.db.WithContext(ctx).
 		Where("is_active = ? AND is_banned = ?", true, false).
-		Where("email IS NOT NULL AND email <> ''").
 		Order("id").Find(&users).Error
 	if err != nil {
 		return nil, fmt.Errorf("отбор работников для смены пароля: %w", err)
@@ -327,15 +346,35 @@ func (s *PasswordRotationService) loginsWithoutEmail(ctx context.Context) ([]str
 // диск одной транзакцией: иначе сбой между ними оставит человека с паролем,
 // которого он не видел. reason попадает в журнал действий - обновление всем и
 // сброс из карточки выглядят там одинаково, различает их только он.
-func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, policy models.PasswordPolicy, reason string) error {
-	password, err := s.generateUnusedPassword(ctx, u.ID, policy)
-	if err != nil {
-		return err
-	}
-	hashed := hashPassword(password)
-	now := time.Now()
-
+func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, policy models.PasswordPolicy, reason string, startedBy int, permission string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		actor, target, err := lockAdminTarget(ctx, tx, startedBy, u.ID)
+		if err != nil {
+			return err
+		}
+		if err := authorizeAdminActor(ctx, tx, actor, permission); err != nil {
+			return err
+		}
+		if err := checkAdminTargetRank(actor, target, true); err != nil {
+			return err
+		}
+		if !target.IsActive || target.IsBanned {
+			return apperr.Validation("Учётная запись в архиве или заблокирована, пароль не меняется")
+		}
+		if target.Email == nil || *target.Email == "" {
+			return errRotationNoMail
+		}
+		if s.mail == nil || !s.mail.Enabled() {
+			return ErrRotationMailNotConfigured
+		}
+		// Пароль и адрес доставки берём из заблокированной актуальной строки.
+		u = *target
+		password, err := generateUnusedRotationPassword(ctx, tx, u.ID, policy)
+		if err != nil {
+			return err
+		}
+		hashed := hashPassword(password)
+		now := time.Now()
 		updates := map[string]any{
 			"password":             hashed,
 			"password_changed_at":  now,
@@ -390,9 +429,13 @@ func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, 
 // никогда, поэтому попыток пять, а не бесконечность: исчерпать их можно только
 // при сломанном генераторе, и тогда честная ошибка полезнее вечного цикла.
 func (s *PasswordRotationService) generateUnusedPassword(ctx context.Context, userID int, policy models.PasswordPolicy) (string, error) {
+	return generateUnusedRotationPassword(ctx, s.db, userID, policy)
+}
+
+func generateUnusedRotationPassword(ctx context.Context, db *gorm.DB, userID int, policy models.PasswordPolicy) (string, error) {
 	for attempt := 0; attempt < passwordGenerateAttempts; attempt++ {
 		password := GeneratePassword(policy)
-		used, err := passwordAlreadyUsed(ctx, s.db, userID, password)
+		used, err := passwordAlreadyUsed(ctx, db, userID, password)
 		if err != nil {
 			return "", err
 		}
@@ -595,32 +638,18 @@ func (s *PasswordRotationService) adminUsers(ctx context.Context) []models.User 
 // письмо. Закрывает случай «работник потерял пароль», ради которого пароль
 // сейчас придумывают руками и диктуют по телефону.
 func (s *PasswordRotationService) RotateOne(ctx context.Context, username string, startedBy int) error {
-	if s.mail == nil || !s.mail.Enabled() {
-		return ErrRotationMailNotConfigured
-	}
-	var u models.User
-	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
-		return fmt.Errorf("работник %q не найден: %w", username, err)
-	}
-	// Архивные и заблокированные исключены здесь так же, как в прогоне обновления:
-	// входить им некуда, а смена пароля отправила бы человеку письмо с доступом,
-	// которого у него нет. В интерфейсе кнопка у таких учётных записей и не
-	// показывается, но проверка нужна и на стороне сервера - иначе она обходится
-	// прямым запросом.
-	if !u.IsActive {
-		return fmt.Errorf("учётная запись %q в архиве, пароль не меняется", username)
-	}
-	if u.IsBanned {
-		return fmt.Errorf("учётная запись %q заблокирована, пароль не меняется", username)
-	}
-	if u.Email == nil || *u.Email == "" {
-		return fmt.Errorf("у работника %q не указан адрес почты, отправить новый пароль некуда", username)
-	}
-	policy := s.settings.GetPasswordPolicy()
-	if err := s.rotateOne(ctx, u, policy, "сброс пароля из карточки работника"); err != nil {
+	u, err := loadAdminTarget(ctx, s.db, username)
+	if err != nil {
 		return err
 	}
-	s.notifyRotated(ctx, u)
+	policy := s.settings.GetPasswordPolicy()
+	if err := s.rotateOne(ctx, *u, policy, "сброс пароля из карточки работника", startedBy, KeyPageAdminUsers); err != nil {
+		if errors.Is(err, errRotationNoMail) {
+			return apperr.Validation("У работника не указан адрес почты, отправить новый пароль некуда")
+		}
+		return err
+	}
+	s.notifyRotated(ctx, *u)
 	slog.Info("пароль сменён по кнопке в карточке", "user_id", u.ID, "started_by", startedBy)
 	return nil
 }

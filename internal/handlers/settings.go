@@ -225,6 +225,9 @@ func (h *SettingsHandler) RunPasswordRotation(c echo.Context) error {
 	}
 
 	userID := GetUserID(c)
+	if err := h.rotation.AuthorizeRun(c.Request().Context(), userID); err != nil {
+		return err
+	}
 	// Контекст запроса здесь не годится: он умирает вместе с ответом, а прогон
 	// продолжается. Берём фоновый со своим сроком.
 	go func() {

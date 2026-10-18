@@ -574,7 +574,7 @@ func (h *UsersHandler) RotatePassword(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusPreconditionFailed,
 				"Почта не настроена: отправить новый пароль нечем")
 		}
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return err
 	}
 	return RespondMessage(c, "Password rotated")
 }

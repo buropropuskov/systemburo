@@ -35,7 +35,7 @@ func TestUserService_UpdatePassword_AdminChange_CreatesNotification(t *testing.T
 	userSvc := services.NewUserService(db, notifSvc)
 
 	// callerUserID != target.ID -> selfChange=false -> сообщение про админа.
-	callerUserID := target.ID + 1000
+	callerUserID := s1FixtureActor(t, db)
 	err := userSvc.UpdatePassword(
 		context.Background(),
 		callerUserID,
@@ -76,7 +76,7 @@ func TestUserService_UpdatePassword_SelfChange_Notification(t *testing.T) {
 
 	target := models.User{
 		Username:       "self_pass_change",
-		Password:       "x",
+		Password:       services.HashPassword("oldpassword12345"),
 		TypeID:         1,
 		OrganizationID: &td.OrgID,
 		CompanyID:      &td.CompanyID,
@@ -86,12 +86,11 @@ func TestUserService_UpdatePassword_SelfChange_Notification(t *testing.T) {
 	notifSvc := services.NewNotificationService(db)
 	userSvc := services.NewUserService(db, notifSvc)
 
-	err := userSvc.UpdatePassword(
+	err := userSvc.ChangeOwnPassword(
 		context.Background(),
 		target.ID, // сам себе сменил
-		target.Username,
-		models.UpdatePasswordRequest{Password: "newpassword12345"},
-		nil,
+		models.ChangeOwnPasswordRequest{CurrentPassword: "oldpassword12345", NewPassword: "newpassword12345"},
+		nil, "",
 	)
 	require.NoError(t, err)
 

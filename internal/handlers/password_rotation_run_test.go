@@ -295,11 +295,11 @@ func TestRotation_ManualChangesAndSendsPassword(t *testing.T) {
 	svc, _ := rotationEnv(t, db)
 	fresh := mkRotationUser(t, db, td, "rot_run_manual", "manual@example.org", time.Now().AddDate(0, 0, -1))
 
-	result, err := svc.Run(context.Background(), 42)
+	result, err := svc.Run(context.Background(), s1FixtureActor(t, db))
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, result.Changed, 1)
 	assert.True(t, result.Manual)
-	assert.Equal(t, 42, result.StartedBy)
+	assert.Equal(t, s1FixtureActor(t, db), result.StartedBy)
 
 	var after models.User
 	require.NoError(t, db.First(&after, fresh.ID).Error)
@@ -326,7 +326,7 @@ func TestRotation_ManualSkipsUsersWithoutEmail(t *testing.T) {
 	svc, _ := rotationEnv(t, db)
 	noMail := mkRotationUser(t, db, td, "rot_manual_nomail", "", time.Now().AddDate(0, 0, -200))
 
-	result, err := svc.Run(context.Background(), 1)
+	result, err := svc.Run(context.Background(), s1FixtureActor(t, db))
 	require.NoError(t, err)
 
 	var after models.User
@@ -352,7 +352,7 @@ func TestRotation_ManualRefusesWithoutMail(t *testing.T) {
 
 	u := mkRotationUser(t, db, td, "rot_manual_nomailsrv", "x@example.org", time.Now().AddDate(0, 0, -200))
 
-	_, err := svc.Run(context.Background(), 1)
+	_, err := svc.Run(context.Background(), s1FixtureActor(t, db))
 	require.ErrorIs(t, err, services.ErrRotationMailNotConfigured)
 
 	var after models.User
@@ -376,7 +376,7 @@ func TestRotation_ManualRevokesSessions(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	}).Error)
 
-	_, err := svc.Run(context.Background(), 1)
+	_, err := svc.Run(context.Background(), s1FixtureActor(t, db))
 	require.NoError(t, err)
 
 	var alive int64
@@ -396,7 +396,7 @@ func TestRotation_ManualCreatesNotification(t *testing.T) {
 	svc, _ := rotationEnv(t, db)
 	u := mkRotationUser(t, db, td, "rot_manual_notify", "mnotify@example.org", time.Now().AddDate(0, 0, -200))
 
-	_, err := svc.Run(context.Background(), 1)
+	_, err := svc.Run(context.Background(), s1FixtureActor(t, db))
 	require.NoError(t, err)
 
 	var count int64
@@ -465,11 +465,11 @@ func TestRotateOne_RefusesArchivedAndBanned(t *testing.T) {
 	require.NoError(t, db.Model(&models.User{}).Where("id = ?", banned.ID).
 		Update("is_banned", true).Error)
 
-	err := svc.RotateOne(context.Background(), "rot_one_archived", 1)
+	err := svc.RotateOne(context.Background(), "rot_one_archived", s1FixtureActor(t, db))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "архиве")
 
-	err = svc.RotateOne(context.Background(), "rot_one_banned", 1)
+	err = svc.RotateOne(context.Background(), "rot_one_banned", s1FixtureActor(t, db))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "заблокирован")
 
@@ -496,7 +496,7 @@ func TestRotateOne_WorksForActive(t *testing.T) {
 	svc, _ := rotationEnv(t, db)
 	u := mkRotationUser(t, db, td, "rot_one_active", "active1@example.org", time.Now().AddDate(0, 0, -1))
 
-	require.NoError(t, svc.RotateOne(context.Background(), "rot_one_active", 1))
+	require.NoError(t, svc.RotateOne(context.Background(), "rot_one_active", s1FixtureActor(t, db)))
 
 	var after models.User
 	require.NoError(t, db.First(&after, u.ID).Error)

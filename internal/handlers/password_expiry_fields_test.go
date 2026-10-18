@@ -26,15 +26,15 @@ func TestUpdatePassword_MovesChangedAt(t *testing.T) {
 
 	longAgo := time.Now().Add(-200 * 24 * time.Hour)
 	target := models.User{
-		Username: "pwd_changed_at_user", Password: "x", TypeID: 1,
+		Username: "pwd_changed_at_user", Password: services.HashPassword("oldpassword12345"), TypeID: 1,
 		OrganizationID: &td.OrgID, CompanyID: &td.CompanyID,
 		PasswordChangedAt: &longAgo, MustChangePassword: true,
 	}
 	require.NoError(t, db.Create(&target).Error)
 
 	userSvc := services.NewUserService(db, services.NewNotificationService(db))
-	require.NoError(t, userSvc.UpdatePassword(context.Background(), target.ID, target.Username,
-		models.UpdatePasswordRequest{Password: "brandnewpass12345"}, nil))
+	require.NoError(t, userSvc.ChangeOwnPassword(context.Background(), target.ID,
+		models.ChangeOwnPasswordRequest{CurrentPassword: "oldpassword12345", NewPassword: "brandnewpass12345"}, nil, ""))
 
 	var after models.User
 	require.NoError(t, db.First(&after, target.ID).Error)

@@ -237,6 +237,8 @@ func TestImpersonate_DangerousActionsBlocked(t *testing.T) {
 	blocked := []struct {
 		name, method, path, body string
 	}{
+		{"тип пользователя", http.MethodPut, "/users/impblocktgt/type", `{"type_id":5}`},
+		{"массовый тип пользователей", http.MethodPost, "/users/bulk/type", `{"usernames":["impblocktgt"],"type_id":5}`},
 		{"чужой пароль", http.MethodPut, "/users/impblocktgt/password", `{"password":"whatever_123456"}`},
 		{"удаление учётной записи", http.MethodDelete, "/users/impblocktgt", ""},
 		{"признак администратора", http.MethodPut, fmt.Sprintf("/users/%d/admin", targetID), `{"is_admin":true}`},
@@ -264,6 +266,10 @@ func TestImpersonate_DangerousActionsBlocked(t *testing.T) {
 				"отказ должен приходить от гейта режима, а не от проверки прав")
 		})
 	}
+
+	var unchanged models.User
+	require.NoError(t, db.First(&unchanged, targetID).Error)
+	assert.Equal(t, 1, unchanged.TypeID, "одиночный и массовый запросы не меняют тип")
 
 	// Гейт не должен быть глухой стеной: обычная запись, не касающаяся судьбы
 	// учётной записи, под режимом проходит.

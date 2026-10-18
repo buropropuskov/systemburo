@@ -31,14 +31,14 @@ func TestUserEmail_RejectsMalformed(t *testing.T) {
 
 	for _, bad := range []string{"ivanov@", "@example.org", "просто текст", "ivanov@@example.org"} {
 		t.Run(bad, func(t *testing.T) {
-			err := svc.UpdateInfo(context.Background(), 0, "email_format_user",
+			err := svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_format_user",
 				models.UpdateUserInfoRequest{Email: strPtr(bad)})
 			require.Error(t, err, "адрес %q должен быть отклонён", bad)
 		})
 	}
 
 	// Правильный адрес проходит и сохраняется без окружающих пробелов.
-	require.NoError(t, svc.UpdateInfo(context.Background(), 0, "email_format_user",
+	require.NoError(t, svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_format_user",
 		models.UpdateUserInfoRequest{Email: strPtr("  ivanov@example.org  ")}))
 
 	var saved models.User
@@ -62,7 +62,7 @@ func TestUserEmail_RejectsNamedForm(t *testing.T) {
 		OrganizationID: td.OrgID, CompanyID: td.CompanyID,
 	}))
 
-	err := svc.UpdateInfo(context.Background(), 0, "email_named_user",
+	err := svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_named_user",
 		models.UpdateUserInfoRequest{Email: strPtr("Иванов <ivanov@example.org>")})
 	assert.Error(t, err)
 }
@@ -86,12 +86,12 @@ func TestUserEmail_RejectsDuplicate(t *testing.T) {
 		OrganizationID: td.OrgID, CompanyID: td.CompanyID,
 	}))
 
-	err := svc.UpdateInfo(context.Background(), 0, "email_neighbour",
+	err := svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_neighbour",
 		models.UpdateUserInfoRequest{Email: strPtr("shared@example.org")})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "уже указан")
 
-	err = svc.UpdateInfo(context.Background(), 0, "email_neighbour",
+	err = svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_neighbour",
 		models.UpdateUserInfoRequest{Email: strPtr("SHARED@Example.org")})
 	require.Error(t, err, "различие в регистре не делает адрес свободным")
 
@@ -117,7 +117,7 @@ func TestUserEmail_KeepsOwnAddress(t *testing.T) {
 		OrganizationID: td.OrgID, CompanyID: td.CompanyID, Email: strPtr("keep@example.org"),
 	}))
 
-	require.NoError(t, svc.UpdateInfo(context.Background(), 0, "email_self_keep",
+	require.NoError(t, svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_self_keep",
 		models.UpdateUserInfoRequest{Email: strPtr("keep@example.org"), Position: strPtr("Инженер")}))
 
 	var saved models.User
@@ -141,7 +141,7 @@ func TestUserEmail_AllowsEmpty(t *testing.T) {
 	}))
 
 	// Пустая строка очищает адрес, как и прежде.
-	require.NoError(t, svc.UpdateInfo(context.Background(), 0, "email_empty_user",
+	require.NoError(t, svc.UpdateInfo(context.Background(), s1FixtureActor(t, db), "email_empty_user",
 		models.UpdateUserInfoRequest{Email: strPtr("")}))
 
 	var saved models.User

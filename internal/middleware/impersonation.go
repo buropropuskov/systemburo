@@ -37,6 +37,7 @@ var impersonationDeniedPaths = []string{
 	// Тип пользователя - историческое основание админства: смена типа рядом со
 	// сменой признаков, а не рядом с правкой ФИО.
 	"/api/users/:username/type",
+	"/api/users/bulk/type",
 	// Признаки и роли.
 	"/api/users/:id/role",
 	"/api/users/:id/admin",
