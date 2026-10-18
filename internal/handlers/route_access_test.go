@@ -176,7 +176,13 @@ func TestRouteAccess_Registry(t *testing.T) {
 
 	postKeys := registryPostKeys()
 	body := fmt.Sprintf(`{"table_id":%d,"territory_status":1}`, table.ID)
-	for _, key := range sortedKeys(routes) {
+	// Logout-all revokes the shared fixture family. Probe it after permission
+	// checks so their expected 403 is not replaced by an unrelated auth failure.
+	orderedRoutes := sortedKeys(routes)
+	sort.SliceStable(orderedRoutes, func(i, j int) bool {
+		return orderedRoutes[i] != "POST /api/logout-all" && orderedRoutes[j] == "POST /api/logout-all"
+	})
+	for _, key := range orderedRoutes {
 		ra, ok := routeAccessRegistry[key]
 		if !ok {
 			continue

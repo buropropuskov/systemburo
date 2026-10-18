@@ -8,10 +8,8 @@ import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 import { interceptRead } from './readInterceptor'
 
-// API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
-// но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
-// location /api/ -> backend:8080.
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api'
+import { API_BASE_URL, doFetch } from './transport'
+export { API_BASE_URL, createExtendedTimeoutSignal } from './transport'
 const AUTH_ENDPOINTS = ['/login', '/refresh-token', '/logout']
 
 // Пути, на которых 403 не показывает уведомление: фоновые/ожидаемые запросы,
@@ -150,17 +148,21 @@ const REFRESH_RETRY_DELAYS_MS = [500, 1500]
 // HttpOnly cookie - отправляется автоматически через credentials: 'include'.
 async function performRefresh() {
   const authStore = useAuthStore()
+  const identity = requestIdentity(authStore)
 
   let lastStatus = 0
   for (let attempt = 0; attempt <= REFRESH_RETRY_DELAYS_MS.length; attempt++) {
+    if (identity !== requestIdentity(authStore)) throw new RefreshFailedError('refresh: session changed', false)
     const response = await fetch(`${API_BASE_URL}/refresh-token`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: '{}',
     })
+    if (identity !== requestIdentity(authStore)) throw new RefreshFailedError('refresh: session changed', false)
     if (response.ok) {
       const body = await response.json()
+      if (identity !== requestIdentity(authStore)) throw new RefreshFailedError('refresh: session changed', false)
       const data = body && typeof body === 'object' && 'success' in body ? body.data : body
       if (!data || !data.token) throw new RefreshFailedError('refresh: malformed response', false)
       authStore.setTokens(data.token)
@@ -209,53 +211,6 @@ function wrapJsonUnwrap(response) {
   return response
 }
 
-// Таймаут по умолчанию для обычных запросов. Тяжёлые операции (подача заявки
-// с массовым импортом до 2000 строк) передают свой options.signal - см.
-// createExtendedTimeoutSignal ниже.
-const DEFAULT_TIMEOUT_MS = 10000
-
-/**
- * AbortSignal с собственным таймаутом - для запросов, которым DEFAULT_TIMEOUT_MS
- * не хватает (подача заявки с массовым импортом бланком). Передавать в apiRequest
- * как options.signal: doFetch подставит его вместо внутреннего контроллера и не
- * станет заводить свой 10-секундный таймер поверх него.
- *
- * @param {number} ms
- * @returns {AbortSignal}
- */
-export function createExtendedTimeoutSignal(ms) {
-  return AbortSignal.timeout(ms)
-}
-
-async function doFetch(path, options, token) {
-  // Свой сигнал (options.signal) - таймаут целиком на совести вызывающего кода,
-  // внутренний контроллер заводить незачем: он всё равно не будет использован.
-  const controller = options.signal ? null : new AbortController()
-  const timeout = controller ? setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS) : null
-  // Для FormData (multipart upload) НЕ ставим Content-Type - браузер сам добавит
-  // с правильным boundary. Иначе сервер не сможет распарсить multipart.
-  const isFormData = options.body instanceof FormData
-  const baseHeaders = isFormData ? {} : { 'Content-Type': 'application/json' }
-  try {
-    return await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      credentials: 'include',
-      signal: options.signal || controller.signal,
-      headers: {
-        ...baseHeaders,
-        // Accept: application/json нужен чтобы nginx с Accept-based роутингом
-        // (см. nginx/staging.conf для /news и /announcements) отличал API-запрос
-        // от браузерного перехода по тому же пути и отдавал JSON, а не SPA HTML.
-        'Accept': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
-    })
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
-}
-
 // Эндпоинты, на которых 5xx НЕ редиректим на /500 - это внутренние
 // механизмы (refresh, отправка самого bug-report), их ответы должны
 // обрабатываться локально, иначе получим infinite redirect loop.
@@ -268,12 +223,27 @@ function shouldHandleAsServerError(path, status) {
   return true
 }
 
+function requestIdentity(auth) {
+  const payload = auth.userPayload
+  return JSON.stringify([
+    payload?.sid || null, payload?.session_user_id || null,
+    payload?.user_id || null, payload?.impersonated_by || null,
+    auth.impersonation?.id || null, payload ? null : auth.token,
+  ])
+}
+
 async function baseRequest(path, options = {}) {
+  options.signal?.throwIfAborted()
   // Демонстрационные данные онбординга (см. readInterceptor.js) - только чтение.
   const demo = interceptRead(path, options)
   if (demo) return demo
   const authStore = useAuthStore()
+  const identity = requestIdentity(authStore)
+  const impersonation = authStore.impersonation
+  const userId = authStore.userPayload?.user_id
   let response = await doFetch(path, options, authStore.token)
+  options.signal?.throwIfAborted()
+  if (identity !== requestIdentity(authStore)) return response
   // Для 503 подтверждаем включённые техработы свежим чтением, без старого кэша.
   if (response.status === 503) {
     const maintenance = useMaintenanceStore()
@@ -283,6 +253,8 @@ async function baseRequest(path, options = {}) {
     } catch {
       // Ошибка чтения статуса не завершает текущую сессию.
     }
+    options.signal?.throwIfAborted()
+    if (identity !== requestIdentity(authStore)) return response
     if (fresh && maintenance.enabled && !authStore.isSuperAdmin
       && router.currentRoute.value.path !== '/maintenance') {
       router.push('/maintenance')
@@ -308,7 +280,10 @@ async function baseRequest(path, options = {}) {
   // но НЕ редиректим: вызывающий код сам решит как обработать.
   // Тихий режим: опция silent403 или путь из списка фоновых/ожидаемых запросов.
   if (response.status === 403 && !isAuthEndpoint(path)) {
-    if (await isConsentRequired(response)) {
+    const consentRequired = await isConsentRequired(response)
+    options.signal?.throwIfAborted()
+    if (identity !== requestIdentity(authStore)) return response
+    if (consentRequired) {
       try {
         usePDConsentStore().markRequiredFromResponse()
       } catch {
@@ -316,7 +291,10 @@ async function baseRequest(path, options = {}) {
       }
       return response
     }
-    if (await isPasswordChangeRequired(response)) {
+    const passwordChangeRequired = await isPasswordChangeRequired(response)
+    options.signal?.throwIfAborted()
+    if (identity !== requestIdentity(authStore)) return response
+    if (passwordChangeRequired) {
       try {
         usePasswordChangeStore().markRequiredFromResponse()
       } catch {
@@ -324,7 +302,10 @@ async function baseRequest(path, options = {}) {
       }
       return response
     }
-    if (!options.silent403 && !shouldSilence403(path) && !(await isBanContext(response))) {
+    const banContext = await isBanContext(response)
+    options.signal?.throwIfAborted()
+    if (identity !== requestIdentity(authStore)) return response
+    if (!options.silent403 && !shouldSilence403(path) && !banContext) {
       show403Notify('Недостаточно прав для этого действия.')
     }
     return response
@@ -343,6 +324,8 @@ async function baseRequest(path, options = {}) {
         ? Math.min(retryAfterSec * 1000, RETRY_429_CAP_MS)
         : RETRY_429_CAP_MS
       await sleep(waitMs)
+      options.signal?.throwIfAborted()
+      if (identity !== requestIdentity(authStore)) return response
       return baseRequest(path, { ...options, _429retry: attempt + 1 })
     }
     if (!options.silent) {
@@ -370,10 +353,12 @@ async function baseRequest(path, options = {}) {
   }
 
   try {
-    const newToken = await ensureRefreshed()
-    response = await doFetch(path, { ...options, _retried: true }, newToken)
-    return response
+    await ensureRefreshed()
+    if (authStore.impersonation !== impersonation || authStore.userPayload?.user_id !== userId) return response
+    return baseRequest(path, { ...options, _retried: true })
   } catch (err) {
+    options.signal?.throwIfAborted()
+    if (identity !== requestIdentity(authStore)) return response
     // Сессию рвём только когда токен ДЕЙСТВИТЕЛЬНО недействителен (401 от
     // /refresh-token, после ретраев). Сбой сервера/сети (#2016) сессию не трогает -
     // человек остаётся на своём экране, а исходный 401 уходит вызывающему коду.

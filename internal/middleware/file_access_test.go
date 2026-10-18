@@ -9,6 +9,7 @@ import (
 	"time"
 
 	mw "systemburo/internal/middleware"
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -47,9 +48,33 @@ type scanGuardStub struct {
 	asked string
 }
 
-func (g *scanGuardStub) CanAccessScan(_ context.Context, storedName, _ string) bool {
+func (g *scanGuardStub) CanAccessScan(_ context.Context, storedName, _ string) (bool, error) {
 	g.asked = storedName
-	return g.allow
+	return g.allow, nil
+}
+
+// The middleware unit test validates token parsing and source precedence.
+// Database-backed session revocation is covered by SessionAccess lifecycle tests.
+type fileSessionStub struct{}
+
+func (fileSessionStub) ResolveAccess(_ context.Context, claims *services.Claims) (models.SessionIdentity, error) {
+	return models.SessionIdentity{EffectiveUserID: claims.UserID, Username: claims.Subject}, nil
+}
+
+func (fileSessionStub) ResolveRefreshCookie(_ context.Context, raw string) (models.SessionIdentity, error) {
+	claims, err := services.DecodeRefreshToken(raw, fileRefreshSecret)
+	if err != nil {
+		return models.SessionIdentity{}, echo.ErrUnauthorized
+	}
+	return models.SessionIdentity{EffectiveUserID: 7, Username: claims.Subject}, nil
+}
+
+func (fileSessionStub) ResolveLogout(_ context.Context, _ *services.Claims) (models.SessionIdentity, error) {
+	return models.SessionIdentity{}, echo.ErrUnauthorized
+}
+
+func (fileSessionStub) RequireLive(_ context.Context, identity models.SessionIdentity) (models.SessionIdentity, error) {
+	return identity, nil
 }
 
 // serveFileAccess прогоняет запрос через middleware и возвращает код ответа.
@@ -66,7 +91,7 @@ func serveFileAccess(t *testing.T, req *http.Request) int {
 func serveFileAccessWith(t *testing.T, req *http.Request, scans mw.ApplicationScanGuard) (int, string) {
 	t.Helper()
 	e := echo.New()
-	h := mw.FileAccess(fileAccessSecret, fileRefreshSecret, scans)(func(c echo.Context) error {
+	h := mw.FileAccess(fileAccessSecret, fileSessionStub{}, scans)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "file")
 	})
 	rec := httptest.NewRecorder()

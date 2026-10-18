@@ -168,6 +168,9 @@ func TestPDConsentGate_BanTakesPrecedence(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
+	require.Equal(t, http.StatusUnauthorized, rec.Code, "the old family was revoked by the ban")
+	user, _ = testutil.LoginUser(t, e, "consent_gate_user", testPassword)
+	rec = testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	assert.Empty(t, rec.Header().Get("X-PD-Consent-Required"),
 		"забаненному отвечает проверка бана, а не гейт согласия")

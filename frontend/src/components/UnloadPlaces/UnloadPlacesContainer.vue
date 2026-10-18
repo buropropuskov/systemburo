@@ -610,7 +610,7 @@
                   class="photo-preview"
                   @click="viewPhoto(photo)"
                 >
-                  <img
+                  <img v-auth-image
                     :src="photo.photo_url"
                     :alt="photo.file_name"
                   >
@@ -794,7 +794,7 @@
               </button>
             </div>
             <div class="modal-body photo-view-body">
-              <img
+              <img v-auth-image
                 :src="viewingPhoto?.photo_url"
                 class="full-photo"
                 alt="Full size"

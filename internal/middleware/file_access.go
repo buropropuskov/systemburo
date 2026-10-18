@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 
+	"systemburo/internal/download"
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -15,7 +17,7 @@ import (
 // ApplicationScanGuard решает, открыт ли вошедшему пользователю скан заявки,
 // найденный по имени файла на диске. Реализация - services.ApplicationScanAccess.
 type ApplicationScanGuard interface {
-	CanAccessScan(ctx context.Context, storedName, username string) bool
+	CanAccessScan(ctx context.Context, storedName, username string) (bool, error)
 }
 
 // FileAccess закрывает раздачу загруженных файлов от тех, кто не вошёл в систему,
@@ -26,28 +28,20 @@ type ApplicationScanGuard interface {
 // Bearer принимается cookie продления сеанса - её браузер шлёт сам, а сценарии
 // страницы не читают.
 //
-// Проверяются подпись и срок, в базу за самим входом обращения нет: файлы
-// запрашиваются пачками по десятку на страницу, и запрос к базе на каждую
-// картинку стоил бы дороже, чем даёт. Отзыв маркера при выходе такая проверка не
-// видит - до истечения срока прежняя cookie ещё открывает файлы, доступ ко всему
-// остальному она уже не даёт.
-//
-// Принадлежность проверяется только у каталога сканов (#2465): фото мест
-// разгрузки, системных таблиц и шаблоны персональных данных не содержат, и лишний
-// запрос к базе на каждую их картинку как раз и был бы той ценой, которой здесь
-// избегают.
-func FileAccess(accessSecret, refreshSecret []byte, scans ApplicationScanGuard) echo.MiddlewareFunc {
+// Сессия проверяется по актуальному состоянию; cookie используется только для
+// чтения и не продлевается. Невалидный Bearer не заменяется личностью из cookie.
+func FileAccess(accessSecret []byte, sessions services.SessionAccess, scans ApplicationScanGuard) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			claims, err := fileRequester(c, accessSecret, refreshSecret)
+			identity, err := fileRequester(c, accessSecret, sessions)
 			if err != nil {
 				return err
 			}
 			if err := guardUploadDir(c); err != nil {
 				return err
 			}
-			username, _ := claims.GetSubject()
-			if err := guardApplicationScan(c, username, scans); err != nil {
+			SetSessionIdentity(c, identity)
+			if err := guardApplicationScan(c, identity.Username, scans); err != nil {
 				return err
 			}
 			return next(c)
@@ -58,24 +52,26 @@ func FileAccess(accessSecret, refreshSecret []byte, scans ApplicationScanGuard) 
 // fileRequester опознаёт запросившего файл: заголовком Authorization либо cookie
 // продления сеанса. У маркера продления в полезной нагрузке только subject, поэтому
 // наружу отдаются сами разобранные права доступа, а не поля маркера.
-func fileRequester(c echo.Context, accessSecret, refreshSecret []byte) (*services.Claims, error) {
+func fileRequester(c echo.Context, accessSecret []byte, sessions services.SessionAccess) (models.SessionIdentity, error) {
+	if sessions == nil {
+		return models.SessionIdentity{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка сессии временно недоступна")
+	}
 	if auth := c.Request().Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 		claims, err := services.DecodeAccessToken(strings.TrimPrefix(auth, "Bearer "), accessSecret)
 		if err != nil {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid token")
+			return models.SessionIdentity{}, echo.NewHTTPError(http.StatusUnauthorized, "Invalid token")
 		}
-		return claims, nil
+		return sessions.ResolveAccess(c.Request().Context(), claims)
+	}
+	if c.Request().Header.Get("Authorization") != "" {
+		return models.SessionIdentity{}, echo.NewHTTPError(http.StatusUnauthorized, "Invalid authorization header")
 	}
 
 	ck, err := c.Cookie(services.RefreshCookieName)
 	if err != nil || ck.Value == "" {
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Missing or invalid authorization header")
+		return models.SessionIdentity{}, echo.NewHTTPError(http.StatusUnauthorized, "Missing or invalid authorization header")
 	}
-	claims, err := services.DecodeRefreshToken(ck.Value, refreshSecret)
-	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid token")
-	}
-	return claims, nil
+	return sessions.ResolveRefreshCookie(c.Request().Context(), ck.Value)
 }
 
 // staticUploadDirs - каталоги uploads, которые раздаются по адресу файла. Перечень
@@ -134,6 +130,7 @@ func guardApplicationScan(c echo.Context, username string, scans ApplicationScan
 	if !strings.HasPrefix(name, prefix) {
 		return nil
 	}
+	download.NoStore(c)
 	// Гейт не настроен - сканы не раздаём вовсе: отдать их без проверки хуже, чем
 	// не отдать (раздаче они и не нужны, файл скачивается по идентификатору строки).
 	if scans == nil {
@@ -144,7 +141,11 @@ func guardApplicationScan(c echo.Context, username string, scans ApplicationScan
 	if stored == "" || strings.Contains(stored, "/") {
 		return echo.ErrNotFound
 	}
-	if !scans.CanAccessScan(c.Request().Context(), stored, username) {
+	allowed, err := scans.CanAccessScan(c.Request().Context(), stored, username)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return echo.ErrNotFound
 	}
 	return nil

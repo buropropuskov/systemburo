@@ -19,8 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Ban/archive проверяются при использовании старого билета. Остальные гейты
-// сохраняют текущий контракт: новая выдача ограничена, старый билет действителен.
+// A ticket does not bypass current session and request policy checks.
 func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 	for _, state := range []string{"ban", "archive", "maintenance", "consent", "password"} {
 		t.Run(state, func(t *testing.T) {
@@ -44,11 +43,25 @@ func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 				`{"date_from":"`+date+`","date_to":"`+date+`"}`, testutil.AuthHeader(w.user))
 			assertSecurityGateDenied(t, rec, state)
 			rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
+			expected := http.StatusForbidden
+			if state == "maintenance" {
+				expected = http.StatusUnauthorized
+			}
+			require.Equal(t, expected, rec.Code, rec.Body.String())
+			require.NotContains(t, rec.Body.String(), contents)
+			require.NotContains(t, rec.Header().Get("Content-Type"), "application/zip")
+			rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
+			require.Equal(t, http.StatusUnauthorized, rec.Code)
 			if state == "ban" || state == "archive" {
-				require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-				require.NotContains(t, rec.Body.String(), contents)
-				require.NotContains(t, rec.Header().Get("Content-Type"), "application/zip")
-			} else {
+				if state == "ban" {
+					require.NoError(t, w.gates.Bans.Unban(context.Background(), w.userID, w.adminID))
+				} else {
+					require.NoError(t, w.gates.Users.Restore(context.Background(), w.adminID, "security_gate_user"))
+				}
+				// Восстановление требует нового входа и нового билета.
+				w.user, w.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
+				restoredTicket := securityArchiveTicket(t, w, date)
+				rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+restoredTicket, nil)
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				zr, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
 				require.NoError(t, err)
@@ -60,19 +73,6 @@ func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, err)
 				require.Equal(t, contents, string(data))
-			}
-			rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
-			require.Equal(t, http.StatusUnauthorized, rec.Code)
-			if state == "ban" || state == "archive" {
-				if state == "ban" {
-					require.NoError(t, w.gates.Bans.Unban(context.Background(), w.userID, w.adminID))
-				} else {
-					require.NoError(t, w.gates.Users.Restore(context.Background(), w.adminID, "security_gate_user"))
-				}
-				// Восстановление допускает новый билет, но не оживляет погашенный.
-				restoredTicket := securityArchiveTicket(t, w, date)
-				rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+restoredTicket, nil)
-				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			}
 		})
 	}
@@ -117,6 +117,7 @@ func TestSecurityGates_SSETicketStateTransitions(t *testing.T) {
 				} else {
 					require.NoError(t, w.gates.Users.Restore(context.Background(), w.adminID, "security_gate_user"))
 				}
+				w.user, w.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
 				rec = testutil.POST(t, w.e, "/events/ticket", `{}`, testutil.AuthHeader(w.user))
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				restoredTicket, ok := testutil.ParseMap(t, rec)["ticket"].(string)
@@ -128,6 +129,15 @@ func TestSecurityGates_SSETicketStateTransitions(t *testing.T) {
 				defer restoredResponse.Body.Close()
 				require.Equal(t, http.StatusOK, restoredResponse.StatusCode)
 				require.Contains(t, securityReadFrame(t, bufio.NewReader(restoredResponse.Body)), ": connected")
+			} else if state == "maintenance" || state == "password" {
+				want := http.StatusForbidden
+				if state == "maintenance" {
+					want = http.StatusUnauthorized
+				}
+				require.Equal(t, want, response.StatusCode)
+				body, err := io.ReadAll(response.Body)
+				require.NoError(t, err)
+				require.NotContains(t, string(body), ": connected")
 			} else {
 				require.Equal(t, http.StatusOK, response.StatusCode)
 				require.Contains(t, securityReadFrame(t, bufio.NewReader(response.Body)), ": connected")

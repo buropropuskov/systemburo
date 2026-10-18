@@ -40,6 +40,7 @@ var ErrArchiveDownloadTooLarge = errors.New("archive download exceeds size limit
 // право и объём проверены при выдаче билета.
 type archiveDownloadTicket struct {
 	userID    int
+	identity  models.SessionIdentity
 	from, to  time.Time
 	expiresAt time.Time
 }
@@ -53,14 +54,15 @@ type ArchiveDownloadService struct {
 	writer      *ArchiveWriter
 	settings    SettingsService
 	ownerStatus TicketOwnerStatus
+	sessions    SessionAccess
 
 	mu      sync.Mutex
 	tickets map[string]archiveDownloadTicket
 }
 
 // NewArchiveDownloadService создаёт сервис скачивания файлового архива.
-func NewArchiveDownloadService(db *gorm.DB, writer *ArchiveWriter, settings SettingsService, ownerStatus TicketOwnerStatus) *ArchiveDownloadService {
-	return &ArchiveDownloadService{db: db, writer: writer, settings: settings, ownerStatus: ownerStatus, tickets: make(map[string]archiveDownloadTicket)}
+func NewArchiveDownloadService(db *gorm.DB, writer *ArchiveWriter, settings SettingsService, ownerStatus TicketOwnerStatus, sessions SessionAccess) *ArchiveDownloadService {
+	return &ArchiveDownloadService{db: db, writer: writer, settings: settings, ownerStatus: ownerStatus, sessions: sessions, tickets: make(map[string]archiveDownloadTicket)}
 }
 
 // ArchiveItemsQuery - фильтры списка реестра файлового архива (вкладка «Ошибки» и
@@ -100,6 +102,14 @@ func (s *ArchiveDownloadService) Estimate(ctx context.Context, dateFrom, dateTo 
 // секунды, повторная проверка на редемпшене ничего бы не добавила, кроме лишнего
 // запроса к реестру на пути потоковой отдачи.
 func (s *ArchiveDownloadService) IssueTicket(ctx context.Context, userID int, dateFrom, dateTo string) (string, error) {
+	identity, ok := SessionIdentityFromContext(ctx)
+	if !ok || identity.EffectiveUserID != userID || s.sessions == nil {
+		return "", invalidSession()
+	}
+	identity, err := s.sessions.RequireLive(ctx, identity)
+	if err != nil {
+		return "", err
+	}
 	from, to, err := parseArchiveDownloadRange(dateFrom, dateTo)
 	if err != nil {
 		return "", err
@@ -124,9 +134,16 @@ func (s *ArchiveDownloadService) IssueTicket(ctx context.Context, userID int, da
 	ticket := base64.RawURLEncoding.EncodeToString(raw)
 
 	now := time.Now()
+	expiresAt := now.Add(archiveDownloadTicketTTL)
+	if identity.AccessExpiresAt.Before(expiresAt) {
+		expiresAt = identity.AccessExpiresAt
+	}
+	if !now.Before(expiresAt) {
+		return "", invalidSession()
+	}
 	s.mu.Lock()
 	s.gcTicketsLocked(now)
-	s.tickets[ticket] = archiveDownloadTicket{userID: userID, from: from, to: to, expiresAt: now.Add(archiveDownloadTicketTTL)}
+	s.tickets[ticket] = archiveDownloadTicket{userID: userID, identity: identity, from: from, to: to, expiresAt: expiresAt}
 	s.mu.Unlock()
 	return ticket, nil
 }
@@ -134,7 +151,7 @@ func (s *ArchiveDownloadService) IssueTicket(ctx context.Context, userID int, da
 // gcTicketsLocked чистит протухшие билеты. Вызывающий обязан держать мьютекс.
 func (s *ArchiveDownloadService) gcTicketsLocked(now time.Time) {
 	for k, t := range s.tickets {
-		if now.After(t.expiresAt) {
+		if !now.Before(t.expiresAt) {
 			delete(s.tickets, k)
 		}
 	}
@@ -149,7 +166,7 @@ func (s *ArchiveDownloadService) consumeTicket(ticket string, now time.Time) (ar
 		return archiveDownloadTicket{}, false
 	}
 	delete(s.tickets, ticket)
-	if now.After(t.expiresAt) {
+	if !now.Before(t.expiresAt) {
 		return archiveDownloadTicket{}, false
 	}
 	return t, true
@@ -162,12 +179,22 @@ func (s *ArchiveDownloadService) consumeTicket(ticket string, now time.Time) (ar
 // Идентификатор пользователя возвращается ради журнала 152-ФЗ: на публичном роуте
 // его больше взять неоткуда, а запись «кто-то выгрузил бланки сотен заявок» на
 // вопрос закона не отвечает.
-func (s *ArchiveDownloadService) ConsumeAndCollect(ctx context.Context, ticket string, now time.Time) ([]download.ZipEntry, string, int, error) {
+func (s *ArchiveDownloadService) ConsumeAndCollect(ctx context.Context, ticket string, now time.Time, authorize func(models.SessionIdentity) error) ([]download.ZipEntry, string, int, error) {
 	t, ok := s.consumeTicket(ticket, now)
 	if !ok {
 		return nil, "", 0, echo.NewHTTPError(http.StatusUnauthorized, "билет на скачивание недействителен или истёк")
 	}
 	if err := RequireActiveTicketOwner(ctx, t.userID, s.ownerStatus); err != nil {
+		return nil, "", t.userID, err
+	}
+	if s.sessions == nil || authorize == nil {
+		return nil, "", t.userID, sessionCheckUnavailable(nil)
+	}
+	identity, err := s.sessions.RequireLive(ctx, t.identity)
+	if err != nil {
+		return nil, "", t.userID, err
+	}
+	if err := authorize(identity); err != nil {
 		return nil, "", t.userID, err
 	}
 

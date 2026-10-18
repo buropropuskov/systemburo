@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/middleware"
+	"systemburo/internal/models"
 	"systemburo/internal/realtime"
+	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -23,7 +26,9 @@ func (activeEventsUser) Status(context.Context, int) (bool, bool, error) {
 func newEventsHandler() (*EventsHandler, *realtime.Hub, *realtime.TicketStore) {
 	hub := realtime.NewHub()
 	tickets := realtime.NewTicketStore(time.Minute)
-	return NewEventsHandler(hub, tickets, activeEventsUser{}), hub, tickets
+	h := NewEventsHandler(hub, tickets, activeEventsUser{}, eventsSessionStub{})
+	h.SetRequestPolicy(middleware.NewSessionRequestPolicy())
+	return h, hub, tickets
 }
 
 func newEventsServer(t *testing.T, h *EventsHandler) *httptest.Server {
@@ -79,6 +84,7 @@ func TestEventsIssueTicket_ReturnsTicketForAuthedUser(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.Set("user_id", 42)
+	c.SetRequest(req.WithContext(services.WithSessionIdentity(req.Context(), eventsIdentity(42))))
 
 	if err := h.IssueTicket(c); err != nil {
 		t.Fatalf("IssueTicket: %v", err)
@@ -92,8 +98,8 @@ func TestEventsIssueTicket_ReturnsTicketForAuthedUser(t *testing.T) {
 	// Выданный билет должен резолвиться в того же пользователя ровно один раз.
 	// Достаём его из ответа косвенно: любой валидный билет из store consume-ится.
 	uid, ok := tickets.Consume(extractTicket(t, rec.Body.String()), time.Now())
-	if !ok || uid != 42 {
-		t.Fatalf("билет не резолвится в userID=42: uid=%d ok=%v", uid, ok)
+	if !ok || uid.EffectiveUserID != 42 {
+		t.Fatalf("билет не резолвится в userID=42: uid=%v ok=%v", uid, ok)
 	}
 }
 
@@ -150,7 +156,7 @@ func TestEventsStream_DeliversPublishedEvent(t *testing.T) {
 	h, hub, tickets := newEventsHandler()
 	srv := newEventsServer(t, h)
 
-	ticket, err := tickets.Issue(42, time.Now())
+	ticket, err := tickets.Issue(eventsIdentity(42), time.Now())
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
@@ -188,7 +194,7 @@ func TestEventsStream_TicketIsOneTime(t *testing.T) {
 	h, _, tickets := newEventsHandler()
 	srv := newEventsServer(t, h)
 
-	ticket, _ := tickets.Issue(7, time.Now())
+	ticket, _ := tickets.Issue(eventsIdentity(7), time.Now())
 
 	// Первый коннект использует билет.
 	resp1, err := http.Get(srv.URL + "/api/events?ticket=" + ticket)
@@ -225,4 +231,23 @@ func extractTicket(t *testing.T, body string) string {
 		t.Fatalf("билет не закрыт в %s", body)
 	}
 	return rest[:j]
+}
+
+func eventsIdentity(id int) models.SessionIdentity {
+	return models.SessionIdentity{EffectiveUserID: id, OwnerUserID: id, FamilyID: "synthetic-family", AccessExpiresAt: time.Now().Add(time.Hour)}
+}
+
+type eventsSessionStub struct{}
+
+func (eventsSessionStub) ResolveAccess(context.Context, *services.Claims) (models.SessionIdentity, error) {
+	return models.SessionIdentity{}, echo.ErrUnauthorized
+}
+func (eventsSessionStub) ResolveRefreshCookie(context.Context, string) (models.SessionIdentity, error) {
+	return models.SessionIdentity{}, echo.ErrUnauthorized
+}
+func (eventsSessionStub) ResolveLogout(context.Context, *services.Claims) (models.SessionIdentity, error) {
+	return models.SessionIdentity{}, echo.ErrUnauthorized
+}
+func (eventsSessionStub) RequireLive(_ context.Context, id models.SessionIdentity) (models.SessionIdentity, error) {
+	return id, nil
 }

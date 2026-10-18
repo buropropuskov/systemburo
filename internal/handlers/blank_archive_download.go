@@ -9,6 +9,7 @@ import (
 
 	"systemburo/internal/apperr"
 	"systemburo/internal/download"
+	"systemburo/internal/middleware"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -25,8 +26,14 @@ type ArchiveDownloadHandler struct {
 	// (attachment_blank.go, canDownloadBlank): ArchiveDownloadHandler не держит
 	// ссылку на AttachmentBlankHandler, а получает те же зависимости напрямую,
 	// чтобы не заводить связь handler->handler.
-	access   blankAccessService
-	resolver *services.PermissionResolver
+	access        blankAccessService
+	resolver      *services.PermissionResolver
+	requestPolicy *middleware.SessionRequestPolicy
+}
+
+// SetRequestPolicy is wired by the router from the same gates as protected APIs.
+func (h *ArchiveDownloadHandler) SetRequestPolicy(policy *middleware.SessionRequestPolicy) {
+	h.requestPolicy = policy
 }
 
 // NewArchiveDownloadHandler создаёт хендлер скачивания. downloads может быть nil -
@@ -152,7 +159,13 @@ func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "missing ticket")
 	}
 
-	entries, name, userID, err := h.downloads.ConsumeAndCollect(c.Request().Context(), ticket, time.Now())
+	entries, name, userID, err := h.downloads.ConsumeAndCollect(c.Request().Context(), ticket, time.Now(), func(identity models.SessionIdentity) error {
+		middleware.SetSessionIdentity(c, identity)
+		if err := h.requestPolicy.Check(c.Request().Context(), identity, http.MethodGet, c.Path(), c.Request()); err != nil {
+			return err
+		}
+		return requireBlankDocumentsExport(c, nil, h.resolver, 0)
+	})
 	if err != nil {
 		return err
 	}

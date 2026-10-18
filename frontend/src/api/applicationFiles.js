@@ -1,5 +1,4 @@
 import { apiRequest } from '@/api/client';
-import { useAuthStore } from '@/stores/auth';
 
 /**
  * Файлы, приложенные к заявке (#1721).
@@ -82,14 +81,7 @@ export async function deleteApplicationFile(applicationId, fileId) {
  * @param {string} fileName
  */
 export async function downloadApplicationFile(applicationId, fileId, fileName) {
-  const authStore = useAuthStore();
-  const base = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
-  const response = await fetch(`${base}/applications/${applicationId}/files/${fileId}`, {
-    credentials: 'include',
-    headers: {
-      ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}),
-    },
-  });
+  const response = await apiRequest(`/applications/${applicationId}/files/${fileId}`);
   if (!response.ok) {
     throw new Error('Не удалось скачать файл');
   }

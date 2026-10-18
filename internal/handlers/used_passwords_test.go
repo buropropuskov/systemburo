@@ -106,16 +106,18 @@ func TestUsedPasswords_SelfChangeRejectsReuse(t *testing.T) {
 	const second = "selfsecondpass6789"
 
 	mkUsedPwdUser(t, db, td, "usedpwd_self_reuse", first)
-	token, _ := testutil.LoginUser(t, e, "usedpwd_self_reuse", first)
+	token, refresh := testutil.LoginUser(t, e, "usedpwd_self_reuse", first)
+	headers := testutil.AuthHeader(token)
+	headers.Set("Cookie", "refresh_token="+refresh)
 
 	rec := testutil.PUT(t, e, "/api/users/me/password",
 		`{"current_password":"`+first+`","new_password":"`+second+`"}`,
-		testutil.AuthHeader(token))
+		headers)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = testutil.PUT(t, e, "/api/users/me/password",
 		`{"current_password":"`+second+`","new_password":"`+first+`"}`,
-		testutil.AuthHeader(token))
+		headers)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "уже использовался")
 

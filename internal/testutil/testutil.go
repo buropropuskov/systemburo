@@ -514,7 +514,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	// Скачивание из файлового архива (#1615, срез B3) - тот же писатель и корень, что
 	// у сервиса выгрузки выше; access/resolver повторяют пару, которой пользуется
 	// attachmentBlankHandler ниже, чтобы гейт ZIP заявки и гейт одного бланка не разъехались.
-	archiveDownloadService := services.NewArchiveDownloadService(db, archiveWriter, settingsService, services.NewBanCheckService(db, 0))
+	archiveDownloadService := services.NewArchiveDownloadService(db, archiveWriter, settingsService, services.NewBanCheckService(db, 0), services.NewSessionAccessService(db, TestJWTRefreshSecret))
 	archiveDownloadHandler := handlers.NewArchiveDownloadHandler(
 		archiveDownloadService, applicationService, permissionResolver)
 	telegramService := services.NewTelegramService("", "")
@@ -537,7 +537,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	// структуры в памяти без горутин, зато роуты /events и /events/ticket начинают
 	// существовать. Без них гвард-тест белого списка гейта согласия сверялся бы с
 	// роутером, где нужного роута нет вовсе.
-	eventsHandler := handlers.NewEventsHandler(eventsHub, realtime.NewTicketStore(60*time.Second), services.NewBanCheckService(db, 0))
+	eventsHandler := handlers.NewEventsHandler(eventsHub, realtime.NewTicketStore(60*time.Second), services.NewBanCheckService(db, 0), services.NewSessionAccessService(db, TestJWTRefreshSecret))
 
 	// Сквозной поиск поднимается и здесь: гвард-тесты его прав сверяются с роутером
 	// тестового приложения, и без регистрации они молча проверяли бы роутер без поиска.
@@ -657,6 +657,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 		EmployeeDeleteGate:  mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "employees", "delete"),
 		Impersonation:       handlers.NewImpersonationHandler(services.NewImpersonationService(db, TestJWTSecret, permissionResolver, auditRecorder)),
 		JWTSecret:           []byte(TestJWTSecret),
+		SessionAccess:       services.NewSessionAccessService(db, TestJWTRefreshSecret),
 		JWTRefreshSecret:    []byte(TestJWTRefreshSecret),
 		UploadPath:          uploadDir,
 		ApplicationScans:    services.NewApplicationScanAccess(db, applicationService),

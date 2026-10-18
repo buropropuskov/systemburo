@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"systemburo/internal/download"
 
 	"github.com/labstack/echo/v4"
 
@@ -75,6 +76,7 @@ func (h *PDSubjectHandler) Report(c echo.Context) error {
 // @Success      200 {file} binary
 // @Router       /pd-subject/export [post]
 func (h *PDSubjectHandler) Export(c echo.Context) error {
+	download.NoStore(c)
 	var req pdsubject.ExportRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid body: "+err.Error())

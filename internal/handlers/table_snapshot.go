@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"systemburo/internal/download"
 	"time"
 
 	"systemburo/internal/export"
@@ -165,6 +166,7 @@ func (h *TableSnapshotHandler) Get(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/snapshots/{sid}/export [get]
 func (h *TableSnapshotHandler) Export(c echo.Context) error {
+	download.NoStore(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err

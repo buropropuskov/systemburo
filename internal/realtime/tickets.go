@@ -5,11 +5,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"sync"
+	"systemburo/internal/models"
 	"time"
 )
 
 type ticketEntry struct {
-	userID    int
+	identity  models.SessionIdentity
 	expiresAt time.Time
 }
 
@@ -32,7 +33,10 @@ func NewTicketStore(ttl time.Duration) *TicketStore {
 
 // Issue создаёт новый одноразовый билет для userID и попутно чистит протухшие.
 // now инъектируется для детерминизма в тестах; в проде - time.Now().
-func (s *TicketStore) Issue(userID int, now time.Time) (string, error) {
+func (s *TicketStore) Issue(identity models.SessionIdentity, now time.Time) (string, error) {
+	if identity.EffectiveUserID <= 0 || identity.FamilyID == "" || !now.Before(identity.AccessExpiresAt) {
+		return "", fmt.Errorf("invalid session identity")
+	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("failed to generate ticket: %w", err)
@@ -41,30 +45,38 @@ func (s *TicketStore) Issue(userID int, now time.Time) (string, error) {
 
 	s.mu.Lock()
 	s.gcLocked(now)
-	s.tickets[ticket] = ticketEntry{userID: userID, expiresAt: now.Add(s.ttl)}
+	expiresAt := now.Add(s.ttl)
+	if identity.AccessExpiresAt.Before(expiresAt) {
+		expiresAt = identity.AccessExpiresAt
+	}
+	if identity.ImpersonatedBy != nil {
+		actor := *identity.ImpersonatedBy
+		identity.ImpersonatedBy = &actor
+	}
+	s.tickets[ticket] = ticketEntry{identity: identity, expiresAt: expiresAt}
 	s.mu.Unlock()
 	return ticket, nil
 }
 
 // Consume проверяет билет и сразу удаляет его (одноразовость). Возвращает userID и
 // true только если билет существовал и не протух.
-func (s *TicketStore) Consume(ticket string, now time.Time) (int, bool) {
+func (s *TicketStore) Consume(ticket string, now time.Time) (models.SessionIdentity, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.tickets[ticket]
 	if !ok {
-		return 0, false
+		return models.SessionIdentity{}, false
 	}
 	delete(s.tickets, ticket)
-	if now.After(e.expiresAt) {
-		return 0, false
+	if !now.Before(e.expiresAt) {
+		return models.SessionIdentity{}, false
 	}
-	return e.userID, true
+	return e.identity, true
 }
 
 func (s *TicketStore) gcLocked(now time.Time) {
 	for k, e := range s.tickets {
-		if now.After(e.expiresAt) {
+		if !now.Before(e.expiresAt) {
 			delete(s.tickets, k)
 		}
 	}

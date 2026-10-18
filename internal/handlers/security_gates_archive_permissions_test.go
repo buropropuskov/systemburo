@@ -45,6 +45,7 @@ func TestSecurityGates_ArchivePermissions(t *testing.T) {
 				require.False(t, set.IsSuperAdmin())
 				require.False(t, set.IsBanned(), "архив не должен превращаться в бан")
 				require.NoError(t, w.gates.Users.Restore(context.Background(), w.adminID, "security_gate_user"))
+				w.user, w.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
 				rec = testutil.GET(t, w.e, "/file-archive/settings", testutil.AuthHeader(w.user))
 				require.Equal(t, http.StatusOK, rec.Code, "restore must invalidate empty permission cache: %s", rec.Body.String())
 			})

@@ -3,8 +3,9 @@ package services
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"net/http"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"gorm.io/gorm"
@@ -35,9 +36,12 @@ func NewApplicationScanAccess(db *gorm.DB, apps ApplicationService) *Application
 // сюда приходят и запросы с cookie продления сеанса (тег <img> заголовок
 // Authorization не шлёт), а в том маркере нет ни идентификатора пользователя, ни
 // признака суперадминистратора - есть только subject.
-func (a *ApplicationScanAccess) CanAccessScan(ctx context.Context, storedName, username string) bool {
+func (a *ApplicationScanAccess) CanAccessScan(ctx context.Context, storedName, username string) (bool, error) {
 	if storedName == "" || username == "" {
-		return false
+		return false, nil
+	}
+	if a.db == nil {
+		return false, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 	}
 
 	var file models.ApplicationFile
@@ -46,10 +50,10 @@ func (a *ApplicationScanAccess) CanAccessScan(ctx context.Context, storedName, u
 		Where("stored_name = ?", storedName).
 		First(&file).Error
 	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Error("Ошибка поиска скана заявки по имени на диске", "error", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
 		}
-		return false
+		return false, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна", err)
 	}
 
 	var user models.User
@@ -58,17 +62,17 @@ func (a *ApplicationScanAccess) CanAccessScan(ctx context.Context, storedName, u
 		Where("username = ?", username).
 		First(&user).Error
 	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Error("Ошибка получения пользователя для доступа к скану", "username", username, "error", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
 		}
-		return false
+		return false, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна", err)
 	}
 
 	// Черновик ещё не привязан к заявке, проверять через неё нечего: файл открыт
 	// только тому, кто его загрузил, до самой подачи.
 	if file.ApplicationID == nil {
-		return file.UploadedBy == user.ID
+		return file.UploadedBy == user.ID, nil
 	}
 
-	return a.apps.CanAccessApplication(ctx, *file.ApplicationID, username, user.IsSuperAdmin)
+	return CheckApplicationAccess(ctx, a.apps, *file.ApplicationID, username, user.IsSuperAdmin)
 }

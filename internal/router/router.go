@@ -150,6 +150,7 @@ type Dependencies struct {
 	// JWTRefreshSecret нужен раздаче загруженных файлов: она пускает по cookie
 	// продления сеанса, потому что тег <img> заголовок Authorization не шлёт.
 	JWTRefreshSecret []byte
+	SessionAccess    services.SessionAccess
 	UploadPath       string
 	// ApplicationScans - проверка принадлежности скана заявки в раздаче статики
 	// (#2465). НЕ опционален при заданном UploadPath (main и testutil обязаны
@@ -266,11 +267,17 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// echo заводит себе fallback RouteNotFound("/*"), он оказывается точнее
 	// статического "/uploads*" и перехватывает запросы файлов на 404.
 	if d.UploadPath != "" {
+		fileGates := []echo.MiddlewareFunc{mw.FileAccess(d.JWTSecret, d.SessionAccess, d.ApplicationScans)}
+		for _, gate := range []echo.MiddlewareFunc{maintenanceBlock, banCheck, consentGate, mustChangePassword} {
+			if gate != nil {
+				fileGates = append(fileGates, gate)
+			}
+		}
 		api.Add(
 			http.MethodGet,
 			"/uploads*",
 			echo.StaticDirectoryHandler(echo.MustSubFS(e.Filesystem, d.UploadPath), false),
-			mw.FileAccess(d.JWTSecret, d.JWTRefreshSecret, d.ApplicationScans),
+			fileGates...,
 		)
 	}
 
@@ -293,6 +300,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// (выдаётся защищённым POST /events/ticket ниже), а не access-токеном - токен в
 	// query утёк бы в журналы. Consume билета внутри Stream.
 	if events != nil {
+		events.SetRequestPolicy(mw.NewSessionRequestPolicy(maintenanceBlock, banCheck, consentGate, mustChangePassword))
 		api.GET("/events", events.Stream)
 	}
 
@@ -302,12 +310,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// POST /file-archive/download-ticket ниже), сам билет несёт и право, и границы
 	// периода - consume внутри Download.
 	if archiveDownload != nil {
+		archiveDownload.SetRequestPolicy(mw.NewSessionRequestPolicy(maintenanceBlock, banCheck, consentGate, mustChangePassword, mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminFileArchive), mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionDownloadFileArchive)))
 		api.GET("/file-archive/download", archiveDownload.Download)
 	}
 
 	// Protected routes
 	protected := api.Group("")
-	protected.Use(mw.JWTAuth(jwtSecret))
+	protected.Use(mw.JWTAuth(jwtSecret, d.SessionAccess))
 	// Maintenance block - после JWTAuth (нужен type_id в context). Super-admin
 	// проходит, остальным 503. Передаём nil в тестах чтобы не блочить.
 	if maintenanceBlock != nil {

@@ -68,6 +68,7 @@ type Encrypted struct {
 // он не читается: расшифровка идёт чанками, поэтому десяток одновременных
 // скачиваний не выносит процесс.
 func ServeEncrypted(c echo.Context, f Encrypted) error {
+	NoStore(c)
 	if f.Path == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
 	}
@@ -104,6 +105,7 @@ func ServeEncrypted(c echo.Context, f Encrypted) error {
 // Serve отдаёт файл с корректными заголовками. Возвращает 404, если путь пуст
 // или файла нет на диске. Доступ должен быть проверен вызывающим до Serve.
 func Serve(c echo.Context, f File) error {
+	NoStore(c)
 	if f.Path == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
 	}
@@ -182,6 +184,7 @@ const zipErrorSuffix = "_ОШИБКА.txt"
 // кладётся текстовая заметка "<имя>_ОШИБКА.txt" с причиной - молчаливый пропуск
 // неотличим от "файла никогда не было", а администратор должен увидеть пробел.
 func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
+	NoStore(c)
 	allowLongResponse(c, "zip stream")
 
 	res := c.Response()
@@ -201,6 +204,11 @@ func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
 		res.Flush()
 	}
 	return zw.Close()
+}
+
+// NoStore prevents shared and browser caches from retaining protected downloads.
+func NoStore(c echo.Context) {
+	c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
 }
 
 // writeZipEntry копирует один файл в архив. Ошибка возвращается ДО первого

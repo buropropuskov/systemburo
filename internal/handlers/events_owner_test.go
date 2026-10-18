@@ -38,9 +38,9 @@ func TestEventsStream_DeniesInactiveOwnerBeforeOpening(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tickets := realtime.NewTicketStore(time.Minute)
-			h := NewEventsHandler(realtime.NewHub(), tickets, tc.status)
+			h := NewEventsHandler(realtime.NewHub(), tickets, tc.status, nil)
 			srv := newEventsServer(t, h)
-			ticket, err := tickets.Issue(42, time.Now())
+			ticket, err := tickets.Issue(eventsIdentity(42), time.Now())
 			require.NoError(t, err)
 			resp, err := srv.Client().Get(srv.URL + "/api/events?ticket=" + ticket)
 			require.NoError(t, err)

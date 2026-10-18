@@ -1,5 +1,4 @@
 import { apiRequest, apiRequestRaw } from './client';
-import { useAuthStore } from '@/stores/auth';
 
 /**
  * Разворачивает сырой ответ apiRequestRaw: при неуспехе бросает текстом бэка
@@ -388,22 +387,15 @@ export async function markQuestionRead(applicationId, questionId) {
  * файл собирает сервер по той же выборке, с тем же скоупингом видимости и той же
  * подменой ФИО без согласия на обработку данных.
  *
- * Идёт мимо apiRequest: тот разворачивает JSON-конверт, а здесь ответ - поток байтов.
+ * Общий клиент сохраняет Response/blob и продлевает сессию при необходимости.
  * Имя файла берётся из Content-Disposition, который ставит сервер.
  *
  * @param {Record<string, string|number>} params query-параметры фильтра
  * @returns {Promise<void>} промис завершения скачивания
  */
 export async function downloadApplicationsRegistry(params = {}) {
-  const authStore = useAuthStore();
   const query = new URLSearchParams(params).toString();
-  const res = await fetch(
-    `${(import.meta.env.VITE_API_BASE_URL || '') + '/api'}/applications/export${query ? '?' + query : ''}`,
-    {
-      credentials: 'include',
-      headers: { ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}) },
-    },
-  );
+  const res = await apiRequest(`/applications/export${query ? '?' + query : ''}`);
   if (!res.ok) throw new Error(`Не удалось выгрузить реестр: ${res.status}`);
 
   const disposition = res.headers.get('Content-Disposition') || '';

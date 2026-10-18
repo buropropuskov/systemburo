@@ -52,9 +52,12 @@ type AuthService interface {
 // is_super_admin кладётся в access-токен чтобы middleware мог проверить
 // без дополнительного запроса в БД на каждый запрос (#231).
 type Claims struct {
-	UserID       int  `json:"user_id"`
-	TypeID       int  `json:"type_id"`
-	IsSuperAdmin bool `json:"is_super_admin"`
+	TokenVersion  int    `json:"token_version,omitempty"`
+	SessionID     string `json:"sid,omitempty"`
+	SessionUserID int    `json:"session_user_id,omitempty"`
+	UserID        int    `json:"user_id"`
+	TypeID        int    `json:"type_id"`
+	IsSuperAdmin  bool   `json:"is_super_admin"`
 	// ImpersonatedBy - идентификатор администратора, открывшего сеанс «войти как
 	// пользователь» (#1912). У маркеров обычного входа поле пустое и, благодаря
 	// omitempty, вовсе не попадает в полезную нагрузку: их вид и разбор не меняются.
@@ -158,11 +161,14 @@ func verifyPassword(phcHash, password string) (bool, error) {
 
 // --- JWT ---
 
-func (s *authService) createAccessToken(username string, userID int, typeID int, isSuperAdmin bool) (string, error) {
+func (s *authService) createAccessToken(username string, userID int, typeID int, isSuperAdmin bool, familyID string) (string, error) {
 	claims := Claims{
-		UserID:       userID,
-		TypeID:       typeID,
-		IsSuperAdmin: isSuperAdmin,
+		TokenVersion:  AccessTokenVersion,
+		SessionID:     familyID,
+		SessionUserID: userID,
+		UserID:        userID,
+		TypeID:        typeID,
+		IsSuperAdmin:  isSuperAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTTL)),
@@ -447,7 +453,8 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		if err := tx.Preload("Organization").Preload("Company").Preload("UserType").First(current, current.ID).Error; err != nil {
 			return err
 		}
-		accessToken, err = s.createAccessToken(current.Username, current.ID, current.TypeID, current.IsSuperAdmin)
+		familyID := uuid.NewString()
+		accessToken, err = s.createAccessToken(current.Username, current.ID, current.TypeID, current.IsSuperAdmin, familyID)
 		if err != nil {
 			return err
 		}
@@ -459,7 +466,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		if err := tx.Model(current).Updates(map[string]any{"last_login_at": now, "failed_login_count": 0, "locked_until": nil, "lockout_level": 0, "last_failed_login_at": nil}).Error; err != nil {
 			return err
 		}
-		rt := models.RefreshToken{UserID: current.ID, FamilyID: uuid.NewString(), TokenHash: hashRefreshToken(refreshJWT), ExpiresAt: now.Add(s.refreshTTL), IPAddress: metaIPPtr(meta), UserAgent: metaUAPtr(meta)}
+		rt := models.RefreshToken{UserID: current.ID, FamilyID: familyID, TokenHash: hashRefreshToken(refreshJWT), ExpiresAt: now.Add(s.refreshTTL), IPAddress: metaIPPtr(meta), UserAgent: metaUAPtr(meta)}
 		loginStage = "refresh token store"
 		if err := tx.Create(&rt).Error; err != nil {
 			return err
@@ -581,7 +588,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
 			return err
 		}
-		response.Token, err = s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin)
+		response.Token, err = s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin, stored.FamilyID)
 		if err != nil {
 			return err
 		}
@@ -956,7 +963,7 @@ func DecodeAccessToken(tokenString string, secret []byte) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
 		return secret, nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {
 		return nil, err
 	}
@@ -980,7 +987,7 @@ func DecodeRefreshToken(tokenString string, secret []byte) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
 		return secret, nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {
 		return nil, err
 	}

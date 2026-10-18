@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,9 +101,11 @@ func TestSecurityGates_SSETicketLifecycle(t *testing.T) {
 	w.change(t, "ban")
 	rec = testutil.POST(t, w.e, "/events/ticket", `{}`, testutil.AuthHeader(w.user))
 	assertSecurityGateDenied(t, rec, "ban")
-	// Текущий контракт допускает жизнь уже открытого потока до переподключения.
-	// Проверяем реальную доставку сигнала блокировки от штатного сервиса.
-	require.Contains(t, securityReadFrame(t, reader), "user.banned")
+	// Revocation closes the stream before any later payload, including ban signals.
+	remaining, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Empty(t, remaining, "revoked stream must not deliver any later payload")
+
 }
 
 func securityGrantArchive(t *testing.T, w securityGateWorld) {
@@ -129,12 +132,33 @@ func TestSecurityGates_ArchiveTicketLifecycle(t *testing.T) {
 	rec := testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.Equal(t, "application/zip", rec.Header().Get("Content-Type"))
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 	rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 	ticket = securityArchiveTicket(t, w, date)
 	// Время передаётся настоящему потребителю; ожидание TTL в минуту не нужно.
-	_, _, _, err := w.gates.Downloads.ConsumeAndCollect(context.Background(), ticket, time.Now().Add(2*time.Minute))
+	_, _, _, err := w.gates.Downloads.ConsumeAndCollect(context.Background(), ticket, time.Now().Add(2*time.Minute), nil)
 	require.Error(t, err)
 	rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestSessionAccess_ArchiveTicketRevokesOnlyItsFamily(t *testing.T) {
+	w := newSecurityGateWorld(t)
+	securityGrantArchive(t, w)
+	date := time.Now().Format("2006-01-02")
+	a := securityArchiveTicket(t, w, date)
+	other := w
+	other.user, other.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
+	b := securityArchiveTicket(t, other, date)
+	h := testutil.AuthHeader(w.user)
+	h.Set("Cookie", services.RefreshCookieName+"="+w.refresh)
+	rec := testutil.POST(t, w.e, "/logout", `{}`, h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+a, nil)
+	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	require.NotContains(t, rec.Header().Get("Content-Type"), "application/zip")
+	rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+b, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 }
