@@ -269,7 +269,7 @@
         <div
           v-if="fieldVisible('work_permission')"
           class="completion__permission"
-          :class="{ 'disabled-field': !effectivePatentRequired }"
+          :class="{ 'disabled-field': !effectivePermissionEnabled }"
         >
           <div class="completion__permission-header">
             <label class="input__label">Иное разрешение на работы</label>
@@ -282,12 +282,12 @@
               type="button"
               class="permission__dropdown-button"
               :class="{ 'permission__dropdown-button--placeholder': !selectedPermission }"
-              :disabled="!effectivePatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden)"
+              :disabled="!effectivePermissionEnabled || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden)"
               :title="selectedPermission || null"
               @click="togglePermissionDropdown"
             >
               <div class="permission__button-content">
-                <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Не выбрано' : 'Не требуется') }}</span>
+                <span class="permission__button-text">{{ selectedPermission || (effectivePermissionEnabled ? 'Не выбрано' : 'Не требуется') }}</span>
                 <AppIcon
                   name="arrow"
                   class="permission__button-arrow"
@@ -545,6 +545,9 @@ export default {
                     message: 'номер патента или иное разрешение'
                 })
             }
+            if (fieldVisible('work_permission') && vm.effectivePermissionRequired) {
+                rules.push({ check: !!vm.selectedPermission, message: 'иное разрешение на работы' })
+            }
             if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
                 rules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
             }
@@ -640,7 +643,6 @@ export default {
             return this.sourceDocumentsHidden && !this.passportSeriesNumber.trim() && !this.patentNumber.trim()
                 && (!this.selectedPermission || this.selectedPermission === 'Не выбрано');
         },
-
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
         },
@@ -671,11 +673,13 @@ export default {
             }
             return this.isPatentRequired
         },
+        effectivePermissionRequired() { return this.fieldConfig?.work_permission?.required === true; },
+        effectivePermissionEnabled() { return this.effectivePatentRequired || this.effectivePermissionRequired; },
         patentFieldDisabled() {
             return this.selectedPermission !== '';
         },
         permissionFieldDisabled() {
-            return this.patentNumber.trim() !== '';
+            return !this.effectivePermissionRequired && this.patentNumber.trim() !== '';
         },
         attachedTablesIds() {
             return this.attachedPassageTables.map(table => table.id);
@@ -749,10 +753,10 @@ export default {
                 this.permissionMenuStyle = this.buildPermissionMenuStyle();
             });
         },
-        // Блок разрешения появляется вместе с требованием патента - к этому моменту
-        // кнопки ещё не было, и сторону раскрытия никто не считал.
-        effectivePatentRequired(required) {
-            if (required) this.$nextTick(this.updateDropDirections);
+        // Доступность разрешения зависит от гражданства и отдельного требования шаблона.
+        // Когда поле становится доступно, пересчитываем сторону раскрытия.
+        effectivePermissionEnabled(enabled) {
+            if (enabled) this.$nextTick(this.updateDropDirections);
         },
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
@@ -1055,7 +1059,7 @@ export default {
                     sourceDocumentsHidden: this.sourceDocumentsHidden,
                     passportSeriesNumber: this.passportSeriesNumber.trim(),
                     patentNumber: this.effectivePatentRequired ? this.patentNumber.trim() : null,
-                    otherPermission: this.effectivePatentRequired ? this.selectedPermission : null,
+                    otherPermission: this.effectivePermissionEnabled ? this.selectedPermission : null,
                 }, { fromForm: true, toForm: true }),
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
@@ -1252,14 +1256,11 @@ export default {
                 maxHeight: maxHeight + 'px'
             };
         },
-
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
-            if (!citizenship.patent_required) {
-                this.patentNumber = '';
-                this.selectedPermission = '';
-            }
+            if (!this.effectivePatentRequired) this.patentNumber = '';
+            if (!this.effectivePermissionEnabled) this.selectedPermission = '';
         },
         
         togglePermissionDropdown() {
@@ -1389,7 +1390,6 @@ export default {
                 this.dropDirectionFrame = null;
             }
         },
-
         selectPermission(permission) {
             this.selectedPermission = permission;
             this.isPermissionDropdownOpen = false;
