@@ -91,6 +91,8 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carflip1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carflip1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carflip1"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carflip1"), "cars")

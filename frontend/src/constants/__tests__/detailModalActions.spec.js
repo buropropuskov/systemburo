@@ -55,9 +55,9 @@ describe('detailModalActions — гранулярные detail-ключи кар
     }
   })
 
-  it('контекст ЧС не задет: history там остаётся page.admin.blacklist', () => {
-    expect(getModalActionPermission('vehicle', 'blacklist', 'history')).toBe('page.admin.blacklist')
-    expect(getModalActionPermission('employee', 'blacklist', 'history')).toBe('page.admin.blacklist')
+  it('история в контексте ЧС требует отдельного права истории', () => {
+    expect(getModalActionPermission('vehicle', 'blacklist', 'history')).toBe('detail.full_history')
+    expect(getModalActionPermission('employee', 'blacklist', 'history')).toBe('detail.full_history')
   })
 
   it('контекстно-скрытые detail-действия остаются false', () => {

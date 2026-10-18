@@ -89,6 +89,8 @@
 </template>
 
 <script>
+import { usePermissionsStore } from '@/stores/permissions';
+import { canReadRegistryHistory } from '@/utils/registryHistoryPermissions';
 /**
  * Журнал реестра сотрудников или машин: создания, правки полей и удаления с автором и
  * временем. Заведён ради удалённых записей - у исчезнувшей строки ни карточки, ни
@@ -162,6 +164,7 @@ export default {
     };
   },
   computed: {
+    canReadHistory() { return canReadRegistryHistory(usePermissionsStore(), this.entity); },
     title() {
       return this.entity === 'cars' ? 'Журнал реестра автомобилей' : 'Журнал реестра сотрудников';
     },
@@ -183,6 +186,7 @@ export default {
     },
   },
   watch: {
+    canReadHistory(allowed) { if (!allowed) { this.items = []; this.error = ''; } },
     // immediate: окно может быть смонтировано уже открытым (и так его монтируют тесты);
     // без этого журнал остался бы пустым до повторного открытия.
     show: {
@@ -194,6 +198,7 @@ export default {
   },
   methods: {
     async load() {
+      if (!this.canReadHistory) { this.items = []; return; }
       this.loading = true;
       this.error = '';
       try {
@@ -201,7 +206,7 @@ export default {
         const response = await apiRequest(`${path}?limit=500`);
         if (!response.ok) throw new Error(`Журнал не загрузился (${response.status})`);
         const data = await response.json();
-        this.items = Array.isArray(data) ? data : [];
+        this.items = this.canReadHistory && Array.isArray(data) ? data : [];
       } catch (e) {
         this.error = e.message || 'Журнал не загрузился';
         this.items = [];

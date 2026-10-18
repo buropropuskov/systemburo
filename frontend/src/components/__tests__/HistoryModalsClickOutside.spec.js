@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import { usePermissionsStore } from '@/stores/permissions';
 
 // Все модалки грузят историю по-разному: 6 через apiRequest(@/api/client),
 // LPF через @/api/licenseFormats, Mark через @/api/marks. Контракт закрытия
@@ -57,6 +59,11 @@ async function mountModal(component, props) {
 
 describe('История-модалки: закрытие дропдаунов-фильтров по клику снаружи (refs при Teleport)', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
+    usePermissionsStore().effective = {
+      'detail.full_history': { value: 'allow' },
+      'detail.entry_exit_history': { value: 'allow' },
+    };
     document.body.innerHTML = '';
   });
 

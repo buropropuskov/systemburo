@@ -149,6 +149,8 @@ func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 	require.NoError(t, db.Create(&employee).Error)
 
 	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "emphist1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "emphist1"), "detail.entry_exit_history")
 	h := testutil.AuthHeader(token)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "emphist1"), "people")
 	preparePassageFixtureEmployee2667(t, db, employee.ID, passTbl, td.OrgID, false)

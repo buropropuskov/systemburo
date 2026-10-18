@@ -74,7 +74,7 @@ export const VEHICLE_MODAL_ACTIONS = {
   },
   blacklist: {
     // Открыта из раздела ЧС: переход в заявку не нужен, добавление в ЧС не нужно
-    history:         'page.admin.blacklist',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       false,
     entryExit:       false,
@@ -139,7 +139,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     documents:       false,
   },
   blacklist: {
-    history:         'page.admin.blacklist',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       false,
     entryExit:       false,

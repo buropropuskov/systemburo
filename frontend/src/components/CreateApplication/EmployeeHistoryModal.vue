@@ -291,6 +291,7 @@
 </template>
 
 <script>
+import { usePermissionsStore } from '@/stores/permissions';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { EMPLOYEE_HISTORY_ACTIONS, historyActionText, historyFieldLabel, historyValueText } from '@/utils/passageHistoryActions';
 import { ref, defineAsyncComponent } from 'vue';
@@ -505,6 +506,7 @@ export default {
   methods: {
     canOpenHistoryEntity(item) { const id = item.employee_id; return Number.isSafeInteger(id) && id > 0 && !item.entity_deleted; },
     async loadHistory() {
+      if (!usePermissionsStore().hasPermission('detail.full_history')) { this.history = []; return; }
       this.loading = true;
       try {
         const params = new URLSearchParams();

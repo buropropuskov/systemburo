@@ -120,6 +120,7 @@ func (env revertEnv) ageLastMark(t *testing.T, d time.Duration) {
 // журнале остаётся и сама отметка, и событие отмены с причиной.
 func TestPassageRevert_GuardRevertsOwnFreshMark(t *testing.T) {
 	env := setupRevertEnv(t, "kpp_revert_own", "revguard")
+	testutil.GrantPermission(t, env.guardID, "detail.entry_exit_history")
 
 	env.mark(t, 1, env.token, env.guardID)
 	status, entryTime := env.carRow(t)

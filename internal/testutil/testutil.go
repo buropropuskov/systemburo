@@ -443,7 +443,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, uploadDir)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
-	carHandler := handlers.NewCarHandler(carService, elementScopes, db)
+	carHandler := handlers.NewCarHandler(carService, elementScopes, permissionResolver, db)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService, db)
 	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
@@ -460,7 +460,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
-	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService, elementScopes)
+	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService, elementScopes, permissionResolver)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	applicationFileHandler := handlers.NewApplicationFileHandler(
 		applicationFileService, applicationService,

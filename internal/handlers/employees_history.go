@@ -11,14 +11,15 @@ import (
 
 // EmployeesHistoryHandler -- HTTP-обработчики истории сотрудников.
 type EmployeesHistoryHandler struct {
-	service services.EmployeesHistoryService
-	scopes  *services.ElementScopeResolver
+	service  services.EmployeesHistoryService
+	scopes   *services.ElementScopeResolver
+	resolver *services.PermissionResolver
 }
 
 // NewEmployeesHistoryHandler создаёт новый экземпляр EmployeesHistoryHandler. scopes
 // ограничивает историю и статусы сотрудниками, которых пользователь вправе видеть.
-func NewEmployeesHistoryHandler(service services.EmployeesHistoryService, scopes *services.ElementScopeResolver) *EmployeesHistoryHandler {
-	return &EmployeesHistoryHandler{service: service, scopes: scopes}
+func NewEmployeesHistoryHandler(service services.EmployeesHistoryService, scopes *services.ElementScopeResolver, resolver *services.PermissionResolver) *EmployeesHistoryHandler {
+	return &EmployeesHistoryHandler{service: service, scopes: scopes, resolver: resolver}
 }
 
 // GetByEmployee обрабатывает GET /employees/:id/history.
@@ -30,6 +31,10 @@ func NewEmployeesHistoryHandler(service services.EmployeesHistoryService, scopes
 // @Success 200 {array} services.EmployeeHistoryItem
 // @Router /employees/{id}/history [get]
 func (h *EmployeesHistoryHandler) GetByEmployee(c echo.Context) error {
+	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
+	if err != nil {
+		return err
+	}
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -41,7 +46,7 @@ func (h *EmployeesHistoryHandler) GetByEmployee(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	return RespondSuccess(c, policy.Employees(items))
 }
 
 // GetUnified обрабатывает GET /employees/history/unified.
@@ -55,6 +60,10 @@ func (h *EmployeesHistoryHandler) GetByEmployee(c echo.Context) error {
 // @Success 200 {array} services.EmployeeHistoryItem
 // @Router /employees/history/unified [get]
 func (h *EmployeesHistoryHandler) GetUnified(c echo.Context) error {
+	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
+	if err != nil {
+		return err
+	}
 	lastName := c.QueryParam("last_name")
 	firstName := c.QueryParam("first_name")
 	if lastName == "" || firstName == "" {
@@ -71,7 +80,7 @@ func (h *EmployeesHistoryHandler) GetUnified(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	return RespondSuccess(c, policy.Employees(items))
 }
 
 // GetAll обрабатывает GET /employees/history/all.

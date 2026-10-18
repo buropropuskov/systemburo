@@ -24,6 +24,8 @@ func TestCarHistory_CreatedAtIsValidISO8601(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carutc1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carutc1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carutc1"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carutc1"), "cars")
@@ -67,6 +69,8 @@ func TestCarHistory_DeleteActionRecordedAtUTC(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carutc2", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carutc2"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carutc2"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 

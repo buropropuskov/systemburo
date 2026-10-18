@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import { usePermissionsStore } from '@/stores/permissions';
 
 // Все 4 модалки грузят историю через apiRequest(path).ok -> json().
 // Контракт закрытия (visible/requestClose/onAfterLeave/Escape/overlay) от истории
@@ -42,6 +44,11 @@ async function mountModal(component, props) {
 
 describe('История-модалки: анимация закрытия (D-паттерн)', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
+    usePermissionsStore().effective = {
+      'detail.full_history': { value: 'allow' },
+      'detail.entry_exit_history': { value: 'allow' },
+    };
     document.body.innerHTML = '';
   });
 

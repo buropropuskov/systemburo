@@ -81,6 +81,13 @@ func newIDORWorld(t *testing.T) *idorWorld {
 	testutil.GrantPermission(t, w.ids[idorOwner], services.KeyActionSupplementApplication)
 	testutil.GrantPermission(t, w.ids[idorStranger], services.KeyActionSupplementApplication)
 
+	// Одинаковые возможности истории у обоих: проверяем область объекта, а не отсутствие ключа.
+	for _, actor := range []idorActor{idorOwner, idorStranger} {
+		for _, key := range []string{services.KeyDetailFullHistory, services.KeyDetailEntryExitHistory, services.KeyEntityCarsRead, services.KeyEntityEmployeesRead} {
+			testutil.GrantPermission(t, w.ids[actor], key)
+		}
+	}
+
 	// Бланк требует шаблона с файлом; запрос только читает, поэтому он один на тест.
 	blank := seedDocumentsGateApplication(t, db, td, w.ids[idorOwner])
 	w.blankApp, w.blankAtt = blank.appID, blank.attID

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { usePermissionsStore } from '@/stores/permissions';
 
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
@@ -29,6 +30,7 @@ function mountModal(props = {}) {
 describe('VehicleDetailsModal - данные пропуска "по факту" (#1132)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().effective = { 'detail.entry_exit_history': { value: 'allow' } };
     apiRequest.mockReset();
   });
 
