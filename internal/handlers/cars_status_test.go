@@ -118,6 +118,8 @@ func TestCarTerritoryStatus_EntryWithFactPassData(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carfact1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carfact1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carfact1"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
@@ -173,6 +175,8 @@ func TestCarTerritoryStatus_ExitWithoutPassNoMetadata(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carfact2", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carfact2"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carfact2"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 

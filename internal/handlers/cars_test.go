@@ -645,6 +645,8 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carlc1", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "carlc1"), "detail.full_history")
+	testutil.GrantPermission(t, getUserID(t, db, "carlc1"), "detail.entry_exit_history")
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 
 	// Смотрим машину через адресный путь «Проезд» (#1036): выдача идёт по конкретной
