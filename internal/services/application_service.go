@@ -18,6 +18,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // forwardAttachmentVisible ограничивает агрегаты-теги заявки вложениями, видимыми
@@ -30,6 +31,9 @@ const forwardAttachmentVisible = `(
 		OR NOT EXISTS (SELECT 1 FROM forward_attachments fa WHERE fa.application_id = a.id AND fa.recipient_user_id = ?)
 		OR EXISTS (SELECT 1 FROM forward_attachments fav WHERE fav.application_id = a.id AND fav.recipient_user_id = ? AND fav.attachment_id = att.id)
 	)`
+
+// ownApplicationsListSelect исключает служебные и чужие поля из read-only списка.
+const ownApplicationsListSelect = "a.id, a.application_number, a.confirmation, a.sending_datetime, a.organization_id, a.company_id, a.sender_user_id, a.message, a.status, a.data_approval" + ", " + hasStatusUpdatePredicate + " as has_status_update"
 
 // applicationsListSelect - общий список столбцов для листингов заявок (Центр, пагинация,
 // заявки пользователя). Теги has_roof_access/has_free_parking учитывают видимость пересыла
@@ -1158,11 +1162,19 @@ func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context,
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
 		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
 
-	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+	if user.IsBanned {
+		query = query.Where("a.sender_user_id = ?", user.ID)
+	} else {
+		query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+	}
 
 	// Без applyArchiveScope намеренно (#2339): кабинет показывает все заявки человека
 	// одним списком, включая архивные - у него нет деления на активные и архив.
-	query = applyApplicationFilters(query, filter, true, user.ID)
+	if user.IsBanned {
+		query = applyOwnApplicationFilters(query, filter, user.ID)
+	} else {
+		query = applyApplicationFilters(query, filter, true, user.ID)
+	}
 	// ЛК: у отправителя нет строк application_reads, гейт прочтения не нужен (requireRead=false).
 	return applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, false)
 }
@@ -1182,13 +1194,18 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
 		Order("a.sending_datetime DESC, a.id DESC")
 
+	if user.IsBanned {
+		query = query.Select(ownApplicationsListSelect, user.ID, user.ID)
+	}
 	rows := make([]ApplicationWithDetails, 0)
 	if err := query.Find(&rows).Error; err != nil {
 		slog.Error("Ошибка получения пользовательских заявок", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskApplicationNames(ctx, rows)
+	if !user.IsBanned {
+		s.maskApplicationNames(ctx, rows)
+	}
 	return rows, nil
 }
 
@@ -1225,33 +1242,46 @@ func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, u
 		Offset(offset).
 		Limit(perPage)
 
+	if user.IsBanned {
+		dataQuery = dataQuery.Select(ownApplicationsListSelect, user.ID, user.ID)
+	}
 	rows := make([]ApplicationWithDetails, 0)
 	if err := dataQuery.Find(&rows).Error; err != nil {
 		slog.Error("Ошибка получения пользовательских заявок (paginated)", "error", err)
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskApplicationNames(ctx, rows)
+	if !user.IsBanned {
+		s.maskApplicationNames(ctx, rows)
+	}
 	return rows, total, nil
 }
 
 // GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
 // Доступ проверяется до записи: постороннему 403 без перевода статуса и строки "read" в журнале.
 func (s *applicationService) GetApplicationByID(ctx context.Context, username string, applicationID int, isSuperAdmin bool) (map[string]interface{}, error) {
-	user, err := s.getUserByUsername(ctx, username)
-	if err != nil {
-		return nil, err
-	}
-
+	// Hold a shared lock on the actor through projection and incidental writes.
+	// A concurrent ban/archive update cannot change the chosen mode mid-transaction.
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	defer tx.Rollback()
+	var user models.User
+	if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("username = ?", username).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись недоступна")
 		}
-	}()
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	if !user.IsActive {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена")
+	}
+	txService := *s
+	txService.db = tx
+	if user.IsBanned {
+		return txService.ownApplicationReadOnly(ctx, applicationID, user.ID)
+	}
 
 	// Получаем заявку с JOINами
 	var row struct {
@@ -1291,7 +1321,12 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	if !s.CanAccessApplication(ctx, applicationID, username, isSuperAdmin) {
+	allowed, accessErr := txService.CanAccessApplicationChecked(ctx, applicationID, username, isSuperAdmin)
+	if accessErr != nil {
+		tx.Rollback()
+		return nil, accessErr
+	}
+	if !allowed {
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
@@ -1381,6 +1416,14 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 
 // GetApplicationDetails возвращает расширенную информацию о заявке.
 func (s *applicationService) GetApplicationDetails(ctx context.Context, username string, applicationID int) (map[string]interface{}, error) {
+	viewerState, stateErr := s.getUserByUsername(ctx, username)
+	if stateErr != nil {
+		return nil, stateErr
+	}
+	if viewerState.IsBanned {
+		return s.ownApplicationReadOnly(ctx, applicationID, viewerState.ID)
+	}
+
 	var row struct {
 		models.Application
 		OrganizationName *string `gorm:"column:organization_name"`

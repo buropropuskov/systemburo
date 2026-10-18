@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -60,11 +62,11 @@ func NewElementScopeResolver(db *gorm.DB, resolver *PermissionResolver) *Element
 // все элементы сразу (раздел чёрного списка ищет историю человека по всей системе).
 // Заблокированному возвращается пустой скоуп: под него не подходит ни один элемент.
 func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys ...string) (ElementScope, error) {
-	set, err := r.resolver.Resolve(ctx, userID)
+	set, err := r.resolver.ResolveFresh(ctx, userID)
 	if err != nil {
-		return ElementScope{}, fmt.Errorf("failed to resolve permissions for element scope: %w", err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 	}
-	if set.IsBanned() {
+	if set.IsBanned() || set.IsInactive() {
 		return ElementScope{}, nil
 	}
 	if set.IsSuperAdmin() || set.IsAdmin() {
@@ -86,7 +88,7 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 		Select("organization_id, company_id").
 		Where("id = ?", userID).
 		Scan(&owner).Error; err != nil {
-		return ElementScope{}, fmt.Errorf("failed to load user for element scope: %w", err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 	}
 	if owner.OrganizationID != nil {
 		scope.OrgID = *owner.OrganizationID
@@ -98,7 +100,7 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 	var approvers int64
 	if err := r.db.WithContext(ctx).Table("application_approvers").
 		Where("user_id = ?", userID).Count(&approvers).Error; err != nil {
-		return ElementScope{}, fmt.Errorf("failed to check approver for element scope: %w", err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 	}
 	scope.Approver = approvers > 0
 
@@ -108,7 +110,7 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 	}
 	if err := r.db.WithContext(ctx).Table("system_tables").
 		Select("id, name").Scan(&tables).Error; err != nil {
-		return ElementScope{}, fmt.Errorf("failed to load tables for element scope: %w", err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 	}
 	for _, t := range tables {
 		if set.Has(fmt.Sprintf("table.%s.view", t.Name)) || set.Has(fmt.Sprintf("table.%s.trash", t.Name)) {

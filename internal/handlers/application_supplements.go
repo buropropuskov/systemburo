@@ -67,7 +67,11 @@ func (h *ApplicationHandler) GetApplicationSupplements(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 

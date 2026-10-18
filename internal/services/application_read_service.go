@@ -71,6 +71,9 @@ func (s *applicationService) MarkAsRead(ctx context.Context, applicationID int, 
 	if err != nil {
 		return err
 	}
+	if user.IsBanned {
+		return nil
+	}
 
 	// Проверяем существование заявки
 	var appCount int64
@@ -102,6 +105,9 @@ func (s *applicationService) MarkStatusSeen(ctx context.Context, username string
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return err
+	}
+	if user.IsBanned {
+		return nil
 	}
 	if err := s.db.WithContext(ctx).Exec(statusViewUpsert, applicationID, user.ID).Error; err != nil {
 		slog.Error("Ошибка отметки просмотра статуса", "application_id", applicationID, "user_id", user.ID, "error", err)
@@ -204,7 +210,11 @@ func (s *applicationService) GetUserStatusUpdatesCount(ctx context.Context, user
 	query := s.db.WithContext(ctx).
 		Table("applications a").
 		Where(hasStatusUpdatePredicate, user.ID, user.ID)
-	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+	if user.IsBanned {
+		query = query.Where("a.sender_user_id = ?", user.ID)
+	} else {
+		query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+	}
 	if filter.SenderUserID != nil {
 		query = query.Where("a.sender_user_id = ?", *filter.SenderUserID)
 	}

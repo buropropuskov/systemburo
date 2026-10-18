@@ -46,14 +46,14 @@ func RequireTableElementVerb(db *gorm.DB, resolver *services.PermissionResolver,
 				return echo.NewHTTPError(http.StatusBadRequest, "Invalid ID")
 			}
 
-			set, err := resolver.Resolve(c.Request().Context(), userID)
+			set, err := resolver.ResolveFresh(c.Request().Context(), userID)
 			if err != nil {
 				return err
 			}
 
 			var names []string
 			if err := db.WithContext(c.Request().Context()).Raw(query, elementID).Scan(&names).Error; err != nil {
-				return fmt.Errorf("failed to resolve element tables for %s %d: %w", element, elementID, err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 			}
 
 			required := services.KeyPageAdmin

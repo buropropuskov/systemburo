@@ -227,9 +227,9 @@ func canExportBlankDocuments(c echo.Context, access blankAccessService, resolver
 	if resolver == nil {
 		return false, nil
 	}
-	set, err := resolver.Resolve(c.Request().Context(), userID)
+	set, err := resolver.ResolveFresh(c.Request().Context(), userID)
 	if err != nil {
-		return false, fmt.Errorf("resolve permissions for blank documents: %w", err)
+		return false, err
 	}
 	return set.Has(services.KeyDetailDocuments) && set.Has(services.KeyDetailDocumentsExport), nil
 }

@@ -85,11 +85,8 @@ func MustChangePassword(svc *services.PasswordChangeGateService) echo.Middleware
 
 			required, err := svc.Required(c.Request().Context(), userID)
 			if err != nil {
-				// Гейт висит на каждом protected-запросе: сбой базы на горячем пути
-				// пропускаем и пишем в журнал, иначе временная недоступность положит
-				// весь API. Поведение то же, что у проверки блокировки.
-				slog.Warn("must_change_password: не удалось прочитать флаг, пропускаем", "user_id", userID, "error", err)
-				return next(c)
+				slog.Warn("must_change_password: state lookup failed", "user_id", userID, "error", err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 			}
 			if !required {
 				return next(c)

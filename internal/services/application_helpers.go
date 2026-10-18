@@ -22,10 +22,13 @@ func (s *applicationService) getUserByUsername(ctx context.Context, username str
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+			return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись недоступна")
 		}
 		slog.Error("Ошибка получения пользователя", "username", username, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	if !user.IsActive {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена")
 	}
 	return &user, nil
 }
@@ -33,9 +36,9 @@ func (s *applicationService) getUserByUsername(ctx context.Context, username str
 // isApprover проверяет, является ли пользовател�� принимающим.
 func (s *applicationService) isApprover(ctx context.Context, userID int) (bool, error) {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).Joins("JOIN users access_user ON access_user.id = application_approvers.user_id").Where("user_id = ? AND access_user.is_active AND NOT access_user.is_banned", userID).Count(&count).Error; err != nil {
 		slog.Error("Ошибка проверки approver", "user_id", userID, "error", err)
-		return false, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 	}
 	return count > 0, nil
 }
@@ -691,6 +694,23 @@ func applyArchiveScope(query *gorm.DB, filter ApplicationFilter) *gorm.DB {
 	return query.Where(cond, args...)
 }
 
+// applyOwnApplicationFilters searches only fields included in the banned read-only projection.
+// Hidden selectors must not reveal service notes, participants, files or table bindings via totals.
+func applyOwnApplicationFilters(query *gorm.DB, filter ApplicationFilter, userID int) *gorm.DB {
+	search := filter.SearchQuery
+	filter.SearchQuery = nil
+	filter.UnloadPlaceIDs = nil
+	filter.PassageTableIDs = nil
+	filter.ActiveToday = nil
+	filter.Unread = nil
+	query = applyApplicationFilters(query, filter, false, userID)
+	if search != nil && *search != "" {
+		cond, args := ilikePatternsArgs([]string{"a.application_number", "a.message", "a.status", "a.confirmation"}, buildSearchVariants(*search))
+		query = query.Where("("+cond+")", args...)
+	}
+	return query
+}
+
 func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool, userID int) *gorm.DB {
 	if filter.SearchQuery != nil && *filter.SearchQuery != "" {
 		raw := *filter.SearchQuery
@@ -962,48 +982,90 @@ func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm
 	return responsibles, nil
 }
 
-// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
-// Доступ имеют: super-admin, отправитель, ответственные и просматривающие.
+// CanAccessApplication сохраняет bool-контракт для прежних интеграций; ошибка
+// источника всегда закрывает доступ. HTTP callers используют проверку с error.
 func (s *applicationService) CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool {
-	if isSuperAdmin {
-		return true
-	}
+	allowed, err := s.CanAccessApplicationChecked(ctx, applicationID, username, isSuperAdmin)
+	return err == nil && allowed
+}
 
+// CheckApplicationAccess не расширяет legacy ApplicationService и его адаптеры.
+// Production implementation поддерживает error-контракт; неизвестный адаптер закрыт.
+func CheckApplicationAccess(ctx context.Context, svc ApplicationService, applicationID int, username string, isSuperAdmin bool) (bool, error) {
+	checked, ok := svc.(interface {
+		CanAccessApplicationChecked(context.Context, int, string, bool) (bool, error)
+	})
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	return checked.CanAccessApplicationChecked(ctx, applicationID, username, isSuperAdmin)
+}
+
+// CanAccessApplicationChecked проверяет текущее состояние до любых исключений.
+func (s *applicationService) CanAccessApplicationChecked(ctx context.Context, applicationID int, username string, _ bool) (bool, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
-		return false
+		return false, err
 	}
-
-	// Принимающий (глобальный оператор бюро, admin-раздел "Принимающие") видит и
-	// открывает ВСЕ заявки - как и список центра (applyApplicationAccessFilter
-	// пускает isApprover без фильтра). Без этой ветки принимающий видел заявку в
-	// списке, но детальные эндпоинты (/details,/attachments,/viewers,/history)
-	// отдавали 403: security-аудит добавил гейт деталей без ветки принимающего.
-	if isApprover, _ := s.isApprover(ctx, user.ID); isApprover {
-		return true
-	}
-
 	var app models.Application
 	if err := s.db.WithContext(ctx).Select("id, sender_user_id").Where("id = ?", applicationID).First(&app).Error; err != nil {
-		return false
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 	}
-
-	if app.SenderUserID == user.ID {
-		return true
+	// Бан оставляет только своё чтение; методы записи закрывает глобальный гейт.
+	if user.IsBanned {
+		return app.SenderUserID == user.ID, nil
 	}
-
+	if user.IsSuperAdmin || app.SenderUserID == user.ID {
+		return true, nil
+	}
+	approver, err := s.isApprover(ctx, user.ID)
+	if err != nil {
+		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	if approver {
+		return true, nil
+	}
 	var count int64
-	s.db.WithContext(ctx).Model(&models.ApplicationResponsibleUser{}).
-		Where("application_id = ? AND user_id = ?", applicationID, user.ID).
-		Count(&count)
-	if count > 0 {
-		return true
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationResponsibleUser{}).
+		Where("application_id = ? AND user_id = ?", applicationID, user.ID).Count(&count).Error; err != nil {
+		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
 	}
+	if count > 0 {
+		return true, nil
+	}
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationViewer{}).
+		Where("application_id = ? AND user_id = ?", applicationID, user.ID).Count(&count).Error; err != nil {
+		return false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	return count > 0, nil
+}
 
-	s.db.WithContext(ctx).Model(&models.ApplicationViewer{}).
-		Where("application_id = ? AND user_id = ?", applicationID, user.ID).
-		Count(&count)
-	return count > 0
+// ownApplicationReadOnly отдаёт только поданные поля и итоговое состояние.
+// Ни ответственные, ни служебные агрегаты, ни данные файлов здесь не читаются.
+func (s *applicationService) ownApplicationReadOnly(ctx context.Context, applicationID, userID int) (map[string]interface{}, error) {
+	var app models.Application
+	if err := s.db.WithContext(ctx).Select("id, application_number, confirmation, sending_datetime, organization_id, company_id, sender_user_id, message, status, data_approval").
+		Where("id = ? AND sender_user_id = ?", applicationID, userID).First(&app).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusForbidden, "Access denied")
+		}
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+	}
+	return map[string]interface{}{
+		"id":                 app.ID,
+		"application_number": app.ApplicationNumber,
+		"confirmation":       app.Confirmation,
+		"sending_datetime":   app.SendingDatetime,
+		"organization_id":    app.OrganizationID,
+		"company_id":         app.CompanyID,
+		"sender_user_id":     app.SenderUserID,
+		"message":            app.Message,
+		"status":             app.Status,
+		"data_approval":      app.DataApproval,
+	}, nil
 }
 
 // IsApplicationSender отвечает, подал ли эту заявку сам пользователь. Узкая проверка

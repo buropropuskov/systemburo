@@ -26,7 +26,11 @@ func (h *ApplicationHandler) GetApplicationQuestions(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	// forwardViewerID для фильтра пер-вложенного пересыла (#680): 0 - супер-админ (видит все).
@@ -62,7 +66,11 @@ func (h *ApplicationHandler) CreateApplicationQuestion(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	var req services.CreateQuestionRequest
@@ -101,7 +109,11 @@ func (h *ApplicationHandler) CreateApplicationAnswer(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid question ID")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	var req services.CreateAnswerRequest
@@ -132,7 +144,11 @@ func (h *ApplicationHandler) MarkQuestionsSeen(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	if err := h.service.MarkQuestionsSeen(c.Request().Context(), username, id); err != nil {
@@ -164,7 +180,11 @@ func (h *ApplicationHandler) MarkQuestionRead(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid question ID")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	if err := h.service.MarkQuestionRead(c.Request().Context(), username, id, questionID); err != nil {

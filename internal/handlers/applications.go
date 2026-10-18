@@ -28,7 +28,7 @@ func NewApplicationHandler(service services.ApplicationService, resolver *servic
 // руководителей: миграция перенесла тип manager на is_admin) и для явного гранта роли,
 // группы или личного override; бан и личные deny он учитывает.
 func canOverrideOrganization(c echo.Context, resolver *services.PermissionResolver) (bool, error) {
-	set, err := resolver.Resolve(c.Request().Context(), GetUserID(c))
+	set, err := resolver.ResolveFresh(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return false, err
 	}
@@ -254,7 +254,11 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 

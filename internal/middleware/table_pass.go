@@ -56,7 +56,7 @@ func RequireTablePassVerb(db *gorm.DB, resolver *services.PermissionResolver, de
 				Select("name").
 				Where("id = ?", *body.TableID).
 				Scan(&name).Error; err != nil {
-				return fmt.Errorf("failed to resolve table name for pass gate: %w", err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 			}
 			if name == "" {
 				return echo.NewHTTPError(http.StatusNotFound, "Таблица не найдена")
@@ -68,7 +68,7 @@ func RequireTablePassVerb(db *gorm.DB, resolver *services.PermissionResolver, de
 			}
 			key := fmt.Sprintf("table.%s.%s", name, verb)
 
-			set, err := resolver.Resolve(c.Request().Context(), userID)
+			set, err := resolver.ResolveFresh(c.Request().Context(), userID)
 			if err != nil {
 				return err
 			}

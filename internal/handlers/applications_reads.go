@@ -27,7 +27,11 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -61,7 +65,11 @@ func (h *ApplicationHandler) GetApplicationParticipants(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -90,7 +98,11 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -119,7 +131,11 @@ func (h *ApplicationHandler) GetApplicationViewers(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -148,7 +164,11 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -188,7 +208,11 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, appID, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -240,7 +264,11 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, appID, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -288,7 +316,11 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, appID, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -326,7 +358,11 @@ func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -354,7 +390,11 @@ func (h *ApplicationHandler) GetReads(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+	allowed, accessErr := services.CheckApplicationAccess(c.Request().Context(), h.service, id, username, IsSuperAdmin(c))
+	if accessErr != nil {
+		return accessErr
+	}
+	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 

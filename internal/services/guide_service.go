@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"gorm.io/gorm"
@@ -76,9 +78,9 @@ func NewGuideService(db *gorm.DB, resolver *PermissionResolver) GuideService {
 }
 
 func (s *guideService) ListForUser(ctx context.Context, userID int) ([]models.GuideSectionResponse, error) {
-	set, err := s.resolver.Resolve(ctx, userID)
+	set, err := s.resolver.ResolveFresh(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve permissions: %w", err)
+		return nil, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна", err)
 	}
 
 	var sections []models.GuideSection
@@ -104,7 +106,7 @@ func (s *guideService) ListForUser(ctx context.Context, userID int) ([]models.Gu
 func (s *guideService) GetSectionForUser(ctx context.Context, userID int, role string) (*models.GuideSection, bool, error) {
 	allowed, err := s.resolver.HasPermission(ctx, userID, GuideKeyForRole(role))
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to check guide permission: %w", err)
+		return nil, false, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна", err)
 	}
 	if !allowed {
 		return nil, false, nil

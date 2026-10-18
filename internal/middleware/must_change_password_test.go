@@ -58,10 +58,8 @@ func TestMustChangePassword_WhitelistKeysCarryAPIPrefix(t *testing.T) {
 	}
 }
 
-// Гейт висит на КАЖДОМ protected-запросе, поэтому сбой чтения флага не должен
-// класть весь API: временная недоступность базы иначе запрёт всех разом, включая
-// тех, кто пароль давно сменил. Поведение зеркалит проверку блокировки.
-func TestMustChangePassword_FailOpenOnDBError(t *testing.T) {
+// Ошибка источника флага закрывает защищённый ответ с 503 без вызова handler.
+func TestMustChangePassword_FailsClosedOnDBError(t *testing.T) {
 	// Соединение никуда не ведёт: PingOnConnect отключён, поэтому gorm.Open проходит,
 	// а любой запрос падает - ровно то состояние, которое имитируем.
 	brokenDB, err := gorm.Open(
@@ -69,6 +67,9 @@ func TestMustChangePassword_FailOpenOnDBError(t *testing.T) {
 		&gorm.Config{Logger: logger.Default.LogMode(logger.Silent), DisableAutomaticPing: true},
 	)
 	require.NoError(t, err)
+	pool, err := brokenDB.DB()
+	require.NoError(t, err)
+	require.NoError(t, pool.Close())
 
 	gate := services.NewPasswordChangeGateService(brokenDB, 0)
 
@@ -84,11 +85,14 @@ func TestMustChangePassword_FailOpenOnDBError(t *testing.T) {
 	c.SetPath("/api/guarded")
 	c.Set("user_id", 42)
 
-	handler := func(c echo.Context) error { return c.String(http.StatusOK, "ok") }
+	called := false
+	handler := func(c echo.Context) error { called = true; return c.String(http.StatusOK, "ok") }
 	err = mw.MustChangePassword(gate)(handler)(c)
 
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rec.Code, "сбой базы обязан пропускать, а не запирать систему")
+	require.Error(t, err)
+	e.HTTPErrorHandler(err, c)
+	assert.False(t, called)
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	assert.Empty(t, rec.Header().Get("X-Password-Change-Required"))
 }
 
