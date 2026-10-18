@@ -10,7 +10,7 @@ import { downloadGuideFile } from '../guide'
 describe('downloads share session handling', () => {
   beforeEach(() => {
     request.mockReset()
-    request.mockResolvedValue(new Response(new Blob(['synthetic']), { headers: { 'Content-Disposition': 'attachment; filename="registry.xlsx"' } }))
+    request.mockResolvedValue(new Response('synthetic', { headers: { 'Content-Disposition': 'attachment; filename="registry.xlsx"' } }))
     URL.createObjectURL = vi.fn(() => 'blob:download')
     URL.revokeObjectURL = vi.fn()
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})

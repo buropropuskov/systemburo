@@ -18,7 +18,7 @@ describe('authenticated image recovery', () => {
   afterEach(() => vAuthImage.beforeUnmount(image))
 
   it('recovers a protected image once and releases the object URL', async () => {
-    request.mockResolvedValue(new Response(new Blob(['photo']), { headers: { 'Content-Type': 'image/png' } }))
+    request.mockResolvedValue(new Response('photo', { headers: { 'Content-Type': 'image/png' } }))
     vAuthImage.mounted(image, {}, { props: { src: '/api/uploads/unload_places/photo.png' } })
     image.dispatchEvent(new Event('error'))
     await flush()
@@ -56,7 +56,7 @@ describe('authenticated image recovery', () => {
     image.dispatchEvent(new Event('error'))
     const signal = request.mock.calls[0][1].signal
     vAuthImage.beforeUnmount(image)
-    finish(new Response(new Blob(['late']), { headers: { 'Content-Type': 'image/png' } }))
+    finish(new Response('late', { headers: { 'Content-Type': 'image/png' } }))
     await flush()
     expect(signal.aborted).toBe(true)
     expect(URL.createObjectURL).not.toHaveBeenCalled()
@@ -69,7 +69,7 @@ describe('authenticated image recovery', () => {
     image.dispatchEvent(new Event('error'))
     const signal = request.mock.calls[0][1].signal
     vAuthImage.updated(image, {}, { props: { src: '/api/uploads/system_tables/new.png' } })
-    finish(new Response(new Blob(['old']), { headers: { 'Content-Type': 'image/png' } }))
+    finish(new Response('old', { headers: { 'Content-Type': 'image/png' } }))
     await flush()
     expect(signal.aborted).toBe(true)
     expect(URL.createObjectURL).not.toHaveBeenCalled()
