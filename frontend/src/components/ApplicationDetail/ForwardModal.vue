@@ -1,7 +1,7 @@
 <!-- ForwardModal.vue -->
 <template>
   <BaseModal
-    :show="show"
+    :show="show && allowed"
     title="Переслать заявку"
     width="600px"
     radius="30px"
@@ -300,6 +300,7 @@ export default {
     name: 'ForwardModal',
     components: { BaseModal, FormField, BaseDropdown, HintTooltip },
     props: {
+        allowed: { type: Boolean, default: true },
         withdrawn: { type: Boolean, default: false },
         show: {
             type: Boolean,
@@ -440,8 +441,11 @@ export default {
     watch: {
         // Модалка теперь всегда смонтирована (паттерн :show), поэтому чистим состояние
         // при открытии. Фокус и список не открываем без действия пользователя.
+        allowed(allowed) {
+            if (!allowed) this.close();
+        },
         show(visible) {
-            if (visible) {
+            if (visible && this.allowed) {
                 this.reset();
             } else {
                 clearTimeout(this.searchBlurTimer);
@@ -516,6 +520,7 @@ export default {
         },
 
         send() {
+            if (!this.allowed) return;
             // Преобразуем данные для отправки на сервер
             const usersToSend = this.selectedUsers.map(user => {
                 // Если требуется согласование - отправляем как ответственного.

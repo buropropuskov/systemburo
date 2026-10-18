@@ -92,6 +92,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	if err != nil {
 		return err
 	}
+	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionForwardApplication); err != nil {
+		return err
+	}
 	currentUserName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 
 	var exists bool
@@ -197,6 +200,16 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 		if fu.RequiredApproval || !fu.CanView {
 			// Ответственный пользователь
+			allowed, err := applicationActionAvailable(ctx, tx, fu.UserID, KeyActionApproveApplication)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			if !allowed {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusBadRequest,
+					"Этот пользователь не может согласовать вашу заявку. Выберите другого согласующего")
+			}
 			var alreadyAdded bool
 			tx.Raw("SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
 
@@ -470,6 +483,9 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	if err != nil {
 		return err
 	}
+	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionApproveApplication); err != nil {
+		return err
+	}
 
 	if req.Status != "approved" && req.Status != "rejected" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be 'approved' or 'rejected'")
@@ -632,6 +648,9 @@ func (s *applicationService) CheckApprovalStatus(ctx context.Context, applicatio
 func (s *applicationService) RevokeApproval(ctx context.Context, username string, applicationID int, req RevokeApprovalRequest) (*RevokeApprovalResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionApproveApplication); err != nil {
 		return nil, err
 	}
 

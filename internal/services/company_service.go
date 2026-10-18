@@ -720,6 +720,17 @@ func (s *companyService) UpdateUsers(ctx context.Context, callerUserID, companyI
 		if userReq.RequiredApproval != nil {
 			requiredApproval = *userReq.RequiredApproval
 		}
+		if requiredApproval {
+			allowed, err := applicationActionAvailable(ctx, tx, user.ID, KeyActionApproveApplication)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			if !allowed {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusBadRequest, "Этот пользователь не может согласовать заявку. Выберите другого согласующего")
+			}
+		}
 
 		cu := models.CompaniesUser{
 			CompanyID:        companyID,

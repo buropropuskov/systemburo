@@ -52,6 +52,7 @@ var participantRoleRank = map[string]int{
 // ФИО подряд читаются как ошибка данных. Полный набор лежит в Roles (отсортирован по
 // старшинству), бейдж берётся из PrimaryRole - это Roles[0].
 type ApplicationParticipant struct {
+	CanApprove *bool   `json:"can_approve,omitempty"`
 	UserID     int     `json:"user_id"`
 	Username   string  `json:"username"`
 	LastName   *string `json:"last_name"`
@@ -199,6 +200,16 @@ func (s *applicationService) GetApplicationParticipants(ctx context.Context, app
 	}
 
 	result := mergeParticipantRows(rows)
+	displayResolver := s.applicationDisplayResolver(s.db)
+	for i := range result {
+		if result[i].ApprovalStatus != nil && *result[i].ApprovalStatus == "pending" {
+			allowed, err := applicationApprovalDisplayAvailable(ctx, displayResolver, result[i].UserID)
+			if err != nil {
+				return nil, err
+			}
+			result[i].CanApprove = &allowed
+		}
+	}
 	maskParticipants(ctx, s.db, result)
 	sortParticipants(result)
 	return result, nil

@@ -43,6 +43,7 @@ async function mountDetail(props = {}, data = {}) {
 describe('ApplicationDetail - гейт кнопки "Переслать" (#680 role-gate)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().loaded = true;
   });
 
   it('ответственный по заявке видит кнопку', async () => {
@@ -73,3 +74,19 @@ describe('ApplicationDetail - гейт кнопки "Переслать" (#680 r
     expect(wrapper.find(FORWARD).exists()).toBe(false);
   });
 });
+
+
+it('current denial closes forwarding and prevents its request', async () => {
+  setActivePinia(createPinia())
+  const permissions = usePermissionsStore()
+  permissions.loaded = true
+  const wrapper = await mountDetail({}, { responsibleUsers: [{ id: 1, approval_status: 'pending' }] })
+  await wrapper.setData({ showForwardModal: true })
+  permissions.denied.add('action.forward.application')
+  await wrapper.vm.$nextTick()
+  expect(wrapper.find(FORWARD).exists()).toBe(false)
+  expect(wrapper.vm.showForwardModal).toBe(false)
+  wrapper.vm.forwardApplication()
+  expect(wrapper.vm.showForwardModal).toBe(false)
+  wrapper.unmount()
+})

@@ -788,6 +788,15 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, calle
 			if userReq.RequiredApproval != nil {
 				requiredApproval = *userReq.RequiredApproval
 			}
+			if requiredApproval {
+				allowed, err := applicationActionAvailable(ctx, tx, user.ID, KeyActionApproveApplication)
+				if err != nil {
+					return err
+				}
+				if !allowed {
+					return echo.NewHTTPError(http.StatusBadRequest, "Этот пользователь не может согласовать заявку. Выберите другого согласующего")
+				}
+			}
 
 			ou := models.OrganizationUser{
 				OrganizationID:   orgID,

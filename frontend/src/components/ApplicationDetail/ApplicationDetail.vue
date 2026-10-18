@@ -11,7 +11,7 @@
     >
     <!-- Модальное окно пересылки -->
     <ForwardModal
-      :show="showForwardModal"
+      :show="showForwardModal" :allowed="canForwardApplication"
       :all-users="allUsers"
       :responsible-users="responsibleUsers"
       :existing-approvers="approvers"
@@ -84,7 +84,7 @@
             <!-- Кнопка пересылки (рядом с датой): fade при появлении/скрытии -->
             <transition name="fade">
               <button
-                v-if="mode === 'center' && canForwardApplication && can('action.forward.application')"
+                v-if="mode === 'center' && canForwardApplication"
                 class="forward-btn"
                 data-testid="app-detail-button-forward"
                 :disabled="updatingConfirmation || processingApplication"
@@ -210,7 +210,7 @@
               </Badge>
             </transition>
             <ApplicationActionBar
-              v-if="mode !== 'center' || can('action.approve.application')"
+              :approval-allowed="applicationApprovalAllowed"
               :application="applicationData"
               :current-user-id="currentUserId"
               :responsible-users="responsibleUsers"
@@ -1094,13 +1094,11 @@ export default {
 
         /**
          * Переслать заявку вправе любой, у кого есть к ней доступ (#1948): гейт
-         * пересылки на бэке = гейт доступа. Прежнее «только ответственный» осталось от
-         * #680 и отсекало отправителя, принимающего и читателя, хотя сервер их пускает.
+         * пересылки на бэке = доступ к заявке и отсутствие запрета пересылки.
          * Отозванную заявку можно переслать только для просмотра; доступ проверяется сервером.
          */
-        canForwardApplication() {
-            return this.hasApplicationAccess;
-        },
+        canForwardApplication() { return this.hasApplicationAccess && this.permissionsStore.allowsApplicationAction('action.forward.application'); },
+        applicationApprovalAllowed() { return this.permissionsStore.allowsApplicationAction('action.approve.application'); },
 
         /**
          * Заявка доступна только на просмотр: тогда и переслать её можно лишь на
@@ -1172,11 +1170,12 @@ export default {
         // чтобы обёртка-<transition> и сама секция гейтились одним источником правды.
         showCommentSection() {
             return this.canLeaveComment && !this.hasUserVoted && !this.isApproverActionDone &&
-                (this.mode !== 'center' || this.can('action.approve.application'));
+                (this.isApprover || this.applicationApprovalAllowed);
         },
 
     },
     watch: {
+        canForwardApplication(allowed) { if (!allowed) this.showForwardModal = false; },
         application: {
             immediate: true,
             handler(newApplication, oldApplication) {
@@ -1731,7 +1730,7 @@ export default {
         },
 
         forwardApplication() {
-            this.showForwardModal = true;
+            if (this.canForwardApplication) this.showForwardModal = true;
         },
 
         closeForwardModal() {
@@ -1739,7 +1738,7 @@ export default {
         },
 
         async sendForwardRequest({ users = [], attachment_ids = [], message = '' } = {}) {
-            if (users.length === 0) return;
+            if (!this.canForwardApplication || users.length === 0) return;
 
             this.isForwarding = true;
             try {

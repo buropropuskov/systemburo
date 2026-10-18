@@ -973,6 +973,16 @@ func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm
 	if responsibles == nil {
 		responsibles = []ResponsibleUserInfo{}
 	}
+	displayResolver := s.applicationDisplayResolver(db)
+	for i := range responsibles {
+		if responsibles[i].ApprovalStatus != nil && *responsibles[i].ApprovalStatus == "pending" {
+			allowed, err := applicationApprovalDisplayAvailable(ctx, displayResolver, responsibles[i].ID)
+			if err != nil {
+				return nil, err
+			}
+			responsibles[i].CanApprove = &allowed
+		}
+	}
 	if masks := loadConsentMasks(ctx, db); len(masks) > 0 {
 		for i := range responsibles {
 			maskUserParts(masks, responsibles[i].ID,
