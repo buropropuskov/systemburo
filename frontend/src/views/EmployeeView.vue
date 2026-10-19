@@ -537,6 +537,7 @@
 </template>
 
 <script>
+import { deleteRegistryEmployee } from '@/api/registryMutations';
 import { canReadRegistryHistory, canReadRegistryRow } from '@/utils/registryPermissions';
 import { employeesRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
@@ -964,8 +965,7 @@ export default {
             });
             if (!ok) return;
             try {
-                const response = await apiRequest(`/unique-employees/${employee.id}`, {
-                    method: "DELETE"});
+                const response = await deleteRegistryEmployee(employee.id);
 
                 if (response.ok) {
                     await this.fetchEmployees();

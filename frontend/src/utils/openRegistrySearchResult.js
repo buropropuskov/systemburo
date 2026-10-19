@@ -9,7 +9,7 @@ export async function openRegistrySearchLink(view, items, open, fetchPage, syste
   const key = routeKey(view.$route);
   if (pending.get(view) === key) return false;
   pending.set(view, key);
-  try { return await openRegistrySearchResult({ router: view.$router, getRoute: () => view.$el?.isConnected === false ? null : view.$route, items, open, fetchPage, systemRead }); }
+  try { return await openRegistrySearchResult({ router: view.$router, getRoute: () => view.$?.isUnmounted ? null : view.$route, items, open, fetchPage, systemRead }); }
   catch (error) { console.error('Не удалось открыть результат поиска', error); return false; }
   finally { if (pending.get(view) === key) pending.delete(view); }
 }

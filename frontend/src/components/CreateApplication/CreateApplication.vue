@@ -429,6 +429,7 @@
 </template>
 
 <script>
+import { createRegistryCar, createRegistryEmployee } from '@/api/registryMutations';
 import { employeeDocumentErrors } from '@/utils/employeeDocuments';
 import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
@@ -2471,6 +2472,7 @@ export default {
             return null;
         },
 
+        canCreateRegistry(kind) { const p = usePermissionsStore(); return p.hasPermission(`entity.${kind}.read`) && p.hasPermission(`entity.${kind}.write`); },
         async collectNewDataForBinding() {
             this.newVehiclesToBind = [];
             this.newEmployeesToBind = [];
@@ -2481,7 +2483,7 @@ export default {
             // Привязка заводит записи в справочнике под то, что уйдёт в заявку -
             // предварительные строки туда не входят и справочник не трогают.
             Object.keys(this.vehiclesByAttachment).forEach(attachmentId => {
-                const vehicles = submittedRows(this.vehiclesByAttachment[attachmentId]);
+                const vehicles = this.canCreateRegistry('cars') ? submittedRows(this.vehiclesByAttachment[attachmentId]) : [];
                 vehicles.forEach(vehicle => {
                     if (!vehicle.isExisting) {
                         const isByFact = vehicle.plateNumber === 'По факту' || vehicle.mark === 'По факту';
@@ -2504,7 +2506,7 @@ export default {
             });
             
             Object.keys(this.employeesByAttachment).forEach(attachmentId => {
-                const employees = submittedRows(this.employeesByAttachment[attachmentId]);
+                const employees = this.canCreateRegistry('employees') ? submittedRows(this.employeesByAttachment[attachmentId]) : [];
                 employees.forEach(employee => {
                     if (!employee.isExisting) {
                         const isByFact = employee.passportSeriesNumber === 'По факту' || 
@@ -2528,8 +2530,9 @@ export default {
         },
 
         async loadExistingVehicles() {
+            if (!this.canCreateRegistry('cars')) return [];
             try {
-                const response = await apiRequest("/unique-cars?filter_type=all", {
+                const response = await apiRequest("/unique-cars?filter_type=all", { silent403: true,
                     method: "GET"});
 
                 if (response.ok) {
@@ -2543,8 +2546,9 @@ export default {
         },
 
         async loadExistingEmployees() {
+            if (!this.canCreateRegistry('employees')) return [];
             try {
-                const response = await apiRequest("/unique-employees?filter_type=all", {
+                const response = await apiRequest("/unique-employees?filter_type=all", { silent403: true,
                     method: "GET"});
 
                 if (response.ok) {
@@ -2565,7 +2569,7 @@ export default {
             this.isBindingActionInProgress = true;
 
             try {
-                if (this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
+                if (this.canCreateRegistry('cars') && this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
                     const vehiclesToBind = this.newVehiclesToBind.filter(vehicle => 
                         vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
                     );
@@ -2583,15 +2587,12 @@ export default {
                                 format_id: vehicle.formatId
                             };
 
-                            return apiRequest("/unique-cars", {
-                                method: "POST",
-                                body: JSON.stringify(vehicleData)
-                            });
+                            return createRegistryCar(vehicleData);
                         });
                     }
                 }
 
-                if (this.newEmployeesToBind.length > 0 && bindingData.employees.hasEmployeesForBinding) {
+                if (this.canCreateRegistry('employees') && this.newEmployeesToBind.length > 0 && bindingData.employees.hasEmployeesForBinding) {
                     // Запись реестра хранит персональные данные, поэтому создаётся только
                     // с подтверждённым согласием субъекта (гейт в uniqueEmployeeService.Create).
                     // Отсеиваем неотмеченных здесь, чтобы не получать 400 на привязке: сама
@@ -2618,10 +2619,7 @@ export default {
                                 company_id: bindingData.employees.bindToCompany ? this.companyId : null
                             };
 
-                            return apiRequest("/unique-employees", {
-                                method: "POST",
-                                body: JSON.stringify(employeeData)
-                            });
+                            return createRegistryEmployee(employeeData);
                         });
                     }
                 }

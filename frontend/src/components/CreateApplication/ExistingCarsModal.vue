@@ -207,6 +207,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
+import { usePermissionsStore } from '@/stores/permissions'
 import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
@@ -317,9 +318,10 @@ export default {
             this.loadingCars = true
             this.filteredCars = []
             this.displayedCars = []
+            if (!usePermissionsStore().hasPermission('entity.cars.read')) { this.loadingCars = false; return }
 
             try {
-                const response = await apiRequest(`/unique-cars?filter_type=${filterType}`, {
+                const response = await apiRequest(`/unique-cars?filter_type=${filterType}`, { silent403: true,
                     method: 'GET'
                 })
 

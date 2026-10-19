@@ -189,6 +189,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
+import { usePermissionsStore } from '@/stores/permissions'
 import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
@@ -295,9 +296,10 @@ export default {
             this.loadingEmployees = true
             this.filteredEmployees = []
             this.displayedEmployees = []
+            if (!usePermissionsStore().hasPermission('entity.employees.read')) { this.loadingEmployees = false; return }
 
             try {
-                const response = await apiRequest(`/unique-employees?filter_type=${filterType}`, {
+                const response = await apiRequest(`/unique-employees?filter_type=${filterType}`, { silent403: true,
                     method: 'GET'
                 })
 

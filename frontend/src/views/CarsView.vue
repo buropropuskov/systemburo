@@ -784,6 +784,7 @@
 </template>
 
 <script>
+import { deleteRegistryCar, updateRegistryCar, createRegistryCar } from '@/api/registryMutations';
 import { canReadRegistryHistory, canReadRegistryRow } from '@/utils/registryPermissions';
 import { carsRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
@@ -1349,9 +1350,7 @@ export default {
             this.carToDelete = null;
 
             try {
-                const response = await apiRequest(`/unique-cars/${car.id}`, {
-                    method: "DELETE"
-                });
+                const response = await deleteRegistryCar(car.id);
 
                 if (response.ok) {
                     await this.fetchCars();
@@ -1737,16 +1736,10 @@ export default {
                 let response;
                 if (this.editingCar) {
                     // Редактирование существующей машины
-                    response = await apiRequest(`/unique-cars/${this.editingCar.id}`, {
-                        method: "PUT",
-                        body: JSON.stringify(carData)
-                    });
+                    response = await updateRegistryCar(this.editingCar.id, carData);
                 } else {
                     // Создание новой машины
-                    response = await apiRequest("/unique-cars", {
-                        method: "POST",
-                        body: JSON.stringify(carData)
-                    });
+                    response = await createRegistryCar(carData);
                 }
 
                 if (response.ok) {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CreateApplication from '../CreateApplication.vue';
+import { usePermissionsStore } from '@/stores/permissions';
 
 // Блокер код-ревью (эпик blank-import, срез E2E3): isSubmitting гасился в finally
 // submitApplication() сразу после открытия UniversalBindingModal (showBindingModal=true),
@@ -35,6 +36,7 @@ function okEmptyJson() {
 
 beforeEach(() => {
     setActivePinia(createPinia());
+    usePermissionsStore().effective = { 'entity.employees.read': { value: 'allow' }, 'entity.employees.write': { value: 'allow' } };
     localStorage.clear();
     notifyMock.mockReset();
     apiRequestMock.mockReset();

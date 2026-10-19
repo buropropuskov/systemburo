@@ -56,12 +56,18 @@ describe('registry result opens across permitted sections without replacing tab 
     expect(await openRegistrySearchResult(args)).toBe(false);
     expect(args.open).not.toHaveBeenCalled(); expect(args.router.replace).not.toHaveBeenCalled();
   });
-  it('discards a response after the view root was removed', async () => {
+  it('discards a response after the view was unmounted', async () => {
     const { args, state } = setup();
-    const view = { $route: state.route, $router: args.router, $el: { isConnected: true } };
-    args.fetchPage.mockImplementation(async () => { view.$el.isConnected = false; return { items: [{ id: 4 }], meta: { total: 1 } }; });
+    const view = { $route: state.route, $router: args.router, $: { isUnmounted: false } };
+    args.fetchPage.mockImplementation(async () => { view.$.isUnmounted = true; return { items: [{ id: 4 }], meta: { total: 1 } }; });
     expect(await openRegistrySearchLink(view, [], args.open, args.fetchPage, false)).toBe(false);
     expect(args.open).not.toHaveBeenCalled(); expect(args.router.replace).not.toHaveBeenCalled();
+  });
+  it('opens a mounted view outside the document', async () => {
+    const { args, state } = setup();
+    const view = { $route: state.route, $router: args.router, $el: { isConnected: false }, $: { isUnmounted: false } };
+    expect(await openRegistrySearchLink(view, [], args.open, args.fetchPage, false)).toBe(true);
+    expect(args.open).toHaveBeenCalledWith({ id: 4 });
   });
   it('coalesces repeated watchers for the same card', async () => {
     const { args, state } = setup(); let resolve;

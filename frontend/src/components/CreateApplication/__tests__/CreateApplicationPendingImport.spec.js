@@ -29,7 +29,7 @@ vi.mock('@/stores/auth', () => ({
 let hasImportPermission = true;
 vi.mock('@/stores/permissions', () => ({
     usePermissionsStore: () => ({
-        hasPermission: (key) => hasImportPermission && key === 'action.import.list',
+        hasPermission: (key) => key === 'action.import.list' ? hasImportPermission : /^entity\.(cars|employees)\.(read|write)$/.test(key),
     }),
 }));
 
