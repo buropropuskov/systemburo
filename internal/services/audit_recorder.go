@@ -73,7 +73,7 @@ func buildAuditLogEntry(ctx context.Context, entityType string, entityID *int, a
 		EntityID:    entityID,
 		Action:      action,
 		ActorUserID: actorID,
-		Details:     withImpersonatorDetails(ctx, raw),
+		Details:     withImpersonatorDetails(ctx, documentAuditDetails(entityType, raw)),
 	}, nil
 }
 

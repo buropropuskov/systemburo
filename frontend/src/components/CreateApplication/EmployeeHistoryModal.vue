@@ -258,7 +258,7 @@
                     </div>
 
                     <div
-                      v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
+                      v-if="!documentHistoryChangeText(item) && item.old_value && item.new_value && item.old_value !== item.new_value"
                       class="value-change" :class="{ 'value-change--period': item.field_name === 'period' }"
                     >
                       <span class="old-value"><template v-if="item.field_name === 'period'">Было: </template>{{ historyValueText(item, item.old_value) }}</span>
@@ -293,7 +293,7 @@
 <script>
 import { usePermissionsStore } from '@/stores/permissions';
 import { useEscapeClose } from '@/composables/useEscapeClose';
-import { EMPLOYEE_HISTORY_ACTIONS, historyActionText, historyFieldLabel, historyValueText } from '@/utils/passageHistoryActions';
+import { EMPLOYEE_HISTORY_ACTIONS, historyActionText, historyFieldLabel, historyValueText, documentHistoryChangeText } from '@/utils/passageHistoryActions';
 import { ref, defineAsyncComponent } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -563,11 +563,14 @@ export default {
 
     historyFieldLabel,
     historyValueText,
+    documentHistoryChangeText,
     getActionText(item) {
       return historyActionText(item, EMPLOYEE_HISTORY_ACTIONS);
     },
 
     getActionComment(item) {
+      const documentChange = documentHistoryChangeText(item);
+      if (documentChange) return documentChange;
       const userName = item.user_name || 'Система';
       const fullName = `${item.employee_last_name || ''} ${item.employee_first_name || ''} ${item.employee_middle_name || ''}`.trim() || this.fullName;
       

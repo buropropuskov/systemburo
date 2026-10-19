@@ -109,6 +109,7 @@ func (r *auditReader) List(ctx context.Context, q AuditQuery) ([]models.AuditLog
 	}
 	items := make([]models.AuditLogItem, 0, len(rows))
 	for _, row := range rows {
+		row.Details = documentAuditDetails(row.EntityType, row.Details)
 		if row.EntityType == models.AuditEntityUser && row.EntityID != nil {
 			row.Details = maskUserAuditDetails(masks, *row.EntityID, row.Details)
 		}

@@ -990,7 +990,11 @@ func diffUniqueEmployee(before, after *models.UniqueEmployee) []fieldChange {
 	changes := make([]fieldChange, 0)
 	addStr := func(field string, oldP, newP *string) {
 		if !equalStrPtr(oldP, newP) {
-			changes = append(changes, fieldChange{Field: field, Old: copyStrPtr(oldP), New: copyStrPtr(newP)})
+			change := fieldChange{Field: field}
+			if !isEmployeeDocumentField(field) {
+				change.Old, change.New = copyStrPtr(oldP), copyStrPtr(newP)
+			}
+			changes = append(changes, change)
 		}
 	}
 	addInt := func(field string, oldP, newP *int) {
@@ -1113,7 +1117,7 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 		FROM (
 			SELECT a.id, a.entity_id AS unique_employee_id, a.actor_user_id AS user_id,
 				a.action AS action_type, a.details->>'field_name' AS field_name,
-				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
+				` + employeeAuditOldValueSQL + ` AS old_value, ` + employeeAuditNewValueSQL + ` AS new_value,
 				a.details->>'comment' AS comment, a.created_at
 			FROM audit_log a
 			WHERE a.entity_type = ? AND a.entity_id = ?
@@ -1172,7 +1176,7 @@ func (s *uniqueEmployeeService) GetRegistryLog(ctx context.Context, username str
 		FROM (
 			SELECT a.id, a.entity_id AS unique_employee_id, a.actor_user_id AS user_id,
 				a.action AS action_type, a.details->>'field_name' AS field_name,
-				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
+				` + employeeAuditOldValueSQL + ` AS old_value, ` + employeeAuditNewValueSQL + ` AS new_value,
 				a.details->>'comment' AS comment, a.details->>'subject' AS subject, a.created_at
 			FROM audit_log a
 			WHERE a.entity_type = ?

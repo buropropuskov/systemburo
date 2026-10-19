@@ -103,6 +103,7 @@ import { apiRequest } from '@/api/client';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { formatDateTime } from '@/utils/datetime';
+import { documentHistoryChangeText } from '@/utils/passageHistoryActions';
 
 const ACTION_LABELS = {
   create: 'Создание',
@@ -228,6 +229,8 @@ export default {
     describe(item) {
       if (item.action_type === 'create') return 'Заведена в реестр';
       if (item.action_type === 'delete') return 'Удалена из реестра';
+      const documentChange = documentHistoryChangeText(item);
+      if (documentChange) return documentChange;
       if (item.action_type === 'data_changed' && item.field_name) {
         const field = FIELD_LABELS[item.field_name] || item.field_name;
         if (item.field_name === 'pd_consent_at') {

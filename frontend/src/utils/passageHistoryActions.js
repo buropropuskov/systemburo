@@ -53,6 +53,21 @@ export const EMPLOYEE_HISTORY_ACTIONS = {
   exit_revert: 'Отметка о выходе отменена',
 };
 
+const DOCUMENT_CHANGE_LABELS = {
+  passport_series_number: 'Изменены паспортные данные',
+  patent_number: 'Изменён номер патента',
+  other_permission: 'Изменено иное разрешение на работы',
+};
+const DOCUMENT_FIELD_LABELS = {
+  passport_series_number: 'Паспортные данные',
+  patent_number: 'Номер патента',
+  other_permission: 'Иное разрешение на работы',
+};
+
+export function documentHistoryChangeText(item) {
+  return Object.hasOwn(DOCUMENT_CHANGE_LABELS, item?.field_name) ? DOCUMENT_CHANGE_LABELS[item.field_name] : '';
+}
+
 /**
  * Подпись события. Правка поля показывается с именем поля, всё неизвестное - своим
  * кодом: молча пустая строка спрятала бы событие целиком.
@@ -62,6 +77,8 @@ export const EMPLOYEE_HISTORY_ACTIONS = {
  * @returns {string}
  */
 export function historyActionText(item, actions) {
+  const documentChange = documentHistoryChangeText(item);
+  if (documentChange) return documentChange;
   if (item?.action_type === 'update' && item.field_name) {
     return `Изменено поле "${item.field_name}"`;
   }
@@ -76,9 +93,10 @@ export function tablePassageHistoryText(item, kind) {
 
 /** Presentation only: stored values and audit records remain unchanged. */
 export function historyFieldLabel(field) {
-  return field === 'period' ? 'Срок действия' : field;
+  return Object.hasOwn(DOCUMENT_FIELD_LABELS, field) ? DOCUMENT_FIELD_LABELS[field] : (field === 'period' ? 'Срок действия' : field);
 }
 export function historyValueText(item, value) {
+  if (documentHistoryChangeText(item)) return '';
   if (item?.field_name !== 'period' || typeof value !== 'string') return value;
   return value.replace(/^individual:\s*/, 'Индивидуальный срок: ')
     .replace(/^inherit:\s*/, 'Срок вложения: ');
