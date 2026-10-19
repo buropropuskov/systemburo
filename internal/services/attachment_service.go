@@ -292,7 +292,10 @@ func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.Un
 	}
 
 	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	items := make([]models.UniqueAttachmentHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UniqueAttachmentHistoryItem{

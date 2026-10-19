@@ -103,9 +103,15 @@ func (r *auditReader) List(ctx context.Context, q AuditQuery) ([]models.AuditLog
 	}
 
 	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, r.db)
+	masks, maskErr := loadNameMasks(ctx, r.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
 	items := make([]models.AuditLogItem, 0, len(rows))
 	for _, row := range rows {
+		if row.EntityType == models.AuditEntityUser && row.EntityID != nil {
+			row.Details = maskUserAuditDetails(masks, *row.EntityID, row.Details)
+		}
 		items = append(items, models.AuditLogItem{
 			ID:          row.ID,
 			EntityType:  row.EntityType,

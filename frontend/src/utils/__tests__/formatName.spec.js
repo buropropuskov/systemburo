@@ -72,6 +72,12 @@ describe('formatUserLabel', () => {
     expect(formatUserLabel(null)).toBe('');
     expect(formatUserLabel({})).toBe('');
   });
+
+  it('показывает серверную маску отдельно от редактируемого ФИО', () => {
+    const user = { username: 'fixture', last_name: null, display_label: ' Оператор бюро ' }
+    expect(formatUserLabel(user)).toBe('Оператор бюро')
+    expect(user.last_name).toBeNull()
+  });
 });
 
 describe('formatLogin', () => {

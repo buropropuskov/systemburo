@@ -141,7 +141,7 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения корзины")
 	}
-	return s.maskDeletedBy(ctx, scanned), nil
+	return s.maskDeletedBy(ctx, scanned)
 }
 
 // ListEmployeesTrash возвращает удалённых из этой таблицы сотрудников. Скоуп -
@@ -226,7 +226,10 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения корзины")
 	}
-	rows := s.maskDeletedBy(ctx, scanned)
+	rows, maskErr := s.maskDeletedBy(ctx, scanned)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	// Паспорт и патент хранятся в зашифрованном виде; raw-scan не вызывает
 	// AfterFind модели Employee, поэтому расшифровываем вручную.
 	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), viewerID)
@@ -455,15 +458,18 @@ type trashRowWithActor struct {
 
 // maskDeletedBy подменяет ФИО удалившего логином, если тот не давал согласия на
 // обработку персональных данных.
-func (s *trashService) maskDeletedBy(ctx context.Context, scanned []trashRowWithActor) []models.TrashItem {
-	masks := loadConsentMasks(ctx, s.db)
+func (s *trashService) maskDeletedBy(ctx context.Context, scanned []trashRowWithActor) ([]models.TrashItem, error) {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	rows := make([]models.TrashItem, 0, len(scanned))
 	for _, r := range scanned {
 		item := r.TrashItem
 		item.DeletedByName = maskName(masks, r.DeletedByID, item.DeletedByName)
 		rows = append(rows, item)
 	}
-	return rows
+	return rows, nil
 }
 
 // ListTrashHistory возвращает лог массовых действий с корзиной таблицы.
@@ -491,7 +497,10 @@ func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) 
 	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTableTrash, systemTableID).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории корзины")
 	}
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	rows := make([]models.TrashHistoryItem, 0, len(scanned))
 	for _, r := range scanned {
 		item := r.TrashHistoryItem

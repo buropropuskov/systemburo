@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -26,11 +28,14 @@ import (
 // согласия не спрашивают вовсе, ни у кого его нет, и без этого условия имена
 // сменились бы логинами у всех сразу.
 
-// pdConsentMaskingActive сообщает, работает ли сейчас запрос согласия. Условие
-// повторяет PDConsentGateService.Requirement: признак из настроек И видимый текст,
-// проверяемый той же hasVisibleText. Читаем настройки напрямую, потому что маску
-// применяют сервисы, у которых на руках только соединение с базой.
-func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) bool {
+// nameMaskUnavailable не позволяет спутать сбой проверки с отсутствием масок.
+func nameMaskUnavailable(err error) error {
+	return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка отображения данных временно недоступна").SetInternal(err)
+}
+
+// pdConsentMaskingActive повторяет условие гейта: настройка И видимый текст.
+// Настройки читаются напрямую, а ошибка источника возвращается вызывающему коду.
+func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) (bool, error) {
 	type row struct {
 		Key   string
 		Value string
@@ -42,8 +47,7 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) bool {
 		Where("key IN ?", []string{pdConsentRequiredKey, pdConsentTextKey}).
 		Scan(&rows).Error
 	if err != nil {
-		// Тихо не маскируем: недоступная настройка не повод обезличить всю систему.
-		return false
+		return false, nameMaskUnavailable(err)
 	}
 	var required bool
 	var text string
@@ -55,7 +59,7 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) bool {
 			text = r.Value
 		}
 	}
-	return required && hasVisibleText(text)
+	return required && hasVisibleText(text), nil
 }
 
 // loadConsentMasks возвращает карту user_id -> логин для работников, не давших
@@ -66,24 +70,28 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) bool {
 // супер-администратор проходит гейт всегда, а архивных и заблокированных отбивают
 // раньше. Считай мы иначе, скрытыми оказались бы имена тех, у кого система согласия
 // и не спрашивает.
-func loadConsentMasks(ctx context.Context, db *gorm.DB) map[int]string {
-	masks, _ := consentMasksWithState(ctx, db)
-	return masks
+func loadConsentMasks(ctx context.Context, db *gorm.DB) (map[int]string, error) {
+	masks, _, err := consentMasksWithState(ctx, db)
+	return masks, err
 }
 
 // consentMasksWithState - то же, что loadConsentMasks, плюс признак «запрос
 // согласия сейчас работает». Пустая карта масок сама по себе не отвечает на этот
 // вопрос: масок нет и когда запрос выключен, и когда все уже согласились.
-func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bool) {
-	if !pdConsentMaskingActive(ctx, db) {
-		return nil, false
+func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bool, error) {
+	active, err := pdConsentMaskingActive(ctx, db)
+	if err != nil {
+		return nil, false, err
+	}
+	if !active {
+		return nil, false, nil
 	}
 	type row struct {
 		ID       int
 		Username string
 	}
 	var rows []row
-	err := db.WithContext(ctx).
+	err = db.WithContext(ctx).
 		Table("users").
 		Select("users.id, users.username").
 		Where(gatedUsersWhere).
@@ -95,8 +103,8 @@ func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bo
 			  AND c.revoked_at IS NULL
 		)`, ConsentTypePDProcessing).
 		Scan(&rows).Error
-	if err != nil || len(rows) == 0 {
-		return nil, true
+	if err != nil {
+		return nil, true, nameMaskUnavailable(err)
 	}
 	masks := make(map[int]string, len(rows))
 	for _, r := range rows {
@@ -104,29 +112,41 @@ func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bo
 		// вместо фамилии логин читается как фамилия.
 		masks[r.ID] = "@" + r.Username
 	}
-	return masks, true
+	return masks, true, nil
 }
 
 // loadNameMasks собирает обе маски отображаемого имени: заданную администратором
-// для принимающего и вынужденную для не давшего согласия. Маска принимающего в
-// приоритете - она задана осознанно и персональные данные тоже не раскрывает.
-func loadNameMasks(ctx context.Context, db *gorm.DB) map[int]string {
-	consent := loadConsentMasks(ctx, db)
-	approver := loadApproverMasks(ctx, db)
+// для принимающего и вынужденную для не давшего согласия. Согласие имеет
+// приоритет: произвольная подпись принимающего тоже может содержать его ФИО.
+func loadNameMasks(ctx context.Context, db *gorm.DB) (map[int]string, error) {
+	consent, err := loadConsentMasks(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	return mergeDisplayNameMasks(ctx, db, consent)
+}
+
+// Reuse an already loaded consent snapshot when its legal-state flag is also
+// needed by a caller. This avoids a second settings/consents read for /users/all.
+func mergeDisplayNameMasks(ctx context.Context, db *gorm.DB, consent map[int]string) (map[int]string, error) {
+	approver, err := loadApproverMasks(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	if len(approver) == 0 {
-		return consent
+		return consent, nil
 	}
 	if len(consent) == 0 {
-		return approver
+		return approver, nil
 	}
 	merged := make(map[int]string, len(consent)+len(approver))
-	for id, name := range consent {
-		merged[id] = name
-	}
 	for id, name := range approver {
 		merged[id] = name
 	}
-	return merged
+	for id, name := range consent {
+		merged[id] = name
+	}
+	return merged, nil
 }
 
 // maskUserParts скрывает фамилию, имя и отчество работника, если его имя

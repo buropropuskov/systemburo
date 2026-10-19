@@ -129,10 +129,15 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 
 	// Маскировка ФИО актора: заданная маска принимающего (напр. "Принял(-а) в работу")
 	// и логин вместо ФИО у тех, кто не давал согласия на обработку данных.
-	if masks := loadNameMasks(ctx, s.db); masks != nil {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if masks != nil {
 		for i := range items {
 			uid := items[i].UserID
 			items[i].UserName = maskName(masks, &uid, items[i].UserName)
+			maskUserParts(masks, uid, &items[i].LastName, &items[i].FirstName, &items[i].MiddleName)
 		}
 	}
 
@@ -151,6 +156,9 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, forwardMetadata)
 	if err != nil {
 		slog.Error("не удалось подготовить получателей истории", "application_id", applicationID, "error", err)
+		if typed, ok := err.(*echo.HTTPError); ok && typed.Code == http.StatusServiceUnavailable {
+			return nil, typed
+		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
 	}
 	for i, index := range forwardIndexes {
@@ -223,10 +231,16 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 	}
 	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, metadata)
 	if err != nil {
+		if typed, ok := err.(*echo.HTTPError); ok && typed.Code == http.StatusServiceUnavailable {
+			return nil, typed
+		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
 	}
 	// Логин вместо ФИО у пересылавших, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	items := make([]ForwardMessageItem, 0, len(rows))
 	for i, r := range rows {
 		var safe struct {

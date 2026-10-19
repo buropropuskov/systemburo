@@ -549,7 +549,10 @@ func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]model
 	}
 
 	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	items := make([]models.CompanyHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.CompanyHistoryItem{
@@ -578,7 +581,11 @@ func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]Company
 		slog.Error("не удалось получить пользователей компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company users")
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range users {
 			maskUserParts(masks, users[i].ID, &users[i].LastName, &users[i].FirstName, &users[i].MiddleName)
 		}
@@ -600,7 +607,11 @@ func (s *companyService) GetMembers(ctx context.Context, companyID int) ([]Membe
 		slog.Error("не удалось получить участников компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company members")
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range members {
 			maskUserParts(masks, members[i].ID, &members[i].LastName, &members[i].FirstName, &members[i].MiddleName)
 		}

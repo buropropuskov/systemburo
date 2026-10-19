@@ -93,7 +93,10 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 	}
 
 	// Логин вместо ФИО у авторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 
 	ids := make([]int, 0, len(qRows))
 	idx := make(map[int]int, len(qRows))

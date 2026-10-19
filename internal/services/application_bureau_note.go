@@ -90,7 +90,11 @@ func (s *applicationService) loadBureauNote(ctx context.Context, applicationID i
 	// Справочник масок тянем, только когда автор известен: без него maskName всё равно
 	// вернёт имя как есть, а запрос настроек и списка несогласившихся уже уйдёт.
 	if row.BureauNoteAuthorID != nil {
-		name = maskName(loadConsentMasks(ctx, s.db), row.BureauNoteAuthorID, name)
+		masks, maskErr := loadNameMasks(ctx, s.db)
+		if maskErr != nil {
+			return nil, maskErr
+		}
+		name = maskName(masks, row.BureauNoteAuthorID, name)
 	}
 
 	return &BureauNoteView{

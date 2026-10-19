@@ -130,7 +130,11 @@ func (s *applicationService) GetReads(ctx context.Context, applicationID int) ([
 		slog.Error("Ошибка получения прочтений", "error", err, "application_id", applicationID)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range reads {
 			var middle *string
 			maskUserParts(masks, reads[i].UserID, &reads[i].LastName, &reads[i].FirstName, &middle)

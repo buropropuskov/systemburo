@@ -202,8 +202,12 @@ var employeesHistorySearchExprs = []string{
 }
 
 func (s *employeesHistoryService) GetByEmployee(ctx context.Context, employeeID int) ([]EmployeeHistoryItem, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	rows := make([]employeeHistoryRow, 0)
-	err := s.db.WithContext(ctx).Raw(baseSelectSQL+`
+	err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL, baseSelectSQL+`
 		WHERE eh.employee_id = ?
 		ORDER BY eh.created_at DESC
 	`, employeeID).Scan(&rows).Error
@@ -214,12 +218,16 @@ func (s *employeesHistoryService) GetByEmployee(ctx context.Context, employeeID 
 }
 
 func (s *employeesHistoryService) GetUnified(ctx context.Context, lastName, firstName, middleName string, scope ElementScope) ([]EmployeeHistoryItem, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	rows := make([]employeeHistoryRow, 0)
 	var err error
 	visible, visibleArgs := scope.Predicate(ElementEmployee, "e", "a", "app")
 
 	if strings.TrimSpace(middleName) != "" {
-		err = s.db.WithContext(ctx).Raw(baseSelectSQL+`
+		err = maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL, baseSelectSQL+`
 			WHERE LOWER(TRIM(e.last_name)) = LOWER(TRIM(?))
 			  AND LOWER(TRIM(e.first_name)) = LOWER(TRIM(?))
 			  AND LOWER(TRIM(e.middle_name)) = LOWER(TRIM(?))
@@ -227,7 +235,7 @@ func (s *employeesHistoryService) GetUnified(ctx context.Context, lastName, firs
 			ORDER BY eh.created_at DESC
 		`, append([]any{lastName, firstName, middleName}, visibleArgs...)...).Scan(&rows).Error
 	} else {
-		err = s.db.WithContext(ctx).Raw(baseSelectSQL+`
+		err = maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL, baseSelectSQL+`
 			WHERE LOWER(TRIM(e.last_name)) = LOWER(TRIM(?))
 			  AND LOWER(TRIM(e.first_name)) = LOWER(TRIM(?))
 			  AND `+visible+`
@@ -295,17 +303,21 @@ func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models
 	// Базовое условие таблицы - это OR-ветка, поэтому фильтр приклеивается к ней
 	// скобками: без них «И фамилия» относилось бы только к последней ветке OR и
 	// история чужих сотрудников просочилась бы в отфильтрованную выдачу.
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
 	where := "(" + strings.TrimPrefix(strings.TrimSpace(baseWhere), "WHERE") + ")"
 	where = " WHERE " + where + filterSQL
 	whereArgs := append(append([]any{}, baseArgs...), filterArgs...)
 
 	var total int64
-	if err := s.db.WithContext(ctx).Raw(employeesHistoryCountSQL+where, whereArgs...).Scan(&total).Error; err != nil {
+	if err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL, employeesHistoryCountSQL+where, whereArgs...).Scan(&total).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting employees history")
 	}
 
 	rows := make([]employeeHistoryRow, 0, q.PerPage)
-	err = s.db.WithContext(ctx).Raw(
+	err = maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL,
 		baseSelectSQL+where+passageHistoryOrderSQL(q, "eh")+limitSQL,
 		append(append([]any{}, whereArgs...), limitArgs...)...,
 	).Scan(&rows).Error
@@ -322,6 +334,10 @@ func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models
 // Списки собираются отдельным методом, а не из первой страницы: собранные из 50
 // загруженных строк, они предлагали бы выбрать не то, что есть в журнале.
 func (s *employeesHistoryService) GetFilterOptions(ctx context.Context, tableID *int) (EmployeesHistoryFilterOptions, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return EmployeesHistoryFilterOptions{}, maskErr
+	}
 	options := EmployeesHistoryFilterOptions{
 		Users:     make([]PassageFilterUser, 0),
 		Employees: make([]PassageFilterEmployee, 0),
@@ -334,7 +350,7 @@ func (s *employeesHistoryService) GetFilterOptions(ctx context.Context, tableID 
 		args = []any{*tableID, *tableID}
 	}
 
-	err := s.db.WithContext(ctx).Raw(
+	err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL,
 		`SELECT DISTINCT eh.user_id AS id, `+employeesHistoryUserNameSQL+` AS name`+
 			employeesHistoryFromSQL+where+` AND eh.user_id IS NOT NULL ORDER BY name`,
 		args...,
@@ -343,7 +359,7 @@ func (s *employeesHistoryService) GetFilterOptions(ctx context.Context, tableID 
 		return options, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees history users")
 	}
 
-	err = s.db.WithContext(ctx).Raw(
+	err = maskQuery.rawActor(s.db.WithContext(ctx), "u.id", employeesHistoryUserNameSQL,
 		`SELECT DISTINCT e.id, e.last_name, e.first_name, e.middle_name`+
 			employeesHistoryFromSQL+where+` ORDER BY e.last_name, e.first_name`,
 		args...,

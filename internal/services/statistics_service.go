@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -412,7 +413,11 @@ func (s *statisticsService) GetOnlineUsers(ctx context.Context) ([]models.Online
 		return nil, fmt.Errorf("statistics: online users: %w", err)
 	}
 	// Логин вместо ФИО у тех, кто не давал согласия на обработку данных.
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range users {
 			users[i].FullName = maskName(masks, &users[i].ID, users[i].FullName)
 		}
@@ -862,7 +867,26 @@ func (s *statisticsService) execWindowTotal(ctx context.Context, req models.Repo
 // (подпись разреза + значение метрики). GROUP BY/ORDER применяются только если
 // заданы (разрез "none" даёт один итоговый ряд без них).
 func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan) ([]models.ReportAggregateRow, error) {
+	var actorMask *nameMaskQuery
+	if strings.Contains(plan.selectStr, acceptorNameExpr) {
+		policy, err := loadNameMaskQuery(ctx, s.db)
+		if err != nil {
+			return nil, err
+		}
+		// Acceptor and approver dimensions currently share this name expression.
+		// Aggregate by the visible label in SQL, preserving counts and weighted
+		// durations when several actors share an alias. Response merging also
+		// uses labels, so grouping by hidden IDs here would lose duplicate rows.
+		visible := "COALESCE(actor_masks.names ->> u.id::text, " + acceptorNameExpr + ")"
+		plan.selectStr = strings.ReplaceAll(plan.selectStr, acceptorNameExpr, visible)
+		plan.groupExpr = strings.ReplaceAll(plan.groupExpr, acceptorNameExpr, visible)
+		plan.orderStr = strings.ReplaceAll(plan.orderStr, acceptorNameExpr, visible)
+		actorMask = &policy
+	}
 	tx := s.db.WithContext(ctx).Table(plan.table).Select(plan.selectStr)
+	if actorMask != nil {
+		tx = tx.Joins("CROSS JOIN (SELECT ?::jsonb AS names) actor_masks", actorMask.encoded)
+	}
 	for _, j := range plan.joins {
 		tx = tx.Joins(j)
 	}
@@ -891,12 +915,38 @@ func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan
 func (s *statisticsService) RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error) {
 	// Персональные данные не давших согласия скрыты и в отчётах: колонка принимающего
 	// собирает ФИО с телефоном одной строкой, и подменить её после выборки нечем.
-	plan, err := buildListPlan(req, pdConsentMaskingActive(ctx, s.db))
+	consentActive, err := pdConsentMaskingActive(ctx, s.db)
 	if err != nil {
 		return nil, err
 	}
+	plan, err := buildListPlan(req, consentActive)
+	if err != nil {
+		return nil, err
+	}
+	var reportMask *nameMaskQuery
+	for _, column := range plan.columns {
+		if column.Key != "responsible" {
+			continue
+		}
+		policy, err := loadNameMaskQuery(ctx, s.db)
+		if err != nil {
+			return nil, err
+		}
+		raw := listExecRegistry[req.Entity].colExpr["responsible"].expr
+		original := raw
+		if consentActive {
+			original = responsibleMaskedExpr
+		}
+		plan.selectStr = strings.ReplaceAll(plan.selectStr, original,
+			"COALESCE(actor_masks.names ->> ru.id::text, "+raw+")")
+		reportMask = &policy
+		break
+	}
 
 	tx := s.db.WithContext(ctx).Table(plan.table).Select(plan.selectStr, plan.selectArgs...)
+	if reportMask != nil {
+		tx = tx.Joins("CROSS JOIN (SELECT ?::jsonb AS names) actor_masks", reportMask.encoded)
+	}
 	for _, j := range plan.joins {
 		tx = tx.Joins(j)
 	}

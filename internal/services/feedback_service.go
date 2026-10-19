@@ -247,7 +247,10 @@ func (s *feedbackService) GetAll(ctx context.Context, username string) ([]models
 	}
 
 	// Логин вместо ФИО у авторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	for i := range results {
 		results[i].UserName = maskName(masks, &results[i].UserID, results[i].UserName)
 		if strings.TrimSpace(results[i].UserName) == "" {

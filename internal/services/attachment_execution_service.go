@@ -147,14 +147,19 @@ type ExecutionMarksSummary struct {
 // счётчик, не согласованные друг с другом. Для детального эндпоинта, вызывать после
 // CanSecurityViewAttachment.
 func (s *applicationService) GetAttachmentExecutionMarksSummary(ctx context.Context, attachmentID int) (*ExecutionMarksSummary, error) {
+	policy, err := loadNameMaskQuery(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().In(AnalyticsLocation())
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, AnalyticsLocation())
 
 	entries := make([]ExecutionMarkEntry, 0, attachmentExecutionRecentLimit)
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Table("audit_log a").
-		Select("a.created_at, format_short_name(u.last_name, u.first_name, u.middle_name) AS actor_name").
+		Select("a.created_at, COALESCE(actor_masks.names ->> u.id::text, format_short_name(u.last_name, u.first_name, u.middle_name)) AS actor_name").
 		Joins("LEFT JOIN users u ON u.id = a.actor_user_id").
+		Joins("CROSS JOIN (SELECT ?::jsonb AS names) actor_masks", policy.encoded).
 		Where("a.entity_type = ? AND a.entity_id = ? AND a.action = ? AND a.created_at >= ?",
 			models.AuditEntityAttachment, attachmentID, models.AuditActionAttachmentExecuted, dayStart).
 		Order("a.created_at DESC").

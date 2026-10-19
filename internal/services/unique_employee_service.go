@@ -500,18 +500,22 @@ func (s *uniqueEmployeeService) buildEmployeesQuery(ctx context.Context, ownerIn
 // Показываем ФИО владельца, а не логин: логин человеку ничего не говорит. У работника,
 // не давшего согласия на обработку своих данных, ФИО скрыто по общему правилу (#1567) -
 // тогда в строке стоит его логин с собачкой, тот же, что интерфейс показывает всюду.
-func maskEmployeeOwners(ctx context.Context, db *gorm.DB, rows []UniqueEmployeeWithRelations, canManageAll bool) {
+func maskEmployeeOwners(ctx context.Context, db *gorm.DB, rows []UniqueEmployeeWithRelations, canManageAll bool) error {
 	if !canManageAll {
 		for i := range rows {
 			rows[i].UserName = nil
 		}
-		return
+		return nil
 	}
-	masks := loadNameMasks(ctx, db)
+	masks, maskErr := loadNameMasks(ctx, db)
+	if maskErr != nil {
+		return maskErr
+	}
 	for i := range rows {
 		rows[i].UserName = ownerDisplayName(masks, rows[i].UserID,
 			rows[i].OwnerUsername, rows[i].OwnerLastName, rows[i].OwnerFirstName, rows[i].OwnerMiddleName)
 	}
+	return nil
 }
 
 // GetAll возвращает список уникальных сотрудников с фильтрацией по типу владельца.
@@ -541,7 +545,9 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		return nil, err
 	}
 	projectEmployeeDocuments(employees, policy)
-	maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll)
+	if maskErr := maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll); maskErr != nil {
+		return nil, maskErr
+	}
 
 	return employees, nil
 }
@@ -585,7 +591,9 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 		return nil, 0, err
 	}
 	projectEmployeeDocuments(employees, policy)
-	maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll)
+	if maskErr := maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll); maskErr != nil {
+		return nil, 0, maskErr
+	}
 
 	return employees, total, nil
 }
@@ -1118,6 +1126,18 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 		slog.Error("failed to load unique_employee history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
 	}
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	for i := range items {
+		if items[i].UserID != nil {
+			if display, hidden := masks[*items[i].UserID]; hidden {
+				items[i].UserLastName = &display
+				items[i].UserFirstName = nil
+			}
+		}
+	}
 	return items, nil
 }
 
@@ -1166,6 +1186,18 @@ func (s *uniqueEmployeeService) GetRegistryLog(ctx context.Context, username str
 	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueEmployee, limit).Scan(&items).Error; err != nil {
 		slog.Error("не удалось загрузить журнал реестра сотрудников", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching registry log")
+	}
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	for i := range items {
+		if items[i].UserID != nil {
+			if display, hidden := masks[*items[i].UserID]; hidden {
+				items[i].UserLastName = &display
+				items[i].UserFirstName = nil
+			}
+		}
 	}
 	return items, nil
 }

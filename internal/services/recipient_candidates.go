@@ -60,11 +60,16 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipient candidates")
 	}
 
-	masks, _ := consentMasksWithState(ctx, db)
+	masks, maskErr := loadNameMasks(ctx, db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	for i := range result {
-		if _, hidden := masks[result[i].ID]; !hidden {
+		label, hidden := masks[result[i].ID]
+		if !hidden {
 			continue
 		}
+		result[i].DisplayLabel = &label
 		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
 		result[i].PDHidden = true
 	}
@@ -81,6 +86,12 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 // recipientSortKey - строка, по которой список выглядит упорядоченным для человека:
 // видимое ФИО, а у скрытого работника - его заглушка, уехавшая в конец алфавита.
 func recipientSortKey(c models.RecipientCandidate) string {
+	if c.DisplayLabel != nil {
+		if strings.HasPrefix(*c.DisplayLabel, "@") {
+			return "￿" + c.Username
+		}
+		return *c.DisplayLabel
+	}
 	parts := make([]string, 0, 3)
 	for _, p := range []*string{c.LastName, c.FirstName, c.MiddleName} {
 		if p != nil && *p != "" {

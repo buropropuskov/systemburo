@@ -76,10 +76,18 @@ func (feedbackSearchProvider) Title() string          { return "Обратная
 func (feedbackSearchProvider) PermissionKey() string  { return KeyPageAdminFeedback }
 
 func (feedbackSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
+	maskQuery, err := loadNameMaskQuery(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	// Use the visible identity for matching as well as the subtitle. The JSON
+	// policy snapshot is a bound join argument, not SQL assembled from names.
+	visibleName := `COALESCE(actor_masks.names ->> u.id::text,
+		NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), ''), u.username, '')`
 	// Текст обращения -- свободный и длинный, нечётко его не сравниваем: по нему ищут
 	// точную фразу, а фамилию автора рядом ищут с опечаткой.
-	cols := []string{"f.message", "u.last_name", "u.first_name", "u.middle_name", "u.username"}
-	fuzzyCols := []string{"u.last_name", "u.first_name", "u.middle_name", "u.username"}
+	cols := []string{"f.message", visibleName, "u.username"}
+	fuzzyCols := []string{visibleName, "u.username"}
 	cond, args := searchConditionFuzzyIn(cols, fuzzyCols, req.Raw)
 
 	rows := make([]searchRow, 0, req.Limit+1)
@@ -89,10 +97,11 @@ func (feedbackSearchProvider) Search(ctx context.Context, db *gorm.DB, req searc
 		return tx.
 			Table("feedback f").
 			Joins("LEFT JOIN users u ON f.user_id = u.id").
+			Joins("CROSS JOIN (SELECT ?::jsonb AS names) actor_masks", maskQuery.encoded).
 			Select(`f.id AS id,
 				LEFT(f.message, 120) AS title,
 				CONCAT_WS(' · ',
-					NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name)), ''),
+					`+visibleName+`,
 					NULLIF(f.status, '')) AS subtitle`).
 			Where(cond, args...).
 			Order("f.id DESC").

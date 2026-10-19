@@ -344,7 +344,10 @@ func (s *tableSnapshotService) ListSnapshots(ctx context.Context, tableID int, f
 	}
 
 	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
 	items := make([]SnapshotListItem, len(rows))
 	for i, r := range rows {
 		var counts models.SnapshotCounts

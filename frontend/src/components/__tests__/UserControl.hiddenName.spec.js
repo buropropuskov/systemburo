@@ -40,6 +40,8 @@ const hiddenUser = {
   first_name: null,
   middle_name: null,
   pd_hidden: true,
+  consent_required: true,
+  consent_granted: false,
   position: 'Инженер',
   email: 'e@example.com',
 }
@@ -155,6 +157,18 @@ describe('UserControl — согласие на обработку данных 
     await flushPromises()
 
     expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(false)
+  })
+
+  it('скрытие маской принимающего не выдаёт ложную отметку об отсутствии согласия', async () => {
+    wrapper = mountUserControl([{ ...hiddenUser, consent_granted: true, display_label: 'Оператор бюро' }])
+    await flushPromises()
+    expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(false)
+    expect(wrapper.find('.user-row .name-col').text()).toContain('Оператор бюро')
+    await wrapper.vm.updateUserInfo({ ...wrapper.vm.filteredUsers[0], position: 'Оператор' })
+    const payload = lastInfoPayload()
+    expect(payload.position).toBe('Оператор')
+    expect('last_name' in payload).toBe(false)
+    expect('email' in payload).toBe(false)
   })
 
   it('в карточке показывает дату согласия', async () => {

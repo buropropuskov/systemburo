@@ -210,7 +210,9 @@ func (s *applicationService) GetApplicationParticipants(ctx context.Context, app
 			result[i].CanApprove = &allowed
 		}
 	}
-	maskParticipants(ctx, s.db, result)
+	if maskErr := maskParticipants(ctx, s.db, result); maskErr != nil {
+		return nil, maskErr
+	}
 	sortParticipants(result)
 	return result, nil
 }
@@ -274,13 +276,19 @@ func mergeParticipantRows(rows []participantRow) []ApplicationParticipant {
 //     вида i.ivanov@ и есть фамилия, и отдавать его, пряча поле «Фамилия», бессмысленно;
 //   - принимающему администратор задал отображаемое имя - показываем маску вместо ФИО и
 //     тоже убираем контакты: маска ставится ровно затем, чтобы заявитель не знал, кто
-//     именно взял заявку, а личная почта эту анонимность снимает. Маска в приоритете -
-//     она задана осознанно и персональные данные не раскрывает (см. loadNameMasks).
-func maskParticipants(ctx context.Context, db *gorm.DB, participants []ApplicationParticipant) {
-	consentMasks := loadConsentMasks(ctx, db)
-	approverMasks := loadApproverMasks(ctx, db)
+//     именно взял заявку, а личная почта эту анонимность снимает. Исключение для
+//     администратора относится только к этой маске; отсутствие согласия сильнее.
+func maskParticipants(ctx context.Context, db *gorm.DB, participants []ApplicationParticipant) error {
+	consentMasks, maskErr := loadConsentMasks(ctx, db)
+	if maskErr != nil {
+		return maskErr
+	}
+	approverMasks, maskErr := loadApproverMasks(ctx, db)
+	if maskErr != nil {
+		return maskErr
+	}
 	if len(consentMasks) == 0 && len(approverMasks) == 0 {
-		return
+		return nil
 	}
 
 	for i := range participants {
@@ -291,12 +299,13 @@ func maskParticipants(ctx context.Context, db *gorm.DB, participants []Applicati
 			p.FullName = ""
 			p.PDHidden = true
 		}
-		if display, ok := approverMasks[p.UserID]; ok {
+		if display, ok := approverMasks[p.UserID]; ok && !isMasked(consentMasks, p.UserID) {
 			p.LastName, p.FirstName, p.MiddleName = nil, nil, nil
 			p.Email, p.Phone = nil, nil
 			p.FullName = display
 		}
 	}
+	return nil
 }
 
 // sortParticipants упорядочивает список так, как его читает человек: сверху автор, ниже

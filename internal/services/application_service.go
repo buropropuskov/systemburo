@@ -932,10 +932,13 @@ func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc Noti
 // maskApplicationNames подменяет в списке заявок ФИО принимающего заданной ему
 // маской, а ФИО подавшего и принимающего - логином, если человек не давал согласия
 // на обработку персональных данных. No-op, если маскировать некого.
-func (s *applicationService) maskApplicationNames(ctx context.Context, rows []ApplicationWithDetails) {
-	masks := loadNameMasks(ctx, s.db)
+func (s *applicationService) maskApplicationNames(ctx context.Context, rows []ApplicationWithDetails) error {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return maskErr
+	}
 	if masks == nil {
-		return
+		return nil
 	}
 	for i := range rows {
 		rows[i].ResponsibleName = maskName(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleName)
@@ -944,6 +947,7 @@ func (s *applicationService) maskApplicationNames(ctx context.Context, rows []Ap
 		rows[i].SenderName = maskName(masks, &sender, rows[i].SenderName)
 		rows[i].SenderFullName = maskNamePtr(masks, &sender, rows[i].SenderFullName)
 	}
+	return nil
 }
 
 // GetRegistryExtras добирает состав и сроки по списку заявок одним запросом.
@@ -1031,7 +1035,9 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskApplicationNames(ctx, rows)
+	if maskErr := s.maskApplicationNames(ctx, rows); maskErr != nil {
+		return nil, maskErr
+	}
 	return rows, nil
 }
 
@@ -1075,7 +1081,9 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskApplicationNames(ctx, rows)
+	if maskErr := s.maskApplicationNames(ctx, rows); maskErr != nil {
+		return nil, maskErr
+	}
 	return rows, nil
 }
 
@@ -1136,7 +1144,9 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskApplicationNames(ctx, rows)
+	if maskErr := s.maskApplicationNames(ctx, rows); maskErr != nil {
+		return nil, 0, maskErr
+	}
 	return rows, total, nil
 }
 
@@ -1206,7 +1216,9 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 	}
 
 	if !user.IsBanned {
-		s.maskApplicationNames(ctx, rows)
+		if maskErr := s.maskApplicationNames(ctx, rows); maskErr != nil {
+			return nil, maskErr
+		}
 	}
 	return rows, nil
 }
@@ -1254,7 +1266,9 @@ func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, u
 	}
 
 	if !user.IsBanned {
-		s.maskApplicationNames(ctx, rows)
+		if maskErr := s.maskApplicationNames(ctx, rows); maskErr != nil {
+			return nil, 0, maskErr
+		}
 	}
 	return rows, total, nil
 }
@@ -1333,6 +1347,13 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
+	// Resolve display policy after access checks but before incidental writes,
+	// under the same shared actor lock. A failed policy read rolls back the GET.
+	masks, maskErr := loadNameMasks(ctx, tx)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+
 	// Обновляем статус при первом прочтении не отправителем. Этот переход НЕ бампает
 	// status_updated_at (#1349): смена от факта открытия - шум, а не событие для участников.
 	if row.Status != nil && *row.Status == "Непрочитано" && row.SenderUserID != user.ID {
@@ -1382,7 +1403,6 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 
 	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
 	// кто не давал согласия на обработку персональных данных.
-	masks := loadNameMasks(ctx, s.db)
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
 	senderName = maskName(masks, &row.SenderUserID, senderName)
@@ -1498,7 +1518,10 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, username
 
 	// Повторный круг по дополнению (#1685). Статус и согласование заявки он не двигает -
 	// без этих двух полей карточка не отличит идущий раунд от его отсутствия.
-	masks := loadNameMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	openSupplement, err := s.loadOpenSupplement(ctx, applicationID, masks)
 	if err != nil {
 		return nil, err

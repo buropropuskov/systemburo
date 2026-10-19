@@ -229,6 +229,8 @@ type UserType struct {
 
 // UserInfoResponse — ответ с полной информацией о пользователе (JSON поля совпадают с Rust UserInfo).
 type UserInfoResponse struct {
+	// DisplayLabel — рассчитанная подпись; не поле профиля для обратной записи.
+	DisplayLabel   *string `gorm:"-" json:"display_label,omitempty"`
 	ID             int     `json:"id"`
 	Username       string  `json:"username"`
 	IsActive       bool    `json:"is_active"`
@@ -246,8 +248,8 @@ type UserInfoResponse struct {
 	LastName       *string `json:"last_name"`
 	FirstName      *string `json:"first_name"`
 	MiddleName     *string `json:"middle_name"`
-	// PDHidden -- персональные данные не пусты, а скрыты: работник не дал согласия
-	// на их обработку (#1567). Скрыты и ФИО, и рабочие контакты. Форма
+	// PDHidden -- персональные данные не пусты, а скрыты действующей политикой
+	// согласия или отображения имени принимающего. Скрыты ФИО и контакты. Форма
 	// редактирования обязана отличать это от незаполненных полей, иначе сохранение
 	// соседнего поля затрёт настоящие данные.
 	PDHidden bool `json:"pd_hidden"`
@@ -278,19 +280,20 @@ type UserInfoResponse struct {
 // Узкий срез полей: форме нужно показать человека и отличить однофамильцев по должности,
 // остальное (контакты, роль, признаки администратора) к выбору получателя отношения не имеет.
 type RecipientCandidate struct {
-	ID         int     `json:"id"`
-	Username   string  `json:"username"`
-	LastName   *string `json:"last_name"`
-	FirstName  *string `json:"first_name"`
-	MiddleName *string `json:"middle_name"`
-	Position   *string `json:"position"`
+	DisplayLabel *string `gorm:"-" json:"display_label,omitempty"`
+	ID           int     `json:"id"`
+	Username     string  `json:"username"`
+	LastName     *string `json:"last_name"`
+	FirstName    *string `json:"first_name"`
+	MiddleName   *string `json:"middle_name"`
+	Position     *string `json:"position"`
 	// Organization и Company названы как в UserInfoResponse, а не organization_name
 	// соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
 	// (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
 	// того же поля потребовало бы развилки в каждом месте, где окно его читает.
 	Organization *string `json:"organization"`
 	Company      *string `json:"company"`
-	// PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+	// PDHidden -- ФИО скрыто политикой согласия или отображения принимающего.
 	// Организацию и компанию согласие не закрывает: это данные работодателя, а не
 	// работника, и в администраторском списке они видны у скрытого работника тоже.
 	PDHidden bool `json:"pd_hidden"`
