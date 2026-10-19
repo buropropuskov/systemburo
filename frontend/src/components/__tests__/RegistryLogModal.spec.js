@@ -40,6 +40,24 @@ describe('RegistryLogModal - журнал реестра', () => {
     apiRequest.mockResolvedValue({ ok: true, json: async () => LOG });
   });
 
+  it.each([
+    ['passport_series_number', 'Изменены паспортные данные'],
+    ['patent_number', 'Изменён номер патента'],
+    ['other_permission', 'Изменено иное разрешение на работы'],
+  ])('shows document fact for %s without legacy values or false clearing', async (field, text) => {
+    apiRequest.mockResolvedValueOnce({ ok: true, json: async () => [{
+      id: 91, action_type: 'data_changed', field_name: field,
+      old_value: 'SYNTHETIC-OLD-DOC', new_value: 'SYNTHETIC-NEW-DOC',
+      created_at: '2026-01-15T10:00:00Z',
+    }] });
+    const wrapper = mountModal();
+    await flushPromises();
+    expect(wrapper.find('.reglog__what').text()).toBe(text);
+    expect(wrapper.text()).not.toContain('SYNTHETIC-OLD-DOC');
+    expect(wrapper.text()).not.toContain('SYNTHETIC-NEW-DOC');
+    expect(wrapper.text()).not.toContain('пусто');
+  });
+
   it('открытие грузит журнал сотрудников и показывает удаление с автором и временем', async () => {
     const wrapper = mountModal();
     await flushPromises();
