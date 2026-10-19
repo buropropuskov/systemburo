@@ -983,7 +983,11 @@ func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm
 			responsibles[i].CanApprove = &allowed
 		}
 	}
-	if masks := loadConsentMasks(ctx, db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range responsibles {
 			maskUserParts(masks, responsibles[i].ID,
 				&responsibles[i].LastName, &responsibles[i].FirstName, &responsibles[i].MiddleName)

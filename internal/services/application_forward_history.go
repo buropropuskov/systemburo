@@ -120,55 +120,21 @@ func sanitizeForwardRecipientMetadata(ctx context.Context, db *gorm.DB, original
 	return result, nil
 }
 
-// loadForwardNameMasks mirrors the existing display policy, but keeps query
-// errors visible to this privacy-sensitive read instead of treating them as an
-// empty mask. Shared consent/permission helpers are deliberately unchanged.
+// loadForwardNameMasks shares the viewer-aware display policy and keeps errors
+// visible. Only stable recipient IDs may be resolved; legacy names are untouched.
 func loadForwardNameMasks(ctx context.Context, db *gorm.DB, ids []int) (map[int]string, error) {
-	type settingRow struct {
-		Key   string
-		Value string
+	if len(ids) == 0 {
+		return nil, nil
 	}
-	var settings []settingRow
-	if err := db.WithContext(ctx).Table("system_settings").Select("key, value").Where("key IN ?", []string{pdConsentRequiredKey, pdConsentTextKey}).Scan(&settings).Error; err != nil {
+	masks, err := loadNameMasks(ctx, db)
+	if err != nil {
 		return nil, err
 	}
-	var required bool
-	var text string
-	for _, setting := range settings {
-		if setting.Key == pdConsentRequiredKey {
-			required = setting.Value == "true"
-		}
-		if setting.Key == pdConsentTextKey {
-			text = setting.Value
+	result := make(map[int]string)
+	for _, id := range ids {
+		if name, ok := masks[id]; ok {
+			result[id] = name
 		}
 	}
-	masks := make(map[int]string)
-	if required && hasVisibleText(text) {
-		type consentRow struct {
-			ID       int
-			Username string
-		}
-		var rows []consentRow
-		if err := db.WithContext(ctx).Table("users").Select("users.id, users.username").Where("users.id IN ?", ids).Where(gatedUsersWhere).Where(`NOT EXISTS (
-			SELECT 1 FROM pd_consents c WHERE c.user_id = users.id AND c.consent_type = ?
-			AND c.granted = true AND c.revoked_at IS NULL
-		)`, ConsentTypePDProcessing).Scan(&rows).Error; err != nil {
-			return nil, err
-		}
-		for _, row := range rows {
-			masks[row.ID] = "@" + row.Username
-		}
-	}
-	type approverRow struct {
-		UserID      int
-		DisplayName string
-	}
-	var approvers []approverRow
-	if err := db.WithContext(ctx).Table("application_approvers").Select("user_id, display_name").Where("user_id IN ?", ids).Where("display_name IS NOT NULL AND TRIM(display_name) <> ''").Scan(&approvers).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range approvers {
-		masks[row.UserID] = row.DisplayName
-	}
-	return masks, nil
+	return result, nil
 }

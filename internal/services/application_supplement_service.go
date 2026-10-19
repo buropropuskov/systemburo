@@ -858,7 +858,10 @@ func (s *applicationService) GetApplicationSupplements(ctx context.Context, appl
 
 	// Маска принимающего и логин вместо ФИО у не давших согласия на обработку ПД -
 	// тот же слой, что в детали заявки.
-	masks := loadNameMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	byID := make(map[int]int, len(result))
 	for i, r := range result {
 		byID[r.ID] = i

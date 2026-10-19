@@ -425,7 +425,16 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
 	}
 
-	masks, consentActive := consentMasksWithState(ctx, s.db)
+	masks, consentActive, maskErr := consentMasksWithState(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	// Consent flags describe the legal state; the displayed identity also
+	// respects the receiver alias for non-administrators.
+	masks, maskErr = mergeDisplayNameMasks(ctx, s.db, masks)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	grants := loadConsentGrants(ctx, s.db)
 	for i := range result {
 		// Scan в чужую структуру идёт мимо User.AfterFind (#2566).
@@ -439,9 +448,11 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		// Кого запрос согласия реально касается - та же мерка, что у гейта.
 		result[i].ConsentRequired = consentActive && !result[i].IsSuperAdmin &&
 			result[i].IsActive && !result[i].IsBanned
-		if _, hidden := masks[result[i].ID]; !hidden {
+		label, hidden := masks[result[i].ID]
+		if !hidden {
 			continue
 		}
+		result[i].DisplayLabel = &label
 		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
 		maskUserContacts(masks, result[i].ID, &result[i].Email, &result[i].Phone)
 		result[i].PDHidden = true
@@ -1045,13 +1056,16 @@ func (s *userService) GetHistory(ctx context.Context, username string) ([]models
 	}
 
 	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	items := make([]models.UserHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UserHistoryItem{
 			ID:          r.ID,
 			ActionType:  r.ActionType,
-			Details:     r.Details,
+			Details:     maskUserAuditDetails(masks, id, r.Details),
 			ActorUserID: r.ActorUserID,
 			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,

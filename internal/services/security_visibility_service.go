@@ -433,7 +433,11 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 	if err := s.db.WithContext(ctx).Raw(dataSQL, dataArgs...).Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch available attachments: %w", err)
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range rows {
 			rows[i].SenderName = maskNamePtr(masks, rows[i].SenderUserID, rows[i].SenderName)
 			rows[i].SenderFullName = maskNamePtr(masks, rows[i].SenderUserID, rows[i].SenderFullName)

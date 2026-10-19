@@ -218,7 +218,7 @@ func TestForwardHistory2664_ConsentAndApproverMasksOnBothSurfaces(t *testing.T) 
 		details := forward2664Details(t, metadata)
 		require.Len(t, details, 3)
 		assert.Equal(t, "@fh2664_hidden", details[ids[0]]["display_name"])
-		assert.Equal(t, "Duty operator", details[ids[1]]["display_name"], "configured approver mask takes precedence over consent mask")
+		assert.Equal(t, "@fh2664_approver", details[ids[1]]["display_name"], "administrator ignores the display alias but cannot bypass consent")
 		assert.Equal(t, "SyntheticName2 Recipient", details[ids[2]]["display_name"])
 		encoded, err := json.Marshal(metadata["recipients"])
 		require.NoError(t, err)
@@ -227,6 +227,23 @@ func TestForwardHistory2664_ConsentAndApproverMasksOnBothSurfaces(t *testing.T) 
 		for _, detail := range details {
 			assert.Equal(t, "view", detail["purpose"], "current approver role must not rewrite historical forwarding purpose")
 		}
+	}
+	// Consent also dominates an arbitrary receiver label for ordinary viewers.
+	for _, metadata := range forward2664Surfaces(t, e, tokens[2], appID) {
+		assert.Equal(t, "@fh2664_approver", forward2664Details(t, metadata)[ids[1]]["display_name"])
+		encoded, err := json.Marshal(metadata)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "SyntheticName1")
+	}
+	// Once consent is granted, an ordinary viewer sees the alias while an
+	// administrative viewer can identify the actual account behind it.
+	rec = testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(tokens[1]))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, metadata := range forward2664Surfaces(t, e, tokens[2], appID) {
+		assert.Equal(t, "Duty operator", forward2664Details(t, metadata)[ids[1]]["display_name"])
+	}
+	for _, metadata := range forward2664Surfaces(t, e, admin, appID) {
+		assert.Equal(t, "SyntheticName1 Recipient", forward2664Details(t, metadata)[ids[1]]["display_name"])
 	}
 	_, storedAfter := forward2664StoredEvent(t, db, appID)
 	assert.Equal(t, storedBefore, storedAfter)
@@ -310,7 +327,7 @@ func TestForwardHistory2664_MaskQueryFailuresDoNotExposeRecipients(t *testing.T)
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	testutil.RegisterUser(t, e, "fh2664_fault_target", "pass123", 1, td.OrgID, td.CompanyID)
+	reader := testutil.RegisterAndLogin(t, e, "fh2664_fault_target", "pass123", 1, td.OrgID, td.CompanyID)
 	targetID := setUserName(t, db, "fh2664_fault_target", "PrivateFaultName", "Recipient", "")
 	appID := createSimpleApplication(t, e, admin, td.OrgID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), forwardBody(targetID, false, true), testutil.AuthHeader(admin))
@@ -349,10 +366,19 @@ func TestForwardHistory2664_MaskQueryFailuresDoNotExposeRecipients(t *testing.T)
 			t.Run(target+"/"+endpoint, func(t *testing.T) {
 				injected.Store(0)
 				headers := testutil.AuthHeader(admin)
+				if target == "approver" {
+					// Administrative viewers no longer depend on display aliases.
+					// Exercise this dependency using the actual non-admin recipient.
+					headers = testutil.AuthHeader(reader)
+				}
 				headers.Set("X-Forward2664-Test-Fault", target)
 				response := testutil.GET(t, e, fmt.Sprintf("/applications/%d/%s", appID, endpoint), headers)
 				require.Positive(t, injected.Load(), "failure must actually hit the intended query")
-				assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+				wantStatus := http.StatusServiceUnavailable
+				if target == "users" {
+					wantStatus = http.StatusInternalServerError
+				}
+				assert.Equal(t, wantStatus, response.Code, response.Body.String())
 				assert.NotContains(t, response.Body.String(), "PrivateFaultName")
 				assert.NotContains(t, response.Body.String(), "@fh2664_fault_target")
 			})

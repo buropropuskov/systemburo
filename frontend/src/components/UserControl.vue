@@ -292,7 +292,7 @@
                 data-label="Фамилия И.О."
               >
                 <span
-                  v-if="user.pd_hidden"
+                  v-if="user.pd_hidden && user.consent_required && !user.consent_granted"
                   class="consent-missing"
                   data-testid="users-row-no-consent"
                   title="Работник не подтвердил согласие на обработку персональных данных"
@@ -531,7 +531,7 @@
                 <input
                   v-model="selectedUser.last_name"
                   class="lk-input"
-                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите фамилию'"
+                  :placeholder="selectedUser.pd_hidden ? 'Данные скрыты' : 'Введите фамилию'"
                   :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -546,7 +546,7 @@
                 <input
                   v-model="selectedUser.middle_name"
                   class="lk-input"
-                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите отчество'"
+                  :placeholder="selectedUser.pd_hidden ? 'Данные скрыты' : 'Введите отчество'"
                   :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -590,7 +590,7 @@
                 <input
                   v-model="selectedUser.first_name"
                   class="lk-input"
-                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите имя'"
+                  :placeholder="selectedUser.pd_hidden ? 'Данные скрыты' : 'Введите имя'"
                   :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -605,7 +605,7 @@
                 <input
                   :value="selectedUser.phone"
                   class="lk-input"
-                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : '+7 (___) ___ __-__'"
+                  :placeholder="selectedUser.pd_hidden ? 'Данные скрыты' : '+7 (___) ___ __-__'"
                   :disabled="selectedUser.pd_hidden"
                   type="tel"
                   autocomplete="new-password"
@@ -635,7 +635,7 @@
                 <input
                   v-model="selectedUser.email"
                   class="lk-input"
-                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите email'"
+                  :placeholder="selectedUser.pd_hidden ? 'Данные скрыты' : 'Введите email'"
                   :disabled="selectedUser.pd_hidden"
                   type="email"
                   autocomplete="new-password"

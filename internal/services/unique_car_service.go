@@ -265,18 +265,22 @@ const systemAdminExpr = "(u.is_active AND NOT u.is_banned AND (u.is_super_admin 
 // maskCarOwners заполняет «за кем закреплена запись» администратору и убирает поле у
 // остальных. Зеркало maskEmployeeOwners: причина, маска имени и оговорка про write-path
 // описаны там.
-func maskCarOwners(ctx context.Context, db *gorm.DB, rows []UniqueCarWithRelations, canManageAll bool) {
+func maskCarOwners(ctx context.Context, db *gorm.DB, rows []UniqueCarWithRelations, canManageAll bool) error {
 	if !canManageAll {
 		for i := range rows {
 			rows[i].UserName = nil
 		}
-		return
+		return nil
 	}
-	masks := loadNameMasks(ctx, db)
+	masks, maskErr := loadNameMasks(ctx, db)
+	if maskErr != nil {
+		return maskErr
+	}
 	for i := range rows {
 		rows[i].UserName = ownerDisplayName(masks, rows[i].UserID,
 			rows[i].OwnerUsername, rows[i].OwnerLastName, rows[i].OwnerFirstName, rows[i].OwnerMiddleName)
 	}
+	return nil
 }
 
 // GetAll возвращает список уникальных автомобилей с фильтрацией по типу владельца.
@@ -449,7 +453,9 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 	if err := query.Scan(&cars).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
-	maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll)
+	if maskErr := maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll); maskErr != nil {
+		return nil, maskErr
+	}
 	if err := hydrateRegistryCarAccess(ctx, s.db, cars); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car access")
 	}
@@ -494,7 +500,9 @@ func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filter
 	if err := dataQuery.Scan(&cars).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
-	maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll)
+	if maskErr := maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll); maskErr != nil {
+		return nil, 0, maskErr
+	}
 	if err := hydrateRegistryCarAccess(ctx, s.db, cars); err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car access")
 	}
@@ -838,6 +846,18 @@ func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id i
 		slog.Error("failed to load unique_car history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
 	}
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	for i := range items {
+		if items[i].UserID != nil {
+			if display, hidden := masks[*items[i].UserID]; hidden {
+				items[i].UserLastName = &display
+				items[i].UserFirstName = nil
+			}
+		}
+	}
 	return items, nil
 }
 
@@ -880,6 +900,18 @@ func (s *uniqueCarService) GetRegistryLog(ctx context.Context, username string, 
 	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueCar, limit).Scan(&items).Error; err != nil {
 		slog.Error("не удалось загрузить журнал реестра машин", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching registry log")
+	}
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	for i := range items {
+		if items[i].UserID != nil {
+			if display, hidden := masks[*items[i].UserID]; hidden {
+				items[i].UserLastName = &display
+				items[i].UserFirstName = nil
+			}
+		}
 	}
 	return items, nil
 }

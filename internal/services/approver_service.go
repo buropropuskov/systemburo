@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,7 +69,11 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approvers")
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range result {
 			maskUserParts(masks, result[i].UserID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
 		}
@@ -103,11 +108,14 @@ func (s *approverService) GetRecipients(ctx context.Context) ([]models.Applicati
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipients")
 	}
 
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	result := make([]models.ApplicationRecipient, 0, len(rows))
 	for _, r := range rows {
-		if r.DisplayName != nil && strings.TrimSpace(*r.DisplayName) != "" {
-			result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: strings.TrimSpace(*r.DisplayName), Masked: true})
+		if display, hidden := masks[r.UserID]; hidden {
+			result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: display, Masked: true})
 			continue
 		}
 		last, first, middle := r.LastName, r.FirstName, r.MiddleName
@@ -124,6 +132,7 @@ func (s *approverService) GetRecipients(ctx context.Context) ([]models.Applicati
 		}
 		result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: name})
 	}
+	sort.SliceStable(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
 }
 
@@ -142,7 +151,11 @@ func (s *approverService) GetAvailableUsers(ctx context.Context) ([]models.Avail
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching available users")
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range result {
 			maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
 		}
@@ -292,7 +305,10 @@ func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationA
 
 	// Логин вместо ФИО у обоих участников записи: и у актора, и у принимающего,
 	// которого добавили или сняли - это тоже персональные данные работника.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	items := make([]models.ApplicationApproverHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.ApplicationApproverHistoryItem{

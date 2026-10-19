@@ -67,17 +67,20 @@ export function formatLogin(username) {
 }
 
 /**
- * Подпись учётной записи для списков: сокращённое ФИО, а если его нет - логин.
+ * Подпись учётной записи: разрешённая сервером маска, сокращённое ФИО или логин.
  *
  * Пустое ФИО у работника означает одно из двух: его не заполнили при заведении
  * учётной записи либо сервер скрыл его, пока работник не дал согласия на обработку
  * персональных данных (#1567). В обоих случаях логин - единственное, чем строку
  * можно опознать, и он всяко лучше прочерка.
  *
- * @param {NameParts & {username?: string}} user
+ * @param {NameParts & {username?: string, display_label?: string}} user
  * @returns {string}
  */
 export function formatUserLabel(user) {
   if (!user) return ''
+  // Серверная подпись не подставляется в редактируемые части настоящего ФИО.
+  const displayLabel = trim(user.display_label)
+  if (displayLabel) return displayLabel
   return formatShortName(user) || formatLogin(user.username)
 }

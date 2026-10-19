@@ -40,20 +40,20 @@ type carHistoryRow struct {
 
 // GetCarHistory возвращает историю конкретного автомобиля.
 func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistoryItemResponse, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	rows := make([]carHistoryRow, 0)
-	err := s.db.WithContext(ctx).Raw(`
+	err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", allCarsHistoryUserNameSQL, `
 		SELECT
 			h.id,
 			h.car_id,
 			h.user_id,
-			CONCAT(
-				COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) AS user_name,
-			u.last_name,
-			u.first_name,
-			u.middle_name,
+			`+allCarsHistoryUserNameSQL+` AS user_name,
+			u.last_name AS last_name,
+			u.first_name AS first_name,
+			u.middle_name AS middle_name,
 			h.action_type,
 			h.field_name,
 			h.old_value,
@@ -221,6 +221,10 @@ func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int, q m
 // памяти. Порядок аргументов важен: скоуп, затем фильтры, затем страница - именно в
 // этой последовательности `?` встречаются в собранном запросе.
 func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHistoryQuery, scopeSQL string, scopeArgs []any) ([]AllCarsHistoryItem, int64, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
 	q.Normalize()
 	limitSQL, limitArgs, err := passageHistoryLimitSQL(q)
 	if err != nil {
@@ -240,12 +244,12 @@ func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHisto
 	whereArgs := append(append([]any{}, scopeArgs...), filterArgs...)
 
 	var total int64
-	if err := s.db.WithContext(ctx).Raw(allCarsHistoryCountSQL+where, whereArgs...).Scan(&total).Error; err != nil {
+	if err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", allCarsHistoryUserNameSQL, allCarsHistoryCountSQL+where, whereArgs...).Scan(&total).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting cars history")
 	}
 
 	rows := make([]allCarsHistoryRow, 0, q.PerPage)
-	err = s.db.WithContext(ctx).Raw(
+	err = maskQuery.rawActor(s.db.WithContext(ctx), "u.id", allCarsHistoryUserNameSQL,
 		allCarsHistorySelectSQL+where+passageHistoryOrderSQL(q, "h")+limitSQL,
 		append(append([]any{}, whereArgs...), limitArgs...)...,
 	).Scan(&rows).Error
@@ -264,6 +268,10 @@ func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHisto
 // зависел бы от того, что попало в 50 загруженных строк. Записи без отметившего
 // (действия системы) в список не идут - выбирать «Систему» журнал и раньше не предлагал.
 func (s *carService) GetCarsHistoryFilterOptions(ctx context.Context, tableID *int) (CarsHistoryFilterOptions, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return CarsHistoryFilterOptions{}, maskErr
+	}
 	options := CarsHistoryFilterOptions{Users: make([]PassageFilterUser, 0)}
 
 	scopeSQL := ""
@@ -273,7 +281,7 @@ func (s *carService) GetCarsHistoryFilterOptions(ctx context.Context, tableID *i
 		scopeArgs = []any{*tableID, *tableID}
 	}
 
-	err := s.db.WithContext(ctx).Raw(
+	err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", allCarsHistoryUserNameSQL,
 		`SELECT DISTINCT h.user_id AS id, `+allCarsHistoryUserNameSQL+` AS name`+
 			allCarsHistoryFromSQL+scopeSQL+` AND h.user_id IS NOT NULL ORDER BY name`,
 		scopeArgs...,
@@ -317,6 +325,10 @@ func mapAllCarsHistoryRows(rows []allCarsHistoryRow) []AllCarsHistoryItem {
 
 // GetUnifiedCarHistory возвращает объединённую историю для всех автомобилей с одинаковыми параметрами.
 func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery, scope ElementScope) ([]CarHistoryItemResponse, error) {
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	visible, visibleArgs := scope.Predicate(ElementCar, "c", "a", "app")
 	// Находим все машины с одинаковыми параметрами
 	type carIDRow struct {
@@ -330,7 +342,7 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 	// Ручные машины (#1049) без заявки (application_id NULL) - LEFT JOIN applications,
 	// org/company через COALESCE с вложения-сироты, иначе INNER JOIN выкинул бы их из
 	// объединённой истории тёзок по номеру+марке.
-	err := s.db.WithContext(ctx).Raw(`
+	err := maskQuery.rawActor(s.db.WithContext(ctx), "u.id", allCarsHistoryUserNameSQL, `
 		SELECT c.id
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
@@ -359,19 +371,15 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 	}
 
 	rows := make([]carHistoryRow, 0)
-	err = s.db.WithContext(ctx).Raw(`
+	err = maskQuery.rawActor(s.db.WithContext(ctx), "u.id", allCarsHistoryUserNameSQL, `
 		SELECT
 			h.id,
 			h.car_id,
 			h.user_id,
-			CONCAT(
-				COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) AS user_name,
-			u.last_name,
-			u.first_name,
-			u.middle_name,
+			`+allCarsHistoryUserNameSQL+` AS user_name,
+			u.last_name AS last_name,
+			u.first_name AS first_name,
+			u.middle_name AS middle_name,
 			h.action_type,
 			h.field_name,
 			h.old_value,

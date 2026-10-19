@@ -126,29 +126,37 @@ func (s *newsService) newsSelectQuery(db *gorm.DB) *gorm.DB {
 
 // maskNewsAuthors подменяет ФИО авторов новостей логином, если они не давали
 // согласия на обработку персональных данных.
-func (s *newsService) maskNewsAuthors(ctx context.Context, items []models.NewsWithUser) {
-	masks := loadConsentMasks(ctx, s.db)
+func (s *newsService) maskNewsAuthors(ctx context.Context, items []models.NewsWithUser) error {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return maskErr
+	}
 	if len(masks) == 0 {
-		return
+		return nil
 	}
 	for i := range items {
 		items[i].CreatedByName = maskNamePtr(masks, items[i].CreatedBy, items[i].CreatedByName)
 		items[i].UpdatedByName = maskNamePtr(masks, items[i].UpdatedBy, items[i].UpdatedByName)
 	}
+	return nil
 }
 
 // maskAnnouncementAuthors - то же для объявлений: их видит любой авторизованный,
 // а авторов там трое (создал, изменил, включил).
-func (s *newsService) maskAnnouncementAuthors(ctx context.Context, items []models.AnnouncementWithUser) {
-	masks := loadConsentMasks(ctx, s.db)
+func (s *newsService) maskAnnouncementAuthors(ctx context.Context, items []models.AnnouncementWithUser) error {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return maskErr
+	}
 	if len(masks) == 0 {
-		return
+		return nil
 	}
 	for i := range items {
 		items[i].CreatedByName = maskNamePtr(masks, items[i].CreatedBy, items[i].CreatedByName)
 		items[i].UpdatedByName = maskNamePtr(masks, items[i].UpdatedBy, items[i].UpdatedByName)
 		items[i].ActivatedByName = maskNamePtr(masks, items[i].ActivatedBy, items[i].ActivatedByName)
 	}
+	return nil
 }
 
 func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser, error) {
@@ -160,7 +168,9 @@ func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser,
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching news")
 	}
-	s.maskNewsAuthors(ctx, results)
+	if maskErr := s.maskNewsAuthors(ctx, results); maskErr != nil {
+		return nil, maskErr
+	}
 	return results, nil
 }
 
@@ -172,11 +182,17 @@ func (s *newsService) GetAllNews(ctx context.Context) ([]models.NewsWithUser, er
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching news")
 	}
-	s.maskNewsAuthors(ctx, results)
+	if maskErr := s.maskNewsAuthors(ctx, results); maskErr != nil {
+		return nil, maskErr
+	}
 	return results, nil
 }
 
 func (s *newsService) CreateNews(ctx context.Context, userID int, req models.CreateNewsRequest) (*models.NewsWithUser, error) {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	now := time.Now().UTC()
 	isActive := true
 	if req.IsActive != nil {
@@ -210,10 +226,16 @@ func (s *newsService) CreateNews(ctx context.Context, userID int, req models.Cre
 	if isActive {
 		s.notifyNewsPublished(ctx, news.ID, userID, news.Title)
 	}
+	result.CreatedByName = maskNamePtr(masks, result.CreatedBy, result.CreatedByName)
+	result.UpdatedByName = maskNamePtr(masks, result.UpdatedBy, result.UpdatedByName)
 	return &result, nil
 }
 
 func (s *newsService) UpdateNews(ctx context.Context, userID int, id int, req models.UpdateNewsRequest) (*models.NewsWithUser, error) {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.News{}).Where("id = ?", id).Count(&count).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking news existence")
@@ -251,6 +273,8 @@ func (s *newsService) UpdateNews(ctx context.Context, userID int, id int, req mo
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated news")
 	}
 	s.notifyNewsChanged(ctx)
+	result.CreatedByName = maskNamePtr(masks, result.CreatedBy, result.CreatedByName)
+	result.UpdatedByName = maskNamePtr(masks, result.UpdatedBy, result.UpdatedByName)
 	return &result, nil
 }
 
@@ -294,7 +318,9 @@ func (s *newsService) GetActiveAnnouncement(ctx context.Context) (*models.Announ
 	}
 	// Через срез, а не по значению: маска правит элементы среза, копия осталась бы прежней.
 	one := []models.AnnouncementWithUser{result}
-	s.maskAnnouncementAuthors(ctx, one)
+	if maskErr := s.maskAnnouncementAuthors(ctx, one); maskErr != nil {
+		return nil, maskErr
+	}
 	return &one[0], nil
 }
 
@@ -306,11 +332,17 @@ func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.Announc
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching announcements")
 	}
-	s.maskAnnouncementAuthors(ctx, results)
+	if maskErr := s.maskAnnouncementAuthors(ctx, results); maskErr != nil {
+		return nil, maskErr
+	}
 	return results, nil
 }
 
 func (s *newsService) CreateAnnouncement(ctx context.Context, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	now := time.Now().UTC()
 	isImportant := false
 	if req.IsImportant != nil {
@@ -352,6 +384,9 @@ func (s *newsService) CreateAnnouncement(ctx context.Context, userID int, req mo
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching created announcement")
 	}
 	s.notifyNewsChanged(ctx)
+	result.CreatedByName = maskNamePtr(masks, result.CreatedBy, result.CreatedByName)
+	result.UpdatedByName = maskNamePtr(masks, result.UpdatedBy, result.UpdatedByName)
+	result.ActivatedByName = maskNamePtr(masks, result.ActivatedBy, result.ActivatedByName)
 	return &result, nil
 }
 
@@ -418,6 +453,10 @@ func (s *newsService) HideAnnouncement(ctx context.Context, id int) error {
 }
 
 func (s *newsService) UpdateAnnouncement(ctx context.Context, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.Announcement{}).Where("id = ?", id).Count(&count).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking announcement existence")
@@ -455,6 +494,9 @@ func (s *newsService) UpdateAnnouncement(ctx context.Context, userID int, id int
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated announcement")
 	}
 	s.notifyNewsChanged(ctx)
+	result.CreatedByName = maskNamePtr(masks, result.CreatedBy, result.CreatedByName)
+	result.UpdatedByName = maskNamePtr(masks, result.UpdatedBy, result.UpdatedByName)
+	result.ActivatedByName = maskNamePtr(masks, result.ActivatedBy, result.ActivatedByName)
 	return &result, nil
 }
 

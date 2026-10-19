@@ -255,7 +255,10 @@ func (s *userTypeService) GetHistory(ctx context.Context, id int) ([]models.User
 	}
 
 	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks := loadConsentMasks(ctx, s.db)
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
 	items := make([]models.UserTypeHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UserTypeHistoryItem{
@@ -286,7 +289,11 @@ func (s *userTypeService) GetTypeUsers(ctx context.Context, typeID int) ([]UserT
 		slog.Error("Не удалось получить пользователей типа", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user type members")
 	}
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+	masks, maskErr := loadNameMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	if len(masks) > 0 {
 		for i := range members {
 			maskUserParts(masks, members[i].ID, &members[i].LastName, &members[i].FirstName, &members[i].MiddleName)
 		}

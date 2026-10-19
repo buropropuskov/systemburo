@@ -32,7 +32,11 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	// скрытое ФИО исключаем из совпадений и ранга, контакты — из точного поиска.
 	// В выдаче ФИО подменяется логином. Иначе подсказка подтверждала бы, чей это
 	// адрес, - то же раскрытие, только другим путём.
-	masks := loadConsentMasks(ctx, db)
+	maskQuery, maskErr := loadNameMaskQuery(ctx, db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	masks := maskQuery.masks
 	table := "users u"
 	var tableArgs []any
 	nameCols := []string{"u.last_name", "u.first_name", "u.middle_name"}
@@ -52,7 +56,7 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	}
 	cols := []string{
 		nameCols[0], nameCols[1], nameCols[2],
-		"u.username", `u."position"`,
+		"u.username", `u."position"`, "actor_masks.names ->> u.id::text",
 	}
 	cond, args := searchCondition(cols, req.Raw)
 
@@ -67,6 +71,7 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 			Table(table, tableArgs...).
 			Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 			Joins("LEFT JOIN companies c ON u.company_id = c.id").
+			Joins("CROSS JOIN (SELECT ?::jsonb AS names) actor_masks", maskQuery.encoded).
 			Select(`u.id AS id,
 				NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
 				CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name),
