@@ -285,10 +285,6 @@ func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int, q
 // Порядок аргументов важен: базовое условие, затем фильтры, затем страница - в этой же
 // последовательности `?` встречаются в собранном запросе.
 func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models.PassageHistoryQuery, baseWhere string, baseArgs []any) ([]EmployeeHistoryItem, int64, error) {
-	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
-	if maskErr != nil {
-		return nil, 0, maskErr
-	}
 	q.Normalize()
 	limitSQL, limitArgs, err := passageHistoryLimitSQL(q)
 	if err != nil {
@@ -307,6 +303,10 @@ func (s *employeesHistoryService) queryHistoryPage(ctx context.Context, q models
 	// Базовое условие таблицы - это OR-ветка, поэтому фильтр приклеивается к ней
 	// скобками: без них «И фамилия» относилось бы только к последней ветке OR и
 	// история чужих сотрудников просочилась бы в отфильтрованную выдачу.
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
 	where := "(" + strings.TrimPrefix(strings.TrimSpace(baseWhere), "WHERE") + ")"
 	where = " WHERE " + where + filterSQL
 	whereArgs := append(append([]any{}, baseArgs...), filterArgs...)

@@ -221,10 +221,6 @@ func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int, q m
 // памяти. Порядок аргументов важен: скоуп, затем фильтры, затем страница - именно в
 // этой последовательности `?` встречаются в собранном запросе.
 func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHistoryQuery, scopeSQL string, scopeArgs []any) ([]AllCarsHistoryItem, int64, error) {
-	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
-	if maskErr != nil {
-		return nil, 0, maskErr
-	}
 	q.Normalize()
 	limitSQL, limitArgs, err := passageHistoryLimitSQL(q)
 	if err != nil {
@@ -240,6 +236,10 @@ func (s *carService) queryCarsHistory(ctx context.Context, q models.PassageHisto
 		return nil, 0, err
 	}
 
+	maskQuery, maskErr := loadNameMaskQuery(ctx, s.db)
+	if maskErr != nil {
+		return nil, 0, maskErr
+	}
 	where := scopeSQL + filterSQL
 	whereArgs := append(append([]any{}, scopeArgs...), filterArgs...)
 
