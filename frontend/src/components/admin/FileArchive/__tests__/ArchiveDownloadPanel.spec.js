@@ -19,9 +19,11 @@ vi.mock('@/utils/download', async () => {
 import ArchiveDownloadPanel from '../ArchiveDownloadPanel.vue'
 import DateFilter from '@/components/DateFilter.vue'
 import { useDeletionsStore } from '@/stores/deletions'
+import { usePermissionsStore } from '@/stores/permissions'
 
-function mountPanel() {
+function mountPanel(mode = 'super') {
   setActivePinia(createPinia())
+  usePermissionsStore().mode = mode
   vi.spyOn(useDeletionsStore(), 'notify').mockImplementation(() => {})
   return mount(ArchiveDownloadPanel, { global: { stubs: { DateFilter: true } } })
 }
@@ -37,6 +39,16 @@ async function applyRange(w, from, to) {
 describe('ArchiveDownloadPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it.each(['normal', 'admin'])('исторические оригиналы закрыты в режиме %s', async (mode) => {
+    api.estimateArchiveDownload.mockResolvedValue({ file_count: 1, bytes: 1024, exceeds_limit: false })
+    const w = mountPanel(mode)
+    await applyRange(w, new Date(2026, 6, 1), new Date(2026, 6, 31))
+    expect(w.get('[data-testid="adp-originals-note"]').text()).toContain('Актуальные бланки')
+    expect(w.get('[data-testid="adp-download"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-testid="adp-download"]').trigger('click')
+    expect(api.issueArchiveDownloadTicket).not.toHaveBeenCalled()
   })
 
   it('без выбранного периода кнопка скачивания выключена и оценка не запрашивается', async () => {

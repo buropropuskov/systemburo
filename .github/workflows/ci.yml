@@ -84,11 +84,15 @@ jobs:
       - uses: ./.github/actions/setup-go
       - run: go vet ./...
 
-  backend-test:
-    name: Go Tests
+  backend-test-groups:
+    name: Go Tests (${{ matrix.group }})
     runs-on: ubuntu-latest
     needs: [paths, backend-vet]
     if: needs.paths.outputs.backend == 'true' || needs.paths.outputs.workflows == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [handlers-1, handlers-2, services-1, services-2, other]
     services:
       postgres:
         image: postgres:16-alpine
@@ -111,11 +115,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
+      - name: Check test grouping
+        run: python3 -m unittest discover -s .github/scripts -p 'test_go_test_groups.py'
       - name: Run tests
-        # 1000s: пакет handlers под -race подходил к прежним 500s вплотную и валил
-        # ветку по таймауту, не по сути теста. Запас взят с расчётом на рост числа
-        # тестов; если упрётся снова, пакет пора делить, а не поднимать предел.
-        run: go test -race -count=1 -timeout 1000s -p 4 ./...
+        # Each matrix job owns its PostgreSQL. Keep race detection and the
+        # existing 1000s limit; verify the complete inventory and executed names.
+        run: python3 .github/scripts/go_test_groups.py '${{ matrix.group }}'
+
+  backend-test:
+    # Preserve the existing required check and downstream dependency name.
+    name: Go Tests
+    runs-on: ubuntu-latest
+    needs: [paths, backend-vet, backend-test-groups]
+    if: always() && (needs.paths.outputs.backend == 'true' || needs.paths.outputs.workflows == 'true')
+    steps:
+      - name: Require all Go test groups
+        env:
+          GROUPS_RESULT: ${{ needs.backend-test-groups.result }}
+        run: test "$GROUPS_RESULT" = success
 
   frontend-lint:
     name: Frontend Lint

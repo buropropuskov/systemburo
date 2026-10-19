@@ -115,6 +115,11 @@ func securityGrantArchive(t *testing.T, w securityGateWorld) {
 	}
 }
 
+func securitySetArchiveSuper(t *testing.T, w securityGateWorld, enabled bool) {
+	t.Helper()
+	require.NoError(t, w.db.Model(&models.User{}).Where("id = ?", w.userID).Update("is_super_admin", enabled).Error)
+}
+
 func securityArchiveTicket(t *testing.T, w securityGateWorld, date string) string {
 	t.Helper()
 	rec := testutil.POST(t, w.e, "/file-archive/download-ticket",
@@ -126,6 +131,7 @@ func securityArchiveTicket(t *testing.T, w securityGateWorld, date string) strin
 func TestSecurityGates_ArchiveTicketLifecycle(t *testing.T) {
 	w := newSecurityGateWorld(t)
 	securityGrantArchive(t, w)
+	securitySetArchiveSuper(t, w, true)
 	date := time.Now().Format("2006-01-02")
 	ticket := securityArchiveTicket(t, w, date)
 	require.NotEmpty(t, ticket)
@@ -146,6 +152,7 @@ func TestSecurityGates_ArchiveTicketLifecycle(t *testing.T) {
 func TestSessionAccess_ArchiveTicketRevokesOnlyItsFamily(t *testing.T) {
 	w := newSecurityGateWorld(t)
 	securityGrantArchive(t, w)
+	securitySetArchiveSuper(t, w, true)
 	date := time.Now().Format("2006-01-02")
 	a := securityArchiveTicket(t, w, date)
 	other := w

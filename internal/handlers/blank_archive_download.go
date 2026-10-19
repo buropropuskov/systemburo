@@ -18,8 +18,8 @@ import (
 
 // ArchiveDownloadHandler - скачивание из файлового архива бланков (#1615, срез B3):
 // потоковый ZIP за период (билет + публичный редемпшен, EventSource-подобная схема
-// SSE-билетов), ZIP заявки для обычных участников и охраны, отдельный файл и список
-// реестра для раздела администрирования.
+// SSE-билетов), ZIP заявки и отдельный файл. Оригиналы доступны только текущему
+// суперадминистратору; просмотр реестра сохраняет собственные права раздела.
 type ArchiveDownloadHandler struct {
 	downloads *services.ArchiveDownloadService
 	// access/resolver - тот же гейт, что и у прямого скачивания одного бланка
@@ -49,15 +49,13 @@ func archiveUnavailable() error {
 	return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
 }
 
-// archiveDownloadRangeError переводит доменную ошибку периода в понятный 400.
-// requireBlankDocumentsExport закрывает выдачу сохранённых файлов тому, кому не
-// положены документы участников. Раздел файлового архива и так админский, но право на
-// выгрузку файлов (action.download.file_archive) выдаётся и точечно, а внутри каждого
-// файла лежат паспорта - без этой проверки закрытый бланк забирался бы через раздел.
-//
-// appID = 0 означает «заявка тут ни при чём» (выгрузка за период, отдельный файл
-// реестра): дорога инициатора в этом случае не открывается, остаётся только право.
+// Historical originals require the current superadmin role in addition to the
+// existing document and route checks. Authorship grants access to current own
+// documents, but does not grant historical originals.
 func requireBlankDocumentsExport(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) error {
+	if err := requireArchiveOriginal(c, resolver); err != nil {
+		return err
+	}
 	allowed, err := canExportBlankDocuments(c, access, resolver, appID)
 	if err != nil {
 		return err
@@ -69,6 +67,7 @@ func requireBlankDocumentsExport(c echo.Context, access blankAccessService, reso
 	return nil
 }
 
+// archiveDownloadRangeError переводит доменную ошибку периода в понятный 400.
 func archiveDownloadRangeError(err error) error {
 	if errors.Is(err, services.ErrArchiveDownloadRangeInvalid) {
 		return apperr.Validation("Некорректный период: укажите даты в формате ГГГГ-ММ-ДД, «с» не позже «по»")
@@ -179,8 +178,7 @@ func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 
 // Archive godoc
 // @Summary      Скачать сохранённые бланки заявки единым ZIP
-// @Description  Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).
-// @Description  Дополнительно требуются права detail.documents и detail.documents.export: в ZIP уезжают сохранённые копии с документами участников, обезличить их при отдаче нечем.
+// @Description  Исторические оригиналы доступны только актуальному суперадминистратору с сохранением существующих проверок доступа. Актуальные бланки формируются отдельно по текущим правилам.
 // @Tags         file-archive
 // @Produce      application/zip
 // @Security     BearerAuth
@@ -195,6 +193,9 @@ func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
 	}
 	appID, err := ParseID(c, "id")
 	if err != nil {
+		return err
+	}
+	if err := requireBlankDocumentsExport(c, h.access, h.resolver, appID); err != nil {
 		return err
 	}
 
@@ -214,14 +215,6 @@ func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "В архиве нет доступных файлов этой заявки")
 	}
 
-	// Гейт документов стоит после проверки доступа к заявке, а не до неё: посторонний
-	// должен по-прежнему получать 404 и не узнавать по коду ответа, что заявка с таким
-	// номером есть. В ZIP уезжают те же сохранённые копии, что и по одному через
-	// ?source=archive, поэтому право требуется то же - закрытое поштучно не должно
-	// забираться архивом целиком.
-	if err := requireBlankDocumentsExport(c, h.access, h.resolver, appID); err != nil {
-		return err
-	}
 	return download.StreamZip(c, "application_"+strconv.Itoa(appID)+".zip", entries)
 }
 
@@ -249,6 +242,9 @@ func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
 
 	row, err := h.downloads.Get(c.Request().Context(), id)
 	if err != nil {
+		return err
+	}
+	if err := h.downloads.CheckOriginalDisclosure(c.Request().Context()); err != nil {
 		return err
 	}
 	file, err := h.downloads.FileForDownload(row)

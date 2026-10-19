@@ -11,7 +11,7 @@
         <div class="dbm-modal">
           <div class="dbm-header">
             <h3 class="dbm-title">
-              Скачивание бланков
+              Актуальные бланки
             </h3>
             <button
               class="dbm-close"

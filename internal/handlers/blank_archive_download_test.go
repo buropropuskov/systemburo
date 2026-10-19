@@ -126,8 +126,7 @@ func TestFileArchiveDownload_Period(t *testing.T) {
 	})
 }
 
-// Гейт ZIP сохранённых файлов заявки повторяет гейт скачивания одного бланка
-// (canDownloadBlank): отправитель заявки скачивает архив, посторонний - нет.
+// Исторический ZIP доступен только super; автор использует текущую генерацию.
 func TestFileArchiveDownload_Application(t *testing.T) {
 	e, db, _, cleanup := testutil.SetupTestAppWithArchive(t)
 	t.Cleanup(cleanup)
@@ -168,14 +167,14 @@ func TestFileArchiveDownload_Application(t *testing.T) {
 
 	t.Run("посторонний не скачивает архив чужой заявки", func(t *testing.T) {
 		rec := testutil.GET(t, e, url, testutil.AuthHeader(outsiderToken))
-		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	})
 
-	// В ZIP лежат сохранённые бланки с документами участников, поэтому он открыт
-	// инициатору заявки и носителю права на выгрузку - как и бланк поштучно.
-	t.Run("отправитель скачивает ZIP своей заявки", func(t *testing.T) {
+	// Авторство не открывает исторические оригиналы.
+	t.Run("отправитель не получает исторический ZIP своей заявки", func(t *testing.T) {
 		rec := testutil.GET(t, e, url, testutil.AuthHeader(senderToken))
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		assert.NotContains(t, rec.Header().Get("Content-Type"), "application/zip")
 	})
 
 	t.Run("админ скачивает ZIP заявки со слепком и бланком", func(t *testing.T) {

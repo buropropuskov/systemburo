@@ -64,6 +64,7 @@ type BlankContext struct {
 // подписи в бланке перечисляются все, необязательное согласование представляет первый
 // согласовавший.
 type Approver struct {
+	UserID     int
 	LastName   string
 	FirstName  string
 	MiddleName string
@@ -95,6 +96,9 @@ type BlankOptions struct {
 	// IncludeDocuments - подставлять паспорт, патент и иное разрешение как есть.
 	// false ставит в эти ячейки прочерк.
 	IncludeDocuments bool
+	// archiveOriginal selects the storage audience, never an HTTP download bypass.
+	// Consent restrictions still apply; only display aliases are audience-specific.
+	archiveOriginal bool
 }
 
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
@@ -203,6 +207,9 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		return nil, "", fmt.Errorf("invalid entity period for blank: %w", err)
 	}
 	bctx.IncludeDocuments = opts.IncludeDocuments
+	if err := s.applyBlankNamePolicy(ctx, bctx, opts.archiveOriginal); err != nil {
+		return nil, "", err
+	}
 
 	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов
 	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
@@ -616,7 +623,9 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 
 	if app.SenderUserID != 0 {
 		var u models.User
-		s.db.WithContext(ctx).First(&u, app.SenderUserID)
+		if err := s.db.WithContext(ctx).First(&u, app.SenderUserID).Error; err != nil {
+			return nil, nameMaskUnavailable(err)
+		}
 		bctx.Sender = &u
 	}
 	if app.OrganizationID != 0 {
@@ -631,13 +640,19 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	}
 
 	// Согласовавшие заявку - для подписи «СОГЛАСОВАНО» в бланке.
-	bctx.Approvers = s.loadApprovers(ctx, appID)
+	var approversErr error
+	bctx.Approvers, approversErr = s.loadApprovers(ctx, appID)
+	if approversErr != nil {
+		return nil, nameMaskUnavailable(approversErr)
+	}
 
 	// Cars / employees / items - только для этого attachment и только допущенное на КПП:
 	// бланк печатают и несут на пост как документ допуска, поэтому строка непринятого
 	// дополнения в нём означала бы проход мимо согласования (#1685).
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("cars")).Order("id").Find(&bctx.Cars)
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("employees")).Order("id").Find(&bctx.Employees)
+	if err := s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("employees")).Order("id").Find(&bctx.Employees).Error; err != nil {
+		return nil, nameMaskUnavailable(err)
+	}
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("items")).Order("id").Find(&bctx.Items)
 
 	// Привязки машин: места разгрузки и посты «Проезд» - по одному запросу на список,
@@ -865,23 +880,26 @@ func groupNamesByOwner(ctx context.Context, db *gorm.DB, query string, ids []int
 // loadApprovers возвращает согласовавших заявку в порядке согласования: под подписью
 // бланка стоит тот, кто согласовал, а признак обязательности решает, кого именно писать
 // (см. approversForSignature).
-func (s *attachmentBlankService) loadApprovers(ctx context.Context, appID int) []Approver {
+func (s *attachmentBlankService) loadApprovers(ctx context.Context, appID int) ([]Approver, error) {
 	var responsible []models.ApplicationResponsibleUser
-	s.db.WithContext(ctx).
+	if err := s.db.WithContext(ctx).
 		Preload("User").
 		Where("application_id = ? AND approval_status = ?", appID, "approved").
 		Order("approval_datetime ASC").
-		Find(&responsible)
+		Find(&responsible).Error; err != nil {
+		return nil, err
+	}
 
 	out := make([]Approver, 0, len(responsible))
 	for i := range responsible {
 		u := responsible[i].User
 		out = append(out, Approver{
+			UserID:     u.ID,
 			LastName:   derefStr(u.LastName),
 			FirstName:  derefStr(u.FirstName),
 			MiddleName: derefStr(u.MiddleName),
 			Required:   responsible[i].RequiredApproval,
 		})
 	}
-	return out
+	return out, nil
 }

@@ -1,8 +1,11 @@
 <template>
   <section class="adp">
     <h4 class="adp__title">
-      Скачать сохранённые бланки за период
+      Скачать исторические оригиналы за период
     </h4>
+    <p v-if="!canDownloadOriginals" class="adp__hint" data-testid="adp-originals-note">
+      Исторические оригиналы доступны только суперадминистратору. Актуальные бланки можно сформировать в заявке.
+    </p>
     <div class="adp__controls">
       <DateFilter
         mode="range"
@@ -90,6 +93,7 @@ import DateFilter from '@/components/DateFilter.vue';
 import { estimateArchiveDownload, issueArchiveDownloadTicket } from '@/api/fileArchive';
 import { formatBytes, startTicketDownload } from '@/utils/download';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 
 // Порог предупреждения "большой архив" - независим от archive.zip_max_bytes
 // (тот считает хард-лимит, exceeds_limit): 1 ГБ уже ощутимо долго качать даже
@@ -117,7 +121,9 @@ const period = computed(() => ({ dateFrom: toDateParam(rangeStart.value), dateTo
 const hasPeriod = computed(() => !!period.value.dateFrom && !!period.value.dateTo);
 const isEmpty = computed(() => !!estimate.value && estimate.value.file_count === 0);
 const isLarge = computed(() => !!estimate.value && estimate.value.bytes > LARGE_WARNING_BYTES);
-const canDownload = computed(() => hasPeriod.value
+const permissions = usePermissionsStore();
+const canDownloadOriginals = computed(() => permissions.mode === 'super' && !permissions.banned);
+const canDownload = computed(() => canDownloadOriginals.value && hasPeriod.value
   && !!estimate.value && !estimate.value.exceeds_limit && !isEmpty.value && !issuing.value);
 
 async function runEstimate() {

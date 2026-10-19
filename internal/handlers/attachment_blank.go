@@ -45,7 +45,7 @@ func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAc
 
 // Download godoc
 // @Summary      Скачать заполненный бланк для одного вложения заявки
-// @Description  Доступ: участник заявки (как у детали заявки) либо охрана/носитель page.available по своему вложению (как у детали вкладки "Доступные мне"). Прочим - 403. source=archive отдаёт файл с диска по записи файлового архива вместо генерации заново (#1615, C6); нет строки или файл не сгенерирован - 404.
+// @Description  Актуальный бланк доступен участнику заявки либо по действующей области вложения. source=archive выдаёт исторический оригинал только актуальному суперадминистратору; отсутствие готовой копии - 404.
 // @Tags         attachment-blanks
 // @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 // @Security     BearerAuth
@@ -138,11 +138,17 @@ func (h *AttachmentBlankHandler) DownloadTemplate(c echo.Context) error {
 // закрыты отдельно: сохранённая копия собрана с ними (#1615, C6).
 func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID int, withDocuments bool) error {
 	download.NoStore(c)
+	if err := requireArchiveOriginal(c, h.resolver); err != nil {
+		return err
+	}
 	if h.archive == nil {
 		return archiveUnavailable()
 	}
 	row, err := h.archive.GetByApplicationAttachment(c.Request().Context(), appID, attID)
 	if err != nil {
+		return err
+	}
+	if err := h.archive.CheckOriginalDisclosure(c.Request().Context()); err != nil {
 		return err
 	}
 	file, err := h.archive.FileForDownload(row)

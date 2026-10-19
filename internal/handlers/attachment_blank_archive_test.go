@@ -108,12 +108,11 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, marker, 0o640))
 	require.NoError(t, os.WriteFile(foreignPath, foreignMarker, 0o640))
 
-	// Сохранённая копия собрана с документами участников, и открыта она двоим:
-	// инициатору заявки (документы он сам и вводил) и носителю права на выгрузку.
-	t.Run("инициатор заявки получает сохранённый файл", func(t *testing.T) {
+	// Авторство открывает текущий бланк, но не исторический оригинал.
+	t.Run("инициатор заявки не получает исторический оригинал", func(t *testing.T) {
 		rec := testutil.GET(t, e, blankArchiveURL(appID, attID, "archive"), senderH)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		assert.Equal(t, string(marker), rec.Body.String())
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), string(marker))
 	})
 
 	t.Run("отдаётся файл из реестра под своим именем", func(t *testing.T) {
@@ -134,7 +133,7 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 	})
 
 	t.Run("вложение чужой заявки не отдаётся", func(t *testing.T) {
-		rec := testutil.GET(t, e, blankArchiveURL(appID, foreignAttID, "archive"), senderH)
+		rec := testutil.GET(t, e, blankArchiveURL(appID, foreignAttID, "archive"), adminH)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 		assert.NotContains(t, rec.Body.String(), string(foreignMarker),
 			"строка реестра ищется по паре: чужое вложение не должно находиться по своей заявке")
@@ -144,7 +143,7 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 		fresh := models.Attachment{ApplicationID: &appID, AttachmentType: "people", UniqueAttachmentID: &uaID}
 		require.NoError(t, db.Create(&fresh).Error)
 
-		rec := testutil.GET(t, e, blankArchiveURL(appID, fresh.ID, "archive"), senderH)
+		rec := testutil.GET(t, e, blankArchiveURL(appID, fresh.ID, "archive"), adminH)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "не найден", "404 обязан объяснить себя, а не быть пустым")
 	})
@@ -164,7 +163,7 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 			Status: models.BlankExportPending, QueuedAt: time.Now(),
 		}).Error)
 
-		rec := testutil.GET(t, e, blankArchiveURL(appID, queued.ID, "archive"), senderH)
+		rec := testutil.GET(t, e, blankArchiveURL(appID, queued.ID, "archive"), adminH)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 		assert.NotContains(t, rec.Body.String(), string(stale), "выгрузки ещё не было - отдавать нечего")
 	})
