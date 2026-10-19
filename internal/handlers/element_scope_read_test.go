@@ -52,6 +52,48 @@ func seedElementScopeFixture(t *testing.T, db *gorm.DB) elementScopeFixture {
 	return elementScopeFixture{postGateFixture: fx, appID: app.ID, orgID: app.OrganizationID}
 }
 
+func TestElementScope_IdentityDoesNotGrantRegistryVisibility(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	fx := seedElementScopeFixture(t, db)
+	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", fx.appID).Update("company_id", td.CompanyID).Error)
+	testutil.RegisterAndLogin(t, e, "scope_identity", "pass123", 1, fx.orgID, td.CompanyID)
+	userID := getUserID(t, db, "scope_identity")
+	resolver := services.NewElementScopeResolver(db, services.NewPermissionResolver(db))
+	for mask := 0; mask < 4; mask++ {
+		t.Run(fmt.Sprint(mask), func(t *testing.T) {
+			org, company := "deny", "deny"
+			if mask&1 != 0 {
+				org = "allow"
+			}
+			if mask&2 != 0 {
+				company = "allow"
+			}
+			setDocumentGrant(t, db, userID, services.KeySectionRegistryOrganization, org)
+			setDocumentGrant(t, db, userID, services.KeySectionRegistryCompany, company)
+			scope, err := resolver.Resolve(context.Background(), userID)
+			require.NoError(t, err)
+			require.Equal(t, fx.orgID, scope.OwnOrgID)
+			require.Equal(t, td.CompanyID, scope.OwnCompanyID)
+			if mask&1 == 0 {
+				require.Zero(t, scope.OrgID)
+			} else {
+				require.Equal(t, fx.orgID, scope.OrgID)
+			}
+			if mask&2 == 0 {
+				require.Zero(t, scope.CompanyID)
+			} else {
+				require.Equal(t, td.CompanyID, scope.CompanyID)
+			}
+			visible, err := resolver.Visible(context.Background(), scope, services.ElementCar, fx.carID)
+			require.NoError(t, err)
+			require.Equal(t, mask != 0, visible)
+		})
+	}
+}
+
 // elementReads - что пользователь получил по элементам фикстуры с каждого роута.
 type elementReads struct {
 	carHistory, empHistory         int

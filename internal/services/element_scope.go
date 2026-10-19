@@ -41,7 +41,10 @@ type ElementScope struct {
 	Approver  bool
 	OrgID     int
 	CompanyID int
-	TableIDs  []int
+	// Принадлежность для проверки подачи; сама по себе не открывает строки.
+	OwnOrgID     int
+	OwnCompanyID int
+	TableIDs     []int
 }
 
 // FullElementScope - без ограничений, для внутренних вызовов без пользователя (снимок таблицы).
@@ -90,11 +93,17 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 		Scan(&owner).Error; err != nil {
 		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 	}
-	if owner.OrganizationID != nil && set.Has(KeySectionRegistryOrganization) {
-		scope.OrgID = *owner.OrganizationID
+	if owner.OrganizationID != nil {
+		scope.OwnOrgID = *owner.OrganizationID
+		if set.Has(KeySectionRegistryOrganization) {
+			scope.OrgID = *owner.OrganizationID
+		}
 	}
-	if owner.CompanyID != nil && set.Has(KeySectionRegistryCompany) {
-		scope.CompanyID = *owner.CompanyID
+	if owner.CompanyID != nil {
+		scope.OwnCompanyID = *owner.CompanyID
+		if set.Has(KeySectionRegistryCompany) {
+			scope.CompanyID = *owner.CompanyID
+		}
 	}
 
 	var approvers int64
