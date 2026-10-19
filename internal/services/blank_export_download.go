@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -218,6 +217,9 @@ func (s *ArchiveDownloadService) ConsumeAndCollect(ctx context.Context, ticket s
 func (s *ArchiveDownloadService) ArchiveApplicationEntries(
 	ctx context.Context, applicationID int, fullAccess bool, canViewAttachment func(attachmentID int) (bool, error),
 ) ([]download.ZipEntry, error) {
+	if err := s.CheckOriginalDisclosure(ctx); err != nil {
+		return nil, err
+	}
 	rows, err := s.rowsForApplication(ctx, applicationID)
 	if err != nil {
 		return nil, err
@@ -240,13 +242,11 @@ func (s *ArchiveDownloadService) ArchiveApplicationEntries(
 
 		path, err := s.resolvePath(row)
 		if err != nil {
-			slog.Warn("archive download: файл вне корня архива пропущен",
-				"application_id", applicationID, "attachment_id", row.AttachmentID, "error", err)
-			continue
+			return nil, archivePreparationError(err)
 		}
 		entries = append(entries, s.zipEntry(path, row.FileName))
 	}
-	return entries, nil
+	return prepareArchiveZip(entries)
 }
 
 // Get отдаёт одну строку реестра для скачивания отдельного файла (GET
@@ -398,6 +398,26 @@ func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQu
 	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to load archive items: %w", err)
 	}
+	restricted, err := s.originalDisclosureRestricted(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	masks, err := loadNameMasks(ctx, s.db)
+	if err != nil {
+		return nil, 0, err
+	}
+	if restricted || len(masks) > 0 {
+		// Legacy paths and diagnostics can contain names too. Keep only the
+		// operational metadata, without changing the stored archive registry.
+		for i := range rows {
+			rows[i].FileName = "Исторический файл"
+			rows[i].RelDir = ""
+			rows[i].ContentHash = ""
+			if rows[i].LastError != "" {
+				rows[i].LastError = "Подробности недоступны"
+			}
+		}
+	}
 	return rows, total, nil
 }
 
@@ -448,6 +468,9 @@ func (s *ArchiveDownloadService) rowsForApplication(ctx context.Context, applica
 // сохраняет структуру каталогов (RelDir/FileName), в отличие от ZIP заявки, где
 // все файлы и так лежат в одной папке.
 func (s *ArchiveDownloadService) periodEntries(ctx context.Context, from, to time.Time) ([]download.ZipEntry, error) {
+	if err := s.CheckOriginalDisclosure(ctx); err != nil {
+		return nil, err
+	}
 	rows, err := s.rowsForRange(ctx, from, to)
 	if err != nil {
 		return nil, err
@@ -457,12 +480,11 @@ func (s *ArchiveDownloadService) periodEntries(ctx context.Context, from, to tim
 	for _, row := range rows {
 		path, err := s.resolvePath(row)
 		if err != nil {
-			slog.Warn("archive download: файл вне корня архива пропущен", "id", row.ID, "error", err)
-			continue
+			return nil, archivePreparationError(err)
 		}
 		entries = append(entries, s.zipEntry(path, zipPathFor(row)))
 	}
-	return entries, nil
+	return prepareArchiveZip(entries)
 }
 
 // zipPathFor - имя записи внутри архива за период: путь каталога заявки плюс имя

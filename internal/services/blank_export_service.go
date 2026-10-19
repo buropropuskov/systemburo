@@ -499,7 +499,7 @@ func (s *BlankExportService) generate(ctx context.Context, applicationID, attach
 	// canExportBlankDocuments), а не на записи: обезличенный архив пришлось бы держать
 	// вторым комплектом файлов, и первый же запрос «а где паспорта» вернул бы всё назад.
 	reader, _, err := s.blanks.GenerateBlank(ctx, applicationID, attachmentID,
-		BlankOptions{IncludeDocuments: true})
+		BlankOptions{IncludeDocuments: true, archiveOriginal: true})
 	if err != nil {
 		return nil, err
 	}

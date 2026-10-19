@@ -25,6 +25,7 @@ func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			w := newSecurityGateWorld(t)
 			securityGrantArchive(t, w)
+			securitySetArchiveSuper(t, w, true)
 			date := time.Now().Format("2006-01-02")
 			bucket, err := time.Parse("2006-01-02", date)
 			require.NoError(t, err)
@@ -37,6 +38,10 @@ func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 				QueuedAt: time.Now(),
 			}).Error)
 			ticket := securityArchiveTicket(t, w, date)
+			// The ticket was issued to a superadmin. Revoke that role before the
+			// regular-user transition so the existing consent/maintenance policy
+			// is exercised without changing its superadmin exemptions.
+			securitySetArchiveSuper(t, w, false)
 			w.change(t, state)
 			// Новая выдача уже закрыта соответствующим protected-гейтом.
 			rec := testutil.POST(t, w.e, "/file-archive/download-ticket",
@@ -48,6 +53,12 @@ func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 				expected = http.StatusUnauthorized
 			}
 			require.Equal(t, expected, rec.Code, rec.Body.String())
+			if state == "consent" || state == "password" {
+				// Ticket policy returns a generic denial; it does not forward the
+				// protected endpoint's consent/password response headers.
+				require.Contains(t, rec.Body.String(), "Доступ временно ограничен")
+				require.NotContains(t, rec.Body.String(), "Исторический оригинал")
+			}
 			require.NotContains(t, rec.Body.String(), contents)
 			require.NotContains(t, rec.Header().Get("Content-Type"), "application/zip")
 			rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+ticket, nil)
@@ -60,6 +71,7 @@ func TestSecurityGates_ArchiveTicketStateTransitions(t *testing.T) {
 				}
 				// Восстановление требует нового входа и нового билета.
 				w.user, w.refresh = testutil.LoginUser(t, w.e, "security_gate_user", testPassword)
+				securitySetArchiveSuper(t, w, true)
 				restoredTicket := securityArchiveTicket(t, w, date)
 				rec = testutil.GET(t, w.e, "/file-archive/download?ticket="+restoredTicket, nil)
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
