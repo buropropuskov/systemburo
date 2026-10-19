@@ -165,6 +165,52 @@ func TestArchiveOriginal_CurrentRoleAndPreflight(t *testing.T) {
 		require.NoError(t, settings.SetPDConsentRequired(ctx, false))
 	})
 
+	t.Run("registry objection closes current and historical workbooks", func(t *testing.T) {
+		at := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
+		name, passport, source := "FixtureGuestS6", "S6-GUEST-PASSPORT", "Fixture request"
+		registry := models.UniqueEmployee{LastName: &name, PassportSeriesNumber: &passport, PDConsentAt: &at}
+		require.NoError(t, w.db.Create(&registry).Error)
+		person := models.Employee{AttachmentID: &attID, LastName: &name, PassportSeriesNumber: &passport, PeriodMode: models.PeriodMode("inherit")}
+		require.NoError(t, w.db.Create(&person).Error)
+		require.NoError(t, w.db.Model(&models.Attachment{}).Where("id = ?", attID).
+			Updates(map[string]any{"entry_date_from": "2026-10-19", "entry_date_to": "2026-10-20"}).Error)
+		defer func() {
+			require.NoError(t, w.db.Delete(&person).Error)
+			require.NoError(t, w.db.Delete(&registry).Error)
+			require.NoError(t, w.db.Model(&models.Attachment{}).Where("id = ?", attID).
+				Updates(map[string]any{"entry_date_from": nil, "entry_date_to": nil}).Error)
+		}()
+		rec := testutil.GET(t, w.e, liveURL, w.adminH)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.NoError(t, w.db.Model(&models.UniqueEmployee{}).Where("id = ?", registry.ID).
+			Updates(map[string]any{"pd_objection_at": at, "pd_objection_source": source}).Error)
+		for _, endpoint := range append([]string{liveURL}, originalURLs...) {
+			rec = testutil.GET(t, w.e, endpoint, w.adminH)
+			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+			require.NotContains(t, rec.Body.String(), name)
+			require.NotContains(t, rec.Body.String(), passport)
+			require.NotContains(t, rec.Body.String(), string(original))
+		}
+		var current models.Employee
+		require.NoError(t, w.db.First(&current, person.ID).Error)
+		otherPassport := "S6-DIFFERENT-GUEST-PASSPORT"
+		current.PassportSeriesNumber = &otherPassport
+		require.NoError(t, w.db.Save(&current).Error)
+		rec = testutil.GET(t, w.e, liveURL, w.adminH)
+		require.Equal(t, http.StatusOK, rec.Code, "unrelated identified participant remains available: %s", rec.Body.String())
+		require.NoError(t, w.db.Model(&models.UniqueEmployee{}).Where("id = ?", registry.ID).
+			UpdateColumn("passport_series_number_hmac", nil).Error)
+		rec = testutil.GET(t, w.e, liveURL, w.adminH)
+		require.Equal(t, http.StatusForbidden, rec.Code, "unknown legacy identity must not be matched by name")
+		require.NoError(t, w.db.Model(&models.UniqueEmployee{}).Where("id = ?", registry.ID).
+			UpdateColumn("passport_series_number_hmac", registry.PassportSeriesNumberHMAC).Error)
+		current.PassportSeriesNumber = nil
+		current.PassportSeriesNumberHMAC = nil
+		require.NoError(t, w.db.Save(&current).Error)
+		rec = testutil.GET(t, w.e, liveURL, w.adminH)
+		require.Equal(t, http.StatusForbidden, rec.Code, "unidentified current participant must fail closed")
+	})
+
 	t.Run("withdrawal blocks legacy originals even for super with consent prompt disabled", func(t *testing.T) {
 		at := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
 		withdrawal := models.PDConsent{UserID: id, ConsentType: services.ConsentTypePDProcessing,

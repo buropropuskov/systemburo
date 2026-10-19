@@ -32,6 +32,8 @@ func (s *ArchiveDownloadService) originalDisclosureRestricted(ctx context.Contex
 	if !active {
 		var restricted bool
 		err = s.db.WithContext(ctx).Raw(`SELECT EXISTS (
+			SELECT 1 FROM unique_employees WHERE pd_objection_at IS NOT NULL
+		) OR EXISTS (
 			SELECT 1 FROM pd_consents revoked
 			WHERE revoked.consent_type = ? AND revoked.revoked_at IS NOT NULL
 			AND NOT EXISTS (

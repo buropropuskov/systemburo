@@ -650,7 +650,9 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	// бланк печатают и несут на пост как документ допуска, поэтому строка непринятого
 	// дополнения в нём означала бы проход мимо согласования (#1685).
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("cars")).Order("id").Find(&bctx.Cars)
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("employees")).Order("id").Find(&bctx.Employees)
+	if err := s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("employees")).Order("id").Find(&bctx.Employees).Error; err != nil {
+		return nil, nameMaskUnavailable(err)
+	}
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("items")).Order("id").Find(&bctx.Items)
 
 	// Привязки машин: места разгрузки и посты «Проезд» - по одному запросу на список,

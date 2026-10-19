@@ -1,10 +1,20 @@
 package services
 
-import "context"
+import (
+	"context"
+	"net/http"
+
+	"systemburo/internal/models"
+
+	"github.com/labstack/echo/v4"
+)
 
 // Apply the same identity policy to workbook cells and the download filename.
 // The context is private to this generation: stored records are never rewritten.
 func (s *attachmentBlankService) applyBlankNamePolicy(ctx context.Context, bctx *BlankContext, original bool) error {
+	if err := s.validateBlankObjections(ctx, bctx); err != nil {
+		return err
+	}
 	var masks map[int]string
 	var err error
 	if original {
@@ -46,6 +56,36 @@ func (s *attachmentBlankService) applyBlankNamePolicy(ctx context.Context, bctx 
 		}
 	}
 	applyBlankNameMasks(bctx, masks)
+	return nil
+}
+
+// Use the same exact document fingerprint as application submission. Names do
+// not establish identity, and the stored document values are never returned.
+func (s *attachmentBlankService) validateBlankObjections(ctx context.Context, bctx *BlankContext) error {
+	var hashes []string
+	unidentified := false
+	for _, person := range bctx.Employees {
+		if person.PassportSeriesNumberHMAC != nil && *person.PassportSeriesNumberHMAC != "" {
+			hashes = append(hashes, *person.PassportSeriesNumberHMAC)
+		} else {
+			unidentified = true
+		}
+	}
+	if len(bctx.Employees) == 0 {
+		return nil
+	}
+	var count int64
+	query := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).Where("pd_objection_at IS NOT NULL")
+	if !unidentified {
+		// An old record without a fingerprint cannot be safely identified by name.
+		query = query.Where("passport_series_number_hmac IN ? OR passport_series_number_hmac IS NULL OR passport_series_number_hmac = ''", hashes)
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return nameMaskUnavailable(err)
+	}
+	if count > 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Формирование бланка с указанными участниками сейчас недоступно")
+	}
 	return nil
 }
 
