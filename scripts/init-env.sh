@@ -206,6 +206,13 @@ REQUIRE_ENCRYPTION=${REQUIRE_ENCRYPTION}
 # === Ограничение частоты запросов ===
 RATE_LIMIT_PER_MINUTE=200
 RATE_LIMIT_WINDOW_SEC=60
+RATE_LIMIT_IP_PER_MINUTE=2000
+RATE_LIMIT_IP_WINDOW_SEC=60
+# Direct local backend ignores proxy headers; deployed Compose sets nginx trust.
+TRUSTED_PROXY_CIDRS=
+# Optional IPv4 prefix for the dedicated proxy network. Defaults differ:
+# staging 172.30.250, production 172.30.251. Set a free prefix if needed.
+# PROXY_NETWORK_PREFIX=172.30.250
 
 # === Постраничная выдача ===
 PAGINATION_MAX_LIMIT=100

@@ -51,6 +51,12 @@ type envWiringException struct {
 }
 
 var envWiringExceptions = map[string]envWiringException{
+	"TRUSTED_PROXY_CIDRS": {
+		reason: "прямой запуск не доверяет прокси; Compose вычисляет точный адрес nginx " +
+			"из PROXY_NETWORK_PREFIX. Явный TRUSTED_PROXY_CIDRS сохраняет приоритет. " +
+			"Связь вычисляемого дефолта с сетью проверяет TestEnvWiring_ProxyNetworkDefaults",
+		skipDefaultCheck: true,
+	},
 	"DATABASE_URL": {
 		reason: "собирается в compose из DB_USER/DB_PASSWORD/DB_NAME " +
 			"(DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}), " +
@@ -105,6 +111,37 @@ var envWiringExceptions = map[string]envWiringException{
 			"всё равно всегда прописывает реальный домен",
 		skipDefaultCheck: true,
 	},
+}
+
+func TestEnvWiring_ProxyNetworkDefaults(t *testing.T) {
+	root := repoRoot(t)
+	for _, tc := range []struct{ compose, prefix string }{
+		{"docker-compose.base.yml", "172.30.250"},
+		{"docker-compose.prod.yml", "172.30.251"},
+	} {
+		content := readRepoFile(t, root, tc.compose)
+		trust := "TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${PROXY_NETWORK_PREFIX:-" + tc.prefix + "}.2/32}"
+		if !strings.Contains(content, trust) {
+			t.Errorf("%s: отсутствует переопределяемое доверие только точному адресу nginx", tc.compose)
+		}
+		if !strings.Contains(content, "ipv4_address: ${PROXY_NETWORK_PREFIX:-"+tc.prefix+"}.3") {
+			t.Errorf("%s: адрес backend не согласован с подсетью", tc.compose)
+		}
+	}
+	for _, tc := range []struct{ compose, prefix string }{
+		{"docker-compose.staging.yml", "172.30.250"},
+		{"docker-compose.prod.yml", "172.30.251"},
+	} {
+		content := readRepoFile(t, root, tc.compose)
+		for _, expected := range []string{
+			"ipv4_address: ${PROXY_NETWORK_PREFIX:-" + tc.prefix + "}.2",
+			"subnet: ${PROXY_NETWORK_PREFIX:-" + tc.prefix + "}.0/29",
+		} {
+			if !strings.Contains(content, expected) {
+				t.Errorf("%s: отсутствует согласованная настройка %s", tc.compose, expected)
+			}
+		}
+	}
 }
 
 // configEnvField - одно поле Config с его env-тегом.

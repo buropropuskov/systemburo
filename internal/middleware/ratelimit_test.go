@@ -83,12 +83,9 @@ func TestLoginRateLimit_PerIPIsolation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code, "другой IP имеет независимый счётчик")
 }
 
-// TestRateLimit_SharedJWTPrefixTokensIsolated - регресс на баг ключа token[:20].
-// Первые ~36 символов любого HS256-JWT это base64 заголовка
-// {"alg":"HS256","typ":"JWT"}, одинаковый у всех -> старый ключ схлопывал всех
-// авторизованных в одно ведро и делил лимит на всю систему. Ключ по хешу всего
-// токена должен давать каждому токену независимое ведро.
-func TestRateLimit_SharedJWTPrefixTokensIsolated(t *testing.T) {
+// Different unverified token strings must not create separate IP budgets.
+// Verified account isolation is covered by TestAccountRateLimit_SharedIdentity.
+func TestRateLimit_UnverifiedTokensShareIPBudget(t *testing.T) {
 	e := echo.New()
 	e.Use(mw.RateLimit(2, 60))
 	e.GET("/x", func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
@@ -105,15 +102,13 @@ func TestRateLimit_SharedJWTPrefixTokensIsolated(t *testing.T) {
 		return rec.Code
 	}
 
-	// tokenA исчерпывает своё ведро (лимит 2), 3-й запрос -> 429.
+	// Exhaust this connection's budget.
 	require.Equal(t, http.StatusOK, do(tokenA))
 	require.Equal(t, http.StatusOK, do(tokenA))
 	require.Equal(t, http.StatusTooManyRequests, do(tokenA))
 
-	// tokenB с ОДИНАКОВЫМ 20-символьным префиксом обязан иметь своё ведро.
-	assert.Equal(t, http.StatusOK, do(tokenB), "токен с общим JWT-префиксом не должен делить ведро")
-	assert.Equal(t, http.StatusOK, do(tokenB))
-	assert.Equal(t, http.StatusTooManyRequests, do(tokenB), "своё ведро tokenB тоже лимитируется")
+	assert.Equal(t, http.StatusTooManyRequests, do(tokenB), "смена непроверенной строки не меняет IP-бюджет")
+	assert.Equal(t, http.StatusTooManyRequests, do(""))
 }
 
 // TestRateLimit_SetsRetryAfterOn429 - глобальный лимитер отдаёт Retry-After,

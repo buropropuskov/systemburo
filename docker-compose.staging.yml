@@ -19,6 +19,10 @@ services:
     image: ${FRONTEND_IMAGE:-ghcr.io/buropropuskov/systemburo-frontend:dev}
 
   nginx:
+    networks:
+      default: {}
+      backend_proxy:
+        ipv4_address: ${PROXY_NETWORK_PREFIX:-172.30.250}.2
     build:
       context: ./nginx
       dockerfile: Dockerfile.staging
@@ -62,3 +66,10 @@ services:
 
 volumes:
   pgadmin_data:
+
+networks:
+  backend_proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${PROXY_NETWORK_PREFIX:-172.30.250}.0/29

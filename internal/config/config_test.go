@@ -13,15 +13,18 @@ import (
 
 func validConfig() *Config {
 	return &Config{
-		DatabaseURL:        "postgres://user:pass@localhost/db",
-		JWTSecret:          "test-jwt-secret-that-is-at-least-32-chars!!",
-		JWTRefreshSecret:   "test-jwt-refresh-secret-at-least-32-chars!",
-		JWTAccessTTL:       15 * time.Minute,
-		JWTRefreshTTL:      168 * time.Hour,
-		LogLevel:           "info",
-		UploadMaxFileSize:  10485760,
-		RateLimitPerMinute: 200,
-		PaginationMaxLimit: 100,
+		DatabaseURL:          "postgres://user:pass@localhost/db",
+		JWTSecret:            "test-jwt-secret-that-is-at-least-32-chars!!",
+		JWTRefreshSecret:     "test-jwt-refresh-secret-at-least-32-chars!",
+		JWTAccessTTL:         15 * time.Minute,
+		JWTRefreshTTL:        168 * time.Hour,
+		LogLevel:             "info",
+		UploadMaxFileSize:    10485760,
+		RateLimitPerMinute:   200,
+		RateLimitWindowSec:   60,
+		RateLimitIPPerMinute: 2000,
+		RateLimitIPWindowSec: 60,
+		PaginationMaxLimit:   100,
 		// Интервалы воркера архива проверяются на положительность, поэтому без них
 		// помощник перестал бы соответствовать своему имени.
 		ArchiveWorkerTick:    15 * time.Second,
@@ -311,6 +314,30 @@ func TestLoad_RateLimitDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 200, cfg.RateLimitPerMinute)
 	assert.Equal(t, int64(60), cfg.RateLimitWindowSec)
+	assert.Equal(t, 2000, cfg.RateLimitIPPerMinute)
+	assert.Equal(t, int64(60), cfg.RateLimitIPWindowSec)
+	assert.Empty(t, cfg.TrustedProxyCIDRs)
+}
+
+func TestValidate_RateLimitSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*Config)
+	}{
+		{"account window", func(c *Config) { c.RateLimitWindowSec = 0 }},
+		{"IP limit", func(c *Config) { c.RateLimitIPPerMinute = -1 }},
+		{"IP window", func(c *Config) { c.RateLimitIPWindowSec = 0 }},
+		{"proxy CIDR", func(c *Config) { c.TrustedProxyCIDRs = []string{"invalid"} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			tc.change(cfg)
+			require.Error(t, cfg.Validate())
+		})
+	}
+	cfg := validConfig()
+	cfg.TrustedProxyCIDRs = []string{"172.30.250.2/32", "fd00::2/128"}
+	require.NoError(t, cfg.Validate())
 }
 
 func TestLoad_PaginationMaxLimitDefault(t *testing.T) {

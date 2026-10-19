@@ -31,9 +31,13 @@ services:
       - "effective_io_concurrency=200"
 
   backend:
+    networks:
+      backend_proxy:
+        ipv4_address: ${PROXY_NETWORK_PREFIX:-172.30.251}.3
     mem_limit: !reset null
     memswap_limit: !reset null
     environment:
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${PROXY_NETWORK_PREFIX:-172.30.251}.2/32}
       # Go в контейнере без CPU-лимита неверно определяет число ядер - фиксируем под 6 vCPU.
       GOMAXPROCS: "6"
       # Soft-лимит GC: сглаживает пики выделения после снятия mem_limit, не давая
@@ -49,6 +53,10 @@ services:
     memswap_limit: !reset null
 
   nginx:
+    networks:
+      default: {}
+      backend_proxy:
+        ipv4_address: ${PROXY_NETWORK_PREFIX:-172.30.251}.2
     image: nginx:1.25-alpine
     ports:
       - "80:80"
@@ -67,3 +75,10 @@ services:
 
 volumes:
   logs:
+
+networks:
+  backend_proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${PROXY_NETWORK_PREFIX:-172.30.251}.0/29
