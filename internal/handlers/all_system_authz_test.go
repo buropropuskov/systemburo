@@ -20,6 +20,7 @@ func TestAllSystem_ForbiddenForNonAdmin(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	testutil.RegisterUser(t, e, "plainuser", "password123", 1, td.OrgID, td.CompanyID)
+	assignBaseRole(t, db, "plainuser")
 	token, _ := testutil.LoginUser(t, e, "plainuser", "password123")
 	h := testutil.AuthHeader(token)
 

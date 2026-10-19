@@ -32,6 +32,7 @@ func registryOwner(t *testing.T, e *echo.Echo, db *gorm.DB, username, orgName st
 	require.NoError(t, db.Create(&org).Error, "seed org %s", orgName)
 
 	token := testutil.RegisterAndLogin(t, e, username, "pass123", 1, org.ID, 0)
+	assignBaseRole(t, db, username)
 	var user models.User
 	require.NoError(t, db.Where("username = ?", username).First(&user).Error, "fetch user %s", username)
 	return testutil.AuthHeader(token), user.ID

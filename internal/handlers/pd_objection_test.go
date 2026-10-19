@@ -180,6 +180,9 @@ func TestPDObjection_ClearIsAdminOnly(t *testing.T) {
 	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
 	applicantH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "objection_applicant",
 		"password123456789012345678901234", 1, td.OrgID, td.CompanyID))
+	for _, key := range []string{"entity.employees.read", "entity.employees.write"} {
+		testutil.GrantPermission(t, getUserID(t, db, "objection_applicant"), key)
+	}
 
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees",
 		`{"last_name":"Заявителев","first_name":"Пётр","position":"Слесарь","passport_series_number":"4501 555555","pd_consent":true}`, applicantH).Code)

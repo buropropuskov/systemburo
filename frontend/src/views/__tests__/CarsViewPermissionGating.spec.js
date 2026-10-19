@@ -27,7 +27,8 @@ const stubs = {
   ApplicationDetail: true,
 };
 
-function seedPerms({ mode = 'normal', allow = [] } = {}) {
+function seedPerms({ mode = 'normal', allow = [], read = true } = {}) {
+  if (read) allow = ['entity.cars.read', ...allow];
   const perms = usePermissionsStore();
   perms.mode = mode;
   perms.effective = Object.fromEntries(allow.map(k => [k, { value: 'allow', source: 'role' }]));
@@ -70,6 +71,29 @@ let wrapper;
 describe('CarsView — гейтинг реестра по правам (срез 6)', () => {
   beforeEach(() => setActivePinia(createPinia()));
   afterEach(() => wrapper?.unmount());
+
+  it('view denial hides mutations even when action rights remain', async () => {
+    seedPerms({ read: false, allow: ['entity.cars.write', 'entity.cars.delete'] });
+    wrapper = mountView(); await withOwnedRow(wrapper);
+    expect(addBtn(wrapper).exists()).toBe(false);
+    expect(editBtn(wrapper).exists()).toBe(false);
+    expect(deleteBtn(wrapper).exists()).toBe(false);
+  });
+
+  it.each(['normal', 'admin'])('removes actions after section denial for a loaded %s row', async mode => {
+    seedPerms({ mode, allow: ['entity.cars.write', 'entity.cars.delete', 'section.registry.organization'] });
+    wrapper = mountView(); await withOwnedRow(wrapper, 'organization');
+    wrapper.vm.ownershipInfo.can_manage_all = mode === 'admin';
+    wrapper.vm.carsData[0].user_id = 2; await wrapper.vm.$nextTick();
+    expect(editBtn(wrapper).exists()).toBe(true); expect(deleteBtn(wrapper).exists()).toBe(true);
+    const perms = usePermissionsStore();
+    if (mode === 'admin') perms.denied = new Set(['section.registry.organization', 'section.registry.company', 'section.registry.all_system']);
+    else delete perms.effective['section.registry.organization'];
+    await wrapper.vm.$nextTick();
+    expect(editBtn(wrapper).exists()).toBe(false); expect(deleteBtn(wrapper).exists()).toBe(false);
+    expect(wrapper.vm.carBelongsToUser(wrapper.vm.carsData[0])).toBe(true);
+    expect(wrapper.vm.canEditTooltip(wrapper.vm.carsData[0])).toBe('Запись недоступна для изменения');
+  });
 
   describe('Вкладки разделов реестра (section.registry.*)', () => {
     it('вкладка организации видна при section.registry.organization', async () => {

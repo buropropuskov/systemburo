@@ -11,51 +11,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// applyRegistryScope сужает выборку реестра (unique_cars/unique_employees) до строк,
-// которые пользователь вправе видеть. Зеркало ветки "all" из buildCarsQuery
-// (unique_car_service.go) и buildEmployeesQuery (unique_employee_service.go): свои
-// записи плюс записи своей организации и своей компании; полный срез системы -- только
-// тем, кому его открывает searchCanSeeAllSystem.
-//
-// Скоуп применяется внутри провайдера, а не в хендлере: гейт эндпоинта и отсев по
-// PermissionKey отвечают на "показывать ли раздел", но не на "какие строки раздела".
-// Разведение этих двух вопросов и есть защита от повторения #1524/#1528.
-//
-// Ветки organization/company навешиваются только при непустом значении у пользователя.
-// В реестрах на их месте подставляется 0, что безопасно (колонки nullable, id с
-// единицы), но лишнее условие в OR ничего не находит и только удлиняет запрос.
+// applyRegistryScope использует те же права разделов и условия владения,
+// что списки реестров. Права запроса уже разрешены до вызова провайдера.
 func applyRegistryScope(q *gorm.DB, alias string, req searchRequest) *gorm.DB {
-	if req.CanSeeAllSystem {
+	scope := newRegistryReadScope(req.Perms, req.UserID, req.OrgID, req.CompanyID)
+	if scope.allSystem {
 		return q
 	}
-
-	cond := fmt.Sprintf("%s.user_id = ?", alias)
-	args := []interface{}{req.UserID}
-	if req.OrgID != nil && *req.OrgID != 0 {
-		cond += fmt.Sprintf(" OR %s.organization_id = ?", alias)
-		args = append(args, *req.OrgID)
-	}
-	if req.CompanyID != nil && *req.CompanyID != 0 {
-		cond += fmt.Sprintf(" OR %s.company_id = ?", alias)
-		args = append(args, *req.CompanyID)
-	}
-	return q.Where(cond, args...)
-}
-
-// searchCanSeeAllSystem -- вправе ли пользователь видеть системный срез реестров.
-//
-// Намеренно обёртка вокруг userIsSystemAdmin, а не собственный предикат: поиск не
-// должен быть шире листинга ни для кого. В системе есть рассинхрон -- реестры гейтят
-// системный срез флагами is_super_admin/is_admin напрямую из users, минуя резолвер,
-// тогда как грант section.registry.all_system существует в каталоге и раздаётся ролям,
-// из-за чего его носитель видит вкладку и получает 403.
-//
-// Чинить рассинхрон здесь нельзя: переход на резолвер расширил бы доступ носителям
-// гранта, то есть поменял матрицу доступа. Хуже того, починка только в поиске родила бы
-// второй перекос -- запись нашлась бы в поиске и не открылась в реестре. Когда
-// рассинхрон будут устранять, менять придётся ровно эту функцию.
-func searchCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
-	return userIsSystemAdmin(ctx, db, userID)
+	return scope.apply(q, alias, "all")
 }
 
 // matchRankExpr возвращает выражение ступени совпадения для сортировки: точное

@@ -90,10 +90,10 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 		Scan(&owner).Error; err != nil {
 		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
 	}
-	if owner.OrganizationID != nil {
+	if owner.OrganizationID != nil && set.Has(KeySectionRegistryOrganization) {
 		scope.OrgID = *owner.OrganizationID
 	}
-	if owner.CompanyID != nil {
+	if owner.CompanyID != nil && set.Has(KeySectionRegistryCompany) {
 		scope.CompanyID = *owner.CompanyID
 	}
 

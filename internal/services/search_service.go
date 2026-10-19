@@ -248,14 +248,13 @@ func (s *searchService) buildRequest(ctx context.Context, userID int, raw string
 	}
 
 	return searchRequest{
-		Raw:             raw,
-		Variants:        buildSearchVariantsFor(raw),
-		Limit:           limit,
-		UserID:          userID,
-		Perms:           set,
-		OrgID:           owner.OrganizationID,
-		CompanyID:       owner.CompanyID,
-		CanSeeAllSystem: searchCanSeeAllSystem(ctx, s.db, userID),
-		IsApprover:      approverCount > 0,
+		Raw:        raw,
+		Variants:   buildSearchVariantsFor(raw),
+		Limit:      limit,
+		UserID:     userID,
+		Perms:      set,
+		OrgID:      owner.OrganizationID,
+		CompanyID:  owner.CompanyID,
+		IsApprover: approverCount > 0,
 	}, nil
 }

@@ -52,6 +52,7 @@ type CarOwnerInfo struct {
 	// который вью и так запрашивает: показ кнопок правки и серверный гейт обязаны
 	// стоять на одном признаке, иначе получается "кнопка есть, а в ответ 403".
 	CanManageAll bool `json:"can_manage_all"`
+	readScope    registryReadScope
 }
 
 // UniqueCarWithRelations -- машина с данными связанных сущностей.
@@ -204,6 +205,11 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Доступ запрещён")
 	}
 
+	set, err := NewPermissionResolver(s.db).ResolveFresh(ctx, result.UserID)
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+	}
+
 	return &CarOwnerInfo{
 		HasOrganization:  result.HasOrganization,
 		HasCompany:       result.HasCompany,
@@ -213,6 +219,7 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 		OrganizationName: result.OrganizationName,
 		CompanyName:      result.CompanyName,
 		CanManageAll:     result.CanManageAll,
+		readScope:        newRegistryReadScope(set, result.UserID, result.OrganizationID, result.CompanyID),
 	}, nil
 }
 
@@ -400,43 +407,7 @@ func (s *uniqueCarService) buildCarsQuery(ctx context.Context, ownerInfo *CarOwn
 		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").
 		Joins("LEFT JOIN users u ON uc.user_id = u.id")
 
-	switch filterType {
-	case "organization":
-		if ownerInfo.HasOrganization {
-			orgID := 0
-			if ownerInfo.OrganizationID != nil {
-				orgID = *ownerInfo.OrganizationID
-			}
-			query = query.Where("uc.organization_id = ?", orgID)
-		} else {
-			query = query.Where("uc.user_id = ?", ownerInfo.UserID)
-		}
-	case "company":
-		if ownerInfo.HasCompany {
-			compID := 0
-			if ownerInfo.CompanyID != nil {
-				compID = *ownerInfo.CompanyID
-			}
-			query = query.Where("uc.company_id = ?", compID)
-		} else {
-			query = query.Where("uc.user_id = ?", ownerInfo.UserID)
-		}
-	case "all":
-		orgID := 0
-		if ownerInfo.OrganizationID != nil {
-			orgID = *ownerInfo.OrganizationID
-		}
-		compID := 0
-		if ownerInfo.CompanyID != nil {
-			compID = *ownerInfo.CompanyID
-		}
-		query = query.Where("uc.user_id = ? OR uc.organization_id = ? OR uc.company_id = ?",
-			ownerInfo.UserID, orgID, compID)
-	case "all_system":
-		// Без фильтрации
-	default:
-		query = query.Where("uc.user_id = ?", ownerInfo.UserID)
-	}
+	query = ownerInfo.readScope.apply(query, "uc", filterType)
 
 	if raw := strings.TrimSpace(searchQuery); raw != "" {
 		// Поиск по номеру/марке/формату/организации/компании (реальные колонки uc.number,
@@ -466,8 +437,8 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 		return nil, err
 	}
 
-	if filterType == "all_system" && !ownerInfo.CanManageAll {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	if err := ownerInfo.readScope.authorizeFilter(filterType); err != nil {
+		return nil, err
 	}
 
 	query := s.buildCarsQuery(ctx, ownerInfo, filterType, "").
@@ -500,8 +471,8 @@ func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filter
 		return nil, 0, err
 	}
 
-	if filterType == "all_system" && !ownerInfo.CanManageAll {
-		return nil, 0, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	if err := ownerInfo.readScope.authorizeFilter(filterType); err != nil {
+		return nil, 0, err
 	}
 
 	var total int64
@@ -645,7 +616,7 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car")
 	}
 
-	if !s.canEditCar(&existing, ownerInfo) {
+	if !ownerInfo.readScope.contains(existing.UserID, existing.OrganizationID, existing.CompanyID) || !s.canEditCar(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this car")
 	}
 	if err := checkRegistryBinding(
@@ -759,7 +730,7 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car")
 	}
 
-	if !s.canEditCar(&existing, ownerInfo) {
+	if !ownerInfo.readScope.contains(existing.UserID, existing.OrganizationID, existing.CompanyID) || !s.canEditCar(&existing, ownerInfo) {
 		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to delete this car")
 	}
 
@@ -843,7 +814,7 @@ func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id i
 		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car")
 	}
-	if !s.canEditCar(&existing, ownerInfo) {
+	if !ownerInfo.readScope.contains(existing.UserID, existing.OrganizationID, existing.CompanyID) || !s.canEditCar(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to view this car history")
 	}
 

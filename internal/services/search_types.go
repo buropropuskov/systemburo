@@ -61,7 +61,7 @@ type SearchResponse struct {
 }
 
 // searchRequest -- нормализованный вход одного поиска, общий для всех провайдеров.
-// Скоуп-данные (OrgID/CompanyID/CanSeeAllSystem) читаются ОДИН раз в searchService.Search
+// Скоуп-данные (OrgID/CompanyID) читаются ОДИН раз в searchService.Search
 // и передаются готовыми: иначе каждый провайдер лез бы за ними в users отдельным запросом.
 type searchRequest struct {
 	Raw      string   // сырой ввод: нужен точному сравнению в ORDER BY и ранжированию
@@ -70,9 +70,8 @@ type searchRequest struct {
 	UserID   int
 	Perms    PermissionSet
 
-	OrgID           *int
-	CompanyID       *int
-	CanSeeAllSystem bool
+	OrgID     *int
+	CompanyID *int
 	// IsApprover снимает фильтр видимости заявок целиком -- принимающий видит все.
 	// Читается один раз на запрос, как и остальные данные видимости.
 	IsApprover bool

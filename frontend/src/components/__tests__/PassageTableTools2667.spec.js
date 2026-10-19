@@ -5,12 +5,15 @@ import PassageTableTools from '../PassageTableTools.vue';
 import PassageValidityCell from '../PassageValidityCell.vue';
 import OpenPassagesModal from '../OpenPassagesModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
+import { getMyApprovalRole } from '@/api/approvers';
 import { listOpenPassages } from '@/api/openPassages';
 vi.mock('@/api/openPassages', () => ({ listOpenPassages: vi.fn(), closeOpenPassage: vi.fn(), revertPassageCorrection: vi.fn() }));
+vi.mock('@/api/approvers', () => ({ getMyApprovalRole: vi.fn() }));
 const wrappers = [];
 const create = props => { const w = mount(PassageTableTools, { props, global: { stubs: { Teleport: true } } }); wrappers.push(w); return w; };
 describe('shared passage table controls #2667', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] }); vi.setSystemTime(new Date('2045-01-01T00:00:00Z'));
+    getMyApprovalRole.mockReset().mockResolvedValue({ is_approver: false });
     listOpenPassages.mockReset().mockResolvedValue({ items: [], counts: { all_open: 0, attention: 0, unknown_time: 0 }, page: 1, per_page: 25, total: 0, server_now: '2035-01-01T12:00:00Z' }); });
   afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); vi.useRealTimers(); });
   it.each([['car', 'Незакрытые проезды'], ['employee', 'Незакрытые проходы']])('opens a scoped %s list only by explicit click', async (kind, label) => {
@@ -27,13 +30,30 @@ describe('shared passage table controls #2667', () => {
     const w = create({ kind: 'car', tableID: null }); await flushPromises();
     expect(w.find('button').exists()).toBe(false); expect(listOpenPassages).not.toHaveBeenCalled();
   });
-  it('makes administrative summary reachable only with managed right and explicit source', async () => {
+  it('makes administrative summary reachable only for receiving role with managed right and explicit source', async () => {
     const w = create({ kind: 'employee', source: 'admin_summary' }); await flushPromises();
     expect(w.find('button').exists()).toBe(false);
+    getMyApprovalRole.mockResolvedValue({ is_approver: true });
     usePermissionsStore().$patch({ mode: 'normal', effective: { 'detail.passage.correct': { value: 'allow' } } }); await flushPromises();
     await w.find('[data-testid="open-passages-button"]').trigger('click'); await flushPromises();
     expect(listOpenPassages).toHaveBeenCalledWith('employee', null, expect.objectContaining({ source: 'admin_summary' }));
     usePermissionsStore().effective = {}; await flushPromises(); expect(w.find('button').exists()).toBe(false);
+  });
+  it('keeps summary hidden for an ordinary user with the correction right', async () => {
+    usePermissionsStore().$patch({ mode: 'normal', effective: { 'detail.passage.correct': { value: 'allow' } } });
+    const w = create({ kind: 'employee', source: 'admin_summary' }); await flushPromises();
+    expect(w.find('button').exists()).toBe(false); expect(listOpenPassages).not.toHaveBeenCalled();
+  });
+  it('fails closed when receiving role lookup fails', async () => {
+    getMyApprovalRole.mockRejectedValue(new Error('unavailable'));
+    usePermissionsStore().$patch({ mode: 'normal', effective: { 'detail.passage.correct': { value: 'allow' } } });
+    const w = create({ kind: 'employee', source: 'admin_summary' }); await flushPromises();
+    expect(w.find('button').exists()).toBe(false); expect(listOpenPassages).not.toHaveBeenCalled();
+  });
+  it.each(['admin', 'super'])('permits %s summary with the managed right', async mode => {
+    usePermissionsStore().$patch({ mode });
+    const w = create({ kind: 'employee', source: 'admin_summary' }); await flushPromises();
+    expect(w.find('button').exists()).toBe(true); expect(getMyApprovalRole).not.toHaveBeenCalled();
   });
   it('refreshes once at registered grace boundary using server time and stops after unmount', async () => {
     const onRefresh = vi.fn();

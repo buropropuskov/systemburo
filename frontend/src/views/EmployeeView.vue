@@ -537,7 +537,7 @@
 </template>
 
 <script>
-import { canReadRegistryHistory } from '@/utils/registryHistoryPermissions';
+import { canReadRegistryHistory, canReadRegistryRow } from '@/utils/registryPermissions';
 import { employeesRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
@@ -545,7 +545,8 @@ import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueEmployeesPaginated } from '@/api/employees'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
-import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
+import { registryScopeForRoute } from '@/utils/openQueryParam'
+import { openRegistrySearchLink } from '@/utils/openRegistrySearchResult'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -645,7 +646,7 @@ export default {
         // Право изменять реестр сотрудников (кнопки «Добавить»/«Редактировать»).
         // Базовая роль выдаёт его по умолчанию; админ может отозвать ролью.
         canWriteEmployees() {
-            return usePermissionsStore().hasPermission('entity.employees.write');
+            return usePermissionsStore().hasPermission('entity.employees.read') && usePermissionsStore().hasPermission('entity.employees.write');
         },
         // Право удалять из реестра сотрудников (кнопка «Удалить»). Базовая роль
         // выдаёт по умолчанию; админ может отозвать ролью, не затрагивая изменение.
@@ -655,7 +656,7 @@ export default {
             return this.ownershipInfo?.can_manage_all === true;
         },
         canDeleteEmployees() {
-            return usePermissionsStore().hasPermission('entity.employees.delete');
+            return usePermissionsStore().hasPermission('entity.employees.read') && usePermissionsStore().hasPermission('entity.employees.delete');
         },
         // Поиск по тексту выполняется на бэке через search_query (#1158, срез 3) -
         // здесь не дублируем, employeesData уже отфильтрован сервером.
@@ -782,9 +783,8 @@ export default {
         }
     },
     methods: {
-        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
         openFromSearchLink() {
-            openItemFromRoute({ router: this.$router, route: this.$route, items: this.employeesData, open: this.openEmployeeDetails });
+            return openRegistrySearchLink(this, this.employeesData, this.openEmployeeDetails, getUniqueEmployeesPaginated, usePermissionsStore().hasPermission('section.registry.all_system'));
         },
 
         /**
@@ -815,9 +815,8 @@ export default {
          * любую запись, остальные - свою, своей организации или своей компании.
          */
         canEditEmployee(emp) {
-            if (this.canManageAllEntities) return true;
-            if (this.currentFilter === 'all_system') return false;
-            return this.employeeBelongsToUser(emp);
+            const visible = canReadRegistryRow(usePermissionsStore(), 'employees', emp, this.ownershipInfo);
+            return visible && (this.canManageAllEntities || (this.currentFilter !== 'all_system' && this.employeeBelongsToUser(emp)));
         },
         /**
          * Сотрудник «свой»: запись автора, его организации или компании. Отдельно от
@@ -840,6 +839,7 @@ export default {
             return this.canEditEmployee(emp) && this.canDeleteEmployees;
         },
         canEditTooltip(emp) {
+            if (!canReadRegistryRow(usePermissionsStore(), 'employees', emp, this.ownershipInfo)) return 'Запись недоступна для изменения';
             if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
             if (!this.canEditEmployee(emp)) return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';

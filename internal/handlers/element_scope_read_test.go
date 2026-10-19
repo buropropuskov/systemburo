@@ -157,6 +157,7 @@ func TestElementScope_OwnOrganization(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	fx := seedElementScopeFixture(t, db)
 	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "scope_colleague", "pass123", 1, fx.orgID, td.CompanyID))
+	testutil.GrantPermission(t, getUserID(t, db, "scope_colleague"), services.KeySectionRegistryOrganization)
 	testutil.GrantPermission(t, getUserID(t, db, "scope_colleague"), services.KeyDetailEntryExitHistory)
 
 	got := readElements(t, e, h, fx)
