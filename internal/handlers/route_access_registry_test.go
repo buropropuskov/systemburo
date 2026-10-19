@@ -521,20 +521,20 @@ var routeAccessRegistry = map[string]routeAccess{
 	"GET /api/system-tables/name/:name":                              open("конфигурация поста по имени, как GET /system-tables/:id"),
 
 	// unique-cars
-	"GET /api/unique-cars":                scoped("по умолчанию свои записи, организация и компания только свои, вся система только админу"),
-	"POST /api/unique-cars":               scoped("checkRegistryBinding: чужая организация только с override (#2630)"),
-	"DELETE /api/unique-cars/:id":         scoped("canEditCar: свой, своя организация или компания, админ"),
-	"PUT /api/unique-cars/:id":            scoped("canEditCar и checkRegistryBinding при смене привязки (#2630)"),
+	"GET /api/unique-cars":                perm("entity.cars.read"),
+	"POST /api/unique-cars":               perm("entity.cars.read", "entity.cars.write"),
+	"DELETE /api/unique-cars/:id":         perm("entity.cars.read", "entity.cars.delete"),
+	"PUT /api/unique-cars/:id":            perm("entity.cars.read", "entity.cars.write"),
 	"GET /api/unique-cars/:id/history":    perm("entity.cars.read", "detail.full_history"),
 	"GET /api/unique-cars/history":        perm("entity.cars.read", "detail.full_history"),
 	"GET /api/unique-cars/lookup":         perm("page.admin.blacklist"),
 	"GET /api/unique-cars/ownership-info": self("своя привязка к организации и компании"),
 
 	// unique-employees
-	"GET /api/unique-employees":                  scoped("по умолчанию свои записи, организация и компания только свои, вся система только админу"),
-	"POST /api/unique-employees":                 scoped("checkRegistryBinding: чужая организация только с override (#2630)"),
-	"DELETE /api/unique-employees/:id":           scoped("canEditEmployee: свой, своя организация или компания, админ"),
-	"PUT /api/unique-employees/:id":              scoped("canEditEmployee и checkRegistryBinding при смене привязки (#2630)"),
+	"GET /api/unique-employees":                  perm("entity.employees.read"),
+	"POST /api/unique-employees":                 perm("entity.employees.read", "entity.employees.write"),
+	"DELETE /api/unique-employees/:id":           perm("entity.employees.read", "entity.employees.delete"),
+	"PUT /api/unique-employees/:id":              perm("entity.employees.read", "entity.employees.write"),
 	"GET /api/unique-employees/:id/history":      perm("entity.employees.read", "detail.full_history"),
 	"DELETE /api/unique-employees/:id/objection": role("снять возражение может только админ (CanManageAll)"),
 	"POST /api/unique-employees/:id/objection":   scoped("canEditEmployee: тот же круг, что правит запись"),

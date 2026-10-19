@@ -79,6 +79,7 @@ type EmployeeOwnerInfo struct {
 	// независимо от привязки. Тот же признак фронт берёт для показа кнопок, см.
 	// CarOwnerInfo.CanManageAll.
 	CanManageAll bool `json:"can_manage_all"`
+	readScope    registryReadScope
 }
 
 // UniqueEmployeeWithRelations -- сотрудник с данными связанных сущностей.
@@ -281,6 +282,11 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Доступ запрещён")
 	}
 
+	set, err := NewPermissionResolver(s.db).ResolveFresh(ctx, result.UserID)
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+	}
+
 	return &EmployeeOwnerInfo{
 		HasOrganization:  result.HasOrganization,
 		HasCompany:       result.HasCompany,
@@ -290,6 +296,7 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 		OrganizationName: result.OrganizationName,
 		CompanyName:      result.CompanyName,
 		CanManageAll:     result.CanManageAll,
+		readScope:        newRegistryReadScope(set, result.UserID, result.OrganizationID, result.CompanyID),
 	}, nil
 }
 
@@ -458,43 +465,7 @@ func (s *uniqueEmployeeService) buildEmployeesQuery(ctx context.Context, ownerIn
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id").
 		Joins("LEFT JOIN users usr ON ue.user_id = usr.id")
 
-	switch filterType {
-	case "organization":
-		if ownerInfo.HasOrganization {
-			orgID := 0
-			if ownerInfo.OrganizationID != nil {
-				orgID = *ownerInfo.OrganizationID
-			}
-			query = query.Where("ue.organization_id = ?", orgID)
-		} else {
-			query = query.Where("ue.user_id = ?", ownerInfo.UserID)
-		}
-	case "company":
-		if ownerInfo.HasCompany {
-			compID := 0
-			if ownerInfo.CompanyID != nil {
-				compID = *ownerInfo.CompanyID
-			}
-			query = query.Where("ue.company_id = ?", compID)
-		} else {
-			query = query.Where("ue.user_id = ?", ownerInfo.UserID)
-		}
-	case "all":
-		orgID := 0
-		if ownerInfo.OrganizationID != nil {
-			orgID = *ownerInfo.OrganizationID
-		}
-		compID := 0
-		if ownerInfo.CompanyID != nil {
-			compID = *ownerInfo.CompanyID
-		}
-		query = query.Where("ue.user_id = ? OR ue.organization_id = ? OR ue.company_id = ?",
-			ownerInfo.UserID, orgID, compID)
-	case "all_system":
-		// Без фильтрации — все сотрудники системы.
-	default:
-		query = query.Where("ue.user_id = ?", ownerInfo.UserID)
-	}
+	query = ownerInfo.readScope.apply(query, "ue", filterType)
 
 	if raw := strings.TrimSpace(searchQuery); raw != "" {
 		// Паспорт/патент (passport_series_number/patent_number) зашифрованы (#1049 HMAC-
@@ -550,8 +521,8 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		return nil, err
 	}
 
-	if filterType == "all_system" && !ownerInfo.CanManageAll {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	if err := ownerInfo.readScope.authorizeFilter(filterType); err != nil {
+		return nil, err
 	}
 
 	query := s.buildEmployeesQuery(ctx, ownerInfo, filterType, "").
@@ -589,8 +560,8 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 		return nil, 0, err
 	}
 
-	if filterType == "all_system" && !ownerInfo.CanManageAll {
-		return nil, 0, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	if err := ownerInfo.readScope.authorizeFilter(filterType); err != nil {
+		return nil, 0, err
 	}
 
 	var total int64
@@ -810,7 +781,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
 	}
 
-	if !s.canEditEmployee(&existing, ownerInfo) {
+	if !ownerInfo.readScope.contains(existing.UserID, existing.OrganizationID, existing.CompanyID) || !s.canEditEmployee(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
 	}
 	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), ownerInfo.UserID)
@@ -1055,7 +1026,7 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
 	}
 
-	if !s.canEditEmployee(&existing, ownerInfo) {
+	if !ownerInfo.readScope.contains(existing.UserID, existing.OrganizationID, existing.CompanyID) || !s.canEditEmployee(&existing, ownerInfo) {
 		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to delete this employee")
 	}
 
@@ -1123,7 +1094,7 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
 	}
-	if !s.canEditEmployee(&existing, ownerInfo) {
+	if !ownerInfo.readScope.contains(existing.UserID, existing.OrganizationID, existing.CompanyID) || !s.canEditEmployee(&existing, ownerInfo) {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to view this employee history")
 	}
 

@@ -15,7 +15,7 @@ import (
 // Зеркалит buildCarsQuery (unique_car_service.go): тот же набор колонок (номер, марка,
 // формат, организация, компания), та же ветка слитно-раздельного номера через
 // normalize.Plate и тот же фильтр видимости -- свои записи, своей организации, своей
-// компании, полный срез только по searchCanSeeAllSystem.
+// компании, полный срез только по разрешению системного раздела реестра.
 type uniqueCarSearchProvider struct{}
 
 func (uniqueCarSearchProvider) Type() SearchEntityType { return SearchTypeCars }

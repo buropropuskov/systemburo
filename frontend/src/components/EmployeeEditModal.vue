@@ -285,8 +285,8 @@
 </template>
 
 <script>
+import { updateRegistryEmployee, createRegistryEmployee } from '@/api/registryMutations';
 import { employeeDocumentPayload } from '@/utils/employeeDocuments';
-import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { formatMomentDate } from '@/utils/datetime';
@@ -702,15 +702,9 @@ export default {
 
                 let response;
                 if (this.editingEmployee) {
-                    response = await apiRequest(`/unique-employees/${this.editingEmployee.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(employeeData)
-                    });
+                    response = await updateRegistryEmployee(this.editingEmployee.id, employeeData);
                 } else {
-                    response = await apiRequest('/unique-employees', {
-                        method: 'POST',
-                        body: JSON.stringify(employeeData)
-                    });
+                    response = await createRegistryEmployee(employeeData);
                 }
 
                 if (response.ok) {

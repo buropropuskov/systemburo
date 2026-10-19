@@ -784,7 +784,8 @@
 </template>
 
 <script>
-import { canReadRegistryHistory } from '@/utils/registryHistoryPermissions';
+import { deleteRegistryCar, updateRegistryCar, createRegistryCar } from '@/api/registryMutations';
+import { canReadRegistryHistory, canReadRegistryRow } from '@/utils/registryPermissions';
 import { carsRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
@@ -792,7 +793,8 @@ import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
-import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
+import { registryScopeForRoute } from '@/utils/openQueryParam'
+import { openRegistrySearchLink } from '@/utils/openRegistrySearchResult'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -918,12 +920,12 @@ export default {
         // Право изменять реестр авто (кнопки «Добавить»/«Редактировать»). Базовая
         // роль выдаёт его по умолчанию; админ может отозвать ролью.
         canWriteCars() {
-            return usePermissionsStore().hasPermission('entity.cars.write');
+            return usePermissionsStore().hasPermission('entity.cars.read') && usePermissionsStore().hasPermission('entity.cars.write');
         },
         // Право удалять из реестра авто (кнопка «Удалить»). Базовая роль выдаёт
         // по умолчанию; админ может отозвать ролью, не затрагивая изменение.
         canDeleteCars() {
-            return usePermissionsStore().hasPermission('entity.cars.delete');
+            return usePermissionsStore().hasPermission('entity.cars.read') && usePermissionsStore().hasPermission('entity.cars.delete');
         },
         // Административная область берётся из серверного ownership-info; журнал дополнительно требует прав чтения.
         canReadRegistryLog() { return canReadRegistryHistory(usePermissionsStore(), 'cars'); },
@@ -1109,9 +1111,8 @@ export default {
         }
     },
     methods: {
-        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
         openFromSearchLink() {
-            openItemFromRoute({ router: this.$router, route: this.$route, items: this.carsData, open: this.openCarDetails });
+            return openRegistrySearchLink(this, this.carsData, this.openCarDetails, getUniqueCarsPaginated, usePermissionsStore().hasPermission('section.registry.all_system'));
         },
 
         /**
@@ -1148,9 +1149,8 @@ export default {
          * read-only для всех (PR #198); бюро обязано чинить записи контрагентов.
          */
         canEditCar(car) {
-            if (this.canManageAllEntities) return true;
-            if (this.currentFilter === 'all_system') return false;
-            return this.carBelongsToUser(car);
+            const visible = canReadRegistryRow(usePermissionsStore(), 'cars', car, this.ownershipInfo);
+            return visible && (this.canManageAllEntities || (this.currentFilter !== 'all_system' && this.carBelongsToUser(car)));
         },
         /**
          * Машина «своя»: автор записи, её организация или компания совпадает с
@@ -1174,6 +1174,7 @@ export default {
             return this.canEditCar(car) && this.canDeleteCars;
         },
         canEditTooltip(car) {
+            if (!canReadRegistryRow(usePermissionsStore(), 'cars', car, this.ownershipInfo)) return 'Запись недоступна для изменения';
             if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
             if (!this.canEditCar(car)) return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';
@@ -1349,9 +1350,7 @@ export default {
             this.carToDelete = null;
 
             try {
-                const response = await apiRequest(`/unique-cars/${car.id}`, {
-                    method: "DELETE"
-                });
+                const response = await deleteRegistryCar(car.id);
 
                 if (response.ok) {
                     await this.fetchCars();
@@ -1737,16 +1736,10 @@ export default {
                 let response;
                 if (this.editingCar) {
                     // Редактирование существующей машины
-                    response = await apiRequest(`/unique-cars/${this.editingCar.id}`, {
-                        method: "PUT",
-                        body: JSON.stringify(carData)
-                    });
+                    response = await updateRegistryCar(this.editingCar.id, carData);
                 } else {
                     // Создание новой машины
-                    response = await apiRequest("/unique-cars", {
-                        method: "POST",
-                        body: JSON.stringify(carData)
-                    });
+                    response = await createRegistryCar(carData);
                 }
 
                 if (response.ok) {

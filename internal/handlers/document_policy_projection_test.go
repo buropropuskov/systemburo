@@ -118,6 +118,7 @@ func TestDocumentPolicy_RegistryPartialUpdateAndLookup(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	owner := s1PolicyUser(t, db, td, "projection_registry_owner", false, false)
 	colleague := s1PolicyUser(t, db, td, "projection_registry_colleague", false, false)
+	setDocumentGrant(t, db, colleague.ID, services.KeySectionRegistryOrganization, "allow")
 	svc := services.NewUniqueEmployeeService(db)
 	fx := documentsGateFixture{passport: "SYN-001", patent: "PAT-001", other: "OTHER-001"}
 	setDocumentGrant(t, db, owner.ID, services.KeyDetailDocuments, "deny")

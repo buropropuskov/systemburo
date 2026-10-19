@@ -51,6 +51,7 @@ describe('employee document metadata across view transformations', () => {
             lastName: 'Fixture', firstName: 'Employee', position: 'Role', passportSeriesNumber: 'new application passport' };
         const vm = { selectedAttachment: { id: 2, attachment_type: 'people' }, attachments: [{ id: 2, attachment_type: 'people' }],
             employeeIdCounter: 1, employeesByAttachment: {}, vehiclesByAttachment: {}, attachmentKey: () => 2,
+            canCreateRegistry: vi.fn().mockReturnValue(true),
             saveToLocalStorage: vi.fn(), loadExistingVehicles: vi.fn().mockResolvedValue([]), loadExistingEmployees: vi.fn().mockResolvedValue([]) };
         CreateApplication.methods.handleEmployeesAdded.call(vm, [row]);
         expect(vm.employeesByAttachment[2][0]).toMatchObject({ isExisting: true, existingEmployeeId: 77, sourceDocumentsHidden: true, passportSeriesNumber: 'new application passport' });

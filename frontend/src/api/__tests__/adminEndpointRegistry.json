@@ -1,17 +1,35 @@
 {
   "api/applicationFiles.js::deleteApplicationFile": {
-    "gate": "Крестик на плитке файла рисуется по can('page.admin') (ApplicationDetail.canRemoveFiles), тем же правом, что закрывает роут удаления"
+    "gate": "РљСЂРµСЃС‚РёРє РЅР° РїР»РёС‚РєРµ С„Р°Р№Р»Р° СЂРёСЃСѓРµС‚СЃСЏ РїРѕ can('page.admin') (ApplicationDetail.canRemoveFiles), С‚РµРј Р¶Рµ РїСЂР°РІРѕРј, С‡С‚Рѕ Р·Р°РєСЂС‹РІР°РµС‚ СЂРѕСѓС‚ СѓРґР°Р»РµРЅРёСЏ"
   },
   "api/applications.js::createSupplement": {
-    "gate": "Окно дополнения открывает кнопка в шапке заявки, а она рисуется по can('action.supplement.application') (ApplicationDetail.canSupplementApplication)"
+    "gate": "РћРєРЅРѕ РґРѕРїРѕР»РЅРµРЅРёСЏ РѕС‚РєСЂС‹РІР°РµС‚ РєРЅРѕРїРєР° РІ С€Р°РїРєРµ Р·Р°СЏРІРєРё, Р° РѕРЅР° СЂРёСЃСѓРµС‚СЃСЏ РїРѕ can('action.supplement.application') (ApplicationDetail.canSupplementApplication)"
   },
   "api/blankImport.js::downloadBlankTemplate": {
-    "gate": "Кнопка живёт в панели импорта, а панель открывается только при action.import.list (CreateApplication.canImportList проброшен в списки как can-import)"
+    "gate": "РљРЅРѕРїРєР° Р¶РёРІС‘С‚ РІ РїР°РЅРµР»Рё РёРјРїРѕСЂС‚Р°, Р° РїР°РЅРµР»СЊ РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РїСЂРё action.import.list (CreateApplication.canImportList РїСЂРѕР±СЂРѕС€РµРЅ РІ СЃРїРёСЃРєРё РєР°Рє can-import)"
   },
   "api/blankImport.js::uploadImportList": {
-    "gate": "Загрузка идёт из той же панели импорта, что и скачивание бланка, - режим включается только при action.import.list"
+    "gate": "Р—Р°РіСЂСѓР·РєР° РёРґС‘С‚ РёР· С‚РѕР№ Р¶Рµ РїР°РЅРµР»Рё РёРјРїРѕСЂС‚Р°, С‡С‚Рѕ Рё СЃРєР°С‡РёРІР°РЅРёРµ Р±Р»Р°РЅРєР°, - СЂРµР¶РёРј РІРєР»СЋС‡Р°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РїСЂРё action.import.list"
   },
   "api/feedback.js::getFeedbackStats": {
-    "gate": "NavMenu.fetchNewFeedbackCount выходит до запроса, если нет page.admin.feedback - счётчик обращений тогда просто ноль"
+    "gate": "NavMenu.fetchNewFeedbackCount РІС‹С…РѕРґРёС‚ РґРѕ Р·Р°РїСЂРѕСЃР°, РµСЃР»Рё РЅРµС‚ page.admin.feedback - СЃС‡С‘С‚С‡РёРє РѕР±СЂР°С‰РµРЅРёР№ С‚РѕРіРґР° РїСЂРѕСЃС‚Рѕ РЅРѕР»СЊ"
+  },
+  "api/registryMutations.js::createRegistryCar": {
+    "gate": "Явное действие: для реестра требуются entity.cars.read и entity.cars.write; кнопки и сохранение ограничены этими правами, сервер повторно проверяет права и область записи. При подаче необязательная запись справочника создаётся только с read/write."
+  },
+  "api/registryMutations.js::updateRegistryCar": {
+    "gate": "Явное действие: для реестра требуются entity.cars.read и entity.cars.write; кнопки и сохранение ограничены этими правами, сервер повторно проверяет права и область записи. При подаче необязательная запись справочника создаётся только с read/write."
+  },
+  "api/registryMutations.js::deleteRegistryCar": {
+    "gate": "Явное действие: для реестра требуются entity.cars.read и entity.cars.delete; кнопки и сохранение ограничены этими правами, сервер повторно проверяет права и область записи. При подаче необязательная запись справочника создаётся только с read/write."
+  },
+  "api/registryMutations.js::createRegistryEmployee": {
+    "gate": "Явное действие: для реестра требуются entity.employees.read и entity.employees.write; кнопки и сохранение ограничены этими правами, сервер повторно проверяет права и область записи. При подаче необязательная запись справочника создаётся только с read/write."
+  },
+  "api/registryMutations.js::updateRegistryEmployee": {
+    "gate": "Явное действие: для реестра требуются entity.employees.read и entity.employees.write; кнопки и сохранение ограничены этими правами, сервер повторно проверяет права и область записи. При подаче необязательная запись справочника создаётся только с read/write."
+  },
+  "api/registryMutations.js::deleteRegistryEmployee": {
+    "gate": "Явное действие: для реестра требуются entity.employees.read и entity.employees.delete; кнопки и сохранение ограничены этими правами, сервер повторно проверяет права и область записи. При подаче необязательная запись справочника создаётся только с read/write."
   }
 }

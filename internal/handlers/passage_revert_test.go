@@ -362,6 +362,7 @@ func TestPassageRevert_CanRevertFlag(t *testing.T) {
 	assert.Equal(t, env.table.ID, *own.LastMarkTableID, "пост отметки виден таблице")
 
 	stranger := testutil.RegisterAndLogin(t, env.e, "revflag_other", "pass123", 1, env.td.OrgID, env.td.CompanyID)
+	testutil.GrantTableVerb(t, getUserID(t, env.db, "revflag_other"), env.table.Name, "view")
 	assert.False(t, env.canRevert(t, stranger).CanRevert, "чужую отметку рядовой пользователь не отменяет")
 
 	env.ageLastMark(t, 20*time.Minute)

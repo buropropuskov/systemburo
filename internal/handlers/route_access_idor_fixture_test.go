@@ -83,7 +83,7 @@ func newIDORWorld(t *testing.T) *idorWorld {
 
 	// Одинаковые возможности истории у обоих: проверяем область объекта, а не отсутствие ключа.
 	for _, actor := range []idorActor{idorOwner, idorStranger} {
-		for _, key := range []string{services.KeyDetailFullHistory, services.KeyDetailEntryExitHistory, services.KeyEntityCarsRead, services.KeyEntityEmployeesRead} {
+		for _, key := range []string{services.KeyDetailFullHistory, services.KeyDetailEntryExitHistory, services.KeyEntityCarsRead, services.KeyEntityEmployeesRead, services.KeyEntityCarsWrite, services.KeyEntityCarsDelete, services.KeyEntityEmployeesWrite, services.KeyEntityEmployeesDel} {
 			testutil.GrantPermission(t, w.ids[actor], key)
 		}
 	}

@@ -185,7 +185,7 @@ func (h *CarHandler) limitCheckToOwnOrganization(c echo.Context, req *services.C
 		}
 		return &id
 	}
-	ownOrg, ownCompany := own(scope.OrgID), own(scope.CompanyID)
+	ownOrg, ownCompany := own(scope.OwnOrgID), own(scope.OwnCompanyID)
 	if req.OrganizationID == nil {
 		req.OrganizationID = ownOrg
 	}
