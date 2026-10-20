@@ -30,11 +30,13 @@ func validConfig() *Config {
 		ArchiveWorkerTick:    15 * time.Second,
 		ArchiveSweepInterval: 5 * time.Minute,
 		// Лимиты файлов заявки тоже проверяются на положительность (#1721).
-		ApplicationFileMaxCount:     10,
-		ApplicationFileMaxTotal:     31457280,
-		ApplicationFileDraftTTL:     24 * time.Hour,
-		ApplicationFileImageMaxSide: 2000,
-		ApplicationFileJPEGQuality:  82,
+		ApplicationFileMaxCount:      10,
+		ApplicationFileMaxTotal:      31457280,
+		ApplicationFileDraftTTL:      24 * time.Hour,
+		ApplicationFileDraftMaxCount: 50,
+		ApplicationFileDraftMaxTotal: 209715200,
+		ApplicationFileImageMaxSide:  2000,
+		ApplicationFileJPEGQuality:   82,
 		// Срок хранения подписок Web Push тоже проверяется на положительность (#974).
 		PushSubscriptionRetentionDays: 180,
 		// Срок хранения писем тоже проверяется на положительность (#2351).

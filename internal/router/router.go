@@ -940,6 +940,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// кому видна заявка, проверка доступа - внутри обработчиков.
 	if d.ApplicationFiles != nil {
 		apg.POST("/files", d.ApplicationFiles.UploadDraft)
+		apg.GET("/files/drafts", d.ApplicationFiles.ListDrafts)
 		apg.DELETE("/files/:id", d.ApplicationFiles.DeleteDraft)
 		apg.GET("/:id/files", d.ApplicationFiles.List)
 		apg.GET("/:id/files/:file_id", d.ApplicationFiles.Download)

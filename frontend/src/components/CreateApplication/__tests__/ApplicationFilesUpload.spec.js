@@ -15,7 +15,9 @@ const { notifyMock, uploadMock, deleteMock } = vi.hoisted(() => ({
 vi.mock('@/api/applicationFiles', () => ({
     uploadApplicationFiles: uploadMock,
     deleteApplicationDraftFile: deleteMock,
+    fetchApplicationDraftFiles: vi.fn(async () => ({ items: [], usage: { saved_count: 0, reserved_count: 0, saved_bytes: 0, reserved_bytes: 0 }, limits: { max_count: 50, max_bytes: 209715200 }, meta: { total: 0, page: 1, per_page: 1 } })),
 }));
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isImpersonating: false }) }));
 vi.mock('@/stores/deletions', () => ({
     useDeletionsStore: vi.fn(() => ({ notify: notifyMock, enqueue: vi.fn() })),
 }));

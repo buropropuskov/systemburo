@@ -44,8 +44,10 @@ type Config struct {
 	// UPLOAD_MAX_FILE_SIZE, здесь - сколько их на заявку и сколько всего. Потолок
 	// суммы нужен отдельно от количества: десять файлов по десять мегабайт
 	// упрутся в client_max_body_size nginx и оборвутся уже на прокси.
-	ApplicationFileMaxCount int   `env:"APPLICATION_FILE_MAX_COUNT" envDefault:"30"`
-	ApplicationFileMaxTotal int64 `env:"APPLICATION_FILE_MAX_TOTAL_SIZE" envDefault:"104857600"`
+	ApplicationFileMaxCount      int   `env:"APPLICATION_FILE_MAX_COUNT" envDefault:"30"`
+	ApplicationFileMaxTotal      int64 `env:"APPLICATION_FILE_MAX_TOTAL_SIZE" envDefault:"104857600"`
+	ApplicationFileDraftMaxCount int64 `env:"APPLICATION_FILE_DRAFT_MAX_COUNT" envDefault:"50"`
+	ApplicationFileDraftMaxTotal int64 `env:"APPLICATION_FILE_DRAFT_MAX_TOTAL_SIZE" envDefault:"209715200"`
 	// ApplicationFileDraftTTL - сколько живёт загруженный, но так и не приложенный
 	// к заявке файл: заявитель выбрал файлы и закрыл форму, не отправив её.
 	ApplicationFileDraftTTL time.Duration `env:"APPLICATION_FILE_DRAFT_TTL" envDefault:"24h"`
@@ -350,6 +352,12 @@ func (c *Config) Validate() error {
 	}
 	if c.ApplicationFileDraftTTL <= 0 {
 		return fmt.Errorf("APPLICATION_FILE_DRAFT_TTL must be positive (got %s)", c.ApplicationFileDraftTTL)
+	}
+	if c.ApplicationFileDraftMaxCount <= 0 {
+		return fmt.Errorf("APPLICATION_FILE_DRAFT_MAX_COUNT must be positive")
+	}
+	if c.ApplicationFileDraftMaxTotal < c.UploadMaxFileSize {
+		return fmt.Errorf("APPLICATION_FILE_DRAFT_MAX_TOTAL_SIZE must not be less than UPLOAD_MAX_FILE_SIZE")
 	}
 	if c.ApplicationFileImageMaxSide <= 0 {
 		return fmt.Errorf("APPLICATION_FILE_IMAGE_MAX_SIDE must be positive (got %d)", c.ApplicationFileImageMaxSide)

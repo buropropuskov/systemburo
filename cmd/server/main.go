@@ -383,7 +383,7 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder)
+	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder, services.DraftQuotaLimits{MaxCount: cfg.ApplicationFileDraftMaxCount, MaxBytes: cfg.ApplicationFileDraftMaxTotal})
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal))
 	if err := services.ConfigureEntityPeriodUpdates(entityPeriodCommands, applicationService); err != nil {
 		slog.Error("configure period updates", "error", err)
@@ -1023,7 +1023,15 @@ func startMailWorker(ctx context.Context, svc services.MailSender, tick time.Dur
 }
 
 func startApplicationFileSweeper(ctx context.Context, svc services.ApplicationFileService, ttl, interval time.Duration) {
+	lastHeavy := time.Time{}
 	run := func() {
+		if _, err := svc.Quota().RecoverReservations(ctx); err != nil {
+			slog.Error("application reservation cleanup failed", "error", err)
+		}
+		if !lastHeavy.IsZero() && time.Since(lastHeavy) < interval {
+			return
+		}
+		lastHeavy = time.Now()
 		removed, err := svc.SweepOrphans(ctx, ttl)
 		if err != nil {
 			slog.Error("не удалось убрать неприложенные файлы заявок", "error", err)
@@ -1041,7 +1049,7 @@ func startApplicationFileSweeper(ctx context.Context, svc services.ApplicationFi
 		}
 	}
 	run()
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for {
 		select {

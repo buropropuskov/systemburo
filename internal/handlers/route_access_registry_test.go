@@ -109,6 +109,7 @@ var routeAccessRegistry = map[string]routeAccess{
 	"POST /api/applications/available-attachments/:id/mark-executed": role("requireSecurityOrAdmin и CanSecurityViewAttachment по вложению"),
 	"GET /api/applications/export":                                   perm("action.export.applications"),
 	"POST /api/applications/files":                                   self("черновик файла на себя, заявки ещё нет"),
+	"GET /api/applications/files/drafts":                             self("метаданные только своих черновиков по uploaded_by из сессии; работа от чужого имени запрещена"),
 	"DELETE /api/applications/files/:id":                             self("удаляет только свой черновик (uploaded_by)"),
 	"POST /api/applications/submit-complete-application":             self("заявка от себя; чужая организация только с application.organization.override"),
 	"GET /api/applications/unread-count":                             self("счётчик по своим заявкам"),

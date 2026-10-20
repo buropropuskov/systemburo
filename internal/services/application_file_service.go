@@ -26,9 +26,6 @@ import (
 // созданной заявки нельзя - бюро открывает её в ту же секунду по SSE, и
 // загрузка проигрывала бы гонку.
 type ApplicationFileService interface {
-	// SaveDrafts записывает метаданные уже сохранённых на диск файлов как черновики
-	// пользователя. Возвращает их представления для ответа.
-	SaveDrafts(ctx context.Context, userID int, saved []upload.SavedFile) ([]models.ApplicationFileItem, error)
 	// DeleteDraft удаляет непривязанный файл пользователя вместе с файлом на диске.
 	DeleteDraft(ctx context.Context, userID, fileID int) error
 	// DraftUsage возвращает число и суммарный размер черновиков пользователя.
@@ -60,12 +57,14 @@ type ApplicationFileService interface {
 	ReadContent(ctx context.Context, fileID int) ([]byte, error)
 	// Dir -- каталог хранения файлов заявок.
 	Dir() string
+	Quota() *ApplicationFileQuota
 }
 
 type applicationFileService struct {
 	db       *gorm.DB
 	dir      string
 	recorder AuditRecorder
+	quota    *ApplicationFileQuota
 }
 
 // ApplicationFilesDir -- подкаталог UPLOAD_PATH, где лежат приложенные к заявкам
@@ -74,65 +73,27 @@ type applicationFileService struct {
 const ApplicationFilesDir = "application_files"
 
 // NewApplicationFileService создаёт сервис поверх каталога uploads/application_files.
-func NewApplicationFileService(db *gorm.DB, uploadPath string, recorder AuditRecorder) ApplicationFileService {
+func NewApplicationFileService(db *gorm.DB, uploadPath string, recorder AuditRecorder, limits ...DraftQuotaLimits) ApplicationFileService {
+	limit := DraftQuotaLimits{MaxCount: 50, MaxBytes: 209715200}
+	if len(limits) > 0 {
+		limit = limits[0]
+	}
+	quota, err := NewApplicationFileQuota(db, uploadPath, limit, nil)
+	if err != nil {
+		panic("invalid application file service configuration")
+	}
 	return &applicationFileService{
 		db:       db,
 		dir:      filepath.Join(uploadPath, ApplicationFilesDir),
 		recorder: recorder,
+		quota:    quota,
 	}
 }
 
 func (s *applicationFileService) Dir() string { return s.dir }
 
-func (s *applicationFileService) SaveDrafts(ctx context.Context, userID int, saved []upload.SavedFile) ([]models.ApplicationFileItem, error) {
-	rows := make([]models.ApplicationFile, 0, len(saved))
-	for _, f := range saved {
-		rows = append(rows, models.ApplicationFile{
-			FileName:   f.FileName,
-			StoredName: f.StoredName,
-			// Тип берём определённый по magic bytes, а не Content-Type из формы:
-			// его задаёт клиент, и text/html в нём превратил бы скачивание
-			// картинки в исполняемую страницу.
-			MimeType:   f.DetectedMime,
-			FileSize:   f.Size,
-			UploadedBy: userID,
-			Encrypted:  f.Encrypted,
-		})
-	}
-
-	if err := s.db.WithContext(ctx).Create(&rows).Error; err != nil {
-		// Файлы уже на диске: без строк в базе их никто не подберёт, кроме
-		// уборщика сирот, поэтому убираем сразу.
-		for _, f := range saved {
-			s.removeFile(f.StoredName)
-		}
-		return nil, apperr.Internal("Не удалось сохранить файлы")
-	}
-
-	items := make([]models.ApplicationFileItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, r.Item())
-	}
-	return items, nil
-}
-
 func (s *applicationFileService) DeleteDraft(ctx context.Context, userID, fileID int) error {
-	var file models.ApplicationFile
-	err := s.db.WithContext(ctx).
-		Where("id = ? AND uploaded_by = ? AND application_id IS NULL", fileID, userID).
-		First(&file).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return apperr.NotFound("Файл не найден")
-	}
-	if err != nil {
-		return apperr.Internal("Не удалось прочитать файл")
-	}
-
-	if err := s.db.WithContext(ctx).Delete(&models.ApplicationFile{}, file.ID).Error; err != nil {
-		return apperr.Internal("Не удалось удалить файл")
-	}
-	s.removeFile(file.StoredName)
-	return nil
+	return s.queueDraftDelete(ctx, userID, fileID, nil)
 }
 
 func (s *applicationFileService) DraftUsage(ctx context.Context, userID int) (int64, int64, error) {
@@ -153,6 +114,9 @@ func (s *applicationFileService) DraftUsage(ctx context.Context, userID int) (in
 func (s *applicationFileService) Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int, maxCount int, maxTotal int64) error {
 	if len(fileIDs) == 0 {
 		return nil
+	}
+	if err := WithDraftOwnerLock(tx, userID); err != nil {
+		return err
 	}
 	if maxCount > 0 && len(fileIDs) > maxCount {
 		return apperr.Validation(fmt.Sprintf("К заявке можно приложить не больше %d файлов", maxCount))
@@ -242,9 +206,11 @@ func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int,
 }
 
 func (s *applicationFileService) SweepOrphans(ctx context.Context, olderThan time.Duration) (int, error) {
+	cutoff := s.quota.now().Add(-olderThan)
 	var rows []models.ApplicationFile
 	err := s.db.WithContext(ctx).
-		Where("application_id IS NULL AND created_at < ?", time.Now().Add(-olderThan)).
+		Where("application_id IS NULL AND created_at < ?", cutoff).
+		Order("uploaded_by, id").
 		Find(&rows).Error
 	if err != nil {
 		return 0, fmt.Errorf("select orphan application files: %w", err)
@@ -253,17 +219,18 @@ func (s *applicationFileService) SweepOrphans(ctx context.Context, olderThan tim
 		return 0, nil
 	}
 
-	ids := make([]int, 0, len(rows))
+	removed := 0
 	for _, r := range rows {
-		ids = append(ids, r.ID)
+		if err := s.queueDraftDelete(ctx, r.UploadedBy, r.ID, &cutoff); err != nil {
+			var typed *apperr.Error
+			if errors.As(err, &typed) && typed.Code == 404 {
+				continue
+			}
+			return removed, err
+		}
+		removed++
 	}
-	if err := s.db.WithContext(ctx).Delete(&models.ApplicationFile{}, ids).Error; err != nil {
-		return 0, fmt.Errorf("delete orphan application files: %w", err)
-	}
-	for _, r := range rows {
-		s.removeFile(r.StoredName)
-	}
-	return len(rows), nil
+	return removed, nil
 }
 
 // SweepDiskOrphans сверяет каталог с базой. Нужен потому, что каскад от
@@ -287,6 +254,15 @@ func (s *applicationFileService) SweepDiskOrphans(ctx context.Context) (int, err
 	for _, name := range known {
 		index[name] = struct{}{}
 	}
+	var reservations []models.ApplicationFileReservation
+	if err := s.db.WithContext(ctx).Select("stored_names").Find(&reservations).Error; err != nil {
+		return 0, err
+	}
+	for _, row := range reservations {
+		for _, name := range row.StoredNames {
+			index[name] = struct{}{}
+		}
+	}
 
 	removed := 0
 	for _, e := range entries {
@@ -302,7 +278,12 @@ func (s *applicationFileService) SweepDiskOrphans(ctx context.Context) (int, err
 		if err != nil || time.Since(info.ModTime()) < time.Hour {
 			continue
 		}
-		s.removeFile(e.Name())
+		if err := os.Remove(filepath.Join(s.dir, e.Name())); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return removed, fmt.Errorf("remove application disk orphan: %w", err)
+		}
 		removed++
 	}
 	return removed, nil

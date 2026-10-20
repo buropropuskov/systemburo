@@ -35,6 +35,7 @@ var pdAuditKnownNonPDGetRoutes = map[string]string{
 	// applications: списки/детали персональные данные отдают (см. pd_audit.go),
 	// но эти соседи - только счётчики, флаги или метаданные вложения.
 	"GET /api/applications/unread-count":              "счётчик, без ФИО",
+	"GET /api/applications/files/drafts":              "владелец видит метаданные только собственных загруженных файлов (имя, размер, дата) и квоту; содержимое, чужие файлы и данные субъектов не читаются; работа от чужого имени запрещена, как просмотр собственной учётки",
 	"GET /api/applications/user/status-updates-count": "счётчик, без ФИО",
 	"GET /api/applications/available-attachments":     "перечень доступных вложений (номера/статус), сами сотрудники/машины - за /api/attachments",
 	"GET /api/applications/:id/check-approval-status": "статус-enum согласования, без ФИО",
