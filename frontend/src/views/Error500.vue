@@ -34,7 +34,7 @@
           Что-то <em>сломалось</em> на нашей стороне.
         </h1>
         <p class="err500__lede">
-          Мы уже разбираемся. Отчёт отправит детали инцидента разработчикам - так починим быстрее.
+          Отчёт сохранит детали инцидента в системе и поможет при разборе ошибки.
         </p>
 
         <div class="err500__actions">
@@ -53,7 +53,7 @@
                 stroke="currentColor"
                 stroke-width="2"
               ><polyline points="20 6 9 17 4 12" /></svg>
-              Отчёт отправлен
+              Отчёт сохранён
             </span>
             <span v-else-if="reportSending">
               Отправляется...
@@ -70,7 +70,7 @@
                 <path d="M22 2L11 13" />
                 <path d="M22 2l-7 20-4-9-9-4z" />
               </svg>
-              Отправить отчёт разработчикам
+              Отправить отчёт
             </span>
           </button>
 
@@ -79,7 +79,7 @@
             :class="{ 'err500__hint--success': reportSent, 'err500__hint--error': reportError }"
           >
             <template v-if="reportSent">
-              Спасибо - команда получила отчёт и уже смотрит.
+              Отчёт сохранён в системе.
             </template>
             <template v-else-if="reportError">
               {{ reportError }}
