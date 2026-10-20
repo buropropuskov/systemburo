@@ -21,7 +21,7 @@ func (s *ApplicationFileQuota) AbortReservation(ctx context.Context, owner int, 
 		if err != nil {
 			return err
 		}
-		if _, live := s.live.Load(id); live {
+		if _, live := s.live.Load(row.ID); live {
 			return apperr.Conflict("Запись файлов ещё не завершена")
 		}
 		if row.State == models.ApplicationFileReservationActive && row.WorkerID != s.workerID && s.now().Before(row.ExpiresAt) {
@@ -48,7 +48,7 @@ func (s *ApplicationFileQuota) AbortReservation(ctx context.Context, owner int, 
 	}
 	return s.ownerTx(ctx, owner, func(tx *gorm.DB) error {
 		// No writer can add a path once cleanup_pending was persisted.
-		return tx.Where("id = ? AND uploaded_by = ? AND state = ?", id, owner, models.ApplicationFileReservationCleanup).
+		return tx.Where("id = ? AND uploaded_by = ? AND state = ?", row.ID, owner, models.ApplicationFileReservationCleanup).
 			Delete(&models.ApplicationFileReservation{}).Error
 	})
 }

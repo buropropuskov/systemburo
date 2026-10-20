@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -298,4 +299,19 @@ func TestDraftReservation_RestartDoesNotTakeFreshForeignReservation(t *testing.T
 	n, err = restarted.RecoverReservations(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
+}
+
+func TestDraftReservation_CanonicalIdentityProtectsLiveWriter(t *testing.T) {
+	w := draftQuotaWorld(t, 1, 10)
+	ctx := context.Background()
+	r, err := w.quota.ReserveDrafts(ctx, 10001, 1, 5)
+	require.NoError(t, err)
+	alias := strings.ToUpper(r.ID)
+	quotaStatus(t, w.quota.AbortReservation(ctx, 10001, alias), 409)
+	name, err := w.quota.PrepareReservedFile(ctx, 10001, "urn:uuid:"+alias, 5, ".pdf")
+	require.NoError(t, err)
+	w.quota.FinishWriting(alias)
+	items, err := w.quota.CommitDrafts(ctx, 10001, alias, []upload.SavedFile{{StoredName: name, FileName: "synthetic.pdf", Size: 5, DetectedMime: "application/pdf", Encrypted: true}})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
 }

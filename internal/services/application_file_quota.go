@@ -141,10 +141,11 @@ func (s *ApplicationFileQuota) ReserveDrafts(ctx context.Context, owner int, cou
 
 func (s *ApplicationFileQuota) reservation(tx *gorm.DB, owner int, id string) (models.ApplicationFileReservation, error) {
 	var row models.ApplicationFileReservation
-	if _, err := uuid.Parse(id); err != nil {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
 		return row, apperr.NotFound("Загрузка не найдена")
 	}
-	err := tx.Where("id = ? AND uploaded_by = ?", id, owner).First(&row).Error
+	err = tx.Where("id = ? AND uploaded_by = ?", parsed.String(), owner).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		err = apperr.NotFound("Загрузка не найдена")
 	}
@@ -174,7 +175,7 @@ func (s *ApplicationFileQuota) PrepareReservedFile(ctx context.Context, owner in
 		if err := s.writable(row); err != nil {
 			return err
 		}
-		if _, live := s.live.Load(id); !live {
+		if _, live := s.live.Load(row.ID); !live {
 			return apperr.Conflict("Запись загрузки уже завершена")
 		}
 		if int64(len(row.StoredNames)) >= row.ReservedCount || size > math.MaxInt64-row.PreparedBytes {
@@ -201,7 +202,11 @@ func (s *ApplicationFileQuota) PrepareReservedFile(ctx context.Context, owner in
 
 // FinishWriting must be called only after all writers of this operation closed.
 // Expiry alone cannot establish that a writer stopped using its file descriptor.
-func (s *ApplicationFileQuota) FinishWriting(id string) { s.live.Delete(id) }
+func (s *ApplicationFileQuota) FinishWriting(id string) {
+	if parsed, err := uuid.Parse(id); err == nil {
+		s.live.Delete(parsed.String())
+	}
+}
 
 // CommitDrafts swaps a live reservation for all its file rows in one transaction.
 // Replays fail without creating duplicates; the upload response remains data[].
@@ -215,7 +220,7 @@ func (s *ApplicationFileQuota) CommitDrafts(ctx context.Context, owner int, id s
 		if err := s.writable(row); err != nil {
 			return err
 		}
-		if _, live := s.live.Load(id); live {
+		if _, live := s.live.Load(row.ID); live {
 			return apperr.Conflict("Запись файлов ещё не завершена")
 		}
 		if int64(len(saved)) != row.ReservedCount || len(saved) != len(row.StoredNames) {
