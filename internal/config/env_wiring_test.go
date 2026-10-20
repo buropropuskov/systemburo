@@ -144,6 +144,33 @@ func TestEnvWiring_ProxyNetworkDefaults(t *testing.T) {
 	}
 }
 
+func TestEnvWiring_ExternalProxyIsOptional(t *testing.T) {
+	root := repoRoot(t)
+	for _, name := range []string{"docker-compose.staging.yml", "docker-compose.prod.yml"} {
+		content := readRepoFile(t, root, name)
+		for _, expected := range []string{
+			"EDGE_TRUSTED_PROXY_CIDRS: ${EDGE_TRUSTED_PROXY_CIDRS:-}",
+			"./nginx/proxy-trust-entrypoint.sh:/docker-entrypoint.d/45-proxy-trust.sh:ro",
+		} {
+			if !strings.Contains(content, expected) {
+				t.Errorf("%s: отсутствует настройка внешнего прокси: %s", name, expected)
+			}
+		}
+	}
+	for _, name := range []string{"nginx/staging.conf", "nginx/nginx.conf"} {
+		if !strings.Contains(readRepoFile(t, root, name), "include /etc/nginx/proxy-trust.conf;") {
+			t.Errorf("%s: настройки доверия не подключены", name)
+		}
+	}
+	info, err := os.Stat(filepath.Join(root, "nginx", "proxy-trust-entrypoint.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Error("proxy-trust-entrypoint.sh должен быть исполняемым для nginx entrypoint")
+	}
+}
+
 // configEnvField - одно поле Config с его env-тегом.
 type configEnvField struct {
 	name       string

@@ -29,10 +29,12 @@ services:
     ports:
       - "80:80"
     environment:
+      EDGE_TRUSTED_PROXY_CIDRS: ${EDGE_TRUSTED_PROXY_CIDRS:-}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-admin}
       BASIC_AUTH_PASS: ${BASIC_AUTH_PASS:-changeme}
     volumes:
       - ./nginx/staging.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/proxy-trust-entrypoint.sh:/docker-entrypoint.d/45-proxy-trust.sh:ro
       - ./nginx/staging-entrypoint.sh:/docker-entrypoint.d/40-htpasswd.sh:ro
     depends_on:
       - backend
