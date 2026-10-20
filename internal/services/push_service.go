@@ -6,13 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"systemburo/internal/models"
@@ -130,11 +127,12 @@ type PushService interface {
 }
 
 type pushService struct {
-	db         *gorm.DB
-	publicKey  string
-	privateKey string
-	subscriber string
-	httpClient webpush.HTTPClient
+	db            *gorm.DB
+	publicKey     string
+	privateKey    string
+	subscriber    string
+	httpClient    webpush.HTTPClient
+	proxySelector pushProxySelector
 	// sync -- true заставляет Send отправлять и ждать завершения в вызывающей
 	// горутине. Нужен тестам, которые проверяют результат рассылки (создание/удаление
 	// подписки, счётчик неудач) сразу после вызова, без гонки с фоновой горутиной. В
@@ -186,12 +184,9 @@ func (s *pushService) guard() *pushEndpointGuard {
 }
 
 // WithPushAllowedHosts сужает круг служб доставки до перечисленных узлов (#2466,
-// параметр PUSH_ALLOWED_HOSTS). Пустой список -- умолчание: проверяются только схема и
-// диапазоны адресов, а узел может быть любым наружным. Так сделано намеренно: адрес
-// службы выбирает не система, а браузер пользователя, и жёсткий список по умолчанию
-// молча выключил бы уведомления всем, чей браузер ходит через службу, которой в списке
-// нет (сборки Chromium и региональные браузеры заводят свои). Заполненный список -
-// осознанное сужение для установки, где известно, какими браузерами пользуются.
+// параметр PUSH_ALLOWED_HOSTS). Пустой список сохраняет любые публичные службы при
+// прямой отправке; через исходящий прокси допускаются известные службы браузеров.
+// Заполненный список применяется на обоих маршрутах, в том числе для своих служб.
 func WithPushAllowedHosts(hosts []string) PushServiceOption {
 	return func(s *pushService) { s.endpointGuard.allowedHosts = normalizePushAllowedHosts(hosts) }
 }
@@ -220,49 +215,6 @@ func NewPushService(db *gorm.DB, publicKey, privateKey, subscriber string, opts 
 		s.httpClient = s.newGuardedHTTPClient()
 	}
 	return s
-}
-
-// newGuardedHTTPClient -- клиент отправки с двумя добавками против ухода запроса
-// внутрь сети (#2466) поверх проверки адреса подписки.
-//
-// Первая: адрес проверяется ещё раз в момент соединения, когда имя уже разрешено. Без
-// этого остаётся окно между проверкой и запросом - имя отдаёт наружный адрес на
-// проверке и внутренний на самом запросе (подмена DNS). Проверка снимается, если
-// исходящий трафик идёт через прокси: тогда сервер соединяется с прокси, а его адрес
-// внутри сети - обычное дело, и проверка отрезала бы доставку целиком.
-//
-// Вторая: клиент не ходит по перенаправлениям (ErrUseLastResponse). Службы доставки
-// перенаправлений не шлют, а перенаправление на внутренний адрес - способ обойти
-// проверку самого адреса подписки. 3xx приезжает в deliver как обычный неуспешный
-// ответ и копится счётчиком неудач.
-func (s *pushService) newGuardedHTTPClient() *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if proxyEnv := pushOutboundProxyEnv(); proxyEnv != "" {
-		slog.Info("push: проверка адреса в момент соединения выключена - исходящие запросы идут через прокси",
-			"proxy_env", proxyEnv)
-	} else {
-		dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
-		dialer.Control = func(_, address string, _ syscall.RawConn) error {
-			return s.guard().checkDialAddress(address)
-		}
-		transport.DialContext = dialer.DialContext
-	}
-	return &http.Client{
-		Transport:     transport,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-}
-
-// pushOutboundProxyEnv -- имя переменной окружения, которая заворачивает исходящие
-// запросы на прокси, или пустая строка. Значение самого прокси не возвращаем: в нём
-// бывают учётные данные, а в журнал уходит только имя переменной.
-func pushOutboundProxyEnv() string {
-	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
-		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return name
-		}
-	}
-	return ""
 }
 
 // normalizePushSubscriber снимает схему mailto: с адреса контакта перед передачей в
@@ -325,21 +277,21 @@ func (s *pushService) Subscribe(ctx context.Context, userID int, endpoint, p256d
 // отдаёт её текст в 400, фронт показывает его в уведомлении), поэтому технического
 // префикса "push subscribe:", как у соседних ошибок этого метода, здесь нет.
 func (s *pushService) checkEndpointOnSubscribe(ctx context.Context, userID int, endpoint string) error {
-	err := s.guard().check(ctx, endpoint)
+	err := s.checkEndpoint(ctx, endpoint)
 	if err == nil {
 		return nil
 	}
 	if errors.Is(err, errPushEndpointUnresolved) {
 		// Имя не разрешилось - это не приговор: установка внутри сети заказчика
-		// может ходить наружу через прокси и не иметь наружного DNS вовсе. Запрос
-		// по неразрешимому имени всё равно никуда не уйдёт, а проверка повторится
-		// перед каждой отправкой, когда DNS заработает.
+		// может ходить наружу через прокси и не иметь наружного DNS вовсе. Политика
+		// маршрута уже проверена; direct проверит выбранный IP при соединении,
+		// а proxy допускает только разрешённые службы.
 		slog.Warn("push: адрес подписки не удалось проверить - имя не разрешается",
-			"user_id", userID, "endpoint", endpoint, "error", err)
+			"user_id", userID, "endpoint_host", pushEndpointHost(endpoint), "error", err)
 		return nil
 	}
 	slog.Warn("push: подписка отклонена - недопустимый адрес службы уведомлений",
-		"user_id", userID, "endpoint", endpoint, "error", err)
+		"user_id", userID, "endpoint_host", pushEndpointHost(endpoint), "error", err)
 	return err
 }
 
@@ -449,11 +401,11 @@ func (s *pushService) sendNow(ctx context.Context, userID int, payload PushPaylo
 func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, message []byte) {
 	// Повторная проверка перед отправкой (#2466): в базе лежат подписки, сохранённые
 	// до того, как проверка появилась, а разрешение имени могло измениться с момента
-	// подписки. Неразрешимое имя пропускаем - запрос по нему и так никуда не уйдёт,
-	// а отказывать из-за молчания DNS значит наказывать подписку за сеть.
-	if err := s.guard().check(ctx, sub.Endpoint); err != nil && !errors.Is(err, errPushEndpointUnresolved) {
+	// подписки. Неразрешимое имя допускается только с проверенной политикой маршрута:
+	// direct проверит IP при соединении, proxy ограничен разрешёнными службами.
+	if err := s.checkEndpoint(ctx, sub.Endpoint); err != nil && !errors.Is(err, errPushEndpointUnresolved) {
 		slog.Warn("push: отправка отменена - недопустимый адрес службы уведомлений",
-			"subscription_id", sub.ID, "user_id", sub.UserID, "endpoint", sub.Endpoint, "error", err)
+			"subscription_id", sub.ID, "user_id", sub.UserID, "endpoint_host", pushEndpointHost(sub.Endpoint), "error", err)
 		// Через счётчик неудач, а не удалением на месте: причина остаётся видна
 		// администратору в разборе доставки (last_error), а сама строка всё равно
 		// уйдёт после pushSubscriptionFailureLimit попыток - годным такой адрес уже
@@ -486,7 +438,7 @@ func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, 
 				"subscription_id", sub.ID, "user_id", sub.UserID, "error", err)
 			return
 		}
-		s.recordFailure(ctx, sub, err.Error())
+		s.recordFailure(ctx, sub, safePushDeliveryError(err))
 		return
 	}
 	defer resp.Body.Close()
