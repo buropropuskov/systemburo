@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,14 @@ func TestBugReport_Submit_Ok(t *testing.T) {
 	data := testutil.ParseMap(t, rec)
 	assert.Equal(t, "abc12345", data["bug_hash"])
 	assert.Equal(t, float64(500), data["http_status"])
+	require.Greater(t, data["id"].(float64), float64(0))
+	var saved models.BugReport
+	require.NoError(t, db.First(&saved, int(data["id"].(float64))).Error)
+	assert.Equal(t, getUserID(t, db, "buguser"), saved.UserID)
+	assert.Equal(t, "abc12345", saved.BugHash)
+	assert.Equal(t, "POST /applications", saved.Route)
+	assert.Equal(t, 500, saved.HTTPStatus)
+	assert.Equal(t, "Internal Server Error", saved.Message)
 }
 
 func TestBugReport_Submit_Duplicate_409(t *testing.T) {

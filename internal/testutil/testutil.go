@@ -518,8 +518,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	archiveDownloadService := services.NewArchiveDownloadService(db, archiveWriter, settingsService, services.NewBanCheckService(db, 0), services.NewSessionAccessService(db, TestJWTRefreshSecret))
 	archiveDownloadHandler := handlers.NewArchiveDownloadHandler(
 		archiveDownloadService, applicationService, permissionResolver)
-	telegramService := services.NewTelegramService("", "")
-	bugReportService := services.NewBugReportService(db, telegramService)
+	bugReportService := services.NewBugReportService(db)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)

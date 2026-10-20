@@ -21,30 +21,27 @@ var ErrBugAlreadyReported = errors.New("bug already reported by this user")
 // BugReportService принимает репорт со страницы Error500 и:
 //  1. Проверяет per-user rate limit (3 репорта за 5 минут).
 //  2. INSERT .. ON CONFLICT DO NOTHING (uniq на user_id+bug_hash).
-//  3. Если вставка прошла - асинхронно отправляет в Telegram (fire-and-forget).
 type BugReportService interface {
-	Submit(ctx context.Context, userID int, username string, req models.BugReportRequest, userAgent string) (*models.BugReport, error)
+	Submit(ctx context.Context, userID int, req models.BugReportRequest, userAgent string) (*models.BugReport, error)
 }
 
 type bugReportService struct {
 	db    *gorm.DB
-	tg    TelegramService
 	limit int           // сколько репортов разрешено за окно
 	win   time.Duration // окно rate limit
 }
 
 // NewBugReportService конструирует сервис. Rate limit: 3 репорта за 5 минут на юзера.
 // Значения фиксированы - тут нет смысла выносить в env.
-func NewBugReportService(db *gorm.DB, tg TelegramService) BugReportService {
+func NewBugReportService(db *gorm.DB) BugReportService {
 	return &bugReportService{
 		db:    db,
-		tg:    tg,
 		limit: 3,
 		win:   5 * time.Minute,
 	}
 }
 
-func (s *bugReportService) Submit(ctx context.Context, userID int, username string, req models.BugReportRequest, userAgent string) (*models.BugReport, error) {
+func (s *bugReportService) Submit(ctx context.Context, userID int, req models.BugReportRequest, userAgent string) (*models.BugReport, error) {
 	// Rate limit: считаем последние N запросов за окно.
 	since := time.Now().UTC().Add(-s.win)
 	var count int64
@@ -84,28 +81,14 @@ func (s *bugReportService) Submit(ctx context.Context, userID int, username stri
 		return nil, ErrBugAlreadyReported
 	}
 
-	// Подгрузим ID свежесозданной записи (нужно для ответа и TG).
+	// Подгрузим ID свежесозданной записи для ответа.
 	if err := s.db.WithContext(ctx).
 		Where("user_id = ? AND bug_hash = ?", report.UserID, report.BugHash).
 		First(report).Error; err != nil {
-		// Запись точно есть (мы только что вставили) - если тут ошибка,
-		// это серьёзно, но TG уже смысла слать нет.
+		// Запись уже сохранена: ошибка чтения не должна провоцировать повторную подачу.
 		slog.Error("bug_report saved but readback failed", "error", err)
 		return report, nil
 	}
-
-	// Fire-and-forget: TG-отправка не должна блокировать API.
-	go func() {
-		// Свежий context - родительский мог завершиться.
-		sendCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := s.tg.SendBugReport(sendCtx, report, username); err != nil {
-			slog.Error("telegram delivery failed",
-				"bug_hash", report.BugHash,
-				"user_id", report.UserID,
-				"error", err)
-		}
-	}()
 
 	return report, nil
 }

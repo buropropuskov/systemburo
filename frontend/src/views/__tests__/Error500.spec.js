@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import Error500 from '@/views/Error500.vue'
-import { loadBugContext } from '@/composables/useBugReport'
+import { loadBugContext, markReported } from '@/composables/useBugReport'
+import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }))
@@ -39,6 +40,23 @@ describe('views/Error500', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  it.each([200, 409])('подтверждает сохранение отчёта при ответе %s без обещания внешней доставки', async (status) => {
+    apiRequest.mockResolvedValueOnce({ ok: status === 200, status })
+    const { wrapper } = await mountPage(context('/center'))
+    const button = wrapper.get('[data-testid="send-bug-report-btn"]')
+    expect(button.text()).toBe('Отправить отчёт')
+    await button.trigger('click')
+    await flushPromises()
+    expect(apiRequest).toHaveBeenCalledWith('/bug-report', expect.objectContaining({ method: 'POST' }))
+    expect(markReported).toHaveBeenCalledWith('deadbeefdeadbeef')
+    expect(button.text()).toBe('Отчёт сохранён')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.err500__hint').text()).toBe('Отчёт сохранён в системе.')
+    expect(wrapper.text()).not.toContain('разработчикам')
+    expect(wrapper.text()).not.toContain('уже смотрит')
+    wrapper.unmount()
   })
 
   it('повтор возвращает на страницу, где упал запрос, не оставляя /500 в истории', async () => {
