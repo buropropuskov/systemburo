@@ -150,12 +150,12 @@ func (s *notificationService) GetByUserIDPaginated(ctx context.Context, userID, 
 
 func (s *notificationService) findOwned(ctx context.Context, userID int, id int) (*models.Notification, error) {
 	var n models.Notification
-	err := s.db.WithContext(ctx).First(&n, id).Error
-	if err != nil {
+	err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).First(&n).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Notification not found")
 	}
-	if n.UserID != userID {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error loading notification")
 	}
 	return &n, nil
 }
@@ -166,8 +166,12 @@ func (s *notificationService) MarkRead(ctx context.Context, userID int, id int, 
 		return nil, err
 	}
 
-	if err := s.db.WithContext(ctx).Model(n).Update("is_read", req.IsRead).Error; err != nil {
+	result := s.db.WithContext(ctx).Model(n).Where("user_id = ?", userID).Update("is_read", req.IsRead)
+	if result.Error != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating notification")
+	}
+	if result.RowsAffected == 0 {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Notification not found")
 	}
 
 	n.IsRead = req.IsRead
@@ -191,8 +195,12 @@ func (s *notificationService) Delete(ctx context.Context, userID int, id int) er
 		return err
 	}
 
-	if err := s.db.WithContext(ctx).Delete(&models.Notification{}, id).Error; err != nil {
+	result := s.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.Notification{}, id)
+	if result.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting notification")
+	}
+	if result.RowsAffected == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Notification not found")
 	}
 	return nil
 }
