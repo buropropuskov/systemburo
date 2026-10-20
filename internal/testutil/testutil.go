@@ -46,6 +46,7 @@ const (
 
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
+	"application_file_reservations",
 	"audit_log",
 	// blank_exports живёт без внешних ключей, поэтому чистка заявок её строк не
 	// снимает: прошлый прогон оставлял заявку с тем же идентификатором уже
