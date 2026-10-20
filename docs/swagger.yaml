@@ -10017,7 +10017,7 @@ paths:
       - application/json
       description: |-
         Принимает с фронта bug_hash и контекст 500-ошибки, записывает
-        в bug_reports и асинхронно отправляет в Telegram. Один юзер -
+        в bug_reports. Один юзер -
         один репорт на конкретный bug_hash (409 при повторе).
       parameters:
       - description: Контекст ошибки

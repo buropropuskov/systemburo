@@ -22,7 +22,7 @@ func NewBugReportHandler(service services.BugReportService) *BugReportHandler {
 // Submit godoc
 // @Summary      Отправить отчёт о баге
 // @Description  Принимает с фронта bug_hash и контекст 500-ошибки, записывает
-// @Description  в bug_reports и асинхронно отправляет в Telegram. Один юзер -
+// @Description  в bug_reports. Один юзер -
 // @Description  один репорт на конкретный bug_hash (409 при повторе).
 // @Tags         bug-report
 // @Accept       json
@@ -42,7 +42,6 @@ func (h *BugReportHandler) Submit(c echo.Context) error {
 	}
 
 	userID := c.Get("user_id").(int)
-	username, _ := c.Get("username").(string)
 
 	// UserAgent обрезаем на границе базы (size:255) на стороне модели,
 	// но лучше обрежем тут явно, чтобы не полагаться на silent truncate БД.
@@ -51,7 +50,7 @@ func (h *BugReportHandler) Submit(c echo.Context) error {
 		ua = ua[:255]
 	}
 
-	report, err := h.service.Submit(c.Request().Context(), userID, username, req, ua)
+	report, err := h.service.Submit(c.Request().Context(), userID, req, ua)
 	if err != nil {
 		if errors.Is(err, services.ErrBugAlreadyReported) {
 			return echo.NewHTTPError(http.StatusConflict, "Вы уже отправляли отчёт об этом баге")

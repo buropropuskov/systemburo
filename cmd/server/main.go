@@ -374,8 +374,7 @@ func main() {
 	// Всплеск серверных ошибок (#2192): доля 5xx видна была только тому, кто сам
 	// открыл раздел мониторинга.
 	errorSpikeNotifyService := services.NewErrorSpikeNotifyService(db, notificationService, permissionResolver)
-	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
-	bugReportService := services.NewBugReportService(db, telegramService)
+	bugReportService := services.NewBugReportService(db)
 	// maintenance_scheduled (#1748 S5): уведомление активным пользователям при
 	// задании окна плановых техработ.
 	maintenanceService := services.NewMaintenanceService(db, services.WithMaintenanceNotifications(notificationServiceEarly))

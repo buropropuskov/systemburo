@@ -122,11 +122,6 @@ type Config struct {
 	// иначе браузер не отправит cookie.
 	CookieSecure bool `env:"COOKIE_SECURE" envDefault:"true"`
 
-	// Telegram bot для bug-report-ов со страницы Error500. Оба поля опциональные:
-	// если пустые - репорты пишутся только в БД, TG-отправка пропускается (warn-лог).
-	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN" envDefault:""`
-	TelegramChatID   string `env:"TELEGRAM_CHAT_ID" envDefault:""`
-
 	// ResetTimezone задаёт часовой пояс для ежедневного сброса территориальных статусов.
 	// Используется для расчёта 06:00 локального времени. По умолчанию Europe/Moscow.
 	ResetTimezone string `env:"RESET_TIMEZONE" envDefault:"Europe/Moscow"`
