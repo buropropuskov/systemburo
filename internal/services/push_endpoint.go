@@ -72,7 +72,7 @@ var pushBlockedPrefixes = []struct {
 // pushEndpointGuard решает, можно ли отправлять запрос по адресу подписки.
 type pushEndpointGuard struct {
 	// allowedHosts -- белый список узлов; пустой означает "проверяем только
-	// диапазоны адресов". Пустой он не случайно, см. WithPushAllowedHosts.
+	// диапазоны адресов" для direct; proxy дополнительно ограничен known-службами.
 	allowedHosts []string
 	// allowLocal снимает требование https и разрешает петлю и частные сети. Нужен
 	// тестам: httptest поднимает подставной push-сервис на http://127.0.0.1.
@@ -127,7 +127,7 @@ func (g *pushEndpointGuard) check(ctx context.Context, endpoint string) error {
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("адрес службы уведомлений не разбирается как ссылка: %w", err)
+		return errors.New("адрес службы уведомлений не разбирается как ссылка")
 	}
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "https" && !(g.allowLocal && scheme == "http") {
@@ -154,7 +154,7 @@ func (g *pushEndpointGuard) check(ctx context.Context, endpoint string) error {
 	}
 	addrs, err := g.resolve(ctx, host)
 	if err != nil {
-		return fmt.Errorf("%w: %s (%v)", errPushEndpointUnresolved, host, err)
+		return fmt.Errorf("%w: %s", errPushEndpointUnresolved, host)
 	}
 	if len(addrs) == 0 {
 		return fmt.Errorf("%w: %s", errPushEndpointUnresolved, host)
