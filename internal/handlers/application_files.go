@@ -1,12 +1,19 @@
 package handlers
 
 import (
+	"context"
+	"errors"
+	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
+	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/crypto"
 	"systemburo/internal/download"
 	"systemburo/internal/imaging"
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
@@ -53,9 +60,52 @@ func NewApplicationFileHandler(
 // @Router       /applications/files [post]
 func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 	userID := GetUserID(c)
-	ctx := c.Request().Context()
-
-	saved, err := upload.SaveMultipart(c, "files", upload.Options{
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Minute)
+	defer cancel()
+	c.SetRequest(c.Request().WithContext(ctx))
+	form, err := c.MultipartForm()
+	if err != nil {
+		var httpError *echo.HTTPError
+		if errors.As(err, &httpError) && httpError.Code == http.StatusRequestEntityTooLarge {
+			return err
+		}
+		return apperr.Validation("Не удалось прочитать форму загрузки")
+	}
+	defer form.RemoveAll()
+	files := form.File["files"]
+	if len(files) == 0 {
+		return apperr.Validation("Файл не выбран")
+	}
+	quota := h.files.Quota()
+	var total int64
+	sizes := make([]int64, len(files))
+	for i, file := range files {
+		size, err := upload.MeasureFile(ctx, file, h.maxFileSize)
+		if err != nil {
+			return err
+		}
+		if size > math.MaxInt64-total {
+			return apperr.Validation("Слишком большой объём загрузки")
+		}
+		sizes[i] = size
+		total += size
+	}
+	reservation, err := quota.ReserveDrafts(ctx, userID, int64(len(files)), total)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		quota.FinishWriting(reservation.ID)
+		if !committed {
+			cleanupCtx, done := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer done()
+			if err := quota.AbortReservation(cleanupCtx, userID, reservation.ID); err != nil {
+				slog.Error("application upload cleanup pending", "reservation_id", reservation.ID, "error", err)
+			}
+		}
+	}()
+	opts := upload.Options{
 		Dir:          h.files.Dir(),
 		URLPrefix:    "",
 		MaxFileSize:  h.maxFileSize,
@@ -66,19 +116,49 @@ func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 		// Файл заявки ложится на диск зашифрованным: номер паспорта в базе
 		// защищён, и его снимок не может лежать рядом открытым.
 		EncryptionKey: crypto.GetGlobalKey(),
-	})
+	}
+	saved := make([]upload.SavedFile, 0, len(files))
+	for i, file := range files {
+		prepared, err := upload.PrepareFile(ctx, file, opts, sizes[i])
+		if err != nil {
+			return err
+		}
+		name, err := quota.PrepareReservedFile(ctx, userID, reservation.ID, prepared.Metadata.Size, upload.MimeToExt(prepared.Metadata.DetectedMime, file.Filename))
+		if err != nil {
+			return err
+		}
+		written, err := upload.WritePrepared(ctx, prepared, opts, name)
+		if err != nil {
+			return err
+		}
+		saved = append(saved, written)
+	}
+	quota.FinishWriting(reservation.ID)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	items, err := quota.CommitDrafts(ctx, userID, reservation.ID, saved)
 	if err != nil {
 		return err
 	}
-
-	// Лимит на количество и объём проверяется при привязке к заявке, а не здесь:
-	// черновики копятся у пользователя от всех незавершённых подач, и общий счёт
-	// упирался в предел уже на первом файле новой заявки.
-	items, err := h.files.SaveDrafts(ctx, userID, saved)
-	if err != nil {
-		return err
-	}
+	committed = true
 	return RespondSuccess(c, items)
+}
+
+func (h *ApplicationFileHandler) ListDrafts(c echo.Context) error {
+	if _, ok := services.ImpersonatorFromContext(c.Request().Context()); ok {
+		return echo.NewHTTPError(http.StatusForbidden, "Список файлов недоступен в этом режиме")
+	}
+	params := models.PaginationParams{}
+	if err := c.Bind(&params); err != nil {
+		return apperr.Validation("Некорректные параметры списка")
+	}
+	params.Normalize()
+	page, meta, err := h.files.Quota().ListDrafts(c.Request().Context(), GetUserID(c), params.Page, params.PerPage)
+	if err != nil {
+		return err
+	}
+	return RespondPaginated(c, page, meta)
 }
 
 // DeleteDraft godoc

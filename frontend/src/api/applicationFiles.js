@@ -1,4 +1,4 @@
-import { apiRequest } from '@/api/client';
+import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal } from '@/api/client';
 
 /**
  * Файлы, приложенные к заявке (#1721).
@@ -22,6 +22,7 @@ export async function uploadApplicationFiles(files) {
     method: 'POST',
     body: formData,
     headers: {},
+    signal: createExtendedTimeoutSignal(120000),
   });
   // client.js разворачивает конверт {success, data}: json() отдаёт уже сами
   // данные, а при отказе - {message}. Читать payload.data поверх этого нельзя.
@@ -30,6 +31,13 @@ export async function uploadApplicationFiles(files) {
     throw new Error(payload?.message || 'Не удалось загрузить файлы');
   }
   return payload ?? [];
+}
+
+export async function fetchApplicationDraftFiles(page = 1, perPage = 20) {
+  const response = await apiRequestRaw(`/applications/files/drafts?page=${page}&per_page=${perPage}`);
+  const body = await response.json();
+  if (!response.ok || !body?.success) throw new Error(body?.error || 'Не удалось получить файлы-черновики');
+  return { ...body.data, meta: body.meta };
 }
 
 /**

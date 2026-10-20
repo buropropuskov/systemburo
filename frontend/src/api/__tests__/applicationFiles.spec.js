@@ -3,6 +3,7 @@ import {
   uploadApplicationFiles,
   fetchApplicationFiles,
   deleteApplicationDraftFile,
+  fetchApplicationDraftFiles,
 } from '@/api/applicationFiles';
 
 // Тесты на контракт с client.js, а не на компоненты: apiRequest разворачивает
@@ -12,7 +13,7 @@ import {
 
 const { apiRequestMock } = vi.hoisted(() => ({ apiRequestMock: vi.fn() }));
 
-vi.mock('@/api/client', () => ({ apiRequest: apiRequestMock }));
+vi.mock('@/api/client', () => ({ apiRequest: apiRequestMock, apiRequestRaw: apiRequestMock, createExtendedTimeoutSignal: () => undefined }));
 vi.mock('@/stores/auth', () => ({ useAuthStore: vi.fn(() => ({ token: 'test-token' })) }));
 
 /** Ответ в том виде, в каком его отдаёт обёрнутый apiRequest. */
@@ -22,6 +23,14 @@ function unwrapped(ok, body) {
 
 describe('api/applicationFiles', () => {
     beforeEach(() => vi.clearAllMocks());
+
+    it('keeps draft pagination beside the raw envelope data', async () => {
+        const data = { items: [], usage: { saved_count: 0 }, limits: { max_count: 50 } };
+        const meta = { total: 0, page: 2, per_page: 20 };
+        apiRequestMock.mockResolvedValue(unwrapped(true, { success: true, data, meta }));
+        expect(await fetchApplicationDraftFiles(2, 20)).toEqual({ ...data, meta });
+        expect(apiRequestMock).toHaveBeenCalledWith('/applications/files/drafts?page=2&per_page=20');
+    });
 
     it('возвращает загруженные файлы, а не пустой список', async () => {
         const saved = [{ id: 7, file_name: 'разрешение.png', file_size: 84, mime_type: 'image/png' }];

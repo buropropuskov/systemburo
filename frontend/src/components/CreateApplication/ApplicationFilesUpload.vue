@@ -30,6 +30,8 @@
         ><path d="M19.5 11l-7.8 7.8a4 4 0 0 1-5.7-5.7l8-8a2.5 2.5 0 0 1 3.6 3.6l-7.6 7.6a1 1 0 0 1-1.5-1.4l6.8-6.8" /></svg>
         <span>{{ uploading ? 'Загрузка...' : 'Прикрепить' }}</span>
       </button>
+      <button v-if="canManageDrafts" type="button" class="app-files__add" @click="showDrafts = true">Файлы-черновики</button>
+      <span v-if="quota" class="app-files__quota">{{ quota.usage.saved_count + quota.usage.reserved_count }} из {{ quota.limits.max_count }} · {{ formatBytes(quota.usage.saved_bytes + quota.usage.reserved_bytes) }} из {{ formatBytes(quota.limits.max_bytes) }}</span>
     </div>
 
     <TransitionGroup
@@ -63,6 +65,7 @@
         </button>
       </div>
     </TransitionGroup>
+    <ApplicationDraftFilesModal v-if="showDrafts && canManageDrafts" :show="showDrafts" @close="showDrafts = false" @deleted="onDraftDeleted" @usage="onUsage" />
   </div>
 </template>
 
@@ -74,10 +77,13 @@
  * подача привязывает их по списку id. Поэтому компонент отдаёт наверх именно
  * id, а не объекты File - к моменту отправки формы они уже на диске сервера.
  */
-import { ref, computed } from 'vue';
-import { uploadApplicationFiles, deleteApplicationDraftFile } from '@/api/applicationFiles';
+import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
+import { uploadApplicationFiles, deleteApplicationDraftFile, fetchApplicationDraftFiles } from '@/api/applicationFiles';
 import { formatBytes } from '@/utils/download';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useAuthStore } from '@/stores/auth';
+
+const ApplicationDraftFilesModal = defineAsyncComponent(() => import('./ApplicationDraftFilesModal.vue'));
 
 const props = defineProps({
   maxCount: { type: Number, default: 10 },
@@ -90,6 +96,22 @@ const files = ref([]);
 const uploading = ref(false);
 const fileInput = ref(null);
 const notifications = useDeletionsStore();
+const auth = useAuthStore();
+const canManageDrafts = computed(() => !auth.isImpersonating);
+const showDrafts = ref(false);
+const quota = ref(null);
+let active = true;
+let usageSequence = 0;
+async function refreshUsage() {
+  if (!canManageDrafts.value) return;
+  const sequence = ++usageSequence;
+  try { const result = await fetchApplicationDraftFiles(1, 1); if (active && sequence === usageSequence) quota.value = result; } catch { /* The list provides retry and a visible error. */ }
+}
+function onFocus() { if (!uploading.value) refreshUsage(); }
+function onDraftDeleted(id) { ++usageSequence; files.value = files.value.filter(file => file.id !== id); syncModel(); }
+function onUsage(data) { ++usageSequence; quota.value = data; }
+onMounted(() => { refreshUsage(); window.addEventListener('focus', onFocus); });
+onBeforeUnmount(() => { active = false; window.removeEventListener('focus', onFocus); });
 
 const remaining = computed(() => props.maxCount - files.value.length);
 
@@ -117,6 +139,7 @@ async function onSelect(event) {
     notifications.notify({ bold: error.message, type: 'error' });
   } finally {
     uploading.value = false;
+    await refreshUsage();
   }
 }
 
@@ -127,6 +150,8 @@ async function remove(file) {
     syncModel();
   } catch (error) {
     notifications.notify({ bold: error.message, type: 'error' });
+  } finally {
+    await refreshUsage();
   }
 }
 
@@ -161,6 +186,7 @@ function syncModel() {
 function reset() {
   files.value = [];
   model.value = [];
+  refreshUsage();
 }
 
 defineExpose({ reset });
@@ -169,7 +195,9 @@ defineExpose({ reset });
 <style scoped>
 .app-files {
     display: flex;
-    align-items: center;
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
     flex-wrap: wrap;
     gap: 6px;
 }
@@ -179,7 +207,11 @@ defineExpose({ reset });
 .app-files__controls {
     display: flex;
     align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
+
+.app-files__quota { font-size: 10px; color: var(--text-muted); }
 
 /* Кнопка компактная: она лишь открывает выбор файла и не должна спорить по весу
    с «Отправить заявку» в той же колонке. */
@@ -213,14 +245,18 @@ defineExpose({ reset });
 
 
 .app-files__list {
-    display: contents;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+    gap: 6px;
+    width: 100%;
 }
 
 .app-files__item {
     display: flex;
     align-items: center;
     gap: 6px;
-    max-width: 190px;
+    width: 100%;
+    min-width: 0;
     padding: 3px 8px 3px 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -255,6 +291,7 @@ defineExpose({ reset });
     display: flex;
     flex-direction: column;
     min-width: 0;
+    flex: 1;
 }
 
 .app-files__name {
@@ -272,6 +309,7 @@ defineExpose({ reset });
 }
 
 .app-files__remove {
+    flex-shrink: 0;
     border: none;
     background: none;
     cursor: pointer;

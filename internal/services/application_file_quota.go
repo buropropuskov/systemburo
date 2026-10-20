@@ -21,19 +21,20 @@ import (
 const draftReservationLifetime = 5 * time.Minute
 
 type DraftQuotaLimits struct {
-	MaxCount int64
-	MaxBytes int64
+	MaxCount int64 `json:"max_count"`
+	MaxBytes int64 `json:"max_bytes"`
 }
 
 type DraftQuotaUsage struct {
-	SavedCount    int64
-	SavedBytes    int64
-	ReservedCount int64
-	ReservedBytes int64
+	SavedCount    int64 `json:"saved_count"`
+	SavedBytes    int64 `json:"saved_bytes"`
+	ReservedCount int64 `json:"reserved_count"`
+	ReservedBytes int64 `json:"reserved_bytes"`
+	CleanupCount  int64 `json:"cleanup_count"`
 }
 
-// ApplicationFileQuota is an unwired foundation until upload, Attach and the
-// sweepers all share its owner lock. One instance represents one backend worker.
+// ApplicationFileQuota serializes uploads, attachment and cleanup by owner.
+// One instance represents one backend worker; concurrent replicas are not supported.
 type ApplicationFileQuota struct {
 	db            *gorm.DB
 	root          string
@@ -80,11 +81,12 @@ func draftQuotaUsage(tx *gorm.DB, owner int) (DraftQuotaUsage, error) {
 		Where("uploaded_by = ? AND application_id IS NULL", owner).Scan(&result).Error; err != nil {
 		return result, err
 	}
-	var reserved struct{ ReservedCount, ReservedBytes int64 }
+	var reserved struct{ ReservedCount, ReservedBytes, CleanupCount int64 }
 	err := tx.Model(&models.ApplicationFileReservation{}).
-		Select("COALESCE(SUM(reserved_count), 0) AS reserved_count, COALESCE(SUM(reserved_bytes), 0) AS reserved_bytes").
+		Select("COALESCE(SUM(reserved_count), 0) AS reserved_count, COALESCE(SUM(reserved_bytes), 0) AS reserved_bytes, COALESCE(SUM(CASE WHEN state = 'cleanup_pending' THEN reserved_count ELSE 0 END),0) AS cleanup_count").
 		Where("uploaded_by = ?", owner).Scan(&reserved).Error
 	result.ReservedCount, result.ReservedBytes = reserved.ReservedCount, reserved.ReservedBytes
+	result.CleanupCount = reserved.CleanupCount
 	if result.SavedCount < 0 || result.SavedBytes < 0 || result.ReservedCount < 0 || result.ReservedBytes < 0 ||
 		result.ReservedCount > math.MaxInt64-result.SavedCount || result.ReservedBytes > math.MaxInt64-result.SavedBytes {
 		return result, fmt.Errorf("invalid application file quota accounting")
@@ -108,7 +110,7 @@ func (s *ApplicationFileQuota) fits(usage DraftQuotaUsage, count, size int64) bo
 }
 
 func draftQuotaExceeded() error {
-	return apperr.Conflict("Достигнут лимит неприкреплённых файлов. Удалите выбранные файлы или подайте подготовленную заявку.")
+	return apperr.Conflict("Достигнут лимит файлов-черновиков. Откройте их список и удалите выбранные файлы либо подайте подготовленную заявку.")
 }
 
 // ReserveDrafts accounts for the entire incoming batch before permanent writes.

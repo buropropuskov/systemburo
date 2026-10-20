@@ -7,6 +7,7 @@ import (
 
 	"systemburo/internal/apperr"
 	"systemburo/internal/models"
+	"systemburo/internal/upload"
 
 	"gorm.io/gorm"
 )
@@ -35,6 +36,9 @@ func (s *ApplicationFileQuota) AbortReservation(ctx context.Context, owner int, 
 	var cleanupErr error
 	for _, name := range row.StoredNames {
 		file, err := s.storagePath(row.ID, name)
+		if row.WorkerID == existingDraftCleanupWorker && row.State == models.ApplicationFileReservationCleanup {
+			file, err = upload.StoredPath(s.root, ApplicationFilesDir, name)
+		}
 		if err == nil {
 			err = os.Remove(file)
 			if errors.Is(err, os.ErrNotExist) {
@@ -55,7 +59,7 @@ func (s *ApplicationFileQuota) AbortReservation(ctx context.Context, owner int, 
 
 // RecoverReservations runs only for the single backend supported by this quota.
 // A rotating, bounded batch prevents an unremovable early row starving others.
-// It does not run automatically until explicitly wired into the sweeper.
+// The application sweeper invokes it on startup and once per minute.
 func (s *ApplicationFileQuota) RecoverReservations(ctx context.Context) (int, error) {
 	s.recoverMu.Lock()
 	defer s.recoverMu.Unlock()

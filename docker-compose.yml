@@ -22,6 +22,9 @@ services:
       context: .
       target: dev
     env_file: .env
+    environment:
+      APPLICATION_FILE_DRAFT_MAX_COUNT: ${APPLICATION_FILE_DRAFT_MAX_COUNT:-50}
+      APPLICATION_FILE_DRAFT_MAX_TOTAL_SIZE: ${APPLICATION_FILE_DRAFT_MAX_TOTAL_SIZE:-209715200}
     ports:
       - "${BIND_PORT:-8080}:${BIND_PORT:-8080}"
     volumes:
