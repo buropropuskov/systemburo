@@ -75,6 +75,7 @@ func AllModels() []interface{} {
 		&models.ApplicationApprover{},
 		&models.ApplicationViewer{},
 		&models.ApplicationFile{},
+		&models.ApplicationFileReservation{},
 
 		// Supplements (depends on Application, then on each other)
 		&models.ApplicationSupplement{},
