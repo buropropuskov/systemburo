@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/mail"
 	"path/filepath"
 	"strings"
@@ -60,14 +61,15 @@ type Config struct {
 	// этом можно было только заглянув в базу. Отказ при пустом ключе лучше тихой
 	// работы без шифрования; ключ генерирует сам скрипт установки, а на открытой базе
 	// он доводится дошифровкой при старте (EncryptPlaintextValues).
-	RequireEncryption  bool  `env:"REQUIRE_ENCRYPTION" envDefault:"true"`
-	RateLimitPerMinute int   `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
-	RateLimitWindowSec int64 `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
+	RequireEncryption    bool     `env:"REQUIRE_ENCRYPTION" envDefault:"true"`
+	RateLimitPerMinute   int      `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
+	RateLimitWindowSec   int64    `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
+	RateLimitIPPerMinute int      `env:"RATE_LIMIT_IP_PER_MINUTE" envDefault:"2000"`
+	RateLimitIPWindowSec int64    `env:"RATE_LIMIT_IP_WINDOW_SEC" envDefault:"60"`
+	TrustedProxyCIDRs    []string `env:"TRUSTED_PROXY_CIDRS" envDefault:"" envSeparator:","`
 
 	// LoginRateLimit ограничивает попытки /login per-IP (защита от brute-force).
-	// Дефолт 10/5м: лояльно к опечаткам пароля живых юзеров, но всё ещё
-	// блокирует brute-force - Argon2id и так растягивает каждую попытку
-	// на 100мс+, 10 попыток за 5 минут это ~17 запросов/час максимум.
+	// По умолчанию 10 попыток за 60 секунд, до выполнения Argon2id.
 	// В CI/e2e ставим LOGIN_RATE_LIMIT_MAX=1000.
 	LoginRateLimitMax       int    `env:"LOGIN_RATE_LIMIT_MAX" envDefault:"10"`
 	LoginRateLimitWindowSec int64  `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
@@ -374,6 +376,14 @@ func (c *Config) Validate() error {
 	}
 	if c.RateLimitPerMinute <= 0 {
 		return fmt.Errorf("RATE_LIMIT_PER_MINUTE must be positive (got %d)", c.RateLimitPerMinute)
+	}
+	if c.RateLimitWindowSec <= 0 || c.RateLimitIPPerMinute <= 0 || c.RateLimitIPWindowSec <= 0 {
+		return fmt.Errorf("RATE_LIMIT_WINDOW_SEC, RATE_LIMIT_IP_PER_MINUTE and RATE_LIMIT_IP_WINDOW_SEC must be positive")
+	}
+	for _, cidr := range c.TrustedProxyCIDRs {
+		if _, _, err := net.ParseCIDR(strings.TrimSpace(cidr)); err != nil {
+			return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+		}
 	}
 	if c.PaginationMaxLimit <= 0 {
 		return fmt.Errorf("PAGINATION_MAX_LIMIT must be positive (got %d)", c.PaginationMaxLimit)

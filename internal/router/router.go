@@ -99,6 +99,7 @@ type Dependencies struct {
 	MaintenanceBlock echo.MiddlewareFunc
 	BanCheck         echo.MiddlewareFunc
 	LoginLimiter     echo.MiddlewareFunc
+	AccountLimiter   echo.MiddlewareFunc
 	LastSeen         echo.MiddlewareFunc
 	// ImportListLimiter - свой rate limit на POST /attachments/:id/import-list
 	// (blank-import, C1C2), сверх общего RateLimit в main.go. nil в тестах - разбор
@@ -268,6 +269,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// статического "/uploads*" и перехватывает запросы файлов на 404.
 	if d.UploadPath != "" {
 		fileGates := []echo.MiddlewareFunc{mw.FileAccess(d.JWTSecret, d.SessionAccess, d.ApplicationScans)}
+		if d.AccountLimiter != nil {
+			fileGates = append(fileGates, d.AccountLimiter)
+		}
 		for _, gate := range []echo.MiddlewareFunc{maintenanceBlock, banCheck, consentGate, mustChangePassword} {
 			if gate != nil {
 				fileGates = append(fileGates, gate)
@@ -317,6 +321,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(mw.JWTAuth(jwtSecret, d.SessionAccess))
+	if d.AccountLimiter != nil {
+		protected.Use(d.AccountLimiter)
+	}
 	// Maintenance block - после JWTAuth (нужен type_id в context). Super-admin
 	// проходит, остальным 503. Передаём nil в тестах чтобы не блочить.
 	if maintenanceBlock != nil {

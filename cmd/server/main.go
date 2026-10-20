@@ -203,6 +203,11 @@ func main() {
 
 	// Setup Echo
 	e := echo.New()
+	e.IPExtractor, err = mw.ClientIPExtractor(cfg.TrustedProxyCIDRs)
+	if err != nil {
+		slog.Error("invalid client IP configuration", "error", err)
+		os.Exit(1)
+	}
 	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
@@ -242,7 +247,17 @@ func main() {
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 	}))
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
-	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
+	ipLimiter := mw.RateLimit(cfg.RateLimitIPPerMinute, cfg.RateLimitIPWindowSec)
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		limited := ipLimiter(next)
+		return func(c echo.Context) error {
+			if c.Request().Method == http.MethodGet && c.Request().URL.Path == "/health" {
+				return next(c)
+			}
+			return limited(c)
+		}
+	})
+	accountLimiter := mw.AccountRateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec)
 	e.Use(mw.PDAudit(db))
 	// Журнал обращений пишется пачками из фоновой горутины (#2125): обработчик
 	// только кладёт запись в очередь. Останавливается в graceful shutdown ниже,
@@ -591,11 +606,11 @@ func main() {
 	var loginLimiter echo.MiddlewareFunc
 	// Приём файла массового импорта (blank-import, C1C2) разбирает .xlsx на до 2000
 	// строк - дороже обычной ручки, поэтому сверх общего лимита свой, per-user/IP.
-	importListLimiter := mw.RateLimit(10, 60)
+	importListLimiter := mw.AccountRateLimit(10, 60)
 	// Смена своего пароля (#1915): форма принимает текущий пароль, значит годится
 	// для подбора. Лестница блокировки входа сюда не достаёт - она считает неудачные
 	// логины, - поэтому свой лимит: пять попыток за пять минут на пользователя.
-	selfPasswordLimiter := mw.RateLimit(5, 300)
+	selfPasswordLimiter := mw.AccountRateLimit(5, 300)
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
 	// Гейт согласия на обработку ПД (#1567). Пока тумблер выключен или текст пуст,
@@ -691,6 +706,7 @@ func main() {
 		ConsentGate:         consentGate,
 		MustChangePassword:  mustChangePassword,
 		LoginLimiter:        loginLimiter,
+		AccountLimiter:      accountLimiter,
 		ImportListLimiter:   importListLimiter,
 		SelfPasswordLimiter: selfPasswordLimiter,
 		LastSeen:            lastSeen,

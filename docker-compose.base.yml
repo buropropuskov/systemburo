@@ -21,6 +21,12 @@ services:
     build:
       context: .
       target: production
+    networks:
+      default: {}
+      backend_proxy:
+        ipv4_address: ${PROXY_NETWORK_PREFIX:-172.30.250}.3
+        aliases:
+          - backend-edge
     environment:
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
       BIND_HOST: "0.0.0.0"
@@ -53,6 +59,10 @@ services:
       UPLOAD_ALLOWED_DOC_TYPES: ${UPLOAD_ALLOWED_DOC_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-200}
       RATE_LIMIT_WINDOW_SEC: ${RATE_LIMIT_WINDOW_SEC:-60}
+      RATE_LIMIT_IP_PER_MINUTE: ${RATE_LIMIT_IP_PER_MINUTE:-2000}
+      RATE_LIMIT_IP_WINDOW_SEC: ${RATE_LIMIT_IP_WINDOW_SEC:-60}
+      # Only edge nginx on the dedicated network may supply X-Real-IP.
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${PROXY_NETWORK_PREFIX:-172.30.250}.2/32}
       PAGINATION_MAX_LIMIT: ${PAGINATION_MAX_LIMIT:-100}
       # Доставка уведомлений вне системы (#974). Пустые ключи выключают её целиком.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -154,3 +164,7 @@ services:
 volumes:
   pgdata:
   uploads:
+
+networks:
+  default: {}
+  backend_proxy: {}

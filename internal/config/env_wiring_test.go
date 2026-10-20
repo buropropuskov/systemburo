@@ -51,6 +51,12 @@ type envWiringException struct {
 }
 
 var envWiringExceptions = map[string]envWiringException{
+	"TRUSTED_PROXY_CIDRS": {
+		reason: "прямой запуск не доверяет прокси; Compose вычисляет точный адрес nginx " +
+			"из PROXY_NETWORK_PREFIX. Явный TRUSTED_PROXY_CIDRS сохраняет приоритет. " +
+			"Связь вычисляемого дефолта с сетью проверяет TestEnvWiring_ProxyNetworkDefaults",
+		skipDefaultCheck: true,
+	},
 	"DATABASE_URL": {
 		reason: "собирается в compose из DB_USER/DB_PASSWORD/DB_NAME " +
 			"(DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}), " +
@@ -105,6 +111,64 @@ var envWiringExceptions = map[string]envWiringException{
 			"всё равно всегда прописывает реальный домен",
 		skipDefaultCheck: true,
 	},
+}
+
+func TestEnvWiring_ProxyNetworkDefaults(t *testing.T) {
+	root := repoRoot(t)
+	for _, tc := range []struct{ compose, prefix string }{
+		{"docker-compose.base.yml", "172.30.250"},
+		{"docker-compose.prod.yml", "172.30.251"},
+	} {
+		content := readRepoFile(t, root, tc.compose)
+		trust := "TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${PROXY_NETWORK_PREFIX:-" + tc.prefix + "}.2/32}"
+		if !strings.Contains(content, trust) {
+			t.Errorf("%s: отсутствует переопределяемое доверие только точному адресу nginx", tc.compose)
+		}
+		if !strings.Contains(content, "ipv4_address: ${PROXY_NETWORK_PREFIX:-"+tc.prefix+"}.3") {
+			t.Errorf("%s: адрес backend не согласован с подсетью", tc.compose)
+		}
+	}
+	for _, tc := range []struct{ compose, prefix string }{
+		{"docker-compose.staging.yml", "172.30.250"},
+		{"docker-compose.prod.yml", "172.30.251"},
+	} {
+		content := readRepoFile(t, root, tc.compose)
+		for _, expected := range []string{
+			"ipv4_address: ${PROXY_NETWORK_PREFIX:-" + tc.prefix + "}.2",
+			"subnet: ${PROXY_NETWORK_PREFIX:-" + tc.prefix + "}.0/29",
+		} {
+			if !strings.Contains(content, expected) {
+				t.Errorf("%s: отсутствует согласованная настройка %s", tc.compose, expected)
+			}
+		}
+	}
+}
+
+func TestEnvWiring_ExternalProxyIsOptional(t *testing.T) {
+	root := repoRoot(t)
+	for _, name := range []string{"docker-compose.staging.yml", "docker-compose.prod.yml"} {
+		content := readRepoFile(t, root, name)
+		for _, expected := range []string{
+			"EDGE_TRUSTED_PROXY_CIDRS: ${EDGE_TRUSTED_PROXY_CIDRS:-}",
+			"./nginx/proxy-trust-entrypoint.sh:/docker-entrypoint.d/45-proxy-trust.sh:ro",
+		} {
+			if !strings.Contains(content, expected) {
+				t.Errorf("%s: отсутствует настройка внешнего прокси: %s", name, expected)
+			}
+		}
+	}
+	for _, name := range []string{"nginx/staging.conf", "nginx/nginx.conf"} {
+		if !strings.Contains(readRepoFile(t, root, name), "include /etc/nginx/proxy-trust.conf;") {
+			t.Errorf("%s: настройки доверия не подключены", name)
+		}
+	}
+	info, err := os.Stat(filepath.Join(root, "nginx", "proxy-trust-entrypoint.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Error("proxy-trust-entrypoint.sh должен быть исполняемым для nginx entrypoint")
+	}
 }
 
 // configEnvField - одно поле Config с его env-тегом.
