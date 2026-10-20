@@ -21,7 +21,7 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `dompurify` | 3.4.16 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
+| `dompurify` | 3.4.17 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
 | `jszip` | 3.10.2 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
 | `lightningcss` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 | `fsevents` | 2.3.3 | не указана | не указан в поставке пакета |
@@ -45,7 +45,7 @@
 | `@babel/helper-string-parser` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/helper-validator-identifier` | 7.29.7 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/helper-validator-identifier` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
-| `@babel/parser` | 7.29.8 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
+| `@babel/parser` | 7.29.9 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
 | `@babel/parser` | 8.0.7 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
 | `@babel/types` | 7.29.8 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/types` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
@@ -66,51 +66,51 @@
 | `@oxc-project/types` | 0.153.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
 | `@rolldown/pluginutils` | 1.0.1 | MIT | Copyright (c) 2026-present, rolldown/plugins repository contributors |
 | `@swc/helpers` | 0.5.23 | Apache-2.0 | Copyright 2024 SWC contributors |
-| `@tiptap/core` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-blockquote` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bold` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bubble-menu` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bullet-list` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code-block` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-document` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-dropcursor` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-floating-menu` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-gapcursor` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-hard-break` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-heading` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-horizontal-rule` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-image` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-italic` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-link` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-item` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-keymap` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-ordered-list` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-paragraph` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-strike` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-text` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-underline` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extensions` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/pm` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/starter-kit` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/vue-3` | 3.31.4 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/core` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-blockquote` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bold` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bubble-menu` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bullet-list` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code-block` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-document` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-dropcursor` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-floating-menu` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-gapcursor` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-hard-break` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-heading` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-horizontal-rule` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-image` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-italic` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-link` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-item` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-keymap` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-ordered-list` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-paragraph` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-strike` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-text` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-underline` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extensions` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/pm` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/starter-kit` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/vue-3` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
 | `@types/estree` | 1.0.8 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/node` | 14.18.63 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/trusted-types` | 2.0.7 | MIT | Copyright (c) Microsoft Corporation |
 | `@vue-macros/common` | 3.1.4 | MIT | Copyright (c) 2022-PRESENT Kevin Deng |
-| `@vue/compiler-core` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/compiler-dom` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/compiler-sfc` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/compiler-ssr` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-core` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-dom` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-sfc` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-ssr` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `@vue/devtools-api` | 8.2.1 | MIT | Copyright (c) 2023 webfansplz |
 | `@vue/devtools-kit` | 8.2.1 | MIT | Copyright (c) 2023 webfansplz |
 | `@vue/devtools-shared` | 8.2.1 | MIT | Copyright (c) 2023 webfansplz |
-| `@vue/reactivity` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/runtime-core` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/runtime-dom` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/server-renderer` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/shared` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/reactivity` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/runtime-core` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/runtime-dom` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/server-renderer` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/shared` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `abort-controller` | 3.0.0 | MIT | Copyright (c) 2017 Toru Nagashima |
 | `acorn` | 8.16.0 | MIT | Copyright (C) 2012-2022 by various contributors (see AUTHORS) |
 | `archiver` | 8.0.0 | MIT | Copyright (c) 2012-2014 Chris Talkington, contributors |
@@ -148,8 +148,8 @@
 | `dayjs` | 1.11.19 | MIT | Copyright (c) 2018-present, iamkun |
 | `detect-libc` | 2.1.2 | Apache-2.0 | Copyright {yyyy} {name of copyright owner} |
 | `dfa` | 1.2.0 | MIT | Devon Govett |
-| `dompurify` | 3.4.16 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
-| `driver.js` | 1.8.0 | MIT | Copyright (c) Kamran Ahmed |
+| `dompurify` | 3.4.17 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
+| `driver.js` | 1.10.1 | MIT | Copyright (c) Kamran Ahmed |
 | `duplexer2` | 0.1.4 | BSD-3-Clause | Copyright (c) 2013, Deoxxa Development |
 | `entities` | 7.0.1 | BSD-2-Clause | Copyright (c) Felix Böhm |
 | `estree-walker` | 2.0.2 | MIT | Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors) |
@@ -210,26 +210,26 @@
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `picocolors` | 1.1.1 | ISC | Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov |
 | `picomatch` | 4.0.7 | MIT | Copyright (c) 2017-present, Jon Schlinkert |
-| `pinia` | 4.0.3 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
+| `pinia` | 4.1.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `pkg-types` | 1.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `pkg-types` | 2.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `png-js` | 1.1.0 | MIT | Copyright (c) 2017 Devon Govett |
 | `postcss` | 8.5.29 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
 | `process` | 0.11.10 | MIT | Copyright (c) 2013 Roman Shtylman <shtylman@gmail.com> |
 | `process-nextick-args` | 2.0.1 | MIT | Copyright (c) 2015 Calvin Metcalf |
-| `prosemirror-changeset` | 2.4.1 | MIT | Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
-| `prosemirror-commands` | 1.7.1 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
-| `prosemirror-dropcursor` | 1.8.2 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-changeset` | 2.4.4 | MIT | Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-commands` | 1.7.2 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-dropcursor` | 1.8.4 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `prosemirror-gapcursor` | 1.4.1 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
-| `prosemirror-history` | 1.5.0 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-history` | 1.5.1 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `prosemirror-inputrules` | 1.5.1 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `prosemirror-keymap` | 1.2.3 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
-| `prosemirror-model` | 1.25.11 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-model` | 1.25.12 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `prosemirror-schema-list` | 1.5.1 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `prosemirror-state` | 1.4.4 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `prosemirror-tables` | 1.8.5 | MIT | Copyright (C) 2015-2016 by Marijn Haverbeke <marijnh@gmail.com> and others |
-| `prosemirror-transform` | 1.12.0 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
-| `prosemirror-view` | 1.42.3 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-transform` | 1.12.2 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
+| `prosemirror-view` | 1.42.6 | MIT | Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
 | `quansync` | 0.2.11 | MIT | Copyright (c) 2025-PRESENT Anthony Fu <https://github.com/antfu> and Kevin Deng <https://github.com/sxzz> |
 | `readable-stream` | 2.3.8 | MIT | Copyright Node.js contributors. All rights reserved; Copyright Joyent, Inc. and other Node contributors. All rights reserved |
 | `readable-stream` | 3.6.2 | MIT | Copyright Node.js contributors. All rights reserved; Copyright Joyent, Inc. and other Node contributors. All rights reserved |
@@ -266,7 +266,7 @@
 | `util-deprecate` | 1.0.2 | MIT | Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net> |
 | `uuid` | 8.3.2 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
 | `vite` | 8.3.4 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
-| `vue` | 3.5.43 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `vue` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `vue-router` | 5.4.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `vue-select` | 4.0.0-beta.6 | MIT | Copyright (c) 2016 Jeff Sagal & vue-select contributors |
 | `w3c-keyname` | 2.2.8 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
@@ -398,7 +398,7 @@
 
 ### 7.1. MIT
 
-Компоненты: `@tiptap/core` 3.31.4, `@tiptap/extension-blockquote` 3.31.4, `@tiptap/extension-bold` 3.31.4, `@tiptap/extension-bubble-menu` 3.31.4, `@tiptap/extension-bullet-list` 3.31.4, `@tiptap/extension-code` 3.31.4, `@tiptap/extension-code-block` 3.31.4, `@tiptap/extension-document` 3.31.4, `@tiptap/extension-dropcursor` 3.31.4, `@tiptap/extension-floating-menu` 3.31.4, `@tiptap/extension-gapcursor` 3.31.4, `@tiptap/extension-hard-break` 3.31.4, `@tiptap/extension-heading` 3.31.4, `@tiptap/extension-horizontal-rule` 3.31.4, `@tiptap/extension-image` 3.31.4, `@tiptap/extension-italic` 3.31.4, `@tiptap/extension-link` 3.31.4, `@tiptap/extension-list` 3.31.4, `@tiptap/extension-list-item` 3.31.4, `@tiptap/extension-list-keymap` 3.31.4, `@tiptap/extension-ordered-list` 3.31.4, `@tiptap/extension-paragraph` 3.31.4, `@tiptap/extension-strike` 3.31.4, `@tiptap/extension-text` 3.31.4, `@tiptap/extension-underline` 3.31.4, `@tiptap/extensions` 3.31.4, `@tiptap/pm` 3.31.4, `@tiptap/starter-kit` 3.31.4, `@tiptap/vue-3` 3.31.4
+Компоненты: `@tiptap/core` 3.32.0, `@tiptap/extension-blockquote` 3.32.0, `@tiptap/extension-bold` 3.32.0, `@tiptap/extension-bubble-menu` 3.32.0, `@tiptap/extension-bullet-list` 3.32.0, `@tiptap/extension-code` 3.32.0, `@tiptap/extension-code-block` 3.32.0, `@tiptap/extension-document` 3.32.0, `@tiptap/extension-dropcursor` 3.32.0, `@tiptap/extension-floating-menu` 3.32.0, `@tiptap/extension-gapcursor` 3.32.0, `@tiptap/extension-hard-break` 3.32.0, `@tiptap/extension-heading` 3.32.0, `@tiptap/extension-horizontal-rule` 3.32.0, `@tiptap/extension-image` 3.32.0, `@tiptap/extension-italic` 3.32.0, `@tiptap/extension-link` 3.32.0, `@tiptap/extension-list` 3.32.0, `@tiptap/extension-list-item` 3.32.0, `@tiptap/extension-list-keymap` 3.32.0, `@tiptap/extension-ordered-list` 3.32.0, `@tiptap/extension-paragraph` 3.32.0, `@tiptap/extension-strike` 3.32.0, `@tiptap/extension-text` 3.32.0, `@tiptap/extension-underline` 3.32.0, `@tiptap/extensions` 3.32.0, `@tiptap/pm` 3.32.0, `@tiptap/starter-kit` 3.32.0, `@tiptap/vue-3` 3.32.0
 
 ```text
 MIT License
@@ -634,7 +634,7 @@ Apache License
 
 ### 7.3. MIT
 
-Компоненты: `prosemirror-commands` 1.7.1, `prosemirror-dropcursor` 1.8.2, `prosemirror-gapcursor` 1.4.1, `prosemirror-history` 1.5.0, `prosemirror-inputrules` 1.5.1, `prosemirror-keymap` 1.2.3, `prosemirror-model` 1.25.11, `prosemirror-schema-list` 1.5.1, `prosemirror-state` 1.4.4, `prosemirror-transform` 1.12.0, `prosemirror-view` 1.42.3
+Компоненты: `prosemirror-commands` 1.7.2, `prosemirror-dropcursor` 1.8.4, `prosemirror-gapcursor` 1.4.1, `prosemirror-history` 1.5.1, `prosemirror-inputrules` 1.5.1, `prosemirror-keymap` 1.2.3, `prosemirror-model` 1.25.12, `prosemirror-schema-list` 1.5.1, `prosemirror-state` 1.4.4, `prosemirror-transform` 1.12.2, `prosemirror-view` 1.42.6
 
 ```text
 Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
@@ -660,7 +660,7 @@ THE SOFTWARE.
 
 ### 7.4. MIT
 
-Компоненты: `@vue/compiler-core` 3.5.43, `@vue/compiler-dom` 3.5.43, `@vue/compiler-sfc` 3.5.43, `@vue/compiler-ssr` 3.5.43, `@vue/reactivity` 3.5.43, `@vue/runtime-core` 3.5.43, `@vue/runtime-dom` 3.5.43, `@vue/server-renderer` 3.5.43, `@vue/shared` 3.5.43, `vue` 3.5.43
+Компоненты: `@vue/compiler-core` 3.5.44, `@vue/compiler-dom` 3.5.44, `@vue/compiler-sfc` 3.5.44, `@vue/compiler-ssr` 3.5.44, `@vue/reactivity` 3.5.44, `@vue/runtime-core` 3.5.44, `@vue/runtime-dom` 3.5.44, `@vue/server-renderer` 3.5.44, `@vue/shared` 3.5.44, `vue` 3.5.44
 
 ```text
 The MIT License (MIT)
@@ -1081,7 +1081,7 @@ terms above.
 
 ### 7.17. MIT
 
-Компоненты: `@babel/parser` 7.29.8, `@babel/parser` 8.0.7
+Компоненты: `@babel/parser` 7.29.9, `@babel/parser` 8.0.7
 
 ```text
 Copyright (C) 2012-2014 by various contributors (see AUTHORS)
@@ -1418,7 +1418,7 @@ THE SOFTWARE.
 
 ### 7.29. MIT
 
-Компоненты: `pinia` 4.0.3, `vue-router` 5.4.0
+Компоненты: `pinia` 4.1.0, `vue-router` 5.4.0
 
 ```text
 The MIT License (MIT)
@@ -3091,7 +3091,7 @@ Apache License
 
 ### 7.65. (MPL-2.0 OR Apache-2.0)
 
-Компоненты: `dompurify` 3.4.16
+Компоненты: `dompurify` 3.4.17
 
 ```text
 ===== LICENSE =====
@@ -3675,7 +3675,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ### 7.66. MIT
 
-Компоненты: `driver.js` 1.8.0
+Компоненты: `driver.js` 1.10.1
 
 ```text
 The MIT License
@@ -7686,7 +7686,7 @@ SOFTWARE.**
 
 ### 7.147. MIT
 
-Компоненты: `prosemirror-changeset` 2.4.1
+Компоненты: `prosemirror-changeset` 2.4.4
 
 ```text
 Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
