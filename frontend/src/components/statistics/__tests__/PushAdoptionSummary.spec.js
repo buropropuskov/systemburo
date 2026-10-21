@@ -24,6 +24,7 @@ function fixture(overrides = {}) {
     active_users_total: 40,
     users_with_push: 12,
     users_without_push: 28,
+    users_with_push_by_platform: { ios: 7, android: 4, desktop: 1, unknown: 0 },
     subscriptions_by_platform: { ios: 8, android: 4, desktop: 0, unknown: 0 },
     users_by_last_login_platform: { ios: 25, android: 10, desktop: 5, unknown: 0 },
     ...overrides,
@@ -41,8 +42,8 @@ describe('PushAdoptionSummary', () => {
     await flushPromises()
 
     expect(tileVal(wrapper, 'Активные пользователи')).toBe('40')
-    expect(tileVal(wrapper, 'С push-подпиской')).toBe('12')
-    expect(tileVal(wrapper, 'Заходят с iOS')).toBe('25')
+    expect(tileVal(wrapper, 'Пользователи с push-подпиской')).toBe('12')
+    expect(tileVal(wrapper, 'Пользователи с push на iPhone/iPad')).toBe('7')
   })
 
   it('доля считается от активных пользователей, а не от подписок', async () => {
@@ -62,8 +63,8 @@ describe('PushAdoptionSummary', () => {
 
     expect(wrapper.find('[data-testid="push-adoption-summary"]').exists()).toBe(true)
     expect(tileVal(wrapper, 'Активные пользователи')).toBe('—')
-    expect(tileVal(wrapper, 'С push-подпиской')).toBe('—')
-    expect(tileVal(wrapper, 'Заходят с iOS')).toBe('—')
+    expect(tileVal(wrapper, 'Пользователи с push-подпиской')).toBe('—')
+    expect(tileVal(wrapper, 'Пользователи с push на iPhone/iPad')).toBe('—')
     expect(wrapper.find('[data-testid="push-adoption-rate"]').text()).toContain('—')
   })
 
