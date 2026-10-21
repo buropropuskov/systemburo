@@ -14,12 +14,9 @@ import (
 // Subscribe/Unsubscribe/Send (push_service.go) и гейтится page.statistics, а не личным
 // доступом группы /notifications (см. router.go).
 
-// GetSummary считает: сколько активных пользователей всего, у скольких есть хотя бы одна
-// живая подписка, разрез живых подписок по платформе браузера и разрез ПОЛЬЗОВАТЕЛЕЙ по
-// платформе последнего успешного входа - независимо от того, подключили они push или нет.
-// Вторая цифра и есть ответ на "сколько людей вообще на iOS", а не только тех, кто уже
-// подписался - на iOS push работает только у установленного на экран "Домой" приложения,
-// и разрыв между этими двумя цифрами показывает масштаб ограничения.
+// GetSummary считает активные учётные записи, подписки устройств и уникальных
+// пользователей с подпиской внутри каждой платформы. Последний вход сохраняется
+// отдельным показателем для совместимости и не заменяет платформу подписки.
 func (s *pushService) GetSummary(ctx context.Context) (*models.PushSummary, error) {
 	summary := &models.PushSummary{}
 
@@ -51,6 +48,7 @@ func (s *pushService) GetSummary(ctx context.Context) (*models.PushSummary, erro
 		return nil, fmt.Errorf("push summary: read subscriptions: %w", err)
 	}
 	withPush := make(map[int]bool, len(subs))
+	withPushByPlatform := make(map[string]map[int]bool)
 	summary.Delivery = make([]models.PushDeliveryState, 0, len(subs))
 	for _, sub := range subs {
 		// Пользователь с двумя устройствами считается один раз в UsersWithPush, но
@@ -59,6 +57,13 @@ func (s *pushService) GetSummary(ctx context.Context) (*models.PushSummary, erro
 		withPush[sub.UserID] = true
 		platform := DetectPlatform(sub.UserAgent)
 		addPlatformCount(&summary.SubscriptionsByPlatform, platform)
+		if withPushByPlatform[platform] == nil {
+			withPushByPlatform[platform] = make(map[int]bool)
+		}
+		if !withPushByPlatform[platform][sub.UserID] {
+			withPushByPlatform[platform][sub.UserID] = true
+			addPlatformCount(&summary.UsersWithPushByPlatform, platform)
+		}
 		summary.Delivery = append(summary.Delivery, models.PushDeliveryState{
 			UserID:        sub.UserID,
 			Username:      sub.Username,

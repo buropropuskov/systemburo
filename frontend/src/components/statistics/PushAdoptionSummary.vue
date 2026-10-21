@@ -10,6 +10,9 @@
       <span class="push-summary__chip">снимок на сейчас, вне выбранного периода</span>
       <span class="push-summary__rule" />
     </header>
+    <p class="push-summary__note">
+      Диаграмма — подписки устройств; доля справа — пользователи с подпиской среди активных.
+    </p>
 
     <div
       v-if="loading && !ready"
@@ -37,7 +40,7 @@
             v-else
             class="push-summary__chart-empty"
           >
-            Пока нет ни одной push-подписки
+            {{ hasSubscriptionData ? 'Пока нет ни одной push-подписки' : 'Нет данных о push-подписках' }}
           </p>
         </div>
 
@@ -53,7 +56,7 @@
             </div>
             <div class="push-summary__tile">
               <div class="push-summary__tile-label">
-                С push-подпиской
+                Пользователи с push-подпиской
               </div>
               <div class="push-summary__tile-val">
                 <AnimatedNumber :value="numberOrNull(summary.users_with_push)" />
@@ -61,11 +64,11 @@
             </div>
             <div class="push-summary__tile">
               <div class="push-summary__tile-label">
-                <span>Заходят с iOS (iPhone, iPad)</span>
+                <span>Пользователи с push на iPhone/iPad</span>
                 <HintTooltip :text="IOS_HINT" />
               </div>
               <div class="push-summary__tile-val">
-                <AnimatedNumber :value="numberOrNull(summary.users_by_last_login_platform?.ios)" />
+                <AnimatedNumber :value="numberOrNull(summary.users_with_push_by_platform?.ios)" />
               </div>
             </div>
             <div
@@ -93,17 +96,8 @@ import AnimatedNumber from '@/components/statistics/AnimatedNumber.vue';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import { getPushSummary } from '@/api/webPush';
 
-// Человеческие подписи платформ для донат-чарта - ключи в коде технические,
-// совпадают с services.DetectPlatform (ios/android/desktop/unknown).
-// Формулировка "iOS (iPhone, iPad)" - по требованию: iPhone и iPad ограничены
-// Apple одинаково (push работает только у установленного на "Домой"
-// приложения), отдельной группы "только iPhone" нет ни в бэке, ни в тексте.
-// Разрыв между «Заходят с iOS» и «С push-подпиской» объясняется требованием
-// Apple, а не отказами пользователей. Текст висел отдельным абзацем во всю
-// ширину блока и читался как ничей - живёт подсказкой у той плитки, о которой он.
-const IOS_HINT = 'На iOS push работает только после установки сайта на экран «Домой» - '
-  + 'разрыв между «Заходят с iOS» и «С push-подпиской» в основном объясняется этим '
-  + 'шагом, а не нежеланием включать уведомления.';
+// Платформа подписки определяется приблизительно по браузеру при регистрации.
+const IOS_HINT = 'Активные пользователи с сохранённой push-подпиской на iPhone или iPad. Несколько устройств одного пользователя считаются один раз. Платформа определяется по браузеру при подключении подписки; определение приблизительное.';
 
 const PLATFORM_LABELS = {
   ios: 'iOS (iPhone, iPad)',
@@ -118,13 +112,20 @@ const ready = ref(false);
 
 /** null/не-число -> null, чтобы AnimatedNumber рисовал прочерк, а не 0 (нет данных != ноль). */
 function numberOrNull(value) {
+  if (value == null || !['number', 'string'].includes(typeof value) || (typeof value === 'string' && value.trim() === '')) return null;
   const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 // subscriptions_by_platform - разрез ПОДПИСОК (устройств), не пользователей:
 // один человек с двумя устройствами даёт два сегмента донат-чарта.
+const hasSubscriptionData = computed(() => {
+  const counts = summary.value.subscriptions_by_platform;
+  return counts != null && ['ios', 'android', 'desktop', 'unknown'].every(key => numberOrNull(counts[key]) !== null);
+});
+
 const platformData = computed(() => {
+  if (!hasSubscriptionData.value) return [];
   const counts = summary.value.subscriptions_by_platform || {};
   return Object.entries(counts)
     .map(([platform, count]) => ({ label: PLATFORM_LABELS[platform] || platform, value: Number(count) || 0 }))
@@ -176,6 +177,8 @@ onMounted(load);
   flex-direction: column;
   gap: 14px;
 }
+
+.push-summary__note { margin: 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
 
 .push-summary__head {
   display: flex;

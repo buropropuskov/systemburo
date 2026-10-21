@@ -76,14 +76,15 @@ type PushPlatformCounts struct {
 	Unknown int64 `json:"unknown"`
 }
 
-// PushSummary -- ответ GET /notifications/push/summary: сводка использования Web Push
-// для админского раздела статистики (#974), не личная настройка. UsersByLastLoginPlatform
-// считается по платформе ПОСЛЕДНЕГО успешного входа каждого активного пользователя,
-// независимо от того, подключил он push или нет, - это и есть ответ на "сколько людей
-// вообще на iOS", а не только тех, кто оформил подписку.
+// PushSummary — сводка активных учётных записей и сохранённых push-подписок.
+// UsersWithPushByPlatform считает уникальных пользователей внутри платформы;
+// один пользователь с разными платформами может входить в несколько групп.
+// UsersByLastLoginPlatform — отдельный совместимый разрез последних входов.
 type PushSummary struct {
-	ActiveUsersTotal         int64              `json:"active_users_total"`
-	UsersWithPush            int64              `json:"users_with_push"`
+	ActiveUsersTotal int64 `json:"active_users_total"`
+	UsersWithPush    int64 `json:"users_with_push"`
+	// Один пользователь учитывается один раз внутри каждой платформы подписок.
+	UsersWithPushByPlatform  PushPlatformCounts `json:"users_with_push_by_platform"`
 	UsersWithoutPush         int64              `json:"users_without_push"`
 	SubscriptionsByPlatform  PushPlatformCounts `json:"subscriptions_by_platform"`
 	UsersByLastLoginPlatform PushPlatformCounts `json:"users_by_last_login_platform"`

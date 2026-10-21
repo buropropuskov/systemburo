@@ -52,6 +52,7 @@ export async function unsubscribeWebPush(endpoint) {
  * {
  *   active_users_total, users_with_push, users_without_push,
  *   subscriptions_by_platform: {ios, android, desktop, unknown},   // разрез ПОДПИСОК (устройств)
+ *   users_with_push_by_platform: {ios, android, desktop, unknown}, // уникальные активные пользователи с подпиской внутри платформы
  *   users_by_last_login_platform: {ios, android, desktop, unknown}, // разрез ПОЛЬЗОВАТЕЛЕЙ по платформе последнего входа, включая тех, кто push не подключал
  * }
  * "ios" покрывает и iPhone, и iPad - у Apple одно ограничение на оба устройства.
