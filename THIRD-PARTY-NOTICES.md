@@ -263,7 +263,7 @@
 | `unplugin-utils` | 0.3.2 | MIT | Copyright © 2025-PRESENT Kevin Deng (https://github.com/sxzz); Copyright (c) 2019 RollupJS Plugin Contributors (https://github.com/rollup/plugins/graphs/contributors) |
 | `unzipper` | 0.12.5 | MIT | Copyright (c) 2012 - 2013 Near Infinity Corporation |
 | `util-deprecate` | 1.0.2 | MIT | Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net> |
-| `uuid` | 8.3.2 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
+| `uuid` | 11.1.1 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
 | `vite` | 8.3.4 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
 | `vue` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `vue-router` | 5.4.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
@@ -8462,7 +8462,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ### 7.167. MIT
 
-Компоненты: `uuid` 8.3.2
+Компоненты: `uuid` 11.1.1
 
 ```text
 The MIT License (MIT)
