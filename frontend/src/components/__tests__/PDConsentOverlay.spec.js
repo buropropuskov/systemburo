@@ -269,14 +269,14 @@ describe('PDConsentOverlay (#1567)', () => {
     primeStore({ version: 7, versionAt: '2026-07-30T12:00:00Z' });
     const withDate = mountOverlay();
     await flushPromises();
-    expect(withDate.text()).toContain('Редакция 7 от 30.07.2026');
+    expect(withDate.text()).toContain('Редакция № 7 от 30.07.2026');
 
     withDate.unmount();
     setActivePinia(createPinia());
     primeStore({ version: 7, versionAt: '' });
     const noDate = mountOverlay();
     await flushPromises();
-    expect(noDate.text()).toContain('Редакция 7');
+    expect(noDate.text()).toContain('Редакция № 7');
     expect(noDate.text()).not.toContain('от ');
   });
 
@@ -295,11 +295,12 @@ describe('PDConsentOverlay (#1567)', () => {
     await flushPromises();
 
     const aside = wrapper.get('.pdc-modal__aside').text();
-    expect(aside).toContain('данные вашей учётной записи');
+    expect(aside).toContain('ФИО, организацию, должность, рабочие контакты');
+    expect(aside).toContain('сведения о входах и действиях в системе');
     // Про отзыв согласия сказано с последствием, а не обещанием «в любой момент»:
     // отозвав его, человек снова упирается в это же окно.
     expect(aside).toContain('Отозвать согласие можно в личном кабинете');
-    expect(aside).toContain('снова покажет это окно');
+    expect(aside).toContain('работа в системе доступна только после нового согласия');
   });
 
   it('пока active=false, окно не рисуется', async () => {
