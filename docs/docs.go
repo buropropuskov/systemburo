@@ -1411,64 +1411,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/applications/history": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Ручное добавление записи в историю заявки.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "applications"
-                ],
-                "summary": "Добавление записи в историю",
-                "parameters": [
-                    {
-                        "description": "Запись истории",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/services.AddHistoryEntryRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "success + message",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    }
-                }
-            }
-        },
         "/applications/submit-complete-application": {
             "post": {
                 "security": [
@@ -1751,70 +1693,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.HTTPError"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Обновляет confirmation, status и/или responsible_comment заявки.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "applications"
-                ],
-                "summary": "Обновление заявки",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID заявки",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Обновляемые поля",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/services.ApplicationUpdateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/services.ApplicationUpdateResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -1906,7 +1792,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).\nДополнительно требуются права detail.documents и detail.documents.export: в ZIP уезжают сохранённые копии с документами участников, обезличить их при отдаче нечем.",
+                "description": "Исторические оригиналы доступны только актуальному суперадминистратору с сохранением существующих проверок доступа. Актуальные бланки формируются отдельно по текущим правилам.",
                 "produces": [
                     "application/zip"
                 ],
@@ -2133,7 +2019,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Доступ: участник заявки (как у детали заявки) либо охрана/носитель page.available по своему вложению (как у детали вкладки \"Доступные мне\"). Прочим - 403. source=archive отдаёт файл с диска по записи файлового архива вместо генерации заново (#1615, C6); нет строки или файл не сгенерирован - 404.",
+                "description": "Актуальный бланк доступен участнику заявки либо по действующей области вложения. source=archive выдаёт исторический оригинал только актуальному суперадминистратору; отсутствие готовой копии - 404.",
                 "produces": [
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 ],
@@ -2303,6 +2189,82 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/dates": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принимающий задаёт новые даты и время всем вложениям и машинам заявки, пока она не принята в работу и по ней нет итога согласования. Голоса согласующих сбрасываются, участники получают уведомление.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Изменение срока действия заявки принимающим",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новое окно и причина",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ChangeApplicationDatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.ChangeApplicationDatesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4214,53 +4176,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/applications/{id}/update-items-status": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Активирует все машины и сотрудников во вложениях заявки (status = 1).",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "applications"
-                ],
-                "summary": "Обновление статусов элементов заявки",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID заявки",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "success + message",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    }
-                }
-            }
-        },
         "/applications/{id}/viewers": {
             "get": {
                 "security": [
@@ -5986,7 +5901,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/cars/active-for-table/{table_id}": {
+        "/cars/active-for-table/{id}": {
             "get": {
                 "security": [
                     {
@@ -6004,7 +5919,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "ID таблицы",
-                        "name": "table_id",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -6242,7 +6157,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/cars/fact-for-table/{table_id}": {
+        "/cars/fact-for-table/{id}": {
             "get": {
                 "security": [
                     {
@@ -6260,7 +6175,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "ID таблицы",
-                        "name": "table_id",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -6445,7 +6360,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/cars/history/table/{table_id}": {
+        "/cars/history/table/{id}": {
             "get": {
                 "security": [
                     {
@@ -6463,7 +6378,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "ID таблицы",
-                        "name": "table_id",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     },
@@ -9600,45 +9515,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/employees": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "employees"
-                ],
-                "summary": "Создание сотрудника",
-                "parameters": [
-                    {
-                        "description": "Данные сотрудника",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/services.CreateEmployeeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/services.CreateEmployeeResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/employees/active-for-table/{table_id}": {
+        "/employees/active-for-table/{id}": {
             "get": {
                 "security": [
                     {
@@ -9656,7 +9533,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "ID таблицы",
-                        "name": "table_id",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -10003,7 +9880,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/employees/history/table/{table_id}": {
+        "/employees/history/table/{id}": {
             "get": {
                 "security": [
                     {
@@ -10021,7 +9898,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "ID таблицы",
-                        "name": "table_id",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     },
@@ -10487,6 +10364,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
                     }
                 }
             }
@@ -10904,6 +10793,18 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -11837,7 +11738,7 @@ const docTemplate = `{
         },
         "/login": {
             "post": {
-                "description": "Проверяет credentials и возвращает access + refresh токены",
+                "description": "Проверяет логин и пароль. Ответ {success,data} содержит access-токен в data.token и сведения учётной записи; data.refreshToken остаётся пустой строкой для совместимости.\nСекрет продления передаётся только в HttpOnly cookie refresh_token с Path=/api и SameSite=Strict; Secure включён на HTTPS-установке.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11863,13 +11764,55 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.LoginResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Set-Cookie": {
+                                "type": "string",
+                                "description": "HttpOnly cookie refresh_token для продления сеанса"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Некорректные данные запроса",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Неверный логин или пароль",
                         "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Слишком много попыток входа",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Не удалось проверить состояние учётной записи",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Технические работы",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -15348,7 +15291,7 @@ const docTemplate = `{
         },
         "/refresh-token": {
             "post": {
-                "description": "Выдаёт новую пару access + refresh токенов по refresh token",
+                "description": "Продлевает сеанс по HttpOnly cookie refresh_token. JSON-тело не требуется и не используется как источник секрета продления.\nОтвет {success,data} содержит новый access-токен в data.token; data.refreshToken остаётся пустой строкой. Новый секрет продления устанавливается в cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15363,13 +15306,37 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.TokenPairResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.TokenPairResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Set-Cookie": {
+                                "type": "string",
+                                "description": "Обновлённая HttpOnly cookie refresh_token"
+                            }
                         }
                     },
                     "401": {
-                        "description": "Invalid refresh token",
+                        "description": "Недействительный или отсутствующий сеанс",
                         "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Не удалось проверить или продлить сеанс",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -19182,114 +19149,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
-                    }
-                }
-            }
-        },
-        "/unique-cars/batch": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Создаёт несколько уникальных машин, пропуская дубликаты",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "unique-cars"
-                ],
-                "summary": "Пакетное создание уникальных машин",
-                "parameters": [
-                    {
-                        "description": "Массив данных машин",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.NewUniqueCarRequest"
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/services.BatchCreateCarsResponse"
-                        }
-                    },
-                    "207": {
-                        "description": "Частичный успех",
-                        "schema": {
-                            "$ref": "#/definitions/services.BatchCreateCarsResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    }
-                }
-            }
-        },
-        "/unique-cars/by-number": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Находит машину по номеру и марке, обновляет данные",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "unique-cars"
-                ],
-                "summary": "Обновление уникальной машины по номеру",
-                "parameters": [
-                    {
-                        "description": "Номер, марка и новые данные",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/services.UpdateCarByNumberRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/services.UniqueCarResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
                     },
                     "403": {
-                        "description": "Нет прав",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "404": {
-                        "description": "Не найдена",
+                        "description": "Чужая организация или компания без права",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -19702,6 +19564,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Чужая организация или компания без права",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -25455,6 +25323,9 @@ const docTemplate = `{
         "models.DocumentListItem": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -25499,6 +25370,29 @@ const docTemplate = `{
                 },
                 "updated_by": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.EffectivePeriod": {
+            "type": "object",
+            "properties": {
+                "bounded": {
+                    "type": "boolean"
+                },
+                "entry_date_from": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
                 }
             }
         },
@@ -26461,6 +26355,9 @@ const docTemplate = `{
         "models.PublicDocument": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -26636,6 +26533,14 @@ const docTemplate = `{
                 "users_with_push": {
                     "type": "integer"
                 },
+                "users_with_push_by_platform": {
+                    "description": "Один пользователь учитывается один раз внутри каждой платформы подписок.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PushPlatformCounts"
+                        }
+                    ]
+                },
                 "users_without_push": {
                     "type": "integer"
                 }
@@ -26666,6 +26571,9 @@ const docTemplate = `{
                 "company": {
                     "type": "string"
                 },
+                "display_label": {
+                    "type": "string"
+                },
                 "first_name": {
                     "type": "string"
                 },
@@ -26683,7 +26591,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pd_hidden": {
-                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).\nОрганизацию и компанию согласие не закрывает: это данные работодателя, а не\nработника, и в администраторском списке они видны у скрытого работника тоже.",
+                    "description": "PDHidden -- ФИО скрыто политикой согласия или отображения принимающего.\nОрганизацию и компанию согласие не закрывает: это данные работодателя, а не\nработника, и в администраторском списке они видны у скрытого работника тоже.",
                     "type": "boolean"
                 },
                 "position": {
@@ -27494,6 +27402,9 @@ const docTemplate = `{
                 "deleted_by_name": {
                     "type": "string"
                 },
+                "documents_hidden": {
+                    "type": "boolean"
+                },
                 "entry_date_to": {
                     "type": "string"
                 },
@@ -27855,6 +27766,9 @@ const docTemplate = `{
         "models.UpdateDocumentMetaRequest": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -28350,6 +28264,10 @@ const docTemplate = `{
                     "description": "ConsentRequired -- согласие сейчас спрашивают, и этого работника это касается.\nБез признака «согласия нет» неотличимо от «его и не спрашивают»: пока запрос\nвыключен, согласия нет вообще ни у кого.",
                     "type": "boolean"
                 },
+                "display_label": {
+                    "description": "DisplayLabel — рассчитанная подпись; не поле профиля для обратной записи.",
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -28399,7 +28317,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "pd_hidden": {
-                    "description": "PDHidden -- персональные данные не пусты, а скрыты: работник не дал согласия\nна их обработку (#1567). Скрыты и ФИО, и рабочие контакты. Форма\nредактирования обязана отличать это от незаполненных полей, иначе сохранение\nсоседнего поля затрёт настоящие данные.",
+                    "description": "PDHidden -- персональные данные не пусты, а скрыты действующей политикой\nсогласия или отображения имени принимающего. Скрыты ФИО и контакты. Форма\nредактирования обязана отличать это от незаполненных полей, иначе сохранение\nсоседнего поля затрёт настоящие данные.",
                     "type": "boolean"
                 },
                 "phone": {
@@ -28702,40 +28620,6 @@ const docTemplate = `{
                 }
             }
         },
-        "services.AddHistoryEntryRequest": {
-            "type": "object",
-            "required": [
-                "action_type"
-            ],
-            "properties": {
-                "action_status": {
-                    "type": "string"
-                },
-                "action_type": {
-                    "type": "string"
-                },
-                "application_id": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "comment": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "type": "object"
-                },
-                "new_value": {
-                    "type": "string"
-                },
-                "old_value": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer",
-                    "minimum": 1
-                }
-            }
-        },
         "services.AnswerItem": {
             "type": "object",
             "properties": {
@@ -28853,6 +28737,9 @@ const docTemplate = `{
                     "description": "Состояние голоса согласующего - и обязательного, и остальных: голосуют все, у\nкого есть строка в application_responsible_users, просто необязательный голос\nна исход не влияет. Прятать его у необязательного значило бы показывать в\nсписке участников не то, что показывает карточка заявки.",
                     "type": "string"
                 },
+                "can_approve": {
+                    "type": "boolean"
+                },
                 "company_id": {
                     "type": "integer"
                 },
@@ -28910,34 +28797,6 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
-                }
-            }
-        },
-        "services.ApplicationUpdateRequest": {
-            "type": "object",
-            "properties": {
-                "confirmation": {
-                    "type": "string"
-                },
-                "responsible_comment": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "services.ApplicationUpdateResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                },
-                "rows_affected": {
-                    "type": "integer"
-                },
-                "success": {
-                    "type": "boolean"
                 }
             }
         },
@@ -29128,6 +28987,15 @@ const docTemplate = `{
                 "application_id": {
                     "type": "integer"
                 },
+                "period": {
+                    "$ref": "#/definitions/services.EntityPeriodInput"
+                },
+                "period_choice": {
+                    "type": "string"
+                },
+                "source_attachment_id": {
+                    "type": "integer"
+                },
                 "target_attachment_id": {
                     "type": "integer"
                 }
@@ -29270,8 +29138,14 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_manual": {
+                    "type": "boolean"
+                },
                 "roof_access": {
                     "type": "boolean"
+                },
+                "status": {
+                    "type": "integer"
                 },
                 "unique_attachment_display_name": {
                     "type": "string"
@@ -29362,29 +29236,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
-                }
-            }
-        },
-        "services.BatchCreateCarsResponse": {
-            "type": "object",
-            "properties": {
-                "created_cars": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/services.UniqueCarResponse"
-                    }
-                },
-                "error_count": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "success_count": {
-                    "type": "integer"
                 }
             }
         },
@@ -29680,6 +29531,9 @@ const docTemplate = `{
                 "car_id": {
                     "type": "integer"
                 },
+                "effective_period": {
+                    "$ref": "#/definitions/models.EffectivePeriod"
+                },
                 "entry_time": {
                     "type": "string"
                 },
@@ -29688,6 +29542,12 @@ const docTemplate = `{
                 },
                 "last_mark_table_id": {
                     "type": "integer"
+                },
+                "passage_state": {
+                    "$ref": "#/definitions/services.PassageState"
+                },
+                "server_now": {
+                    "type": "string"
                 },
                 "territory_status": {
                     "type": "integer"
@@ -29859,8 +29719,17 @@ const docTemplate = `{
                 "entry_time_to": {
                     "type": "string"
                 },
+                "free_parking": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
+                },
+                "individual_free_parking": {
+                    "type": "boolean"
+                },
+                "individual_roof_access": {
+                    "type": "boolean"
                 },
                 "is_blacklisted": {
                     "description": "IsBlacklisted - точное попадание в действующий чёрный список; строка остаётся в\nзаявке, но показывается зачёркнутой.",
@@ -29875,6 +29744,9 @@ const docTemplate = `{
                 },
                 "organization_id": {
                     "type": "integer"
+                },
+                "roof_access": {
+                    "type": "boolean"
                 },
                 "supplement_id": {
                     "description": "SupplementID - раунд, принёсший строку. nil - исходный состав подачи.",
@@ -29903,6 +29775,49 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/services.UnloadPlaceRef"
                     }
+                }
+            }
+        },
+        "services.ChangeApplicationDatesRequest": {
+            "type": "object",
+            "required": [
+                "entry_date_from",
+                "entry_date_to",
+                "entry_time_from",
+                "entry_time_to",
+                "reason"
+            ],
+            "properties": {
+                "entry_date_from": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1
+                }
+            }
+        },
+        "services.ChangeApplicationDatesResult": {
+            "type": "object",
+            "properties": {
+                "approvals_reset": {
+                    "type": "boolean"
+                },
+                "new_period": {
+                    "type": "string"
+                },
+                "old_period": {
+                    "type": "string"
                 }
             }
         },
@@ -30174,66 +30089,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
-                }
-            }
-        },
-        "services.CreateEmployeeRequest": {
-            "type": "object",
-            "required": [
-                "first_name",
-                "last_name",
-                "passport_series_number",
-                "position"
-            ],
-            "properties": {
-                "citizenship_id": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "first_name": {
-                    "type": "string",
-                    "minLength": 1
-                },
-                "last_name": {
-                    "type": "string",
-                    "minLength": 1
-                },
-                "middle_name": {
-                    "type": "string"
-                },
-                "other_permission": {
-                    "type": "string"
-                },
-                "passport_series_number": {
-                    "type": "string",
-                    "minLength": 1
-                },
-                "patent_number": {
-                    "type": "string"
-                },
-                "position": {
-                    "type": "string",
-                    "minLength": 1
-                },
-                "target_tables": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "services.CreateEmployeeResponse": {
-            "type": "object",
-            "properties": {
-                "employee_id": {
-                    "type": "integer"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
                 }
             }
         },
@@ -30582,6 +30437,9 @@ const docTemplate = `{
                     "description": "CanRevert - спрашивающий может отменить последнюю отметку прямо сейчас (#2437):\nлибо она его и свежая, либо он администратор. Считает бэк, чтобы правило и его\nокно жили в одном месте, а не повторялись в трёх таблицах на фронте.",
                     "type": "boolean"
                 },
+                "effective_period": {
+                    "$ref": "#/definitions/models.EffectivePeriod"
+                },
                 "employee_id": {
                     "type": "integer"
                 },
@@ -30594,6 +30452,12 @@ const docTemplate = `{
                 "last_mark_table_id": {
                     "description": "LastMarkTableID - пост, на котором поставлена последняя отметка. Таблица прячет\nкнопку отмены у чужих постов: отменять отметку можно только там, где её поставили.",
                     "type": "integer"
+                },
+                "passage_state": {
+                    "$ref": "#/definitions/services.PassageState"
+                },
+                "server_now": {
+                    "type": "string"
                 },
                 "territory_status": {
                     "type": "integer"
@@ -30779,6 +30643,9 @@ const docTemplate = `{
                 "company_id": {
                     "type": "integer"
                 },
+                "documents_hidden": {
+                    "type": "boolean"
+                },
                 "entry_date_to": {
                     "type": "string"
                 },
@@ -30840,6 +30707,23 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/services.TableInfoRef"
                     }
+                }
+            }
+        },
+        "services.EntityPeriodInput": {
+            "type": "object",
+            "properties": {
+                "entry_date_from": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
                 }
             }
         },
@@ -30936,6 +30820,15 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                },
+                "recipient_details": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.forwardRecipientDisplay"
+                    }
+                },
+                "recipient_details_available": {
+                    "type": "boolean"
                 },
                 "recipients": {
                     "type": "array",
@@ -31339,9 +31232,6 @@ const docTemplate = `{
                 },
                 "organization_id": {
                     "type": "integer"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -31376,14 +31266,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pd_consent": {
-                    "description": "PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих\nперсональных данных (152-ФЗ). Для новой записи обязателен: в карточке вводят\nпаспорт и патент, то есть данные третьего лица. При правке существующей записи\nфлаг только ДОБАВЛЯЕТ отметку, если её не было, - снять согласие правкой нельзя.",
+                    "description": "Владельца (user_id) в теле нет намеренно, см. NewUniqueCarRequest.\nPDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих\nперсональных данных (152-ФЗ). Для новой записи обязателен: в карточке вводят\nпаспорт и патент, то есть данные третьего лица. При правке существующей записи\nфлаг только ДОБАВЛЯЕТ отметку, если её не было, - снять согласие правкой нельзя.",
                     "type": "boolean"
                 },
                 "position": {
                     "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -31516,6 +31403,64 @@ const docTemplate = `{
                 "flag_id": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "services.PassageAdmission": {
+            "type": "object",
+            "properties": {
+                "can_enter": {
+                    "type": "boolean"
+                },
+                "can_exit": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.PassageState": {
+            "type": "object",
+            "properties": {
+                "can_correct": {
+                    "type": "boolean"
+                },
+                "can_revert_correction": {
+                    "type": "boolean"
+                },
+                "entry_at": {
+                    "type": "string"
+                },
+                "entry_table_id": {
+                    "type": "integer"
+                },
+                "entry_time_known": {
+                    "type": "boolean"
+                },
+                "exit_recorded_at": {
+                    "type": "string"
+                },
+                "grace_until": {
+                    "type": "string"
+                },
+                "has_event": {
+                    "type": "boolean"
+                },
+                "in_exit_grace": {
+                    "type": "boolean"
+                },
+                "last_event_id": {
+                    "type": "integer"
+                },
+                "last_event_kind": {
+                    "type": "string"
+                },
+                "needs_attention": {
+                    "type": "boolean"
+                },
+                "open": {
+                    "type": "boolean"
                 }
             }
         },
@@ -31675,6 +31620,9 @@ const docTemplate = `{
                 "approval_status": {
                     "type": "string"
                 },
+                "can_approve": {
+                    "type": "boolean"
+                },
                 "created_at": {
                     "description": "CreatedAt - момент назначения согласующего (не подача заявки: его могли\nдобавить позже). От него карточка заявки считает \"не отвечает N дней\" (#1315 S3),\nтак же считает ReminderService. ReminderCount - сколько напоминаний уже ушло.",
                     "type": "string"
@@ -31717,6 +31665,9 @@ const docTemplate = `{
         "services.RevertPassageRequest": {
             "type": "object",
             "properties": {
+                "expected_last_event_id": {
+                    "type": "integer"
+                },
                 "reason": {
                     "type": "string"
                 },
@@ -31758,10 +31709,6 @@ const docTemplate = `{
             "properties": {
                 "comment": {
                     "type": "string"
-                },
-                "user_id": {
-                    "type": "integer",
-                    "minimum": 1
                 }
             }
         },
@@ -32131,6 +32078,9 @@ const docTemplate = `{
         "services.TableCarResponse": {
             "type": "object",
             "properties": {
+                "admission": {
+                    "$ref": "#/definitions/services.PassageAdmission"
+                },
                 "application_id": {
                     "type": "integer"
                 },
@@ -32149,6 +32099,9 @@ const docTemplate = `{
                 "company_id": {
                     "type": "integer"
                 },
+                "effective_period": {
+                    "$ref": "#/definitions/models.EffectivePeriod"
+                },
                 "entry_date_to": {
                     "type": "string"
                 },
@@ -32158,14 +32111,32 @@ const docTemplate = `{
                 "entry_time_to": {
                     "type": "string"
                 },
+                "free_parking": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
+                },
+                "individual_free_parking": {
+                    "type": "boolean"
+                },
+                "individual_roof_access": {
+                    "type": "boolean"
                 },
                 "organization": {
                     "type": "string"
                 },
                 "organization_id": {
                     "type": "integer"
+                },
+                "passage_state": {
+                    "$ref": "#/definitions/services.PassageState"
+                },
+                "roof_access": {
+                    "type": "boolean"
+                },
+                "server_now": {
+                    "type": "string"
                 },
                 "status": {
                     "type": "integer"
@@ -32190,6 +32161,12 @@ const docTemplate = `{
                 "unload_place": {
                     "type": "string"
                 },
+                "unload_place_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "unload_places": {
                     "type": "array",
                     "items": {
@@ -32201,6 +32178,9 @@ const docTemplate = `{
         "services.TableEmployeeResponse": {
             "type": "object",
             "properties": {
+                "admission": {
+                    "$ref": "#/definitions/services.PassageAdmission"
+                },
                 "application_id": {
                     "type": "integer"
                 },
@@ -32212,6 +32192,9 @@ const docTemplate = `{
                 },
                 "company": {
                     "type": "string"
+                },
+                "effective_period": {
+                    "$ref": "#/definitions/models.EffectivePeriod"
                 },
                 "entry_date_to": {
                     "type": "string"
@@ -32237,7 +32220,13 @@ const docTemplate = `{
                 "pass_time": {
                     "type": "string"
                 },
+                "passage_state": {
+                    "$ref": "#/definitions/services.PassageState"
+                },
                 "position": {
+                    "type": "string"
+                },
+                "server_now": {
                     "type": "string"
                 },
                 "status": {
@@ -32271,6 +32260,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "source": {
+                    "description": "Source - откуда взялась привязка к посту: application (указано при подаче),\napprover (назначил принимающий), manual (добавили руками в таблице поста).\nКарточка показывает это подписью рядом с местом прохода: без источника человек\nвидит только итог и не может отличить своё от назначенного (#2551).",
+                    "type": "string"
                 }
             }
         },
@@ -32289,10 +32282,6 @@ const docTemplate = `{
                 },
                 "comment": {
                     "type": "string"
-                },
-                "user_id": {
-                    "type": "integer",
-                    "minimum": 1
                 }
             }
         },
@@ -32445,8 +32434,17 @@ const docTemplate = `{
                 "format_name": {
                     "type": "string"
                 },
+                "free_parking": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
+                },
+                "individual_free_parking": {
+                    "type": "boolean"
+                },
+                "individual_roof_access": {
+                    "type": "boolean"
                 },
                 "is_blacklisted": {
                     "description": "IsBlacklisted -- машина в активном чёрном списке (совпадение по номеру и марке).\nСчитается на сервере, чтобы фронт не выгружал весь список ЧС ради подсветки.",
@@ -32463,6 +32461,9 @@ const docTemplate = `{
                 },
                 "organization_name": {
                     "type": "string"
+                },
+                "roof_access": {
+                    "type": "boolean"
                 },
                 "status": {
                     "type": "boolean"
@@ -32532,6 +32533,9 @@ const docTemplate = `{
                 },
                 "created_at": {
                     "type": "string"
+                },
+                "documents_hidden": {
+                    "type": "boolean"
                 },
                 "first_name": {
                     "type": "string"
@@ -32615,6 +32619,9 @@ const docTemplate = `{
                 },
                 "created_at": {
                     "type": "string"
+                },
+                "documents_hidden": {
+                    "type": "boolean"
                 },
                 "first_name": {
                     "type": "string"
@@ -32786,26 +32793,12 @@ const docTemplate = `{
                 }
             }
         },
-        "services.UpdateCarByNumberRequest": {
-            "type": "object",
-            "required": [
-                "number"
-            ],
-            "properties": {
-                "mark": {
-                    "type": "string"
-                },
-                "number": {
-                    "type": "string"
-                },
-                "update_data": {
-                    "$ref": "#/definitions/services.NewUniqueCarRequest"
-                }
-            }
-        },
         "services.UpdateCarTerritoryStatusRequest": {
             "type": "object",
             "properties": {
+                "expected_last_event_id": {
+                    "type": "integer"
+                },
                 "pass": {
                     "$ref": "#/definitions/services.FactPassData"
                 },
@@ -32887,6 +32880,9 @@ const docTemplate = `{
         "services.UpdateTerritoryStatusRequest": {
             "type": "object",
             "properties": {
+                "expected_last_event_id": {
+                    "type": "integer"
+                },
                 "table_id": {
                     "description": "TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,\nчтобы в карточке истории было видно, где произошло событие.",
                     "type": "integer"
@@ -32973,10 +32969,6 @@ const docTemplate = `{
                         "approved",
                         "rejected"
                     ]
-                },
-                "user_id": {
-                    "type": "integer",
-                    "minimum": 1
                 }
             }
         },
@@ -33156,6 +33148,26 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/services.WorkModeEntity"
                     }
+                }
+            }
+        },
+        "services.forwardRecipientDisplay": {
+            "type": "object",
+            "properties": {
+                "access_granted": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "required_approval": {
+                    "type": "boolean"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         }
