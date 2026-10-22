@@ -248,7 +248,7 @@
                   :model-value="null"
                   label-key="label"
                   value-key="key"
-                  placeholder="Продублировать"
+                  placeholder="Продублировать / продлить"
                   @update:model-value="handleDuplicatePreset"
                 />
                 <transition name="fade">

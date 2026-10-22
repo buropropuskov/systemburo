@@ -12,6 +12,8 @@
           <div class="pdc-modal__top">
             <h2
               id="pdc-title"
+              ref="title"
+              tabindex="-1"
               class="pdc-modal__title"
             >
               Согласие на обработку персональных данных
@@ -64,35 +66,36 @@
                 Коротко о главном
               </h3>
               <p class="pdc-aside__text">
-                Система обрабатывает данные вашей учётной записи: фамилию, имя и отчество,
-                организацию и должность, рабочие контакты, а также сведения о входах и
-                действиях в системе.
+                Система обрабатывает ФИО, организацию, должность, рабочие контакты,
+                сведения о входах и действиях в системе.
               </p>
               <p class="pdc-aside__text">
-                Эти данные нужны, чтобы оформлять и согласовывать заявки на проход, показывать
-                вас коллегам как участника заявки и вести учёт доступа на территорию.
+                Данные нужны для оформления и согласования заявок, отображения их
+                участников и учёта доступа на территорию.
               </p>
               <p class="pdc-aside__note">
-                Отозвать согласие можно в личном кабинете или через бюро пропусков. После
-                отзыва система снова покажет это окно, и до нового подтверждения работать в
-                ней не получится.
+                Отозвать согласие можно в личном кабинете или через бюро пропусков.
+                После отзыва работа в системе доступна только после нового согласия.
               </p>
             </aside>
           </div>
 
           <div class="pdc-modal__foot">
-            <div
-              class="pdc-progress"
-              role="progressbar"
-              aria-label="Прочитано"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              :aria-valuenow="progressPercent"
-            >
+            <div class="pdc-progress-row">
               <div
-                class="pdc-progress__fill"
-                :style="{ transform: `scaleX(${progress})` }"
-              />
+                class="pdc-progress"
+                role="progressbar"
+                aria-label="Прочитано"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="progressPercent"
+              >
+                <div
+                  class="pdc-progress__fill"
+                  :style="{ transform: `scaleX(${progress})` }"
+                />
+              </div>
+              <span class="pdc-progress-count">{{ progressPercent }}%</span>
             </div>
             <p class="pdc-hint">
               {{ hint }}
@@ -177,6 +180,7 @@ const emit = defineEmits(['logout']);
 const store = usePDConsentStore();
 
 const scroller = ref(null);
+const title = ref(null);
 // На узком экране прокручивается уже столбец целиком, а не область текста:
 // прогресс обязан считаться по тому, что реально скроллится, иначе полоса
 // показывает 100% с первого кадра.
@@ -204,8 +208,8 @@ const version = computed(() => store.version);
  */
 const versionLabel = computed(() => {
   const at = store.versionAt ? new Date(store.versionAt) : null;
-  if (!at || Number.isNaN(at.getTime())) return `Редакция ${store.version}`;
-  return `Редакция ${store.version} от ${formatMomentDate(at)}`;
+  if (!at || Number.isNaN(at.getTime())) return `Редакция № ${store.version}`;
+  return `Редакция № ${store.version} от ${formatMomentDate(at)}`;
 });
 const hasText = computed(() => Boolean(store.html));
 const hasDocument = computed(() => Boolean(store.docMeta?.stored_name));
@@ -295,8 +299,8 @@ watch(
     }
     await nextTick();
     observe();
-    // Фокус на текст: с клавиатуры документ должен листаться сразу, без Tab.
-    scroller.value?.focus?.();
+    // Начальный фокус обозначает окно; текст доступен следующим Tab без синей рамки при открытии.
+    title.value?.focus?.();
   },
   { immediate: true },
 );
@@ -700,5 +704,40 @@ async function download() {
   .pdc-btn--primary {
     min-width: 0;
   }
+}
+.pdc-modal__title:focus {
+  outline: none;
+}
+.pdc-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pdc-progress-row .pdc-progress {
+  flex: 1;
+  min-width: 0;
+}
+.pdc-progress-count {
+  min-width: 4ch;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.pdc-modal__doc,
+.pdc-modal__columns {
+  scrollbar-width: auto;
+  scrollbar-color: var(--text-muted) var(--surface);
+}
+.pdc-modal__doc::-webkit-scrollbar,
+.pdc-modal__columns::-webkit-scrollbar {
+  width: 8px;
+  display: block;
+}
+.pdc-modal__doc::-webkit-scrollbar-thumb,
+.pdc-modal__columns::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border: 2px solid var(--surface);
+  border-radius: 10px;
 }
 </style>
