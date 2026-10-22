@@ -421,6 +421,27 @@ def db_settings():
     return dict(re.findall(r'"([a-z_]+)=([^"]+)"', body))
 
 
+def operational_env_names():
+    """Параметры поставки вне config.go: Compose, сценарии и frontend."""
+    paths = [os.path.join(REPO, name) for name in
+             ('.env.example', 'Makefile', 'frontend/Dockerfile', 'frontend/src/api/client.js')]
+    for pattern in ('docker-compose*.yml', 'Dockerfile*', 'scripts/*.sh', 'nginx/*.sh'):
+        paths.extend(glob.glob(os.path.join(REPO, pattern)))
+    names = set()
+    patterns = (r'\b([A-Z][A-Z0-9_]*)\s*=',
+                r'^\s*([A-Z][A-Z0-9_]*)\s*:',
+                r'\$\{?([A-Z][A-Z0-9_]*)\b',
+                r'(?:import\.meta|process)\.env\.([A-Z][A-Z0-9_]*)')
+    for path in sorted(set(paths)):
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding='utf-8') as stream:
+            body = stream.read()
+        for pattern in patterns:
+            names.update(re.findall(pattern, body, re.M))
+    return names
+
+
 def check_env(text, problems):
     code = env_defaults()
     doc = doc_env_table(text)
@@ -429,8 +450,13 @@ def check_env(text, problems):
         if count > 1:
             problems.append('%s: параметр %s повторяется в таблицах %d раза'
                             % (DEPLOY, name, count))
+    external = operational_env_names() if set(doc) - set(code) else set()
     for name, shown in doc.items():
         if name not in code:
+            if name not in external:
+                problems.append(
+                    '%s, приложение Б: параметр %s описан, но не найден '
+                    'в конфигурации, сценариях и файлах поставки' % (DEPLOY, name))
             continue
         actual = code[name]
         if actual == "" and shown in ("пусто", "нет", "нет, обязателен"):

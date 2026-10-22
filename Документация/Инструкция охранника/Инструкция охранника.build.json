@@ -1,10 +1,10 @@
 {
   "document": "guard_howto",
-  "version": "1.1",
-  "pages": 33,
-  "code_revision": "09e756eba5ae472f141d067b8fc18aac2df88917",
-  "source_sha256": "5f776e9d75482606a4d50200fc9b7ad50b0a4b1aa87c34f92a159e26754633bc",
-  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
-  "docx_sha256": "d35a26fa25c1be0783db93e45aefd95ae9fa4665cb9a0986424e6d5f28672bbf",
-  "pdf_sha256": "a1080b353edb761c54ec503326898e6024e89a925ebf66e2de07d9a25458b548"
+  "version": "1.2",
+  "pages": 31,
+  "code_revision": "babbf1aae28480b2b8e005c029f6e49a3c0ad32e",
+  "source_sha256": "4f46fde84189e0aad96156275b2d6da59857be546794a8b312bdc2dec385ee0a",
+  "builder_sha256": "cb977728d898e7fc2d9ec01ab0688088568527cf53efa2b04ff63d862cdb90bf",
+  "docx_sha256": "a4767fc2c8178a60af167611a1f2ef166789742ea4152bd2c36ac55de98b85f9",
+  "pdf_sha256": "08d099aa61c0f5b0f42a65f667f109cc8eb6f8657d56dca68b68975da4624099"
 }

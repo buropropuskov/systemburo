@@ -1,10 +1,10 @@
 {
   "document": "user_howto",
-  "version": "1.1",
+  "version": "1.2",
   "pages": 59,
-  "code_revision": "9657f889443ba84525f53759c572b578b412b3c4",
-  "source_sha256": "84fff9eba1d962dc5c05e5c5c2a63b3b47e1897d20d430bfec74ec911ec9dd96",
-  "builder_sha256": "624dcd0e0934dbe3b41b344fd0caa995b2adbc5e00e7cd37a69f4ee9630b07d5",
-  "docx_sha256": "968b9d39af8c1f1c4373ce734b54f1b416c849c3a02d1ecf96ccc45badbf701a",
-  "pdf_sha256": "5520ff84209c86ac3f6365686a727a7aeef5054558b2a88761131a8280eeacf1"
+  "code_revision": "babbf1aae28480b2b8e005c029f6e49a3c0ad32e",
+  "source_sha256": "57d5b33fdfe00c1eaefb27d98ac4f45c0a1b7fd0d3d4dbcc1443eda611c27cda",
+  "builder_sha256": "cb977728d898e7fc2d9ec01ab0688088568527cf53efa2b04ff63d862cdb90bf",
+  "docx_sha256": "1d822341d5cbedf7d0095e36b8d7cda0423183cc0349be28fa5634d14d0ea9f2",
+  "pdf_sha256": "3e19fe22acc4d3f042892cf1f7e2083d1d35dec4c705e25af4faf937c0e3843d"
 }

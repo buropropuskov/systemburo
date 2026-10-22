@@ -16,6 +16,66 @@ import doc_facts
 
 
 class CommandChecks(unittest.TestCase):
+    def test_shared_detail_component_requires_role_review(self):
+        shared = 'frontend/src/components/CreateApplication/EmployeeDetailsModal.vue'
+        hits = docs_impact.impact([shared])
+        documents = {hit[0] for hit in hits}
+        self.assertIn('Ролевые руководства', documents)
+        self.assertNotIn('Руководство пользователя', documents)
+
+    def test_application_form_still_maps_to_applicant_document(self):
+        path = 'frontend/src/components/CreateApplication/CreateApplication.vue'
+        documents = {hit[0] for hit in docs_impact.impact([path])}
+        self.assertIn('Руководство пользователя', documents)
+
+    def test_recent_security_supply_and_draft_files_are_mapped(self):
+        paths = ['.env.example', 'go.mod', 'frontend/package-lock.json',
+                 '.github/scripts/go_test_groups.py',
+                 'internal/services/session_access.go',
+                 'internal/middleware/file_access.go',
+                 'internal/services/document_access_policy.go',
+                 'internal/services/application_file_quota.go',
+                 'frontend/src/components/OpenPassagesModal.vue']
+        self.assertEqual(docs_impact.uncovered(paths), [])
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertTrue(docs_impact.impact([path]))
+
+    def test_removed_environment_parameter_is_reported(self):
+        reference = '# Приложение Б\n| `REMOVED_OPTION` | x |\n# Приложение В\n'
+        with patch.object(doc_facts, 'env_defaults', return_value={}), \
+                patch.object(doc_facts, 'operational_env_names', return_value=set()):
+            problems = []
+            doc_facts.check_env(reference, problems)
+        self.assertEqual(len(problems), 1)
+        self.assertIn('REMOVED_OPTION', problems[0])
+
+    def test_operational_parameter_is_not_required_in_go_config(self):
+        reference = '# Приложение Б\n| `EDGE_OPTION` | x |\n# Приложение В\n'
+        with patch.object(doc_facts, 'env_defaults', return_value={}), \
+                patch.object(doc_facts, 'operational_env_names', return_value={'EDGE_OPTION'}):
+            problems = []
+            doc_facts.check_env(reference, problems)
+        self.assertEqual(problems, [])
+
+    def test_operational_environment_names_cover_supply_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'scripts').mkdir()
+            (root / 'nginx').mkdir()
+            (root / 'frontend/src/api').mkdir(parents=True)
+            (root / '.env.example').write_text('TEMPLATE_OPTION=\n', encoding='utf-8')
+            (root / 'docker-compose.base.yml').write_text(
+                '    EDGE_OPTION: ${SOURCE_OPTION:-}\n', encoding='utf-8')
+            (root / 'scripts/env.sh').write_text('echo "$SCRIPT_OPTION"\n', encoding='utf-8')
+            (root / 'nginx/entrypoint.sh').write_text('echo "${PROXY_OPTION:-}"\n', encoding='utf-8')
+            (root / 'frontend/src/api/client.js').write_text(
+                'const value = import.meta.env.VITE_OPTION;\n', encoding='utf-8')
+            with patch.object(doc_facts, 'REPO', directory):
+                names = doc_facts.operational_env_names()
+        self.assertEqual(names, {'TEMPLATE_OPTION', 'EDGE_OPTION', 'SOURCE_OPTION',
+                                 'SCRIPT_OPTION', 'PROXY_OPTION', 'VITE_OPTION'})
+
     def test_environment_duplicates_only_within_reference_table(self):
         reference = '# Приложение Б\n| `MODE` | x |\n# Приложение В\n'
         with patch.object(doc_facts, 'env_defaults', return_value={'MODE': 'x'}):
@@ -65,6 +125,19 @@ class CommandChecks(unittest.TestCase):
 
 
 class PdfChecks(unittest.TestCase):
+    def test_table_caption_is_not_an_unlabelled_continuation(self):
+        for caption in ['Таблица 9.14 — Поля, которые затирает команда',
+                        'Таблица Б.9 — Параметры уведомлений']:
+            with self.subTest(caption=caption):
+                self.assertFalse(build_docs.starts_with_table_header(
+                    [caption, 'Таблица Что затирается', 'Сотрудники Имя'],
+                    {'Таблица Что затирается'}))
+
+    def test_real_table_column_named_table_still_requires_continuation(self):
+        self.assertTrue(build_docs.starts_with_table_header(
+            ['Таблица Что затирается', 'Сотрудники Имя'],
+            {'Таблица Что затирается'}))
+
     def test_page_map_ignores_contents_entry_without_dotted_leader(self):
         text = ('СОДЕРЖАНИЕ\n1. Назначение ...... 3\n'
                 '2. Длинный заголовок4\f'
@@ -96,6 +169,18 @@ class PdfChecks(unittest.TestCase):
                               subprocess.CompletedProcess([], 0, text, '')):
                 self.assertEqual(build_docs.next_break_in_tail({}, metadata, '1', [1]), expected)
 
+    def test_tail_search_ignores_tables_outside_reported_silent_pages(self):
+        metadata = [{'number': '1', 'head_probes': [],
+                     'row_probes': [['first'], ['second'], ['third']]}]
+        text = 'Продолжение таблицы 1 second\fHeader third\fOther page'
+        with patch.object(build_docs, 'executable', return_value='pdftotext'), \
+             patch.object(build_docs.subprocess, 'run', return_value=
+                          subprocess.CompletedProcess([], 0, text, '')):
+            self.assertIsNone(build_docs.next_break_in_tail(
+                {}, metadata, '1', [1], silent_pages=[3]))
+            self.assertEqual(build_docs.next_break_in_tail(
+                {}, metadata, '1', [1], silent_pages=[2]), 2)
+
     def test_empty_changelog_form_is_not_a_data_continuation(self):
         from docx import Document
         document = Document()
@@ -106,6 +191,32 @@ class PdfChecks(unittest.TestCase):
         captions = [paragraph.text for paragraph in document.paragraphs
                     if 'таблицы И.1' in paragraph.text]
         self.assertEqual(captions, ['Продолжение таблицы И.1', 'Окончание таблицы И.1'])
+
+    def test_changelog_page_breaks_belong_to_content_not_empty_paragraphs(self):
+        from docx import Document
+        document = Document()
+        with patch.object(build_docs, 'changelog', return_value=[
+            ('1.0', '01.01.2026', 'First')
+        ]):
+            build_docs.change_log(document, {})
+        self.assertFalse(document.element.xpath('.//w:br[@w:type="page"]'))
+        heading = next(p for p in document.paragraphs
+                       if p.text == 'ЛИСТ РЕГИСТРАЦИИ ИЗМЕНЕНИЙ')
+        ending = next(p for p in document.paragraphs
+                      if p.text == 'Окончание таблицы И.1')
+        self.assertTrue(heading.paragraph_format.page_break_before)
+        self.assertTrue(ending.paragraph_format.page_break_before)
+
+    def test_changelog_ending_has_no_empty_spacer_before_its_page_break(self):
+        from docx import Document
+        document = Document()
+        with patch.object(build_docs, 'changelog', return_value=[
+            ('1.0', '01.01.2026', 'First')
+        ]):
+            build_docs.change_log(document, {})
+        ending = next(p for p in document.paragraphs
+                      if p.text == 'Окончание таблицы И.1')
+        self.assertTrue(ending._p.getprevious().tag.endswith('}tbl'))
 
     def test_wrapped_table_header_after_running_notice_is_detected(self):
         rows = build_docs.page_body_lines('Не для распространения\n№ Показатель Допустимое Фактически\nзначение\n27 Доступность\n8\n')

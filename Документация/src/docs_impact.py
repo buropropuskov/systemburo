@@ -35,6 +35,17 @@ TESTS_WHERE = "14.1 количественные показатели тесто
 
 # (шаблон пути, документ, что смотреть)
 MAP = [
+    (r"^\.env\.example$", "Руководство",
+     "параметры окружения: сверка наличия, значений по умолчанию и условий применения"),
+    (r"^go\.(mod|sum)$|^frontend/package(-lock)?\.json$", "Оба",
+     "версии среды, состав зависимостей, лицензии и проверка поставки"),
+    (r"^\.github/scripts/(test_)?go_test_groups\.py$", "Техописание",
+     "14.3 Go CI: полнота групп, отдельные базы и итоговая проверка"),
+    (r"^internal/(services|middleware)/(session_|file_access|ban_check|"
+     r"admin_target_policy|document_access_policy|application_action_permissions|"
+     r"application_file_|password_rotation_service|impersonation_service)", "Оба",
+     "сессии и текущее состояние доступа; документы, назначения и файлы-черновики; "
+     "ролевые инструкции сверять по фактическим действиям, не переносить механизмы целиком"),
     (r"^internal/config/config\.go$", "Руководство",
      "6. Параметры конфигурации и приложение Б"),
     (r"^docker-compose\.prod\.yml$", "Руководство",
@@ -139,7 +150,17 @@ MAP = [
     # Разделы здесь названы словами, а не номерами: руководства пишутся
     # срезами, и номера разделов до конца работы над документом плавают.
     # Приведём к номерам, когда комплект будет собран целиком.
-    (r"^frontend/src/components/CreateApplication/",
+    # Общая карточка содержит действия разных ролей. Изменение её файла означает
+    # необходимость сверки контекстов, а не включение всех кнопок в руководство заявителя.
+    (r"^frontend/src/components/CreateApplication/(EmployeeDetailsModal|"
+     r"VehicleDetailsModal|DetailCardHeader)\.vue$|"
+     r"^frontend/src/(components/(EntityPeriod|AttachmentPeriod|ManualAttach|"
+     r"OpenPassages|PassageTableTools)|constants/detailModalActions\.js)",
+     "Ролевые руководства",
+     "карточки, сроки и проходы: проверять роль, контекст открытия, права и видимость; "
+     "административные операции не включать в инструкции остальных ролей"),
+    (r"^frontend/src/components/CreateApplication/(?!EmployeeDetailsModal\.vue$|"
+     r"VehicleDetailsModal\.vue$|DetailCardHeader\.vue$)",
      "Руководство пользователя", "оформление и подача заявки: поля форм вложений"),
     (r"^frontend/src/components/(AccountComponent|UserApplications)\.vue$|"
      r"^frontend/src/views/(CarsView|EmployeeView|NewsAndReview|"
