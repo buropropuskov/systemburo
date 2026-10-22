@@ -6,7 +6,7 @@
 
 | Слой | Технологии |
 |------|------------|
-| Backend | Go (go.mod: 1.26.9; Docker: 1.27.2), Echo v4, GORM, PostgreSQL 16 |
+| Backend | Go (go.mod: 1.26.10; Docker: 1.27.3), Echo v4, GORM, PostgreSQL 16 |
 | Frontend | Vue 3, Vue Router, Pinia |
 | Инфраструктура | Docker Compose, nginx, GitHub Actions CI/CD |
 

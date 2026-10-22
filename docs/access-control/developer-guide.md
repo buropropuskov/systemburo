@@ -55,6 +55,7 @@ access_denials_archive      # архив старше
 ```go
 resolver := services.NewPermissionResolver(db)
 set, err := resolver.Resolve(ctx, userID)
+if err != nil { return err } // ошибка проверки не разрешает действие
 if set.IsBanned()    { /* 0 прав */ }
 if set.IsSuperAdmin(){ /* все права */ }
 if set.Has("page.center") { /* allowed */ }
@@ -164,22 +165,15 @@ resolver := services.NewPermissionResolver(db)
 has, err := resolver.HasPermission(ctx, user.ID, "page.center")
 ```
 
-Тесты-интеграции с CleanDB должны лежать в `internal/handlers/` (там тесты бегут sequentially внутри пакета на shared БД).
+Интеграционные тесты находятся и в `internal/handlers`, и в `internal/services`. Прогоны с общей БД и `CleanDB` нельзя запускать конкурентно. Пять групп Go CI используют отдельные исполнители и базы; распределитель проверяет полноту и непересечение набора. Подробности — [ci-cd.md](../ci-cd.md).
 
 ### Frontend
 
-```js
-authStore.setTokens(createMockJWT({ is_super_admin: true }));
-// Все права доступны через bypass
-
-const store = usePermissionsStore();
-await store.fetchPermissions();
-expect(store.hasPermission('page.center')).toBe(true);
-```
+В тесте согласуйте фикстуры профиля и ответа текущих прав `/api/permissions/my`, затем проверьте маршрут и действие в режимах обычного пользователя, администратора, суперадминистратора и блокировки. Один самостоятельно сформированный JWT не доказывает актуальные серверные права. Проверяйте личный запрет, чужую запись и ошибку источника прав отдельно от успешного сценария.
 
 ## Чек-лист добавления новой защищённой возможности
 
-1. Придумать ключ согласно naming convention.
+1. Найти подходящий существующий ключ; новый вводить только при самостоятельном новом действии согласно naming convention.
 2. Зарегистрировать статический ключ в internal/services/permission_keys.go и серверном каталоге; для динамического — проверить существующий механизм генерации. При новом действии таблицы синхронизировать подписи permissionCatalog.js.
 3. Защитить backend endpoint через `RequirePermissionV2`.
 4. Защитить frontend (route `meta.permission` или `v-permission-scope`).
