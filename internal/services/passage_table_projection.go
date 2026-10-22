@@ -201,8 +201,8 @@ func LoadTablePassageResults(ctx context.Context, db *gorm.DB, actor int, kind E
 				valid, reason = false, "invalid_period"
 			}
 			active := row.Status != nil && *row.Status == 1 && row.AttachmentStatus != nil && *row.AttachmentStatus == 1
-			state.CanCorrect = state.Open && set.Has(passageCorrectionPermission)
-			state.CanRevertCorrection = row.Projection.Action == PassageCorrectionAction && row.Projection.CreatedAt != nil && captured.Sub(*row.Projection.CreatedAt) <= passageRevertWindow && set.Has(passageCorrectionPermission)
+			state.CanCorrect = state.Open && canCorrectPassage(set)
+			state.CanRevertCorrection = row.Projection.Action == PassageCorrectionAction && row.Projection.CreatedAt != nil && captured.Sub(*row.Projection.CreatedAt) <= passageRevertWindow && canCorrectPassage(set)
 			out[row.Projection.EntityID] = PassageResult{EntityID: row.Projection.EntityID, EntityKind: kind,
 				PassageState: state, EffectivePeriod: effective, ServerNow: captured,
 				Admission: PassageAdmission{CanEnter: valid && active && !state.Open && set.Has("table."+table.Name+".entry"),

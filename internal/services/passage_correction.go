@@ -23,13 +23,17 @@ type PassageCorrectionRequest struct {
 // The key is catalog-owned by the integrator; no role/grant bypass belongs here.
 const passageCorrectionPermission = "detail.passage.correct"
 
+func canCorrectPassage(set PermissionSet) bool {
+	return !set.IsBanned() && (set.IsAdmin() || set.IsSuperAdmin()) && set.Has(passageCorrectionPermission)
+}
+
 func passageCorrectionAccess(ctx context.Context, tx *gorm.DB, actor int, kind ElementKind, id int, req PassageCorrectionRequest, locked bool) (PermissionSet, error) {
 	resolver := NewPermissionResolver(tx)
 	set, err := resolver.Resolve(ctx, actor)
 	if err != nil {
 		return set, err
 	}
-	if !set.Has(passageCorrectionPermission) {
+	if !canCorrectPassage(set) {
 		return set, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для исправления учёта")
 	}
 	if req.Source == "table" {
@@ -42,9 +46,6 @@ func passageCorrectionAccess(ctx context.Context, tx *gorm.DB, actor int, kind E
 	scope, err := scopes.Resolve(ctx, actor)
 	if err != nil {
 		return set, err
-	}
-	if !set.IsAdmin() && !set.IsSuperAdmin() && !scope.Approver {
-		return set, echo.NewHTTPError(http.StatusForbidden, "Нет доступа к административной сводке")
 	}
 	visible, err := scopes.Visible(ctx, scope, kind, id)
 	if err != nil {

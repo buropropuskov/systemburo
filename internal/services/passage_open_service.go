@@ -59,8 +59,8 @@ type PassageOpenList struct {
 }
 
 // List with tableID is strictly bound to that table. A nil table selects the
-// distinct admin-summary source and requires both managed correction permission
-// and the existing admin/receiver element visibility. Totals never escape scope.
+// distinct admin-summary source and requires managed correction permission.
+// Both sources require an administrator and retain their visibility scope.
 func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKind, tableID *int, f PassageOpenFilter) (*PassageOpenList, error) {
 	if err := passageIdentity(actor, kind, 1); err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 		if err != nil {
 			return err
 		}
-		if set.IsBanned() {
+		if set.IsBanned() || !set.IsAdmin() && !set.IsSuperAdmin() {
 			return echo.NewHTTPError(http.StatusForbidden, "Нет доступа")
 		}
 		// Resolve has established the repeatable-read snapshot before the clock.
@@ -140,9 +140,6 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 			scope, err := scopes.Resolve(ctx, actor)
 			if err != nil {
 				return err
-			}
-			if !set.IsAdmin() && !set.IsSuperAdmin() && !scope.Approver {
-				return echo.NewHTTPError(http.StatusForbidden, "Нет доступа к административной сводке")
 			}
 			visible, args := scope.Predicate(kind, "e", "a", "app")
 			base = base.Where(visible, args...)
@@ -207,8 +204,8 @@ func (s *PassageOpenService) List(ctx context.Context, actor int, kind ElementKi
 				return err
 			}
 			effective := models.EffectivePeriod{EntryPeriod: models.EntryPeriod{EntryDateFrom: row.EntryDateFrom, EntryDateTo: row.EntryDateTo, EntryTimeFrom: row.EntryTimeFrom, EntryTimeTo: row.EntryTimeTo}, Bounded: row.Bounded, Source: row.PeriodSource}
-			state.CanCorrect = state.Open && set.Has(passageCorrectionPermission)
-			state.CanRevertCorrection = row.Projection.Action == PassageCorrectionAction && row.Projection.CreatedAt != nil && now.Sub(*row.Projection.CreatedAt) <= passageRevertWindow && set.Has(passageCorrectionPermission)
+			state.CanCorrect = state.Open && canCorrectPassage(set)
+			state.CanRevertCorrection = row.Projection.Action == PassageCorrectionAction && row.Projection.CreatedAt != nil && now.Sub(*row.Projection.CreatedAt) <= passageRevertWindow && canCorrectPassage(set)
 			admission := PassageAdmission{}
 			if tableID != nil {
 				valid, reason := passageWindow(effective, now)
