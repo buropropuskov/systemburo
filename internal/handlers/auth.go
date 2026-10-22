@@ -74,13 +74,19 @@ func (h *AuthHandler) clearRefreshCookie(c echo.Context) {
 
 // Login godoc
 // @Summary      Авторизация
-// @Description  Проверяет credentials и возвращает access + refresh токены
+// @Description  Проверяет логин и пароль. Ответ {success,data} содержит access-токен в data.token и сведения учётной записи; data.refreshToken остаётся пустой строкой для совместимости.
+// @Description  Секрет продления передаётся только в HttpOnly cookie refresh_token с Path=/api и SameSite=Strict; Secure включён на HTTPS-установке.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
 // @Param        request body models.LoginRequest true "Логин и пароль"
-// @Success      200 {object} models.LoginResponse
-// @Failure      401 {object} models.HTTPError "Неверный логин или пароль"
+// @Success      200 {object} Response{data=models.LoginResponse}
+// @Header       200 {string} Set-Cookie "HttpOnly cookie refresh_token для продления сеанса"
+// @Failure      400 {object} Response "Некорректные данные запроса"
+// @Failure      401 {object} Response "Неверный логин или пароль"
+// @Failure      429 {object} Response "Слишком много попыток входа"
+// @Failure      500 {object} Response "Не удалось проверить состояние учётной записи"
+// @Failure      503 {object} Response "Технические работы"
 // @Router       /login [post]
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req models.LoginRequest
@@ -115,12 +121,15 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 // RefreshToken godoc
 // @Summary      Обновление токена
-// @Description  Выдаёт новую пару access + refresh токенов по refresh token
+// @Description  Продлевает сеанс по HttpOnly cookie refresh_token. JSON-тело не требуется и не используется как источник секрета продления.
+// @Description  Ответ {success,data} содержит новый access-токен в data.token; data.refreshToken остаётся пустой строкой. Новый секрет продления устанавливается в cookie.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Success      200 {object} models.TokenPairResponse
-// @Failure      401 {object} models.HTTPError "Invalid refresh token"
+// @Success      200 {object} Response{data=models.TokenPairResponse}
+// @Header       200 {string} Set-Cookie "Обновлённая HttpOnly cookie refresh_token"
+// @Failure      401 {object} Response "Недействительный или отсутствующий сеанс"
+// @Failure      500 {object} Response "Не удалось проверить или продлить сеанс"
 // @Router       /refresh-token [post]
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	// Только HttpOnly cookie: тела запроса здесь больше нет. Приём маркера из
