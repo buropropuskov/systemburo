@@ -125,9 +125,8 @@ func loadPassageCurrent(ctx context.Context, db *gorm.DB, viewerID int, kind Ele
 				}
 			}
 			canRevert := lifecycle && samePostRight && p.CreatedAt != nil && (set.IsAdmin() || set.IsSuperAdmin() || p.ActorUserID != nil && *p.ActorUserID == viewerID && now.Sub(*p.CreatedAt) <= passageRevertWindow)
-			correctionAuthority := lifecycle || set.IsAdmin() || set.IsSuperAdmin() || fresh.Approver
-			state.CanCorrect = state.Open && correctionAuthority && set.Has(passageCorrectionPermission)
-			state.CanRevertCorrection = correctionAuthority && p.Action == PassageCorrectionAction && p.CreatedAt != nil && now.Sub(*p.CreatedAt) <= passageRevertWindow && set.Has(passageCorrectionPermission)
+			state.CanCorrect = state.Open && canCorrectPassage(set)
+			state.CanRevertCorrection = p.Action == PassageCorrectionAction && p.CreatedAt != nil && now.Sub(*p.CreatedAt) <= passageRevertWindow && canCorrectPassage(set)
 			status := 0
 			if projected := PassageTerritoryStatus(state, p.TerritoryStatus); projected != nil {
 				status = *projected

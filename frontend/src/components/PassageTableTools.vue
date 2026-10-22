@@ -9,29 +9,21 @@
 import { computed, ref, watch, defineAsyncComponent } from 'vue';
 const OpenPassagesModal = defineAsyncComponent(() => import('./OpenPassagesModal.vue'));
 import { usePermissionsStore } from '@/stores/permissions';
-import { useAuthStore } from '@/stores/auth';
-import { getMyApprovalRole } from '@/api/approvers';
 import { usePassageClock } from '@/composables/usePassageClock';
 import { passageDeadlines } from '@/utils/passageProjection';
 const props = defineProps({ kind: { type: String, required: true }, tableID: { type: Number, default: null },
   source: { type: String, default: 'table', validator: value => ['table', 'admin_summary'].includes(value) }, rows: { type: Array, default: () => [] } });
 const emit = defineEmits(['refresh', 'open-entity', 'clock']);
 const permissions = usePermissionsStore(), show = ref(false);
-const auth = useAuthStore(), receiving = ref(false);
 const canCorrect = computed(() => permissions.hasPermission('detail.passage.correct'));
 const administrative = computed(() => ['admin', 'super'].includes(permissions.mode));
-watch(() => [props.source, canCorrect.value, permissions.mode, permissions.fetchedAt, auth.userId], async (_, __, onCleanup) => {
-  let current = true; onCleanup(() => { current = false; }); receiving.value = false;
-  if (props.source !== 'admin_summary' || !canCorrect.value || administrative.value) return;
-  try { const role = await getMyApprovalRole(); if (current) receiving.value = role?.is_approver === true; }
-  catch { /* При ошибке чтения роли административная сводка остаётся недоступной. */ }
-}, { immediate: true });
-const available = computed(() => props.source === 'admin_summary'
-  ? canCorrect.value && (administrative.value || receiving.value) : Number.isSafeInteger(props.tableID) && props.tableID > 0);
+const validTable = computed(() => props.source === 'table' && Number.isSafeInteger(props.tableID) && props.tableID > 0);
+const available = computed(() => administrative.value && (props.source === 'admin_summary' ? canCorrect.value : validTable.value));
 const organizations = computed(() => [...new Map(props.rows.filter(row => row.organization_id).map(row =>
   [row.organization_id, { id: row.organization_id, name: row.organization_name || row.organization }])).values()]);
 const serverNow = computed(() => props.rows.find(row => row.server_now)?.server_now ?? null);
-const active = computed(() => available.value && props.source === 'table');
+// Сроки обычного поста обновляются и без административного инструмента.
+const active = validTable;
 const deadlines = computed(() => passageDeadlines(props.rows));
 const clock = usePassageClock(serverNow, { active, deadlines, onBoundary: () => emit('refresh') });
 watch(clock.now, value => emit('clock', value), { immediate: true });

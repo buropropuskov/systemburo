@@ -16,13 +16,17 @@ func TestOpenPassages2667TableScope(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	seed := testutil.SeedTestData(t, db)
-	owner := testutil.RegisterAndLogin(t, e, "open_scope_owner", "pass123", 1, seed.OrgID, seed.CompanyID)
+	owner := testutil.RegisterManager(t, e, "open_scope_owner", seed.OrgID, seed.CompanyID)
 	stranger := testutil.RegisterAndLogin(t, e, "open_scope_stranger", "pass123", 1, seed.OrgID, seed.CompanyID)
 	ownerID := getUserID(t, db, "open_scope_owner")
+	strangerID := getUserID(t, db, "open_scope_stranger")
+	testutil.GrantPermission(t, strangerID, services.KeyDetailPassageCorrect)
+	require.NoError(t, db.Create(&models.ApplicationApprover{UserID: strangerID}).Error)
 	for _, kind := range []string{"people", "cars"} {
 		table := models.SystemTable{Name: "open_scope_" + kind, TableType: kind, IsActive: true, Status: "active"}
 		require.NoError(t, db.Create(&table).Error)
 		testutil.GrantTableVerb(t, ownerID, table.Name, "view")
+		testutil.GrantTableVerb(t, strangerID, table.Name, "view")
 		active, inside := 1, 1
 		attachment := models.Attachment{AttachmentType: kind, IsManual: true, OrganizationID: &seed.OrgID, Status: &active}
 		require.NoError(t, db.Create(&attachment).Error)
@@ -58,5 +62,12 @@ func TestOpenPassages2667TableScope(t *testing.T) {
 		// A missing table is also forbidden; its existence is not disclosed.
 		missing := testutil.GET(t, e, fmt.Sprintf("/%s/open-for-table/999999", endpoint), testutil.AuthHeader(stranger))
 		require.Equal(t, http.StatusForbidden, missing.Code, missing.Body.String())
+		summary := testutil.GET(t, e, "/"+endpoint+"/open-admin-summary", testutil.AuthHeader(stranger))
+		require.Equal(t, http.StatusForbidden, summary.Code, summary.Body.String())
+		// Administrative mode does not bypass a personal table-view denial.
+		require.NoError(t, db.Model(&models.UserPermissionOverride{}).
+			Where("user_id=? AND permission_key=?", ownerID, "table."+table.Name+".view").Update("value", "deny").Error)
+		deniedAdmin := testutil.GET(t, e, url, testutil.AuthHeader(owner))
+		require.Equal(t, http.StatusForbidden, deniedAdmin.Code, deniedAdmin.Body.String())
 	}
 }
