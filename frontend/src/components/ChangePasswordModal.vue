@@ -165,11 +165,14 @@ export default {
     },
   },
   watch: {
-    show(opened) {
-      if (opened) {
-        this.reset();
-        this.loadPolicy();
-      }
+    show: {
+      immediate: true,
+      handler(opened) {
+        if (opened) {
+          this.reset();
+          this.loadPolicy();
+        }
+      },
     },
   },
   methods: {

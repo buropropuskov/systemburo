@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
+import { getPasswordPolicy } from '@/api/settings'
 
 vi.mock('@/api/settings', () => ({
   getPasswordPolicy: vi.fn().mockResolvedValue({
@@ -88,6 +89,27 @@ describe('ChangePasswordModal', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     resetPermissionsMock()
+  })
+
+  it('не запрашивает политику до открытия и загружает её при открытии', async () => {
+    const wrapper = mountModal()
+    await flushPromises()
+    expect(getPasswordPolicy).not.toHaveBeenCalled()
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect(getPasswordPolicy).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('загружает действующую политику при первоначально открытом окне', async () => {
+    getPasswordPolicy.mockResolvedValueOnce({ min_length: 12, require_letter: true, require_digit: true })
+    const wrapper = mountModal({ show: true, mandatory: true })
+    await flushPromises()
+    expect(getPasswordPolicy).toHaveBeenCalledTimes(1)
+    expect(wrapper.vm.policy.min_length).toBe(12)
+    await fillForm(wrapper, { current: 'current123', next: 'Abcdef12' })
+    expect(wrapper.vm.canSubmit).toBe(false)
+    wrapper.unmount()
   })
 
   it('не даёт отправить, пока новый пароль не проходит политику', async () => {

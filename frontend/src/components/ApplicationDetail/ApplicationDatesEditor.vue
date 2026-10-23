@@ -229,7 +229,7 @@ export default {
         open() {
             if (!this.canEdit) return
             this.invalidate()
-            this.selectAll(true)
+            this.selectAll(false)
             this.syncFormSource()
             this.individualPolicy = 'preserve'
             this.reason = ''

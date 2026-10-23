@@ -28,6 +28,7 @@ function mountEditor(props = {}) {
 }
 async function openWithReason(wrapper) {
   await wrapper.find('[data-testid="app-detail-change-dates"]').trigger('click');
+  await wrapper.find('[data-testid="dates-editor-all"] input').setValue(true);
   await wrapper.find('[data-testid="dates-editor-reason"]').setValue('  Исправление срока  ');
 }
 async function preview(wrapper, data = result()) {
@@ -64,18 +65,30 @@ describe('ApplicationDatesEditor selected periods #2665', () => {
   it('allows the approved group period change in work', () => {
     expect(mountEditor({ application: { id: 42, status: 'В работе' } }).find('[data-testid="app-detail-change-dates"]').exists()).toBe(true);
   });
-  it('opens with all attachments and preserve, requires a reason and a selection', async () => {
+  it('opens without selection and requires an explicit choice, preserving individual periods', async () => {
     const wrapper = mountEditor();
     await wrapper.find('[data-testid="app-detail-change-dates"]').trigger('click');
-    expect(wrapper.vm.selectedIDs).toEqual([1, 2]);
+    expect(wrapper.vm.selectedIDs).toEqual([]);
     expect(wrapper.vm.individualPolicy).toBe('preserve');
-    expect(wrapper.find('[data-testid="dates-editor-current"]').text()).toContain('01.10.2099 09:00 - 03.10.2099 18:00');
+    expect(wrapper.find('[data-testid="dates-editor-all"] input').element.checked).toBe(false);
     expect(wrapper.find('[data-testid="dates-editor-preview-button"]').attributes('disabled')).toBeDefined();
     await wrapper.find('[data-testid="dates-editor-reason"]').setValue('Причина');
-    await wrapper.find('[data-testid="dates-editor-all"] input').setValue(false);
     expect(wrapper.find('[role="alert"]').text()).toContain('Выберите хотя бы одно вложение');
     expect(wrapper.find('[data-testid="dates-editor-preview-button"]').attributes('disabled')).toBeDefined();
     expect(apiRequest).not.toHaveBeenCalled();
+    await wrapper.find('[data-testid="dates-editor-attachment-1"] input').setValue(true);
+    expect(wrapper.vm.selectedIDs).toEqual([1]);
+    expect(wrapper.find('[data-testid="dates-editor-current"]').text()).toContain('01.10.2099 09:00 - 03.10.2099 18:00');
+    await wrapper.find('[data-testid="dates-editor-all"] input').setValue(true);
+    expect(wrapper.vm.selectedIDs).toEqual([1, 2]);
+    await wrapper.find('[data-testid="dates-editor-all"] input').setValue(false);
+    expect(wrapper.vm.selectedIDs).toEqual([]);
+    await wrapper.find('[data-testid="dates-editor-all"] input').setValue(true);
+    wrapper.vm.close();
+    await wrapper.vm.$nextTick();
+    await wrapper.find('[data-testid="app-detail-change-dates"]').trigger('click');
+    expect(wrapper.vm.selectedIDs).toEqual([]);
+    expect(wrapper.vm.reason).toBe('');
   });
   it('validates all four date fields before preview', async () => {
     const wrapper = mountEditor();
