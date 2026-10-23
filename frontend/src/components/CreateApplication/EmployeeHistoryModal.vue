@@ -6,12 +6,14 @@
     >
       <div
         v-if="visible"
-        class="modal-overlay"
+        class="modal-overlay" :style="{ zIndex: modalLayer }"
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
       >
         <div
-          class="employee-history-modal"
+          ref="drawerDialog" class="employee-history-modal"
+          :role="drawerDesktop ? 'dialog' : null" :aria-modal="drawerDesktop ? true : null"
+          :tabindex="drawerDesktop ? -1 : null"
           :class="{ 'is-dragging': sheetDragging }"
           :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @mousedown.stop
@@ -293,6 +295,7 @@
 <script>
 import { usePermissionsStore } from '@/stores/permissions';
 import { useEscapeClose } from '@/composables/useEscapeClose';
+import { useEntityDrawerDialog } from '@/composables/useEntityDrawer';
 import { EMPLOYEE_HISTORY_ACTIONS, historyActionText, historyFieldLabel, historyValueText, documentHistoryChangeText } from '@/utils/passageHistoryActions';
 import { ref, defineAsyncComponent } from 'vue';
 import { apiRequest } from '@/api/client';
@@ -337,7 +340,9 @@ export default {
     // размонтирует мгновенно и анимация не проиграется.
     const visible = ref(false);
     const requestClose = () => { visible.value = false; };
-    useEscapeClose(requestClose, () => visible.value, 12000);
+    const drawerDialog = ref(null);
+    const drawer = useEntityDrawerDialog(drawerDialog, () => visible.value, () => 12000);
+    useEscapeClose(requestClose, () => visible.value, () => drawer.modalLayer.value);
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
     // Bottom-sheet на мобилке: свайп вниз за ползунок закрывает (как CarHistoryModal).
@@ -347,7 +352,7 @@ export default {
       handleSelector: '.sheet-handle',
     });
     return {
-      visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
+      ...drawer, drawerDialog, visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
       scrollContainer,
       sheetOffset: swipe.offset,
       sheetDragging: swipe.isDragging,

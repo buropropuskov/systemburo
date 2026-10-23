@@ -3,19 +3,18 @@
     <transition name="modal-fade" appear @after-leave="$emit('closed')">
       <div
         v-if="show"
-        class="modal-overlay"
+        class="modal-overlay entity-detail-overlay"
+        :class="{ 'entity-detail-overlay--place-open': drawerDesktop && showPlaceModal }"
         :style="{ zIndex: overlayZIndex }"
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
       >
-        <!-- Закрытие по клику мимо окна висит на самом затемнении, а не на обёртке:
-             у обёртки pointer-events: none, она целью события не становится вовсе, и
-             прежний @click.self на ней не срабатывал никогда. Через useOverlayClose,
-             чтобы выделение текста внутри окна, отпущенное на фоне, его не закрывало. -->
+        <!-- useOverlayClose защищает от закрытия после выделения текста. -->
         <div class="modal-wrapper">
-          <!-- Основное модальное окно с деталями сотрудника -->
           <div
-            class="modal-content compact-modal main-modal"
+            ref="drawerRoot" class="modal-content compact-modal main-modal entity-drawer"
+            :role="drawerDesktop ? 'dialog' : null" :aria-modal="drawerDesktop ? true : null"
+            :aria-label="drawerDesktop ? modalTitle : null" :tabindex="drawerDesktop ? -1 : null"
             :class="{ 'shifted': isMainShifted, 'is-dragging': sheetDragging }"
             :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @touchstart="onSheetTouchStart"
@@ -441,7 +440,7 @@
             </div>
           </div>
 
-          <!-- Дополнительное модальное окно с деталями места прохода -->
+          <div v-if="drawerDesktop && showPlaceModal" class="entity-place-backdrop" @mousedown.stop="onPlaceOverlayMousedown" @mouseup.stop="onPlaceOverlayMouseup" />
           <transition 
             name="place-slide"
             @after-leave="onPlaceLeave"
@@ -494,6 +493,7 @@ import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useEntityDrawer } from '@/composables/useEntityDrawer';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
 import { canEditEntityPeriod } from '@/components/EntityPeriodEditor.vue';
@@ -565,9 +565,7 @@ export default {
         }
     },
     emits: ['passage-changed', 'closed', 'close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
-    setup() {
-        // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). onDismiss зовёт метод
-        // close() компонента (полная очистка таймеров/подмодалок) через proxy, не голый emit.
+    setup(props) {
         const inst = getCurrentInstance();
         const sheetBody = ref(null);
         const swipe = useSwipeDismiss(() => inst?.proxy?.close?.(), {
@@ -575,10 +573,12 @@ export default {
             handleSelector: '.sheet-handle',
         });
         const { isNarrow } = useNarrowScreen();
+        const drawer = useEntityDrawer(isNarrow, () => props.show, () => props.source === 'history' ? 14000 : props.source === 'application' ? 10003 : 10001);
         // Закрытие по клику мимо окна. onClose зовёт close() компонента, а не голый
         // emit: у карточки есть таймеры и подокна, их гасит именно close().
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => inst?.proxy?.close?.());
         return {
+            ...drawer,
             isNarrow,
             onOverlayMousedown,
             onOverlayMouseup,
@@ -1731,3 +1731,5 @@ export default {
 }
 
 </style>
+
+<style scoped src="./entityDrawer.css" />

@@ -5,16 +5,16 @@
         v-if="show"
         class="base-modal-overlay"
         :data-theme="theme || null"
-        :style="{ zIndex }"
+        :style="{ zIndex: modalLayer }"
         @mousedown="handleOverlayMousedown"
         @mouseup="handleOverlayMouseup"
       >
         <div
           ref="modal"
           class="base-modal"
-          :class="[contentClass, { 'base-modal--sheet': sheetSwipe, 'is-dragging': sheetDragging, 'is-closing': sheetClosing }]"
+          :class="[contentClass, { 'base-modal--entity-drawer': drawerDesktop, 'base-modal--sheet': sheetSwipe, 'is-dragging': sheetDragging, 'is-closing': sheetClosing }]"
           :style="{ maxWidth: width, '--base-modal-radius': radius || null, ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
-          role="dialog"
+          role="dialog" :tabindex="drawerDesktop ? -1 : null"
           aria-modal="true"
           :data-testid="contentTestid || null"
           :aria-label="title"
@@ -68,6 +68,7 @@
 
 <script>
 import { ref } from 'vue';
+import { useEntityDrawerDialog } from '@/composables/useEntityDrawer';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
@@ -143,6 +144,7 @@ export default {
     // scrollTop == 0, у активного - реальный, - иначе свайп внутри прокрученного
     // контента ошибочно трактуется как закрытие (getScrollTop всегда 0).
     const modal = ref(null);
+    const drawer = useEntityDrawerDialog(modal, () => props.show, () => Number(props.zIndex) || 0, false);
     const body = ref(null);
     const swipe = useSwipeDismiss(() => emit('close'), {
       getScrollTop: () => Math.max(body.value?.scrollTop ?? 0, modal.value?.scrollTop ?? 0),
@@ -153,6 +155,7 @@ export default {
       if (props.sheetSwipe) fn(e);
     };
     return {
+      ...drawer,
       modal,
       body,
       sheetOffset: swipe.offset,
@@ -170,6 +173,7 @@ export default {
     };
   },
   watch: {
+    modalLayer(value) { setModalOpen(this, this.show, value); },
     show: {
       immediate: true,
       handler(val) {
@@ -177,7 +181,7 @@ export default {
         // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
         setBodyScrollLock(this, val);
         // Та же стопка отвечает на вопрос «кто сверху» для Escape.
-        setModalOpen(this, val, Number(this.zIndex) || 0);
+        setModalOpen(this, val, this.modalLayer);
         // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
         if (val) this.resetSwipe();
       },
@@ -488,6 +492,26 @@ export default {
   .base-modal__body textarea,
   .base-modal__body select {
     font-size: 16px;
+  }
+}
+@media (min-width: 768px) {
+  .base-modal.base-modal--entity-drawer {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    backdrop-filter: none;
+    outline: none;
+  }
+  .base-modal--entity-drawer .base-modal__header,
+  .base-modal--entity-drawer .base-modal__actions { flex: 0 0 auto; }
+  .base-modal--entity-drawer .base-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
 }
 </style>

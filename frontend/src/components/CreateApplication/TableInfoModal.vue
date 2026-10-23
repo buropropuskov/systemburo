@@ -1,6 +1,8 @@
 <template>
   <div
-    class="modal-content-inner"
+    ref="drawerDialog" class="modal-content-inner"
+    :role="drawerDesktop ? 'dialog' : null" :aria-modal="drawerDesktop ? true : null"
+    :tabindex="drawerDesktop ? -1 : null"
     :class="{ 'is-dragging': sheetDragging }"
     :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
     @touchstart="onSheetTouchStart"
@@ -222,6 +224,7 @@
 <script>
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useEntityDrawerDialog } from '@/composables/useEntityDrawer';
 
 export default {
     name: 'TableInfoModal',
@@ -241,12 +244,14 @@ export default {
         // у окна места разгрузки: тянуть можно за ползунок и за любую часть окна,
         // когда тело прокручено вверх.
         const modalBody = ref(null);
+        const drawerDialog = ref(null);
+        const drawer = useEntityDrawerDialog(drawerDialog, () => true, () => 0, true, true);
         const swipe = useSwipeDismiss(() => emit('close'), {
             handleSelector: '.sheet-handle',
             getScrollTop: () => modalBody.value?.scrollTop ?? 0,
         });
         return {
-            modalBody,
+            ...drawer, drawerDialog, modalBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
             onSheetTouchStart: swipe.onTouchStart,
@@ -338,7 +343,7 @@ export default {
     },
     methods: {
         handleKeydown(e) {
-            if (e.key !== 'Escape') return;
+            if (e.key !== 'Escape' || this.drawerDesktop && !this.isDrawerTop()) return;
             // Гасим всплытие: иначе тот же Escape поймает карточка-родитель и закроет
             // сразу два уровня, хотя крестик и свайп закрывают только это окно.
             e.stopPropagation();

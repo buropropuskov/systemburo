@@ -2,6 +2,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
   methods: {
+        closeDrawerPlace() { this.closeTableDetails(); },
         showTableDetails(tableId) {
             const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
             if (!tableData) {

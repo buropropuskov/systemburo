@@ -3,21 +3,19 @@
     <transition name="modal-fade" appear @after-leave="$emit('closed')">
       <div
         v-if="show"
-        class="modal-overlay"
+        class="modal-overlay entity-detail-overlay"
+        :class="{ 'entity-detail-overlay--place-open': drawerDesktop && (showPlaceModal || showTableModal) }"
         :style="{ zIndex: overlayZIndex }"
       >
-        <!-- Обёртка занимает всю площадь затемнения, поэтому закрытие по клику мимо
-             окна висит на ней, а не на самом затемнении: до него событие не доходит.
-             Держать обработчики на обоих нельзя - состояние «клик начался на фоне»
-             у них общее, и всплывшее с обёртки событие его сбрасывало. -->
         <div
           class="modal-wrapper"
           @mousedown="onOverlayMousedown"
           @mouseup="onOverlayMouseup"
         >
-          <!-- Основное модальное окно с деталями ТС -->
           <div
-            class="modal-content compact-modal main-modal"
+            ref="drawerRoot" class="modal-content compact-modal main-modal entity-drawer"
+            :role="drawerDesktop ? 'dialog' : null" :aria-modal="drawerDesktop ? true : null"
+            :aria-label="drawerDesktop ? modalTitle : null" :tabindex="drawerDesktop ? -1 : null"
             :class="{ 'shifted': isMainShifted, 'is-dragging': sheetDragging }"
             :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @mousedown.stop
@@ -428,6 +426,7 @@
           </div>
 
           <!-- Дополнительное модальное окно с деталями места разгрузки -->
+          <div v-if="drawerDesktop && (showPlaceModal || showTableModal)" class="entity-place-backdrop" @mousedown.stop="onPlaceOverlayMousedown" @mouseup.stop="onPlaceOverlayMouseup" />
           <transition name="place-slide" mode="out-in" @after-leave="onSidePanelLeave">
             <div v-if="showPlaceModal || showTableModal" :key="showPlaceModal ? 'place' : 'table'" class="place-modal-container">
               <UnloadPlaceModal v-if="showPlaceModal" :place="selectedUnloadPlace" :all-unloading-places="allUnloadingPlaces" @close="closeUnloadPlaceDetails" />
@@ -486,6 +485,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useEntityDrawer } from '@/composables/useEntityDrawer';
 import { usePermissionsStore } from '@/stores/permissions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -569,18 +569,16 @@ export default {
     emits: ['passage-changed', 'closed', 'close', 'open-application', 'override', 'cancel-override', 'period-changed', 'manual-attached'],
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-        // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
-// то же значение, что у оверлея, чтобы Escape закрывал именно верхнее окно.
 useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'history' ? 14000 : props.source === 'application' ? 10003 : 10001);
-        // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
-        // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
         const sheetBody = ref(null);
         const swipe = useSwipeDismiss(() => emit('close'), {
             getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
             handleSelector: '.sheet-handle',
         });
         const { isNarrow } = useNarrowScreen();
+        const drawer = useEntityDrawer(isNarrow, () => props.show, () => props.source === 'history' ? 14000 : props.source === 'application' ? 10003 : 10001);
         return {
+            ...drawer,
             onOverlayMousedown, onOverlayMouseup,
             isNarrow,
             sheetBody,
@@ -1815,3 +1813,5 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
 }
 
 </style>
+
+<style scoped src="./entityDrawer.css" />

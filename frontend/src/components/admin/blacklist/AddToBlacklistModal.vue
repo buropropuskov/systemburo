@@ -112,6 +112,7 @@
 </template>
 
 <script>
+import { entityDrawerKey, confirmDrawerDiscard } from '@/composables/useEntityDrawer';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FormField from '@/components/ui/FormField.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
@@ -128,6 +129,7 @@ import { listMarks } from '@/api/marks';
  */
 export default {
   name: 'AddToBlacklistModal',
+  inject: { drawerContext: { from: entityDrawerKey, default: null } },
   components: { BaseModal, FormField, BaseDropdown, VehicleNumberFormatInput },
   props: {
     show: { type: Boolean, default: false },
@@ -205,8 +207,8 @@ export default {
         this.marks = [];
       }
     },
-    close() {
-      if (this.saving) return;
+    async close() {
+      if (this.saving || !await confirmDrawerDiscard(this.drawerContext, this.reason !== (this.initialReason || ''))) return;
       this.$emit('close');
     },
     confirm() {

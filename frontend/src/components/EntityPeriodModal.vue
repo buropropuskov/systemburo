@@ -92,6 +92,7 @@
 </template>
 
 <script>
+import { entityDrawerKey, confirmDrawerDiscard } from '@/composables/useEntityDrawer';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FormField from '@/components/ui/FormField.vue';
@@ -102,6 +103,7 @@ import { formatPeriod, periodFormErrors, periodFormFromAttachment, periodPayload
 
 export default {
   name: 'EntityPeriodModal',
+  inject: { drawerContext: { from: entityDrawerKey, default: null } },
   components: { BaseModal, FormField, DateRangeSection, HintTooltip },
   fieldConfig: { roof_access: { visible: false }, free_parking: { visible: false } },
   props: {
@@ -114,7 +116,7 @@ export default {
   emits: ['close', 'changed'],
   data() {
     return {
-      snapshot: null, mode: 'individual', form: periodFormFromAttachment(null), reason: '',
+      initialPeriod: '', snapshot: null, mode: 'individual', form: periodFormFromAttachment(null), reason: '',
       loading: false, saving: false, error: '', conflict: false, validated: false, requestVersion: 0,
     };
   },
@@ -159,7 +161,11 @@ export default {
   },
   beforeUnmount() { this.requestVersion++; },
   methods: {
-    close() { if (!this.saving) this.$emit('close'); },
+    async close() {
+      if (this.saving) return;
+      const dirty = !!this.reason.trim() || !!this.snapshot && this.initialPeriod !== JSON.stringify([this.mode, this.form]);
+      if (await confirmDrawerDiscard(this.drawerContext, dirty)) this.$emit('close');
+    },
     async load() {
       const version = ++this.requestVersion;
       this.snapshot = null;
@@ -181,6 +187,7 @@ export default {
         this.snapshot = data;
         this.mode = data.period_mode;
         this.form = periodFormFromAttachment(data.effective_period);
+        this.initialPeriod = JSON.stringify([this.mode, this.form]);
       } catch (error) {
         if (version === this.requestVersion) this.error = error.message || 'Не удалось загрузить срок';
       } finally {

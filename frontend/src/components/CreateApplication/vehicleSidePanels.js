@@ -2,6 +2,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
   methods: {
+    closeDrawerPlace() { this.showTableModal ? this.closeTableDetails() : this.closeUnloadPlaceDetails(); },
     onSidePanelLeave() { this.onPlaceLeave(); this.onTableLeave(); },
         showUnloadPlaceDetails(placeId) {
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);

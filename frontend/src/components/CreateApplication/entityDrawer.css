@@ -1,0 +1,155 @@
+/* The phone sheet keeps its existing layout and transitions. */
+@media (min-width: 768px) {
+  .entity-detail-overlay {
+    --entity-card-width: min(640px, calc(50vw - 8px));
+    --entity-place-width: min(640px, calc(50vw - 8px));
+    align-items: stretch;
+    justify-content: flex-end;
+    animation: none;
+  }
+
+  .entity-detail-overlay > .modal-wrapper {
+    position: static;
+    align-items: stretch;
+    justify-content: flex-end;
+  }
+
+  .entity-detail-overlay .modal-content.entity-drawer {
+    position: fixed;
+    inset: 0 0 0 auto;
+    width: min(var(--entity-card-width), calc(100vw - 64px));
+    max-width: none;
+    height: calc(var(--app-vh, 1dvh) * 100);
+    max-height: calc(var(--app-vh, 1dvh) * 100);
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-right: 0;
+    border-radius: 30px 0 0 30px;
+    transform: none;
+    overflow: hidden;
+    box-shadow: -20px 0 80px var(--shadow-drop);
+    outline: none;
+  }
+
+  .entity-detail-overlay .entity-drawer > .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 22px 24px 32px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .entity-detail-overlay .entity-drawer > .modal-body::-webkit-scrollbar {
+    display: block;
+    width: 5px;
+  }
+
+  .entity-detail-overlay .entity-drawer > .modal-body::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  .entity-detail-overlay .entity-drawer .detail-card-header {
+    height: 60px;
+    min-height: 60px;
+    flex-shrink: 0;
+    padding: 0 24px;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    border-radius: 30px 0 0;
+    background: var(--surface);
+  }
+
+  .entity-detail-overlay .entity-drawer .details-section {
+    margin-bottom: 18px;
+    border-radius: 22px;
+    overflow: hidden;
+  }
+
+  .entity-detail-overlay .entity-drawer .section-header { padding: 13px 17px; }
+  .entity-detail-overlay .entity-drawer .section-title { font-size: 12px; }
+  .entity-detail-overlay .entity-drawer .section-body { padding: 17px; }
+  .entity-detail-overlay .entity-drawer .details-grid { gap: 18px 22px; }
+  .entity-detail-overlay .entity-drawer .detail-label { font-size: 11px; line-height: 1.5; margin-bottom: 5px; }
+  .entity-detail-overlay .entity-drawer .detail-value { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+  .entity-detail-overlay .entity-drawer .details-grid.two-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .entity-detail-overlay .entity-drawer .place-btn,
+  .entity-detail-overlay .entity-drawer .place-button { max-width: 100%; white-space: normal; }
+  .entity-detail-overlay .entity-drawer :deep(.modal-title) { font-size: 18px; }
+  .entity-detail-overlay .entity-drawer .detail-load-status { padding: 24px; line-height: 1.7; color: var(--muted); }
+
+  .entity-place-backdrop { position: fixed; inset: 0; background: transparent; pointer-events: auto; z-index: 2; }
+  .entity-detail-overlay--place-open .entity-drawer { z-index: 4; }
+  .entity-detail-overlay .place-modal-container {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--entity-place-width);
+    height: calc(var(--app-vh, 1dvh) * 100);
+    z-index: 3;
+    pointer-events: auto;
+    transform: none;
+  }
+  .entity-detail-overlay .place-modal-container :deep(.modal-content-inner) {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: 100%;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 0 30px 30px 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    outline: none;
+  }
+  .entity-detail-overlay .place-modal-container :deep(.modal-body) {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .entity-detail-overlay .place-modal-container :deep(.modal-header) { flex: 0 0 60px; min-height: 60px; height: 60px; padding: 12px 20px; }
+  .entity-detail-overlay .place-modal-container :deep(.modal-title) { white-space: normal; font-size: 15px; }
+  .entity-detail-overlay .place-slide-enter-active,
+  .entity-detail-overlay .place-slide-leave-active { transition: transform .24s cubic-bezier(.2, .8, .2, 1); }
+  .entity-detail-overlay .place-slide-enter-from,
+  .entity-detail-overlay .place-slide-leave-to { opacity: 1; transform: translateX(-100%); }
+
+  @media (max-width: 1279.98px) {
+    .entity-detail-overlay .entity-drawer .detail-card-header { padding: 0 12px; gap: 6px; }
+    .entity-detail-overlay .entity-drawer > .modal-body { padding: 18px 16px 28px; }
+    .entity-detail-overlay .entity-drawer :deep(.header-action-label) { display: none; }
+    .entity-detail-overlay .entity-drawer :deep(.history-btn) { width: 30px; padding: 0; }
+    .entity-detail-overlay .place-modal-container :deep(.info-grid) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .entity-detail-overlay .place-modal-container :deep(.info-row) { min-width: 0; width: auto; overflow-wrap: anywhere; }
+    .entity-detail-overlay .place-modal-container :deep(.modal-header) { height: auto; flex-basis: auto; padding: 12px 16px; }
+    .entity-detail-overlay .place-modal-container :deep(.header-with-status) { flex-wrap: wrap; gap: 6px; }
+    .entity-detail-overlay .place-modal-container :deep(.modal-title) { overflow-wrap: anywhere; }
+  }
+
+  .entity-detail-overlay.modal-fade-enter-active,
+  .entity-detail-overlay.modal-fade-leave-active { transition: background-color .24s ease; }
+  .entity-detail-overlay.modal-fade-enter-from,
+  .entity-detail-overlay.modal-fade-leave-to { opacity: 1; background: transparent; }
+  .entity-detail-overlay.modal-fade-enter-active .entity-drawer,
+  .entity-detail-overlay.modal-fade-leave-active .entity-drawer {
+    animation: none;
+    transition: transform .24s cubic-bezier(.2, .8, .2, 1);
+  }
+  .entity-detail-overlay.modal-fade-enter-from .entity-drawer,
+  .entity-detail-overlay.modal-fade-leave-to .entity-drawer { opacity: 1; transform: translateX(100%); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .entity-detail-overlay,
+    .entity-detail-overlay .entity-drawer,
+    .entity-detail-overlay .place-modal-container { transition-duration: .01ms; }
+  }
+}

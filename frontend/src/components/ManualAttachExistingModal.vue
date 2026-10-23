@@ -82,6 +82,7 @@
 </template>
 
 <script>
+import { entityDrawerKey, confirmDrawerDiscard } from '@/composables/useEntityDrawer';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import FormField from '@/components/ui/FormField.vue';
@@ -94,6 +95,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
   name: 'ManualAttachExistingModal',
+  inject: { drawerContext: { from: entityDrawerKey, default: null } },
   components: { BaseModal, BaseDropdown, FormField, DateRangeSection, CarAccessFlagRows },
   fieldConfig: { roof_access: { visible: false }, free_parking: { visible: false } },
   props: {
@@ -146,7 +148,11 @@ export default {
     periodText(period) { return period?.bounded ? formatPeriod(period) : 'Бессрочно'; },
     attachmentOption(a) { return { id: a.id, label: `${a.attachment_display_name || a.attachment_name || `Вложение ${a.id}`} · ${formatPeriod(a)}` }; },
     invalidate() { this.version++; this.attachmentVersion++; this.previewVersion++; this.preview = null; this.context = null; },
-    close() { if (!this.saving) { this.invalidate(); this.$emit('close'); } },
+    async close() {
+      const dirty = !!this.applicationID || !!this.targetID || !!this.sourceID || !!this.periodChoice || !!this.reason.trim();
+      if (this.saving || !await confirmDrawerDiscard(this.drawerContext, dirty)) return;
+      this.invalidate(); this.$emit('close');
+    },
     async load() {
       if (this.saving || !this.show) return;
       this.invalidate();
