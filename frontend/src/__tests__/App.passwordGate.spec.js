@@ -83,6 +83,7 @@ describe('App.vue - гейт обязательной смены пароля (#
     fetchPermissions.mockReset();
     fetchPermissions.mockResolvedValue();
     authState.clearTokens.mockClear();
+    consentState.resolved = true;
     consentState.required = false;
     passwordChangeState.required = true;
     passwordChangeState.reset.mockReset();
@@ -120,11 +121,33 @@ describe('App.vue - гейт обязательной смены пароля (#
     expect(wrapper.html()).toContain('router-view');
   });
 
+  it('ждёт завершения согласия, сохраняя блокировку страницы и тура', async () => {
+    consentState.resolved = false;
+    const wrapper = mountApp();
+    await flushPromises();
+    expect(passwordModal(wrapper).props('show')).toBe(false);
+    expect(wrapper.findComponent(NavMenu).exists()).toBe(false);
+    expect(wrapper.findComponent(OnboardingTour).exists()).toBe(false);
+
+    consentState.resolved = true;
+    consentState.required = true;
+    await flushPromises();
+    expect(passwordModal(wrapper).props('show')).toBe(false);
+
+    consentState.required = false;
+    await flushPromises();
+    expect(passwordModal(wrapper).props('show')).toBe(true);
+    expect(wrapper.findComponent(NavMenu).exists()).toBe(false);
+    expect(wrapper.findComponent(OnboardingTour).exists()).toBe(false);
+  });
+
   // Супер-администратор проходит гейт согласия как аварийную дверь, но здесь
   // исключения нет ни на сервере, ни во фронте: пароль из письма опасен независимо
   // от прав.
   it('супер-администратора гейт закрывает наравне со всеми', async () => {
     authState.isSuperAdmin = true;
+    consentState.resolved = false;
+    consentState.required = true;
     const wrapper = mountApp();
     await flushPromises();
 

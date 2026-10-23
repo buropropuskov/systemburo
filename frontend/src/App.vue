@@ -50,7 +50,7 @@
       @logout="logout"
     />
     <ChangePasswordModal
-      :show="passwordChangeBlocking"
+      :show="passwordChangeVisible"
       mandatory
       @changed="onPasswordChanged"
       @logout="logout"
@@ -190,6 +190,12 @@ export default {
         && !this.isBanned
         && usePasswordChangeStore().required
         && !isShellHiddenPath(this.$route.path);
+    },
+    passwordChangeVisible() {
+      const consent = usePDConsentStore()
+      // Блокировка остаётся активной, пока окно ждёт завершения согласия.
+      return this.passwordChangeBlocking
+        && (this.isBuropropuskov || (consent.resolved && !consent.required));
     },
     isBanned() {
       return usePermissionsStore().banned
