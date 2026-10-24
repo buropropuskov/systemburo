@@ -1026,6 +1026,7 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
 <style scoped>
 @import "@/assets/detail-card-state.css";
 @import '@/assets/detail-card-header.css';
+@import '@/assets/detail-card-layout.css';
 /* Все предыдущие стили остаются, добавляем новый класс для системной точки */
 .dot-system {
     background: #8b5cf6; /* фиолетовый */
@@ -1099,24 +1100,6 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
 
 .modal-content .modal-body::-webkit-scrollbar {
   display: none;
-}
-
-.modal-content.main-modal {
-  left: calc(50% - 275px);
-  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.15, 1);
-  transform: translateX(0);
-}
-
-.modal-content.main-modal.shifted {
-  transform: translateX(-295px);
-}
-
-.place-modal-container {
-  position: absolute;
-  left: 50%;
-  width: 520px;
-  height: 450px;
-  pointer-events: auto;
 }
 
 
