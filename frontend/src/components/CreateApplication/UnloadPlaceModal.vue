@@ -1003,6 +1003,16 @@ export default {
     border-radius: 8px;
 }
 
+@media (min-width: 1280px) {
+    .modal-content-inner {
+        height: min(520px, calc(var(--app-vh, 1vh) * 90));
+    }
+
+    .modal-body {
+        min-height: 0;
+    }
+}
+
 @media (max-width: 767.98px) {
     /* Bottom-sheet: во всю ширину снизу, скруглены только верхние углы (#1097 R4-10). */
     .modal-content-inner {
