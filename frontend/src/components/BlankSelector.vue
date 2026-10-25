@@ -1322,3 +1322,5 @@ export default {
     }
 }
 </style>
+
+<style scoped src="@/assets/blank-selector-tablet.css"></style>

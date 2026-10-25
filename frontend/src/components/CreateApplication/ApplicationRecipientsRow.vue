@@ -353,7 +353,7 @@ export default {
 
     initNarrowWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-      this.narrowMql = window.matchMedia('(max-width: 767.98px)')
+      this.narrowMql = window.matchMedia('(max-width: 1366px)')
       this.isNarrow = this.narrowMql.matches
       this.onNarrowChange = (e) => { this.isNarrow = e.matches }
       if (this.narrowMql.addEventListener) this.narrowMql.addEventListener('change', this.onNarrowChange)

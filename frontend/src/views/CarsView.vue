@@ -784,12 +784,12 @@
 </template>
 
 <script>
+import { applyRegistryViewport, registryScrollRoot } from '@/utils/registryViewport';
 import { deleteRegistryCar, updateRegistryCar, createRegistryCar } from '@/api/registryMutations';
 import { canReadRegistryHistory, canReadRegistryRow } from '@/utils/registryPermissions';
 import { carsRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
-import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
@@ -1117,24 +1117,10 @@ export default {
 
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
-         * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем.
+         * занимала весь экран без скролла страницы. На телефоне и планшете (<=1366px) сбрасываем.
          */
         _applyHeight() {
-            const el = this.$refs.root;
-            if (!el) return;
-            if (window.innerWidth < 768) {
-                el.style.height = '';
-                this._lastHeight = -1;
-                return;
-            }
-            // rect.top под корневым zoom - device-px, innerHeight - НЕзумленный;
-            // делим на zoom, чтобы высота была в layout-px (иначе на мониторах >1440
-            // контейнер выходит в zoom раз ниже экрана). См. AdminPageShell/AccountComponent.
-            const top = el.getBoundingClientRect().top;
-            const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom()));
-            if (height === this._lastHeight) return;
-            this._lastHeight = height;
-            el.style.height = `${height}px`;
+            applyRegistryViewport(this, 'cars-scroll-sentinel', this.setCarsSentinelRef);
         },
         closeCarDetails() {
             this.showDetailsViewModal = false;
@@ -1250,12 +1236,9 @@ export default {
             return { items, total: (meta && meta.total) || 0 };
         },
 
-        // Автодогрузка следующей порции по пересечению sentinel с cars-body (#1158).
-        // root - сам .cars-body: у него свой overflow-y:auto, не документ, дефолтный
-        // root (viewport) пересечение бы не заметил. el=null (v-if="hasMoreCars"===false)
-        // просто отключает observer.
+        // На планшете наблюдаем viewport, на десктопе — внутреннее тело списка.
         setCarsSentinelRef(el) {
-            this.observeCarsSentinel(el, this.buildCarsPage, { root: this.$refs.carsBody || null });
+            this.observeCarsSentinel(el, this.buildCarsPage, { root: registryScrollRoot(this.$refs.carsBody || null, window.innerWidth) });
         },
 
         // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
@@ -3113,3 +3096,5 @@ export default {
     }
 }
 </style>
+
+<style scoped src="@/assets/registry-tablet.css"></style>

@@ -200,9 +200,7 @@
               ref="numberCells"
               v-model="numberParts[index]"
               class="number__input"
-              :placeholder="getPlaceholder(cell)"
-              :maxlength="cell.max_length"
-              :style="{ width: getInputWidth(cell) }"
+              v-bind="numberCellInputAttrs(cell)"
               :disabled="editingVehicle && editingVehicle.isExisting"
               @input="validatePart(index, $event, cell)"
               @blur="formatPart(index, cell)"
@@ -463,6 +461,7 @@
 </template>
 
 <script>
+import { numberCellInputAttrs } from '@/utils/numberCellInputAttrs';
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { checkVehicleBlacklist } from '@/api/blacklist'
@@ -1199,20 +1198,7 @@ export default {
             this.numberParts = initializeNumberParts(this.selectedFormat);
         },
 
-        getPlaceholder(cell) {
-            if (cell.cell_type === 'numbers') {
-                return '0'.repeat(cell.max_length);
-            } else {
-                return 'A'.repeat(cell.max_length);
-            }
-        },
-
-        getInputWidth(cell) {
-            const baseWidth = 25;
-            const minWidth = 50;
-            const width = Math.max(minWidth, cell.max_length * baseWidth);
-            return `${width}px`;
-        },
+        numberCellInputAttrs,
 
         validatePart(index, event, cell) {
             const value = validatePartValue(event.target.value, cell);

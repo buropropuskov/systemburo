@@ -2920,3 +2920,5 @@ export default {
   min-width: 0;
 }
 </style>
+
+<style scoped src="@/assets/passage-tablet.css"></style>
