@@ -103,7 +103,7 @@
               class="notification-item"
               :class="{ 'notification-item--unread': !item.is_read }"
               role="listitem"
-              @click="markAsRead(item)"
+              @click.stop="markAsRead(item)"
             >
               <div class="notification-item__content">
                 <div class="notification-item__top">
