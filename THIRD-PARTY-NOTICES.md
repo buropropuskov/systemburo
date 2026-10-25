@@ -345,7 +345,7 @@
 | `github.com/jinzhu/now` | v1.1.5 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
 | `github.com/josharian/intern` | v1.0.0 | MIT | Copyright (c) 2019 Josh Bleecher Snyder |
 | `github.com/KyleBanks/depth` | v1.2.1 | MIT | Copyright (c) 2017 Kyle Banks |
-| `github.com/labstack/echo/v4` | v4.16.0 | MIT | Copyright (c) 2021 LabStack |
+| `github.com/labstack/echo/v4` | v4.16.1 | MIT | Copyright (c) 2021 LabStack |
 | `github.com/labstack/gommon` | v0.5.0 | MIT | Copyright (c) 2018 labstack |
 | `github.com/leodido/go-urn` | v1.5.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
 | `github.com/mailru/easyjson` | v0.7.7 | MIT | Copyright (c) 2016 Mail.Ru Group |
@@ -4687,7 +4687,7 @@ SOFTWARE.
 
 ### 7.91. MIT
 
-Компоненты: `github.com/labstack/echo/v4` v4.16.0
+Компоненты: `github.com/labstack/echo/v4` v4.16.1
 
 ```text
 The MIT License (MIT)

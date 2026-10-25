@@ -1671,3 +1671,5 @@ export default {
         }
     }
 </style>
+
+<style scoped src="@/assets/login-responsive.css"></style>
