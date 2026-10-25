@@ -1966,3 +1966,5 @@ export default {
   transition: none !important;
 }
 </style>
+
+<style scoped src="@/assets/passage-tablet.css"></style>

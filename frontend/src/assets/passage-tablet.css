@@ -1,0 +1,4 @@
+@media (min-width:768px) and (max-width:1366px) {
+  .selected-table-card, .fact-table-card {height:auto;max-height:none;}
+  .card-content, .items-container, .fact-container, .items-body, .fact-body {height:auto;max-height:none;}
+}

@@ -51,6 +51,8 @@
       <label class="input__label">Телефон <span class="required">*</span></label>
       <input
         class="input"
+        type="tel"
+        inputmode="tel"
         placeholder="Номер телефона"
         maxlength="18"
         :value="phoneNumber"

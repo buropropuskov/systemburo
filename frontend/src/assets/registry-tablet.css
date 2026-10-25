@@ -1,0 +1,12 @@
+@media (min-width:768px) and (max-width:1366px) {
+  .carsview, .employeesview {padding:var(--gutter);}
+  .carsview__container, .employeesview__container {gap:var(--gutter);margin-top:var(--gutter);}
+  .cars-card, .employees-card {flex:none;}
+  .card-content, .cars-container, .employees-container, .employees-table-area,
+  .cars-body, .employees-body {height:auto;max-height:none;flex:none;overflow:visible;}
+  .card-content {overflow-x:auto;}
+}
+@media (min-width:768px) and (max-width:1024px) {
+  .carsview__container, .employeesview__container {flex-direction:column;}
+  .cars-card, .employees-card, .carsview__right-side, .employeesview__right-side {width:100%;}
+}

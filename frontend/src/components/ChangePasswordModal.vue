@@ -356,4 +356,7 @@ export default {
     grid-template-columns: 1fr;
   }
 }
+@media (max-width:1366px) {
+  .cp-form :deep(input) { font-size:16px; }
+}
 </style>

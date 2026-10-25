@@ -4027,3 +4027,5 @@ export default {
         }
     }
 </style>
+
+<style scoped src="@/assets/create-tablet.css"></style>
