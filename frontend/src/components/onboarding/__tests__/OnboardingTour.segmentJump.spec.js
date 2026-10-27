@@ -159,6 +159,14 @@ describe('OnboardingTour - прыжок из списка шагов', () => {
     expect(shownTitles()).toEqual(['Начало', 'Навигация']);
   });
 
+  it('продолжение с другой страницы сначала открывает страницу сохранённого шага', async () => {
+    await startTour(2);
+    expect(mocks.router.push).toHaveBeenCalledWith('/table/kpp');
+    expect(store.currentIndex).toBe(2);
+    expect(store.pendingSegment).toBe(true);
+    expect(mocks.driver.created).toBe(0);
+  });
+
   it('шаг соседнего сегмента с тем же route поднимает свой сегмент', async () => {
     await startTour();
     const createdBefore = mocks.driver.created;

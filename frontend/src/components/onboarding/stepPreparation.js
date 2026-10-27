@@ -24,6 +24,23 @@ function targetTimeoutFor(step) {
 export function createStepPreparation({
   store, watchers, applyDemoAttachment, beforePrepare, waitSelectorOf, waitForElement, ensureInView, demoFallback,
 }) {
+  /**
+   * Перед переходом на шаг готовим DOM: ставим демо-вложение и дожидаемся
+   * появления целевого элемента - иначе driver подсветит пустоту, если данные
+   * ещё грузятся (баг: шаг всплывал раньше, чем элемент попадал в DOM).
+   *
+   * Опциональный шаг (`optional`, напр. доп.поля «при наличии»): если элемента
+   * нет за короткий таймаут - возвращаем false, и onNextClick пропускает шаг.
+   *
+   * Шаг с демо-скриншотом (`demo`) не пропускаем никогда: у нового пользователя
+   * система пуста (ни заявок, ни вложений), и молчаливый пропуск отнимал бы у него
+   * ровно то, ради чего тур и заведён. Вместо подсветки показываем скриншот - об
+   * этом и говорит STEP_DEMO_FALLBACK.
+   *
+   * @param {number} globalIndex
+   * @returns {Promise<boolean|string>} false = пропустить шаг, STEP_DEMO_FALLBACK =
+   *   показать без подсветки со скриншотом, true = вести шаг как обычно
+   */
   return async function prepareStep(globalIndex, operation) {
     if (!operation.isCurrent()) return;
     beforePrepare();
