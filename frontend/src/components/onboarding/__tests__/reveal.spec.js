@@ -95,7 +95,33 @@ describe('applyReveal - раскрытие без преждевременног
   it('подготовка шага в хосте зовёт мягкий режим - иначе узел гаснет до перехода', () => {
     const host = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), '../OnboardingTour.vue'), 'utf8');
-    expect(host).toMatch(/const revealed = await applyReveal\(store\.steps, globalIndex, \{ closeOthers: false \}\)/);
+    const preparation = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../stepPreparation.js'), 'utf8');
+    expect(host).toMatch(/const prepareStep = createStepPreparation\(/);
+    expect(preparation).toMatch(/const revealed = await applyReveal\(store\.steps, globalIndex, \{ closeOthers: false, signal: operation.signal \}\)/);
+  });
+
+  it('уже отменённое раскрытие не меняет сигнал окна', async () => {
+    const store = useOnboardingStore();
+    store.setRevealOpen('notifications');
+    const controller = new AbortController();
+    controller.abort();
+    expect(await applyReveal(steps, 2, { signal: controller.signal })).toBe(false);
+    expect(store.revealOpen).toBe('notifications');
+  });
+
+  it('отмена ожидания раскрытия очищает его таймер', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const pending = applyReveal(steps, 3, { signal: controller.signal });
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      controller.abort();
+      expect(await pending).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('подготовка шага с раскрытием ставит свой узел и в мягком режиме', async () => {

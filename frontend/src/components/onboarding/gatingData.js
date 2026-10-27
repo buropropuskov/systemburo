@@ -13,8 +13,10 @@ import { getUserApplicationsPaginated } from '@/api/applications';
  * человека 57 -> 55 -> 48). Каждый резолвер идемпотентен и держит in-flight
  * промис: гейтинг зовут и меню, и автозапуск, а запрос нужен один.
  *
- * Ошибку сети каждый гасит в «пусто»: тур тогда не поведёт к тому, чего может не
- * оказаться. Это мягче, чем показать шаг и упереться в таймаут.
+ * Отклонённый запрос оставляет безопасные пустые данные, но не завершает резолв:
+ * следующий вызов может повторить запрос. reset отделяет ответы прежнего
+ * пользователя от нового контекста, включая ещё не законченный импорт auth.
+ * Хелпер фактовой таблицы сам сводит ошибки к null; его контракт здесь сохранён.
  *
  * @returns {{
  *   approvalRole: import('vue').Ref<{isApprover: boolean, isReviewer: boolean}>,
@@ -28,12 +30,14 @@ import { getUserApplicationsPaginated } from '@/api/applications';
  * }}
  */
 export function createGatingData() {
+  let generation = 0;
   const approvalRole = ref({ isApprover: false, isReviewer: false });
   const approvalRoleLoaded = ref(false);
   let approvalRolePromise = null;
 
   const factTableRoute = ref(null);
   let factRouteResolved = false;
+  let factRoutePromise = null;
 
   const hasOwnApplication = ref(false);
   let ownApplicationResolved = false;
@@ -42,27 +46,46 @@ export function createGatingData() {
   async function ensureApprovalRole() {
     if (approvalRoleLoaded.value) return;
     if (approvalRolePromise) return approvalRolePromise;
-    approvalRolePromise = (async () => {
+    const requestGeneration = generation;
+    approvalRolePromise = Promise.resolve().then(async () => {
+      if (requestGeneration !== generation) return;
       try {
         const data = await getMyApprovalRole();
+        if (requestGeneration !== generation) return;
         approvalRole.value = {
           isApprover: Boolean(data?.is_approver),
           isReviewer: Boolean(data?.is_reviewer),
         };
         approvalRoleLoaded.value = true;
       } catch {
+        if (requestGeneration !== generation) return;
         approvalRole.value = { isApprover: false, isReviewer: false };
       } finally {
-        approvalRolePromise = null;
+        if (requestGeneration === generation) approvalRolePromise = null;
       }
-    })();
+    });
     return approvalRolePromise;
   }
 
   async function ensureFactRoute() {
     if (factRouteResolved) return;
-    factRouteResolved = true;
-    factTableRoute.value = await getSecurityFactRoute();
+    if (factRoutePromise) return factRoutePromise;
+    const requestGeneration = generation;
+    factRoutePromise = Promise.resolve().then(async () => {
+      if (requestGeneration !== generation) return;
+      try {
+        const route = await getSecurityFactRoute();
+        if (requestGeneration !== generation) return;
+        factTableRoute.value = route;
+        factRouteResolved = true;
+      } catch {
+        if (requestGeneration !== generation) return;
+        factTableRoute.value = null;
+      } finally {
+        if (requestGeneration === generation) factRoutePromise = null;
+      }
+    });
+    return factRoutePromise;
   }
 
   /**
@@ -75,37 +98,44 @@ export function createGatingData() {
   async function ensureOwnApplication() {
     if (ownApplicationResolved) return;
     if (ownApplicationPromise) return ownApplicationPromise;
-    ownApplicationPromise = (async () => {
+    const requestGeneration = generation;
+    ownApplicationPromise = Promise.resolve().then(async () => {
+      if (requestGeneration !== generation) return;
       try {
         // Стор авторизации подтягиваем на месте: статический импорт замыкал круг
         // (стор онбординга -> этот модуль -> стор авторизации -> ... ), и в
         // собранном бандле реестр туров успевал прочитаться пустым - меню
         // «Обучение» открывалось без единого пункта.
         const { useAuthStore } = await import('@/stores/auth');
+        if (requestGeneration !== generation) return;
         const senderId = useAuthStore().userId;
         const { items, meta } = await getUserApplicationsPaginated({
           page: 1,
           per_page: 1,
           ...(senderId ? { sender_user_id: senderId } : {}),
         });
+        if (requestGeneration !== generation) return;
         hasOwnApplication.value = Boolean(meta?.total > 0 || items?.length);
+        ownApplicationResolved = true;
       } catch {
+        if (requestGeneration !== generation) return;
         hasOwnApplication.value = false;
       } finally {
-        ownApplicationResolved = true;
-        ownApplicationPromise = null;
+        if (requestGeneration === generation) ownApplicationPromise = null;
       }
-    })();
+    });
     return ownApplicationPromise;
   }
 
   /** Смена пользователя: всё это - per-user, следующий подтянет своё. */
   function reset() {
+    generation += 1;
     approvalRole.value = { isApprover: false, isReviewer: false };
     approvalRoleLoaded.value = false;
     approvalRolePromise = null;
     factTableRoute.value = null;
     factRouteResolved = false;
+    factRoutePromise = null;
     hasOwnApplication.value = false;
     ownApplicationResolved = false;
     ownApplicationPromise = null;

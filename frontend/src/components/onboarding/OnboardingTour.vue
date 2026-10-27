@@ -6,9 +6,10 @@ import { useUiStore } from '@/stores/ui';
 import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
-import { waitForPageSettled } from '@/components/onboarding/pageSettled';
+import { createStepPreparation } from '@/components/onboarding/stepPreparation';
 import { createRailControl } from '@/components/onboarding/railControl';
 import { createKeyboardNav } from '@/components/onboarding/keyboardNav';
+import { createStepTransition } from '@/components/onboarding/stepTransition';
 import { createStepWatchers } from '@/components/onboarding/stepWatchers';
 import { fadeAndDestroy } from '@/components/onboarding/tourFade';
 import { createAutostart } from '@/components/onboarding/tourAutostart';
@@ -27,28 +28,13 @@ const FIRST_TARGET_TIMEOUT = 4000;
 // На staging цепочке не хватало четырёх секунд - сегмент выбрасывался целиком.
 const REVEAL_TARGET_TIMEOUT = 9000;
 
-// Цель, приезжающая ДАННЫМИ уже открытого узла: девять секунд ей ни к чему - у
-// заявки без дополнения её нет вовсе, и подряд такие шаги вешали тур (#2584).
-const DATA_TARGET_TIMEOUT = 2500;
-// Потолок ожидания загрузки данных страницы. Дольше держать человека на «Далее»
-// нельзя, а списки бюро на живом стенде приезжают за полторы-две секунды.
-const PAGE_SETTLE_TIMEOUT = 5000;
-
-/**
- * Сколько ждать цель шага, которому нужно раскрытие узла.
- *
- * @param {{ reveal?: { open?: string } }} step
- * @returns {number}
- */
-function targetTimeoutFor(step) {
-  return step?.reveal?.open ? REVEAL_TARGET_TIMEOUT : FIRST_TARGET_TIMEOUT;
-}
 
 let driverObj = null;
-let waitController = null;
+let refreshController = null;
 // Поколение активного driver-инстанса: отложенный onDestroyed предыдущего
 // сегмента (анимация ухода ~0.4s) не должен трогать уже поднятый следующий.
 let driverGen = 0;
+let routeRequest = 0;
 // Тур дошёл до финального шага (кнопка «Готово» или CTA), а не был брошен на
 // середине. Сбрасывается при старте каждого тура - см. watch(isActive).
 let reachedFinal = false;
@@ -56,7 +42,7 @@ let reachedFinal = false;
 // Наблюдение за DOM на время шага: ведёт шаг вперёд по действию человека и
 // удерживает подсветку на пересозданной цели (stepWatchers.js).
 const watchers = createStepWatchers({
-  getDriver: () => driverObj,
+  getDriver: () => (transitions.isBusy() ? null : driverObj),
   getGen: () => driverGen,
   getStep: (index) => store.steps[index],
   getIndex: () => store.currentIndex, getRevealOpen: () => store.revealOpen,
@@ -73,6 +59,22 @@ const rail = createRailControl(ui, (index) => store.steps[index]);
 const keys = createKeyboardNav({
   isActive: () => store.isActive,
   next: () => driverObj?.obNext(), prev: () => driverObj?.obPrev(), close: () => store.stop(),
+});
+const busyButtons = new Map();
+const transitions = createStepTransition({
+  isActive: () => store.isActive,
+  onBusyChange: (busy) => {
+    if (busy) {
+      document.querySelectorAll('.driver-popover-next-btn, .driver-popover-prev-btn').forEach((button) => {
+        if (!busyButtons.has(button)) busyButtons.set(button, button.disabled);
+        button.disabled = true;
+      });
+    } else {
+      busyButtons.forEach((disabled, button) => { if (button.isConnected) button.disabled = disabled; });
+      busyButtons.clear();
+    }
+    keys.setBusy(busy);
+  },
 });
 
 /**
@@ -111,9 +113,12 @@ function waitSelectorOf(step) {
 async function refreshHighlightFor(globalIndex, gen) {
   const step = store.steps[globalIndex];
   if (!step?.element) return;
-  const el = await waitForElement(waitSelectorOf(step), FIRST_TARGET_TIMEOUT);
+  refreshController?.abort();
+  const controller = new AbortController();
+  refreshController = controller;
+  const el = await waitForElement(waitSelectorOf(step), FIRST_TARGET_TIMEOUT, controller.signal);
   // Тур мог уйти дальше или перезапуститься, пока форма перерисовывалась.
-  if (!el || !driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
+  if (controller.signal.aborted || !el || !driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
   // refresh здесь бесполезен: он пересчитывает рамку по цели, которую driver
   // запомнил при создании сегмента. Нужен именно пересбор конфига шага - его
   // и делает obRetarget.
@@ -137,41 +142,15 @@ async function refreshHighlightFor(globalIndex, gen) {
  * @returns {Promise<boolean|string>} false = пропустить шаг, STEP_DEMO_FALLBACK =
  *   показать без подсветки со скриншотом, true = вести шаг как обычно
  */
-const prepareStep = (globalIndex) => keys.busyWhile(() => prepareStepInner(globalIndex));
+const prepareStep = createStepPreparation({
+  store, watchers, applyDemoAttachment, beforePrepare: () => refreshController?.abort(),
+  waitSelectorOf, waitForElement, ensureInView, demoFallback: STEP_DEMO_FALLBACK,
+});
 
-async function prepareStepInner(globalIndex) {
-  // Тур уже двинулся - наблюдение прошлого шага снимаем сразу. Иначе оно
-  // срабатывало на узле, который открывает СЛЕДУЮЩИЙ шаг (карточку заявки), и
-  // тур перескакивал через него.
-  watchers.stopAll();
-  const step = store.steps[globalIndex];
-  const attachmentChanged = applyDemoAttachment(globalIndex);
-  const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false });
-  if (!step?.element) return true;
-  // Необязательный шаг ждём коротко (700 мс): нет цели - значит её тут нет
-  // (#1771). Шагу с `waitsData` даём 2,5 с - цель приезжает данными узла (#2584).
-  // Полное ожидание - когда раскрывали узел, меняли бланк или шаг обязателен.
-  // Сперва даём странице договорить с сервером - иначе состав зависит от сети.
-  await waitForPageSettled(PAGE_SETTLE_TIMEOUT);
-  // `dataReady` - узел, приезжающий с данными, внутри которого живёт цель: есть
-  // он - цели ждать нечего. Иначе три неприменимых шага вешали тур на 8 с (#2590).
-  const ready = step.dataReady ? await waitForElement(step.dataReady, DATA_TARGET_TIMEOUT) : null;
-  const needsLongWait = revealed || attachmentChanged || !step.optional;
-  const timeout = needsLongWait ? targetTimeoutFor(step) : (ready ? 300 : (step.waitsData ? DATA_TARGET_TIMEOUT : 700));
-  const el = await waitForElement(waitSelectorOf(step), timeout);
-  if (el) {
-    // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
-    // прокрученной от прошлого шага, и цель могла уехать за край экрана.
-    await ensureInView(step.element ? document.querySelector(step.element) : el, step.scrollTo);
-    return true;
-  }
-  if (step.demo) return STEP_DEMO_FALLBACK;
-  return step.optional ? false : true;
-}
+const startSegment = () => transitions.run(startSegmentInner, { replace: true,
+  intent: { tourKey: store.activeTourKey, stepId: store.steps[store.currentIndex]?.id, direction: 'segment' } });
 
-const startSegment = () => keys.busyWhile(startSegmentInner);
-
-async function startSegmentInner() {
+async function startSegmentInner(operation) {
   const myGen = ++driverGen;
   // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг: при «Назад» между страницами мы на последнем шаге прошлой.
   let segmentStartIndex = store.currentIndex;
@@ -193,7 +172,8 @@ async function startSegmentInner() {
   // уже раскрытый рельс (актуально при «Назад» прямо на такой шаг).
   applyDemoAttachment(store.currentIndex);
   rail.apply(store.currentIndex);
-  await applyReveal(store.steps, store.currentIndex);
+  await applyReveal(store.steps, store.currentIndex, { signal: operation.signal });
+  if (!operation.isCurrent()) return;
 
   // Целевой шаг: дожидаемся его элемента (устойчивого по размеру), иначе
   // деградируем в центр-модал, чтобы driver не падал на отсутствующей цели.
@@ -202,16 +182,14 @@ async function startSegmentInner() {
   const targetStep = segmentSteps[localTarget];
   let targetMissing = false;
   if (targetStep.element) {
-    waitController = new AbortController();
     // Первый шаг новой страницы ждём по верхней границе: страница монтируется,
     // грузит данные и только потом дорастает до конечного размера. На таблице
     // поста четырёх секунд не хватало - шаг вырождался в окно по центру, хотя
     // таблица появлялась мгновением позже.
-    const el = await waitForElement(waitSelectorOf(targetStep), REVEAL_TARGET_TIMEOUT, waitController.signal);
-    waitController = null;
+    const el = await waitForElement(waitSelectorOf(targetStep), REVEAL_TARGET_TIMEOUT, operation.signal);
     // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
     // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
-    if (!store.isActive || myGen !== driverGen) return;
+    if (!operation.isCurrent() || myGen !== driverGen) return;
     targetMissing = !el;
   }
 
@@ -219,6 +197,9 @@ async function startSegmentInner() {
     startIndex: segmentStartIndex,
     fallbackIndex: targetMissing ? localTarget : -1,
     onIndexChange: (globalIndex) => {
+      if (!store.isActive || myGen !== driverGen) return;
+      // Завершение анимации прежнего шага не владеет уже начатой подготовкой.
+      if (transitions.isBusy()) return;
       store.setIndex(globalIndex);
       rail.apply(globalIndex);
       watchers.watchStep(globalIndex);
@@ -236,6 +217,7 @@ async function startSegmentInner() {
       applyReveal(store.steps, globalIndex);
     },
     onBeforeStep: prepareStep,
+    runTransition: transitions.run,
     onBoundaryNext: handleBoundaryNext,
     onBoundaryPrev: handleBoundaryPrev,
     onJumpTo: jumpToStep,
@@ -260,24 +242,16 @@ async function startSegmentInner() {
 async function jumpToStep(globalIndex) {
   const step = store.steps[globalIndex];
   if (!step || globalIndex === store.currentIndex) return;
-  if (step.route !== route.path) {
-    retreatToSegment(globalIndex, step.route);
-    return;
-  }
-  // Шаг на этой же странице, но в другом сегменте: driver знает только шаги
-  // поднятого сегмента, и obGoTo для такого индекса молча ничего не делал - в
-  // туре заявителя прыжок на финал из списка шагов не срабатывал вовсе.
-  // Навигации тут не будет (страница та же), поэтому сегмент поднимаем сами.
-  if (!isInActiveSegment(globalIndex)) {
-    restartSegmentAt(globalIndex);
-    return;
-  }
-  const gen = driverGen;
-  rail.apply(globalIndex);
-  const ready = await prepareStep(globalIndex);
-  if (!driverObj || gen !== driverGen) return;
-  // Шаг без якоря - без подсветки: иначе на нём висит рамка прошлого (#2616).
-  driverObj.obGoTo(globalIndex, !store.steps[globalIndex]?.element || ready === false || ready === STEP_DEMO_FALLBACK);
+  return transitions.run(async (operation) => {
+    if (step.route !== route.path) return retreatToSegment(globalIndex, step.route);
+    // Один route может содержать несколько раздельных сегментов тура.
+    if (!isInActiveSegment(globalIndex)) return restartSegmentAt(globalIndex);
+    const gen = driverGen;
+    rail.apply(globalIndex);
+    const ready = await prepareStep(globalIndex, operation);
+    if (!operation.isCurrent() || !driverObj || gen !== driverGen) return;
+    driverObj.obGoTo(globalIndex, !store.steps[globalIndex]?.element || ready === false || ready === STEP_DEMO_FALLBACK);
+  }, { replace: true, intent: { tourKey: store.activeTourKey, stepId: step.id, direction: 'jump' } });
 }
 
 /**
@@ -294,13 +268,14 @@ function handleBoundaryNext(activeGlobalIndex) {
   if (!next) {
     finishTour();
   } else if (next.route !== route.path) {
-    advanceToSegment(next.route);
+    return advanceToSegment(next.route);
   } else if (driverObj) {
     driverObj.moveNext();
   }
 }
 
 function advanceToSegment(targetRoute) {
+  refreshController?.abort();
   store.advanceSegment();
   rail.restore();
   restoreReveal();
@@ -311,12 +286,20 @@ function advanceToSegment(targetRoute) {
   }
   // Навигация может быть отменена глобальным beforeEach (dirty-confirm и т.п.).
   // Тогда afterEach не сработает - не оставляем тур висеть в pendingSegment.
-  router.push(targetRoute).catch(() => {
-    if (store.pendingSegment) {
-      store.clearPending();
-      store.stop();
-    }
-  });
+  return pushTourRoute(targetRoute);
+}
+
+function pushTourRoute(targetRoute, markDismissed = false) {
+  const request = ++routeRequest;
+  const gen = driverGen;
+  const failed = () => {
+    if (request !== routeRequest || gen !== driverGen || !store.isActive || !store.pendingSegment) return;
+    store.clearPending();
+    if (markDismissed) markIfAuto();
+    store.stop();
+  };
+  // Vue Router возвращает NavigationFailure как результат, а не только reject.
+  return router.push(targetRoute).then((failure) => { if (failure) failed(); }, failed);
 }
 
 /**
@@ -330,7 +313,7 @@ function handleBoundaryPrev(segmentStartGlobal) {
   const prevStep = store.steps[prevIdx];
   if (!prevStep) return;
   if (prevStep.route !== route.path) {
-    retreatToSegment(prevIdx, prevStep.route);
+    return retreatToSegment(prevIdx, prevStep.route);
   } else if (driverObj) {
     driverObj.movePrevious();
   }
@@ -354,6 +337,7 @@ function isInActiveSegment(globalIndex) {
  * @param {number} globalIndex глобальный индекс целевого шага
  */
 function restartSegmentAt(globalIndex) {
+  refreshController?.abort();
   store.setIndex(globalIndex);
   rail.restore();
   restoreReveal();
@@ -369,6 +353,7 @@ function restartSegmentAt(globalIndex) {
 }
 
 function retreatToSegment(targetIndex, targetRoute) {
+  refreshController?.abort();
   store.retreatSegment(targetIndex);
   rail.restore();
   restoreReveal();
@@ -377,15 +362,11 @@ function retreatToSegment(targetIndex, targetRoute) {
     driverObj.destroy();
     driverObj = null;
   }
-  router.push(targetRoute).catch(() => {
-    if (store.pendingSegment) {
-      store.clearPending();
-      store.stop();
-    }
-  });
+  return pushTourRoute(targetRoute);
 }
 
 function finishTour() {
+  driverObj?.obCancel?.();
   // Дошли до финала. Кнопка «Готово» и крестик приводят в один и тот же destroy,
   // поэтому исход помечаем флагом ДО него - иначе handleDestroyed не отличит
   // досмотренный тур от брошенного и «Пройден» не выставится никогда.
@@ -430,6 +411,12 @@ function handleDestroyed(gen) {
 }
 
 function teardown() {
+  routeRequest += 1;
+  keys.detach();
+  driverObj?.obCancel?.();
+  transitions.cancel();
+  refreshController?.abort();
+  refreshController = null;
   watchers.stopAll();
   segmentRange = null;
   // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
@@ -437,10 +424,6 @@ function teardown() {
   // до markIfAuto уже не дойдёт. Так автозапуск действительно "один раз".
   if (driverObj) markIfAuto();
   driverGen += 1;
-  if (waitController) {
-    waitController.abort();
-    waitController = null;
-  }
   if (driverObj) {
     // Затухаем перед удалением DOM; driverGen уже увеличен - отложенный
     // onDestroyed обезврежен (gen-гард в handleDestroyed).
@@ -469,12 +452,13 @@ watch(
       startSegment();
     } else { keys.detach(); teardown(); }
   },
+  { flush: 'sync' },
 );
 
 // Подхват следующего сегмента после cross-page навигации: ждём, пока роутер
 // приведёт нас на страницу первого шага следующего сегмента.
-const removeAfterEach = router.afterEach((to) => {
-  if (!store.isActive) return;
+const removeAfterEach = router.afterEach((to, from, failure) => {
+  if (failure || !store.isActive) return;
   if (!store.pendingSegment) {
     // Человек ушёл со страницы сам - пунктом меню, ссылкой, кнопкой «Назад»
     // браузера. Шаги остаются от прежней страницы, и тур висит поверх чужого
@@ -503,11 +487,7 @@ const removeAfterEach = router.afterEach((to) => {
         // route фиксируем до jumpToSegment - индекс смены сегмента читаем один раз.
         const resumeRoute = store.steps[resumeIndex].route;
         store.jumpToSegment(resumeIndex);
-        router.push(resumeRoute).catch(() => {
-          store.clearPending();
-          markIfAuto();
-          store.stop();
-        });
+        pushTourRoute(resumeRoute, true);
         return;
       }
       markIfAuto();

@@ -147,4 +147,44 @@ describe('OnboardingTour - уход со страницы во время тур
 
     expect(store.isActive).toBe(true);
   });
+
+  it.each(['reject', 'failure'])('старый %s перехода не останавливает новый ожидающий тур', async (kind) => {
+    let rejectOld, resolveOld, resolveNew;
+    const oldRequest = new Promise((resolve, reject) => { resolveOld = resolve; rejectOld = reject; });
+    const newRequest = new Promise((resolve) => { resolveNew = resolve; });
+    mocks.router.push.mockReturnValueOnce(oldRequest).mockReturnValueOnce(newRequest);
+    const beginBoundary = () => {
+      mocks.driver.activeIndex = 1;
+      store.advanceSegment.mockImplementationOnce(() => { store.currentIndex = 2; store.pendingSegment = true; });
+      return mocks.driver.config.onNextClick();
+    };
+    const oldMove = beginBoundary();
+    store.stop();
+    store.currentIndex = 0;
+    store.pendingSegment = false;
+    store.isActive = true;
+    await flushPromises();
+    const newMove = beginBoundary();
+    if (kind === 'reject') rejectOld(new Error('old navigation'));
+    else resolveOld({ type: 4 });
+    await oldMove;
+    expect(store.isActive).toBe(true);
+    expect(store.pendingSegment).toBe(true);
+    resolveNew();
+    await newMove;
+  });
+
+  it('неудавшаяся текущая навигация завершается безопасно', async () => {
+    mocks.router.push.mockResolvedValueOnce({ type: 4 });
+    mocks.driver.activeIndex = 1;
+    store.advanceSegment.mockImplementationOnce(() => { store.currentIndex = 2; store.pendingSegment = true; });
+    await mocks.driver.config.onNextClick();
+    expect(store.isActive).toBe(false);
+  });
+
+  it('afterEach с failure не применяет маршрут, на который переход не состоялся', async () => {
+    mocks.afterEachHandlers.forEach((fn) => fn({ path: '/center' }, { path: '/news' }, { type: 4 }));
+    await flushPromises();
+    expect(store.isActive).toBe(true);
+  });
 });

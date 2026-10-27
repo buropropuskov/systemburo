@@ -29,7 +29,21 @@ const REFRESH_AFTER_SCROLL_MS = 400;
 export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRevealOpen = () => null }) {
   let advanceObserver = null;
   let retargetObserver = null;
-  let visibilityTimers = [];
+  const visibilityTimers = new Set();
+  let epoch = 0;
+
+  function isCurrent(watchEpoch, gen, globalIndex) {
+    return watchEpoch === epoch && gen === getGen() && getIndex() === globalIndex;
+  }
+
+  function scheduleVisibility(callback, delay, watchEpoch) {
+    const id = setTimeout(() => {
+      if (watchEpoch !== epoch) return;
+      visibilityTimers.delete(id);
+      callback();
+    }, delay);
+    visibilityTimers.add(id);
+  }
 
   function stopAdvance() {
     if (!advanceObserver) return;
@@ -62,16 +76,19 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRe
     // Панель уведомлений от этого открывалась и тут же гасла, а тур застревал.
     const openedByTour = getStep(globalIndex + 1)?.reveal?.open || null;
     const gen = getGen();
-    advanceObserver = new MutationObserver(() => {
+    const watchEpoch = epoch;
+    const observer = new MutationObserver(() => {
+      if (advanceObserver !== observer || !isCurrent(watchEpoch, gen, globalIndex)) return;
       if (!document.querySelector(selector)) return;
       // Наблюдение не снимаем: человек может закрыть узел и открыть его сам -
       // тогда переход по действию снова станет законным.
       if (openedByTour && getRevealOpen() === openedByTour) return;
-      stopAdvance();
       const driver = getDriver();
-      if (!driver || gen !== getGen() || getIndex() !== globalIndex) return;
+      if (!driver) return;
+      stopAdvance();
       driver.obNext();
     });
+    advanceObserver = observer;
     advanceObserver.observe(document.body, { childList: true, subtree: true });
   }
 
@@ -90,16 +107,19 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRe
     const step = getStep(globalIndex);
     if (!step?.element || typeof MutationObserver === 'undefined') return;
     const gen = getGen();
-    retargetObserver = new MutationObserver(() => {
+    const watchEpoch = epoch;
+    const observer = new MutationObserver(() => {
+      if (retargetObserver !== observer || !isCurrent(watchEpoch, gen, globalIndex)) return;
       const active = getDriver()?.getActiveElement?.();
       // Цель на месте либо шаг без подсветки - трогать нечего.
       if (!active || active.isConnected) return;
       if (!document.querySelector(step.element)) return;
-      stopRetarget();
       const driver = getDriver();
-      if (!driver || gen !== getGen() || getIndex() !== globalIndex) return;
+      if (!driver) return;
+      stopRetarget();
       driver.obRetarget(globalIndex);
     });
+    retargetObserver = observer;
     retargetObserver.observe(document.body, { childList: true, subtree: true });
   }
 
@@ -122,9 +142,11 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRe
     const step = getStep(globalIndex);
     if (!step?.element) return;
     const gen = getGen();
+    const watchEpoch = epoch;
     const check = () => {
+      if (!isCurrent(watchEpoch, gen, globalIndex)) return;
       const driver = getDriver();
-      if (!driver || gen !== getGen() || getIndex() !== globalIndex) return;
+      if (!driver) return;
       const el = driver.getActiveElement?.();
       if (!el || !el.isConnected || typeof el.scrollIntoView !== 'function') return;
       const r = el.getBoundingClientRect();
@@ -135,17 +157,17 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRe
       // Пересчёт выреза - не на следующем кадре, а когда прокрутка доехала:
       // driver меряет цель в момент вызова, и на кадре сразу после scrollIntoView
       // она ещё в пути (плавная прокрутка контейнера карточки).
-      setTimeout(() => {
-        if (gen !== getGen() || getIndex() !== globalIndex) return;
+      scheduleVisibility(() => {
+        if (!isCurrent(watchEpoch, gen, globalIndex)) return;
         getDriver()?.refresh?.();
-      }, REFRESH_AFTER_SCROLL_MS);
+      }, REFRESH_AFTER_SCROLL_MS, watchEpoch);
     };
-    visibilityTimers = VISIBILITY_CHECKS_MS.map((delay) => setTimeout(check, delay));
+    VISIBILITY_CHECKS_MS.forEach((delay) => scheduleVisibility(check, delay, watchEpoch));
   }
 
   function stopVisibility() {
     visibilityTimers.forEach(clearTimeout);
-    visibilityTimers = [];
+    visibilityTimers.clear();
   }
 
   /**
@@ -156,6 +178,7 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRe
    * @param {number} globalIndex
    */
   function watchStep(globalIndex) {
+    stopAll();
     watchAdvance(globalIndex);
     watchRetarget(globalIndex);
     watchVisibility(globalIndex);
@@ -163,6 +186,8 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRe
 
   /** Снять все наблюдения - зовётся на каждой смене шага и в teardown. */
   function stopAll() {
+    // Disconnect does not invalidate a callback already queued by the browser.
+    epoch += 1;
     stopAdvance();
     stopRetarget();
     stopVisibility();

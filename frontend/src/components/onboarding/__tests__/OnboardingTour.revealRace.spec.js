@@ -148,4 +148,32 @@ describe('OnboardingTour - фоновый прогрев и сигнал сле�
 
     expect(store.revealOpen).toBe('notifications');
   });
+
+  it('поздняя подсветка не возвращает прежний демо-бланк во время подготовки следующего', async () => {
+    steps[0].demoAttachment = 'cars';
+    steps[1].demoAttachment = 'employees';
+    store.setDemoAttachment.mockClear();
+    const next = mocks.driver.config.onNextClick();
+    try {
+      expect(store.setDemoAttachment).toHaveBeenLastCalledWith('employees');
+      mocks.driver.config.onHighlighted();
+      expect(store.setDemoAttachment).toHaveBeenLastCalledWith('employees');
+    } finally {
+      await next;
+      delete steps[0].demoAttachment;
+      delete steps[1].demoAttachment;
+    }
+  });
+
+  it('stop и новый запуск в одном событии заменяют инстанс, не продолжая старый', async () => {
+    const previous = mocks.driver.config;
+    const moving = previous.onNextClick();
+    store.stop();
+    store.isActive = true;
+    await flushPromises();
+    await moving;
+    expect(mocks.driver.config).not.toBe(previous);
+    expect(store.currentIndex).toBe(0);
+    expect(store.skippedIndexes).toEqual([]);
+  });
 });

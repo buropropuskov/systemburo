@@ -789,6 +789,8 @@ describe('onboarding store', () => {
       const store = useOnboardingStore();
       store.start({ tour: 'guard' });
 
+      // Резолвер закрепляет shared in-flight до запуска запроса в microtask.
+      await Promise.resolve();
       expect(getSecurityFactRoute).toHaveBeenCalledOnce();
       await vi.waitFor(() => expect(store.factTableRoute).toBe('/table/kpp_1'));
     });
