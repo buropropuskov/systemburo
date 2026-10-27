@@ -1,4 +1,6 @@
+import { createStepNavigation } from '@/components/onboarding/stepNavigation';
 import { driver } from 'driver.js';
+import { createStepTransition } from '@/components/onboarding/stepTransition';
 import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
 import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
@@ -176,9 +178,23 @@ export function useOnboarding() {
    * @param {{ startIndex?: number, fallbackIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCloseRequest?: () => void, onJumpTo?: (globalIndex: number) => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCloseRequest, onBeforeStep, onJumpTo } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCloseRequest, onBeforeStep, onJumpTo, runTransition } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
+    let alive = true;
+    const tourKey = store.activeTourKey;
+    const transitions = createStepTransition({ isActive: () => alive });
+    const navigate = (work, direction) => (runTransition || transitions.run)(async (operation) => {
+      if (!alive || !operation.isCurrent()) return;
+      const sourceIndex = driverObj.getActiveIndex() ?? 0;
+      const sourceId = stepsForSegment[sourceIndex]?.id;
+      await work({
+        signal: operation.signal,
+        isCurrent: () => alive && operation.isCurrent() && store.activeTourKey === tourKey
+          && store.steps[startIndex + sourceIndex]?.id === sourceId
+          && driverObj.getActiveIndex() === sourceIndex,
+      });
+    }, { intent: { tourKey, stepId: stepsForSegment[driverObj.getActiveIndex() ?? 0]?.id, direction } });
 
     const zoomFix = createPopoverZoomFix();
 
@@ -301,88 +317,13 @@ export function useOnboarding() {
       // Перехватываем "Далее" (кнопка И стрелка вправо идут сюда): на границе
       // сегмента отдаём решение хосту (перейти на след. страницу / завершить),
       // иначе обычный moveNext.
-      async onNextClick() {
-        const localIndex = driverObj.getActiveIndex() ?? 0;
-        if (localIndex >= lastLocal && onBoundaryNext) {
-          // Передаём РЕАЛЬНЫЙ глобальный индекс driver'а - store.currentIndex может
-          // отставать (onHighlighted последнего шага мог не успеть его обновить).
-          onBoundaryNext(startIndex + localIndex);
-          return;
-        }
-        // Готовим целевой шаг ДО перехода: onBeforeStep ставит демо-вложение и
-        // ДОЖИДАЕТСЯ появления элемента (иначе driver подсветит пустоту, если
-        // данные ещё грузятся). Опциональный шаг без элемента (напр. доп.поля
-        // "при наличии") пропускаем к следующему; шаг со скриншотом вместо
-        // пропуска показываем без подсветки (STEP_DEMO_FALLBACK).
-        let target = localIndex + 1;
-        while (target <= lastLocal) {
-          const ready = onBeforeStep ? await onBeforeStep(startIndex + target) : true;
-          if (ready !== false) {
-            // Вид шага пересобираем на каждом проходе: цель могла как пропасть,
-            // так и появиться (данные подъехали, «Назад» и снова «Далее»).
-            setStepMode(target, ready === STEP_DEMO_FALLBACK);
-            break;
-          }
-          // Шаг выброшен - запоминаем, чтобы «Шаг N из M» считал по реальному
-          // маршруту, а не по конфигу.
-          store.markSkipped(startIndex + target);
-          target += 1;
-        }
-        if (target > lastLocal) {
-          // Все оставшиеся шаги опциональны и отсутствуют - это граница сегмента.
-          if (onBoundaryNext) onBoundaryNext(startIndex + lastLocal);
-          return;
-        }
-        if (target === localIndex + 1) driverObj.moveNext();
-        else driverObj.moveTo(target);
-      },
-      // "Назад": внутри сегмента - обычный movePrevious; на ПЕРВОМ шаге сегмента
-      // (есть предыдущий шаг на другой странице) отдаём хосту, чтобы он вернулся
-      // на ту страницу и показал последний шаг предыдущего сегмента.
-      onPrevClick() {
-        const localIndex = driverObj.getActiveIndex() ?? 0;
-        if (localIndex <= 0 && startIndex > 0 && onBoundaryPrev) {
-          onBoundaryPrev(startIndex);
-          return;
-        }
-        // «Назад» через onBeforeStep не проходит (тот гейтит только «Далее»),
-        // поэтому те же решения принимаем здесь.
-        //
-        // Во-первых, пропускаем назад шаги, которые «Далее» выбросило: без этого
-        // возврат показывал шаг, которого человек вперёд не видел вовсе (в туре
-        // охраны - «Пропуск по факту» на пустом блоке ручного ввода).
-        //
-        // Во-вторых, вид шага со скриншотом зависит от наличия цели прямо сейчас -
-        // пересобираем его сами, иначе шаг вернулся бы в том виде, в каком его
-        // собрали на старте сегмента. Страницу мы уже видели, поэтому проверка
-        // синхронная: ждать отрисовки нечего, и «Назад» не подвисает.
-        // Пропускаем ровно те шаги, которые тур выбросил по дороге вперёд: их
-        // индексы копит стор. Судить по текущему DOM нельзя - экран с тех пор
-        // изменился (карточка открыта, панель раскрыта), и «Назад» то показывал
-        // шаг, которого человек не видел, то перепрыгивал через увиденный.
-        const skipped = new Set(store.skippedIndexes);
-        let target = localIndex - 1;
-        while (target > 0 && skipped.has(startIndex + target)) target -= 1;
-        const prev = stepsForSegment[target];
-        if (prev?.demo) {
-          setStepMode(target, !prev.element || !document.querySelector(prev.element));
-        }
-        // Шаг, которому нужно раскрыть узел или сменить бланк, готовим так же,
-        // как на «Далее»: ставим сигнал и ДОЖИДАЕМСЯ цели. Иначе возврат на шаг
-        // с окном показывал его пустым - окно открывалось лишь через несколько
-        // секунд, уже после того, как шаг нарисовался («нажал Назад, десять
-        // секунд ничего, потом бланк без бланка»).
-        const needsPrepare = Boolean(prev?.reveal?.open || prev?.demoAttachment);
-        const go = () => {
-          if (target === localIndex - 1) driverObj.movePrevious();
-          else driverObj.moveTo(target);
-        };
-        if (needsPrepare && onBeforeStep) {
-          Promise.resolve(onBeforeStep(startIndex + target)).then(go);
-          return;
-        }
-        go();
-      },
+      ...createStepNavigation({
+        driverObj: { getActiveIndex: () => driverObj.getActiveIndex(),
+          moveNext: () => driverObj.moveNext(), movePrevious: () => driverObj.movePrevious(),
+          moveTo: (index) => driverObj.moveTo(index) },
+        store, stepsForSegment, startIndex, lastLocal, navigate,
+        onBeforeStep, onBoundaryNext, onBoundaryPrev, setStepMode, demoFallback: STEP_DEMO_FALLBACK,
+      }),
       onPopoverRender(popover) {
         // Первый показ поповера в сегменте - без анимации переезда: иначе он
         // приезжал бы из левого верхнего угла, куда его ставит driver.js до
@@ -482,12 +423,15 @@ export function useOnboarding() {
         dropStaleHighlights(element);
       },
       onHighlighted() {
+        if (!alive) return;
         dropStaleHighlights();
         raiseActiveHighlight(driverObj);
         const localIndex = driverObj.getActiveIndex() ?? 0;
         onIndexChange?.(startIndex + localIndex);
       },
       onDestroyed() {
+        alive = false;
+        transitions.cancel();
         zoomFix.detach();
         // Свой класс подъёма driver не знает - снимаем сами, иначе элемент
         // останется висеть над остальной страницей после закрытия тура.
@@ -495,6 +439,18 @@ export function useOnboarding() {
         onDestroyed?.();
       },
     });
+
+    // Инвалидируем подготовку сразу: fade может удалить DOM позже, но ждать
+    // его окончания для отмены действий закрытого тура нельзя.
+    driverObj.obCancel = () => {
+      alive = false;
+      transitions.cancel();
+    };
+    const destroy = driverObj.destroy.bind(driverObj);
+    driverObj.destroy = () => {
+      driverObj.obCancel();
+      destroy();
+    };
 
     /**
      * Переприцелить шаг на заново отрисованный узел и перерисовать его.
@@ -526,6 +482,7 @@ export function useOnboarding() {
      * @param {boolean} [withoutTarget] показать шаг без подсветки (цели нет)
      */
     driverObj.obGoTo = (globalIndex, withoutTarget = false) => {
+      if (!alive) return;
       const localIndex = globalIndex - startIndex;
       if (localIndex < 0 || localIndex >= stepsForSegment.length) return;
       setStepMode(localIndex, withoutTarget);

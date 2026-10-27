@@ -1,0 +1,63 @@
+import { applyReveal } from './reveal';
+import { waitForPageSettled } from './pageSettled';
+
+// Existing timeout policy is unchanged; readiness is the next slice.
+const FIRST_TARGET_TIMEOUT = 4000;
+const REVEAL_TARGET_TIMEOUT = 9000;
+// Цель, приезжающая ДАННЫМИ уже открытого узла: девять секунд ей ни к чему - у
+// заявки без дополнения её нет вовсе, и подряд такие шаги вешали тур (#2584).
+const DATA_TARGET_TIMEOUT = 2500;
+// Потолок ожидания загрузки данных страницы. Дольше держать человека на «Далее»
+// нельзя, а списки бюро на живом стенде приезжают за полторы-две секунды.
+const PAGE_SETTLE_TIMEOUT = 5000;
+
+/**
+ * Сколько ждать цель шага, которому нужно раскрытие узла.
+ *
+ * @param {{ reveal?: { open?: string } }} step
+ * @returns {number}
+ */
+function targetTimeoutFor(step) {
+  return step?.reveal?.open ? REVEAL_TARGET_TIMEOUT : FIRST_TARGET_TIMEOUT;
+}
+
+export function createStepPreparation({
+  store, watchers, applyDemoAttachment, beforePrepare, waitSelectorOf, waitForElement, ensureInView, demoFallback,
+}) {
+  return async function prepareStep(globalIndex, operation) {
+    if (!operation.isCurrent()) return;
+    beforePrepare();
+    // Тур уже двинулся - наблюдение прошлого шага снимаем сразу. Иначе оно
+    // срабатывало на узле, который открывает СЛЕДУЮЩИЙ шаг (карточку заявки), и
+    // тур перескакивал через него.
+    watchers.stopAll();
+    const step = store.steps[globalIndex];
+    const attachmentChanged = applyDemoAttachment(globalIndex);
+    const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false, signal: operation.signal });
+    if (!operation.isCurrent()) return;
+    if (!step?.element) return true;
+    // Необязательный шаг ждём коротко (700 мс): нет цели - значит её тут нет
+    // (#1771). Шагу с `waitsData` даём 2,5 с - цель приезжает данными узла (#2584).
+    // Полное ожидание - когда раскрывали узел, меняли бланк или шаг обязателен.
+    // Сперва даём странице договорить с сервером - иначе состав зависит от сети.
+    await waitForPageSettled(PAGE_SETTLE_TIMEOUT, operation.signal);
+    if (!operation.isCurrent()) return;
+    // `dataReady` - узел, приезжающий с данными, внутри которого живёт цель: есть
+    // он - цели ждать нечего. Иначе три неприменимых шага вешали тур на 8 с (#2590).
+    const ready = step.dataReady ? await waitForElement(step.dataReady, DATA_TARGET_TIMEOUT, operation.signal) : null;
+    if (!operation.isCurrent()) return;
+    const needsLongWait = revealed || attachmentChanged || !step.optional;
+    const timeout = needsLongWait ? targetTimeoutFor(step) : (ready ? 300 : (step.waitsData ? DATA_TARGET_TIMEOUT : 700));
+    const el = await waitForElement(waitSelectorOf(step), timeout, operation.signal);
+    if (!operation.isCurrent()) return;
+    if (el) {
+      // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
+      // прокрученной от прошлого шага, и цель могла уехать за край экрана.
+      await ensureInView(step.element ? document.querySelector(step.element) : el, step.scrollTo, operation.signal);
+      if (!operation.isCurrent()) return;
+      return true;
+    }
+    if (step.demo) return demoFallback;
+    return step.optional ? false : true;
+  };
+}

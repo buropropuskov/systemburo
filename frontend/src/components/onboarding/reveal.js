@@ -104,13 +104,14 @@ function resolveAxis(steps, index, axis) {
  *
  * @param {Array<object>} steps
  * @param {number} index
- * @param {{ closeOthers?: boolean }} [options] `closeOthers: false` - только раскрыть,
+ * @param {{ closeOthers?: boolean, signal?: AbortSignal }} [options] `closeOthers: false` - только раскрыть,
  *   ничего не сворачивая: так зовёт подготовка следующего шага, пока переход не состоялся
  * @returns {Promise<boolean>} раскрывали ли что-то именно на этом шаге - вызывающий
  *   по этому признаку решает, ждать ли цель долго (узел ещё едет) или коротко
  *   (узел давно открыт, и отсутствие цели значит «её тут нет»).
  */
-export async function applyReveal(steps, index, { closeOthers = true } = {}) {
+export async function applyReveal(steps, index, { closeOthers = true, signal } = {}) {
+  if (signal?.aborted) return false;
   const { mobile, open } = resolveReveal(steps, index);
 
   const store = useOnboardingStore();
@@ -135,7 +136,17 @@ export async function applyReveal(steps, index, { closeOthers = true } = {}) {
     drawerOpened ? NAV_DRAWER_TRANSITION_MS : 0,
     openChanged && open ? OPEN_REVEAL_TRANSITION_MS : 0,
   );
-  if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  if (waitMs) await new Promise((resolve) => {
+    const stop = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', stop);
+      resolve();
+    };
+    const timer = setTimeout(stop, waitMs);
+    signal?.addEventListener('abort', stop, { once: true });
+    if (signal?.aborted) stop();
+  });
+  if (signal?.aborted) return false;
   return revealed;
 }
 

@@ -37,22 +37,31 @@ export function isPageBusy() {
  *
  * @param {number} [timeout] потолок ожидания, мс
  * @param {AbortSignal} [signal]
- * @returns {Promise<boolean>} true - страница успокоилась, false - вышли по потолку
+ * @returns {Promise<boolean>} true - страница успокоилась, false - отмена или потолок
  */
 export function waitForPageSettled(timeout = 5000, signal) {
+  if (signal?.aborted) return Promise.resolve(false);
   if (!isPageBusy()) return Promise.resolve(true);
   return new Promise((resolve) => {
     const start = Date.now();
+    let id = null;
+    let stopped = false;
     const stop = (value) => {
+      if (stopped) return;
+      stopped = true;
       clearInterval(id);
       signal?.removeEventListener('abort', onAbort);
       resolve(value);
     };
     const onAbort = () => stop(false);
-    const id = setInterval(() => {
+    signal?.addEventListener('abort', onAbort);
+    if (signal?.aborted) {
+      stop(false);
+      return;
+    }
+    id = setInterval(() => {
       if (!isPageBusy()) stop(true);
       else if (Date.now() - start >= timeout) stop(false);
     }, POLL_MS);
-    signal?.addEventListener('abort', onAbort);
   });
 }

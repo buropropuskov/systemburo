@@ -122,23 +122,31 @@ const подводимый = (el) => !!el?.getBoundingClientRect && typeof el.sc
  *   при нехватке места, по центру.
  * @returns {Promise<void>}
  */
-export function ensureInView(el, block) {
-  if (!подводимый(el)) return Promise.resolve();
+export function ensureInView(el, block, signal) {
+  if (signal?.aborted || !подводимый(el)) return Promise.resolve();
   if (!block && наМесте(el)) return Promise.resolve();
   довести(el, block);
   // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр (#2610).
   // Потолок - чтобы не ждать недостижимую цель.
   return new Promise((resolve) => {
+    let frame;
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      signal?.removeEventListener('abort', stop);
+      resolve();
+    };
+    signal?.addEventListener('abort', stop, { once: true });
     const срок = Date.now() + 1200;
     const кадр = () => {
+      if (signal?.aborted) { stop(); return; }
       if (наМесте(el) || Date.now() > срок) {
-        resolve();
+        stop();
         return;
       }
       довести(el, block);
-      requestAnimationFrame(кадр);
+      frame = requestAnimationFrame(кадр);
     };
-    requestAnimationFrame(кадр);
+    frame = requestAnimationFrame(кадр);
   });
 }
 
