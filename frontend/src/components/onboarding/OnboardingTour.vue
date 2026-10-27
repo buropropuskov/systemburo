@@ -125,23 +125,7 @@ async function refreshHighlightFor(globalIndex, gen) {
   driverObj.obRetarget(globalIndex);
 }
 
-/**
- * Перед переходом на шаг готовим DOM: ставим демо-вложение и дожидаемся
- * появления целевого элемента - иначе driver подсветит пустоту, если данные
- * ещё грузятся (баг: шаг всплывал раньше, чем элемент попадал в DOM).
- *
- * Опциональный шаг (`optional`, напр. доп.поля «при наличии»): если элемента
- * нет за короткий таймаут - возвращаем false, и onNextClick пропускает шаг.
- *
- * Шаг с демо-скриншотом (`demo`) не пропускаем никогда: у нового пользователя
- * система пуста (ни заявок, ни вложений), и молчаливый пропуск отнимал бы у него
- * ровно то, ради чего тур и заведён. Вместо подсветки показываем скриншот - об
- * этом и говорит STEP_DEMO_FALLBACK.
- *
- * @param {number} globalIndex
- * @returns {Promise<boolean|string>} false = пропустить шаг, STEP_DEMO_FALLBACK =
- *   показать без подсветки со скриншотом, true = вести шаг как обычно
- */
+// Общая подготовка шага; контракт и ожидания описаны в stepPreparation.
 const prepareStep = createStepPreparation({
   store, watchers, applyDemoAttachment, beforePrepare: () => refreshController?.abort(),
   waitSelectorOf, waitForElement, ensureInView, demoFallback: STEP_DEMO_FALLBACK,
@@ -152,6 +136,12 @@ const startSegment = () => transitions.run(startSegmentInner, { replace: true,
 
 async function startSegmentInner(operation) {
   const myGen = ++driverGen;
+  // Продолжение может начинаться с другой страницы. Индекс сохраняем: это
+  // не «следующий сегмент», который advanceSegment искал бы от текущего шага.
+  const savedStep = store.steps[store.currentIndex];
+  if (savedStep?.route && savedStep.route !== route.path) {
+    return retreatToSegment(store.currentIndex, savedStep.route);
+  }
   // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг: при «Назад» между страницами мы на последнем шаге прошлой.
   let segmentStartIndex = store.currentIndex;
   while (segmentStartIndex > 0 && store.steps[segmentStartIndex - 1].route === route.path) {
@@ -180,6 +170,7 @@ async function startSegmentInner(operation) {
   // Сам массив шагов не трогаем - он же служит источником, из которого движок
   // пересобирает шаг, когда цель появляется или пропадает (setStepMode).
   const targetStep = segmentSteps[localTarget];
+  if (!targetStep) { store.stop(); return; }
   let targetMissing = false;
   if (targetStep.element) {
     // Первый шаг новой страницы ждём по верхней границе: страница монтируется,
