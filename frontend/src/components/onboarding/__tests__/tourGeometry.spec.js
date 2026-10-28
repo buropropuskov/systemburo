@@ -33,6 +33,19 @@ afterEach(() => {
 });
 
 describe('geometry leases', () => {
+  it('restores a viewport-dependent owner before resolving or measuring its connected target', () => {
+    geometry.dispose();
+    const beforeMeasure = vi.fn(() => false);
+    geometry = createTourGeometry({ ...deps, beforeMeasure });
+    commit(); flush();
+    expect(beforeMeasure).toHaveBeenCalledWith(expect.objectContaining({ target, index: 4 }), expect.any(Set));
+    expect(deps.resolveTarget).not.toHaveBeenCalled();
+    expect(deps.refresh).not.toHaveBeenCalled();
+    beforeMeasure.mockReturnValue(true);
+    window.dispatchEvent(new Event('resize')); flush();
+    expect(deps.resolveTarget).toHaveBeenCalled();
+    expect(deps.refresh).toHaveBeenCalledTimes(1);
+  });
   it('coalesces invalidations and does not refresh unchanged observer/style feedback', () => {
     commit(); geometry.invalidate(); geometry.invalidate(); expect(frames.size).toBe(1);
     flush(); expect(deps.refresh).toHaveBeenCalledTimes(1);

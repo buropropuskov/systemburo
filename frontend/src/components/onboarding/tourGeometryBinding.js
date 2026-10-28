@@ -3,6 +3,8 @@ import { findTourTarget } from './targetResolver';
 import { applyStageShape, raiseActiveHighlight } from './stageShape';
 import { createPopoverZoomFix } from './popoverZoom';
 import { isTargetInView } from './targetWaits';
+import { applyReveal, isNavDrawerOpen, resolveReveal } from './reveal';
+import { isDrawerViewport } from '@/constants/breakpoints';
 
 /** Host adapter: active layout never owns the navigation index or permissions. */
 export function createTourGeometryBinding({ store, getDriver, getGeneration, isBusy, runTransition, waitForElement, ensureInView, onError = () => {} }) {
@@ -14,6 +16,13 @@ export function createTourGeometryBinding({ store, getDriver, getGeneration, isB
   const geometry = createTourGeometry({
     getDriver: () => isBusy() ? null : getDriver(),
     getPopover: popover,
+    beforeMeasure: (frame, reasons) => {
+      if (!reasons.has('viewport') || !isDrawerViewport() || isNavDrawerOpen()
+        || resolveReveal(store.steps, frame.index).mobile !== 'nav') return true;
+      // The same step remains active. Reuse its cancellable preparation and the
+      // drawer owner's token protocol; never toggle classes or borrow body locks.
+      return !retarget({ ...frame, reason: 'viewport-reveal' }, true);
+    },
     resolveTarget: ({ index, target }) => {
       const selector = store.steps[index]?.element;
       return selector ? findTourTarget(selector, { preferred: target }) : null;
@@ -48,7 +57,7 @@ export function createTourGeometryBinding({ store, getDriver, getGeneration, isB
         && store.currentIndex === index && store.steps[index]?.id === stepId });
   }
 
-  function retarget({ index, stepId, target }, wait = false) {
+  function retarget({ index, stepId, target, reason }, wait = false) {
     const driver = getDriver(), generation = getGeneration(), tour = store.activeTourKey;
     const valid = () => !disposed && store.isActive && getDriver() === driver
       && getGeneration() === generation && store.activeTourKey === tour
@@ -59,6 +68,10 @@ export function createTourGeometryBinding({ store, getDriver, getGeneration, isB
       signal = operation.signal;
       stop();
       const step = store.steps[index];
+      if (reason === 'viewport-reveal') {
+        await applyReveal(store.steps, index, { closeOthers: false, signal: operation.signal });
+        if (!operation.isCurrent() || !valid()) return;
+      }
       if (wait && step.element) {
         await waitForElement(step.waitFor || step.element, 4000, operation.signal);
         if (!operation.isCurrent() || !valid()) return;
