@@ -21,7 +21,7 @@
 
       <div
         class="filters"
-        data-testid="aa-filters"
+        :data-testid="isNarrow ? 'aa-filter-launcher' : 'aa-filters'"
       >
         <div class="filters__search">
           <AppIcon
@@ -105,8 +105,8 @@
 
       <!-- Мобилка: вторичные фильтры в bottom-sheet. -->
       <FilterSheet
-        v-if="isNarrow"
-        :show="showFilterSheet"
+        :show="isNarrow && showFilterSheet"
+        content-testid="aa-filters"
         :has-active-filters="hasActiveFilters"
         @close="showFilterSheet = false"
         @reset="resetFilters"
@@ -445,6 +445,7 @@
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { useTourDisclosure } from '@/components/onboarding/tourDisclosure';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import AccessibleAttachmentsEmptyState from '@/components/AccessibleAttachmentsEmptyState.vue';
@@ -522,6 +523,7 @@ const hasActiveFilters = computed(() => !!search.value.trim() || secondaryFilter
 // разные пороги дали бы гибрид - мобильная разметка без мобильных стилей.
 const { isNarrow } = useNarrowScreen(767.98);
 const showFilterSheet = ref(false);
+useTourDisclosure({ requested: () => useOnboardingStore().revealOpen === 'accessible-filters', enabled: isNarrow, open: showFilterSheet });
 
 const items = ref([]);
 const total = ref(0);

@@ -74,6 +74,10 @@ describe('примерные данные тура', () => {
     syncDemoBackend(true, true);
     expect(interceptRead('/applications/user?page=1', {})).toBe(null);
   });
+  it.each(['guard', 'admin'])('не подменяет собственные заявки при обучении %s', tour => {
+    syncDemoBackend(true, false, tour);
+    expect(interceptRead('/applications/user?page=1', {})).toBe(null);
+  });
 
   it('примерная заявка помечена как пример - интерфейс может это показать', () => {
     const body = respond('/applications/user?page=1');

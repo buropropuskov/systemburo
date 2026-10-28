@@ -46,7 +46,11 @@ function ctx({ permissions = [], isSecurity = false, isApprover = false, isRevie
 function grant(...keys) {
   const permissions = usePermissionsStore();
   permissions.mode = 'normal';
-  permissions.effective = Object.fromEntries(keys.map((k) => [k, { value: 'allow', source: 'base' }]));
+  permissions.loaded = true;
+  permissions.fetchedAt = Date.now();
+  const store = useOnboardingStore(); store.approvalRoleLoaded = true;
+  store.approvalRole = { isApprover: false, isReviewer: true };
+  permissions.effective = Object.fromEntries(['page.center', ...keys].map((k) => [k, { value: 'allow', source: 'base' }]));
 }
 
 describe('approveOnboardingSteps - состав', () => {
@@ -239,8 +243,13 @@ describe('выпадение шагов по правам', () => {
    * @param {string[]} rights права согласующего
    * @returns {Array<object>} шаги, дошедшие до пользователя
    */
-  function stepsFor(rights) {
+  function stepsFor(rights, denied = []) {
     grant(...rights);
+    const permissions = usePermissionsStore();
+    for (const key of denied) {
+      permissions.denied.add(key);
+      permissions.effective[key] = { value: 'deny', source: 'override' };
+    }
     const store = useOnboardingStore();
     expect(store.start({ tour: TOUR_KEY })).toBe(true);
     return store.steps;
@@ -267,12 +276,12 @@ describe('выпадение шагов по правам', () => {
     expect(useOnboardingStore().totalSteps).toBe(approveOnboardingSteps.length);
   });
 
-  it('у каждого гейтящего права свои шаги, и без него исчезают только они', () => {
+  it('явный запрет гейтящего действия убирает только его шаги', () => {
     for (const right of STEP_RIGHTS) {
       setActivePinia(createPinia());
       const dropped = approveOnboardingSteps.filter((s) => s.requires === right).map((s) => s.id);
       expect(dropped.length, right).toBeGreaterThan(0);
-      const ids = stepsFor(STEP_RIGHTS.filter((r) => r !== right)).map((s) => s.id);
+      const ids = stepsFor(STEP_RIGHTS, [right]).map((s) => s.id);
       expect(ids, right).toEqual(approveOnboardingSteps.map((s) => s.id).filter((id) => !dropped.includes(id)));
     }
   });
@@ -280,6 +289,7 @@ describe('выпадение шагов по правам', () => {
   it('нумерация «шаг N из M» не разъезжается: выпавшие шаги не занимают номер', () => {
     const store = useOnboardingStore();
     grant();
+    usePermissionsStore().denied.add('action.forward.application');
     store.start({ tour: TOUR_KEY });
 
     const expected = approveOnboardingSteps.filter((s) => !s.requires);
@@ -294,7 +304,7 @@ describe('выпадение шагов по правам', () => {
     expect(store.currentStep.celebrate).toBe(true);
   });
 
-  it('голосование и карточка остаются объяснёнными при пустом наборе прав', () => {
+  it('голосование и карточка остаются с доступом в Центр без дополнительных разрешений действий', () => {
     const ids = stepsFor([]).map((s) => s.id);
     expect(ids).toEqual(expect.arrayContaining([
       'apr-nav-center',
@@ -302,6 +312,7 @@ describe('выпадение шагов по правам', () => {
       'apr-detail-approvers',
       'apr-detail-vote',
       'apr-detail-questions',
+      'apr-detail-forward',
     ]));
   });
 });

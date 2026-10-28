@@ -114,7 +114,7 @@ export function createCenterDemoResponder() {
  * @param {boolean} [hasOwnApplication] есть ли у человека своя заявка
  * @param {string|null} [tourKey] какой тур идёт - Центру нужен свой пример
  */
-export function syncDemoBackend(tourActive, hasOwnApplication = false, tourKey = null) {
+export function syncDemoBackend(tourActive, hasOwnApplication = false, tourKey = 'user') {
   if (!tourActive) {
     setReadInterceptor(null);
     return;
@@ -126,5 +126,5 @@ export function syncDemoBackend(tourActive, hasOwnApplication = false, tourKey =
     setReadInterceptor(createCenterDemoResponder());
     return;
   }
-  setReadInterceptor(hasOwnApplication ? null : createDemoResponder());
+  setReadInterceptor(tourKey === 'user' && !hasOwnApplication ? createDemoResponder() : null);
 }

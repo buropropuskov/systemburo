@@ -9,11 +9,20 @@ import { ONBOARDING_VERSION } from '../onboardingSteps';
 import { SECURITY_ONBOARDING_VERSION } from '../securityOnboardingSteps';
 import { getOnboardingStatus } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
+import { getMyPermissions } from '@/api/permissions';
+import { getMe } from '@/api/auth';
+import { getUserApplicationsPaginated } from '@/api/applications';
+import { useDeletionsStore } from '@/stores/deletions';
+import OnboardingStartDialog from '../OnboardingStartDialog.vue';
+
+vi.mock('@/api/permissions', () => ({ getMyPermissions: vi.fn() }));
+vi.mock('@/api/auth', async original => ({ ...await original(), getMe: vi.fn(async () => ({ user_type_code: 'user' })) }));
+vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn() }));
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),
   markOnboardingComplete: vi.fn().mockResolvedValue({ message: 'ok' }),
-  getSecurityFactRoute: vi.fn().mockResolvedValue(null),
+  getSecurityPostContext: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('@/api/approvers', () => ({
@@ -37,8 +46,10 @@ let wrapper;
 
 function login({ security = false } = {}) {
   const auth = useAuthStore();
-  auth.setTokens(createMockJWT({ username: 'ivanov' }));
+  auth.setTokens(createMockJWT({ username: 'ivanov', user_id: 101 }));
+  auth.userTypeCode = 'user';
   if (security) auth.userTypeCode = 'security';
+  getMe.mockResolvedValue({ user_type_code: security ? 'security' : 'user' });
 }
 
 async function mountMenu() {
@@ -51,6 +62,9 @@ describe('OnboardingMenu', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    getMe.mockResolvedValue({ user_type_code: 'user' });
+    getMyPermissions.mockResolvedValue({ mode: 'normal', permissions: [], denied: [], banned: false });
+    getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
     getOnboardingStatus.mockResolvedValue({ completed: {} });
     getMyApprovalRole.mockResolvedValue({ is_approver: false, is_reviewer: false });
   });
@@ -79,12 +93,16 @@ describe('OnboardingMenu', () => {
   });
 
   describe('единственный доступный тур запускается без меню', () => {
-    it('клик по кнопке стартует тур сразу, список не открывается', async () => {
+    it('клик открывает последовательный старт, затем «Пройти сначала» запускает тур', async () => {
       login();
       const store = useOnboardingStore();
       await mountMenu();
 
       await wrapper.find('[data-testid="ob-start-button"]').trigger('click');
+      await flushPromises();
+
+      expect(store.isActive).toBe(false);
+      document.querySelector('[data-testid="ob-start-full"]').click();
       await flushPromises();
 
       expect(store.isActive).toBe(true);
@@ -141,6 +159,8 @@ describe('OnboardingMenu', () => {
 
       menuItem('guard').closest('.base-dropdown__item').click();
       await flushPromises();
+      document.querySelector('[data-testid="ob-start-full"]').click();
+      await flushPromises();
 
       expect(store.activeTourKey).toBe('guard');
       expect(store.isManual).toBe(true);
@@ -178,12 +198,89 @@ describe('OnboardingMenu', () => {
   });
 
   describe('загрузка контекста гейтинга', () => {
-    it('при монтировании тянет роль согласования и статус прохождения', async () => {
+    it('отмена окна во время подготовки не запускает тур и не открывает окно заново', async () => {
+      login(); await mountMenu();
+      await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
+      const store = useOnboardingStore(), start = vi.spyOn(store, 'start');
+      let release;
+      vi.spyOn(store, 'prepareTour').mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+      const dialog = wrapper.findComponent(OnboardingStartDialog);
+      dialog.vm.$emit('start'); await flushPromises();
+      expect(dialog.props('busy')).toBe(true);
+      dialog.vm.$emit('close'); await flushPromises();
+      release({ status: 'ready' }); await flushPromises();
+      expect(start).not.toHaveBeenCalled(); expect(store.isActive).toBe(false);
+      expect(dialog.props('show')).toBe(false); expect(store.hasFinished('user')).toBe(false);
+    });
+    it('повторное открытие того же тура не оживляет отменённую попытку', async () => {
+      login(); await mountMenu();
+      const trigger = wrapper.find('[data-testid="ob-start-button"]');
+      await trigger.trigger('click'); await flushPromises();
+      const store = useOnboardingStore(), start = vi.spyOn(store, 'start');
+      let release;
+      vi.spyOn(store, 'prepareTour').mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+      const dialog = wrapper.findComponent(OnboardingStartDialog);
+      dialog.vm.$emit('start'); await flushPromises(); dialog.vm.$emit('close'); await flushPromises();
+      await trigger.trigger('click'); await flushPromises();
+      expect(dialog.props('show')).toBe(true);
+      release({ status: 'ready' }); await flushPromises();
+      expect(start).not.toHaveBeenCalled(); expect(dialog.props('show')).toBe(true);
+      dialog.vm.$emit('start'); await flushPromises();
+      expect(start).toHaveBeenCalledOnce(); expect(store.isActive).toBe(true);
+    });
+    it('передаёт смысловой ID выбранной главы настоящему store без полного завершения', async () => {
+      login(); await mountMenu();
+      await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
+      const dialog=wrapper.findComponent(OnboardingStartDialog), chapters=dialog.props('chapters');
+      expect(chapters.length).toBeGreaterThan(1);
+      const id=chapters[1].id;
+      dialog.vm.$emit('start',{fromStepId:id}); await flushPromises();
+      const store=useOnboardingStore();
+      expect(store.isActive).toBe(true);expect(store.currentStepId).toBe(id);
+      expect(store.hasFinished('user')).toBe(false);
+    });
+    it('не запускает тур, если загрузка прав завершилась ошибкой', async () => {
+      getMyPermissions.mockRejectedValue(new Error('Permissions unavailable'));
+      login(); await mountMenu();
+      await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
+      expect(usePermissionsStore().loaded).toBe(false);
+      expect(useOnboardingStore().isActive).toBe(false);
+    });
+    it('при доступном Центре тянет роль согласования и статус прохождения', async () => {
+      getMyPermissions.mockResolvedValue({ mode: 'normal', permissions: [{ key: 'page.center', value: 'allow' }], denied: [] });
       login();
       await mountMenu();
 
       expect(getMyApprovalRole).toHaveBeenCalledOnce();
       expect(getOnboardingStatus).toHaveBeenCalledOnce();
+    });
+
+    it('объясняет неудачу ручного запуска и повторяет подготовку по следующему клику', async () => {
+      getUserApplicationsPaginated.mockRejectedValueOnce(new Error('offline'));
+      login(); await mountMenu();
+      await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
+      expect(useOnboardingStore().isActive).toBe(false);
+      expect(useDeletionsStore().items.some(item => item.type === 'error')).toBe(true);
+      expect(wrapper.find('[data-testid="ob-start-button"]').attributes('disabled')).toBeUndefined();
+      await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
+      document.querySelector('[data-testid="ob-start-full"]').click(); await flushPromises();
+      expect(useOnboardingStore().isActive).toBe(true);
+      expect(getUserApplicationsPaginated).toHaveBeenCalledTimes(2);
+    });
+    it('одна ожидающая подготовка блокирует повторный клик', async () => {
+      let release;
+      getUserApplicationsPaginated.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+      login(); await mountMenu();
+      const button = wrapper.find('[data-testid="ob-start-button"]');
+      await button.trigger('click'); await flushPromises();
+      expect(button.attributes('disabled')).toBeDefined();
+      await button.trigger('click'); await flushPromises();
+      expect(getUserApplicationsPaginated).toHaveBeenCalledOnce();
+      release({ items: [], meta: { total: 0 } }); await flushPromises();
+      expect(useOnboardingStore().isActive).toBe(false);
+      document.querySelector('[data-testid="ob-start-full"]').click(); await flushPromises();
+      expect(useOnboardingStore().isActive).toBe(true);
+      expect(button.attributes('disabled')).toBeUndefined();
     });
 
     it('уже загруженный статус повторно не запрашивается', async () => {
@@ -200,6 +297,8 @@ describe('OnboardingMenu', () => {
       login();
       const permissions = usePermissionsStore();
       permissions.mode = 'normal';
+      permissions.loaded = true;
+      permissions.fetchedAt = Date.now();
       // page.available, а не page.tables: тур охранника гейтится доступом к
       // «Доступным мне», где живёт большая часть его шагов. Смысл проверки тот же -
       // тур попадает в меню по ПРАВУ, без смены типа учётной записи.

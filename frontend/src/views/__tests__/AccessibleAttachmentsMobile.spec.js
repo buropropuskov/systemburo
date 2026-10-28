@@ -54,6 +54,8 @@ vi.mock('vue-router', () => ({
 import AccessibleAttachmentsView from '@/views/AccessibleAttachmentsView.vue';
 import { getAccessibleAttachments } from '@/api/applications';
 import { getOrganizations, getCompanies } from '@/api/organizations';
+import { useOnboardingStore } from '@/stores/onboarding';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
 
 const SOURCE = readFileSync(
   path.resolve(__dirname, '../AccessibleAttachmentsView.vue'),
@@ -122,6 +124,24 @@ afterEach(() => {
 });
 
 describe('«Доступные мне» на телефоне - раскладка по мокапу', () => {
+  it('opens the actual filter owner for its tour step and restores it afterwards', async () => {
+    wrapper = await mountNarrow(true);
+    const store = useOnboardingStore();
+    store.setRevealOpen('accessible-filters'); await flushPromises();
+    expect(wrapper.findComponent(FilterSheet).props('show')).toBe(true);
+    store.setRevealOpen(null); await flushPromises();
+    expect(wrapper.findComponent(FilterSheet).props('show')).toBe(false);
+  });
+
+  it('preserves filters opened manually before the tour requests them', async () => {
+    wrapper = await mountNarrow(true);
+    await wrapper.find('[data-testid="aa-filter-btn"]').trigger('click');
+    const store = useOnboardingStore();
+    store.setRevealOpen('accessible-filters'); await flushPromises();
+    store.setRevealOpen(null); await flushPromises();
+    expect(wrapper.findComponent(FilterSheet).props('show')).toBe(true);
+  });
+
   it('счётчик записей стоит в шапке экрана и только на мобилке', async () => {
     wrapper = await mountNarrow(true);
     const badge = wrapper.find('[data-testid="aa-count-badge"]');

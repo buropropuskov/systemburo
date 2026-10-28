@@ -500,3 +500,94 @@ html :not(body):has(> .driver-active-element) {
  * технически работает, но воспринималось как «квадрат медленно выползает».
  * Плавность оставлена только у поповера, у выреза - намеренно нет.
  */
+
+/* Touch presentation sizes the existing Driver, never its prepared target. */
+.driver-popover.ob-popover.ob-touch {
+  width: var(--ob-touch-width);
+  max-width: var(--ob-touch-width);
+  max-height: var(--ob-touch-height);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 14px;
+  border-radius: 24px;
+}
+.driver-popover.ob-popover.ob-touch .driver-popover-title {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  padding-right: 20px;
+}
+.driver-popover.ob-popover.ob-touch .driver-popover-description {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 60px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 20px;
+}
+.driver-popover.ob-popover.ob-touch.ob-touch--expanded .driver-popover-description {
+  max-height: var(--ob-touch-body);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.driver-popover.ob-popover.ob-touch .driver-popover-footer {
+  flex-shrink: 0;
+  gap: 8px;
+  margin-top: 10px;
+}
+.driver-popover.ob-popover.ob-touch .driver-popover-navigation-btns {
+  flex-wrap: wrap;
+}
+.driver-popover.ob-popover.ob-touch .driver-popover-next-btn,
+.driver-popover.ob-popover.ob-touch .driver-popover-prev-btn,
+.driver-popover.ob-popover.ob-touch .ob-touch__details {
+  min-height: 40px;
+  height: auto;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+.driver-popover.ob-popover.ob-touch .ob-touch__details {
+  margin-right: auto;
+  text-shadow: none;
+}
+.driver-popover.ob-popover.ob-touch .ob-popover__skip {
+  order: 5;
+  flex-basis: 100%;
+  min-height: 24px;
+  padding: 3px 0;
+  text-align: right;
+}
+.driver-popover.ob-popover.ob-touch .ob-popover__progress {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.driver-popover.ob-popover.ob-touch .ob-popover__bar,
+.driver-popover.ob-popover.ob-touch .ob-popover__next-hint {
+  display: none;
+}
+.driver-popover.ob-popover.ob-touch .ob-popover__chapter {
+  max-width: 100%;
+  margin: 0;
+  text-transform: none;
+}
+.driver-popover.ob-popover .ob-touch__demo[hidden],
+.driver-popover.ob-popover .ob-touch__details[hidden] {
+  display: none;
+}
+.driver-popover.ob-popover.ob-touch:not(.ob-touch--expanded) .driver-popover-description .ob-popover__demo {
+  display: none;
+}
+.driver-popover.ob-popover .ob-touch__demo {
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow: auto;
+}
+.driver-popover.ob-popover .ob-touch__demo .ob-popover__demo {
+  max-width: 368px;
+  margin: 0 auto 14px;
+}
+.driver-popover.ob-popover.ob-touch--wide {
+  border-radius: 30px;
+}

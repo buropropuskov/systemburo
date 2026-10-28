@@ -25,19 +25,22 @@ export function createTourStatus() {
   const finishedTours = ref([]);
   const loaded = ref(false);
   let promise = null;
+  let generation = 0;
 
   async function load() {
     if (promise) return promise;
+    const current = generation;
     promise = (async () => {
       try {
         const data = await getOnboardingStatus();
+        if (current !== generation) return;
         completedByTour.value = { ...(data?.completed || {}) };
         finishedTours.value = Array.isArray(data?.finished) ? [...data.finished] : [];
         loaded.value = true;
       } catch {
-        loaded.value = false;
+        if (current === generation) loaded.value = false;
       } finally {
-        promise = null;
+        if (current === generation) promise = null;
       }
     })();
     return promise;
@@ -45,6 +48,7 @@ export function createTourStatus() {
 
   /** Смена пользователя: следующий подтянет свой статус. */
   function reset() {
+    generation++;
     completedByTour.value = {};
     finishedTours.value = [];
     loaded.value = false;

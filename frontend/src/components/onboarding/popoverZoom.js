@@ -36,10 +36,11 @@ export function createPopoverZoomFix({ requestRefresh } = {}) {
 
   function apply(wrapper) {
     const z = getViewportZoom();
-    if (z === 1 || !wrapper) return;
+    if (!wrapper) return;
     const next = {};
     let changed = false;
     for (const prop of INSETS) {
+      if (z === 1) break;
       const raw = wrapper.style[prop];
       // 'auto'/пусто не трогаем; значение, которое записали мы сами - тоже
       // (иначе поделим повторно и поповер уползёт вверх-влево).
@@ -49,7 +50,33 @@ export function createPopoverZoomFix({ requestRefresh } = {}) {
       next[prop] = `${Math.round(px / z)}px`;
       changed = true;
     }
-    if (!changed) return;
+    const bounds = () => {
+      if (!wrapper.classList.contains('ob-touch')) return null;
+      const style = getComputedStyle(wrapper);
+      const gutter = parseFloat(style.getPropertyValue('--ob-touch-gutter')) * z;
+      if (!(gutter > 0)) return null;
+      const viewport = window.visualViewport;
+      const left = (viewport?.offsetLeft || 0) + gutter, top = (viewport?.offsetTop || 0) + gutter;
+      const right = (viewport?.offsetLeft || 0) + (viewport?.width || innerWidth) - gutter;
+      const bottom = (viewport?.offsetTop || 0) + (viewport?.height || innerHeight) - gutter;
+      const rect = wrapper.getBoundingClientRect();
+      if (!(rect.width > 0 && rect.height > 0)) return null;
+      const destination = (primary, opposite, current) => {
+        const prop = Number.isFinite(parseFloat(wrapper.style[primary])) ? primary : opposite;
+        const raw = parseFloat(wrapper.style[prop]), displayed = parseFloat(style[prop]);
+        return Number.isFinite(raw) && Number.isFinite(displayed)
+          ? current + (raw - displayed) * z * (prop === primary ? 1 : -1) : current;
+      };
+      // A CSS transition can still show the old valid position after Driver has
+      // written an invalid destination; its final frame emits no style mutation.
+      const targetLeft = destination('left', 'right', rect.left);
+      const targetTop = destination('top', 'bottom', rect.top);
+      const x = Math.max(left, Math.min(targetLeft, right - rect.width));
+      const y = Math.max(top, Math.min(targetTop, bottom - rect.height));
+      return { x: x - targetLeft, y: y - targetTop };
+    };
+    const outside = bounds();
+    if (!changed && (!outside || (Math.abs(outside.x) < .5 && Math.abs(outside.y) < .5))) return;
     applyingZoomFix = true;
     // Коррекция масштаба - не переезд к новому шагу, а поправка той же позиции.
     // С анимацией она читалась бы как «поповер доезжает» после каждого шага,
@@ -58,6 +85,18 @@ export function createPopoverZoomFix({ requestRefresh } = {}) {
     for (const prop of Object.keys(next)) {
       wrapper.style[prop] = next[prop];
       zoomFixLast[prop] = next[prop];
+    }
+    // Keep viewport correction in the same geometry owner as zoom correction.
+    // Re-read after removing the CSS transition; an interpolated rectangle is not
+    // the final position written by Driver.
+    const delta = bounds();
+    for (const [primary, opposite, offset] of [['left', 'right', delta?.x], ['top', 'bottom', delta?.y]]) {
+      if (!Number.isFinite(offset) || Math.abs(offset) < .5) continue;
+      const prop = Number.isFinite(parseFloat(wrapper.style[primary])) ? primary : opposite;
+      const value = parseFloat(wrapper.style[prop]);
+      if (!Number.isFinite(value)) continue;
+      wrapper.style[prop] = `${value + (prop === primary ? offset : -offset) / z}px`;
+      zoomFixLast[prop] = wrapper.style[prop];
     }
     schedule(() => wrapper.classList.remove('ob-popover--instant'));
     applyingZoomFix = false;

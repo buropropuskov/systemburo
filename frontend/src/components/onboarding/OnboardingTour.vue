@@ -6,7 +6,8 @@ import { useUiStore } from '@/stores/ui';
 import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
 import { collectSegment } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
-import { createStepPreparation } from '@/components/onboarding/stepPreparation';
+import { createStepPreparation, waitSelectorOf } from '@/components/onboarding/stepPreparation';
+import { createStepSetReconciliation } from '@/components/onboarding/stepSetReconciliation';
 import { createTourGeometryBinding } from '@/components/onboarding/tourGeometryBinding';
 import { createTourLayerGuard } from '@/components/onboarding/tourLayerGuard';
 import { createTourRecoveryHost } from '@/components/onboarding/tourRecoveryHost';
@@ -88,6 +89,13 @@ const recovery = createTourRecoveryHost({
   stop: () => { technicalStop = true; store.stop(); },
 });
 
+const stepSet = createStepSetReconciliation({ store, recovery,
+  isBlocked: () => layerGuard.isBlocked(),
+  // Invalidate the old Driver before cancel's busy=false callback can sync it.
+  cancel: () => { routeRequest++; driverGen++; transitions.cancel(); },
+  cancelPendingRoute: () => router.push(route.path),
+});
+
 const layerGuard = createTourLayerGuard((blocked) => {
   if (!store.isActive) return;
   if (blocked) {
@@ -102,6 +110,7 @@ const layerGuard = createTourLayerGuard((blocked) => {
     layerGuard.preserveGlobalFocus(() => previous?.destroy());
   } else {
     keys.attach();
+    if (stepSet.resumeDeferred()) return;
     // Preparation may already have changed the demo/reveal before cancellation.
     // Rebuild this same step so its UI and anchor share one current context.
     if (recovery.hasFailure()) recovery.show();
@@ -128,19 +137,6 @@ function applyDemoAttachment(globalIndex) {
   return changed;
 }
 
-/**
- * Что ждём перед показом шага. По умолчанию - сам подсвечиваемый элемент, но шаг
- * может задать `waitFor` отдельно: у формы заявки один и тот же узел обслуживает
- * оба бланка, и ждать «форму вообще» мало - иначе тур подсвечивает её, пока в ней
- * ещё прежний бланк (шаг «Сотрудники» показывал форму автомобилей).
- *
- * @param {{ element?: string|null, waitFor?: string }} step
- * @returns {string}
- */
-function waitSelectorOf(step) {
-  return step?.waitFor || step?.element;
-}
-
 // Общая подготовка шага; контракт и ожидания описаны в stepPreparation.
 const prepareStep = createStepPreparation({
   store, watchers, applyDemoAttachment,
@@ -153,6 +149,7 @@ const startSegment = () => transitions.run(startSegmentInner, { replace: true,
   intent: { tourKey: store.activeTourKey, stepId: store.steps[store.currentIndex]?.id, direction: 'segment' } });
 
 async function startSegmentInner(operation) {
+  if (!await stepSet.ensure(operation)) return;
   const myGen = ++driverGen;
   // Продолжение может начинаться с другой страницы. Индекс сохраняем: это
   // не «следующий сегмент», который advanceSegment искал бы от текущего шага.
@@ -282,6 +279,7 @@ function advanceToSegment(targetRoute) {
 }
 
 function pushTourRoute(targetRoute) {
+  if (!stepSet.isKnown()) return stepSet.failUnknown();
   const request = ++routeRequest;
   const gen = driverGen;
   const failed = () => {
@@ -356,6 +354,7 @@ function retreatToSegment(targetIndex, targetRoute) {
 }
 
 function finishTour() {
+  if (!stepSet.isKnown()) return stepSet.failUnknown();
   driverObj?.obCancel?.();
   // Дошли до финала. Кнопка «Готово» и крестик приводят в один и тот же destroy,
   // поэтому исход помечаем флагом ДО него - иначе handleDestroyed не отличит
@@ -493,6 +492,7 @@ watch(() => route.path, maybeAutostart);
 onMounted(maybeAutostart);
 
 onBeforeUnmount(() => {
+  stepSet.dispose();
   removeAfterEach();
   teardown();
   recovery.reset();

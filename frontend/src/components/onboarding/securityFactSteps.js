@@ -6,38 +6,28 @@
  * Поля шага - общие для всех туров, полный список в JSDoc `onboardingSteps.js`.
  */
 
-/**
- * Выбрать route фактовой таблицы для сегмента отметки въезда/выезда из списка
- * системных таблиц (тот же `/system-tables`, что NavMenu показывает в дропдауне
- * «Таблицы»). Форма элемента - `{ table: {...} }` (как отдаёт GetAll) либо плоская.
- *
- * Подходит ЛЮБАЯ активная фактовая таблица, а не только машинная: на посту, где
- * заведена одна таблица людей, прежний отбор по `table_type === 'cars'` не находил
- * ничего, и весь сегмент отметки молча пропадал из тура. Машины остаются в
- * приоритете - это основной сценарий поста, и кнопки «Въезд»/«Выезд» есть только у
- * них; тексты шагов сегмента написаны нейтрально к типу таблицы, а шаги самих
- * кнопок помечены `optional` и на таблице людей пропускаются.
- *
- * `canView` отсеивает таблицы, которые пользователю не открыть: роут
- * `/table/:tableName` гейтится правом `table.<name>.view`, и без отсева сегмент мог
- * указать на чужую таблицу, с которой роут-гард сразу уводит. Без предиката отбор
- * идёт только по составу таблиц - как раньше.
- *
- * @param {Array<object>} systemTables ответ GET /system-tables
- * @param {(name: string) => boolean} [canView] доступна ли таблица пользователю
- * @returns {string|null} `/table/<name>` или null, если подходящей таблицы нет
+/** A permitted post and its optional Fact block are different capabilities.
+ * The caller must establish that permissions and the table response are known.
+ * Wrapped and flat /system-tables entries have the same selection policy.
  */
-export function resolveFactTableRoute(systemTables, canView) {
+export function resolveSecurityPostContext(systemTables, canView) {
   if (!Array.isArray(systemTables)) return null;
   let otherType = null;
   for (const item of systemTables) {
     const t = item?.table || item;
-    if (!t || !t.is_active || !t.show_fact_table || !t.name) continue;
+    if (!t || !t.is_active || !t.name) continue;
     if (typeof canView === 'function' && !canView(t.name)) continue;
-    if (t.table_type === 'cars') return `/table/${t.name}`;
-    if (!otherType) otherType = `/table/${t.name}`;
+    const context = { route: `/table/${t.name}`, tableType: t.table_type,
+      showFactTable: t.show_fact_table === true };
+    if (t.table_type === 'cars') return context;
+    if (!otherType) otherType = context;
   }
   return otherType;
+}
+
+/** Legacy route-only consumer; ordinary passage marks do not require the Fact flag. */
+export function resolveFactTableRoute(systemTables, canView) {
+  return resolveSecurityPostContext(systemTables, canView)?.route || null;
 }
 
 /**
@@ -47,36 +37,49 @@ export function resolveFactTableRoute(systemTables, canView) {
  * добавляется в хвост `steps` стора только когда route резолвится - индексы
  * ранних шагов он не сдвигает.
  *
- * Первый шаг помечен `optionalSegment`: если у охранника пока нет доступа к
- * `/table/:name` (роут-гард редиректит), хост штатно завершает тур на границе
- * сегмента, а не висит на недостижимой странице. Когда доступ выдан -
- * навигация проходит, и шаги подсвечивают реальную таблицу. Шаги строки/кнопок
- * `optional`: на пустой фактовой таблице (строк нет) они пропускаются, а кнопок
- * «Въезд»/«Выезд» нет вовсе, когда таблица про людей.
+ * Готовность и права устанавливаются до сборки. Редирект/сбой навигации ведёт
+ * в восстановление, не к успешному завершению. optionalSegment — прежняя
+ * метка формата, хост больше не использует её для автоматического пропуска.
+ * Строки и практические кнопки optional; обязательное объяснение Fact остаётся
+ * и на пустом посту, и при отсутствии доступного живого блока.
  *
  * Шаг отчёта тоже `optional`, а не `requires`: кнопка гейтится правом
  * `table.<имя таблицы>.report`, то есть ключ у каждой таблицы свой и статическим
  * `requires` не выражается.
  *
  * @param {string|null} route `/table/<name>` целевой фактовой таблицы
- * @returns {Array<object>} шаги сегмента (пустой массив при отсутствии route)
+ * @returns {Array<object>} обычный пост и обязательное объяснение Fact
  */
-export function buildSecurityFactSteps(route) {
-  if (!route) return [];
-  return [
+export function buildSecurityFactSteps(route, post) {
+  // Only the legacy route-only call implies cars; an unknown descriptor does not.
+  const tableType = post ? post.tableType : 'cars';
+  const showFactTable = post ? post.showFactTable === true : true;
+  const liveFact = Boolean(route) && tableType === 'cars' && showFactTable;
+  const factIntro = {
+    id: 'sec-fact-intro',
+    route: liveFact ? route : FINAL_ROUTE,
+    element: liveFact ? '[data-testid="fact-table"]' : null,
+    ...(liveFact ? { dataOwner: 'fact-list' } : { section: 'fact-example', sectionTitle: 'По факту' }),
+    demo: 'factTable',
+    scrollTo: 'start',
+    title: 'Если номер машины заранее неизвестен — «По факту»',
+    description: 'Список «по факту» нужен, когда заявка есть, а номер машины заранее указать не могли. При въезде вводят формат и номер Т/С; марку можно не указывать.'
+      + (liveFact ? '' : ' Здесь показан учебный пример: он не меняет данные и не открывает недоступную таблицу.'),
+  };
+  if (!route || !['cars', 'people'].includes(tableType)) return [factIntro];
+  const steps = [
     {
       id: 'sec-table-instruction',
       route,
       element: '[data-testid="ob-table-instruction"]',
       optional: true,
-      // Первый шаг сегмента несёт признак недостижимости: если роут таблицы
-      // закрыт гардом, хост перепрыгивает весь сегмент к финалу.
+      // Сохранённая legacy-метка; отказ маршрута теперь обрабатывает recovery.
       optionalSegment: true,
       side: 'bottom',
       align: 'start',
       title: 'Кнопки таблицы',
       description:
-        'Мы в таблице поста. «Инструкция» - порядок работы именно с этой таблицей: что проверять и кого пропускать. Рядом «Добавить вручную» - запись без заявки, «Экспорт» - выгрузка списка в файл, «Отчёт» - итоги за сутки, «Обновить» - перечитать список. Над таблицей есть отборы по организации, компании и месту разгрузки.',
+        'Мы в таблице поста. «Инструкция» объясняет порядок работы именно с этим постом. Доступные действия включают ручное добавление, экспорт и отчёт за сутки; на узком экране часть кнопок находится в меню «⋯». «Обновить» перечитывает список. Отборы по организации, компании и месту разгрузки находятся над списком или в окне «Фильтры».',
     },
     {
       id: 'sec-pass-intro',
@@ -135,20 +138,11 @@ export function buildSecurityFactSteps(route) {
       description:
         'Счётчик показывает, сколько машин заехало и ещё не выехало. Он меняется сам, как только вы отмечаете въезд или выезд.',
     },
-    {
-      id: 'sec-fact-intro',
-      dataOwner: 'fact-list',
-      route,
-      element: '[data-testid="fact-table"]',
-      optional: true,
-      scrollTo: 'start',
-      title: 'Приехали по заявке, номер заранее не знали',
-      description:
-        'Список «по факту» - для случая, когда заявка есть, а номер машины в ней указать не могли: заявитель узнаёт его в последний момент. Вы пропускаете и вносите номер на месте - система спросит формат и номер Т/С, марку можно не указывать.',
-    },
+    ...(liveFact ? [factIntro] : []),
     {
       id: 'sec-fact-report',
       route,
+      reveal: { open: 'table-actions' },
       element: '[data-testid="pass-report-button"]',
       optional: true,
       side: 'bottom',
@@ -170,6 +164,24 @@ export function buildSecurityFactSteps(route) {
         'Сколько заехало и выехало за отчётные сутки. Если отмечал не один человек, видно, кто сколько отметил; «Показать прошлые дни» открывает прошедшие сутки, а «Скачать в Excel» сохраняет отчёт файлом.',
     },
   ];
+  if (tableType === 'people') {
+    const selectors = {
+      'sec-pass-intro': '[data-testid="people-table"]',
+      'sec-pass-row': '[data-testid="people-table"] .items-body .rt-row',
+      'sec-pass-entry': '[data-testid="people-table"] .items-body [data-label="Вход"] button',
+      'sec-pass-exit': '[data-testid="people-table"] .items-body [data-label="Выход"] button',
+    };
+    for (const step of steps) if (selectors[step.id]) step.element = selectors[step.id];
+    steps.find(step => step.id === 'sec-pass-intro').description = 'Люди из согласованных заявок, которым разрешён проход на ваш пост. В этом списке отмечают вход и выход.';
+    const entry = steps.find(step => step.id === 'sec-pass-entry');
+    entry.title = 'Отметка входа';
+    entry.description = 'Кнопкой «Вход» отмечают проход человека. При ошибке в течение пятнадцати минут доступна отмена с указанием причины; позже отметку исправляет администратор.';
+    const exit = steps.find(step => step.id === 'sec-pass-exit');
+    exit.title = 'Отметка выхода';
+    exit.description = 'После входа кнопкой «Выход» отмечают, что человек покинул территорию.';
+  }
+  const result = tableType === 'people' ? steps.filter(step => step.id !== 'sec-on-territory') : steps;
+  return liveFact ? result : [...result, factIntro];
 }
 
 /** Route раздела «Доступные мне» - всегда достижим охранником (canViewAccessibleAttachments). */
@@ -201,6 +213,6 @@ export function buildSecurityFinalStep() {
     celebrate: true,
     title: 'Готово!',
     description:
-      'Вы освоились: смотрите согласованные бланки в разделе «Доступные мне», отмечаете въезд и выезд в таблице поста и в любой момент можете свериться с отчётом за сутки. Пройти обучение заново можно кнопкой «Обучение» вот здесь.',
+      'Вернулись на «Обзор и новости». Чтобы повторить объяснения, откройте этот тур кнопкой «Обучение».',
   };
 }

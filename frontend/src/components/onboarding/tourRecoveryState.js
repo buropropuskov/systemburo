@@ -3,13 +3,16 @@ export function createTourRecoveryState({ getSteps, restore, present, resume, st
   let committed = null, intended = null, failure = null, showing = false, epoch = 0, interrupted = false;
   function reset() { epoch++; committed = null; intended = null; failure = null; showing = false; interrupted = false; }
   function commit(stepId) { epoch++; committed = stepId; failure = null; showing = false; }
-  function prepare(stepId) { intended = stepId; showing = false; }
+  function prepare(stepId) {
+    epoch++; intended = stepId; showing = false;
+    if (failure) failure = { ...failure, stepId };
+  }
   function show() {
     if (!failure) return;
     showing = true;
     present({
       retry: () => resume(failure.stepId),
-      back: committed ? () => resume(committed) : undefined,
+      back: committed && getSteps().some(step => step.id === committed) ? () => resume(committed) : undefined,
       close: () => stop(committed),
     });
   }

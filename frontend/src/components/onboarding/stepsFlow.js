@@ -38,11 +38,14 @@ export function sectionTitleFor(route) {
 export function groupStepsBySection(steps, skipped = []) {
   const dropped = skipped instanceof Set ? skipped : new Set(skipped);
   const groups = [];
+  let previousKey;
   steps.forEach((step, index) => {
     if (dropped.has(index)) return;
     const last = groups[groups.length - 1];
-    if (last && last.route === step.route) last.items.push({ index, title: step.title });
-    else groups.push({ route: step.route, title: sectionTitleFor(step.route), items: [{ index, title: step.title }] });
+    const key = step.section || step.route;
+    if (last && previousKey === key) last.items.push({ index, title: step.title });
+    else groups.push({ route: step.route, title: step.sectionTitle || sectionTitleFor(step.route), items: [{ index, title: step.title }] });
+    previousKey = key;
   });
   return groups;
 }
@@ -96,10 +99,13 @@ export function indexAfterRoute(steps, fromIndex, route) {
  */
 export function tourChapters(steps) {
   const chapters = [];
+  let previousKey;
   (steps || []).forEach((step, index) => {
     const last = chapters[chapters.length - 1];
-    if (last && last.route === step.route) last.end = index;
-    else chapters.push({ route: step.route, title: sectionTitleFor(step.route), start: index, end: index });
+    const key = step.section || step.route;
+    if (last && previousKey === key) last.end = index;
+    else chapters.push({ route: step.route, title: step.sectionTitle || sectionTitleFor(step.route), start: index, end: index });
+    previousKey = key;
   });
   return chapters;
 }

@@ -61,4 +61,37 @@ describe('recovery preserves intended and committed step identities', () => {
     const another = f.state.fail({}); f.state.reset(); await another;
     expect(f.calls).toEqual([['restore', null], ['restore', null]]);
   });
+
+  it('invalidates delayed failure presentation only when a new target is prepared', async () => {
+    const f = fixture();
+    let release;
+    f.restore.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    f.state.commit('shown'); f.state.prepare('target');
+    const pending = f.state.fail({ stepId: 'target' });
+    f.state.prepare('shown');
+    release(); await pending;
+    expect(f.controls()).toBeUndefined();
+    expect(f.state.hasFailure()).toBe(true);
+    f.state.show(); f.controls().retry(); f.controls().back();
+    expect(f.resume.mock.calls).toEqual([['shown'], ['shown']]);
+  });
+
+  it('keeps the last rendered identity separate from a newly prepared target', async () => {
+    const f = fixture(); f.state.commit('shown'); f.state.prepare('target');
+    await f.state.fail({ stepId: 'target' });
+    f.state.prepare('replacement'); f.state.show();
+    f.controls().retry(); f.controls().back();
+    expect(f.resume.mock.calls).toEqual([['replacement'], ['shown']]);
+  });
+
+  it('offers no unreachable Back after the committed step loses access', async () => {
+    let steps = [{ id: 'cars' }, { id: 'employees' }], controls;
+    const resume = vi.fn(), stop = vi.fn();
+    const state = createTourRecoveryState({ getSteps: () => steps, restore: async () => {},
+      present: value => { controls = value; }, resume, stop });
+    state.commit('cars'); steps = [{ id: 'employees' }]; state.prepare('employees');
+    await state.fail({ stepId: 'employees' });
+    expect(controls.back).toBeUndefined(); controls.retry();
+    expect(resume).toHaveBeenCalledWith('employees'); expect(stop).not.toHaveBeenCalled();
+  });
 });

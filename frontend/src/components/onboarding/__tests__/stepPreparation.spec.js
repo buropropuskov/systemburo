@@ -12,7 +12,7 @@ function box(id, parent = document.body, className = '') {
   return element;
 }
 
-function prepare(step, prepareTarget) {
+function prepare(step, prepareTarget, options = {}) {
   const controller = new AbortController();
   const ensureInView = vi.fn(async () => {});
   const execute = createStepPreparation({
@@ -22,7 +22,7 @@ function prepare(step, prepareTarget) {
     waitForElement, ensureInView, demoFallback: 'demo',
     ...(prepareTarget ? { prepareTarget } : {}),
   });
-  const pending = execute(0, { signal: controller.signal, isCurrent: () => !controller.signal.aborted });
+  const pending = execute(0, { signal: controller.signal, isCurrent: () => !controller.signal.aborted }, options);
   return { pending, controller, ensureInView };
 }
 
@@ -30,6 +30,38 @@ beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-01-15T12:
 afterEach(() => { document.body.replaceChildren(); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('step preparation uses the visible target readiness scope', () => {
+  it.each([false, true])('blocks a missing mandatory anchor after its deadline (initial=%s)', async initial => {
+    const run = prepare({ id: 'required', element: '#missing' }, undefined, { initial });
+    const result = expect(run.pending).rejects.toMatchObject({ stepId: 'required', reason: 'missing-target' });
+    await vi.advanceTimersByTimeAsync(10000); await result;
+    expect(run.ensureInView).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps an intentional description-only step without a target deadline', async () => {
+    const run = prepare({ id: 'description', element: null }, undefined, { initial: true });
+    await expect(run.pending).resolves.toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('uses only an explicit demo when its anchor is missing', async () => {
+    const run = prepare({ id: 'example', element: '#missing', demo: 'application' });
+    await vi.advanceTimersByTimeAsync(10000);
+    await expect(run.pending).resolves.toBe('demo');
+  });
+
+  it('skips a missing optional continuation without treating it as shown', async () => {
+    const run = prepare({ id: 'optional', element: '#missing', optional: true });
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(run.pending).resolves.toBe(false);
+  });
+
+  it('blocks an initial optional anchor rather than letting the host show an unanchored step', async () => {
+    const run = prepare({ id: 'optional-first', element: '#missing', optional: true }, undefined, { initial: true });
+    const result = expect(run.pending).rejects.toMatchObject({ reason: 'missing-target' });
+    await vi.advanceTimersByTimeAsync(10000); await result;
+  });
+
   it('rejects a target removed during scroll preparation', async () => {
     const target = box('target');
     const run = prepare({ id: 'scroll-target', element: '#target' }, async () => { target.remove(); return null; });

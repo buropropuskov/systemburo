@@ -3,6 +3,9 @@ import { waitForPageSettled } from './pageSettled';
 import { findTourTarget, isTourTargetVisible } from './targetResolver';
 import { readStepOwner, waitForStepOwner } from './ownerReadiness';
 
+/** A form may keep the same semantic target while its requested blank changes. */
+export function waitSelectorOf(step) { return step?.waitFor || step?.element; }
+
 function blocked(step, reason) {
   return Object.assign(new Error('Learning step is not ready'), { stepId: step?.id, reason });
 }
@@ -96,7 +99,8 @@ export function createStepPreparation({
       }
       return true;
     }
-    if (step.demo || initial) return demoFallback;
-    return step.optional ? false : true;
+    if (step.demo) return demoFallback;
+    if (step.optional && !initial) return false;
+    throw blocked(step, 'missing-target');
   };
 }

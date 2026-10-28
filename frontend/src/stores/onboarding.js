@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { usePermissionsStore } from '@/stores/permissions';
 import { usePDConsentStore } from '@/stores/pdConsent';
 import {
   getTour,
-  buildTourSteps,
   availableTours as availableToursFor,
   pickAutostartTour as pickAutostartTourFrom,
 } from '@/components/onboarding/tours';
@@ -14,6 +13,9 @@ import { createGatingData } from '@/components/onboarding/gatingData';
 import { syncDemoBackend } from '@/components/onboarding/demoBackend';
 import { createProgressTracker } from '@/components/onboarding/tourProgress';
 import { createTourStatus } from '@/components/onboarding/tourStatus';
+import { createActiveStepSet, applicableTourSteps } from '@/components/onboarding/activeStepSet';
+import { readTourContext } from '@/components/onboarding/tourContext';
+import { createContextReadiness, factPolicyKey } from '@/components/onboarding/contextReadiness';
 
 /**
  * Стор онбординг-туров. Держит ГЛОБАЛЬНЫЙ индекс активного шага по всему набору
@@ -28,10 +30,12 @@ import { createTourStatus } from '@/components/onboarding/tourStatus';
 export const useOnboardingStore = defineStore('onboarding', () => {
   const isActive = ref(false);
   const currentIndex = ref(0);
+  const currentStepId = ref(null);
   // Ключ активного тура: он же уходит в markCompleted и определяет набор шагов.
   const activeTourKey = ref(null);
   // Авто-запуск ставит флаг завершения даже при пропуске, ручной — нет.
   const isManual = ref(false);
+  const partialRun = ref(false);
   // Тур переходит между страницами: на границе сегмента driver уничтожается,
   // выполняется router.push, и pendingSegment сигналит хосту подхватить
   // следующий сегмент после навигации (router.afterEach).
@@ -85,44 +89,32 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   // Роль в согласовании, маршрут фактовой таблицы и наличие своей заявки живут в
   // gatingData.js: от них зависит СОСТАВ тура, поэтому они резолвятся до старта.
+  const gating = createGatingData({ factPolicyKey: () => factPolicyKey(usePermissionsStore()) });
   const {
     approvalRole, approvalRoleLoaded, factTableRoute, hasOwnApplication,
     ensureApprovalRole, ensureFactRoute, ensureOwnApplication, reset: resetGatingData,
-  } = createGatingData();
+    factRouteLoaded, ownApplicationLoaded, securityPostContext,
+  } = gating;
+  const contextReady = createContextReadiness({ auth: useAuthStore(), permissions: usePermissionsStore(),
+    data: gating, getContext: () => tourContext.value });
+  const { ensureSelectionContext, prepareTour } = contextReady;
 
   /**
    * Плоский снимок прав и ролей для гейтинга туров - реестр работает с ним, а не
    * с Pinia напрямую, поэтому правила доступности проверяются как чистые функции.
    */
-  const tourContext = computed(() => {
-    const auth = useAuthStore();
-    const permissions = usePermissionsStore();
-    return {
-      isAuthenticated: auth.isAuthenticated,
-      isSecurity: auth.isSecurity,
-      can: (key) => permissions.hasPermission(key),
-      approvalRole: approvalRole.value,
-      factTableRoute: factTableRoute.value,
-      hasOwnApplication: hasOwnApplication.value,
-    };
-  });
+  const tourContext = computed(() => readTourContext(useAuthStore(), usePermissionsStore(), {
+    approvalRole, factTableRoute, hasOwnApplication, securityPostContext,
+    userTypeCode: contextReady.knownType(), factRouteLoaded,
+  }));
 
   const activeTour = computed(() => (activeTourKey.value ? getTour(activeTourKey.value) : null));
+  const accessReady = computed(() => activeTourKey.value
+    ? contextReady.isReady(activeTourKey.value) : usePermissionsStore().loaded === true);
 
-  /**
-   * Шаги активного тура. Сегмент фактовой таблицы охранника добавляется в ХВОСТ
-   * (buildSteps), когда route резолвлен - так индексы ранних шагов не сдвигаются,
-   * даже если route доезжает уже после старта тура.
-   *
-   * Шаги с `requires` выбрасываются, если права нет - иначе человек упирался бы в
-   * ожидание цели. Фильтр здесь, а не в хосте: так шаг не попадает ни в навигацию,
-   * ни в счётчик «Шаг N из M».
-   */
-  const steps = computed(() => {
-    if (!activeTour.value) return [];
-    const permissions = usePermissionsStore();
-    return buildTourSteps(activeTour.value, tourContext.value)
-      .filter((s) => !s.requires || permissions.hasPermission(s.requires));
+  const { steps, revision: stepsRevision, capture: captureStepSet, reset: resetStepSet } = createActiveStepSet({
+    activeTour, tourContext, accessReady, isActive, currentIndex, currentStepId, skippedIndexes,
+    saveProgress: next => { if (!partialRun.value) progress.save(activeTourKey.value, currentIndex.value, true, next); },
   });
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
@@ -141,27 +133,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
 
 
-  /**
-   * Дождаться всего, из чего складывается гейтинг: прав, типа пользователя и роли
-   * в согласовании. Автозапуск выбирает тур ОДИН раз, поэтому на холодной загрузке
-   * без этого ожидания администратор получил бы тур заявителя - права ещё не
-   * приехали, и его сценарий не прошёл бы гейт. Все три вызова идемпотентны
-   * (кэш/in-flight), лишних запросов не добавляют.
-   */
+  /** Compatibility entry point; preparation now waits only for its operation. */
   async function ensureGatingContext() {
-    const auth = useAuthStore();
-    await Promise.all([
-      usePermissionsStore().fetchPermissions(),
-      auth.userTypeCode === null ? auth.loadUserTypeCode() : null,
-      ensureApprovalRole(),
-      // Сегмент фактовой таблицы добавляется в хвост шагов охраны, когда route
-      // резолвится. Если ждать этого уже во время тура, счётчик прыгает: «Шаг 1
-      // из 14» превращается в «из 20». Резолвим заранее, вместе с правами.
-      ensureFactRoute(),
-      // По той же причине, что и route фактовой таблицы: шаги про карточку
-      // заявки должны быть решены ДО старта, иначе счётчик тает на ходу.
-      ensureOwnApplication(),
-    ]);
+    const result = activeTourKey.value ? await prepareTour(activeTourKey.value) : await ensureSelectionContext();
+    return result.status === 'ready';
   }
 
   /**
@@ -201,26 +176,28 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    * @returns {boolean} стартовал ли тур
    */
 
-  function start({ tour, manual = false, restart = false } = {}) {
-    if (isActive.value) return false;
+  function start({ tour, manual = false, restart = false, fromStepId } = {}) {
+    if (isActive.value || contextReady.status(tour).status !== 'ready') return false;
     const entry = getTour(tour);
     if (!entry || !entry.steps.length) return false;
+    const requested = fromStepId === undefined ? null : applicableTourSteps(entry, tourContext.value).findIndex(step => step.id === fromStepId);
+    if (requested !== null && (!manual || requested < 0)) return false;
     activeTourKey.value = entry.key;
     isManual.value = manual;
+    partialRun.value = requested > 0;
     // Продолжаем с места, где человек остановился: обучение длинное, и начинать
     // заново после перерыва - значит бросить на середине. `restart` - явная просьба
     // из меню; досмотренный тур тоже начинаем с начала, продолжать в нём нечего, а
     // залежавшаяся запись уводила сразу на «Готово» (#2603). Клампим по ФАКТИЧЕСКОМУ
     // набору: часть шагов гейтится правами, и старая позиция ушла бы за последний шаг.
-    const saved = restart || hasFinished(entry.key) ? 0 : progress.resumeIndex(entry.key);
+    const saved = requested ?? (restart || hasFinished(entry.key) ? 0 : progress.resumeIndex(entry.key, steps.value));
     resumedFrom.value = Math.min(saved, Math.max(0, steps.value.length - 1));
     currentIndex.value = resumedFrom.value;
+    currentStepId.value = steps.value[currentIndex.value]?.id || null;
+    captureStepSet();
     skippedIndexes.value = [];
     isActive.value = true;
     syncDemoBackend(true, hasOwnApplication.value, entry.key);
-    // Фоновый резолв фактовой таблицы: не блокирует показ первого шага, сегмент
-    // отметки добавится в хвост, как только route приедет.
-    if (entry.key === 'guard') ensureFactRoute();
     return true;
   }
 
@@ -255,14 +232,15 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   function stop(finished = false) {
     // Закрыли осознанно - храним; после финала нет: stop идёт последним и вернул бы запись (#2600).
-    if (activeTourKey.value && !finished) progress.save(activeTourKey.value, currentIndex.value, false);
+    if (activeTourKey.value && !finished && !partialRun.value) progress.save(activeTourKey.value, currentIndex.value, false, steps.value);
     isActive.value = false;
     syncDemoBackend(false);
   }
 
   function setIndex(i) {
     currentIndex.value = i;
-    if (activeTourKey.value) progress.save(activeTourKey.value, i, true);
+    currentStepId.value = steps.value[i]?.id || null;
+    if (activeTourKey.value && !partialRun.value) progress.save(activeTourKey.value, i, true, steps.value);
   }
 
   /**
@@ -271,6 +249,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    */
   function advanceSegment() {
     currentIndex.value += 1;
+    currentStepId.value = steps.value[currentIndex.value]?.id || null;
     pendingSegment.value = true;
   }
 
@@ -282,6 +261,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    */
   function retreatSegment(index) {
     currentIndex.value = index;
+    currentStepId.value = steps.value[index]?.id || null;
     pendingSegment.value = true;
   }
 
@@ -310,7 +290,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    */
   function markCompleted(finished = false) {
     const tour = activeTour.value;
-    if (!tour) return;
+    if (!tour || partialRun.value) return;
     // Идемпотентно по паре (версия, признак финала): повторный вызов при том же
     // исходе не шлёт второй POST, а вот «закрыл на середине» -> «досмотрел»
     // пройти обязан, иначе отметка о полном прохождении не запишется никогда.
@@ -338,10 +318,14 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function reset() {
+    // Clear the owner before Driver teardown can attempt a completion write.
+    activeTourKey.value = null;
+    partialRun.value = false;
     isActive.value = false;
     currentIndex.value = 0;
+    currentStepId.value = null;
+    resetStepSet();
     skippedIndexes.value = [];
-    activeTourKey.value = null;
     pendingSegment.value = false;
     demoAttachmentType.value = null;
     revealOpen.value = null;
@@ -352,6 +336,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     syncDemoBackend(false);
   }
 
+  // Impersonation changes the actor without logout; token rotation does not.
+  watch(() => useAuthStore().userId ?? useAuthStore().username, reset, { flush: 'sync' });
+
   return {
     demoAttachmentType,
     setDemoAttachment,
@@ -359,6 +346,12 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     setRevealOpen,
     isActive,
     currentIndex,
+    currentStepId,
+    stepsRevision,
+    accessReady,
+    ensureSelectionContext,
+    prepareTour,
+    contextIdentity: contextReady.identity,
     skippedIndexes,
     markSkipped,
     activeTourKey,
@@ -370,12 +363,17 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     tourContext,
     canShowTour,
     isManual,
+    partialRun,
+    stepsForTour: key => contextReady.status(key).status === 'ready' ? applicableTourSteps(getTour(key), tourContext.value) : [],
     pendingSegment,
     completedByTour,
     statusLoaded,
     approvalRole,
     approvalRoleLoaded,
     factTableRoute,
+    factRouteLoaded,
+    securityPostContext,
+    ownApplicationLoaded,
     ensureApprovalRole,
     ensureGatingContext,
     ensureOwnApplication,
