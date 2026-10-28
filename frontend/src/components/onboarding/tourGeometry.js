@@ -13,6 +13,7 @@ export function createTourGeometry({
   scrollTarget = noop, applyShape = noop, correctPopover = noop, requestRetarget = noop,
   shouldScroll = () => false, onError = noop, restoreHighlight = noop,
   getPopover = () => getDriver()?.getState?.()?.popover?.wrapper || null,
+  beforeMeasure = () => true,
 } = {}) {
   let epoch = 0, active = null, disposed = false;
   const preparations = new Set();
@@ -74,6 +75,9 @@ export function createTourGeometry({
 
   function render(lease) {
     const frame = { target: lease.target, index: lease.index, stepId: lease.stepId, scope: lease.scope };
+    // A viewport change can hide a still-connected owner (desktop rail -> drawer).
+    // Let the host restore its owned reveal before measuring that offscreen target.
+    if (beforeMeasure(frame, lease.reasons) === false || !current(lease)) return;
     const candidate = resolveTarget(frame);
     if (!current(lease)) return;
     const visible = isTourTargetVisible(candidate);

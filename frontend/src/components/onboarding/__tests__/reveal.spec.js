@@ -340,6 +340,19 @@ describe('resolveReveal (чистая логика)', () => {
   });
 
   describe('restoreReveal - граница сегмента и teardown', () => {
+    it('renews ownership after desktop closes the drawer, preserving a later user claim', async () => {
+      const steps = [{ id: 'nav', route: '/news', reveal: { mobile: 'nav' } }];
+      setViewport(1024); await applyReveal(steps, 0);
+      expect(isNavDrawerOpen()).toBe(true);
+      setViewport(1440); drawer.set(false);
+      expect(isNavDrawerOpen()).toBe(false);
+      setViewport(1280); await applyReveal(steps, 0, { closeOthers: false });
+      expect(isNavDrawerOpen()).toBe(true);
+      restoreReveal(); expect(isNavDrawerOpen()).toBe(false);
+      await applyReveal(steps, 0, { closeOthers: false });
+      drawer.set(true);
+      restoreReveal(); expect(isNavDrawerOpen()).toBe(true);
+    });
     it('drawer, ранее открытый пользователем, не гасится', () => {
       setViewport(390);
       document.querySelector('[data-testid="ob-nav-rail"]').classList.add('nav-menu--mobile-open');
