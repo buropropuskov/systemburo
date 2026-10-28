@@ -23,11 +23,30 @@ const BUSY_SELECTOR = [
 const POLL_MS = 100;
 
 /** @returns {boolean} есть ли на странице видимый признак загрузки. */
-export function isPageBusy() {
-  if (typeof document === 'undefined') return false;
-  return [...document.querySelectorAll(BUSY_SELECTOR)].some((el) => {
+export function isPageBusy(scope = globalThis.document) {
+  scope = typeof scope === 'function' ? scope() : scope;
+  if (!scope?.querySelectorAll) return false;
+  const candidates = [...scope.querySelectorAll(BUSY_SELECTOR)];
+  if (scope.matches?.(BUSY_SELECTOR)) candidates.unshift(scope);
+  // An already mounted control may belong to an owner still fetching data.
+  // Do not treat unrelated sibling/page spinners as that owner's readiness.
+  for (let owner = scope.parentElement; owner; owner = owner.parentElement) {
+    if (owner.matches('[aria-busy="true"]')) candidates.push(owner);
+  }
+  return candidates.some((el) => {
     const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
+    if (!(r.width > 0 && r.height > 0)) return false;
+    // aria-hidden/inert affect interaction, not whether a loader is visibly busy.
+    const view = el.ownerDocument?.defaultView;
+    if (!view?.getComputedStyle) return false;
+    for (let node = el; node; node = node.parentElement) {
+      const style = view.getComputedStyle(node);
+      const opacity = style.opacity.trim();
+      if (node.hasAttribute('hidden') || style.display === 'none'
+        || style.visibility === 'hidden' || style.visibility === 'collapse'
+        || (opacity !== '' && Number(opacity) === 0)) return false;
+    }
+    return true;
   });
 }
 
@@ -37,11 +56,12 @@ export function isPageBusy() {
  *
  * @param {number} [timeout] потолок ожидания, мс
  * @param {AbortSignal} [signal]
+ * @param {Document|Element|(() => Document|Element)} [scope] область или её живой поиск
  * @returns {Promise<boolean>} true - страница успокоилась, false - отмена или потолок
  */
-export function waitForPageSettled(timeout = 5000, signal) {
+export function waitForPageSettled(timeout = 5000, signal, scope = globalThis.document) {
   if (signal?.aborted) return Promise.resolve(false);
-  if (!isPageBusy()) return Promise.resolve(true);
+  if (!isPageBusy(scope)) return Promise.resolve(true);
   return new Promise((resolve) => {
     const start = Date.now();
     let id = null;
@@ -60,7 +80,7 @@ export function waitForPageSettled(timeout = 5000, signal) {
       return;
     }
     id = setInterval(() => {
-      if (!isPageBusy()) stop(true);
+      if (!isPageBusy(scope)) stop(true);
       else if (Date.now() - start >= timeout) stop(false);
     }, POLL_MS);
   });

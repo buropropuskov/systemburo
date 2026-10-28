@@ -1,7 +1,7 @@
 import { applyReveal } from './reveal';
 import { waitForPageSettled } from './pageSettled';
+import { findTourTarget } from './targetResolver';
 
-// Existing timeout policy is unchanged; readiness is the next slice.
 const FIRST_TARGET_TIMEOUT = 4000;
 const REVEAL_TARGET_TIMEOUT = 9000;
 // Цель, приезжающая ДАННЫМИ уже открытого узла: девять секунд ей ни к чему - у
@@ -57,7 +57,8 @@ export function createStepPreparation({
     // (#1771). Шагу с `waitsData` даём 2,5 с - цель приезжает данными узла (#2584).
     // Полное ожидание - когда раскрывали узел, меняли бланк или шаг обязателен.
     // Сперва даём странице договорить с сервером - иначе состав зависит от сети.
-    await waitForPageSettled(PAGE_SETTLE_TIMEOUT, operation.signal);
+    const scope = () => findTourTarget(step.dataReady || step.waitFor || step.element) || document;
+    await waitForPageSettled(PAGE_SETTLE_TIMEOUT, operation.signal, scope);
     if (!operation.isCurrent()) return;
     // `dataReady` - узел, приезжающий с данными, внутри которого живёт цель: есть
     // он - цели ждать нечего. Иначе три неприменимых шага вешали тур на 8 с (#2590).
@@ -70,7 +71,8 @@ export function createStepPreparation({
     if (el) {
       // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
       // прокрученной от прошлого шага, и цель могла уехать за край экрана.
-      await ensureInView(step.element ? document.querySelector(step.element) : el, step.scrollTo, operation.signal);
+      const target = step.element === waitSelectorOf(step) ? el : findTourTarget(step.element);
+      await ensureInView(target, step.scrollTo, operation.signal);
       if (!operation.isCurrent()) return;
       return true;
     }

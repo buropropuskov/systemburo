@@ -2,6 +2,7 @@ import { createStepNavigation } from '@/components/onboarding/stepNavigation';
 import { driver } from 'driver.js';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
 import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
+import { findTourTarget } from '@/components/onboarding/targetResolver';
 import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
 import { useOnboardingStore } from '@/stores/onboarding';
@@ -214,7 +215,7 @@ export function useOnboarding() {
       // сняла бы класс с только что подсвеченного элемента.
       const active = activeEl
         || driverObj?.getActiveElement?.()
-        || (selector ? document.querySelector(selector) : null);
+        || (selector ? findTourTarget(selector) : null);
       if (!active) return;
       document.querySelectorAll('.driver-active-element, .ob-highlighted').forEach((el) => {
         if (el === active) return;
@@ -255,9 +256,8 @@ export function useOnboarding() {
       if (li === lastLocal && store.steps[startIndex + li + 1]) {
         popover.nextBtnText = 'Далее';
       }
-      return { element: s.element || undefined, popover };
+      return { element: s.element ? () => findTourTarget(s.element) : undefined, popover };
     }
-
     const driverSteps = stepsForSegment.map((s, li) => buildDriverStep(s, li));
 
     /**
@@ -359,7 +359,7 @@ export function useOnboarding() {
           // подсказка перепрыгивала его и обещала «Готово!» посреди тура.
           && !nextStep.reveal?.open
           && !nextStep.demoAttachment
-          && !document.querySelector(nextStep.element)
+          && !findTourTarget(nextStep.element)
         ) {
           nextIdx += 1;
           nextStep = store.steps[nextIdx];

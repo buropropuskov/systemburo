@@ -193,7 +193,17 @@ describe('createDriver - шаг без цели', () => {
 
     expect(mocks.state.moves).toEqual(['next']);
     const shown = mocks.state.config.steps[1];
-    expect(shown.element).toBe('[data-testid="ob-list"]');
+    const visible = document.createElement('div');
+    visible.dataset.testid = 'ob-list';
+    visible.getBoundingClientRect = () => ({ top: 0, left: 0, width: 80, height: 32 });
+    const hidden = visible.cloneNode(); hidden.style.display = 'none';
+    document.body.append(hidden, visible);
+    expect(shown.element()).toBe(visible);
+    visible.remove();
+    const replacement = visible.cloneNode();
+    replacement.getBoundingClientRect = visible.getBoundingClientRect;
+    document.body.append(replacement);
+    expect(shown.element()).toBe(replacement);
     expect(shown.popover.description).not.toContain('<img');
     expect(shown.popover.popoverClass).toBeUndefined();
   });
@@ -219,7 +229,8 @@ describe('createDriver - шаг без цели', () => {
     mocks.state.activeIndex = 0;
     await mocks.state.config.onNextClick();
 
-    expect(mocks.state.config.steps[1].element).toBe('[data-testid="ob-list"]');
+    expect(mocks.state.config.steps[1].element).toEqual(expect.any(Function));
+    expect(mocks.state.config.steps[1].element()).toBeNull();
     expect(mocks.state.config.steps[1].popover.description).not.toContain('<img');
   });
 

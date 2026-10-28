@@ -1,3 +1,5 @@
+import { findTourTarget, isTourTargetVisible } from './targetResolver';
+
 /**
  * Ожидание целей тура: появление узла и его показ на экране.
  *
@@ -18,16 +20,12 @@
  */
 export function waitForElement(selector, timeout = 2500, signal) {
   return new Promise((resolve) => {
-    const isVisible = (el) =>
-      el && (el.offsetParent !== null || el.getBoundingClientRect().width > 0);
-    // Готовность по СТАБИЛЬНОЙ высоте: элемент часто появляется пустым (скелетон/
-    // ещё не пришли данные) и дорастает. Если резолвить по факту появления,
-    // driver подсветит пустую рамку, а данные приедут уже под оверлеем. Поэтому
-    // ждём, пока высота перестанет меняться между опросами.
+    // Ждём стабильный прямоугольник, а не только высоту: раскрывающаяся панель
+    // может сохранять размер, но ещё двигаться по экрану.
     const measure = (el) => {
-      if (!isVisible(el)) return null;
-      const h = el.getBoundingClientRect().height;
-      return h > 0 ? h : null;
+      if (!isTourTargetVisible(el)) return null;
+      const { top, left, width, height } = el.getBoundingClientRect();
+      return [top, left, width, height];
     };
 
     if (signal?.aborted) {
@@ -37,7 +35,7 @@ export function waitForElement(selector, timeout = 2500, signal) {
 
     const start = Date.now();
     let prevEl = null;
-    let prevHeight = null;
+    let prevRect = null;
     const cleanup = () => {
       clearInterval(intervalId);
       signal?.removeEventListener('abort', onAbort);
@@ -47,20 +45,20 @@ export function waitForElement(selector, timeout = 2500, signal) {
       resolve(null);
     };
     const tick = () => {
-      const el = document.querySelector(selector);
-      const h = measure(el);
-      if (h !== null && el === prevEl && h === prevHeight) {
+      const el = findTourTarget(selector, { preferred: prevEl });
+      const rect = measure(el);
+      if (rect && el === prevEl && prevRect && rect.every((value, i) => Math.abs(value - prevRect[i]) < 0.5)) {
         cleanup();
         resolve(el);
         return;
       }
       prevEl = el;
-      prevHeight = h;
+      prevRect = rect;
       if (Date.now() - start >= timeout) {
         cleanup();
         // По таймауту отдаём элемент, если он хотя бы виден (пусть driver
         // подсветит как есть), иначе null - цель так и не появилась.
-        resolve(isVisible(el) ? el : null);
+        resolve(isTourTargetVisible(el) ? el : null);
       }
     };
     const intervalId = setInterval(tick, 120);
@@ -82,7 +80,7 @@ function наМесте(el) {
   if (r.height > window.innerHeight - margin * 2) {
     return r.top >= 0 && r.top <= window.innerHeight - 120;
   }
-  return r.top >= margin && r.bottom <= window.innerHeight - margin;
+  return r.top >= 0 && r.bottom <= window.innerHeight;
 }
 
 /**
