@@ -23,6 +23,7 @@ function targetTimeoutFor(step) {
 
 export function createStepPreparation({
   store, watchers, applyDemoAttachment, beforePrepare, waitSelectorOf, waitForElement, ensureInView, demoFallback,
+  prepareTarget = (element, block, operation) => ensureInView(element, block, operation.signal),
 }) {
   /**
    * Перед переходом на шаг готовим DOM: ставим демо-вложение и дожидаемся
@@ -41,7 +42,7 @@ export function createStepPreparation({
    * @returns {Promise<boolean|string>} false = пропустить шаг, STEP_DEMO_FALLBACK =
    *   показать без подсветки со скриншотом, true = вести шаг как обычно
    */
-  return async function prepareStep(globalIndex, operation) {
+  return async function prepareStep(globalIndex, operation, { initial = false } = {}) {
     if (!operation.isCurrent()) return;
     beforePrepare();
     // Тур уже двинулся - наблюдение прошлого шага снимаем сразу. Иначе оно
@@ -65,18 +66,18 @@ export function createStepPreparation({
     const ready = step.dataReady ? await waitForElement(step.dataReady, DATA_TARGET_TIMEOUT, operation.signal) : null;
     if (!operation.isCurrent()) return;
     const needsLongWait = revealed || attachmentChanged || !step.optional;
-    const timeout = needsLongWait ? targetTimeoutFor(step) : (ready ? 300 : (step.waitsData ? DATA_TARGET_TIMEOUT : 700));
+    const timeout = initial ? REVEAL_TARGET_TIMEOUT : (needsLongWait ? targetTimeoutFor(step) : (ready ? 300 : (step.waitsData ? DATA_TARGET_TIMEOUT : 700)));
     const el = await waitForElement(waitSelectorOf(step), timeout, operation.signal);
     if (!operation.isCurrent()) return;
     if (el) {
       // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
       // прокрученной от прошлого шага, и цель могла уехать за край экрана.
       const target = step.element === waitSelectorOf(step) ? el : findTourTarget(step.element);
-      await ensureInView(target, step.scrollTo, operation.signal);
+      await prepareTarget(target, step.scrollTo, operation);
       if (!operation.isCurrent()) return;
       return true;
     }
-    if (step.demo) return demoFallback;
+    if (step.demo || initial) return demoFallback;
     return step.optional ? false : true;
   };
 }

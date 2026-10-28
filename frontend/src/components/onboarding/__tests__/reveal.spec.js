@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPinia, setActivePinia } from 'pinia';
 import bus from '@/eventBus';
+import { createDrawerOwnership } from '@/utils/drawerOwnership';
 import {
   resolveReveal,
   applyReveal,
@@ -25,7 +26,7 @@ import { useOnboardingStore } from '@/stores/onboarding';
  */
 describe('reveal', () => {
   const originalWidth = window.innerWidth;
-  let navHandler;
+  let navHandler, navSetHandler, drawer;
 
   function setViewport(w) {
     window.innerWidth = w;
@@ -38,12 +39,23 @@ describe('reveal', () => {
     `;
     const nav = document.querySelector('[data-testid="ob-nav-rail"]');
     // Эмуляция NavMenu: $bus mobile-nav-toggle -> тоггл класса drawer.
-    navHandler = () => nav.classList.toggle('nav-menu--mobile-open');
+    drawer = createDrawerOwnership({ read: () => nav.classList.contains('nav-menu--mobile-open'),
+      write: open => nav.classList.toggle('nav-menu--mobile-open', open) });
+    navHandler = () => drawer.set(!isNavDrawerOpen());
+    navSetHandler = request => {
+      if (request.element !== nav) return;
+      request.handled = true;
+      if (request.restore) drawer.restore(request.token);
+      else drawer.claim(request.open, request.token, request.previousToken);
+    };
     bus.on('mobile-nav-toggle', navHandler);
+    bus.on('mobile-nav-set', navSetHandler);
   });
 
   afterEach(() => {
     bus.off('mobile-nav-toggle', navHandler);
+    bus.off('mobile-nav-set', navSetHandler);
+    drawer.dispose();
     document.body.innerHTML = '';
     window.innerWidth = originalWidth;
     vi.useRealTimers();
@@ -328,11 +340,32 @@ describe('resolveReveal (чистая логика)', () => {
   });
 
   describe('restoreReveal - граница сегмента и teardown', () => {
-    it('открытый drawer гасится', () => {
+    it('drawer, ранее открытый пользователем, не гасится', () => {
       setViewport(390);
       document.querySelector('[data-testid="ob-nav-rail"]').classList.add('nav-menu--mobile-open');
       restoreReveal();
-      expect(isNavDrawerOpen()).toBe(false);
+      expect(isNavDrawerOpen()).toBe(true);
+    });
+
+    it('возвращает drawer, открытый только туром, в закрытое состояние', async () => {
+      setViewport(390); vi.useFakeTimers();
+      const pending = applyReveal(securityOnboardingSteps, idxOf(securityOnboardingSteps, 'sec-nav-rail'));
+      await vi.advanceTimersByTimeAsync(300); await pending;
+      expect(isNavDrawerOpen()).toBe(true); restoreReveal(); expect(isNavDrawerOpen()).toBe(false);
+    });
+
+    it('восстанавливает ранее открытое меню после временного закрытия туром', async () => {
+      setViewport(390); bus.emit('mobile-nav-toggle');
+      await applyReveal([{ id: 'page', route: '/news' }], 0);
+      expect(isNavDrawerOpen()).toBe(false); restoreReveal(); expect(isNavDrawerOpen()).toBe(true);
+    });
+
+    it('не отменяет ручное закрытие и повторное открытие во время тура', async () => {
+      setViewport(390); vi.useFakeTimers();
+      const pending = applyReveal(securityOnboardingSteps, idxOf(securityOnboardingSteps, 'sec-nav-rail'));
+      await vi.advanceTimersByTimeAsync(300); await pending;
+      bus.emit('mobile-nav-toggle'); bus.emit('mobile-nav-toggle');
+      restoreReveal(); expect(isNavDrawerOpen()).toBe(true);
     });
 
     it('сигнал раскрытия узла гасится - владелец закроет за собой', async () => {

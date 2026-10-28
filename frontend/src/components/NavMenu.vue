@@ -617,6 +617,7 @@ import eventStream from '@/services/eventStream'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useEdgeSwipeOpen } from '@/composables/useEdgeSwipeOpen'
 import { useRailExpand } from '@/composables/useRailExpand'
+import { useMobileDrawer } from '@/composables/useMobileDrawer'
 import NavIcon from '@/components/icons/NavIcon.vue'
 import ThemeControls from '@/components/ui/ThemeControls.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
@@ -649,6 +650,7 @@ export default {
     const { isNarrow } = useNarrowScreen()
     // Разворот рельса: наведение, тап на планшете и пин - в одном месте.
     const rail = useRailExpand(instance)
+    const mobileDrawer = useMobileDrawer(instance)
     const drawerSwipe = useEdgeSwipeOpen(() => instance.proxy.openMobile(), {
       width: DRAWER_WIDTH,
       // Открытая модалка блокирует прокрутку фона инлайн-стилем - там свайп вправо
@@ -662,6 +664,7 @@ export default {
       swipeOffset: drawerSwipe.offset,
       swipeDragging: drawerSwipe.isDragging,
       ...rail,
+      ...mobileDrawer,
     }
   },
   data() {
@@ -868,8 +871,6 @@ export default {
     this.startApplicationsPolling();
     this.startTablesPolling();
 
-    // Слушаем событие от burger-кнопки в TheHeader
-    this.$bus.on('mobile-nav-toggle', this.toggleMobile);
     // Переход на рельс (>=1367) закрывает drawer: иначе он завис бы
     // панелью на широком экране, а drawer-кнопка feedback (тот же testid, что в
     // шапке) осталась бы в DOM рядом с вернувшейся шапочной - тур нашёл бы дубль.
@@ -906,7 +907,6 @@ export default {
     document.body.style.removeProperty('--nav-ml');
     this.stopApplicationsPolling();
 
-    this.$bus.off('mobile-nav-toggle', this.toggleMobile);
     if (this._desktopMql && this._onDesktopChange) {
       if (this._desktopMql.removeEventListener) {
         this._desktopMql.removeEventListener('change', this._onDesktopChange);
@@ -920,8 +920,6 @@ export default {
     if (this._docClickHandler) {
       document.removeEventListener('mousedown', this._docClickHandler);
     }
-    // Обязательно снимаем body lock если компонент unmount'нулся в открытом состоянии
-    document.body.classList.remove('nav-drawer-open');
   },
   methods: {
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
@@ -990,19 +988,6 @@ export default {
         ? '0px'
         : (this.uiStore.sidebarExpanded ? '124px' : '25px');
       document.body.style.setProperty('--nav-ml', width);
-    },
-    toggleMobile() {
-      if (this.mobileOpen) this.$refs.themeControls?.close();
-      this.mobileOpen = !this.mobileOpen;
-      // Блокируем scroll body когда drawer открыт
-      document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
-    },
-    // Открытие свайпом (W4.1): жест уже дотянул панель до порога, дальше её доводит
-    // обычная анимация - как если бы нажали бургер.
-    openMobile() {
-      if (this.mobileOpen) return;
-      this.mobileOpen = true;
-      document.body.classList.add('nav-drawer-open');
     },
     /**
      * Открыть форму обратной связи из drawer'а. Закрываем drawer и ЖДЁМ конца его

@@ -1,116 +1,55 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStepWatchers } from '../stepWatchers';
-
-let observers, watchers, driver, target;
-const step = { element: '#target', advanceWhen: '#opened' };
+let observers, watchers, driver, index, generation, busy;
+const step = { advanceWhen: '#opened' };
 beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
-  observers = [];
+  vi.useFakeTimers(); observers = []; index = 5; generation = 1; busy = false;
   vi.stubGlobal('MutationObserver', class {
     constructor(callback) { this.callback = callback; this.observe = vi.fn(); this.disconnect = vi.fn(); observers.push(this); }
   });
-  target = document.createElement('div'); target.id = 'target';
-  target.scrollIntoView = vi.fn();
-  target.getBoundingClientRect = () => ({ top: 2000, bottom: 2100, width: 100, height: 100 });
-  document.body.append(target);
-  driver = { obNext: vi.fn(), obRetarget: vi.fn(), refresh: vi.fn(), getActiveElement: () => target };
-  watchers = createStepWatchers({ getDriver: () => driver, getGen: () => 1, getStep: () => step, getIndex: () => 5 });
+  driver = { obNext: vi.fn() };
+  watchers = createStepWatchers({ getDriver: () => busy ? null : driver, getGen: () => generation,
+    getStep: () => step, getIndex: () => index });
 });
 afterEach(() => {
-  watchers.stopAll();
-  document.body.replaceChildren();
+  watchers.stopAll(); document.body.replaceChildren();
   vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers();
 });
-
 function opened() { const panel = document.createElement('div'); panel.id = 'opened'; document.body.append(panel); }
-function replaceTarget() {
-  const replacement = document.createElement('div'); replacement.id = 'target';
-  target.remove(); document.body.append(replacement);
-}
-
-describe('step watcher lifecycle ownership', () => {
-  it('disconnects all observers and clears initial timers on stop', () => {
-    watchers.watchStep(5);
-    expect(observers).toHaveLength(2);
-    expect(vi.getTimerCount()).toBe(2);
-    watchers.stopAll();
-    observers.forEach(observer => expect(observer.disconnect).toHaveBeenCalledTimes(1));
-    expect(vi.getTimerCount()).toBe(0);
+describe('advance watcher lifecycle ownership', () => {
+  it('owns one observer and no layout timers', () => {
+    watchers.watchStep(5); expect(observers).toHaveLength(1); expect(vi.getTimerCount()).toBe(0);
+    watchers.stopAll(); expect(observers[0].disconnect).toHaveBeenCalledTimes(1);
   });
-
-  it.each(['advance', 'retarget'])('a queued %s callback after stop cannot affect the current driver', kind => {
-    watchers.watchStep(5);
-    const queued = observers[kind === 'advance' ? 0 : 1].callback;
-    watchers.stopAll();
-    if (kind === 'advance') opened(); else replaceTarget();
-    queued();
-    expect(driver.obNext).not.toHaveBeenCalled();
-    expect(driver.obRetarget).not.toHaveBeenCalled();
+  it('a queued advance callback after stop cannot affect the driver', () => {
+    watchers.watchStep(5); const queued = observers[0].callback;
+    watchers.stopAll(); opened(); queued(); expect(driver.obNext).not.toHaveBeenCalled();
   });
-
-  it.each(['advance', 'retarget'])('an old queued %s cannot disconnect a new watcher of the same index', kind => {
-    watchers.watchStep(5);
-    const queued = observers[kind === 'advance' ? 0 : 1].callback;
-    watchers.watchStep(5);
-    const current = observers[kind === 'advance' ? 2 : 3];
-    if (kind === 'advance') opened(); else replaceTarget();
-    queued();
-    expect(current.disconnect).not.toHaveBeenCalled();
-    expect(driver.obNext).not.toHaveBeenCalled();
-    expect(driver.obRetarget).not.toHaveBeenCalled();
-    current.callback();
-    expect(kind === 'advance' ? driver.obNext : driver.obRetarget).toHaveBeenCalledTimes(1);
+  it('an old callback cannot consume a new watcher at the same index', () => {
+    watchers.watchStep(5); const queued = observers[0].callback;
+    watchers.watchStep(5); const current = observers[1]; opened(); queued();
+    expect(current.disconnect).not.toHaveBeenCalled(); expect(driver.obNext).not.toHaveBeenCalled();
+    current.callback(); expect(driver.obNext).toHaveBeenCalledTimes(1);
   });
-
-  it.each(['advance', 'retarget'])('a consumed %s observer ignores an already queued second callback', kind => {
-    watchers.watchStep(5);
-    const queued = observers[kind === 'advance' ? 0 : 1].callback;
-    if (kind === 'advance') opened(); else replaceTarget();
-    queued(); queued();
-    expect(kind === 'advance' ? driver.obNext : driver.obRetarget).toHaveBeenCalledTimes(1);
+  it('a consumed callback cannot advance twice', () => {
+    watchers.watchStep(5); const queued = observers[0].callback; opened(); queued(); queued();
+    expect(driver.obNext).toHaveBeenCalledTimes(1);
   });
-
-  it('a queued visibility callback cannot scroll after stop even with the same generation and index', () => {
-    const scheduled = vi.spyOn(globalThis, 'setTimeout');
-    watchers.watchStep(5);
-    const queued = scheduled.mock.calls.find(([, delay]) => delay === 350)[0];
-    watchers.stopAll(); queued();
-    expect(target.scrollIntoView).not.toHaveBeenCalled();
-    expect(driver.refresh).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(0);
+  it.each(['index', 'generation'])('ignores callbacks after a changed %s', changed => {
+    watchers.watchStep(5); opened(); if (changed === 'index') index = 6; else generation = 2;
+    observers[0].callback(); expect(driver.obNext).not.toHaveBeenCalled();
   });
-
-  it('stop clears the nested refresh scheduled by a visibility scroll', async () => {
-    watchers.watchStep(5);
-    await vi.advanceTimersByTimeAsync(350);
-    expect(target.scrollIntoView).toHaveBeenCalledTimes(1);
-    watchers.stopAll();
-    expect(vi.getTimerCount()).toBe(0);
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(driver.refresh).not.toHaveBeenCalled();
+  it('does not mistake an already present node for a fresh user action', () => {
+    opened(); watchers.watchStep(5); expect(observers).toHaveLength(0); expect(driver.obNext).not.toHaveBeenCalled();
   });
-
-  it('a captured nested refresh cannot run after a new watcher of the same index', async () => {
-    const scheduled = vi.spyOn(globalThis, 'setTimeout');
-    watchers.watchStep(5);
-    await vi.advanceTimersByTimeAsync(350);
-    const queued = scheduled.mock.calls.find(([, delay]) => delay === 400)[0];
-    watchers.watchStep(5);
-    queued();
-    expect(driver.refresh).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(2);
+  it('does not advance while B navigation owns preparation', () => {
+    watchers.watchStep(5); opened(); busy = true; observers[0].callback();
+    expect(driver.obNext).not.toHaveBeenCalled(); expect(observers[0].disconnect).not.toHaveBeenCalled();
+    busy = false; observers[0].callback(); expect(driver.obNext).toHaveBeenCalledTimes(1);
   });
-
-  it('a current visibility chain still scrolls then refreshes at the original delays', async () => {
-    watchers.watchStep(5);
-    await vi.advanceTimersByTimeAsync(349);
-    expect(target.scrollIntoView).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(target.scrollIntoView).toHaveBeenCalledWith({ block: 'center', inline: 'nearest' });
-    await vi.advanceTimersByTimeAsync(399);
-    expect(driver.refresh).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(driver.refresh).toHaveBeenCalledTimes(1);
+  it('needs neither an observer nor timers when the step has no advance condition', () => {
+    watchers.stopAll(); watchers = createStepWatchers({ getDriver: () => driver, getGen: () => 1,
+      getStep: () => ({}), getIndex: () => 5 });
+    watchers.watchStep(5); expect(observers).toHaveLength(0); expect(vi.getTimerCount()).toBe(0);
   });
 });

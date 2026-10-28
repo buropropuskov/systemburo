@@ -63,59 +63,20 @@ describe('пороги выреза', () => {
   });
 });
 
-describe('присмотр за целью перехода', () => {
-  beforeEach(() => {
-    window.innerHeight = 500;
+describe('pure stage shape configuration', () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+  it('updates shape without scrolling or scheduling timers', () => {
     vi.useFakeTimers();
-    document.body.innerHTML = '<div class="driver-popover"></div>';
+    const scroll = vi.fn();
+    const target = { getBoundingClientRect: () => ({ top: 120, bottom: 220, left: 20, right: 120, width: 100, height: 100 }), scrollIntoView: scroll };
+    const driver = { getConfig: () => ({ stagePadding: 0, stageRadius: 0, onNextClick: 'keep' }), setConfig: vi.fn() };
+    applyStageShape(driver, target);
+    expect(driver.setConfig).toHaveBeenCalledWith({ stagePadding: STAGE_PADDING, stageRadius: STAGE_RADIUS, onNextClick: 'keep' });
+    expect(scroll).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
   });
-  afterEach(() => {
-    vi.useRealTimers();
-    document.body.innerHTML = '';
-  });
-
-  /** Цель-заглушка: scrollIntoView ставит её по центру, как браузер. */
-  function цель(top) {
-    const state = { top };
-    return {
-      state,
-      isConnected: true,
-      getBoundingClientRect: () => ({ top: state.top, bottom: state.top + 100, height: 100 }),
-      scrollIntoView: () => { state.top = 200; },
-    };
-  }
-
-  const driverЗаглушка = { getConfig: () => ({ stagePadding: STAGE_PADDING, stageRadius: STAGE_RADIUS }), setConfig: () => {} };
-
-  it('цель, уехавшую во время перехода, возвращают до показа шага', () => {
-    const el = цель(120);
-    applyStageShape(driverЗаглушка, el);
-    // карточка доверсталась под переходом - цель ушла за край окна
-    el.state.top = 700;
-    vi.advanceTimersByTime(60);
-    expect(el.state.top).toBe(200);
-  });
-
-  it('новый переход снимает присмотр с прежней цели', () => {
-    const первая = цель(120);
-    applyStageShape(driverЗаглушка, первая);
-    applyStageShape(driverЗаглушка, цель(120));
-    первая.state.top = 700;
-    vi.advanceTimersByTime(200);
-    expect(первая.state.top).toBe(700);
-  });
-
-  it('без цели присмотра нет - центр-модалке нечего держать', () => {
-    expect(() => applyStageShape(driverЗаглушка, undefined)).not.toThrow();
-    vi.advanceTimersByTime(200);
-  });
-
-  it('закрытый тур цель больше не двигает', () => {
-    const el = цель(120);
-    applyStageShape(driverЗаглушка, el);
-    document.body.innerHTML = '';
-    el.state.top = 700;
-    vi.advanceTimersByTime(200);
-    expect(el.state.top).toBe(700);
+  it('does not rewrite an already correct shape and accepts a center modal', () => {
+    const driver = { getConfig: () => ({ stagePadding: STAGE_PADDING, stageRadius: STAGE_RADIUS }), setConfig: vi.fn() };
+    applyStageShape(driver, undefined); expect(driver.setConfig).not.toHaveBeenCalled();
+    expect(() => applyStageShape(null, undefined)).not.toThrow();
   });
 });

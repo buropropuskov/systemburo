@@ -1,3 +1,5 @@
+import { findTourTarget } from './targetResolver';
+
 /** Подготовка и commit шага выполняются под одним владельцем перехода. */
 export function createStepNavigation({
   driverObj, store, stepsForSegment, startIndex, lastLocal, navigate,
@@ -44,12 +46,10 @@ export function createStepNavigation({
         let target = localIndex - 1;
         while (target > 0 && skipped.has(startIndex + target)) target -= 1;
         const prev = stepsForSegment[target];
-        if (prev?.demo) {
-          setStepMode(target, !prev.element || !document.querySelector(prev.element));
-        }
-        if ((prev?.reveal?.open || prev?.demoAttachment) && onBeforeStep) {
-          await onBeforeStep(startIndex + target, operation);
+        if (onBeforeStep) {
+          const ready = await onBeforeStep(startIndex + target, operation);
           if (!operation.isCurrent() || store.steps[startIndex + target]?.id !== prev?.id) return;
+          setStepMode(target, ready === demoFallback || ready === false || (prev?.demo && !findTourTarget(prev.element)));
         }
         if (target === localIndex - 1) driverObj.movePrevious();
         else driverObj.moveTo(target);
