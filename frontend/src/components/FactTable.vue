@@ -7,13 +7,12 @@
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
     data-testid="fact-table"
+    data-ob-owner="fact-list"
+    :data-ob-state="onboardingListState"
+    @onboarding-retry.prevent="_loadData(true)"
   >
     <div class="card-header">
-      <div class="card-header__title">
-        <h3 class="card-title">
-          {{ tableType === 'cars' ? 'Автомобили' : 'Люди' }} <span class="highlight-text">по факту</span>
-        </h3>
-      </div>
+      <FactTableTitle :table-type="tableType" />
       <div class="card-header__settings">
         <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" @clock="passageNow = $event" />
         <RefreshButton
@@ -190,6 +189,7 @@
               :key="item.id"
               class="fact-item"
               data-testid="ob-fact-row"
+              :data-ob-row-key="item.id"
               :style="{ animationDelay: `${index * 0.1}s` }"
               @click="openItemDetails(item)"
             >
@@ -416,6 +416,8 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import FactPassModal from './FactPassModal.vue';
+import FactTableTitle from './FactTableTitle.vue';
+import { normalizeFactTableRows } from './factTableRows';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
 import { formatDateRu, passTimeMinutes } from '@/utils/datetime';
@@ -438,7 +440,8 @@ export default {
     LoaderSpinner,
     StatusBadge,
     VehicleDetailsModal,
-    FactPassModal
+    FactPassModal,
+    FactTableTitle
   },
   props: {
     tableType: { type: String, default: 'cars', validator: (v) => ['cars', 'people'].includes(v) },
@@ -470,6 +473,7 @@ export default {
       // собственный рефреш (по клику любой из трёх кнопок «Обновить» на экране), а
       // не факт того, что у ЭТОЙ таблицы ещё нет данных для первого показа.
       isLoading: false,
+      onboardingListState: 'loading',
       // Иконка «Обновить» крутится, пока ручное обновление в полёте (эталон CarsTable/
       // PeopleTable) - отдельно от isLoading, который держит только первый показ.
       refreshing: false,
@@ -663,6 +667,7 @@ export default {
     });
   },
   beforeUnmount() {
+    this.refreshSeq++;
     this.unbindWidthWatcher();
     this.stopPolling();
     if (this.eventStreamOff) {
@@ -785,6 +790,7 @@ export default {
     // спиннер - на тихих обновлениях (поллинг, SSE, чужая кнопка «Обновить») он не нужен.
     async _loadData(silent = false) {
       const seq = ++this.refreshSeq;
+      this.onboardingListState = 'loading';
       if (!silent) this.isLoading = true;
       try {
         await this.fetchUnloadingPlaces();
@@ -793,13 +799,16 @@ export default {
         // Только машины: строка "по факту" рождается тумблером в форме транспорта,
         // у сотрудников такого тумблера нет, поэтому и блока "по факту" у таблиц людей
         // не бывает - см. showFactTable в TablesComponent (#2019).
-        await this.fetchCarsData(seq);
+        const listState = await this.fetchCarsData(seq);
+        if (seq !== this.refreshSeq) return;
+        this.onboardingListState = listState;
         await this.fetchFactCarUnloadPlaces(seq);
         await this.fetchCarHistoryStatus(seq);
       } catch (error) {
+        if (seq === this.refreshSeq) this.onboardingListState = 'error';
         console.error(`Ошибка при загрузке данных по факту (${this.tableType}):`, error);
       } finally {
-        if (!silent) this.isLoading = false;
+        if (seq === this.refreshSeq) this.isLoading = false;
       }
     },
 
@@ -863,46 +872,18 @@ export default {
     },
 
     async fetchCarsData(seq) {
-      if (!this.tableId) return;
+      if (!this.tableId) return 'empty';
       try {
         const response = await apiRequest(`/cars/fact-for-table/${this.tableId}`, {});
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) return response.status === 403 ? 'forbidden' : 'error';
         const factCars = await response.json();
-        const nameToIdMap = {};
-        Object.keys(this.organizationsMap).forEach(id => {
-          nameToIdMap[this.organizationsMap[id]] = id;
-        });
-        const newData = factCars.map(car => {
-          const orgName = car.organization || '';
-          const orgId = nameToIdMap[orgName] || car.organization_id;
-          return {
-            id: car.id,
-            car_number: car.car_number || 'по факту',
-            car_brand: car.car_brand || '',
-            organization_id: orgId,
-            organization_name: orgName || 'Не указана',
-            company: car.company || null,
-            company_id: car.company_id,
-            unload_place: car.unload_place || '-',
-            unload_place_ids: car.unload_place_ids || [],
-            entry_date_to: car.entry_date_to || '',
-            entry_time_from: car.entry_time_from || '',
-            entry_time_to: car.entry_time_to || '',
-            status: 'В работе',
-            entry_checked: false,
-            exit_checked: false,
-            applicationId: car.application_id,
-            plateNumber: car.car_number,
-            mark: car.car_brand,
-            formatId: null,
-            unloadPlaces: car.unload_place_ids || [],
-            ...this.passageFields(car)
-          };
-        });
+        const newData = normalizeFactTableRows(factCars, this.organizationsMap, car => this.passageFields(car));
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
         this.factData = newData;
+        return newData.length ? 'ready' : 'empty';
       } catch (error) {
         console.error("Ошибка при загрузке данных по факту:", error);
+        return 'error';
       }
     },
 
@@ -1222,17 +1203,6 @@ export default {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-.card-title {
-  margin: 0;
-  color: var(--text);
-  font-weight: 600;
-  font-size: 1.1em;
-}
-
-.highlight-text {
-  color: var(--accent-text);
 }
 
 .card-content {
@@ -1593,10 +1563,6 @@ export default {
     padding: 0 calc(1px + 14px);
   }
 
-  .card-title {
-    font-size: 18px;
-  }
-
   .card-header__settings {
     margin-left: auto;
   }
@@ -1622,12 +1588,6 @@ export default {
   .card-header__title {
     flex: 1 1 0;
     min-width: 0;
-  }
-
-  .card-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .card-header__settings {

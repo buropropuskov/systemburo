@@ -32,6 +32,10 @@ vi.mock('driver.js', () => ({
       getConfig: () => mocks.driver.config,
       setConfig: (next) => { mocks.driver.config = next; },
       getActiveIndex: () => mocks.driver.activeIndex,
+      getActiveElement: () => {
+        const element = config.steps[mocks.driver.activeIndex]?.element;
+        return typeof element === 'function' ? element() : element || null;
+      },
       moveNext: () => {},
       movePrevious: () => {},
       moveTo: () => {},
@@ -78,7 +82,8 @@ const store = reactive({
   revealOpen: null,
   get currentStep() { return this.steps[this.currentIndex]; },
   setRevealOpen(v) { this.revealOpen = v || null; },
-  setDemoAttachment: vi.fn(),
+  demoAttachmentType: null,
+  setDemoAttachment: vi.fn(function (value) { this.demoAttachmentType = value; }),
   setIndex(i) { this.currentIndex = i; },
   advanceSegment: vi.fn(),
   retreatSegment: vi.fn(),
@@ -116,7 +121,12 @@ describe('OnboardingTour - уход со страницы во время тур
     store.currentIndex = 0;
     store.pendingSegment = false;
     store.skippedIndexes = [];
+    store.isManual = true; store.markCompleted.mockClear();
+    store.demoAttachmentType = null;
     document.body.innerHTML = '<div data-testid="ob-a"></div><div data-testid="ob-b"></div>';
+    document.body.querySelectorAll('[data-testid]').forEach(node => {
+      node.getBoundingClientRect = () => ({ left: 20, top: 20, right: 100, bottom: 60, width: 80, height: 40 });
+    });
     wrapper = mount(OnboardingTour);
     store.isActive = true;
     await flushPromises();
@@ -150,6 +160,14 @@ describe('OnboardingTour - уход со страницы во время тур
     expect(store.isActive).toBe(true);
   });
 
+  it.each(['Error500', 'Maintenance', 'Forbidden', 'NotFound', 'NotFoundCatchAll'])('technical route %s does not complete an auto tour', async name => {
+    store.isManual = false;
+    mocks.afterEachHandlers.forEach(fn => fn({ path: '/technical', name }));
+    await flushPromises();
+    expect(store.isActive).toBe(false);
+    expect(store.markCompleted).not.toHaveBeenCalled();
+  });
+
   it.each(['reject', 'failure'])('старый %s перехода не останавливает новый ожидающий тур', async (kind) => {
     let rejectOld, resolveOld, resolveNew;
     const oldRequest = new Promise((resolve, reject) => { resolveOld = resolve; rejectOld = reject; });
@@ -176,12 +194,13 @@ describe('OnboardingTour - уход со страницы во время тур
     await newMove;
   });
 
-  it('неудавшаяся текущая навигация завершается безопасно', async () => {
+  it('неудавшаяся текущая навигация предлагает восстановление вместо ложного завершения', async () => {
     mocks.router.push.mockResolvedValueOnce({ type: 4 });
     mocks.driver.activeIndex = 1;
     store.advanceSegment.mockImplementationOnce(() => { store.currentIndex = 2; store.pendingSegment = true; });
     await mocks.driver.config.onNextClick();
-    expect(store.isActive).toBe(false);
+    expect(store.isActive).toBe(true);
+    expect(mocks.driver.config.steps[0].popover.title).toBe('Не удалось открыть шаг');
   });
 
   it('afterEach с failure не применяет маршрут, на который переход не состоялся', async () => {

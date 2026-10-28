@@ -1,20 +1,5 @@
 import { apiRequest, apiRequestRaw } from './client';
-
-/**
- * Разворачивает сырой ответ apiRequestRaw: при неуспехе бросает текстом бэка
- * (envelope.error) либо fallback-сообщением, иначе отдаёт envelope целиком - вызывающий
- * сам решает, брать ли meta рядом с data.
- * @param {Response} res
- * @param {string} fallback текст ошибки, если бэк не прислал свой
- * @returns {Promise<{success: boolean, data: *, meta?: object, error?: string}>}
- */
-async function unwrapRaw(res, fallback) {
-  const body = await res.json();
-  if (!res.ok || !body || !body.success) {
-    throw new Error(body?.error || fallback);
-  }
-  return body;
-}
+import { unwrapRaw } from './unwrapRaw';
 
 /** GET-запрос с уже снятым envelope (apiRequest.json()) - повторяется на простых читалках. */
 async function getJSON(path) {

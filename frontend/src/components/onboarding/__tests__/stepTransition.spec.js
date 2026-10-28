@@ -8,6 +8,39 @@ function deferred() {
 }
 
 describe('step transition ownership', () => {
+  it.each(['sync', 'async'])('handles a current %s error before unlocking controls', async kind => {
+    const held = deferred(), recovery = deferred(), order = [];
+    const onError = vi.fn(async (error, operation) => {
+      order.push('recover');
+      expect(operation.isCurrent()).toBe(true);
+      expect(error.message).toBe('loading failed');
+      await recovery.promise;
+      order.push('restored');
+    });
+    const transition = createStepTransition({ onError, onBusyChange: busy => order.push(busy ? 'busy' : 'unlock') });
+    const pending = transition.run(() => {
+      if (kind === 'sync') throw new Error('loading failed');
+      return held.promise;
+    });
+    if (kind === 'async') held.reject(new Error('loading failed'));
+    await Promise.resolve(); await Promise.resolve();
+    expect(transition.isBusy()).toBe(true);
+    expect(onError).toHaveBeenCalledTimes(1);
+    recovery.resolve(); await pending;
+    expect(order).toEqual(['busy', 'recover', 'restored', 'unlock']);
+  });
+
+  it('does not recover a cancelled request over a fresh operation', async () => {
+    const old = deferred(), fresh = deferred(), onError = vi.fn();
+    const transition = createStepTransition({ onError });
+    const pending = transition.run(() => old.promise);
+    const current = transition.run(() => fresh.promise, { replace: true });
+    old.reject(new Error('late failure')); await pending;
+    expect(onError).not.toHaveBeenCalled();
+    expect(transition.isBusy()).toBe(true);
+    fresh.resolve(); await current;
+  });
+
   it('sets busy synchronously and ignores duplicate work until completion', async () => {
     const held = deferred(), changes = [];
     const transition = createStepTransition({ onBusyChange: value => changes.push(value) });

@@ -20,6 +20,8 @@
         <transition
           name="page-fade"
           :mode="pageTransitionMode"
+          @after-enter="notifyPageLayout"
+          @after-leave="notifyPageLayout"
         >
           <component
             :is="Component"
@@ -67,6 +69,7 @@ import { usePDConsentStore } from '@/stores/pdConsent'
 import { usePasswordChangeStore } from '@/stores/passwordChange'
 import { useThemeStore } from '@/stores/theme'
 import { isShellHiddenPath } from '@/utils/shellPaths'
+import { notifyPageLayout } from '@/utils/pageLayout'
 import eventStream from '@/services/eventStream'
 import { unsubscribeWebPush } from '@/api/webPush'
 import { getCurrentSubscription, unsubscribeLocal } from '@/utils/webPushSubscription'
@@ -275,6 +278,7 @@ export default {
     this.$bus?.off?.('global-search:open', this.openGlobalSearch)
   },
   methods: {
+    notifyPageLayout,
     openGlobalSearch() {
       if (this.isAuthenticated) this.searchOpen = true
     },

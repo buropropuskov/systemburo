@@ -270,10 +270,17 @@ describe.each(TABLES)('Шапка блока: $file', ({ file, body, counter }) 
   });
 
   it('имя экрана кеглем 18 на всех мобильных ширинах', () => {
-    expect(declarationsFor(mobile, '.card-title').join('\n')).toMatch(/font-size:\s*18px/);
+    const titleMobile = file === 'FactTable.vue'
+      ? mediaBlocks(source('FactTableTitle.vue'), MOBILE).join('\n') : mobile;
+    if (file === 'FactTable.vue') {
+      expect(src).toMatch(/import FactTableTitle from ['"]\.\/FactTableTitle\.vue['"]/);
+      expect(src).toMatch(/<FactTableTitle\s+:table-type="tableType"\s*\/>/);
+    }
+    expect(declarationsFor(titleMobile, '.card-title').join('\n')).toMatch(/font-size:\s*18px/);
     // Уменьшать на узких нельзя: 0.95em из планшетного медиазапроса и давали
     // «микроскопический» заголовок.
     expect(mobile).not.toMatch(/font-size:\s*0\.9\d*em/);
+    expect(titleMobile).not.toMatch(/font-size:\s*0\.9\d*em/);
   });
 
   it('боковой отступ записан слагаемыми и равен вертикали текста карточек', () => {

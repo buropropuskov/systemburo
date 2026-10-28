@@ -148,6 +148,9 @@ describe('OnboardingTour - шаг без цели на пустой систем
     store.currentIndex = 0;
     store.skippedIndexes = [];
     document.body.innerHTML = '<div data-testid="ob-intro"></div><div data-testid="ob-outro"></div>';
+    document.body.querySelectorAll('[data-testid]').forEach(node => {
+      node.getBoundingClientRect = () => ({ left: 20, top: 20, right: 100, bottom: 60, width: 80, height: 40 });
+    });
   });
 
   afterEach(() => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { findTourTarget, getTourTargets, isTourTargetVisible } from '../targetResolver';
+import { adminOnboardingSteps } from '../adminOnboardingSteps';
 
 // jsdom has no layout. Rects model CSS boxes without treating visibility/opacity,
 // aria-hidden or inert as display:none. Fixed controls legitimately have no offsetParent.
@@ -30,6 +31,14 @@ afterEach(() => {
 });
 
 const selector = '[data-tour="target"]';
+it('resolves the actual settings step to its visible responsive section selector', () => {
+  const desktop = target(); desktop.dataset.testid = 'ob-admin-settings'; desktop.style.display = 'none';
+  const mobile = target(); mobile.dataset.testid = 'ob-admin-settings';
+  const step = adminOnboardingSteps.find(item => item.id === 'admin-settings');
+  expect(findTourTarget(step.element)).toBe(mobile);
+  desktop.style.display = ''; mobile.style.display = 'none';
+  expect(findTourTarget(step.element)).toBe(desktop);
+});
 const hiddenStates = [
   { name: 'display none', apply: node => { node.style.display = 'none'; } },
   { name: 'visibility hidden', apply: node => { node.style.visibility = 'hidden'; } },

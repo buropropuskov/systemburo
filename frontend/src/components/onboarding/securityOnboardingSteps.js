@@ -133,6 +133,7 @@ export const securityOnboardingSteps = [
   // ── Сегмент /accessible-attachments: страница «Доступные мне» ──
   {
     id: 'sec-aa-intro',
+    dataOwner: 'accessible-list',
     route: '/accessible-attachments',
     // Подсвечиваем сам список: центр-модалка без цели читалась как «тур завис».
     element: '[data-testid="aa-list"]',
@@ -154,6 +155,7 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-card',
+    dataOwner: 'accessible-list',
     side: 'right',
     align: 'start',
     optional: true,
@@ -166,6 +168,7 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-detail',
+    dataOwner: 'accessible-detail',
     side: 'left',
     align: 'start',
     optional: true,
@@ -180,6 +183,7 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-elements',
+    dataOwner: 'accessible-detail',
     side: 'left',
     align: 'start',
     optional: true,

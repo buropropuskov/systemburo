@@ -170,10 +170,18 @@
         </div>
       </FilterSheet>
 
-      <div class="content-container">
+      <div
+        class="content-container"
+        data-ob-owner="accessible-detail"
+        :data-ob-state="detailState"
+        @onboarding-retry.prevent="retryDetail"
+      >
         <!-- Список вложений -->
         <div
           class="list-section"
+          data-ob-owner="accessible-list"
+          :data-ob-state="listState"
+          @onboarding-retry.prevent="fetchList()"
           :class="{ 'with-details': selectedId !== null }"
         >
           <div
@@ -278,27 +286,11 @@
             </button>
           </div>
 
-          <div
+          <AccessibleAttachmentsEmptyState
             v-else
-            class="empty-state"
-            data-testid="aa-empty"
-          >
-            <p>{{ hasActiveFilters ? 'Ничего не найдено' : 'Доступных вложений нет' }}</p>
-            <span class="empty-state__hint">
-              {{ hasActiveFilters
-                ? 'Измените условия поиска или сбросьте фильтры.'
-                : 'Здесь появятся вложения подтверждённых заявок по вашим местам доступа.' }}
-            </span>
-            <button
-              v-if="hasActiveFilters"
-              type="button"
-              class="lk-button lk-button--secondary"
-              data-testid="aa-empty-reset"
-              @click="resetFilters"
-            >
-              Сбросить фильтры
-            </button>
-          </div>
+            :has-active-filters="hasActiveFilters"
+            @reset="resetFilters"
+          />
 
           <div class="list-footer">
             Всего: {{ total }}
@@ -455,6 +447,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import AccessibleAttachmentsEmptyState from '@/components/AccessibleAttachmentsEmptyState.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import Badge from '@/components/ui/Badge.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -534,6 +527,9 @@ const items = ref([]);
 const total = ref(0);
 const page = ref(1);
 const listLoading = ref(false);
+const listState = ref('loading');
+const detailState = ref('empty');
+const detailAttemptId = ref(null);
 
 const selectedId = ref(null);
 const detail = ref(null);
@@ -639,18 +635,21 @@ function syncUrl() {
 async function fetchList({ reset = true } = {}) {
   if (reset) page.value = 1;
   listLoading.value = true;
+  listState.value = 'loading';
   const seq = ++listSeq;
   try {
     const { items: data, meta } = await getAccessibleAttachments(buildParams());
     if (seq !== listSeq) return;
     items.value = reset ? data : [...items.value, ...data];
     total.value = meta.total || 0;
-  } catch {
+    listState.value = items.value.length ? 'ready' : 'empty';
+  } catch (error) {
     if (seq !== listSeq) return;
+    listState.value = Number(error?.status ?? error?.response?.status) === 403 ? 'forbidden' : 'error';
     deletions.notify({
       type: 'error',
       bold: 'Не удалось загрузить',
-      suffix: 'список доступных вложений',
+      suffix: ' список доступных вложений',
     });
   } finally {
     if (seq === listSeq) listLoading.value = false;
@@ -660,8 +659,7 @@ async function fetchList({ reset = true } = {}) {
 // Аккумулирующую страницу load-more в URL не кладём: с "Показать ещё" её число
 // не диплинкается осмысленно. Фильтры и поиск - кладём (syncUrl).
 function applyFilters() {
-  selectedId.value = null;
-  detail.value = null;
+  clearSelection();
   syncUrl();
   fetchList({ reset: true });
 }
@@ -709,8 +707,7 @@ function resetFilters() {
 }
 
 function refresh() {
-  selectedId.value = null;
-  detail.value = null;
+  clearSelection();
   fetchList({ reset: true });
 }
 
@@ -735,14 +732,16 @@ async function loadFilterOptions() {
     deletions.notify({
       type: 'error',
       bold: 'Не удалось загрузить',
-      suffix: 'списки для фильтров',
+      suffix: ' списки для фильтров',
     });
   }
 }
 
 async function selectAttachment(id) {
+  detailAttemptId.value = id;
   selectedId.value = id;
   detail.value = null;
+  detailState.value = 'loading';
   // Мобилка (<=900): деталь занимает место списка, а не встаёт под ним - иначе она
   // рендерится ниже длинного списка, за кромкой экрана, и «открыть вложение» на
   // телефоне выглядело как «ничего не произошло». Скроллим деталь в поле зрения.
@@ -753,10 +752,12 @@ async function selectAttachment(id) {
   const seq = ++detailSeq;
   try {
     const data = await getAccessibleAttachmentDetail(id);
-    if (seq !== detailSeq) return;
+    if (seq !== detailSeq || selectedId.value !== id) return;
     detail.value = data;
-  } catch {
-    if (seq !== detailSeq) return;
+    detailState.value = data ? 'ready' : 'empty';
+  } catch (error) {
+    if (seq !== detailSeq || selectedId.value !== id) return;
+    detailState.value = Number(error?.status ?? error?.response?.status) === 403 ? 'forbidden' : 'error';
     selectedId.value = null;
     deletions.notify({
       type: 'error',
@@ -771,12 +772,18 @@ async function selectAttachment(id) {
 // обновления одной сводки. Отказ тихий - сама отметка уже прошла и подтверждена
 // тостом кнопки, устаревшая сводка на экране до следующего открытия не критична.
 async function refreshDetail(id) {
+  if (selectedId.value !== id) return;
+  detailAttemptId.value = id;
   const seq = ++detailSeq;
+  detailState.value = 'loading';
   try {
     const data = await getAccessibleAttachmentDetail(id);
     if (seq !== detailSeq || selectedId.value !== id) return;
     detail.value = data;
-  } catch {
+    detailState.value = data ? 'ready' : 'empty';
+  } catch (error) {
+    if (seq !== detailSeq || selectedId.value !== id) return;
+    detailState.value = Number(error?.status ?? error?.response?.status) === 403 ? 'forbidden' : 'error';
     // см. комментарий выше
   }
 }
@@ -785,8 +792,14 @@ async function refreshDetail(id) {
 // возможный ответ в пути, чтобы он не «переоткрыл» деталь после возврата.
 function clearSelection() {
   detailSeq++;
+  detailAttemptId.value = null;
+  detailState.value = 'empty';
   selectedId.value = null;
   detail.value = null;
+}
+
+function retryDetail() {
+  if (detailAttemptId.value !== null) return selectAttachment(detailAttemptId.value);
 }
 
 // Открывается по явному клику на текущей детали; модалка-оверлей блокирует список,
@@ -849,8 +862,7 @@ watch(
     if (target === 'attachment-blank') return;
     if (!attachmentOpenedByTour) return;
     attachmentOpenedByTour = false;
-    selectedId.value = null;
-    detail.value = null;
+    clearSelection();
   },
 );
 
@@ -883,6 +895,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  listSeq++;
+  detailSeq++;
   clearTimeout(searchTimer);
   if (unsubAvailable) {
     unsubAvailable();
@@ -1111,31 +1125,6 @@ onBeforeUnmount(() => {
 .load-more {
   align-self: center;
   margin-top: 4px;
-}
-
-.empty-state {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.empty-state__hint {
-  font-size: 13px;
-  color: var(--text-muted);
-  max-width: 320px;
 }
 
 .list-footer {

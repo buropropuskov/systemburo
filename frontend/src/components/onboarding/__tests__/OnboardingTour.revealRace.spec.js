@@ -21,7 +21,8 @@ import { setModalOpen, releaseModal } from '@/utils/modalStack';
 const mocks = vi.hoisted(() => ({
   driver: { config: null, activeIndex: 0, destroys: 0, creates: 0 },
   route: { path: '/news' },
-  router: { push: vi.fn(() => Promise.resolve()), afterEach: () => () => {} },
+  afterEach: null,
+  router: { push: vi.fn(() => Promise.resolve()), afterEach: callback => { mocks.afterEach = callback; return () => {}; } },
 }));
 
 vi.mock('driver.js', () => ({
@@ -32,7 +33,10 @@ vi.mock('driver.js', () => ({
       getConfig: () => mocks.driver.config,
       setConfig: (next) => { mocks.driver.config = next; },
       getActiveIndex: () => mocks.driver.activeIndex,
-      getActiveElement: () => null,
+      getActiveElement: () => {
+        const element = config.steps[mocks.driver.activeIndex]?.element;
+        return typeof element === 'function' ? element() : element || null;
+      },
       moveNext: () => {},
       movePrevious: () => {},
       moveTo: () => {},
@@ -82,12 +86,13 @@ const store = reactive({
   revealOpen: null,
   get currentStep() { return this.steps[this.currentIndex]; },
   setRevealOpen(v) { this.revealOpen = v || null; },
-  setDemoAttachment: vi.fn(),
+  demoAttachmentType: null,
+  setDemoAttachment: vi.fn(function (value) { this.demoAttachmentType = value; }),
   setIndex(i) { this.currentIndex = i; },
   advanceSegment: vi.fn(),
-  retreatSegment: vi.fn(),
+  retreatSegment(i) { this.currentIndex = i; this.pendingSegment = true; },
   jumpToSegment: vi.fn(),
-  clearPending: vi.fn(),
+  clearPending() { this.pendingSegment = false; },
   markCompleted: vi.fn(),
   stop() { this.isActive = false; },
   ensureGatingContext: vi.fn().mockResolvedValue(),
@@ -109,10 +114,17 @@ describe('OnboardingTour - фоновый прогрев и сигнал сле�
     mocks.driver.activeIndex = 0;
     mocks.route.path = '/news';
     store.isActive = false;
+    store.isManual = true;
+    store.markCompleted.mockClear();
     store.currentIndex = 0;
+    store.pendingSegment = false;
     store.revealOpen = null;
+    store.demoAttachmentType = null;
     store.skippedIndexes = [];
     document.body.innerHTML = '<div data-testid="ob-bell"></div><div data-testid="ob-search"></div>';
+    document.body.querySelectorAll('[data-testid]').forEach(node => {
+      node.getBoundingClientRect = () => ({ left: 20, top: 20, right: 100, bottom: 60, width: 80, height: 40 });
+    });
     wrapper = mount(OnboardingTour);
     store.isActive = true;
     await flushPromises();
@@ -121,6 +133,44 @@ describe('OnboardingTour - фоновый прогрев и сигнал сле�
   afterEach(() => {
     wrapper?.unmount();
     wrapper = null;
+  });
+
+  async function failNextStep() {
+    mocks.driver.config.onHighlighted();
+    steps[1].dataOwner = 'recovery-fixture';
+    const owner = document.createElement('div'); owner.dataset.obOwner = 'recovery-fixture'; owner.dataset.obState = 'error';
+    owner.getBoundingClientRect = () => ({ left: 20, top: 20, right: 100, bottom: 60, width: 80, height: 40 });
+    document.body.append(owner);
+    await mocks.driver.config.onNextClick(); await flushPromises();
+    expect(mocks.driver.config.steps[0].popover.title, JSON.stringify({ active: store.isActive,
+      index: store.currentIndex, creates: mocks.driver.creates, destroys: mocks.driver.destroys,
+      skipped: store.skippedIndexes, pending: store.pendingSegment })).toBe('Не удалось открыть шаг');
+    return owner;
+  }
+
+  it('restores Arrow keys and Escape after retry actually shows its intended step', async () => {
+    try {
+      const owner = await failNextStep(); owner.dataset.obState = 'ready';
+      owner.dataset.testid = 'ob-panel';
+      await mocks.driver.config.onNextClick(); await flushPromises();
+      expect(store.currentIndex).toBe(1);
+      mocks.driver.config.onHighlighted();
+      const next = vi.fn(); mocks.driver.config.onNextClick = next;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      expect(next).toHaveBeenCalledOnce();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(store.isActive).toBe(false);
+    } finally { delete steps[1].dataOwner; }
+  });
+
+  it.each(['unmount', 'external-route'])('does not mark an auto tour completed after recovery %s', async action => {
+    store.isManual = false;
+    try {
+      await failNextStep();
+      if (action === 'unmount') { wrapper.unmount(); wrapper = null; }
+      else { mocks.afterEach({ path: '/cabinet' }, { path: '/news' }); await flushPromises(); }
+      expect(store.markCompleted).not.toHaveBeenCalled();
+    } finally { delete steps[1].dataOwner; }
   });
 
   it('destroys the paused Driver and restores the current demo after an interrupted preparation', async () => {
