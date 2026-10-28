@@ -165,12 +165,14 @@ describe('OnboardingTour - шаг без цели на пустой систем
 
   it('цель на месте: подсветка реального элемента, скриншота нет', async () => {
     document.body.insertAdjacentHTML('beforeend', '<div data-testid="ob-list"></div>');
+    const target = document.querySelector('[data-testid="ob-list"]');
+    target.getBoundingClientRect = () => ({ top: 100, left: 20, width: 80, height: 32 });
     await startTour();
 
     await mocks.driver.config.onNextClick();
 
     expect(mocks.driver.moves).toEqual(['next']);
-    expect(shownStep(1).element).toBe('[data-testid="ob-list"]');
+    expect(shownStep(1).element()).toBe(target);
     expect(shownStep(1).popover.description).not.toContain('<img');
   });
 
