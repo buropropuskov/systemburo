@@ -112,7 +112,9 @@ describe('NavMenu: переключатель темы (#1415)', () => {
   it('подпись доступна в мобильном drawer и на тач-экране', () => {
     const sfc = readFileSync(resolve(__dirname, '../ui/ThemeControls.vue'), 'utf8');
     const media = sfc.slice(sfc.indexOf('@media (max-width: 1366px), (hover: none) and (pointer: coarse)'));
-    expect(media).toContain('.nav-text { opacity: 1; }');
+    const label = media.match(/\.nav-text\s*\{([^}]+)\}/)?.[1];
+    expect(label).toMatch(/opacity:\s*1\s*;/);
+    expect(label).toMatch(/transform:\s*none\s*;/);
     expect(media).toContain('min-height: 44px');
   });
 
