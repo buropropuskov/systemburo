@@ -7,7 +7,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
  * общее состояние.
  */
 const mocks = vi.hoisted(() => ({
-  state: { config: null, activeIndex: 0, moves: [], destroys: 0 },
+  state: { config: null, activeIndex: 0, activeStep: null, moves: [], destroys: 0 },
 }));
 
 vi.mock('driver.js', () => ({
@@ -19,10 +19,14 @@ vi.mock('driver.js', () => ({
       // потеря хуков при setConfig прошла бы мимо теста.
       setConfig: (next) => { mocks.state.config = next; },
       getActiveIndex: () => mocks.state.activeIndex,
+      getActiveStep: () => mocks.state.activeStep,
       moveNext: () => mocks.state.moves.push('next'),
       movePrevious: () => mocks.state.moves.push('prev'),
       moveTo: (i) => mocks.state.moves.push(`to:${i}`),
-      drive: (i) => { mocks.state.activeIndex = i; },
+      drive: (i) => {
+        mocks.state.activeIndex = i;
+        mocks.state.activeStep = { ...config.steps[i], popover: { ...config.steps[i].popover } };
+      },
       destroy: () => { mocks.state.destroys += 1; },
     };
   },
@@ -162,6 +166,22 @@ describe('createDriver - шаг без цели', () => {
       onBoundaryNext: () => mocks.state.moves.push('boundary'),
     });
   }
+
+  it('updates the separate active Driver snapshot on same-target breakpoint changes', () => {
+    const width = window.innerWidth;
+    try {
+      window.innerWidth = 1024;
+      const driver = drive({}); driver.drive(1);
+      expect(mocks.state.activeStep).not.toBe(mocks.state.config.steps[1]);
+      expect(mocks.state.activeStep.popover.side).toBe('left');
+      window.innerWidth = 390; driver.obUpdatePlacement();
+      expect(mocks.state.activeStep.popover.side).toBe('bottom');
+      expect(mocks.state.config.steps[1].popover.side).toBe('bottom');
+      window.innerWidth = 1024; driver.obUpdatePlacement();
+      expect(mocks.state.activeStep.popover.side).toBe('left');
+      expect(mocks.state.moves).toEqual([]);
+    } finally { window.innerWidth = width; }
+  });
 
   beforeEach(() => {
     mocks.state.config = null;

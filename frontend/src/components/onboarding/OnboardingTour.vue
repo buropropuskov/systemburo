@@ -9,6 +9,7 @@ import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFl
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 import { createStepPreparation } from '@/components/onboarding/stepPreparation';
 import { createTourGeometryBinding } from '@/components/onboarding/tourGeometryBinding';
+import { createTourLayerGuard } from '@/components/onboarding/tourLayerGuard';
 import { createRailControl } from '@/components/onboarding/railControl';
 import { createKeyboardNav } from '@/components/onboarding/keyboardNav';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
@@ -50,12 +51,12 @@ const rail = createRailControl(ui, (index) => store.steps[index]);
 // Стрелки и Esc ведёт хост: driver теряет нажатие на переезде подсветки и между
 // страницами, где инстанса нет вовсе (см. keyboardNav.js).
 const keys = createKeyboardNav({
-  isActive: () => store.isActive,
+  isActive: () => store.isActive && !layerGuard.isBlocked(),
   next: () => driverObj?.obNext(), prev: () => driverObj?.obPrev(), close: () => store.stop(),
 });
 const busyButtons = new Map();
 const transitions = createStepTransition({
-  isActive: () => store.isActive,
+  isActive: () => store.isActive && !layerGuard.isBlocked(),
   onBusyChange: (busy) => {
     if (busy) {
       document.querySelectorAll('.driver-popover-next-btn, .driver-popover-prev-btn').forEach((button) => {
@@ -68,16 +69,36 @@ const transitions = createStepTransition({
     }
     if (busy) geometryBinding?.stop();
     keys.setBusy(busy);
-    if (!busy && !transitions.isBusy()) {
+    if (!busy && !transitions.isBusy() && !layerGuard.isBlocked()) {
       driverObj?.obSyncHighlighted?.();
       geometryBinding?.commit(store.currentIndex);
     }
   },
 });
 
+const layerGuard = createTourLayerGuard((blocked) => {
+  if (!store.isActive) return;
+  if (blocked) {
+    keys.detach();
+    transitions.cancel();
+    geometryBinding?.stop();
+    driverGen += 1;
+    const previous = driverObj;
+    driverObj = null;
+    // Public destroy removes Driver's independent Tab trap. Its focus restore
+    // must not steal focus from the question that has just taken ownership.
+    layerGuard.preserveGlobalFocus(() => previous?.destroy());
+  } else {
+    keys.attach();
+    // Preparation may already have changed the demo/reveal before cancellation.
+    // Rebuild this same step so its UI and anchor share one current context.
+    if (!store.pendingSegment) restartSegmentAt(store.currentIndex);
+  }
+});
+
 geometryBinding = createTourGeometryBinding({
   store, getDriver: () => driverObj, getGeneration: () => driverGen,
-  isBusy: transitions.isBusy, runTransition: transitions.run, waitForElement, ensureInView,
+  isBusy: () => transitions.isBusy() || layerGuard.isBlocked(), runTransition: transitions.run, waitForElement, ensureInView,
   onError: () => {
     store.stop();
     useDeletionsStore().notify({ prefix: 'Не удалось обновить подсказку. Запусти обучение ещё раз.', type: 'error' });
@@ -402,12 +423,12 @@ watch(
     // и сбивают с шага. Ошибки сквозь паузу проходят - см. deletions.notify.
     ui.tourActive = active;
     if (active) {
+      layerGuard.activate();
       // Каждый запуск начинается «недосмотренным»: иначе повторный тур унаследовал
       // бы отметку о финале предыдущего и закрытие на первом шаге зачлось бы.
       reachedFinal = false;
-      keys.attach();
-      startSegment();
-    } else { keys.detach(); teardown(); }
+      if (!layerGuard.isBlocked()) { keys.attach(); startSegment(); }
+    } else { layerGuard.deactivate(); keys.detach(); teardown(); }
   },
   { flush: 'sync' },
 );
@@ -476,6 +497,7 @@ onBeforeUnmount(() => {
   removeAfterEach();
   teardown();
   geometryBinding.dispose();
+  layerGuard.dispose();
 });
 </script>
 

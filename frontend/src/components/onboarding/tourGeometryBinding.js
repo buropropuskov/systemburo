@@ -21,7 +21,10 @@ export function createTourGeometryBinding({ store, getDriver, getGeneration, isB
     scrollTarget: ensureInView,
     shouldScroll: target => !isTargetInView(target),
     onError,
-    applyShape: applyStageShape,
+    applyShape: (driver, target) => {
+      driver?.obUpdatePlacement?.();
+      applyStageShape(driver, target);
+    },
     restoreHighlight: (driver, target) => {
       if (target && driver?.getActiveElement?.() === target) raiseActiveHighlight(driver);
     },

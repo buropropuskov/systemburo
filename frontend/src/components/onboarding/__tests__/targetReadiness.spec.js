@@ -37,6 +37,33 @@ afterEach(() => {
 });
 
 describe('visible targets and scrolling', () => {
+  it('waits for an ancestor transition even while its delayed rectangle is unchanged', async () => {
+    const element = target(); let running = true;
+    document.body.getAnimations = () => [{ playState: running ? 'running' : 'finished',
+      effect: { getComputedTiming: () => ({ endTime: 600 }) } }];
+    let ready = false;
+    try {
+      const pending = waitForElement('[data-testid="diagnostic-target"]', 1200).then(value => { ready = true; return value; });
+      await vi.advanceTimersByTimeAsync(360); expect(ready).toBe(false);
+      running = false; await vi.advanceTimersByTimeAsync(240);
+      expect(await pending).toBe(element); expect(vi.getTimerCount()).toBe(0);
+    } finally { delete document.body.getAnimations; }
+  });
+
+  it('does not wait for infinite decorative motion', async () => {
+    const element = target();
+    element.getAnimations = () => [{ playState: 'running', effect: { getComputedTiming: () => ({ endTime: Infinity }) } }];
+    const pending = waitForElement('[data-testid="diagnostic-target"]', 1200);
+    await vi.advanceTimersByTimeAsync(120); expect(await pending).toBe(element);
+  });
+
+  it('does not accept a still-moving target at the deadline', async () => {
+    const element = target();
+    element.getAnimations = () => [{ playState: 'running', effect: { getComputedTiming: () => ({ endTime: 2000 }) } }];
+    const pending = waitForElement('[data-testid="diagnostic-target"]', 240);
+    await vi.advanceTimersByTimeAsync(240); expect(await pending).toBeNull();
+  });
+
   it('returns the second concrete HTMLElement when the first desktop copy is display:none', async () => {
     const desktop = target({ display: 'none' }), mobile = target();
     expect(desktop.getBoundingClientRect().width).toBe(0);

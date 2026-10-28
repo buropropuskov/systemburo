@@ -4,6 +4,7 @@
  */
 
 .driver-popover.ob-popover {
+  z-index: 12502 !important;
   /* Фон/текст поповера driver.js по умолчанию белые - в тёмной теме тур
      светился бы белым окном поверх тёмного экрана. */
   background: var(--surface);

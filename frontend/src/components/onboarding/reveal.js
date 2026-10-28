@@ -1,6 +1,7 @@
 import bus from '@/eventBus';
 import { isDrawerViewport } from '@/constants/breakpoints';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { nextTick } from 'vue';
 
 /**
  * Раскрытие свёрнутых целей тура ПЕРЕД подсветкой.
@@ -39,16 +40,6 @@ function setTourNav(store, open) {
   if (request.handled) navRequests.set(store, { element, token });
   return request.handled && changed;
 }
-
-// Drawer уезжает transform'ом (NavMenu: 0.28s) - его ширина/высота при этом НЕ
-// меняются, поэтому waitForElement (мерит только высоту) резолвит СРАЗУ, до конца
-// анимации, и driver измерил бы цель ещё офскрин. Даём анимации доехать.
-const NAV_DRAWER_TRANSITION_MS = 300;
-
-// Тот же расчёт для `open`-узлов: колонка Админки (0.25s) и панель поиска (0.24s)
-// въезжают transform'ом при неизменной высоте - ждём конца въезда, иначе driver
-// померит рамку по стартовой позиции анимации.
-const OPEN_REVEAL_TRANSITION_MS = 300;
 
 /** Допустимые значения `reveal.open` - расширять вместе с резолвером во владельце узла. */
 export const OPEN_TARGETS = ['admin-column', 'search-panel', 'notifications', 'first-application', 'first-attachment', 'attachment-people', 'attachment-blank', 'pass-report', 'work-modes', 'application-history'];
@@ -146,20 +137,9 @@ export async function applyReveal(steps, index, { closeOthers = true, signal } =
   }
 
   const revealed = drawerOpened || (openChanged && Boolean(open));
-  const waitMs = Math.max(
-    drawerOpened ? NAV_DRAWER_TRANSITION_MS : 0,
-    openChanged && open ? OPEN_REVEAL_TRANSITION_MS : 0,
-  );
-  if (waitMs) await new Promise((resolve) => {
-    const stop = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', stop);
-      resolve();
-    };
-    const timer = setTimeout(stop, waitMs);
-    signal?.addEventListener('abort', stop, { once: true });
-    if (signal?.aborted) stop();
-  });
+  // Let the owner render its requested state. Target preparation then waits for
+  // the actual finite animation and stable rectangle, including reduced motion.
+  if (revealed) await nextTick();
   if (signal?.aborted) return false;
   return revealed;
 }

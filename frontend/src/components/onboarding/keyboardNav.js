@@ -1,3 +1,5 @@
+import { isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
+
 /**
  * Управление туром с клавиатуры - на стороне хоста, а не driver.js.
  *
@@ -50,7 +52,7 @@ export function createKeyboardNav(actions) {
   }
 
   function onKeyDown(event) {
-    if (!actions.isActive()) return;
+    if (!actions.isActive() || isEscapeHandled(event)) return;
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     // Внутри поля ввода стрелки принадлежат тексту, а не туру: на шаге про поиск
     // человек может печатать прямо в подсвеченном поле.
@@ -63,6 +65,7 @@ export function createKeyboardNav(actions) {
       event.preventDefault();
       request(-1);
     } else if (event.key === 'Escape') {
+      markEscapeHandled(event);
       actions.close();
     }
   }

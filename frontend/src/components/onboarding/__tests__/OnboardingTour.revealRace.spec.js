@@ -3,6 +3,7 @@ vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: vi.fn
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { reactive } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
+import { setModalOpen, releaseModal } from '@/utils/modalStack';
 
 /**
  * Гонка раскрытия при быстром «Далее».
@@ -18,13 +19,14 @@ import { mount, flushPromises } from '@vue/test-utils';
  */
 
 const mocks = vi.hoisted(() => ({
-  driver: { config: null, activeIndex: 0 },
+  driver: { config: null, activeIndex: 0, destroys: 0, creates: 0 },
   route: { path: '/news' },
   router: { push: vi.fn(() => Promise.resolve()), afterEach: () => () => {} },
 }));
 
 vi.mock('driver.js', () => ({
   driver: (config) => {
+    mocks.driver.creates += 1;
     mocks.driver.config = config;
     return {
       getConfig: () => mocks.driver.config,
@@ -35,7 +37,7 @@ vi.mock('driver.js', () => ({
       movePrevious: () => {},
       moveTo: () => {},
       drive: (i) => { mocks.driver.activeIndex = i; },
-      destroy: () => {},
+      destroy: () => { mocks.driver.destroys += 1; config.onDestroyed?.(); },
       refresh: () => {},
     };
   },
@@ -119,6 +121,24 @@ describe('OnboardingTour - фоновый прогрев и сигнал сле�
   afterEach(() => {
     wrapper?.unmount();
     wrapper = null;
+  });
+
+  it('destroys the paused Driver and restores the current demo after an interrupted preparation', async () => {
+    const upper = {}, before = mocks.driver.creates, destroyed = mocks.driver.destroys;
+    steps[0].demoAttachment = 'cars'; steps[1].demoAttachment = 'employees';
+    try {
+      const next = mocks.driver.config.onNextClick();
+      expect(store.setDemoAttachment).toHaveBeenLastCalledWith('employees');
+      setModalOpen(upper, true, 22000);
+      await next;
+      expect(mocks.driver.destroys).toBe(destroyed + 1);
+      expect(store.isActive).toBe(true); expect(store.currentIndex).toBe(0);
+      releaseModal(upper); await flushPromises();
+      expect(mocks.driver.creates).toBe(before + 1);
+      expect(store.setDemoAttachment).toHaveBeenLastCalledWith('cars');
+      expect(store.currentIndex).toBe(0); expect(store.skippedIndexes).toEqual([]);
+      expect(store.markCompleted).not.toHaveBeenCalled();
+    } finally { releaseModal(upper); delete steps[0].demoAttachment; delete steps[1].demoAttachment; }
   });
 
   it('подсветка текущего шага не гасит раскрытие, уже запрошенное для следующего', async () => {

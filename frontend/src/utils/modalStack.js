@@ -10,6 +10,17 @@
  */
 const stack = new Map();
 let sequence = 0;
+const listeners = new Set();
+const changed = () => listeners.forEach(listener => listener());
+
+export function hasModalAbove(layer) {
+  return [...stack.values()].some(info => info.zIndex > layer);
+}
+
+export function subscribeModalStack(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 /**
  * @param {object} owner уникальный ключ владельца - обычно инстанс компонента (`this`)
@@ -21,16 +32,18 @@ export function setModalOpen(owner, open, zIndex = 0) {
   if (open) {
     // Повторный вызов от того же окна (watch срабатывает дважды) порядок не двигает:
     // иначе окно-родитель перепрыгнуло бы вперёд открытого поверх него.
+    if (stack.has(owner) && stack.get(owner).zIndex === zIndex) return;
     if (!stack.has(owner)) stack.set(owner, { zIndex, order: ++sequence });
     else stack.get(owner).zIndex = zIndex;
+    changed();
     return;
   }
-  stack.delete(owner);
+  if (stack.delete(owner)) changed();
 }
 
 /** Снять окно со стопки - вызывать в `beforeUnmount`. */
 export function releaseModal(owner) {
-  stack.delete(owner);
+  if (stack.delete(owner)) changed();
 }
 
 /**
