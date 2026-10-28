@@ -1,6 +1,7 @@
 import { createStepNavigation } from '@/components/onboarding/stepNavigation';
 import { driver } from 'driver.js';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
+import { getStepPlacement, updateActiveStepPlacement } from '@/components/onboarding/stepPlacement';
 import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
 import { findTourTarget } from '@/components/onboarding/targetResolver';
 import 'driver.js/dist/driver.css';
@@ -235,16 +236,7 @@ export function useOnboarding() {
         title: fillDynamic(s.title, s.dynamic),
         description: buildPopoverHtml(s),
       };
-      // Сторона/выравнивание поповера от шага - чтобы карточка не наезжала на
-      // выделенный элемент (напр. элементы шапки вверху -> поповер вниз). На
-      // мобилке (<768) раскладка стековая (одна колонка) - side:'left'/'right'
-      // (рассчитан на десктопный split селектор/форма или карточка/детали)
-      // толкал бы поповер за край узкого экрана; принудительно кладём вниз (#1097).
-      const narrow = isMobileViewport();
-      if (s.side) {
-        popover.side = narrow && (s.side === 'left' || s.side === 'right') ? 'bottom' : s.side;
-      }
-      if (s.align) popover.align = s.align;
+      Object.assign(popover, getStepPlacement(s, isMobileViewport()));
       // Шаги с демо-скриншотом шире - чтобы реальная таблица читалась. Ширину даём
       // только когда картинка реально рисуется: без неё пустая широкая карточка.
       if (showsDemo(s)) popover.popoverClass = 'ob-popover ob-popover--wide';
@@ -478,6 +470,10 @@ export function useOnboarding() {
       if (localIndex < 0 || localIndex >= stepsForSegment.length) return;
       setStepMode(localIndex, withoutTarget);
       driverObj.moveTo(localIndex);
+    };
+
+    driverObj.obUpdatePlacement = () => {
+      if (alive) updateActiveStepPlacement(driverObj, stepsForSegment, driverSteps, isMobileViewport());
     };
 
     return driverObj;

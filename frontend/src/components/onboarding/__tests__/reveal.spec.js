@@ -122,12 +122,12 @@ describe('applyReveal - раскрытие без преждевременног
     expect(store.revealOpen).toBe('notifications');
   });
 
-  it('отмена ожидания раскрытия очищает его таймер', async () => {
+  it('отмена до отрисовки владельца не оставляет искусственного ожидания', async () => {
     vi.useFakeTimers();
     try {
       const controller = new AbortController();
       const pending = applyReveal(steps, 3, { signal: controller.signal });
-      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      expect(vi.getTimerCount()).toBe(0);
       controller.abort();
       expect(await pending).toBe(false);
       expect(vi.getTimerCount()).toBe(0);

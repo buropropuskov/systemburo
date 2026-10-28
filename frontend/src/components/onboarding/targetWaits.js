@@ -1,5 +1,14 @@
 import { findTourTarget, isTourTargetVisible } from './targetResolver';
 
+function hasTargetMotion(element) {
+  for (let node = element; node; node = node.parentElement) {
+    if (node.getAnimations?.().some(animation =>
+      (animation.playState === 'running' || animation.pending)
+      && Number.isFinite(animation.effect?.getComputedTiming?.().endTime))) return true;
+  }
+  return false;
+}
+
 /**
  * Ожидание целей тура: появление узла и его показ на экране.
  *
@@ -23,7 +32,7 @@ export function waitForElement(selector, timeout = 2500, signal) {
     // Ждём стабильный прямоугольник, а не только высоту: раскрывающаяся панель
     // может сохранять размер, но ещё двигаться по экрану.
     const measure = (el) => {
-      if (!isTourTargetVisible(el)) return null;
+      if (!isTourTargetVisible(el) || hasTargetMotion(el)) return null;
       const { top, left, width, height } = el.getBoundingClientRect();
       return [top, left, width, height];
     };
@@ -56,9 +65,8 @@ export function waitForElement(selector, timeout = 2500, signal) {
       prevRect = rect;
       if (Date.now() - start >= timeout) {
         cleanup();
-        // По таймауту отдаём элемент, если он хотя бы виден (пусть driver
-        // подсветит как есть), иначе null - цель так и не появилась.
-        resolve(isTourTargetVisible(el) ? el : null);
+        // A still-moving target is not ready just because the deadline elapsed.
+        resolve(rect ? el : null);
       }
     };
     const intervalId = setInterval(tick, 120);
