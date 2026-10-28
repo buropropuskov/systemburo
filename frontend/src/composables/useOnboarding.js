@@ -9,7 +9,6 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
 import { buildProgressBlock } from '@/components/onboarding/popoverProgress';
 import { isChapterEnd } from '@/components/onboarding/stepsFlow';
-import { createPopoverZoomFix } from '@/components/onboarding/popoverZoom';
 import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
 /**
@@ -197,13 +196,12 @@ export function useOnboarding() {
       });
     }, { intent: { tourKey, stepId: stepsForSegment[driverObj.getActiveIndex() ?? 0]?.id, direction } });
 
-    const zoomFix = createPopoverZoomFix();
 
     /**
      * Снять класс подсветки со всего, что не является текущей целью.
      *
      * driver.js помечает элемент классом сразу, а снимает со старого только когда
-     * его внутреннее `__activeElement` доедет - при переприцеливании (obRetarget)
+     * его внутреннее `__activeElement` доедет - при перепривязке
      * и быстрых переходах этого не происходит, и над затемнением остаются торчать
      * прежние цели, пока driver доводит свою анимацию.
      */
@@ -405,7 +403,6 @@ export function useOnboarding() {
 
         // Компенсация корневого zoom для позиционирования поповера - едина для ВСЕХ
         // шагов (и anchored, и центро-модальных): см. popoverZoom.js.
-        zoomFix.attach(popover.wrapper);
       },
       // Esc / клик по оверлею / крестик идут сюда (g(true)) ДО гейта на
       // __activeStep - в отличие от onDestroyed это надёжно срабатывает, даже
@@ -432,7 +429,6 @@ export function useOnboarding() {
       onDestroyed() {
         alive = false;
         transitions.cancel();
-        zoomFix.detach();
         // Свой класс подъёма driver не знает - снимаем сами, иначе элемент
         // останется висеть над остальной страницей после закрытия тура.
         document.querySelectorAll('.ob-highlighted').forEach((el) => el.classList.remove('ob-highlighted'));
@@ -452,17 +448,12 @@ export function useOnboarding() {
       destroy();
     };
 
-    /**
-     * Переприцелить шаг на заново отрисованный узел и перерисовать его.
-     *
-     * Нужно после смены демо-бланка: форма пересоздаётся, driver продолжает
-     * держаться за прежнюю цель, и подсветка пропадает (шаг «Форма Автомобили»
-     * при возврате «Назад» с «Сотрудников»). setStepMode пересобирает конфиг
-     * шага, moveTo заставляет driver перечитать его.
-     *
-     * @param {number} globalIndex глобальный индекс шага
-     */
-    driverObj.obRetarget = (globalIndex) => driverObj.obGoTo(globalIndex, false);
+    driverObj.obGetGlobalIndex = () => startIndex + (driverObj.getActiveIndex() ?? 0);
+    driverObj.obSyncHighlighted = () => {
+      if (alive && store.activeTourKey === tourKey && driverObj.getConfig?.()?.animate === false) {
+        driverObj.getConfig().onHighlighted?.();
+      }
+    };
 
     /**
      * Шаг вперёд ровно тем же путём, что и кнопка «Далее»: с подготовкой

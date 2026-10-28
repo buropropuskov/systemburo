@@ -1,3 +1,5 @@
+// Notification delivery is outside host navigation tests; keep router/API isolated.
+vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: vi.fn() }) }));
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { reactive } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';

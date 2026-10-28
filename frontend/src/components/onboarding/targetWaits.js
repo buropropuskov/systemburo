@@ -74,7 +74,7 @@ export function waitForElement(selector, timeout = 2500, signal) {
  * @param {Element} el
  * @returns {boolean}
  */
-function наМесте(el) {
+export function isTargetInView(el) {
   const r = el.getBoundingClientRect();
   const margin = 24;
   if (r.height > window.innerHeight - margin * 2) {
@@ -122,7 +122,7 @@ const подводимый = (el) => !!el?.getBoundingClientRect && typeof el.sc
  */
 export function ensureInView(el, block, signal) {
   if (signal?.aborted || !подводимый(el)) return Promise.resolve();
-  if (!block && наМесте(el)) return Promise.resolve();
+  if (!block && isTargetInView(el)) return Promise.resolve();
   довести(el, block);
   // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр (#2610).
   // Потолок - чтобы не ждать недостижимую цель.
@@ -137,7 +137,7 @@ export function ensureInView(el, block, signal) {
     const срок = Date.now() + 1200;
     const кадр = () => {
       if (signal?.aborted) { stop(); return; }
-      if (наМесте(el) || Date.now() > срок) {
+      if (isTargetInView(el) || Date.now() > срок) {
         stop();
         return;
       }
@@ -167,13 +167,13 @@ export function holdInView(el, block, длительность = 900, пока) 
   if (!подводимый(el)) return () => {};
   const таймер = setInterval(() => {
     if (!el.isConnected || (пока && !пока())) {
-      clearInterval(таймер);
+      стоп();
       return;
     }
-    if (наМесте(el)) return;
+    if (isTargetInView(el)) return;
     довести(el, block);
   }, 40);
-  const стоп = () => clearInterval(таймер);
-  setTimeout(стоп, длительность);
+  const стоп = () => { clearInterval(таймер); clearTimeout(потолок); };
+  const потолок = setTimeout(стоп, длительность);
   return стоп;
 }

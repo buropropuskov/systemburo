@@ -62,11 +62,7 @@ export function useRailExpand(instance) {
   }
 
   function closeMobile() {
-    const menu = vm();
-    menu.$refs.themeControls?.close();
-    if (!menu.mobileOpen) return;
-    menu.mobileOpen = false;
-    document.body.classList.remove('nav-drawer-open');
+    vm().setMobileOpen(false);
   }
 
   onBeforeUnmount(() => {

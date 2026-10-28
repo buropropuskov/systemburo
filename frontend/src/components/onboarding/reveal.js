@@ -25,6 +25,20 @@ import { useOnboardingStore } from '@/stores/onboarding';
 
 const NAV_SELECTOR = '[data-testid="ob-nav-rail"]';
 const NAV_OPEN_CLASS = 'nav-menu--mobile-open';
+const navRequests = new WeakMap();
+let navRequestSequence = 0;
+
+function setTourNav(store, open) {
+  const element = document.querySelector(NAV_SELECTOR);
+  if (!element) return false;
+  const previous = navRequests.get(store);
+  const token = ++navRequestSequence;
+  const changed = isNavDrawerOpen() !== open;
+  const request = { element, token, previousToken: previous?.token, open, handled: false };
+  bus.emit('mobile-nav-set', request);
+  if (request.handled) navRequests.set(store, { element, token });
+  return request.handled && changed;
+}
 
 // Drawer уезжает transform'ом (NavMenu: 0.28s) - его ширина/высота при этом НЕ
 // меняются, поэтому waitForElement (мерит только высоту) резолвит СРАЗУ, до конца
@@ -128,7 +142,7 @@ export async function applyReveal(steps, index, { closeOthers = true, signal } =
   if (isDrawerViewport()) {
     const wantNav = mobile === 'nav';
     // Тот же порядок для drawer: закрываем его не раньше смены шага.
-    if (wantNav || closeOthers) drawerOpened = setNavDrawerOpen(wantNav) && wantNav;
+    if (wantNav || closeOthers) drawerOpened = setTourNav(store, wantNav) && wantNav;
   }
 
   const revealed = drawerOpened || (openChanged && Boolean(open));
@@ -155,6 +169,9 @@ export async function applyReveal(steps, index, { closeOthers = true, signal } =
  * сегмента и в teardown. Владельцы `open`-узлов закрывают их по гашению сигнала.
  */
 export function restoreReveal() {
-  setNavDrawerOpen(false);
-  useOnboardingStore().setRevealOpen(null);
+  const store = useOnboardingStore();
+  const request = navRequests.get(store);
+  navRequests.delete(store);
+  if (request) bus.emit('mobile-nav-set', { ...request, restore: true, handled: false });
+  store.setRevealOpen(null);
 }

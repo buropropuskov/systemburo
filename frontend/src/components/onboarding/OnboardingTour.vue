@@ -3,10 +3,12 @@ import { watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 import { createStepPreparation } from '@/components/onboarding/stepPreparation';
+import { createTourGeometryBinding } from '@/components/onboarding/tourGeometryBinding';
 import { createRailControl } from '@/components/onboarding/railControl';
 import { createKeyboardNav } from '@/components/onboarding/keyboardNav';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
@@ -20,17 +22,8 @@ const route = useRoute();
 const router = useRouter();
 const { waitForElement, ensureInView, createDriver, prefersReducedMotion } = useOnboarding();
 
-// Первую цель сегмента ждём дольше при cross-page: после router.push страница
-// монтируется и грузит данные (скелетоны), цель появляется не сразу.
-const FIRST_TARGET_TIMEOUT = 4000;
-// Цель, которую надо СНАЧАЛА раскрыть (карточка заявки, панель поиска), ждёт
-// дольше: сперва список своим запросом, потом владелец узла открывает карточку.
-// На staging цепочке не хватало четырёх секунд - сегмент выбрасывался целиком.
-const REVEAL_TARGET_TIMEOUT = 9000;
-
-
 let driverObj = null;
-let refreshController = null;
+let geometryBinding = null;
 // Поколение активного driver-инстанса: отложенный onDestroyed предыдущего
 // сегмента (анимация ухода ~0.4s) не должен трогать уже поднятый следующий.
 let driverGen = 0;
@@ -73,7 +66,21 @@ const transitions = createStepTransition({
       busyButtons.forEach((disabled, button) => { if (button.isConnected) button.disabled = disabled; });
       busyButtons.clear();
     }
+    if (busy) geometryBinding?.stop();
     keys.setBusy(busy);
+    if (!busy && !transitions.isBusy()) {
+      driverObj?.obSyncHighlighted?.();
+      geometryBinding?.commit(store.currentIndex);
+    }
+  },
+});
+
+geometryBinding = createTourGeometryBinding({
+  store, getDriver: () => driverObj, getGeneration: () => driverGen,
+  isBusy: transitions.isBusy, runTransition: transitions.run, waitForElement, ensureInView,
+  onError: () => {
+    store.stop();
+    useDeletionsStore().notify({ prefix: 'Не удалось обновить подсказку. Запусти обучение ещё раз.', type: 'error' });
   },
 });
 
@@ -102,33 +109,11 @@ function waitSelectorOf(step) {
   return step?.waitFor || step?.element;
 }
 
-/**
- * Пересчитать подсветку после того, как сменившийся бланк перерисовал форму.
- * Ждём НОВЫЙ узел по тому же селектору и зовём driver.refresh(): без этого
- * подсветка остаётся на удалённом элементе, то есть пропадает.
- *
- * @param {number} globalIndex шаг, чью цель ждём
- * @param {number} gen поколение driver-инстанса на момент запроса
- */
-async function refreshHighlightFor(globalIndex, gen) {
-  const step = store.steps[globalIndex];
-  if (!step?.element) return;
-  refreshController?.abort();
-  const controller = new AbortController();
-  refreshController = controller;
-  const el = await waitForElement(waitSelectorOf(step), FIRST_TARGET_TIMEOUT, controller.signal);
-  // Тур мог уйти дальше или перезапуститься, пока форма перерисовывалась.
-  if (controller.signal.aborted || !el || !driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
-  // refresh здесь бесполезен: он пересчитывает рамку по цели, которую driver
-  // запомнил при создании сегмента. Нужен именно пересбор конфига шага - его
-  // и делает obRetarget.
-  driverObj.obRetarget(globalIndex);
-}
-
 // Общая подготовка шага; контракт и ожидания описаны в stepPreparation.
 const prepareStep = createStepPreparation({
-  store, watchers, applyDemoAttachment, beforePrepare: () => refreshController?.abort(),
+  store, watchers, applyDemoAttachment, beforePrepare: () => geometryBinding.stop(),
   waitSelectorOf, waitForElement, ensureInView, demoFallback: STEP_DEMO_FALLBACK,
+  prepareTarget: geometryBinding.prepare,
 });
 
 const startSegment = () => transitions.run(startSegmentInner, { replace: true,
@@ -157,32 +142,12 @@ async function startSegmentInner(operation) {
   segmentRange = { start: segmentStartIndex, end: segmentStartIndex + segmentSteps.length - 1 };
   const localTarget = store.currentIndex - segmentStartIndex;
 
-  // Демо-вложение и рельс целевого шага ставим ДО ожидания элемента: форма
-  // заявки рисуется только при добавленном вложении, а рельс-шаг должен мерить
-  // уже раскрытый рельс (актуально при «Назад» прямо на такой шаг).
-  applyDemoAttachment(store.currentIndex);
-  rail.apply(store.currentIndex);
-  await applyReveal(store.steps, store.currentIndex, { signal: operation.signal });
-  if (!operation.isCurrent()) return;
-
-  // Целевой шаг: дожидаемся его элемента (устойчивого по размеру), иначе
-  // деградируем в центр-модал, чтобы driver не падал на отсутствующей цели.
-  // Сам массив шагов не трогаем - он же служит источником, из которого движок
-  // пересобирает шаг, когда цель появляется или пропадает (setStepMode).
   const targetStep = segmentSteps[localTarget];
   if (!targetStep) { store.stop(); return; }
-  let targetMissing = false;
-  if (targetStep.element) {
-    // Первый шаг новой страницы ждём по верхней границе: страница монтируется,
-    // грузит данные и только потом дорастает до конечного размера. На таблице
-    // поста четырёх секунд не хватало - шаг вырождался в окно по центру, хотя
-    // таблица появлялась мгновением позже.
-    const el = await waitForElement(waitSelectorOf(targetStep), REVEAL_TARGET_TIMEOUT, operation.signal);
-    // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
-    // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
-    if (!operation.isCurrent() || myGen !== driverGen) return;
-    targetMissing = !el;
-  }
+  rail.apply(store.currentIndex);
+  const ready = await prepareStep(store.currentIndex, operation, { initial: true });
+  if (!operation.isCurrent() || myGen !== driverGen) return;
+  const targetMissing = ready === false || ready === STEP_DEMO_FALLBACK;
 
   driverObj = createDriver(segmentSteps, {
     startIndex: segmentStartIndex,
@@ -194,6 +159,7 @@ async function startSegmentInner(operation) {
       store.setIndex(globalIndex);
       rail.apply(globalIndex);
       watchers.watchStep(globalIndex);
+      geometryBinding.commit(globalIndex);
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       const attachmentChanged = applyDemoAttachment(globalIndex);
@@ -201,7 +167,7 @@ async function startSegmentInner(operation) {
       // и после «Назад» с «Сотрудников» на «Автомобили» подсветка пропадала -
       // форма правильная, а рамки нет. Дожидаемся нового узла и просим driver
       // пересчитать подсветку по тому же селектору.
-      if (attachmentChanged) refreshHighlightFor(globalIndex, driverGen);
+      if (attachmentChanged) geometryBinding.refresh(globalIndex);
       // Прогрев раскрытия для «Назад» внутри группы шагов; сигнал, поставленный
       // prepareStep для СЛЕДУЮЩЕГО шага, не затираем - см. OnboardingTour.revealRace.spec.
       if (store.revealOpen === store.steps[globalIndex + 1]?.reveal?.open) return;
@@ -266,7 +232,7 @@ function handleBoundaryNext(activeGlobalIndex) {
 }
 
 function advanceToSegment(targetRoute) {
-  refreshController?.abort();
+  geometryBinding.stop();
   store.advanceSegment();
   rail.restore();
   restoreReveal();
@@ -328,7 +294,7 @@ function isInActiveSegment(globalIndex) {
  * @param {number} globalIndex глобальный индекс целевого шага
  */
 function restartSegmentAt(globalIndex) {
-  refreshController?.abort();
+  geometryBinding.stop();
   store.setIndex(globalIndex);
   rail.restore();
   restoreReveal();
@@ -344,7 +310,7 @@ function restartSegmentAt(globalIndex) {
 }
 
 function retreatToSegment(targetIndex, targetRoute) {
-  refreshController?.abort();
+  geometryBinding.stop();
   store.retreatSegment(targetIndex);
   rail.restore();
   restoreReveal();
@@ -406,8 +372,8 @@ function teardown() {
   keys.detach();
   driverObj?.obCancel?.();
   transitions.cancel();
-  refreshController?.abort();
-  refreshController = null;
+  geometryBinding.stop();
+
   watchers.stopAll();
   segmentRange = null;
   // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
@@ -509,6 +475,7 @@ onMounted(maybeAutostart);
 onBeforeUnmount(() => {
   removeAfterEach();
   teardown();
+  geometryBinding.dispose();
 });
 </script>
 

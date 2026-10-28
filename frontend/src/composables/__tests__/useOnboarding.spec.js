@@ -237,21 +237,21 @@ describe('createDriver - шаг без цели', () => {
   // Вперёд шаг выброшен, а «Назад» его показывал: экран к тому времени менялся
   // (карточка открыта), и решение по текущему DOM расходилось с пройденным
   // маршрутом. Возврат обязан идти ровно по тому, что человек видел.
-  it('«Назад» перепрыгивает шаги, выброшенные по дороге вперёд', () => {
+  it('«Назад» перепрыгивает шаги, выброшенные по дороге вперёд', async () => {
     drive({});
     storeState.skippedIndexes = [1];
     mocks.state.activeIndex = 2;
 
-    mocks.state.config.onPrevClick();
+    await mocks.state.config.onPrevClick();
 
     expect(mocks.state.moves).toEqual(['to:0']);
   });
 
-  it('«Назад» на шаг со скриншотом при пустом экране возвращает его с картинкой', () => {
+  it('«Назад» на шаг со скриншотом при пустом экране возвращает его с картинкой', async () => {
     drive({});
     mocks.state.activeIndex = 2;
 
-    mocks.state.config.onPrevClick();
+    await mocks.state.config.onPrevClick();
 
     expect(mocks.state.moves).toEqual(['prev']);
     expect(mocks.state.config.steps[1].element).toBeUndefined();

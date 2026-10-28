@@ -16,11 +16,23 @@
  */
 import { getViewportZoom } from '@/utils/viewportScale';
 
-export function createPopoverZoomFix() {
+export function createPopoverZoomFix({ requestRefresh } = {}) {
   let zoomFixObserver = null;
   let applyingZoomFix = false;
+  let generation = 0;
+  let activeWrapper = null;
+  const frames = new Set();
   const zoomFixLast = {};
   const INSETS = ['left', 'top', 'right', 'bottom'];
+
+  function schedule(callback) {
+    const owner = generation;
+    const id = requestAnimationFrame(() => {
+      frames.delete(id);
+      if (owner === generation) callback();
+    });
+    frames.add(id);
+  }
 
   function apply(wrapper) {
     const z = getViewportZoom();
@@ -47,22 +59,38 @@ export function createPopoverZoomFix() {
       wrapper.style[prop] = next[prop];
       zoomFixLast[prop] = next[prop];
     }
-    requestAnimationFrame(() => wrapper.classList.remove('ob-popover--instant'));
+    schedule(() => wrapper.classList.remove('ob-popover--instant'));
     applyingZoomFix = false;
   }
 
   function attach(wrapper) {
     detach();
     if (!wrapper || typeof MutationObserver === 'undefined') return;
+    activeWrapper = wrapper;
+    const owner = generation;
+    const update = () => {
+      if (owner !== generation || applyingZoomFix) return;
+      if (requestRefresh) {
+        const changed = INSETS.some(prop => {
+          const raw = wrapper.style[prop];
+          return raw && raw !== 'auto' && zoomFixLast[prop] !== raw;
+        });
+        if (changed) requestRefresh();
+      } else apply(wrapper);
+    };
     zoomFixObserver = new MutationObserver(() => {
-      if (applyingZoomFix) return;
-      apply(wrapper);
+      update();
     });
     zoomFixObserver.observe(wrapper, { attributes: true, attributeFilter: ['style'] });
-    requestAnimationFrame(() => apply(wrapper));
+    schedule(update);
   }
 
   function detach() {
+    generation += 1;
+    frames.forEach(cancelAnimationFrame);
+    frames.clear();
+    activeWrapper?.classList.remove('ob-popover--instant');
+    activeWrapper = null;
     if (zoomFixObserver) {
       zoomFixObserver.disconnect();
       zoomFixObserver = null;
@@ -70,5 +98,5 @@ export function createPopoverZoomFix() {
     for (const prop of INSETS) delete zoomFixLast[prop];
   }
 
-  return { attach, detach };
+  return { attach, detach, apply };
 }
