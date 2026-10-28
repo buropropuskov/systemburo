@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ungatedRouteComponents } from '../../../components/onboarding/__tests__/routerGates.js';
+import { ungatedRouteComponents, gatedRouteLoaderOffsets, isRouteDefinitionFile } from '../../../components/onboarding/__tests__/routerGates.js';
 
 /**
  * Модули, которые исполняются на экранах, открытых любому вошедшему.
@@ -38,6 +38,13 @@ function resolveImport(spec, fromFile) {
 
 const IMPORT_RE = /(?:from\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\))/g;
 
+export function userFlowImports(text, { routeDefinitions = false } = {}) {
+  const gatedLoaders = routeDefinitions ? gatedRouteLoaderOffsets(text) : new Set();
+  return [...text.matchAll(IMPORT_RE)]
+    .filter(match => !gatedLoaders.has(match.index))
+    .map(match => match[1] ?? match[2]);
+}
+
 /** @param {string} file @returns {boolean} обёртка запросов из `src/api` */
 export function isApiWrapper(file) {
   return path.relative(SRC_ROOT, file).startsWith(`api${path.sep}`);
@@ -61,8 +68,8 @@ export function userFlowModules() {
     if (isApiWrapper(file)) continue;
 
     const text = fs.readFileSync(file, 'utf8');
-    for (const m of text.matchAll(IMPORT_RE)) {
-      const resolved = resolveImport(m[1] ?? m[2], file);
+    for (const spec of userFlowImports(text, { routeDefinitions: isRouteDefinitionFile(file) })) {
+      const resolved = resolveImport(spec, file);
       if (resolved && !seen.has(resolved)) queue.push(resolved);
     }
   }

@@ -7,7 +7,7 @@ vi.mock('@/api/client', () => ({
 }))
 
 vi.mock('@/stores/permissions', () => ({
-  usePermissionsStore: () => ({ hasPermission: () => true, loaded: true, fetchPermissions: vi.fn() }),
+  usePermissionsStore: () => ({ hasPermission: () => true, loaded: true, fetchPermissions: vi.fn(), mode: 'normal', effective: {}, denied: new Set() }),
 }))
 
 import TheHeader from '@/components/TheHeader/TheHeader.vue'

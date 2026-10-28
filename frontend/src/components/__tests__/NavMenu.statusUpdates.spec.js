@@ -25,7 +25,7 @@ vi.mock('@/api/client', () => ({
 const hasPermission = vi.fn();
 const fetchPermissions = vi.fn();
 vi.mock('@/stores/permissions', () => ({
-  usePermissionsStore: () => ({ hasPermission, fetchPermissions }),
+  usePermissionsStore: () => ({ hasPermission, fetchPermissions, loaded: false, mode: 'normal', effective: {}, denied: new Set() }),
 }));
 
 import NavMenu from '../NavMenu.vue';

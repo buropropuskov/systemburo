@@ -37,8 +37,7 @@ const EXTRA_GATE_FLAGS = ['requiresSuperAdmin', 'requiresSecurityOrAdmin'];
  * @returns {Array<{ path: string, permission: string|null, extraGate: string|null, component: string|null }>}
  *   роуты с requiresAuth; `component` - путь импорта, если его удалось прочитать
  */
-function parseAuthRoutes() {
-  const src = ROUTER_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+function parseAuthRoutes(src = ROUTER_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n')) {
   // Компоненты роутов объявлены двумя способами: ленивым import() прямо в объекте
   // роута и статическим импортом по имени в шапке файла.
   const staticImports = {};
@@ -49,7 +48,7 @@ function parseAuthRoutes() {
   marks.forEach((m, i) => {
     const chunk = src.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : src.length);
     if (!/requiresAuth:\s*true/.test(chunk)) return;
-    const lazy = chunk.match(/component:\s*\(\)\s*=>\s*import\('([^']+)'\)/)?.[1];
+    const lazy = chunk.match(/component:\s*\(\)\s*=>\s*(import\('([^']+)'\))/);
     const named = chunk.match(/component:\s*(\w+)/)?.[1];
     routes.push({
       path: m[1],
@@ -58,10 +57,22 @@ function parseAuthRoutes() {
       // ключа в тексте нет, но страница закрыта, и считать её открытой нельзя.
       gated: /permission:/.test(chunk),
       extraGate: EXTRA_GATE_FLAGS.find((f) => new RegExp(`${f}:\\s*true`).test(chunk)) ?? null,
-      component: lazy ?? staticImports[named] ?? null,
+      component: lazy?.[2] ?? staticImports[named] ?? null,
+      lazyImportOffset: lazy ? m.index + lazy.index + lazy[0].indexOf(lazy[1]) : null,
     });
   });
   return routes;
+}
+
+/** Deferred component factories behind actual route guards are not executed by importing route metadata. */
+export function gatedRouteLoaderOffsets(source) {
+  return new Set(parseAuthRoutes(source)
+    .filter(route => (route.gated || route.extraGate) && route.lazyImportOffset !== null)
+    .map(route => route.lazyImportOffset));
+}
+
+export function isRouteDefinitionFile(file) {
+  return ROUTER_FILES.includes(path.resolve(file));
 }
 
 const authRoutes = parseAuthRoutes();
