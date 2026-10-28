@@ -9,9 +9,14 @@ import { useThemeStore } from '@/stores/theme';
 import { saveTheme } from '@/api/theme';
 vi.mock('@/api/theme', () => ({ getTheme: vi.fn(), saveTheme: vi.fn().mockResolvedValue({}) }));
 const wrappers = [];
+const styles = [];
 const create = (props = {}) => { const w = mount(ThemeControls, { props, attachTo: document.body }); wrappers.push(w); return w; };
 beforeEach(() => { localStorage.clear(); setActivePinia(createPinia()); vi.clearAllMocks(); });
-afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); document.body.innerHTML = ''; });
+afterEach(() => {
+  wrappers.splice(0).forEach(w => w.unmount());
+  styles.splice(0).forEach(style => style.remove());
+  document.body.innerHTML = '';
+});
 async function change(id, checked) {
   const input = document.querySelector(`[data-testid="${id}"] input`);
   expect(input).not.toBeNull();
@@ -107,4 +112,22 @@ it('updates the disclosure arrow with the setting state', async () => {
   expect(w.get('button').attributes('aria-expanded')).toBe('true');
   await w.get('button').trigger('click');
   expect(w.get('.theme-arrow').classes()).not.toContain('theme-arrow--open');
+});
+
+it.each([
+  { inline: false, closed: 'rotate(0deg)', opened: 'rotate(180deg)' },
+  { inline: true, closed: 'rotate(90deg)', opened: 'rotate(270deg)' },
+])('points toward the actual panel layout (inline=$inline)', async ({ inline, closed, opened }) => {
+  const source = fs.readFileSync(resolve(__dirname, '../ThemeControls.vue'), 'utf8');
+  const compiled = compileStyle({ source: parse(source).descriptor.styles[0].content,
+    filename: 'ThemeControls.vue', id: ThemeControls.__scopeId, scoped: true });
+  const style = document.createElement('style'); style.textContent = compiled.code;
+  styles.push(style); document.head.append(style);
+  const wrapper = create({ inline });
+  const arrow = () => wrapper.get('.theme-arrow').element;
+  expect(getComputedStyle(arrow()).transform).toBe(closed);
+  await wrapper.get('button').trigger('click');
+  expect(getComputedStyle(arrow()).transform).toBe(opened);
+  await wrapper.get('button').trigger('click');
+  expect(getComputedStyle(arrow()).transform).toBe(closed);
 });
