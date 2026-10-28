@@ -9,15 +9,17 @@ import {
   securityOnboardingSteps,
   SECURITY_ONBOARDING_VERSION,
 } from '@/components/onboarding/securityOnboardingSteps';
-import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
+import { getOnboardingStatus, markOnboardingComplete, getSecurityPostContext } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
 import { getUserApplicationsPaginated } from '@/api/applications';
 import { syncDemoBackend } from '@/components/onboarding/demoBackend';
+import { getMe } from '@/api/auth';
+vi.mock('@/api/auth', async original => ({ ...await original(), getMe: vi.fn() }));
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),
   markOnboardingComplete: vi.fn(),
-  getSecurityFactRoute: vi.fn(),
+  getSecurityPostContext: vi.fn(),
 }));
 
 vi.mock('@/api/approvers', () => ({
@@ -38,6 +40,8 @@ vi.mock('@/components/onboarding/demoBackend', () => ({
  * нужно сперва «завести» человеку заявку - как это делает gatingData на старте.
  */
 async function withOwnApplication(store) {
+  if (!useAuthStore().userId) useAuthStore().setTokens(createMockJWT({ username: 'fixture', user_id: 101 }));
+  store.ownApplicationLoaded = false;
   getUserApplicationsPaginated.mockResolvedValue({ items: [{ id: 1 }], meta: { total: 1 } });
   await store.ensureOwnApplication();
 }
@@ -56,12 +60,15 @@ function grant(...keys) {
   const permissions = usePermissionsStore();
   permissions.mode = 'normal';
   permissions.effective = Object.fromEntries(keys.map((k) => [k, { value: 'allow', source: 'base' }]));
+  permissions.loaded = true;
 }
 
-// Гейтящие шаги и права берём из самой конфигурации: числа в ассертах («минус два
-// шага») протухают с каждым новым permission-шагом и краснеют не по делу.
+// requires берём из конфигурации, а полный fixture явно включает входы в разделы
+// и чтение/запись реестров. Специальные запреты проверяются отдельно, без super.
 const USER_REQUIRES_STEPS = onboardingSteps.filter((s) => s.requires);
-const USER_TOUR_RIGHTS = [...new Set(USER_REQUIRES_STEPS.map((s) => s.requires))];
+const USER_PAGE_RIGHTS = ['page.cars', 'page.employees', 'page.new_application',
+  'entity.cars.read', 'entity.cars.write', 'entity.employees.read', 'entity.employees.write'];
+const USER_TOUR_RIGHTS = [...new Set([...USER_REQUIRES_STEPS.map((s) => s.requires), ...USER_PAGE_RIGHTS])];
 
 describe('onboarding store', () => {
   beforeEach(() => {
@@ -69,13 +76,21 @@ describe('onboarding store', () => {
     // ломала соседа, который проверяет, что после финала её нет.
     localStorage.clear();
     setActivePinia(createPinia());
+    // These legacy scenarios start after access has loaded. Unknown access is
+    // covered separately rather than treated as a valid empty permissions set.
+    usePermissionsStore().loaded = true;
+    useAuthStore().userTypeCode = 'user';
+    const store = useOnboardingStore();
+    store.ownApplicationLoaded = true;
+    store.factRouteLoaded = true;
     getOnboardingStatus.mockReset();
     markOnboardingComplete.mockReset();
     markOnboardingComplete.mockResolvedValue({ message: 'ok' });
-    getSecurityFactRoute.mockReset();
-    getSecurityFactRoute.mockResolvedValue(null);
+    getSecurityPostContext.mockReset();
+    getSecurityPostContext.mockResolvedValue(null);
     getMyApprovalRole.mockReset();
     getMyApprovalRole.mockResolvedValue({ is_approver: false, is_reviewer: false });
+    getMe.mockResolvedValue({ user_type_code: 'user' });
   });
 
   afterEach(() => {
@@ -197,7 +212,7 @@ describe('onboarding store', () => {
     });
 
     it('тур охраны отдаёт свои шаги плюс финал празднования', () => {
-      grant('header.report_problem');
+      grant('header.report_problem', 'page.available');
       const store = useOnboardingStore();
       store.start({ tour: 'guard' });
       expect(store.steps.slice(0, securityOnboardingSteps.length)).toEqual(securityOnboardingSteps);
@@ -227,7 +242,12 @@ describe('onboarding store', () => {
    * бы настоящий список кабинета. И живёт она ровно столько, сколько тур.
    */
   describe('примерные данные включаются по надобности', () => {
-    beforeEach(() => syncDemoBackend.mockClear());
+    beforeEach(() => {
+      syncDemoBackend.mockClear();
+      const store = useOnboardingStore(); store.ownApplicationLoaded = false;
+      store.approvalRoleLoaded = true; store.approvalRole = { isApprover: true, isReviewer: false };
+      grant('page.center'); useAuthStore().setTokens(createMockJWT({ username: 'fixture', user_id: 101 }));
+    });
 
     it('без своей заявки тур поднимает пример', async () => {
       getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
@@ -251,6 +271,9 @@ describe('onboarding store', () => {
       // примера состав тура зависит от того, что лежит в списке сегодня (#2580).
       const store = useOnboardingStore();
       await withOwnApplication(store);
+      grant('page.center');
+      getMyApprovalRole.mockResolvedValue({ is_approver: true, is_reviewer: false });
+      await store.prepareTour('accept');
       store.start({ tour: 'accept' });
 
       expect(syncDemoBackend).toHaveBeenCalledWith(true, true, 'accept');
@@ -361,6 +384,10 @@ describe('onboarding store', () => {
   });
 
   describe('состав тура не зависит от данных', () => {
+    beforeEach(() => {
+      useOnboardingStore().ownApplicationLoaded = false;
+      useAuthStore().setTokens(createMockJWT({ username: 'fixture', user_id: 101 }));
+    });
     it('без своей заявки шаги про её карточку остаются', async () => {
       grant(...USER_TOUR_RIGHTS);
       getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
@@ -398,15 +425,16 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(before);
     });
 
-    it('ошибка запроса читается как «заявок нет» - тогда включится пример', async () => {
+    it('ошибка запроса не включает пример и не позволяет начать неподготовленный тур', async () => {
       grant(...USER_TOUR_RIGHTS);
       getUserApplicationsPaginated.mockRejectedValue(new Error('сеть'));
       const store = useOnboardingStore();
       await store.ensureOwnApplication();
-      store.start({ tour: 'user' });
+      expect(store.start({ tour: 'user' })).toBe(false);
 
       expect(store.hasOwnApplication).toBe(false);
-      expect(store.steps.map((s) => s.id)).toContain('detail-revoke');
+      expect(store.ownApplicationLoaded).toBe(false);
+      expect(syncDemoBackend).not.toHaveBeenCalledWith(true, false, 'user');
     });
 
     it('запрос уходит один раз за сессию, сбрасывается вместе с пользователем', async () => {
@@ -424,6 +452,9 @@ describe('onboarding store', () => {
   });
 
   describe('requires - шаг без права выброшен из набора', () => {
+    // These cases isolate leaf/action permissions. Entry-point denials are tested
+    // separately in onboardingApplicability.spec; keep their pages available here.
+    beforeEach(() => grant(...USER_PAGE_RIGHTS));
     it('без header.report_problem шага «Сообщить о проблеме» в туре нет', async () => {
       grant(...USER_TOUR_RIGHTS.filter((k) => k !== 'header.report_problem'));
       const store = useOnboardingStore();
@@ -436,7 +467,7 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(onboardingSteps.length - dropped);
     });
 
-    it('без прав выброшены все permission-шаги', async () => {
+    it('без прав на отдельные действия выброшены все requires-шаги', async () => {
       const store = useOnboardingStore();
       await withOwnApplication(store);
       store.start({ tour: 'user' });
@@ -469,7 +500,9 @@ describe('onboarding store', () => {
       })();
 
       setActivePinia(createPinia());
+      grant(...USER_PAGE_RIGHTS);
       const store = useOnboardingStore();
+      store.ownApplicationLoaded = true;
       store.start({ tour: 'user' });
       const withoutRights = store.steps.filter((s) => !s.optional).length;
 
@@ -532,11 +565,13 @@ describe('onboarding store', () => {
       expect(keys(store)).toEqual([]);
     });
 
-    it('охранник по типу пользователя видит тур охраны', () => {
+    it('охранник по типу пользователя видит тур охраны', async () => {
       const auth = useAuthStore();
       auth.setTokens(createMockJWT({ username: 'guard1' }));
       auth.userTypeCode = 'security';
+      getMe.mockResolvedValue({ user_type_code: 'security' });
       const store = useOnboardingStore();
+      await store.ensureSelectionContext();
       expect(keys(store)).toEqual(['user', 'guard']);
     });
 
@@ -597,11 +632,13 @@ describe('onboarding store', () => {
   });
 
   describe('pickAutostartTour (приоритет автозапуска)', () => {
-    it('охрана приоритетнее заявителя', () => {
+    it('охрана приоритетнее заявителя', async () => {
       const auth = useAuthStore();
       auth.setTokens(createMockJWT({ username: 'guard1' }));
       auth.userTypeCode = 'security';
+      getMe.mockResolvedValue({ user_type_code: 'security' });
       const store = useOnboardingStore();
+      await store.ensureSelectionContext();
       expect(store.pickAutostartTour().key).toBe('guard');
     });
 
@@ -649,18 +686,21 @@ describe('onboarding store', () => {
   // Автозапуск выбирает тур один раз, поэтому недогруженный гейтинг - это не
   // «покажем позже», а «покажем не тот тур».
   describe('ensureGatingContext (гейтинг дожидается прав и роли)', () => {
-    it('тянет права, тип пользователя и роль согласования', async () => {
+    it('дожидается неизвестного типа и прав, не загружая ненужную охране роль', async () => {
       const auth = useAuthStore();
-      auth.loadUserTypeCode = vi.fn(async () => { auth.userTypeCode = 'security'; });
+      auth.userTypeCode = null;
+      getMe.mockResolvedValue({ user_type_code: 'security' });
       const permissions = usePermissionsStore();
-      permissions.fetchPermissions = vi.fn(async () => { permissions.mode = 'super'; });
+      permissions.loaded = false;
+      permissions.fetchPermissions = vi.fn(async () => { permissions.loaded = true; });
 
       const store = useOnboardingStore();
       await store.ensureGatingContext();
 
       expect(permissions.fetchPermissions).toHaveBeenCalledOnce();
-      expect(auth.loadUserTypeCode).toHaveBeenCalledOnce();
-      expect(getMyApprovalRole).toHaveBeenCalledOnce();
+      expect(getMe).toHaveBeenCalledOnce();
+      expect(auth.userTypeCode).toBe(null);
+      expect(getMyApprovalRole).not.toHaveBeenCalled();
       expect(store.tourContext.isSecurity).toBe(true);
     });
 
@@ -679,9 +719,11 @@ describe('onboarding store', () => {
       auth.setTokens(createMockJWT({ username: 'admin1' }));
       auth.loadUserTypeCode = vi.fn();
       const permissions = usePermissionsStore();
+      permissions.loaded = false;
       // Права приезжают только внутри ensureGatingContext - до него их нет.
       permissions.fetchPermissions = vi.fn(async () => {
         permissions.mode = 'normal';
+        permissions.loaded = true;
         permissions.effective = { 'page.available': { value: 'allow', source: 'base' } };
       });
 
@@ -728,14 +770,15 @@ describe('onboarding store', () => {
   });
 
   describe('ensureFactRoute (сегмент фактовой таблицы охранника)', () => {
+    beforeEach(() => { useOnboardingStore().factRouteLoaded = false; });
     it('резолвит route и добавляет сегмент отметки в хвост шагов тура охраны', async () => {
-      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      getSecurityPostContext.mockResolvedValue({ route: '/table/kpp_1', tableType: 'cars', showFactTable: true });
       const permissions = usePermissionsStore();
       permissions.mode = 'super';
       const store = useOnboardingStore();
-      store.start({ tour: 'guard' });
       const baseLen = securityOnboardingSteps.length;
       await store.ensureFactRoute();
+      store.start({ tour: 'guard' });
 
       expect(store.factTableRoute).toBe('/table/kpp_1');
       expect(store.totalSteps).toBe(baseLen + 10);
@@ -760,60 +803,71 @@ describe('onboarding store', () => {
       expect(finalStep.route).toBe('/news');
     });
 
-    it('без доступной фактовой таблицы (null) сегмент не добавляется', async () => {
-      getSecurityFactRoute.mockResolvedValue(null);
+    it('без доступного поста остаются обязательный материал «По факту» и финал', async () => {
+      getSecurityPostContext.mockResolvedValue(null);
       const permissions = usePermissionsStore();
       permissions.mode = 'super';
       const store = useOnboardingStore();
-      store.start({ tour: 'guard' });
       await store.ensureFactRoute();
+      store.start({ tour: 'guard' });
 
       expect(store.factTableRoute).toBe(null);
-      expect(store.totalSteps).toBe(securityOnboardingSteps.length + 1);
+      expect(store.totalSteps).toBe(securityOnboardingSteps.length + 2);
+      const fact = store.steps.filter(step => step.id === 'sec-fact-intro');
+      expect(fact).toHaveLength(1);
+      expect(fact[0]).toMatchObject({ route: '/news', element: null });
+      expect(fact[0].optional).not.toBe(true);
       const last = store.steps[store.steps.length - 1];
       expect(last.id).toBe('sec-finish');
       expect(last.route).toBe('/news');
     });
 
     it('идемпотентен - резолвит один раз за сессию', async () => {
-      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      getSecurityPostContext.mockResolvedValue({ route: '/table/kpp_1', tableType: 'cars', showFactTable: true });
       const store = useOnboardingStore();
       await store.ensureFactRoute();
       await store.ensureFactRoute();
 
-      expect(getSecurityFactRoute).toHaveBeenCalledOnce();
+      expect(getSecurityPostContext).toHaveBeenCalledOnce();
     });
 
-    it('start тура охраны запускает резолв фоном', async () => {
-      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+    it('start охраны не запускает фоновые запросы: подготовка обязательна до старта', async () => {
+      getSecurityPostContext.mockResolvedValue({ route: '/table/kpp_1', tableType: 'cars', showFactTable: true });
       const store = useOnboardingStore();
-      store.start({ tour: 'guard' });
+      expect(store.start({ tour: 'guard' })).toBe(false);
 
       // Резолвер закрепляет shared in-flight до запуска запроса в microtask.
       await Promise.resolve();
-      expect(getSecurityFactRoute).toHaveBeenCalledOnce();
-      await vi.waitFor(() => expect(store.factTableRoute).toBe('/table/kpp_1'));
+      expect(getSecurityPostContext).not.toHaveBeenCalled();
+      grant('page.available');
+      expect((await store.prepareTour('guard')).status).toBe('ready');
+      expect(store.start({ tour: 'guard' })).toBe(true);
+      expect(store.factTableRoute).toBe('/table/kpp_1');
     });
 
     it('start тура заявителя резолв не запускает', () => {
       const store = useOnboardingStore();
       store.start({ tour: 'user' });
-      expect(getSecurityFactRoute).not.toHaveBeenCalled();
+      expect(getSecurityPostContext).not.toHaveBeenCalled();
     });
 
     it('reset очищает route и позволяет резолву повториться для следующего юзера', async () => {
-      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      getSecurityPostContext.mockResolvedValue({ route: '/table/kpp_1', tableType: 'cars', showFactTable: true });
       const store = useOnboardingStore();
       await store.ensureFactRoute();
       store.reset();
 
       expect(store.factTableRoute).toBe(null);
       await store.ensureFactRoute();
-      expect(getSecurityFactRoute).toHaveBeenCalledTimes(2);
+      expect(getSecurityPostContext).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('loadStatus / hasCompleted (per-user, per-tour через API)', () => {
+    beforeEach(() => {
+      grant('page.center', 'page.available'); const store = useOnboardingStore();
+      store.approvalRoleLoaded = true; store.approvalRole = { isApprover: true, isReviewer: false };
+    });
     it('loadStatus тянет карту пройденных версий', async () => {
       getOnboardingStatus.mockResolvedValue({
         completed: { user: ONBOARDING_VERSION, guard: null, approve: null, accept: null, admin: null },

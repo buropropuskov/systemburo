@@ -42,7 +42,11 @@ function ctx({ permissions = [], isSecurity = false, isApprover = false, isRevie
 function grant(...keys) {
   const permissions = usePermissionsStore();
   permissions.mode = 'normal';
-  permissions.effective = Object.fromEntries(keys.map((k) => [k, { value: 'allow', source: 'base' }]));
+  permissions.loaded = true;
+  permissions.fetchedAt = Date.now();
+  const store = useOnboardingStore(); store.approvalRoleLoaded = true;
+  store.approvalRole = { isApprover: true, isReviewer: false };
+  permissions.effective = Object.fromEntries(['page.center', ...keys].map((k) => [k, { value: 'allow', source: 'base' }]));
 }
 
 describe('acceptOnboardingSteps - состав', () => {
@@ -318,7 +322,7 @@ describe('выпадение шагов по правам', () => {
     expect(store.currentStep.celebrate).toBe(true);
   });
 
-  it('приём в работу и назначение постов остаются объяснёнными при пустом наборе прав', () => {
+  it('приём и назначение остаются объяснёнными с доступом в Центр без дополнительных прав', () => {
     const ids = stepsFor([]).map((s) => s.id);
     expect(ids).toEqual(expect.arrayContaining([
       'acc-nav-center',

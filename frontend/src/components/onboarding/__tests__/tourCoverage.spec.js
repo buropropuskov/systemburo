@@ -31,6 +31,9 @@ const permissionEntries = coverage.permissions;
 const elementEntries = coverage.elements ?? {};
 const stepIds = new Set(allTourSteps().map((s) => s.id));
 const tourKeys = new Set(TOURS.map((t) => t.key));
+const stepsByTour = new Map(TOURS.map(tour => [tour.key,
+  new Set(buildTourSteps(tour, { factTableRoute: FACT_ROUTE_STUB }).map(step => step.id)),
+]));
 const navPaths = [...MAIN_SECTIONS, ...ADMIN_GROUPS.flatMap((g) => g.items)].map((i) => i.path);
 
 /**
@@ -78,6 +81,7 @@ describe('реестр покрытия туров - форма записей',
     for (const [key, entry] of all.filter(([, e]) => isCovered(e))) {
       expect(tourKeys.has(entry.tour), `${key}: нет тура ${entry.tour}`).toBe(true);
       expect(stepIds.has(entry.step), `${key}: нет шага ${entry.step}`).toBe(true);
+      expect(stepsByTour.get(entry.tour)?.has(entry.step), `${key}: шаг ${entry.step} не входит в тур ${entry.tour}`).toBe(true);
     }
   });
 

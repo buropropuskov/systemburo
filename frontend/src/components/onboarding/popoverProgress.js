@@ -63,7 +63,13 @@ export function buildProgressBlock({ steps, skipped, globalIndex, total, nextTit
   label.setAttribute('data-testid', 'ob-step-counter');
   label.textContent = `Шаг ${globalIndex} из ${total}`;
   if (onJump) {
-    const list = buildStepList({ steps, skipped, currentGlobal, onJump });
+    label.setAttribute('aria-expanded', 'false');
+    const list = buildStepList({ steps, skipped, currentGlobal, onJump: index => {
+      block.classList.remove('is-open');
+      label.setAttribute('aria-expanded', 'false');
+      label.focus({ preventScroll: true });
+      onJump(index);
+    } });
     label.addEventListener('click', () => {
       const opening = !block.classList.contains('is-open');
       if (opening) {
@@ -82,6 +88,7 @@ export function buildProgressBlock({ steps, skipped, globalIndex, total, nextTit
         });
       }
       block.classList.toggle('is-open', opening);
+      label.setAttribute('aria-expanded', String(opening));
     });
     block.appendChild(list);
     label.title = 'Показать список шагов';

@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import coverage from '../tourCoverage.json';
+import { ADMIN_GROUPS } from '@/constants/navSections';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +40,8 @@ function ctx({ permissions = [] } = {}) {
 function grant(...keys) {
   const permissions = usePermissionsStore();
   permissions.mode = 'normal';
+  permissions.loaded = true;
+  permissions.fetchedAt = Date.now();
   permissions.effective = Object.fromEntries(keys.map((k) => [k, { value: 'allow', source: 'base' }]));
 }
 
@@ -99,16 +103,26 @@ describe('adminOnboardingSteps - состав', () => {
   });
 
   /**
-   * Шаг-перечисление обещан реестром покрытия как место, где назван журнал
-   * обращений: `tourCoverage.json` ссылается на него и роутом `/admin/requests`,
-   * и правом `page.admin.monitoring`. Раздел там пропустили - реестр обещал
-   * объяснение, которого в тексте не было. Проверяем поимённо, иначе такая
-   * запись снова станет формальной.
+   * Общий обзор не перечисляет операции, закрытые ограниченному администратору.
+   * Их названия остаются в настоящем меню с собственными permission-гейтами,
+   * а ссылки реестра не должны вести на отсутствующий раздел или шаг.
+   * Наличие ссылки само по себе не доказывает, что операция объяснена туром.
    */
-  it('шаг-перечисление называет разделы, которые обещает реестр покрытия', () => {
+  it('обзор не раскрывает закрытые операции, а разделы сохраняют гейты и записи реестра', () => {
     const more = adminOnboardingSteps.find((s) => s.id === 'admin-more');
+    expect(more.description).toMatch(/доступные вам разделы/iu);
+    const sections = ADMIN_GROUPS.flatMap((group) => group.items);
     ['Конструктор таблиц', 'Типы вложений', 'Файловый архив', 'Мониторинг запросов', 'Журнал отказов']
-      .forEach((label) => expect(more.description, label).toContain(label));
+      .forEach((label) => {
+        expect(more.description, label).not.toContain(label);
+        const section = sections.find((item) => item.label === label);
+        expect(section, label).toBeDefined();
+        expect(section.permission, label).toBeTruthy();
+        const routeEntry = coverage.routes[section.path];
+        expect(routeEntry?.tour, label).toBe('admin');
+        expect(adminOnboardingSteps.some((step) => step.id === routeEntry.step), label).toBe(true);
+        expect(coverage.permissions[section.permission], label).toBeDefined();
+      });
   });
 
   it('финал - последний шаг: празднование и кнопка «Обучение» на «Обзоре»', () => {

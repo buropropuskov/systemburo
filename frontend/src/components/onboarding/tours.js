@@ -50,7 +50,7 @@ export const TOURS = [
     // Финал всегда замыкает тур на достижимом /accessible-attachments.
     buildSteps: (ctx) => [
       ...securityOnboardingSteps,
-      ...buildSecurityFactSteps(ctx?.factTableRoute || null),
+      ...buildSecurityFactSteps(ctx?.factTableRoute || null, ctx?.securityPostContext || undefined),
       buildSecurityFinalStep(),
     ],
     // Доступ к «Доступным мне» обязателен, как центр заявок у согласующего: на

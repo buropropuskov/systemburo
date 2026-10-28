@@ -13,7 +13,7 @@ vi.mock('@/api/applications', () => ({
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn().mockResolvedValue({ completed: {} }),
   markOnboardingComplete: vi.fn().mockResolvedValue({ message: 'ok' }),
-  getSecurityFactRoute: vi.fn().mockResolvedValue(null),
+  getSecurityPostContext: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('@/api/approvers', () => ({
   getMyApprovalRole: vi.fn().mockResolvedValue({ is_approver: false, is_reviewer: false }),

@@ -277,9 +277,11 @@ describe('buildTourSteps', () => {
     expect(buildTourSteps('user')).toBe(onboardingSteps);
   });
 
-  it('тур охраны собирает базу + финал; без route фактовой таблицы сегмента отметки нет', () => {
+  it('тур охраны без route сохраняет обязательный учебный пример «По факту» и финал', () => {
     const steps = buildTourSteps('guard', {});
-    expect(steps.length).toBe(securityOnboardingSteps.length + 1);
+    expect(steps.length).toBe(securityOnboardingSteps.length + 2);
+    expect(steps[securityOnboardingSteps.length]).toMatchObject({ id: 'sec-fact-intro', demo: 'factTable' });
+    expect(steps[securityOnboardingSteps.length].element).toBe(null);
     expect(steps[steps.length - 1].id).toBe('sec-finish');
   });
 

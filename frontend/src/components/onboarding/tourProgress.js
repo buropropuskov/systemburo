@@ -26,18 +26,40 @@ const keyOf = (userId, tour) => `${PREFIX}:${userId || 'anon'}:${tour}`;
 /** @param {string} tour @returns {number|null} версия набора шагов тура */
 const versionOf = (tour) => TOURS.find((t) => t.key === tour)?.version ?? null;
 
+/** Keep a semantic step across filtering; prefer its next remaining neighbour. */
+export function resolveStepIndex(stepId, previousIds, steps, legacyIndex = 0) {
+  if (!steps.length) return 0;
+  const ids = steps.map(step => step.id);
+  const exact = typeof stepId === 'string' ? ids.indexOf(stepId) : -1;
+  if (exact >= 0) return exact;
+  const previous = Array.isArray(previousIds) ? previousIds : [];
+  const anchor = previous.indexOf(stepId);
+  if (anchor >= 0) {
+    for (let index = anchor + 1; index < previous.length; index += 1) {
+      const next = ids.indexOf(previous[index]);
+      if (next >= 0) return next;
+    }
+    for (let index = anchor - 1; index >= 0; index -= 1) {
+      const next = ids.indexOf(previous[index]);
+      if (next >= 0) return next;
+    }
+    return 0;
+  }
+  return Math.min(Math.max(0, Number.isInteger(legacyIndex) ? legacyIndex : 0), steps.length - 1);
+}
+
 /**
  * @param {string|number|null} userId
  * @param {string} tour ключ тура
  * @returns {{ index: number, interrupted: boolean }} шаг, с которого продолжать
  *   (0 - сначала), и был ли тур на экране в момент ухода со страницы
  */
-export function readProgress(userId, tour) {
+export function readProgress(userId, tour, steps) {
   const empty = { index: 0, interrupted: false };
   try {
     const raw = localStorage.getItem(keyOf(userId, tour));
     if (!raw) return empty;
-    const { index, at, onScreen, version } = JSON.parse(raw);
+    const { index, at, onScreen, version, stepId, stepIds } = JSON.parse(raw);
     if (!Number.isInteger(index) || index <= 0) return empty;
     if (version !== versionOf(tour)) {
       localStorage.removeItem(keyOf(userId, tour));
@@ -47,7 +69,8 @@ export function readProgress(userId, tour) {
       localStorage.removeItem(keyOf(userId, tour));
       return empty;
     }
-    return { index, interrupted: Boolean(onScreen) };
+    return { index: Array.isArray(steps) ? resolveStepIndex(stepId, stepIds, steps, index) : index,
+      interrupted: Boolean(onScreen) };
   } catch {
     return empty;
   }
@@ -61,15 +84,17 @@ export function readProgress(userId, tour) {
  *   от осознанной паузы: после F5 обучение поднимается само, после «Продолжить
  *   позже» - ждёт, пока человек сам вернётся через меню.
  */
-export function saveProgress(userId, tour, index, onScreen = false) {
+export function saveProgress(userId, tour, index, onScreen = false, steps) {
   try {
     if (!Number.isInteger(index) || index <= 0) {
       clearProgress(userId, tour);
       return;
     }
+    const identity = Array.isArray(steps) && typeof steps[index]?.id === 'string'
+      ? { stepId: steps[index].id, stepIds: steps.map(step => step.id) } : {};
     localStorage.setItem(
       keyOf(userId, tour),
-      JSON.stringify({ index, at: Date.now(), onScreen, version: versionOf(tour) }),
+      JSON.stringify({ index, at: Date.now(), onScreen, version: versionOf(tour), ...identity }),
     );
   } catch {
     // приватный режим браузера или переполненное хранилище - тур просто начнётся
@@ -98,12 +123,12 @@ export function clearProgress(userId, tour) {
 export function createProgressTracker(getUserId) {
   return {
     /** @returns {number} шаг, с которого продолжать */
-    resumeIndex: (tour) => readProgress(getUserId(), tour).index,
+    resumeIndex: (tour, steps) => readProgress(getUserId(), tour, steps).index,
     /** @returns {boolean} есть ли что продолжать - по этому меню зовёт «Продолжить» */
     has: (tour) => readProgress(getUserId(), tour).index > 0,
     /** @returns {boolean} тур остался на экране при уходе со страницы */
     interrupted: (tour) => readProgress(getUserId(), tour).interrupted,
-    save: (tour, index, onScreen) => saveProgress(getUserId(), tour, index, onScreen),
+    save: (tour, index, onScreen, steps) => saveProgress(getUserId(), tour, index, onScreen, steps),
     clear: (tour) => clearProgress(getUserId(), tour),
   };
 }

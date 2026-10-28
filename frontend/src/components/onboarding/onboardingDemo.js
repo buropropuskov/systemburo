@@ -5,6 +5,7 @@ import demoCenterList from '@/assets/onboarding/demo-center-list.png';
 import demoApprovers from '@/assets/onboarding/demo-approvers.png';
 import demoVote from '@/assets/onboarding/demo-detail-actions.png';
 import demoApplicationDetail from '@/assets/onboarding/demo-application-detail.png';
+import demoFactTable from '@/assets/onboarding/demo-fact-table.png';
 
 /**
  * Демо-скриншоты для шагов, где у нового пользователя элемент пустой (заявки,
@@ -14,6 +15,11 @@ import demoApplicationDetail from '@/assets/onboarding/demo-application-detail.p
  * @type {Record<string, { src: string, alt: string, caption?: string }>}
  */
 const DEMO = {
+  factTable: {
+    src: demoFactTable,
+    alt: 'Учебный пример таблицы «Автомобили по факту»: въезд, выезд и данные пропуска',
+    caption: 'Учебный пример. Это изображение: кнопки внутри него не меняют данные.',
+  },
   applications: {
     src: demoApplications,
     alt: 'Пример списка заявок со статусами',

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ref } from 'vue';
 
 const api = vi.hoisted(() => ({ fact: vi.fn(), approval: vi.fn(), own: vi.fn() }));
-vi.mock('@/api/onboarding', () => ({ getSecurityFactRoute: api.fact }));
+vi.mock('@/api/onboarding', () => ({ getSecurityPostContext: api.fact }));
 vi.mock('@/api/approvers', () => ({ getMyApprovalRole: api.approval }));
 vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: api.own }));
 
@@ -22,8 +23,8 @@ beforeEach(async () => {
 });
 
 const cases = [
-  { name: 'fact route', mock: api.fact, ensure: 'ensureFactRoute', read: state => state.factTableRoute.value, old: '/table/old', fresh: '/table/new', empty: null, expected: '/table/new', expectedEmpty: null },
-  { name: 'approval role', mock: api.approval, ensure: 'ensureApprovalRole', read: state => state.approvalRole.value, old: { is_approver: true }, fresh: { is_reviewer: true }, empty: {}, expected: { isApprover: false, isReviewer: true }, expectedEmpty: { isApprover: false, isReviewer: false } },
+  { name: 'fact route', mock: api.fact, ensure: 'ensureFactRoute', loaded: 'factRouteLoaded', read: state => state.factTableRoute.value, old: { route: '/table/old' }, fresh: { route: '/table/new' }, empty: null, expected: '/table/new', expectedEmpty: null },
+  { name: 'approval role', mock: api.approval, ensure: 'ensureApprovalRole', loaded: 'approvalRoleLoaded', read: state => state.approvalRole.value, old: { is_approver: true, is_reviewer: false }, fresh: { is_approver: false, is_reviewer: true }, empty: { is_approver: false, is_reviewer: false }, expected: { isApprover: false, isReviewer: true }, expectedEmpty: { isApprover: false, isReviewer: false } },
   { name: 'own application', mock: api.own, ensure: 'ensureOwnApplication', read: state => state.hasOwnApplication.value, old: { items: [], meta: { total: 0 } }, fresh: { items: [{ id: 22 }], meta: { total: 1 } }, empty: { items: [], meta: { total: 0 } }, expected: true, expectedEmpty: false },
 ];
 
@@ -57,7 +58,9 @@ describe.each(cases)('$name context', scenario => {
     scenario.mock.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(scenario.fresh);
     const state = createGatingData();
     await state[scenario.ensure]().catch(() => {});
+    if (scenario.loaded) expect(state[scenario.loaded].value).toBe(false);
     await state[scenario.ensure]();
+    if (scenario.loaded) expect(state[scenario.loaded].value).toBe(true);
     expect(scenario.mock).toHaveBeenCalledTimes(2);
     expect(scenario.read(state)).toEqual(scenario.expected);
   });
@@ -100,6 +103,12 @@ describe.each(cases)('$name context', scenario => {
 });
 
 describe('own application identity boundary', () => {
+  it('never requests an unfiltered list without a known sender', async () => {
+    actor.userId = null;
+    const state = createGatingData();
+    await expect(state.ensureOwnApplication()).resolves.toBe(false);
+    expect(api.own).not.toHaveBeenCalled(); expect(state.ownApplicationLoaded.value).toBe(false);
+  });
   it('uses the current sender filter and only asks for one record', async () => {
     api.own.mockResolvedValue({ items: [], meta: { total: 0 } });
     await createGatingData().ensureOwnApplication();
@@ -123,5 +132,24 @@ describe('own application identity boundary', () => {
     api.own.mockResolvedValue({ items: [], meta: { total: 0 } });
     await state.ensureOwnApplication();
     expect(api.own).toHaveBeenCalledWith({ page: 1, per_page: 1, sender_user_id: 202 });
+  });
+});
+
+describe('known context contracts', () => {
+  it('does not label a malformed role payload as an ordinary user', async () => {
+    api.approval.mockResolvedValue({});
+    const state = createGatingData();
+    await expect(state.ensureApprovalRole()).resolves.toBe(false);
+    expect(state.approvalRoleLoaded.value).toBe(false);
+  });
+  it('does not cache a late post descriptor under a different permission policy', async () => {
+    const policy = ref('old'), held = deferred();
+    api.fact.mockReturnValueOnce(held.promise).mockResolvedValueOnce(null);
+    const state = createGatingData({ factPolicyKey: () => policy.value });
+    const old = state.ensureFactRoute(); await vi.waitFor(() => expect(api.fact).toHaveBeenCalledOnce());
+    policy.value = 'new';
+    await expect(state.ensureFactRoute()).resolves.toBe(true);
+    held.resolve({ route: '/table/old', tableType: 'cars', showFactTable: true }); await old;
+    expect(state.securityPostContext.value).toBe(null); expect(state.factRouteLoaded.value).toBe(true);
   });
 });

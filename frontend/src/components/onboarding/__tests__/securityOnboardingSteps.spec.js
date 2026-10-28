@@ -241,6 +241,7 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
   it('реюзит существующие aa-* testid страницы «Доступные мне»', () => {
     const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
     expect(byId('sec-aa-filters').element).toBe('[data-testid="aa-filters"]');
+    expect(byId('sec-aa-filters').reveal.open).toBe('accessible-filters');
     expect(byId('sec-aa-card').element).toBe('[data-testid="aa-card"]');
     expect(byId('sec-aa-detail').element).toBe('[data-testid="aa-detail"]');
     expect(byId('sec-aa-preview').element).toBe('[data-testid="aa-preview-blank"]');
@@ -290,13 +291,14 @@ describe('resolveFactTableRoute', () => {
     expect(resolveFactTableRoute(tables)).toBe('/table/kpp_3');
   });
 
-  it('пропускает неактивные, не-фактовые и безымянные таблицы', () => {
+  it('пропускает неактивные и безымянные таблицы, но сохраняет обычный пост без Fact', () => {
     const tables = [
       table('a', 'cars', { is_active: false }),
       table('b', 'cars', { show_fact_table: false }),
       table('c', 'people', { name: '' }),
     ];
-    expect(resolveFactTableRoute(tables)).toBe(null);
+    expect(resolveFactTableRoute(tables)).toBe('/table/b');
+    expect(resolveFactTableRoute([tables[0], tables[2]])).toBe(null);
   });
 
   it('canView отсеивает недоступные таблицы: машина без права уступает людям с правом', () => {
@@ -308,7 +310,7 @@ describe('resolveFactTableRoute', () => {
     expect(resolveFactTableRoute([table('kpp_1', 'cars')], () => false)).toBe(null);
   });
 
-  it('без предиката доступность не проверяется (права ещё не загружены)', () => {
+  it('чистый селектор без предиката выбирает по составу; API отдельно требует известные права', () => {
     expect(resolveFactTableRoute([table('kpp_1', 'cars')])).toBe('/table/kpp_1');
   });
 
@@ -320,9 +322,14 @@ describe('resolveFactTableRoute', () => {
 });
 
 describe('buildSecurityFactSteps', () => {
-  it('пустой массив без route', () => {
-    expect(buildSecurityFactSteps(null)).toEqual([]);
-    expect(buildSecurityFactSteps('')).toEqual([]);
+  it('без route остаётся обязательный учебный материал без перехода на закрытый пост', () => {
+    for (const route of [null, '']) {
+      const steps = buildSecurityFactSteps(route);
+      expect(steps.map(step => step.id)).toEqual(['sec-fact-intro']);
+      expect(steps[0].route).toBe('/news');
+      expect(steps[0].element).toBeNull();
+      expect(steps[0].optional).not.toBe(true);
+    }
   });
 
   // Порядок отражает работу поста: сперва список «по заявке», где отмечают
@@ -378,13 +385,14 @@ describe('buildSecurityFactSteps', () => {
     expect(intro.optionalSegment).toBe(true);
   });
 
-  it('строка и кнопки опциональны - на пустом посту и в таблице людей их нет', () => {
+  it('строка и кнопки опциональны, а обязательное объяснение Fact не пропускается', () => {
     const byId = (id) => buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === id);
     // На таблице людей кнопок «Въезд»/«Выезд» нет вовсе, а на новом посту пуст и
     // сам список - без optional тур ждал бы цель, которой в разметке не будет.
-    for (const id of ['sec-pass-row', 'sec-pass-entry', 'sec-pass-exit', 'sec-fact-intro']) {
+    for (const id of ['sec-pass-row', 'sec-pass-entry', 'sec-pass-exit']) {
       expect(byId(id).optional, id).toBe(true);
     }
+    expect(byId('sec-fact-intro').optional).not.toBe(true);
   });
 
   it('сегмент отметки не ведёт к подаче заявки (нет cta)', () => {
@@ -423,9 +431,10 @@ describe('buildSecurityFinalStep', () => {
     expect(securityOnboardingSteps.some((s) => s.id === 'sec-finish')).toBe(false);
   });
 
-  it('без фактовой таблицы сегмент отметки не добавляется, а финал остаётся достижим', () => {
+  it('без поста обязательное объяснение Fact и финал остаются достижимы', () => {
     const steps = buildTourSteps('guard', { factTableRoute: null });
-    expect(steps.some((s) => s.id.startsWith('sec-fact-'))).toBe(false);
+    expect(steps.find(s => s.id === 'sec-fact-intro')).toMatchObject({ route: '/news', element: null });
+    expect(steps.some(s => s.id === 'sec-pass-entry')).toBe(false);
     const last = steps[steps.length - 1];
     expect(last.id).toBe('sec-finish');
     // Финал живёт на «Обзоре» - странице, достижимой любому вошедшему.

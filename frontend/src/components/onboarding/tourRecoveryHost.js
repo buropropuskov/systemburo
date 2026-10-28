@@ -36,5 +36,13 @@ export function createTourRecoveryHost({
       setDriver(instance); keys.attach(); instance.drive(0);
     },
   });
-  return { ...state, stop, interrupt() { cancelTransitions(); return state.interrupt(); } };
+  return { ...state, stop,
+    restartAt(stepId) {
+      if (!store.isActive) return;
+      if (!store.steps.some(step => step.id === stepId)) return stop();
+      state.prepare(stepId);
+      return resume(stepId);
+    },
+    interrupt() { cancelTransitions(); return state.interrupt(); },
+  };
 }

@@ -11,7 +11,7 @@ vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }));
 vi.mock('@/stores/permissions', () => ({ usePermissionsStore: () => permissions }));
 
 import { apiRequest } from '@/api/client';
-import { getSecurityFactRoute } from '@/api/onboarding';
+import { getSecurityFactRoute, getSecurityPostContext } from '@/api/onboarding';
 
 // Ссылка на объект берётся внутри фабрики лениво (вызов происходит уже в тесте),
 // поэтому hoisting vi.mock ей не мешает.
@@ -54,20 +54,30 @@ describe('getSecurityFactRoute', () => {
     await expect(getSecurityFactRoute()).resolves.toBe(null);
   });
 
-  it('права ещё не загружены - отбор идёт без них, иначе сегмент потерялся бы', async () => {
+  it('права ещё не загружены - не делает запрос и не выбирает пост без проверки', async () => {
     apiRequest.mockResolvedValue(okJson([table('kpp_1', 'cars')]));
     permissions.loaded = false;
     permissions.hasPermission = vi.fn(() => false);
 
-    await expect(getSecurityFactRoute()).resolves.toBe('/table/kpp_1');
+    await expect(getSecurityFactRoute()).rejects.toThrow('not ready');
+    expect(apiRequest).not.toHaveBeenCalled();
     expect(permissions.hasPermission).not.toHaveBeenCalled();
   });
 
-  it('ошибка ответа и исключение сети дают null, а не роняют тур', async () => {
-    apiRequest.mockResolvedValue({ ok: false, status: 403, json: vi.fn() });
-    await expect(getSecurityFactRoute()).resolves.toBe(null);
+  it('ошибки ответа и сети не выдают известное отсутствие поста', async () => {
+    apiRequest.mockResolvedValue({ ok: false, status: 500, json: vi.fn().mockResolvedValue({}) });
+    await expect(getSecurityFactRoute()).rejects.toThrow();
 
     apiRequest.mockRejectedValue(new Error('network'));
-    await expect(getSecurityFactRoute()).resolves.toBe(null);
+    await expect(getSecurityFactRoute()).rejects.toThrow('network');
+  });
+
+  it('сохраняет обычный пост и его metadata, когда фактовая таблица выключена', async () => {
+    apiRequest.mockResolvedValue(okJson([{ table: { name: 'post', table_type: 'cars', show_fact_table: false, is_active: true } }]));
+    await expect(getSecurityPostContext()).resolves.toEqual({ route: '/table/post', tableType: 'cars', showFactTable: false });
+  });
+  it('не принимает повреждённый список за пустой', async () => {
+    apiRequest.mockResolvedValue(okJson({}));
+    await expect(getSecurityPostContext()).rejects.toThrow('Unknown learning tables');
   });
 });

@@ -1,6 +1,6 @@
 import { apiRequest } from './client';
 import { usePermissionsStore } from '@/stores/permissions';
-import { resolveFactTableRoute } from '@/components/onboarding/securityFactSteps';
+import { resolveSecurityPostContext } from '@/components/onboarding/securityFactSteps';
 
 /**
  * API статуса онбординг-туров (per-user, per-tour). Источник правды - бэкенд:
@@ -41,33 +41,20 @@ export async function markOnboardingComplete(tour, version, finished = false) {
   return unwrap(res, 'Не удалось сохранить статус обучения');
 }
 
-/**
- * Резолв route фактовой таблицы для тура охраны: тянет `/system-tables` (тот же
- * список, что NavMenu показывает в дропдауне «Таблицы») и выбирает первую активную
- * фактовую таблицу - машин, а если таких нет, то людей. Сетевая ошибка/отсутствие
- * подходящей таблицы -> null (сегмент отметки в туре просто не добавляется).
- *
- * Список приходит целиком, поэтому доступность отсеиваем сами тем же правом, что
- * стережёт роут таблицы (`table.<name>.view`) и по которому NavMenu строит свой
- * дропдаун - иначе тур повёл бы на таблицу, с которой роут-гард сразу уводит.
- * Пока права не загружены, hasPermission отвечает «нет» на всё: в этом случае
- * предикат не передаём, чтобы не потерять сегмент на пустом кэше прав.
- *
- * @returns {Promise<string|null>} `/table/<name>` или null
- */
+/** Compatibility route wrapper: known empty posts are null; failures reject. */
 export async function getSecurityFactRoute() {
-  try {
-    const res = await apiRequest('/system-tables');
-    if (!res.ok) return null;
-    const tables = await res.json();
-    const permissions = usePermissionsStore();
-    const canView = permissions.loaded
-      ? (name) => permissions.hasPermission(`table.${name}.view`)
-      : undefined;
-    return resolveFactTableRoute(tables, canView);
-  } catch {
-    return null;
-  }
+  return (await getSecurityPostContext())?.route || null;
+}
+
+/** Known empty posts are null; transport/contract/permission readiness errors reject. */
+export async function getSecurityPostContext() {
+  const permissions = usePermissionsStore();
+  if (!permissions.loaded) throw new Error('Learning access is not ready');
+  const res = await apiRequest('/system-tables');
+  const tables = await unwrap(res, 'Не удалось загрузить таблицы обучения');
+  if (!permissions.loaded) throw new Error('Learning access is not ready');
+  if (!Array.isArray(tables)) throw new Error('Unknown learning tables');
+  return resolveSecurityPostContext(tables, name => permissions.hasPermission(`table.${name}.view`));
 }
 
 /**

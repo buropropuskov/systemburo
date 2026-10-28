@@ -17,6 +17,7 @@ vi.mock('@/composables/useNarrowScreen', () => ({
 
 import TablesComponent from '../TablesComponent.vue';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 function okResponse(data) {
   return { ok: true, json: async () => data };
@@ -80,6 +81,41 @@ describe('TablesComponent - действия таблицы на мобилке'
       if (url.startsWith('/users/me')) return Promise.resolve(okResponse({ id: 1, username: 'test' }));
       return Promise.resolve(okResponse([]));
     });
+  });
+
+  it('reveals the actual mobile actions before explaining the report button', async () => {
+    isNarrowRef.value = true;
+    const wrapper = mountPage(); await flushPromises();
+    const store = useOnboardingStore();
+    store.setRevealOpen('table-actions'); await nextTick();
+    expect(wrapper.vm.showActionsSheet).toBe(true);
+    expect(wrapper.find('[data-testid="pass-report-button"]').exists()).toBe(true);
+    store.setRevealOpen('pass-report'); await nextTick();
+    expect(wrapper.vm.showActionsSheet).toBe(false);
+    expect(wrapper.vm.showPassReport).toBe(true);
+    store.setRevealOpen(null); await nextTick();
+    expect(wrapper.vm.showPassReport).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('never opens a tour report when the table does not allow it', async () => {
+    const permissions = usePermissionsStore();
+    permissions.mode = 'normal'; permissions.loaded = true; permissions.effective = {};
+    const wrapper = mountPage(); await flushPromises();
+    useOnboardingStore().setRevealOpen('pass-report'); await nextTick();
+    expect(wrapper.vm.canReport).toBe(false);
+    expect(wrapper.vm.showPassReport).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('preserves a report opened by the user before the tour', async () => {
+    const wrapper = mountPage(); await flushPromises();
+    wrapper.vm.showPassReport = true; await nextTick();
+    const store = useOnboardingStore();
+    store.setRevealOpen('pass-report'); await nextTick();
+    store.setRevealOpen(null); await nextTick();
+    expect(wrapper.vm.showPassReport).toBe(true);
+    wrapper.unmount();
   });
 
   it('десктоп: действия инлайн в шапке, «⋯» и нижней панели нет', async () => {

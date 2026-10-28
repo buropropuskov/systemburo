@@ -6,12 +6,12 @@ import { getStepPlacement, updateActiveStepPlacement } from '@/components/onboar
 import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
 import { findTourTarget } from '@/components/onboarding/targetResolver';
 import 'driver.js/dist/driver.css';
-import { sanitizeHtml } from '@/utils/sanitize.js';
 import { useOnboardingStore } from '@/stores/onboarding';
-import { getDemo } from '@/components/onboarding/onboardingDemo';
+import { showsDemo, fillDynamic, buildPopoverHtml } from '@/components/onboarding/popoverContent';
 import { buildProgressBlock } from '@/components/onboarding/popoverProgress';
 import { isChapterEnd } from '@/components/onboarding/stepsFlow';
 import { applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
+import { createTouchPresenter } from '@/components/onboarding/touchPresenter';
 
 /**
  * Телефонная раскладка: форма и таблицы в одну колонку, поповер тура обязан
@@ -41,9 +41,7 @@ export const STEP_DEMO_FALLBACK = 'demo-fallback';
  * @param {{ demo?: string, element?: string|null }} step
  * @returns {boolean}
  */
-export function showsDemo(step) {
-  return Boolean(step?.demo) && !step?.element;
-}
+export { showsDemo };
 
 /**
  * Может ли шаг вовсе исчезнуть из тура. Опциональный шаг С демо-скриншотом не
@@ -105,47 +103,6 @@ export function useOnboarding() {
 
 
   /**
-   * Тело поповера: текст шага + демо-скриншот, если шаг показывается без живой
-   * цели (см. showsDemo). Весь HTML прогоняется через sanitizeHtml (src/alt/caption -
-   * наши статичные значения, санитайз страхует от случайной разметки в тексте).
-   *
-   * @param {{ description: string, demo?: string, element?: string|null }} step
-   * @returns {string}
-   */
-  /**
-   * Подставить в текст шага живые значения с экрана: `{имя}` заменяется на текст
-   * узла из `step.dynamic.имя`. Нужно там, где название задаёт не система, а Бюро:
-   * шаг про смену бланка говорил «выбран другой бланк», и понять, какой именно,
-   * было нельзя - имена бланков у каждой организации свои.
-   *
-   * @param {string} text
-   * @param {Record<string, string>|undefined} dynamic карта «имя -> селектор»
-   * @returns {string}
-   */
-  function fillDynamic(text, dynamic) {
-    if (!text || !dynamic) return text;
-    return Object.entries(dynamic).reduce((acc, [key, selector]) => {
-      const value = document.querySelector(selector)?.textContent?.trim();
-      // Узла нет - оставляем текст как есть, но без плейсхолдера: лучше общая
-      // фраза, чем фигурные скобки в лицо пользователю.
-      return acc.replaceAll(`{${key}}`, value || 'выбранный');
-    }, text);
-  }
-
-  function buildPopoverHtml(step) {
-    let html = fillDynamic(step.description || '', step.dynamic);
-    const demo = showsDemo(step) ? getDemo(step.demo) : null;
-    if (demo) {
-      const caption = demo.caption
-        ? `<figcaption class="ob-popover__demo-caption">${demo.caption}</figcaption>`
-        : '';
-      html += `<figure class="ob-popover__demo"><img class="ob-popover__demo-img" src="${demo.src}" alt="${demo.alt}" />${caption}</figure>`;
-    }
-    return sanitizeHtml(html);
-  }
-
-
-  /**
    * Кнопка выхода. На последнем шаге главы зовём её иначе: там обучение прерывать
    * не жалко - глава дочитана, и вернуться можно ровно сюда же. В середине главы
    * это по-прежнему «пропустить», чтобы человек не бросал раздел на середине.
@@ -186,6 +143,7 @@ export function useOnboarding() {
     let alive = true;
     const tourKey = store.activeTourKey;
     const transitions = createStepTransition({ isActive: () => alive });
+    const touch = createTouchPresenter({ getDriver: () => driverObj, isAlive: () => alive });
     const navigate = (work, direction) => (runTransition || transitions.run)(async (operation) => {
       if (!alive || !operation.isCurrent()) return;
       const sourceIndex = driverObj.getActiveIndex() ?? 0;
@@ -365,6 +323,10 @@ export function useOnboarding() {
           );
         }
 
+        touch.attach(popover, () => {
+          const element = driverObj.getActiveElement?.() || (step?.element ? findTourTarget(step.element) : null);
+          return element?.id === 'driver-dummy-element' ? null : element;
+        });
         // Компенсация корневого zoom для позиционирования поповера - едина для ВСЕХ
         // шагов (и anchored, и центро-модальных): см. popoverZoom.js.
       },
@@ -391,6 +353,7 @@ export function useOnboarding() {
         onIndexChange?.(startIndex + localIndex);
       },
       onDestroyed() {
+        touch.detach();
         alive = false;
         transitions.cancel();
         // Свой класс подъёма driver не знает - снимаем сами, иначе элемент
@@ -403,6 +366,7 @@ export function useOnboarding() {
     // Инвалидируем подготовку сразу: fade может удалить DOM позже, но ждать
     // его окончания для отмены действий закрытого тура нельзя.
     driverObj.obCancel = () => {
+      touch.detach();
       alive = false;
       transitions.cancel();
     };
@@ -446,6 +410,7 @@ export function useOnboarding() {
 
     driverObj.obUpdatePlacement = () => {
       if (alive) updateActiveStepPlacement(driverObj, stepsForSegment, driverSteps, isMobileViewport());
+      touch.update();
     };
 
     return driverObj;

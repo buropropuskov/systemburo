@@ -18,7 +18,7 @@ vi.mock('@/api/client', () => ({ apiRequest: (...a) => apiRequest(...a) }));
 const hasPermission = vi.fn();
 const fetchPermissions = vi.fn();
 vi.mock('@/stores/permissions', () => ({
-  usePermissionsStore: () => ({ hasPermission, fetchPermissions }),
+  usePermissionsStore: () => ({ hasPermission, fetchPermissions, loaded: false, mode: 'normal', effective: {}, denied: new Set() }),
 }));
 
 vi.mock('@/services/eventStream', () => ({

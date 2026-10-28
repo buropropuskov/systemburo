@@ -631,6 +631,7 @@ import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { useTableTourDisclosure } from '@/components/onboarding/tableTourDisclosure';
 import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
@@ -714,8 +715,6 @@ export default {
             showExportModal: false,
             showManualAdd: false,
             showPassReport: false,
-            // Окно отчёта открыл тур - только такое он и закрывает за собой.
-            passReportOpenedByTour: false,
 
             // Мобилка: открыт ли bottom-sheet со вторичными фильтрами.
             showFilterSheet: false,
@@ -885,22 +884,6 @@ export default {
         }
     },
     watch: {
-        /**
-         * Онбординг просит показать отчёт по проходам: открываем окно по сигналу и
-         * закрываем, когда сигнал гаснет. Окно, открытое человеком, не трогаем.
-         */
-        'onboardingStore.revealOpen'(target) {
-            if (target === 'pass-report') {
-                if (this.showPassReport) return;
-                this.passReportOpenedByTour = true;
-                this.showPassReport = true;
-                return;
-            }
-            if (!this.passReportOpenedByTour) return;
-            this.passReportOpenedByTour = false;
-            this.showPassReport = false;
-        },
-
         '$route.params.tableName': {
             handler() {
                 this.fetchTableData();
@@ -931,6 +914,7 @@ export default {
         }
     },
     async mounted() {
+        useTableTourDisclosure(this);
         window.addEventListener('resize', this.measureHeader);
         this.measureHeader();
         await this.fetchCurrentUser();  // Ждём загрузки пользователя

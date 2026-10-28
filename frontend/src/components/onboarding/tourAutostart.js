@@ -16,20 +16,22 @@ export function createAutostart(store, getPath) {
     if (store.isActive || getPath() !== '/news' || !store.canShowTour) return;
     // Права, тип пользователя и роль в согласовании гейтят туры и приезжают
     // своими запросами - без ожидания выбор шёл бы по неполному списку.
-    const pending = [store.ensureGatingContext()];
+    const identity = store.contextIdentity();
+    const pending = [store.ensureSelectionContext()];
     if (!store.statusLoaded) pending.push(store.loadStatus());
-    await Promise.all(pending);
+    const [selection] = await Promise.all(pending);
     // Перепроверяем после ожидания: статус мог не загрузиться, человек - уйти со
     // страницы или запустить тур сам, а гейт согласия - доехать ответом (#1567).
+    if (selection.status !== 'ready' || identity !== store.contextIdentity()) return;
     if (!store.statusLoaded || store.isActive || getPath() !== '/news') return;
     if (!store.canShowTour) return;
 
     const cut = store.availableTours.find((t) => store.interruptedTour(t.key));
-    if (cut) {
-      store.start({ tour: cut.key, manual: true });
-      return;
-    }
-    const tour = store.pickAutostartTour();
-    if (tour) store.start({ tour: tour.key, manual: false });
+    const tour = cut || store.pickAutostartTour();
+    if (!tour) return;
+    const prepared = await store.prepareTour(tour.key);
+    if (prepared.status !== 'ready' || identity !== store.contextIdentity() || store.isActive
+      || !store.canShowTour || getPath() !== '/news') return;
+    store.start({ tour: tour.key, manual: Boolean(cut) });
   };
 }
