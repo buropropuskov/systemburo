@@ -1,5 +1,6 @@
 import { createStepNavigation } from '@/components/onboarding/stepNavigation';
 import { driver } from 'driver.js';
+import { driverDefaults } from '@/components/onboarding/driverDefaults';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
 import { getStepPlacement, updateActiveStepPlacement } from '@/components/onboarding/stepPlacement';
 import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
@@ -10,7 +11,7 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
 import { buildProgressBlock } from '@/components/onboarding/popoverProgress';
 import { isChapterEnd } from '@/components/onboarding/stepsFlow';
-import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
+import { applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
 /**
  * Телефонная раскладка: форма и таблицы в одну колонку, поповер тура обязан
@@ -273,36 +274,7 @@ export function useOnboarding() {
 
     const driverObj = driver({
       showProgress: false,
-      // Родная анимация driver.js: вырез плавно едет от прежней цели к новой.
-      // Два её побочных эффекта закрыты снаружи - подсветка со старой цели
-      // снимается в onHighlightStarted (иначе накапливалась и над затемнением
-      // торчали сразу три элемента), а новая цель поднимается над затемнением
-      // только по завершении перехода (иначе протыкала его раньше выреза, и на
-      // форме заявки это читалось как «сначала светятся инпуты»).
-      animate: !prefersReducedMotion(),
-      allowClose: true,
-      // Клавиши обрабатывает хост (OnboardingTour), а не driver. Свой обработчик
-      // библиотеки снимается на время переезда подсветки и подъёма следующего
-      // сегмента: нажатие в эти 300-400 мс уходило в никуда, и человек видел
-      // «тур завис» - жал ещё раз и только тогда двигался дальше.
-      allowKeyboardControl: false,
-      // Клик мимо окна шага обучение не обрывает. driver по умолчанию читает его
-      // как выход, и промах мышью стоил человеку всего тура разом: авто-тур
-      // после закрытия больше не всплывает. Хук-заглушка уводит driver с ветки
-      // "close" (см. его обработчик оверлея), не трогая allowClose - на нём
-      // держится выход по Esc, обещанный в тексте первого шага.
-      overlayClickBehavior: () => {},
-      // Чётче выделение: затемнение фона плотнее, скругление 30px.
-      // popoverOffset больше - карточка не наезжает на элемент.
-      overlayOpacity: 0.78,
-      // Зазор и скругление - общие; на цели во весь экран их снимает applyStageShape.
-      stagePadding: STAGE_PADDING,
-      stageRadius: STAGE_RADIUS,
-      popoverOffset: 16,
-      popoverClass: 'ob-popover',
-      nextBtnText: 'Далее',
-      prevBtnText: 'Назад',
-      doneBtnText: 'Готово',
+      ...driverDefaults(prefersReducedMotion()),
       steps: driverSteps,
       // Перехватываем "Далее" (кнопка И стрелка вправо идут сюда): на границе
       // сегмента отдаём решение хосту (перейти на след. страницу / завершить),

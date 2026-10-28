@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { onboardingSteps } from '../onboardingSteps';
+import { driverDefaults } from '../driverDefaults';
 
 const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
 
@@ -82,7 +83,9 @@ describe('переключение подсветки', () => {
   // Родной переезд рамки driver.js оставляем включённым: без него подсветка
   // щёлкает с шага на шаг, и это заметили сразу.
   it('переезд подсветки анимирует сам driver.js', () => {
-    expect(engine).toMatch(/animate:\s*!prefersReducedMotion\(\)/);
+    expect(engine).toMatch(/driverDefaults\(prefersReducedMotion\(\)\)/);
+    expect(driverDefaults(false).animate).toBe(true);
+    expect(driverDefaults(true).animate).toBe(false);
   });
 
   // driver.js снимает класс с прежней цели только в конце своей анимации: при

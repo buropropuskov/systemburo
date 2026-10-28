@@ -137,6 +137,7 @@ export function buildSecurityFactSteps(route) {
     },
     {
       id: 'sec-fact-intro',
+      dataOwner: 'fact-list',
       route,
       element: '[data-testid="fact-table"]',
       optional: true,

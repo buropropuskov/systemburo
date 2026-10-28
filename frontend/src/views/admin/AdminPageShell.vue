@@ -10,6 +10,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { getViewportZoom } from '@/utils/viewportScale';
+import { PAGE_LAYOUT_READY } from '@/utils/pageLayout';
 
 /**
  * Полноширинная обёртка страниц /admin/*: растягивает вложенный компонент
@@ -68,6 +69,8 @@ onMounted(async () => {
   await nextTick();
   applyHeight();
   window.addEventListener('resize', applyHeight);
+  // A sibling route can still occupy the normal flow at mounted/nextTick.
+  window.addEventListener(PAGE_LAYOUT_READY, applyHeight);
   // Пересчёт при изменении высоты шапки (анонс, перенос строки). Наблюдаем
   // саму шапку, а не body - иначе Teleport-модалки (их в проекте десятки)
   // будили бы лишний reflow на каждое открытие.
@@ -80,6 +83,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', applyHeight);
+  window.removeEventListener(PAGE_LAYOUT_READY, applyHeight);
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;

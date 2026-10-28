@@ -3,13 +3,13 @@ import { watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
-import { useDeletionsStore } from '@/stores/deletions';
 import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
-import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFlow';
+import { collectSegment } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 import { createStepPreparation } from '@/components/onboarding/stepPreparation';
 import { createTourGeometryBinding } from '@/components/onboarding/tourGeometryBinding';
 import { createTourLayerGuard } from '@/components/onboarding/tourLayerGuard';
+import { createTourRecoveryHost } from '@/components/onboarding/tourRecoveryHost';
 import { createRailControl } from '@/components/onboarding/railControl';
 import { createKeyboardNav } from '@/components/onboarding/keyboardNav';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
@@ -32,7 +32,7 @@ let routeRequest = 0;
 // Тур дошёл до финального шага (кнопка «Готово» или CTA), а не был брошен на
 // середине. Сбрасывается при старте каждого тура - см. watch(isActive).
 let reachedFinal = false;
-// Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
+let technicalStop = false;
 // Наблюдение за DOM на время шага: ведёт шаг вперёд по действию человека и
 // удерживает подсветку на пересозданной цели (stepWatchers.js).
 const watchers = createStepWatchers({
@@ -52,11 +52,13 @@ const rail = createRailControl(ui, (index) => store.steps[index]);
 // страницами, где инстанса нет вовсе (см. keyboardNav.js).
 const keys = createKeyboardNav({
   isActive: () => store.isActive && !layerGuard.isBlocked(),
-  next: () => driverObj?.obNext(), prev: () => driverObj?.obPrev(), close: () => store.stop(),
+  next: () => driverObj?.obNext(), prev: () => driverObj?.obPrev(),
+  close: () => recovery.hasFailure() ? recovery.stop() : store.stop(),
 });
 const busyButtons = new Map();
 const transitions = createStepTransition({
   isActive: () => store.isActive && !layerGuard.isBlocked(),
+  onError: (error, operation) => recovery.fail(error, operation),
   onBusyChange: (busy) => {
     if (busy) {
       document.querySelectorAll('.driver-popover-next-btn, .driver-popover-prev-btn').forEach((button) => {
@@ -69,11 +71,21 @@ const transitions = createStepTransition({
     }
     if (busy) geometryBinding?.stop();
     keys.setBusy(busy);
-    if (!busy && !transitions.isBusy() && !layerGuard.isBlocked()) {
+    if (!busy && !transitions.isBusy() && !layerGuard.isBlocked() && !recovery.isShowing()) {
       driverObj?.obSyncHighlighted?.();
       geometryBinding?.commit(store.currentIndex);
     }
   },
+});
+
+const recovery = createTourRecoveryHost({
+  store, keys, watchers, rail, getGeometry: () => geometryBinding,
+  getDriver: () => driverObj, setDriver: value => { driverObj = value; },
+  advanceGeneration: () => ++driverGen, getGeneration: () => driverGen,
+  getRoute: () => route.path, cancelTransitions: () => transitions.cancel(),
+  startSegment: () => startSegment(), pushRoute: target => pushTourRoute(target),
+  reducedMotion: prefersReducedMotion, isBlocked: () => layerGuard.isBlocked(),
+  stop: () => { technicalStop = true; store.stop(); },
 });
 
 const layerGuard = createTourLayerGuard((blocked) => {
@@ -92,17 +104,16 @@ const layerGuard = createTourLayerGuard((blocked) => {
     keys.attach();
     // Preparation may already have changed the demo/reveal before cancellation.
     // Rebuild this same step so its UI and anchor share one current context.
-    if (!store.pendingSegment) restartSegmentAt(store.currentIndex);
+    if (recovery.hasFailure()) recovery.show();
+    else if (!store.pendingSegment) restartSegmentAt(store.currentIndex);
   }
 });
 
 geometryBinding = createTourGeometryBinding({
   store, getDriver: () => driverObj, getGeneration: () => driverGen,
-  isBusy: () => transitions.isBusy() || layerGuard.isBlocked(), runTransition: transitions.run, waitForElement, ensureInView,
-  onError: () => {
-    store.stop();
-    useDeletionsStore().notify({ prefix: 'Не удалось обновить подсказку. Запусти обучение ещё раз.', type: 'error' });
-  },
+  isBusy: () => transitions.isBusy() || layerGuard.isBlocked() || recovery.isShowing(),
+  runTransition: transitions.run, waitForElement, ensureInView,
+  onError: error => recovery.fail(Object.assign(error, { stepId: store.currentStep?.id })),
 });
 
 /**
@@ -132,7 +143,8 @@ function waitSelectorOf(step) {
 
 // Общая подготовка шага; контракт и ожидания описаны в stepPreparation.
 const prepareStep = createStepPreparation({
-  store, watchers, applyDemoAttachment, beforePrepare: () => geometryBinding.stop(),
+  store, watchers, applyDemoAttachment,
+  beforePrepare: index => { recovery.prepare(store.steps[index]?.id); geometryBinding.stop(); },
   waitSelectorOf, waitForElement, ensureInView, demoFallback: STEP_DEMO_FALLBACK,
   prepareTarget: geometryBinding.prepare,
 });
@@ -177,6 +189,8 @@ async function startSegmentInner(operation) {
       if (!store.isActive || myGen !== driverGen) return;
       // Завершение анимации прежнего шага не владеет уже начатой подготовкой.
       if (transitions.isBusy()) return;
+      recovery.commit(store.steps[globalIndex]?.id);
+      if (!layerGuard.isBlocked()) keys.attach();
       store.setIndex(globalIndex);
       rail.apply(globalIndex);
       watchers.watchStep(globalIndex);
@@ -267,17 +281,15 @@ function advanceToSegment(targetRoute) {
   return pushTourRoute(targetRoute);
 }
 
-function pushTourRoute(targetRoute, markDismissed = false) {
+function pushTourRoute(targetRoute) {
   const request = ++routeRequest;
   const gen = driverGen;
   const failed = () => {
     if (request !== routeRequest || gen !== driverGen || !store.isActive || !store.pendingSegment) return;
-    store.clearPending();
-    if (markDismissed) markIfAuto();
-    store.stop();
+    return recovery.fail({ stepId: store.currentStep?.id, reason: 'route-unavailable' });
   };
   // Vue Router возвращает NavigationFailure как результат, а не только reject.
-  return router.push(targetRoute).then((failure) => { if (failure) failed(); }, failed);
+  return router.push(targetRoute).then((failure) => { if (failure) return failed(); }, failed);
 }
 
 /**
@@ -372,6 +384,7 @@ function finishTour() {
  *   гасят автозапуск, но «Пройден» в меню не дают - человек тура не видел.
  */
 function markIfAuto(finished = reachedFinal) {
+  if (technicalStop || recovery.hasFailure()) return;
   if (!store.isManual || finished) store.markCompleted(finished);
 }
 
@@ -423,12 +436,13 @@ watch(
     // и сбивают с шага. Ошибки сквозь паузу проходят - см. deletions.notify.
     ui.tourActive = active;
     if (active) {
+      technicalStop = false; recovery.reset();
       layerGuard.activate();
       // Каждый запуск начинается «недосмотренным»: иначе повторный тур унаследовал
       // бы отметку о финале предыдущего и закрытие на первом шаге зачлось бы.
       reachedFinal = false;
       if (!layerGuard.isBlocked()) { keys.attach(); startSegment(); }
-    } else { layerGuard.deactivate(); keys.detach(); teardown(); }
+    } else { layerGuard.deactivate(); keys.detach(); teardown(); recovery.reset(); }
   },
   { flush: 'sync' },
 );
@@ -437,6 +451,11 @@ watch(
 // приведёт нас на страницу первого шага следующего сегмента.
 const removeAfterEach = router.afterEach((to, from, failure) => {
   if (failure || !store.isActive) return;
+  if (['Error500', 'Maintenance', 'Forbidden', 'NotFound', 'NotFoundCatchAll'].includes(to.name)) {
+    technicalStop = true;
+    recovery.interrupt();
+    return;
+  }
   if (!store.pendingSegment) {
     // Человек ушёл со страницы сам - пунктом меню, ссылкой, кнопкой «Назад»
     // браузера. Шаги остаются от прежней страницы, и тур висит поверх чужого
@@ -450,28 +469,8 @@ const removeAfterEach = router.afterEach((to, from, failure) => {
     store.clearPending();
     startSegment();
   } else {
-    // Навигация увела не туда, куда вёл тур - не держим силой.
-    // Сегмент с динамическим route (фактовая таблица) опционален: если у
-    // охранника пока нет доступа к /table/:name и роут-гард редиректит, это не
-    // обрыв тура. Вместо завершения перепрыгиваем весь недостижимый сегмент к
-    // следующему достижимому шагу - финалу-празднованию на /accessible-attachments,
-    // чтобы охранник всё равно увидел завершение. Если за сегментом шагов нет -
-    // штатно завершаем (авто-тур помечаем пройденным). Когда доступ выдан, переход
-    // проходит и мы попадаем в ветку выше.
-    const missed = store.currentStep;
-    if (missed?.optionalSegment) {
-      const resumeIndex = indexAfterRoute(store.steps, store.currentIndex, missed.route);
-      if (resumeIndex !== -1) {
-        // route фиксируем до jumpToSegment - индекс смены сегмента читаем один раз.
-        const resumeRoute = store.steps[resumeIndex].route;
-        store.jumpToSegment(resumeIndex);
-        pushTourRoute(resumeRoute, true);
-        return;
-      }
-      markIfAuto();
-    }
-    store.clearPending();
-    store.stop();
+    // A redirect is not a viewed segment and cannot produce a successful finale.
+    recovery.fail({ stepId: store.currentStep?.id, reason: 'route-unavailable' });
   }
 });
 
@@ -496,6 +495,7 @@ onMounted(maybeAutostart);
 onBeforeUnmount(() => {
   removeAfterEach();
   teardown();
+  recovery.reset();
   geometryBinding.dispose();
   layerGuard.dispose();
 });

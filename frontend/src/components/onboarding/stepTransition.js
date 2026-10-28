@@ -2,7 +2,7 @@
  * One operation owns preparation and commit. Callers must check isCurrent()
  * after an await and before applying a result to the tour or its UI.
  */
-export function createStepTransition({ isActive = () => true, onBusyChange = () => {} } = {}) {
+export function createStepTransition({ isActive = () => true, onBusyChange = () => {}, onError } = {}) {
   let current = null;
   let sequence = 0;
 
@@ -37,16 +37,20 @@ export function createStepTransition({ isActive = () => true, onBusyChange = () 
       current = null;
       onBusyChange(false);
     };
+    const handleError = (error) => {
+      if (!onError) throw error;
+      // A late failure belongs to its cancelled operation, never the new step.
+      if (context.isCurrent()) return onError(error, context);
+    };
     // A busy observer or previous abort listener may cancel/replace this operation.
     if (!context.isCurrent()) {
       cleanup();
       return Promise.resolve(undefined);
     }
     try {
-      return Promise.resolve(work(context)).finally(cleanup);
+      return Promise.resolve(work(context)).catch(handleError).finally(cleanup);
     } catch (error) {
-      cleanup();
-      return Promise.reject(error);
+      return Promise.reject(error).catch(handleError).finally(cleanup);
     }
   }
 

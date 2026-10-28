@@ -27,7 +27,7 @@
         </div>
       </nav>
 
-      <div class="admin-settings__section-select">
+      <div class="admin-settings__section-select" data-testid="ob-admin-settings">
         <BaseDropdown
           :model-value="activeSection"
           :options="sections"

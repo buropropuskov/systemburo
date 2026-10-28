@@ -1,6 +1,11 @@
 import { applyReveal } from './reveal';
 import { waitForPageSettled } from './pageSettled';
-import { findTourTarget } from './targetResolver';
+import { findTourTarget, isTourTargetVisible } from './targetResolver';
+import { readStepOwner, waitForStepOwner } from './ownerReadiness';
+
+function blocked(step, reason) {
+  return Object.assign(new Error('Learning step is not ready'), { stepId: step?.id, reason });
+}
 
 const FIRST_TARGET_TIMEOUT = 4000;
 const REVEAL_TARGET_TIMEOUT = 9000;
@@ -23,7 +28,10 @@ function targetTimeoutFor(step) {
 
 export function createStepPreparation({
   store, watchers, applyDemoAttachment, beforePrepare, waitSelectorOf, waitForElement, ensureInView, demoFallback,
-  prepareTarget = (element, block, operation) => ensureInView(element, block, operation.signal),
+  prepareTarget = async (element, block, operation) => {
+    await ensureInView(element, block, operation.signal);
+    return element;
+  },
 }) {
   /**
    * Перед переходом на шаг готовим DOM: ставим демо-вложение и дожидаемся
@@ -44,7 +52,7 @@ export function createStepPreparation({
    */
   return async function prepareStep(globalIndex, operation, { initial = false } = {}) {
     if (!operation.isCurrent()) return;
-    beforePrepare();
+    beforePrepare(globalIndex);
     // Тур уже двинулся - наблюдение прошлого шага снимаем сразу. Иначе оно
     // срабатывало на узле, который открывает СЛЕДУЮЩИЙ шаг (карточку заявки), и
     // тур перескакивал через него.
@@ -54,13 +62,20 @@ export function createStepPreparation({
     const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false, signal: operation.signal });
     if (!operation.isCurrent()) return;
     if (!step?.element) return true;
+    const owner = await waitForStepOwner(step.dataOwner, { timeout: PAGE_SETTLE_TIMEOUT, signal: operation.signal });
+    if (!operation.isCurrent() || owner.kind === 'cancelled') return;
+    if (['error', 'forbidden', 'timeout'].includes(owner.kind)) throw blocked(step, owner.kind);
+    if (owner.kind === 'empty' && !findTourTarget(waitSelectorOf(step))) {
+      return step.demo || initial || !step.optional ? demoFallback : false;
+    }
     // Необязательный шаг ждём коротко (700 мс): нет цели - значит её тут нет
     // (#1771). Шагу с `waitsData` даём 2,5 с - цель приезжает данными узла (#2584).
     // Полное ожидание - когда раскрывали узел, меняли бланк или шаг обязателен.
     // Сперва даём странице договорить с сервером - иначе состав зависит от сети.
     const scope = () => findTourTarget(step.dataReady || step.waitFor || step.element) || document;
-    await waitForPageSettled(PAGE_SETTLE_TIMEOUT, operation.signal, scope);
+    const settled = await waitForPageSettled(PAGE_SETTLE_TIMEOUT, operation.signal, scope);
     if (!operation.isCurrent()) return;
+    if (!settled) throw blocked(step, 'load-timeout');
     // `dataReady` - узел, приезжающий с данными, внутри которого живёт цель: есть
     // он - цели ждать нечего. Иначе три неприменимых шага вешали тур на 8 с (#2590).
     const ready = step.dataReady ? await waitForElement(step.dataReady, DATA_TARGET_TIMEOUT, operation.signal) : null;
@@ -73,8 +88,12 @@ export function createStepPreparation({
       // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
       // прокрученной от прошлого шага, и цель могла уехать за край экрана.
       const target = step.element === waitSelectorOf(step) ? el : findTourTarget(step.element);
-      await prepareTarget(target, step.scrollTo, operation);
+      const prepared = await prepareTarget(target, step.scrollTo, operation);
       if (!operation.isCurrent()) return;
+      if (!prepared || !isTourTargetVisible(prepared)) throw blocked(step, 'missing-target');
+      if (step.dataOwner && !['ready', 'empty'].includes(readStepOwner(step.dataOwner)?.state)) {
+        throw blocked(step, 'owner-changed');
+      }
       return true;
     }
     if (step.demo || initial) return demoFallback;

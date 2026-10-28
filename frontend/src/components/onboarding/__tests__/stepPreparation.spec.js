@@ -12,7 +12,7 @@ function box(id, parent = document.body, className = '') {
   return element;
 }
 
-function prepare(step) {
+function prepare(step, prepareTarget) {
   const controller = new AbortController();
   const ensureInView = vi.fn(async () => {});
   const execute = createStepPreparation({
@@ -20,6 +20,7 @@ function prepare(step) {
     beforePrepare: vi.fn(), applyDemoAttachment: () => false,
     waitSelectorOf: value => value.waitFor || value.element,
     waitForElement, ensureInView, demoFallback: 'demo',
+    ...(prepareTarget ? { prepareTarget } : {}),
   });
   const pending = execute(0, { signal: controller.signal, isCurrent: () => !controller.signal.aborted });
   return { pending, controller, ensureInView };
@@ -29,6 +30,43 @@ beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-01-15T12:
 afterEach(() => { document.body.replaceChildren(); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('step preparation uses the visible target readiness scope', () => {
+  it('rejects a target removed during scroll preparation', async () => {
+    const target = box('target');
+    const run = prepare({ id: 'scroll-target', element: '#target' }, async () => { target.remove(); return null; });
+    const result = expect(run.pending).rejects.toMatchObject({ stepId: 'scroll-target', reason: 'missing-target' });
+    await vi.advanceTimersByTimeAsync(120); await result;
+  });
+
+  it('rechecks the explicit owner after target preparation', async () => {
+    const target = box('target'); target.dataset.obOwner = 'fact-list'; target.dataset.obState = 'ready';
+    const run = prepare({ id: 'changed-owner', element: '#target', dataOwner: 'fact-list' }, async () => {
+      target.dataset.obState = 'error'; return target;
+    });
+    const result = expect(run.pending).rejects.toMatchObject({ stepId: 'changed-owner', reason: 'owner-changed' });
+    await vi.advanceTimersByTimeAsync(120); await result;
+  });
+  it.each(['error', 'forbidden'])('blocks an explicit %s outcome without skipping or scrolling', async state => {
+    const owner = box('owner'); owner.dataset.obOwner = 'fact-list'; owner.dataset.obState = state;
+    const run = prepare({ id: 'guard-target', element: '#owner', dataOwner: 'fact-list', optional: true });
+    await expect(run.pending).rejects.toMatchObject({ stepId: 'guard-target', reason: state });
+    expect(run.ensureInView).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([true, false])('uses known empty data immediately (optional=%s), without a target deadline', async optional => {
+    const owner = box('owner'); owner.dataset.obOwner = 'fact-list'; owner.dataset.obState = 'empty';
+    const run = prepare({ id: 'empty-target', element: '#missing', dataOwner: 'fact-list', optional });
+    await expect(run.pending).resolves.toBe(optional ? false : 'demo');
+    expect(vi.getTimerCount()).toBe(0); expect(run.ensureInView).not.toHaveBeenCalled();
+  });
+
+  it('does not convert a loading deadline into an optional skip', async () => {
+    const owner = box('owner'); owner.dataset.obOwner = 'fact-list'; owner.dataset.obState = 'loading';
+    const run = prepare({ id: 'guard-target', element: '#owner', dataOwner: 'fact-list', optional: true });
+    const result = expect(run.pending).rejects.toMatchObject({ stepId: 'guard-target', reason: 'timeout' });
+    await vi.advanceTimersByTimeAsync(5000); await result;
+    expect(run.ensureInView).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('does not wait for an unrelated page loader or scroll a hidden desktop copy', async () => {
     const hidden = box('desktop'); hidden.dataset.tour = 'action'; hidden.style.display = 'none';
     const visible = box('mobile'); visible.dataset.tour = 'action';
