@@ -2,7 +2,7 @@ import { getViewportZoom } from '@/utils/viewportScale';
 import { touchPresentationLayout } from './touchPresentationLayout';
 
 /** One presentation lease per real Driver render. It never changes the step. */
-export function createTouchPresenter({ getDriver, isAlive }) {
+export function createTouchPresenter({ getDriver, isAlive, isPositionReady = () => true }) {
   let current = null, frame = null, observer = null, listeners = [], expanded = false;
   function listen(node, event, callback, options) {
     node?.addEventListener(event, callback, options);
@@ -49,7 +49,7 @@ export function createTouchPresenter({ getDriver, isAlive }) {
     const chrome = Math.max(0, before.height - popover.description.getBoundingClientRect().height);
     setVariable(popover.wrapper, '--ob-touch-body', `${Math.max(24, layout.maxHeight - chrome - 4) / zoom}px`);
     const after = popover.wrapper.getBoundingClientRect();
-    if (Math.abs(before.width - after.width) > .5 || Math.abs(before.height - after.height) > .5) getDriver()?.refresh?.();
+    if (isPositionReady() && (Math.abs(before.width - after.width) > .5 || Math.abs(before.height - after.height) > .5)) getDriver()?.refresh?.();
   }
   function detach() {
     if (frame !== null) cancelAnimationFrame(frame);
@@ -74,7 +74,7 @@ export function createTouchPresenter({ getDriver, isAlive }) {
       expanded = !expanded;
       details.textContent = expanded ? 'Свернуть' : 'Подробнее';
       details.setAttribute('aria-expanded', String(expanded));
-      update(); getDriver()?.refresh?.();
+      update(); if (isPositionReady()) getDriver()?.refresh?.();
     });
     popover.footerButtons.insertBefore(details, popover.footerButtons.firstChild);
     listen(window, 'resize', schedule); listen(window.visualViewport, 'resize', schedule);
