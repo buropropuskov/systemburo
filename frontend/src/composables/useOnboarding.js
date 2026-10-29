@@ -1,5 +1,6 @@
 import { createStepNavigation } from '@/components/onboarding/stepNavigation';
 import { driver } from 'driver.js';
+import { createPopoverZoomFix } from '@/components/onboarding/popoverZoom';
 import { driverDefaults } from '@/components/onboarding/driverDefaults';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
 import { getStepPlacement, updateActiveStepPlacement } from '@/components/onboarding/stepPlacement';
@@ -131,9 +132,11 @@ export function useOnboarding() {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
     let alive = true;
+    let positionReady = false;
     const tourKey = store.activeTourKey;
     const transitions = createStepTransition({ isActive: () => alive });
-    const touch = createTouchPresenter({ getDriver: () => driverObj, isAlive: () => alive });
+    const touch = createTouchPresenter({ getDriver: () => driverObj, isAlive: () => alive, isPositionReady: () => positionReady });
+    const popoverZoom = createPopoverZoomFix();
     const navigate = (work, direction) => (runTransition || transitions.run)(async (operation) => {
       if (!alive || !operation.isCurrent()) return;
       const sourceIndex = driverObj.getActiveIndex() ?? 0;
@@ -235,13 +238,9 @@ export function useOnboarding() {
         onBeforeStep, onBoundaryNext, onBoundaryPrev, setStepMode, demoFallback: STEP_DEMO_FALLBACK,
       }),
       onPopoverRender(popover) {
-        // Первый показ поповера в сегменте - без анимации переезда: иначе он
-        // приезжал бы из левого верхнего угла, куда его ставит driver.js до
-        // первого позиционирования. Дальше внутри сегмента переезды плавные.
-        popover.wrapper.classList.add('ob-popover--instant');
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => popover.wrapper.classList.remove('ob-popover--instant'));
-        });
+        // Observe before Driver writes the first position, not 400 ms later
+        // in onHighlighted. Raw and zoom-corrected coordinates share one paint.
+        popoverZoom.attach(popover.wrapper);
         const localIndex = driverObj.getActiveIndex() ?? 0;
         const currentGlobal = startIndex + localIndex;
         const step = stepsForSegment[localIndex];
@@ -317,8 +316,6 @@ export function useOnboarding() {
           const element = driverObj.getActiveElement?.() || (step?.element ? findTourTarget(step.element) : null);
           return element?.id === 'driver-dummy-element' ? null : element;
         });
-        // Компенсация корневого zoom для позиционирования поповера - едина для ВСЕХ
-        // шагов (и anchored, и центро-модальных): см. popoverZoom.js.
       },
       // Esc / клик по оверлею / крестик идут сюда (g(true)) ДО гейта на
       // __activeStep - в отличие от onDestroyed это надёжно срабатывает, даже
@@ -328,21 +325,22 @@ export function useOnboarding() {
         if (onCloseRequest) onCloseRequest();
         else driverObj.destroy();
       },
-      // Начало перехода: снимаем подсветку с прежней цели сразу. driver.js делает
-      // это только в конце своей анимации, и при быстрых «Далее» пометки
-      // накапливались - на разделе «Автомобили» светились три элемента разом.
+      // Remove previous highlights immediately, before Driver finishes its transition.
       onHighlightStarted(element) {
+        positionReady = false;
         applyStageShape(driverObj, element);
         dropStaleHighlights(element);
       },
       onHighlighted() {
         if (!alive) return;
+        positionReady = true;
         dropStaleHighlights();
         raiseActiveHighlight(driverObj);
         const localIndex = driverObj.getActiveIndex() ?? 0;
         onIndexChange?.(startIndex + localIndex);
       },
       onDestroyed() {
+        popoverZoom.detach();
         touch.detach();
         alive = false;
         transitions.cancel();
@@ -356,6 +354,7 @@ export function useOnboarding() {
     // Инвалидируем подготовку сразу: fade может удалить DOM позже, но ждать
     // его окончания для отмены действий закрытого тура нельзя.
     driverObj.obCancel = () => {
+      popoverZoom.detach();
       touch.detach();
       alive = false;
       transitions.cancel();
@@ -367,6 +366,7 @@ export function useOnboarding() {
     };
 
     driverObj.obGetGlobalIndex = () => startIndex + (driverObj.getActiveIndex() ?? 0);
+    driverObj.obCorrectPopover = wrapper => popoverZoom.apply(wrapper);
     driverObj.obSyncHighlighted = () => {
       if (alive && store.activeTourKey === tourKey && driverObj.getConfig?.()?.animate === false) {
         driverObj.getConfig().onHighlighted?.();

@@ -11,11 +11,11 @@ const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), '
  * только глазами, поэтому фиксируем сами правила, а не картинку.
  */
 describe('движение поповера', () => {
-  // Без перехода driver.js телепортирует карточку: между соседними шагами
-  // замеряли прыжки в 400-900 пикселей.
-  it('позиция поповера анимируется', () => {
-    expect(css).toMatch(/\.driver-popover\s*\{[^}]*transition:[^}]*left/s);
-    expect(css).toMatch(/\.driver-popover\s*\{[^}]*top/s);
+  // A new wrapper has no previous position to interpolate from. Animating
+  // refresh coordinates produces extra motion inside an already shown step.
+  it('не анимирует промежуточные координаты и размеры', () => {
+    expect(css).toMatch(/\.driver-popover\.ob-popover\s*\{\s*transition:\s*none/);
+    expect(css).not.toMatch(/transition:[^;{}]*(?:left|top|width|height)\s+\d/s);
   });
 
   it('первый показ в сегменте - без переезда из угла', () => {

@@ -15,6 +15,15 @@ beforeEach(()=>{
 });
 afterEach(()=>{presenter?.detach();document.body.replaceChildren();window.innerWidth=originalWidth;window.innerHeight=originalHeight;vi.restoreAllMocks();});
 describe('real Driver touch presentation lease',()=>{
+ it('does not refresh the previous Driver target while the new step is being highlighted',()=>{
+  let ready=false;presenter.detach();
+  presenter=createTouchPresenter({getDriver:()=>({refresh}),isAlive:()=>alive,isPositionReady:()=>ready});
+  popover.wrapper.getBoundingClientRect=()=>box(popover.wrapper.style.getPropertyValue('--ob-touch-width')?358:410,230);
+  presenter.attach(popover,()=>null);
+  expect(refresh).not.toHaveBeenCalled();
+  ready=true;popover.wrapper.style.removeProperty('--ob-touch-width');presenter.update();
+  expect(refresh).toHaveBeenCalledOnce();
+ });
  it('offers More only for genuinely hidden content, while retaining access to a demo',()=>{
   Object.defineProperty(popover.description,'clientHeight',{configurable:true,value:40});
   Object.defineProperty(popover.description,'scrollHeight',{configurable:true,value:40});

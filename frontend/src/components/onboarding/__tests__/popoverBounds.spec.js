@@ -26,6 +26,18 @@ beforeEach(() => {
 });
 afterEach(() => { fixes.splice(0).forEach(fix => fix.detach()); document.body.replaceChildren(); vi.unstubAllGlobals(); });
 describe('single-owner touch popover bounds', () => {
+  it('corrects the first Driver position in the mutation microtask before the next paint', async () => {
+    zoom.value = 1.4289;
+    const node = wrapper({ touch: false, left: 0 });
+    const fix = createPopoverZoomFix(); fixes.push(fix); fix.attach(node);
+    // Driver positions only after onPopoverRender has returned.
+    node.style.left = '1000px';
+    await Promise.resolve();
+    expect(parseFloat(node.style.left)).toBe(Math.round(1000 / zoom.value));
+    node.style.left = '900px';
+    await Promise.resolve();
+    expect(parseFloat(node.style.left)).toBe(Math.round(900 / zoom.value));
+  });
   it('keeps a real 16px gutter on a phone without changing its width or target', () => {
     const node = wrapper(); apply(node);
     expect(node.getBoundingClientRect()).toMatchObject({ left: 16, right: 374 });

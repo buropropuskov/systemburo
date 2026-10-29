@@ -16,7 +16,7 @@
  */
 import { getViewportZoom } from '@/utils/viewportScale';
 
-export function createPopoverZoomFix({ requestRefresh } = {}) {
+export function createPopoverZoomFix() {
   let zoomFixObserver = null;
   let applyingZoomFix = false;
   let generation = 0;
@@ -109,13 +109,9 @@ export function createPopoverZoomFix({ requestRefresh } = {}) {
     const owner = generation;
     const update = () => {
       if (owner !== generation || applyingZoomFix) return;
-      if (requestRefresh) {
-        const changed = INSETS.some(prop => {
-          const raw = wrapper.style[prop];
-          return raw && raw !== 'auto' && zoomFixLast[prop] !== raw;
-        });
-        if (changed) requestRefresh();
-      } else apply(wrapper);
+      // MutationObserver runs before paint. Deferring this to the geometry rAF
+      // exposes one frame of Driver's unscaled coordinates on every refresh.
+      apply(wrapper);
     };
     zoomFixObserver = new MutationObserver(() => {
       update();
