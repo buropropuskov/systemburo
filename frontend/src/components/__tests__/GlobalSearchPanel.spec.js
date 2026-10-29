@@ -17,8 +17,9 @@ vi.mock('@/api/search', () => ({ globalSearch: vi.fn() }));
 // settingsAllowed управляет только ключом page.admin.settings - остальные разделы
 // остаются доступны всем прочим тестам файла без явной настройки.
 let settingsAllowed = true;
+let centerAllowed = true;
 vi.mock('@/composables/usePermission', () => ({
-  usePermission: () => ({ can: (key) => (key === 'page.admin.settings' ? settingsAllowed : true) }),
+  usePermission: () => ({ can: (key) => key === 'page.center' ? centerAllowed : (key === 'page.admin.settings' ? settingsAllowed : true) }),
 }));
 
 const push = vi.fn();
@@ -46,6 +47,7 @@ beforeEach(() => {
   localStorage.clear();
   globalSearch.mockResolvedValue({ groups: [], total: 0 });
   settingsAllowed = true;
+  centerAllowed = true;
 });
 
 afterEach(() => {
@@ -55,6 +57,20 @@ afterEach(() => {
 });
 
 describe('GlobalSearchPanel', () => {
+  it.each([[false, '/personal-cabinet'], [true, '/center']])('opens a found application through the permitted page (center=%s)', async (allowed, path) => {
+    centerAllowed = allowed;
+    globalSearch.mockResolvedValue({ groups: [{ type: 'applications', title: 'Заявки', count: 1,
+      items: [{ id: 15, type: 'applications', title: 'Заявка №1', target: { entity: 'application', id: 15 } }],
+    }], total: 1 });
+    wrapper = mountPanel('Заявка');
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+    const result = wrapper.findAll('.gsp__row').find(row => row.text().includes('Заявка №1'));
+    expect(result).toBeTruthy();
+    await result.trigger('click');
+    await flushPromises();
+    expect(push).toHaveBeenCalledWith({ path, query: { open: '15' } });
+  });
   it('lets an opened application handle Escape before the search panel', () => {
     const owner={};const wrapper=mountPanel('',true);
     try {

@@ -442,7 +442,9 @@ export default {
     routeFor(item) {
       const target = SEARCH_TARGETS[item.target?.entity];
       if (!target) return null;
-      return target.route(item.target.id, this.query.trim());
+      return target.route(item.target.id, this.query.trim(), {
+        canViewCenter: this.can('page.center'),
+      });
     },
     openItem(item) {
       if (!item.to) return;
