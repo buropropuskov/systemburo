@@ -117,7 +117,7 @@ const layerGuard = createTourLayerGuard((blocked) => {
     if (recovery.hasFailure()) recovery.show();
     else if (!store.pendingSegment) restartSegmentAt(store.currentIndex);
   }
-});
+}, { getRevealOpen: () => store.revealOpen });
 
 geometryBinding = createTourGeometryBinding({
   store, getDriver: () => driverObj, getGeneration: () => driverGen,

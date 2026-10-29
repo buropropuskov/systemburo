@@ -3,17 +3,22 @@ import { isTourTargetVisible } from './targetResolver';
 
 export const TOUR_POPOVER_LAYER = 12502;
 
-// Consent and the legacy dirty-confirm layer are not registered in modalStack.
-const GLOBAL_OVERLAYS = '.pdc-overlay, .dirty-overlay, .confirm-overlay';
+// Legacy dialogs may not be registered above the tour in modalStack.
+const GLOBAL_OVERLAYS = '.pdc-overlay, .dirty-overlay, .confirm-overlay, [data-testid="download-blanks-modal"]';
 
-export function createTourLayerGuard(onChange) {
+export function createTourLayerGuard(onChange, { getRevealOpen = () => null } = {}) {
   const owner = {};
   let active = false, blocked = false, observer = null, unsubscribe = null;
+  const selectors = () => [GLOBAL_OVERLAYS, getRevealOpen() !== 'application-actions'
+    && document.querySelector('.detail-actions-menu[data-dropdown-open="true"]')
+    && '.base-dropdown__menu .detail-header-actions--compact'].filter(Boolean).join(', ');
   const check = () => {
     const next = active && (hasModalAbove(TOUR_POPOVER_LAYER)
-      || [...document.querySelectorAll(GLOBAL_OVERLAYS)].some(isTourTargetVisible));
+      || [...document.querySelectorAll(selectors())].some(isTourTargetVisible));
     if (next === blocked) return;
     blocked = next;
+    // A hidden tour must not retain Escape ownership over the user's dialog.
+    setModalOpen(owner, !blocked, TOUR_POPOVER_LAYER);
     onChange(blocked);
   };
   function deactivate() {
@@ -30,7 +35,7 @@ export function createTourLayerGuard(onChange) {
     unsubscribe = subscribeModalStack(check);
     observer = new MutationObserver(check);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true,
-      attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'] });
+      attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'data-dropdown-open'] });
     check();
   }
   function preserveGlobalFocus(work) {
@@ -39,7 +44,8 @@ export function createTourLayerGuard(onChange) {
     for (let node = focused; node; node = node.parentElement) {
       if (Number.parseInt(getComputedStyle(node).zIndex, 10) > TOUR_POPOVER_LAYER) above = true;
     }
-    const keep = above && !focused?.closest?.('.driver-popover');
+    const inDialog = focused?.closest?.(selectors());
+    const keep = (above || inDialog) && !focused?.closest?.('.driver-popover');
     work();
     if (keep && focused.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
   }

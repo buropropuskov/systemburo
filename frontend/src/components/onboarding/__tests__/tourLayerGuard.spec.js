@@ -6,6 +6,47 @@ let guard;
 afterEach(() => { guard?.dispose(); resetModalStack(); document.body.replaceChildren(); });
 
 describe('tour and global dialog ownership', () => {
+  it('pauses for a manually opened action menu but keeps a tour-owned menu teachable', async () => {
+    const changed = vi.fn(); let reveal = 'first-application';
+    guard = createTourLayerGuard(changed, { getRevealOpen: () => reveal }); guard.activate();
+    const popup = document.createElement('div'); popup.className = 'base-dropdown__menu';
+    const trigger = document.createElement('div'); trigger.className = 'detail-actions-menu';
+    trigger.dataset.dropdownOpen = 'false'; document.body.append(trigger);
+    const actions = document.createElement('div'); actions.className = 'detail-header-actions--compact';
+    actions.getBoundingClientRect = () => ({ top: 100, left: 100, width: 300, height: 200 });
+    popup.append(actions); document.body.append(popup); await Promise.resolve();
+    expect(guard.isBlocked()).toBe(false);
+    trigger.dataset.dropdownOpen = 'true'; await Promise.resolve();
+    expect(guard.isBlocked()).toBe(true);
+    popup.remove(); await Promise.resolve(); expect(guard.isBlocked()).toBe(false);
+    reveal = 'application-actions'; document.body.append(popup); await Promise.resolve();
+    expect(guard.isBlocked()).toBe(false); expect(changed.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('pauses for the download dialog and returns keyboard ownership after it closes', async () => {
+    const changed = vi.fn(), background = {}, dialog = {};
+    setModalOpen(background, true, 9000);
+    const overlay = document.createElement('div'); overlay.dataset.testid = 'download-blanks-modal'; overlay.hidden = true;
+    overlay.getBoundingClientRect = () => ({ top: 0, left: 0, width: 390, height: 844 });
+    document.body.append(overlay);
+    guard = createTourLayerGuard(changed);
+    guard.activate(); expect(guard.isBlocked()).toBe(false);
+    overlay.hidden = false; setModalOpen(dialog, true, 10000); await Promise.resolve();
+    expect(guard.isBlocked()).toBe(true); expect(isTopModal(dialog)).toBe(true);
+    overlay.hidden = true; releaseModal(dialog); await Promise.resolve();
+    expect(guard.isBlocked()).toBe(false); expect(isTopModal(background)).toBe(false);
+    expect(changed.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('preserves focus in the download dialog even when its ordinary layer is below the tour', () => {
+    const previous = document.createElement('button'), overlay = document.createElement('div');
+    overlay.dataset.testid = 'download-blanks-modal'; const field = document.createElement('input'); overlay.append(field);
+    document.body.append(previous, overlay); field.focus();
+    guard = createTourLayerGuard(vi.fn());
+    guard.preserveGlobalFocus(() => previous.focus());
+    expect(document.activeElement).toBe(field);
+  });
+
   it('gives the upper dialog keyboard ownership and resumes after it closes', () => {
     const changed = vi.fn(), lower = {}, upper = {};
     setModalOpen(lower, true, 11000);
