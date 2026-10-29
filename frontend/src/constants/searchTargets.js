@@ -49,7 +49,10 @@ export const SEARCH_TARGETS = {
   application: {
     icon: 'center',
     acceptsQuery: true,
-    route: (id) => ({ path: '/center', query: { open: String(id) } }),
+    route: (id, _query, context = {}) => ({
+      path: context.canViewCenter === true ? '/center' : '/personal-cabinet',
+      query: { open: String(id) },
+    }),
   },
   user: {
     icon: 'users',

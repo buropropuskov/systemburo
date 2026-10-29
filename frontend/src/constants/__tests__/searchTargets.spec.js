@@ -31,10 +31,18 @@ describe('SEARCH_TARGETS - куда ведёт результат', () => {
   });
 
   it('заявка открывается по своему id, как из уведомления', () => {
-    expect(SEARCH_TARGETS.application.route(15, 'что-то')).toEqual({
+    expect(SEARCH_TARGETS.application.route(15, 'что-то', { canViewCenter: true })).toEqual({
       path: '/center',
       query: { open: '15' },
     });
+  });
+
+  it('заявка без доступа к Центру открывается в личном кабинете', () => {
+    for (const context of [undefined, { canViewCenter: false }]) {
+      expect(SEARCH_TARGETS.application.route(15, '', context)).toEqual({
+        path: '/personal-cabinet', query: { open: '15' },
+      });
+    }
   });
 
   it('чёрный список: вместе с записью указывает вкладку - id у вкладок независимые', () => {
