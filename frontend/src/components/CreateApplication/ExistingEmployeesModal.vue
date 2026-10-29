@@ -188,6 +188,7 @@
 
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 import { apiRequest } from '@/api/client'
 import { usePermissionsStore } from '@/stores/permissions'
 import { itemsInRange, mergeSelection } from '@/utils/rangeSelection'
@@ -264,6 +265,7 @@ export default {
     },
     watch: {
         visible(newVal) {
+            setModalOpen(this, newVal, this.zIndex);
             if (newVal) {
                 setBodyScrollLock(this, true);
                 this.tempSelectedEmployees = [...this.initialSelectedEmployees]
@@ -280,16 +282,19 @@ export default {
         }
     },
     mounted() {
+        setModalOpen(this, this.visible, this.zIndex);
         document.addEventListener('keydown', this.handleKeydown)
     },
     beforeUnmount() {
+        releaseModal(this);
         document.removeEventListener('keydown', this.handleKeydown)
         releaseBodyScrollLock(this);
     },
     methods: {
         handleKeydown(e) {
-            if (!this.visible) return
-            if (e.key === 'Escape') this.$emit('close')
+            if (e.key !== 'Escape' || !this.visible || isEscapeHandled(e) || !isTopModal(this)) return
+            markEscapeHandled(e)
+            this.$emit('close')
         },
 
         async loadEmployeesByFilter(filterType) {
