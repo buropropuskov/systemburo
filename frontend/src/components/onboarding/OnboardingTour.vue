@@ -14,6 +14,7 @@ import { createTourRecoveryHost } from '@/components/onboarding/tourRecoveryHost
 import { createRailControl } from '@/components/onboarding/railControl';
 import { createKeyboardNav } from '@/components/onboarding/keyboardNav';
 import { createStepTransition } from '@/components/onboarding/stepTransition';
+import { previousStepIndex } from '@/components/onboarding/stepNavigation';
 import { createStepWatchers } from '@/components/onboarding/stepWatchers';
 import { fadeAndDestroy } from '@/components/onboarding/tourFade';
 import { createAutostart } from '@/components/onboarding/tourAutostart';
@@ -297,14 +298,12 @@ function pushTourRoute(targetRoute) {
  * @param {number} segmentStartGlobal глобальный индекс первого шага текущего сегмента
  */
 function handleBoundaryPrev(segmentStartGlobal) {
-  const prevIdx = segmentStartGlobal - 1;
+  const prevIdx = previousStepIndex(segmentStartGlobal, store.skippedIndexes);
   const prevStep = store.steps[prevIdx];
   if (!prevStep) return;
   if (prevStep.route !== route.path) {
     return retreatToSegment(prevIdx, prevStep.route);
-  } else if (driverObj) {
-    driverObj.movePrevious();
-  }
+  } else return restartSegmentAt(prevIdx);
 }
 
 /**

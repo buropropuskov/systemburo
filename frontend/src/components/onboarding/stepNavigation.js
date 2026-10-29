@@ -1,5 +1,13 @@
 import { findTourTarget } from './targetResolver';
 
+/** Back follows the visited route, including across page boundaries. */
+export function previousStepIndex(current, skippedIndexes = []) {
+  const skipped = new Set(skippedIndexes);
+  let index = current - 1;
+  while (index >= 0 && skipped.has(index)) index--;
+  return index;
+}
+
 /** Подготовка и commit шага выполняются под одним владельцем перехода. */
 export function createStepNavigation({
   driverObj, store, stepsForSegment, startIndex, lastLocal, navigate,
@@ -42,9 +50,12 @@ export function createStepNavigation({
           return;
         }
         // Назад следует пройденному маршруту, а не наличию целей в текущем DOM.
-        const skipped = new Set(store.skippedIndexes);
-        let target = localIndex - 1;
-        while (target > 0 && skipped.has(startIndex + target)) target -= 1;
+        const previous = previousStepIndex(startIndex + localIndex, store.skippedIndexes);
+        if (previous < startIndex) {
+          if (previous >= 0 && onBoundaryPrev) await onBoundaryPrev(startIndex);
+          return;
+        }
+        const target = previous - startIndex;
         const prev = stepsForSegment[target];
         if (onBeforeStep) {
           const ready = await onBeforeStep(startIndex + target, operation);

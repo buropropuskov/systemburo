@@ -8,7 +8,7 @@ import { markOnboardingComplete } from '@/api/onboarding';
 
 vi.mock('@/api/onboarding', () => ({ getOnboardingStatus: vi.fn(), markOnboardingComplete: vi.fn(async () => ({})), getSecurityPostContext: vi.fn() }));
 vi.mock('@/api/approvers', () => ({ getMyApprovalRole: vi.fn() }));
-vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn(async () => ({ items: [], meta: { total: 0 } })) }));
+vi.mock('@/api/applications', () => ({ getAccessibleAttachments: vi.fn(async () => ({ items: [{ id: 1 }], meta: { total: 1 } })),  getUserApplicationsPaginated: vi.fn(async () => ({ items: [], meta: { total: 0 } })) }));
 vi.mock('@/components/onboarding/demoBackend', () => ({ syncDemoBackend: vi.fn() }));
 let store, permissions;
 beforeEach(async () => {

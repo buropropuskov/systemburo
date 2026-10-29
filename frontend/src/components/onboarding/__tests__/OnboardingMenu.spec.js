@@ -17,7 +17,7 @@ import OnboardingStartDialog from '../OnboardingStartDialog.vue';
 
 vi.mock('@/api/permissions', () => ({ getMyPermissions: vi.fn() }));
 vi.mock('@/api/auth', async original => ({ ...await original(), getMe: vi.fn(async () => ({ user_type_code: 'user' })) }));
-vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn() }));
+vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn(), getAccessibleAttachments: vi.fn(async () => ({ items: [] })) }));
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),

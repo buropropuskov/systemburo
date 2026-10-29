@@ -168,6 +168,19 @@ describe('OnboardingTour - прыжок из списка шагов', () => {
     expect(shownTitles()).toEqual(['Начало', 'Навигация']);
   });
 
+  it('назад через границу сегмента обходит уже пропущенную страницу', async () => {
+    store.skippedIndexes = [2];
+    await startTour(3);
+    await mocks.driver.config.onPrevClick();
+    await flushPromises();
+
+    expect(store.currentIndex).toBe(1);
+    expect(shownTitles()).toEqual(['Начало', 'Навигация']);
+    expect(mocks.driver.activeIndex).toBe(1);
+    expect(mocks.router.push).not.toHaveBeenCalled();
+    expect(store.isActive).toBe(true);
+  });
+
   it('продолжение с другой страницы сначала открывает страницу сохранённого шага', async () => {
     await startTour(2);
     expect(mocks.router.push).toHaveBeenCalledWith('/table/kpp');

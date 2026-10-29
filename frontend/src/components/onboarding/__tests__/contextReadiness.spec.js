@@ -19,12 +19,20 @@ beforeEach(() => {
   permissions = { loaded: true, hasPermission: key => grants.has(key),
     grant: key => grants.add(key), fetchPermissions: vi.fn(async () => {}) };
   data = { approvalRole: ref({ isApprover: false, isReviewer: false }), approvalRoleLoaded: ref(false),
-    factRouteLoaded: ref(false), ownApplicationLoaded: ref(false), userTypeCode: ref('user'), getGeneration: () => generation,
+    factRouteLoaded: ref(false), accessibleContextLoaded: ref(true), ownApplicationLoaded: ref(false), userTypeCode: ref('user'), getGeneration: () => generation,
     ensureUserType: vi.fn(async () => false), ensureApprovalRole: vi.fn(async () => false),
-    ensureFactRoute: vi.fn(async () => false), ensureOwnApplication: vi.fn(async () => false) };
+    ensureFactRoute: vi.fn(async () => false), ensureAccessibleContext: vi.fn(async () => false), ensureOwnApplication: vi.fn(async () => false) };
   readiness = createContextReadiness({ auth, permissions, data, getContext: context });
 });
 describe('per-tour readiness', () => {
+  it('does not treat an unknown available list as empty and retries it before guard launch', async () => {
+    data.userTypeCode.value = 'security'; data.factRouteLoaded.value = true;
+    data.accessibleContextLoaded.value = false;
+    expect((await readiness.prepareTour('guard')).missing).toEqual(['available']);
+    data.ensureAccessibleContext.mockImplementation(async () => { data.accessibleContextLoaded.value = true; return true; });
+    expect((await readiness.prepareTour('guard')).status).toBe('ready');
+    expect(data.ensureAccessibleContext).toHaveBeenCalledTimes(2);
+  });
   it('does not select the user fallback when the relevant role request fails; retries the real role', async () => {
     expect((await readiness.ensureSelectionContext()).status).toBe('blocked');
     data.ensureApprovalRole.mockImplementation(async () => { role(true); return true; });
