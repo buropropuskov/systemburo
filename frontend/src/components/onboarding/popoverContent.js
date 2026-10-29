@@ -18,7 +18,7 @@ export function buildPopoverHtml(step) {
   if (demo) {
     const caption = demo.caption
       ? `<figcaption class="ob-popover__demo-caption">${demo.caption}</figcaption>` : '';
-    html += `<figure class="ob-popover__demo"><img class="ob-popover__demo-img" src="${demo.src}" alt="${demo.alt}" />${caption}</figure>`;
+    html += `<figure class="ob-popover__demo"><img class="ob-popover__demo-img" src="${demo.src}" width="${demo.width}" height="${demo.height}" alt="${demo.alt}" />${caption}</figure>`;
   }
   return sanitizeHtml(html);
 }
