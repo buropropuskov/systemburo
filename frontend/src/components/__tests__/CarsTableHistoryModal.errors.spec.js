@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -44,6 +44,8 @@ function mountModal() {
 // отклонённым. Проброс наружу здесь некому поймать - загрузку начинают mounted и
 // обработчики фильтров, - и vitest считает такое отклонение ошибкой прогона: именно так
 // этот дефект и вскрылся после мержа (#2469).
+enableAutoUnmount(afterEach);
+
 describe('CarsTableHistoryModal - сбои загрузки (#2469)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, afterEach, it, expect, beforeEach, vi } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -49,6 +49,8 @@ function mountTable() {
     global: { stubs: { teleport: true, transition: false, 'transition-group': false } },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('CarsTable - ctrl/shift-выделение строк (#1194 S3)', () => {
   let items;

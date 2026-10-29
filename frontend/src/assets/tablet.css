@@ -689,3 +689,49 @@
     pointer-events: auto;
   }
 }
+
+/* В карточном списке ЛК на планшете сохраняем скачивание рядом с тегами.
+   До 768px оно доступно из шапки заявки; от 993px — в табличной строке. */
+@media (min-width: 768px) and (max-width: 992px) {
+  .applications-card .applications-list .applications-body .application-row.rt-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+  }
+
+  .applications-card .applications-list .applications-body .application-row.rt-row > .application-col:not(.date-col) {
+    grid-column: 1 / -1;
+  }
+
+  .applications-card .applications-list .applications-body .application-row.rt-row > .application-col.tags-col {
+    grid-column: 1;
+    order: 90;
+    align-self: center;
+    min-width: 0;
+  }
+
+  .applications-card .applications-list .applications-body .application-row.rt-row > .application-col.actions-col {
+    display: flex !important;
+    grid-column: 2;
+    order: 90;
+    justify-content: flex-end;
+    align-self: center;
+    padding: 4px 0;
+  }
+
+  .applications-card .applications-list .applications-body .application-row.rt-row > .application-col.actions-col:empty {
+    display: none !important;
+  }
+
+  .applications-card .applications-list .applications-body .application-row.rt-row .download-btn {
+    position: relative;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .applications-card .applications-list .applications-body .application-row.rt-row .download-btn::before {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
+  }
+}

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 vi.mock('@/services/eventStream', () => ({
@@ -42,6 +42,8 @@ function mountPreview(items) {
     global: { stubs: { teleport: true, transition: false, 'transition-group': false } },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('CarsTable - метка "Добавлено вручную" (#1049 S8)', () => {
   beforeEach(() => {

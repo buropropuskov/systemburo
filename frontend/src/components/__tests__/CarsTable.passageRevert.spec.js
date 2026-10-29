@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
@@ -43,8 +43,16 @@ function baseItem(overrides) {
   };
 }
 
+const mountedTables = new Set();
+afterEach(() => {
+  for (const wrapper of mountedTables) {
+    if (wrapper.exists()) wrapper.unmount();
+  }
+  mountedTables.clear();
+});
+
 function mountTable() {
-  return mount(CarsTable, {
+  const wrapper = mount(CarsTable, {
     props: {
       tableName: 'КПП 1',
       tableId: TABLE_ID,
@@ -53,6 +61,8 @@ function mountTable() {
     },
     global: { stubs: { teleport: true, transition: false, 'transition-group': false } },
   });
+  mountedTables.add(wrapper);
+  return wrapper;
 }
 
 /**

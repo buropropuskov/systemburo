@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, afterEach, it, expect, beforeEach, vi } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -59,6 +59,8 @@ function mountTable() {
     global: { stubs: { teleport: true, transition: false, 'transition-group': false } },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('CarsTable - групповое "Убрать" (#1194 S5)', () => {
   let items;
