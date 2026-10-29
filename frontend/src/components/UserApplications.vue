@@ -338,15 +338,11 @@
                         />
                       </div>
                       <div class="application-col actions-col">
-                        <button
+                        <ApplicationDownloadButton
                           v-if="application.has_blank_template"
-                          class="download-btn"
                           data-testid="ob-application-download"
-                          title="Скачать"
                           @click.stop="downloadApplication(application)"
-                        >
-                          Скачать
-                        </button>
+                        />
                       </div>
                       </div>
                     </div>
@@ -481,6 +477,7 @@ import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ApplicationTags from './ApplicationTags.vue';
+import ApplicationDownloadButton, { openApplicationDownload } from '@/components/applications/ApplicationDownloadButton.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
@@ -500,6 +497,7 @@ export default {
     DownloadBlanksModal,
     LoaderSpinner,
     ApplicationTags,
+    ApplicationDownloadButton,
     BaseDropdown,
     AppIcon,
   },
@@ -1067,9 +1065,7 @@ export default {
     },
 
     downloadApplication(application) {
-      this.downloadAppId = application.id;
-      this.downloadAppInfo = application;
-      this.showDownloadModal = true;
+      openApplicationDownload(this, application);
     },
 
     sortBy(field) {

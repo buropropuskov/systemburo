@@ -697,14 +697,10 @@
                   />
                 </div>
                 <div class="application-col actions-col">
-                  <button
+                  <ApplicationDownloadButton
                     v-if="application.has_blank_template && can('action.export.applications')"
-                    class="download-btn"
-                    title="Скачать"
                     @click.stop="downloadApplication(application)"
-                  >
-                    Скачать
-                  </button>
+                  />
                 </div>
               </div>
             </div>
@@ -847,6 +843,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
 import ApplicationTags from '@/components/ApplicationTags.vue';
+import ApplicationDownloadButton, { openApplicationDownload } from '@/components/applications/ApplicationDownloadButton.vue';
 import { observeTagsColumnWidth } from '@/utils/tagsColumnWidth';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount } from '@/utils/blacklistBadge';
@@ -880,6 +877,7 @@ export default {
         LoaderSpinner,
         DownloadBlanksModal,
         ApplicationTags,
+        ApplicationDownloadButton,
         BaseDropdown,
         AppIcon,
     },
@@ -2132,9 +2130,7 @@ export default {
         },
 
         downloadApplication(application) {
-            this.downloadAppId = application.id;
-            this.downloadAppInfo = application;
-            this.showDownloadModal = true;
+            openApplicationDownload(this, application);
         },
 
         async openApplication(application, operation) {
