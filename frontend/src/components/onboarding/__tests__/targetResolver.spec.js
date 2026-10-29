@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { findTourTarget, getTourTargets, isTourTargetVisible } from '../targetResolver';
 import { adminOnboardingSteps } from '../adminOnboardingSteps';
+import { acceptOnboardingSteps } from '../acceptOnboardingSteps';
 
 // jsdom has no layout. Rects model CSS boxes without treating visibility/opacity,
 // aria-hidden or inert as display:none. Fixed controls legitimately have no offsetParent.
@@ -31,6 +32,15 @@ afterEach(() => {
 });
 
 const selector = '[data-tour="target"]';
+it('keeps bulk assignment reachable through the actual phone and desktop controls', () => {
+  const desktop = target(); desktop.dataset.testid = 'attachment-assign-all-places';
+  const mobile = target(); mobile.dataset.testid = 'attachment-assign-all-open';
+  const step = acceptOnboardingSteps.find(item => item.id === 'acc-detail-assign-all');
+  desktop.style.display = 'none';
+  expect(findTourTarget(step.element)).toBe(mobile);
+  desktop.style.display = ''; mobile.style.display = 'none';
+  expect(findTourTarget(step.element)).toBe(desktop);
+});
 it('resolves the actual settings step to its visible responsive section selector', () => {
   const desktop = target(); desktop.dataset.testid = 'ob-admin-settings'; desktop.style.display = 'none';
   const mobile = target(); mobile.dataset.testid = 'ob-admin-settings';

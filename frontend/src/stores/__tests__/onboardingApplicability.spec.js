@@ -40,6 +40,16 @@ function deny(key) {
 function userTour() { const store = useOnboardingStore(); store.start({ tour: 'user' }); return store; }
 
 describe('learning follows available entry points', () => {
+  it('excludes application history before navigation when its access is denied', () => {
+    allow('page.center', 'center.application_history');
+    const store = useOnboardingStore();
+    store.start({ tour: 'accept' });
+    expect(store.steps.map(step => step.id)).toContain('acc-detail-history');
+    deny('center.application_history');
+    expect(store.steps.map(step => step.id)).not.toContain('acc-detail-history');
+    expect(store.steps.map(step => step.id)).toContain('acc-detail-status');
+    expect(store.totalSteps).toBe(store.steps.length);
+  });
   it('excludes both report steps before DOM preparation when only other table actions are allowed', () => {
     allow('page.available', 'table.kpp_4.export');
     const store = useOnboardingStore();

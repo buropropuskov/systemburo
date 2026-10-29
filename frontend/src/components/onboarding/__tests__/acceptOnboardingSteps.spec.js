@@ -7,6 +7,16 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
 
+// Responsive alternatives must all keep the same role and readiness guarantees.
+function stepAnchors(selector) {
+  if (selector === null) return [];
+  return selector.split(',').map(part => {
+    const match = part.trim().match(/^\[data-testid="([^"]+)"\]$/);
+    if (!match) throw new Error(`Invalid tour anchor: ${part}`);
+    return match[1];
+  });
+}
+
 /**
  * Тур принимающего: гейт по роли, выпадение шагов по правам, целостность сегментов
  * и замок против смешения ролей.
@@ -67,7 +77,7 @@ describe('acceptOnboardingSteps - состав', () => {
 
   it('element - либо селектор по data-testid, либо null', () => {
     for (const step of acceptOnboardingSteps) {
-      const ok = step.element === null || /^\[data-testid="[^"]+"\]$/.test(step.element);
+      const ok = step.element === null || stepAnchors(step.element).length > 0;
       expect(ok, `${step.id}: ${step.element}`).toBe(true);
     }
   });
@@ -373,8 +383,9 @@ describe('замок против смешения ролей', () => {
 
   it('тур не смотрит ни на одну кнопку согласующего', () => {
     for (const step of acceptOnboardingSteps.filter((s) => s.element)) {
-      const anchor = step.element.match(/^\[data-testid="([^"]+)"\]$/)[1];
-      expect(REVIEWER_ONLY_ANCHORS, step.id).not.toContain(anchor);
+      for (const anchor of stepAnchors(step.element)) {
+        expect(REVIEWER_ONLY_ANCHORS, step.id).not.toContain(anchor);
+      }
     }
   });
 
@@ -405,7 +416,7 @@ describe('замок против смешения ролей', () => {
     const DATA_ANCHORS = /^(attachment-|supplement-panel|ob-org-moderation|app-detail-button-download)/;
     const забыли = acceptOnboardingSteps
       .filter((s) => s.element)
-      .filter((s) => DATA_ANCHORS.test(s.element.match(/^\[data-testid="([^"]+)"\]$/)[1]))
+      .filter((s) => stepAnchors(s.element).some(anchor => DATA_ANCHORS.test(anchor)))
       .filter((s) => !s.waitsData)
       .map((s) => s.id);
     expect(забыли).toEqual([]);
@@ -417,7 +428,7 @@ describe('замок против смешения ролей', () => {
     const ids = acceptOnboardingSteps.map((s) => s.id);
     expect(ids).toContain('acc-detail-take');
     const anchors = acceptOnboardingSteps.filter((s) => s.element)
-      .map((s) => s.element.match(/^\[data-testid="([^"]+)"\]$/)[1]);
+      .flatMap((s) => stepAnchors(s.element));
     expect(anchors).toContain('ob-detail-actions');
     // Доназначение постов - якорь, которого у согласующего нет вовсе.
     expect(anchors).toContain('attachment-assign-open');

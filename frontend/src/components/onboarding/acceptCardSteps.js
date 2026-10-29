@@ -85,6 +85,7 @@ export const acceptCardSteps = [
   {
     id: 'acc-detail-history',
     route: '/center',
+    requires: 'center.application_history',
     element: '[data-testid="ob-detail-history"]',
     optional: true,
     scrollTo: 'center',
@@ -182,7 +183,7 @@ export const acceptCardSteps = [
     id: 'acc-detail-assign-all',
     route: '/center',
     dataReady: '[data-testid="attachment-elements"]',
-    element: '[data-testid="attachment-assign-all-places"]',
+    element: '[data-testid="attachment-assign-all-places"], [data-testid="attachment-assign-all-open"]',
     optional: true,
     waitsData: true,
     title: 'Назначить всем сразу',
