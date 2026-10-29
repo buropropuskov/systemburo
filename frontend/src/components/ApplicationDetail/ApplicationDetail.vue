@@ -191,7 +191,7 @@
         <div class="detail-header-right">
           <BaseDropdown ref="headerActionsMenu" class="detail-actions-menu" :options="[]" placeholder="Действия"
             :inline="headerActionsInline" :disabled="!actionsReady" keep-mounted teleport
-            :menu-z-index="10003" :menu-min-width="300" @click.capture="releaseHeaderMenu">
+            :menu-z-index="10003" :menu-min-width="300" menu-align="end" @click.capture="releaseHeaderMenu">
             <template #content>
               <div class="detail-header-actions" :class="{ 'detail-header-actions--compact': !headerActionsInline }" @click="onHeaderActionClick">
             <transition name="fade">
