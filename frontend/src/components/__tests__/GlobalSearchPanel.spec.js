@@ -57,6 +57,20 @@ afterEach(() => {
 });
 
 describe('GlobalSearchPanel', () => {
+  it.each([false, true])('defers pointer priority to the opened card without losing search state (pinned=%s)', async pinned => {
+    wrapper = mountPanel('Сохранённый запрос');
+    await wrapper.setData({ collapsed: true, pinned });
+    const owner = {};
+    try {
+      expect(wrapper.find('.gsp').classes()).not.toContain('gsp--under-modal');
+      setModalOpen(owner, true, 10002); await wrapper.vm.$nextTick();
+      expect(wrapper.find('.gsp').classes()).toContain('gsp--under-modal');
+      expect(wrapper.vm.collapsed).toBe(true); expect(wrapper.vm.pinned).toBe(pinned);
+      expect(wrapper.props('query')).toBe('Сохранённый запрос');
+      releaseModal(owner); await wrapper.vm.$nextTick();
+      expect(wrapper.find('.gsp').classes()).not.toContain('gsp--under-modal');
+    } finally { releaseModal(owner); }
+  });
   it.each([[false, '/personal-cabinet'], [true, '/center']])('opens a found application through the permitted page (center=%s)', async (allowed, path) => {
     centerAllowed = allowed;
     globalSearch.mockResolvedValue({ groups: [{ type: 'applications', title: 'Заявки', count: 1,
