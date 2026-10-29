@@ -1,0 +1,8 @@
+.consent-link {
+    text-decoration: underline;
+    text-underline-position: under;
+    cursor: pointer;
+}
+.consent-link:hover {
+    color: var(--accent-hover);
+}

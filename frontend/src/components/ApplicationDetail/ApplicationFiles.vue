@@ -23,6 +23,7 @@
         <span class="app-files-strip__name">{{ file.file_name }}</span>
         <span class="app-files-strip__size">{{ formatBytes(file.file_size) }}</span>
       </span>
+      <span v-if="wasDownloaded(file)" class="app-files-strip__downloaded">Скачан</span>
       <span
         v-if="canRemove"
         class="app-files-strip__remove"
@@ -51,6 +52,8 @@ import {
 } from '@/api/applicationFiles';
 import { formatBytes } from '@/utils/download';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useAuthStore } from '@/stores/auth';
+import { downloadMarks, downloadMarkKey } from '@/utils/downloadMarks';
 
 const props = defineProps({
   applicationId: { type: Number, required: true },
@@ -61,6 +64,11 @@ const props = defineProps({
 const files = ref([]);
 const downloadingId = ref(null);
 const notifications = useDeletionsStore();
+const auth = useAuthStore();
+watch(() => [auth.userId, auth.isImpersonating], ([id, impersonating]) => {
+  downloadMarks.setOwner(id ? `${id}/${impersonating ? 1 : 0}` : null);
+}, { immediate: true, flush: 'sync' });
+function wasDownloaded(file) { return downloadMarks.has(downloadMarkKey(props.applicationId, file)); }
 
 /** Расширение для плашки: без точки и не длиннее четырёх букв, иначе плитка распухает. */
 function ext(file) {
@@ -104,8 +112,10 @@ async function load() {
 
 async function download(file) {
   downloadingId.value = file.id;
+  const lease = downloadMarks.lease(), key = downloadMarkKey(props.applicationId, file);
   try {
     await downloadApplicationFile(props.applicationId, file.id, file.file_name);
+    downloadMarks.mark(key, lease);
   } catch (error) {
     notifications.notify({ bold: error.message, type: 'error' });
   } finally {
@@ -154,6 +164,13 @@ watch(() => props.applicationId, load);
 .app-files-strip__tile:hover:not(:disabled) {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 79, 124, 255), 0.15);
+}
+
+.app-files-strip__tile { position: relative; }
+.app-files-strip__downloaded {
+    position: absolute; right: 8px; bottom: 2px;
+    padding: 1px 5px; border-radius: 5px; font-size: 9px; line-height: 1.2;
+    color: var(--text-muted); background: var(--surface); opacity: .85; pointer-events: none;
 }
 
 .app-files-strip__tile:disabled {

@@ -35,6 +35,20 @@ async function pick(wrapper, files) {
 }
 
 describe('ApplicationFilesUpload', () => {
+    it('keeps the lazy draft dialog mounted when closing so its leave transition can finish',async()=>{
+        const wrapper=mount(ApplicationFilesUpload,{props:{modelValue:[]}});
+        const open=wrapper.findAll('button').find(button=>button.text()==='Файлы-черновики');
+        await open.trigger('click');await vi.dynamicImportSettled();await flushPromises();
+        const modal=wrapper.findComponent({name:'ApplicationDraftFilesModal'});
+        expect(modal.exists()).toBe(true);const identity=modal.vm.$.uid;
+        expect(modal.props('show')).toBe(true);
+        modal.vm.$emit('close');await flushPromises();
+        expect(wrapper.findComponent({name:'ApplicationDraftFilesModal'}).vm.$.uid).toBe(identity);
+        expect(modal.props('show')).toBe(false);
+        await open.trigger('click');await flushPromises();
+        expect(wrapper.findComponent({name:'ApplicationDraftFilesModal'}).vm.$.uid).toBe(identity);
+        expect(modal.props('show')).toBe(true);wrapper.unmount();
+    });
     beforeEach(() => {
         vi.clearAllMocks();
         uploadMock.mockResolvedValue([{ id: 7, file_name: 'разрешение.png', file_size: 1024, mime_type: 'image/png' }]);

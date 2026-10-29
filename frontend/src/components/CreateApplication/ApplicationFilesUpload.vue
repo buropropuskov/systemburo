@@ -30,7 +30,7 @@
         ><path d="M19.5 11l-7.8 7.8a4 4 0 0 1-5.7-5.7l8-8a2.5 2.5 0 0 1 3.6 3.6l-7.6 7.6a1 1 0 0 1-1.5-1.4l6.8-6.8" /></svg>
         <span>{{ uploading ? 'Загрузка...' : 'Прикрепить' }}</span>
       </button>
-      <button v-if="canManageDrafts" type="button" class="app-files__add" @click="showDrafts = true">Файлы-черновики</button>
+      <button v-if="canManageDrafts" type="button" class="app-files__add" @click="openDrafts">Файлы-черновики</button>
       <span v-if="quota" class="app-files__quota">{{ quota.usage.saved_count + quota.usage.reserved_count }} из {{ quota.limits.max_count }} · {{ formatBytes(quota.usage.saved_bytes + quota.usage.reserved_bytes) }} из {{ formatBytes(quota.limits.max_bytes) }}</span>
     </div>
 
@@ -65,7 +65,7 @@
         </button>
       </div>
     </TransitionGroup>
-    <ApplicationDraftFilesModal v-if="showDrafts && canManageDrafts" :show="showDrafts" @close="showDrafts = false" @deleted="onDraftDeleted" @usage="onUsage" />
+    <ApplicationDraftFilesModal v-if="draftsOpened && canManageDrafts" :show="showDrafts" @close="showDrafts = false" @deleted="onDraftDeleted" @usage="onUsage" />
   </div>
 </template>
 
@@ -77,7 +77,7 @@
  * подача привязывает их по списку id. Поэтому компонент отдаёт наверх именно
  * id, а не объекты File - к моменту отправки формы они уже на диске сервера.
  */
-import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 import { uploadApplicationFiles, deleteApplicationDraftFile, fetchApplicationDraftFiles } from '@/api/applicationFiles';
 import { formatBytes } from '@/utils/download';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -99,6 +99,9 @@ const notifications = useDeletionsStore();
 const auth = useAuthStore();
 const canManageDrafts = computed(() => !auth.isImpersonating);
 const showDrafts = ref(false);
+const draftsOpened = ref(false);
+function openDrafts() { draftsOpened.value = true; showDrafts.value = true; }
+watch(canManageDrafts, allowed => { if (!allowed) { showDrafts.value = false; draftsOpened.value = false; } });
 const quota = ref(null);
 let active = true;
 let usageSequence = 0;

@@ -1,6 +1,6 @@
 <template>
   <teleport to="body">
-    <transition name="modal-fade">
+    <transition name="modal-fade" :appear="appear">
       <div
         v-if="show"
         class="base-modal-overlay"
@@ -75,6 +75,7 @@ import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHand
 export default {
   name: 'BaseModal',
   props: {
+    appear: { type: Boolean, default: false },
     show: {
       type: Boolean,
       required: true,
