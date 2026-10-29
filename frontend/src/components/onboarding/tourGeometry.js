@@ -33,7 +33,8 @@ export function createTourGeometry({
     try {
       if (operation.signal?.aborted) controller.abort();
       if (!allowed()) return null;
-      await scrollTarget(frame.target, frame.scrollTo, controller.signal);
+      const ready = await scrollTarget(frame.target, frame.scrollTo, controller.signal);
+      if (allowed() && ready === false) throw Object.assign(new Error('Learning target is not visible'), { reason: 'target-unreachable' });
       return allowed() && isTourTargetVisible(frame.target) ? frame.target : null;
     } finally {
       preparations.delete(controller);
@@ -137,10 +138,13 @@ export function createTourGeometry({
       };
       Promise.resolve().then(() => {
         if (current(lease) && !controller.signal.aborted) return scrollTarget(lease.target, undefined, controller.signal);
-      }).then(() => {
+      }).then(ready => {
+        if (current(lease) && !controller.signal.aborted && ready === false) {
+          throw Object.assign(new Error('Learning target is not visible'), { reason: 'target-unreachable' });
+        }
         settled();
         if (current(lease)) invalidate('scroll-settled');
-      }, error => {
+      }).catch(error => {
         settled();
         if (current(lease) && !controller.signal.aborted) onError(error);
       });

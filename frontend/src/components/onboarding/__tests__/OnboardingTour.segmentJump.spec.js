@@ -1,4 +1,6 @@
 // Notification delivery is outside host navigation tests; keep router/API isolated.
+import { installScrollIntoView } from './fixtureScrollIntoView';
+let restoreScrollIntoView;
 vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: vi.fn() }) }));
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { reactive } from 'vue';
@@ -137,6 +139,7 @@ function renderStepList() {
 
 describe('OnboardingTour - прыжок из списка шагов', () => {
   beforeEach(() => {
+    restoreScrollIntoView = installScrollIntoView();
     mocks.driver.config = null;
     mocks.driver.activeIndex = 0;
     mocks.driver.moves = [];
@@ -155,6 +158,7 @@ describe('OnboardingTour - прыжок из списка шагов', () => {
   });
 
   afterEach(() => {
+    restoreScrollIntoView?.();
     wrapper?.unmount();
     wrapper = null;
   });

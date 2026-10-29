@@ -162,4 +162,4 @@ export const approveOnboardingSteps = [
     description:
       'Вы прошли доступные вам разделы обучения работе с согласованиями. Повторить объяснения можно кнопкой «Обучение» на странице «Обзор и новости».',
   },
-];
+].map(step => step.route === '/center' ? { ...step, demoScene: step.id === 'acc-detail-supplement' ? 'accept-supplement-approved' : 'reviewer-pending' } : step);

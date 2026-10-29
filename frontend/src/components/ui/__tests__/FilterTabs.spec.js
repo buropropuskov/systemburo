@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import FilterTabs from '../FilterTabs.vue';
 
 const allTabs = [
@@ -108,6 +108,42 @@ describe('FilterTabs - сворачивание в список', () => {
   it('в списке те же пункты и в том же порядке', async () => {
     const wrapper = await mountWith(210, 728);
     expect(wrapper.vm.dropdownOptions).toEqual(tabs.map((t) => ({ value: t.key, label: t.label })));
+  });
+
+  it('округление ширины на один пиксель не переключает вид при повторных замерах', async () => {
+    const wrapper = await mountWith(44, 175);
+    for (let index = 0; index < 20; index += 1) {
+      wrapper.vm.measure();
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.collapsed).toBe(false);
+    }
+    expect(wrapper.find('[data-testid="filter-tabs-select"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('возвращает вкладки после расширения и снова сворачивается при сужении', async () => {
+    const wrapper = await mountWith(210, 728);
+    expect(wrapper.vm.collapsed).toBe(true);
+    const row = wrapper.vm.$refs.row;
+    Object.defineProperty(row, 'clientWidth', { value: 900, configurable: true });
+    wrapper.vm.measure();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.collapsed).toBe(false);
+    Object.defineProperty(row, 'clientWidth', { value: 728, configurable: true });
+    wrapper.vm.measure();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.collapsed).toBe(true);
+    wrapper.unmount();
+  });
+  it('при переключении в вертикальный режим возвращает все вкладки вместо списка', async () => {
+    const wrapper = await mountWith(210, 728);
+    expect(wrapper.vm.collapsed).toBe(true);
+    await wrapper.setProps({ stacked: true });
+    await flushPromises();
+    expect(wrapper.vm.collapsed).toBe(false);
+    expect(wrapper.find('[data-testid="filter-tabs-select"]').exists()).toBe(false);
+    expect(wrapper.findAll('.filter-tab')).toHaveLength(tabs.length);
+    wrapper.unmount();
   });
 });
 it('does not animate visibility when replacing tabs with a dropdown', () => {

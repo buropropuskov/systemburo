@@ -1,4 +1,5 @@
 import { findTourTarget, isTourTargetVisible } from './targetResolver';
+import { targetFitsViewingArea, targetViewingArea, correctTargetScroll } from './targetViewingArea';
 
 function hasTargetMotion(element) {
   for (let node = element; node; node = node.parentElement) {
@@ -83,12 +84,7 @@ export function waitForElement(selector, timeout = 2500, signal) {
  * @returns {boolean}
  */
 export function isTargetInView(el) {
-  const r = el.getBoundingClientRect();
-  const margin = 24;
-  if (r.height > window.innerHeight - margin * 2) {
-    return r.top >= 0 && r.top <= window.innerHeight - 120;
-  }
-  return r.top >= 0 && r.bottom <= window.innerHeight;
+  return targetFitsViewingArea(el);
 }
 
 /**
@@ -104,7 +100,7 @@ export function isTargetInView(el) {
  * @param {'center'|'end'|'start'} [block]
  */
 function довести(el, block) {
-  const выше = el.getBoundingClientRect().height > window.innerHeight - 48;
+  const выше = el.getBoundingClientRect().height > targetViewingArea(el).height - 48;
   el.scrollIntoView({ block: выше ? 'start' : (block || 'center'), inline: 'nearest', behavior: 'instant' });
 }
 
@@ -126,30 +122,38 @@ const подводимый = (el) => !!el?.getBoundingClientRect && typeof el.sc
  * @param {Element|null} el
  * @param {'center'|'end'|'start'} [block] куда подвести цель; не задан - только
  *   при нехватке места, по центру.
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} true: visible; false: cancelled/unavailable.
+ * Rejects with reason=target-unreachable if bounded scrolling cannot expose it.
  */
 export function ensureInView(el, block, signal) {
-  if (signal?.aborted || !подводимый(el)) return Promise.resolve();
-  if (!block && isTargetInView(el)) return Promise.resolve();
-  довести(el, block);
+  if (signal?.aborted || !подводимый(el)) return Promise.resolve(false);
+  if (!block && isTargetInView(el) && !hasTargetMotion(el)) return Promise.resolve(true);
+  if (block || !isTargetInView(el)) довести(el, block);
   // Ждём, пока цель ДЕЙСТВИТЕЛЬНО окажется на экране, а не один кадр (#2610).
   // Потолок - чтобы не ждать недостижимую цель.
-  return new Promise((resolve) => {
-    let frame;
-    const stop = () => {
+  return new Promise((resolve, reject) => {
+    let frame, corrected = false, previous = null;
+    const cleanup = () => {
       cancelAnimationFrame(frame);
       signal?.removeEventListener('abort', stop);
-      resolve();
     };
+    const stop = () => { cleanup(); resolve(false); };
     signal?.addEventListener('abort', stop, { once: true });
     const срок = Date.now() + 1200;
     const кадр = () => {
       if (signal?.aborted) { stop(); return; }
-      if (isTargetInView(el) || Date.now() > срок) {
-        stop();
-        return;
+      if (el.isConnected === false) { stop(); return; }
+      const rect = el.getBoundingClientRect();
+      const signature = [rect.top, rect.left, rect.width, rect.height];
+      if (isTargetInView(el) && !hasTargetMotion(el) && previous
+        && signature.every((value, index) => Math.abs(value - previous[index]) < .5)) {
+        cleanup(); resolve(true); return;
       }
-      довести(el, block);
+      if (Date.now() > срок) {
+        cleanup(); reject(Object.assign(new Error('Learning target cannot be brought into view'), { reason: 'target-unreachable' })); return;
+      }
+      if (!corrected && !isTargetInView(el)) { corrected = true; correctTargetScroll(el); }
+      previous = signature;
       frame = requestAnimationFrame(кадр);
     };
     frame = requestAnimationFrame(кадр);
@@ -173,15 +177,26 @@ export function ensureInView(el, block, signal) {
  */
 export function holdInView(el, block, длительность = 900, пока) {
   if (!подводимый(el)) return () => {};
+  let attempted = null;
+  const doc = el.ownerDocument || document;
   const таймер = setInterval(() => {
     if (!el.isConnected || (пока && !пока())) {
       стоп();
       return;
     }
     if (isTargetInView(el)) return;
+    const rect = el.getBoundingClientRect(), signature = [rect.top, rect.left, rect.width, rect.height].join(':');
+    if (signature === attempted) return;
+    attempted = signature;
     довести(el, block);
   }, 40);
-  const стоп = () => { clearInterval(таймер); clearTimeout(потолок); };
+  const manual = () => стоп();
+  const стоп = () => {
+    clearInterval(таймер); clearTimeout(потолок);
+    doc.removeEventListener('wheel', manual, true); doc.removeEventListener('touchmove', manual, true);
+  };
+  doc.addEventListener('wheel', manual, { passive: true, capture: true });
+  doc.addEventListener('touchmove', manual, { passive: true, capture: true });
   const потолок = setTimeout(стоп, длительность);
   return стоп;
 }

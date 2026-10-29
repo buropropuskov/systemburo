@@ -173,7 +173,7 @@
       <div
         class="content-container"
         data-ob-owner="accessible-detail"
-        :data-ob-state="detailState"
+        v-bind="detailOwnerAttributes"
         @onboarding-retry.prevent="retryDetail"
       >
         <!-- Список вложений -->
@@ -535,6 +535,11 @@ const detailAttemptId = ref(null);
 
 const selectedId = ref(null);
 const detail = ref(null);
+const detailOwnerAttributes = computed(() => {
+  const blank = detail.value?.attachment?.has_blank;
+  return { 'data-ob-state': detailState.value, 'data-ob-blank': detailState.value === 'ready'
+    ? (blank === true ? 'ready' : blank === false ? 'empty' : 'unknown') : detailState.value };
+});
 const detailSection = ref(null);
 
 // Предпросмотр заполненного бланка (#706 S4): модалка с XlsxViewer по тому же

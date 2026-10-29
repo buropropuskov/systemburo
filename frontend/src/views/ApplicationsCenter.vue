@@ -834,6 +834,7 @@ import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { getViewportZoom } from '@/utils/viewportScale'
+import { attachRegistryViewport, detachRegistryViewport } from '@/utils/registryViewport';
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod'
 import DateFilter from '@/components/DateFilter.vue';
@@ -852,7 +853,7 @@ import { blacklistFlagCount } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
 import { copyText } from '@/utils/clipboard';
-import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
+import { useCenterTourReveal } from '@/composables/useCenterTourReveal';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatDateTime } from '@/utils/datetime';
 
@@ -1323,12 +1324,7 @@ export default {
     // принимающего целиком идут по Центру, а деталь здесь модалка, а не роут.
     // Контракт общий с личным кабинетом, живёт в композабле.
     created() {
-        this._tourReveal = useRevealFirstApplication({
-            list: () => this.sortedApplications, reload: () => this.fetchApplications(true),
-            isOpen: () => !!this.selectedApplication,
-            open: (application) => this.openApplication(application),
-            close: () => this.closeDetail(),
-        });
+        this._tourReveal = useCenterTourReveal(this);
     },
     mounted() {
         this.startShakeAnimation();
@@ -1405,14 +1401,7 @@ export default {
         // resize пересчитывал --app-vh -> осцилляция). Эталон CarsView/EmployeeView;
         // на мобилке (<=768) высота сбрасывается - там список скроллит страница
         // (sticky-шапка, @media 767).
-        this._lastHeight = -1;
-        this.$nextTick(this._applyHeight);
-        window.addEventListener('resize', this._applyHeight);
-        const header = document.querySelector('.theheader');
-        if (header && typeof ResizeObserver !== 'undefined') {
-            this._headerObs = new ResizeObserver(this._applyHeight);
-            this._headerObs.observe(header);
-        }
+        attachRegistryViewport(this);
 
         this._tagsColObs = observeTagsColumnWidth(
             this.$refs.tagsHeaderCol,
@@ -1422,11 +1411,7 @@ export default {
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
         this._tourReveal?.stop();
-        window.removeEventListener('resize', this._applyHeight);
-        if (this._headerObs) {
-            this._headerObs.disconnect();
-            this._headerObs = null;
-        }
+        detachRegistryViewport(this);
         this._tagsColObs?.disconnect();
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
@@ -2152,7 +2137,8 @@ export default {
             this.showDownloadModal = true;
         },
 
-        async openApplication(application) {
+        async openApplication(application, operation) {
+            if (!operation) this._tourReveal?.release();
             // Копится причина пересчитать бейдж NavMenu (прочтение и/или гашение флага
             // статуса). Эмитим ОДИН раз в конце: заявка, что и непрочитана, и с обновлением
             // статуса, иначе дала бы два запроса /unread-count подряд в одном тике.
@@ -2189,7 +2175,7 @@ export default {
             // Маркер вопросов гасит ПРОЧТЕНИЕ топиков в детали (клик), а не факт открытия
             // заявки (#973). Когда все вопросы прочитаны, деталь эмитит questions-read ->
             // onQuestionsRead снимает иконку в списке сразу (см. ниже).
-            this.selectedApplication = application;
+            if (!operation || operation.isCurrent()) this.selectedApplication = application;
         },
 
         // Все вопросы заявки прочитаны в детали -> гасим маркер в списке оптимистично (#973),

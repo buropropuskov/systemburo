@@ -10,7 +10,7 @@ import {
 } from '@/components/onboarding/tours';
 import { markOnboardingComplete } from '@/api/onboarding';
 import { createGatingData } from '@/components/onboarding/gatingData';
-import { syncDemoBackend } from '@/components/onboarding/demoBackend';
+import { createTourDemoData } from '@/components/onboarding/tourDemoData';
 import { createProgressTracker } from '@/components/onboarding/tourProgress';
 import { createTourStatus } from '@/components/onboarding/tourStatus';
 import { createActiveStepSet, applicableTourSteps } from '@/components/onboarding/activeStepSet';
@@ -33,6 +33,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const currentStepId = ref(null);
   // Ключ активного тура: он же уходит в markCompleted и определяет набор шагов.
   const activeTourKey = ref(null);
+  const demo = createTourDemoData({ getTourKey: () => activeTourKey.value, getActorId: () => Number(useAuthStore().userId) });
   // Авто-запуск ставит флаг завершения даже при пропуске, ручной — нет.
   const isManual = ref(false);
   const partialRun = ref(false);
@@ -40,14 +41,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   // выполняется router.push, и pendingSegment сигналит хосту подхватить
   // следующий сегмент после навигации (router.afterEach).
   const pendingSegment = ref(false);
-
-  // Демо-вложение для онбординга оформления заявки: тур просит BlankSelector
-  // добавить вложение нужного типа ('cars'/'people'), чтобы показать реальную
-  // форму; null = убрать демо-вложение (очистка после сегмента/тура).
-  const demoAttachmentType = ref(null);
-  function setDemoAttachment(type) {
-    demoAttachmentType.value = type || null;
-  }
 
   // Шаги, реально выброшенные в ЭТОМ прохождении: цели на экране не оказалось
   // (кнопки, которой человеку не положено; пустого списка). Нужны для честной
@@ -180,6 +173,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     if (isActive.value || contextReady.status(tour).status !== 'ready') return false;
     const entry = getTour(tour);
     if (!entry || !entry.steps.length) return false;
+    if (!demo.canStart(tour)) return false;
     const requested = fromStepId === undefined ? null : applicableTourSteps(entry, tourContext.value).findIndex(step => step.id === fromStepId);
     if (requested !== null && (!manual || requested < 0)) return false;
     activeTourKey.value = entry.key;
@@ -197,7 +191,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     captureStepSet();
     skippedIndexes.value = [];
     isActive.value = true;
-    syncDemoBackend(true, hasOwnApplication.value, entry.key);
+    demo.start(entry.key, hasOwnApplication.value);
     return true;
   }
 
@@ -234,7 +228,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     // Закрыли осознанно - храним; после финала нет: stop идёт последним и вернул бы запись (#2600).
     if (activeTourKey.value && !finished && !partialRun.value) progress.save(activeTourKey.value, currentIndex.value, false, steps.value);
     isActive.value = false;
-    syncDemoBackend(false);
+    demo.stop();
   }
 
   function setIndex(i) {
@@ -318,6 +312,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function reset() {
+    demo.stop();
     // Clear the owner before Driver teardown can attempt a completion write.
     activeTourKey.value = null;
     partialRun.value = false;
@@ -327,21 +322,19 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     resetStepSet();
     skippedIndexes.value = [];
     pendingSegment.value = false;
-    demoAttachmentType.value = null;
+    demo.api.setDemoAttachment(null);
     revealOpen.value = null;
     // Сброс статуса при logout - следующий юзер на этом устройстве подтянет свой.
     resetStatus();
     // Роль в согласовании, route фактовой таблицы и наличие своей заявки - per-user.
     resetGatingData();
-    syncDemoBackend(false);
   }
 
   // Impersonation changes the actor without logout; token rotation does not.
   watch(() => useAuthStore().userId ?? useAuthStore().username, reset, { flush: 'sync' });
 
   return {
-    demoAttachmentType,
-    setDemoAttachment,
+    ...demo.api,
     revealOpen,
     setRevealOpen,
     isActive,

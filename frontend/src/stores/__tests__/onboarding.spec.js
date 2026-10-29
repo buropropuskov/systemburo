@@ -276,7 +276,9 @@ describe('onboarding store', () => {
       await store.prepareTour('accept');
       store.start({ tour: 'accept' });
 
-      expect(syncDemoBackend).toHaveBeenCalledWith(true, true, 'accept');
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, false, 'accept', {
+        snapshot: expect.objectContaining({ scene: 'accept-ready', actorId: useAuthStore().userId }),
+      });
     });
 
     it('досмотренный тур запускается сначала, даже если позиция залежалась', () => {

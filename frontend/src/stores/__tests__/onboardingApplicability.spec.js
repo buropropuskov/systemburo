@@ -19,6 +19,7 @@ vi.mock('@/components/onboarding/demoBackend', () => ({ syncDemoBackend: vi.fn()
 
 beforeEach(() => {
   localStorage.clear(); setActivePinia(createPinia());
+  useAuthStore().setTokens(`${btoa('{}')}.${btoa(JSON.stringify({ username: 'fixture', user_id: 42, exp: 9999999999 }))}.signature`);
   const permissions = usePermissionsStore(); permissions.loaded = true;
   const store = useOnboardingStore(); store.ownApplicationLoaded = true; store.factRouteLoaded = true;
   store.approvalRoleLoaded = true; store.approvalRole = { isApprover: true, isReviewer: true };

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import ApplicationsCenter from '@/views/ApplicationsCenter.vue';
@@ -7,6 +7,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { REVEAL_FIRST_APPLICATION } from '@/composables/useRevealFirstApplication';
 import { OPEN_TARGETS } from '../reveal';
+import { apiRequest } from '@/api/client';
 
 /**
  * Раскрытие карточки заявки в Центре по сигналу тура (`reveal.open`).
@@ -152,5 +153,16 @@ describe('Центр заявок - карточка по сигналу тур�
 
     await signal('admin-column');
     expect(wrapper.vm.selectedApplication).toBe(null);
+  });
+  it.each([14, 999000002])('late tour read does not reclaim manually opened card %s', async manualId => {
+    wrapper=mountCenter();useOnboardingStore().isActive=true;
+    wrapper.vm.applications=[application({id:999000002,is_read:false})];await wrapper.vm.$nextTick();
+    let release;apiRequest.mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
+    await signal(REVEAL_FIRST_APPLICATION);
+    const manual=manualId===999000002?wrapper.vm.applications[0]:application({id:manualId});
+    await wrapper.vm.openApplication(manual);await flushPromises();
+    expect(wrapper.vm.selectedApplication.id).toBe(manualId);
+    release({ok:false});await flushPromises();await signal(null);
+    expect(wrapper.vm.selectedApplication.id).toBe(manualId);
   });
 });

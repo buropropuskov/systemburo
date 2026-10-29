@@ -169,6 +169,7 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-detail',
+    dataPrerequisite: 'accessible-list',
     dataOwner: 'accessible-detail',
     side: 'left',
     align: 'start',
@@ -184,6 +185,7 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-elements',
+    dataPrerequisite: 'accessible-list',
     dataOwner: 'accessible-detail',
     side: 'left',
     align: 'start',
@@ -197,6 +199,9 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-preview',
+    dataAvailability: 'blank',
+    dataPrerequisite: 'accessible-list',
+    dataOwner: 'accessible-detail',
     side: 'left',
     align: 'start',
     optional: true,
@@ -212,13 +217,16 @@ export const securityOnboardingSteps = [
   },
   {
     id: 'sec-aa-blank',
+    dataAvailability: 'blank',
+    dataPrerequisite: 'accessible-list',
+    dataOwner: 'accessible-detail',
     side: 'top',
     align: 'center',
     optional: true,
     route: '/accessible-attachments',
     // Тур открывает бланк сам: рассказывать про кнопку и не показывать файл -
     // половина объяснения.
-    reveal: { open: 'attachment-blank' },
+    reveal: { open: 'attachment-blank', prepare: 'first-attachment' },
     element: '[data-testid="ob-blank-preview"]',
     title: 'Бланк заявки',
     description:

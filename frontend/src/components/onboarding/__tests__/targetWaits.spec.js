@@ -19,7 +19,7 @@ function узел({ top, height, scrollable = true }) {
   return {
     state,
     isConnected: true,
-    getBoundingClientRect: () => ({ top: state.top, bottom: state.top + state.height, height: state.height }),
+    getBoundingClientRect: () => ({ top: state.top, bottom: state.top + state.height, height: state.height, left: 10, width: 100, right: 110 }),
     scrollIntoView: (opts) => {
       state.вызовы.push(opts.block);
       state.behavior = opts.behavior;
@@ -71,9 +71,9 @@ describe('ensureInView', () => {
   it('недостижимая цель не вешает шаг дольше потолка', async () => {
     const el = узел({ top: 900, height: 120, scrollable: false });
     const начало = Date.now();
-    await ensureInView(el, 'center');
+    await expect(ensureInView(el, 'center')).rejects.toMatchObject({ reason: 'target-unreachable' });
     expect(Date.now() - начало).toBeLessThan(2500);
-    expect(el.state.вызовы.length).toBeGreaterThan(1);
+    expect(el.state.вызовы.length).toBe(1);
   });
 });
 
@@ -108,6 +108,13 @@ describe('holdInView', () => {
     el.isConnected = false;
     holdInView(el, 'center');
     vi.advanceTimersByTime(300);
+    expect(el.state.вызовы).toEqual([]);
+  });
+  it('не возвращает цель после самостоятельной прокрутки пользователя', () => {
+    const el = узел({ top: 100, height: 120 });
+    holdInView(el, 'center');
+    document.dispatchEvent(new Event('touchmove'));
+    el.state.top = 700; vi.advanceTimersByTime(500);
     expect(el.state.вызовы).toEqual([]);
   });
 });

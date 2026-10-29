@@ -233,7 +233,7 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
   it('тур открывает бланк и отчёт, а не только называет кнопки', () => {
     const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
     expect(byId('sec-aa-preview').advanceWhen).toBe('[data-testid="ob-blank-preview"]');
-    expect(byId('sec-aa-blank').reveal).toEqual({ open: 'attachment-blank' });
+    expect(byId('sec-aa-blank').reveal).toEqual({ open: 'attachment-blank', prepare: 'first-attachment' });
     const report = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-report-window');
     expect(report.reveal).toEqual({ open: 'pass-report' });
   });

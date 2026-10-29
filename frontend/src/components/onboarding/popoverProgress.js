@@ -48,7 +48,7 @@ export function buildProgressBlock({ steps, skipped, globalIndex, total, nextTit
 
   // Глава - ориентир в длинном туре: «Шаг 23 из 57» ничего не говорит о том,
   // сколько осталось до места, где удобно прерваться.
-  const chapter = chapterOf(steps, currentGlobal);
+  const chapter = chapterOf(steps, currentGlobal, skipped);
   if (chapter) {
     const cap = document.createElement('div');
     cap.className = 'ob-popover__chapter';

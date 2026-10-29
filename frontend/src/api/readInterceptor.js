@@ -9,21 +9,24 @@
  * знает о демонстрации.
  *
  * Перехватчик решает сам, отвечать ли за путь и метод. Записи по чужим адресам он
- * не трогает, а по своим - гасит успехом: примерная заявка живёт только на экране,
- * и отметка о прочтении для неё уходила бы на сервер, где такой заявки нет (403 и
- * тост «недостаточно прав» посреди обучения).
+ * не трогает. Ответчик выбирает чтение, локальный no-op или контролируемый отказ;
+ * перехватчик не ходит в сеть и ограничивает ответ временем своей установки.
+ * Центр допускает только точную отметку прочтения и отказывает прочим действиям;
+ * прежний ответчик тура заявителя отдельно не переработан.
  *
  * Живёт ровно столько, сколько тур: он снимает перехватчик, и следующий запрос
  * идёт на живой бэкенд.
  */
 
 let interceptor = null;
+let generation = 0;
 
 /**
- * @param {((path: string, method: string) => object|null) | null} fn отдаёт тело
+ * @param {((path: string, method: string) => object|Response|null) | null} fn отдаёт тело
  *   ответа для пути и метода или null, если подменять не нужно
  */
 export function setReadInterceptor(fn) {
+  generation++;
   interceptor = typeof fn === 'function' ? fn : null;
 }
 
@@ -34,11 +37,22 @@ export function setReadInterceptor(fn) {
  */
 export function interceptRead(path, options = {}) {
   if (!interceptor) return null;
+  const lease = generation;
   const method = (options.method || 'GET').toUpperCase();
   const body = interceptor(path, method);
   if (!body) return null;
-  return new Response(JSON.stringify(body), {
+  const response = body instanceof Response ? body : new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+  for (const method of ['json', 'text', 'blob', 'arrayBuffer']) {
+    const read = response[method].bind(response);
+    response[method] = async () => {
+      if (lease !== generation) throw new DOMException('Learning data expired', 'AbortError');
+      const value = await read();
+      if (lease !== generation) throw new DOMException('Learning data expired', 'AbortError');
+      return value;
+    };
+  }
+  return response;
 }

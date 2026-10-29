@@ -10,6 +10,7 @@
         v-if="allowExistingSearch"
         class="completion__button"
         data-testid="ob-form-existing"
+        :disabled="vehicleEditPending"
         @click="openExistingCarsModal"
       >
         {{ isNarrow ? 'Добавить сущ.' : 'Добавить существующую(-ие)' }}
@@ -206,11 +207,9 @@
               @blur="formatPart(index, cell)"
             >
           </div>
-          <div
-            v-else
-            class="no-format-message"
-          >
-            Выберите формат номера
+          <div v-else :class="editingVehicle?.isExisting ? 'number__field' : 'no-format-message'">
+            <input v-if="editingVehicle?.isExisting" class="number__input" :value="editingVehicle.plateNumber" disabled>
+            <span v-else>Выберите формат номера</span>
           </div>
 
           <!-- Блок предупреждения об активной заявке для номера -->
@@ -469,7 +468,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
-import { validatePartValue, formatPartValue, initializeNumberParts, matchNumberToFormat } from '@/composables/useNumberFormat'
+import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
+import { restoreEditedVehicleNumber, restoreVehicleEdit } from './vehicleEditState';
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
@@ -554,6 +554,7 @@ export default {
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
             const vm = instance.proxy
+            if (vm.vehicleEditPending) return [{ check: false, message: 'дождитесь загрузки формы' }];
             const hasInactiveSelected = vm.selectedUnloadingPlaces.some(placeId => {
                 const place = vm.allUnloadingPlaces.find(p => p.id === placeId)
                 return place && place.status !== 'active'
@@ -575,9 +576,9 @@ export default {
                 { check: !vm.activeCarInfo || vm.isNumberByFact || !fieldVisible('number'), message: 'На этот автомобиль уже есть активная заявка' },
                 { check: !vm.blacklistInfo || !fieldVisible('number'), message: 'Машина в чёрном списке' },
                 { check: (vm.isNumberByFact && vm.isMarkByFact) || !hasInactiveSelected || !fieldVisible('unloading_places'), message: 'Невозможно выбрать неактивные места разгрузки' },
-                { check: !fieldVisible('number') || !fieldRequired('number') || vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
+                { check: vm.editingVehicle?.isExisting || !fieldVisible('number') || !fieldRequired('number') || vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
                 {
-                    check: !fieldVisible('number') || !fieldRequired('number') || vm.isNumberByFact || (
+                    check: vm.editingVehicle?.isExisting || !fieldVisible('number') || !fieldRequired('number') || vm.isNumberByFact || (
                         !!vm.selectedFormat &&
                         vm.numberParts.length > 0 &&
                         vm.numberParts.every((part, i) => {
@@ -630,6 +631,8 @@ export default {
             showExistingTooltip: false,
             showAllExistingCars: false,
             editingVehicle: null,
+            vehicleEditEpoch: 0,
+            vehicleEditPending: false,
             inactiveTooltip: {
                 visible: false,
                 text: '',
@@ -795,6 +798,7 @@ export default {
         this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
     },
     beforeUnmount() {
+        this.vehicleEditEpoch += 1;
         if (this.hintTimer) clearTimeout(this.hintTimer);
         if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
         document.removeEventListener('click', this.handleDocumentClick);
@@ -1246,7 +1250,10 @@ export default {
             this.$emit('by-fact-change', this.isNumberByFact);
         },
         handleMarkByFactChange() {
-            if (this.isMarkByFact) this.selectedMark = '';
+            if (this.isMarkByFact) {
+                this.selectedMark = '';
+                this.selectedMarkId = null;
+            }
         },
         toggleUnloadingPlace(place, event) {
             if (place.status !== 'active') {
@@ -1335,6 +1342,12 @@ export default {
                 formatId: this.selectedFormat ? this.selectedFormat.format.id : null,
                 isExisting: false
             };
+            if (this.editingVehicle?.isExisting) {
+                newVehicle.plateNumber = this.editingVehicle.plateNumber;
+                newVehicle.formatId = this.editingVehicle.formatId;
+                newVehicle.isExisting = true;
+                newVehicle.existingCarId = this.editingVehicle.existingCarId;
+            }
 
             const duplicate = findDuplicateVehicle(
                 this.existingVehicles,
@@ -1371,6 +1384,8 @@ export default {
         },
 
         clearVehicleForm() {
+            this.vehicleEditEpoch += 1;
+            this.vehicleEditPending = false;
             this.initializeNumberParts();
             this.selectedMark = '';
             this.selectedMarkId = null;
@@ -1387,6 +1402,7 @@ export default {
         },
 
         openExistingCarsModal() {
+            if (this.vehicleEditPending) return;
             this.showExistingCarsModal = true;
         },
 
@@ -1481,90 +1497,18 @@ export default {
         // прямым split(' '). formatId не пришёл или номер в него не лёг - формат подбирается
         // по самой строке среди ВСЕХ активных форматов. Не подошёл ни один - явно сообщаем об
         // этом, а не оставляем пустые ячейки под чужим форматом молча.
-        async applyEditedVehicleNumber(vehicle) {
-            if (!this.availableFormats.length && this.formatsReady) {
-                await this.formatsReady;
+        async applyEditedVehicleNumber(vehicle, current = () => true) {
+            const matched = await restoreEditedVehicleNumber(this, vehicle, current);
+            if (!matched && current() && !vehicle.isExisting) {
+                useDeletionsStore().notify({
+                    prefix: `Номер "${vehicle.plateNumber}" не подошёл ни под один формат. `,
+                    bold: 'Выберите формат и введите номер вручную',
+                    type: 'error',
+                });
             }
-            const knownFormat = vehicle.formatId
-                ? this.availableFormats.find(f => f.format.id === vehicle.formatId)
-                : null;
-
-            if (knownFormat) {
-                const matched = matchNumberToFormat(vehicle.plateNumber, [knownFormat]);
-                if (matched) {
-                    this.selectedFormat = knownFormat;
-                    this.numberParts = matched.parts;
-                    return;
-                }
-            }
-
-            const guessed = matchNumberToFormat(vehicle.plateNumber, this.availableFormats);
-            if (guessed) {
-                this.selectedFormat = guessed.format;
-                this.numberParts = guessed.parts;
-                return;
-            }
-
-            this.selectedFormat = null;
-            this.numberParts = [];
-            useDeletionsStore().notify({
-                prefix: `Номер "${vehicle.plateNumber}" не подошёл ни под один формат. `,
-                bold: 'Выберите формат и введите номер вручную',
-                type: 'error',
-            });
         },
-
-        async editVehicle(vehicle) {
-            this.editingVehicle = vehicle;
-            this.selectedExistingCars = [];
-            this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
-            
-            const restoreMarkSelection = () => {
-                if (vehicle.mark === 'По факту') {
-                    this.isMarkByFact = true;
-                    this.selectedMark = '';
-                    this.selectedMarkId = null;
-                } else {
-                    this.isMarkByFact = false;
-                    this.selectedMark = vehicle.mark || '';
-                    if (vehicle.markId) {
-                        this.selectedMarkId = vehicle.markId;
-                    } else {
-                        const match = this.marks.find(m => m.name === vehicle.mark);
-                        this.selectedMarkId = match ? match.id : null;
-                    }
-                }
-            };
-
-            if (vehicle.isExisting) {
-                restoreMarkSelection();
-                this.isNumberByFact = vehicle.plateNumber === 'По факту';
-                this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
-                this.selectedPassageTables = vehicle.passage_tables || [];
-
-                if (vehicle.formatId) {
-                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
-                    if (format) {
-                        this.selectedFormat = format;
-                    }
-                }
-            } else {
-                if (vehicle.plateNumber === 'По факту') {
-                    this.isNumberByFact = true;
-                } else {
-                    this.isNumberByFact = false;
-                    await this.applyEditedVehicleNumber(vehicle);
-                }
-
-                restoreMarkSelection();
-
-                this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
-                this.selectedPassageTables = vehicle.passage_tables || [];
-            }
-
-            // Перепроверяем ЧС для редактируемой машины (для "по факту" watcher
-            // numberParts не сработает - сбросит/обновит баннер явно).
-            this.checkBlacklist();
+        editVehicle(vehicle) {
+            return restoreVehicleEdit(this, vehicle);
         },
 
         cancelEdit() {
@@ -1632,6 +1576,7 @@ export default {
 }
 </script>
 
+<style scoped src="@/assets/vehicle-number-control.css"></style>
 <style scoped>
 .input__label {
     font-size: 13px;
@@ -1931,6 +1876,7 @@ export default {
 
 .completion__fields {
     display: flex;
+    flex-wrap: wrap;
     gap: 20px;
     align-items: flex-start;
     margin-bottom: 15px;
@@ -1938,7 +1884,8 @@ export default {
 
 .completion__number,
 .completion__mark {
-    flex: 1;
+    flex: 1 1 220px;
+    min-width: 0;
 }
 
 .completion__number-header,
@@ -2020,64 +1967,6 @@ export default {
     font-size: 13px;
 }
 
-.number__field {
-    max-width: 202px;
-    min-width: 202px;
-    height: 40px;
-    display: flex;
-    border: 1px solid var(--border);
-    border-radius: 15px;
-    overflow: hidden;
-    background: var(--surface);
-}
-
-.number__field--fact {
-    display: block;
-}
-
-.number__input {
-    border: none;
-    height: 100%;
-    outline: none;
-    text-align: center;
-    font-size: 14px;
-    background: transparent;
-    flex: 1;
-    min-width: 0;
-}
-
-.number__input:disabled {
-    background-color: var(--surface-2);
-    cursor: not-allowed;
-}
-
-.number__input--fact {
-    width: 100%;
-    text-align: left;
-    padding: 0 15px;
-    color: var(--text-muted);
-}
-
-.number__input:not(:last-child) {
-    border-right: 1px solid var(--border);
-}
-
-.number__input:first-child {
-    border-radius: 15px 0 0 15px;
-}
-
-.number__input:last-child {
-    border-radius: 0 15px 15px 0;
-}
-
-.number__input::placeholder {
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-.number__input:focus {
-    background-color: var(--surface-2);
-}
 
 .no-format-message {
     font-size: 12px;
@@ -2528,6 +2417,25 @@ export default {
 
 /* Форма (450px) + список машин рядом не влезают на планшете - стекаем в колонку
    (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1366px) {
+    .mark__button-arrow {
+        transform: rotate(0deg);
+    }
+
+    .mark__button-arrow--open {
+        transform: rotate(180deg);
+    }
+
+    /* На планшете справа от поля уже нет места для бокового списка. */
+    .mark__dropdown-menu {
+        left: 0;
+        top: 100%;
+        width: 100%;
+        margin-left: 0;
+        margin-top: 5px;
+    }
+}
+
 @media (max-width: 1024px) {
     .data__completion {
         width: 100%;
@@ -2645,16 +2553,6 @@ export default {
         max-width: calc(100vw - 40px);
     }
 
-    /* Дропдаун марки раскрывался ВПРАВО от поля (left:100%) - на узком уезжает
-       за край экрана. На мобильном раскрываем вниз, как у EmployeeForm. */
-    .mark__dropdown-menu {
-        left: 0;
-        top: 100%;
-        width: 100%;
-        margin-left: 0;
-        margin-top: 5px;
-    }
-
     /* Поля и гриды перестраивались только с 480 - на 481-768 форма ещё жила
        десктопной сеткой. */
     .completion__fields {
@@ -2670,6 +2568,7 @@ export default {
        В колонке flex:1 ширину не задаёт, поэтому растягиваем сами блоки. */
     .completion__number,
     .completion__mark {
+        flex: none;
         width: 100%;
     }
 

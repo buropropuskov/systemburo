@@ -1,4 +1,4 @@
-import { watch } from 'vue';
+import { nextTick, watch } from 'vue';
 import { useOnboardingStore } from '@/stores/onboarding';
 
 /**
@@ -62,13 +62,20 @@ function pickForTour(list) {
  * @param {() => void} [handlers.reload] перечитать список - зовём по концу тура
  * @returns {{ stop: () => void, release: () => void }}
  */
-export function useRevealFirstApplication({ list, isOpen, open, close, reload }) {
+export function useRevealFirstApplication({ list, isOpen, open, close, reload, current }) {
   const store = useOnboardingStore();
   let openedByTour = false;
   // Правило 3 в действии: человек закрыл карточку сам, и пока сигнал не сменится,
   // тур её больше не открывает. Без флага повторная попытка (см. ниже) вернула бы
   // карточку на экран при первом же обновлении списка.
   let releasedByUser = false;
+  let replacing = false;
+  let replacement = 0;
+  let ownership = 0, closingByTour = false;
+  function closeOwned() {
+    closingByTour = true;
+    try { close(); } finally { closingByTour = false; }
+  }
 
   // Следим за сигналом, первой заявкой И состоянием карточки. Список приезжает
   // своим запросом, и на медленной сети сигнал успевает встать раньше данных -
@@ -79,13 +86,15 @@ export function useRevealFirstApplication({ list, isOpen, open, close, reload })
   const stop = watch(
     () => [store.revealOpen, pickForTour(list()), isOpen()],
     ([target]) => {
+      if (replacing) return;
       if (target === REVEAL_FIRST_APPLICATION) {
         if (releasedByUser) return;
         const application = pickForTour(list());
         // Правила 1 и 2: открывать нечего либо карточка уже на экране.
         if (!application || isOpen()) return;
+        const intent = ownership;
         openedByTour = true;
-        open(application);
+        open(application, { isCurrent: () => ownership === intent });
         return;
       }
       // Журнал заявки и бланк на людей открываются ИЗ карточки: на этих сигналах
@@ -96,7 +105,7 @@ export function useRevealFirstApplication({ list, isOpen, open, close, reload })
       releasedByUser = false;
       if (!openedByTour) return;
       openedByTour = false;
-      close();
+      closeOwned();
     },
   );
 
@@ -108,9 +117,32 @@ export function useRevealFirstApplication({ list, isOpen, open, close, reload })
   );
 
   return {
-    stop: () => { stop(); stopTour(); },
+    canReplaceDemo(id) { return !isOpen() || (openedByTour && current?.()?.id === id); },
+    async replaceDemo(id, operation) {
+      if (isOpen() && (!openedByTour || current?.()?.id !== id)) throw new Error('Закрой открытую карточку и повтори шаг обучения.');
+      const request = ++replacement;
+      const intent = ownership;
+      replacing = true;
+      try {
+        if (openedByTour) { openedByTour = false; closeOwned(); await nextTick(); }
+        await reload?.();
+        if (!operation.isCurrent()) return;
+        if (ownership !== intent || releasedByUser || isOpen()) throw new Error('Карточка изменена вручную. Повтори шаг обучения.');
+        const application = list()?.find(item => item.id === id);
+        if (!application) throw new Error('Не удалось подготовить учебный пример. Повтори шаг.');
+        releasedByUser = false;
+        if (store.revealOpen === REVEAL_FIRST_APPLICATION) {
+          const currentIntent = () => operation.isCurrent() && ownership === intent && (!isOpen() || current?.() === application);
+          openedByTour = true; await open(application, { isCurrent: currentIntent });
+          if (operation.isCurrent() && !currentIntent()) throw new Error('Карточка изменена вручную. Повтори шаг обучения.');
+        }
+      } finally { if (request === replacement) replacing = false; }
+    },
+    stop: () => { ownership++; stop(); stopTour(); },
     /** Правило 3: карточку закрыли помимо тура - владение сброшено. */
     release() {
+      if (closingByTour) return;
+      ownership++;
       openedByTour = false;
       releasedByUser = true;
     },

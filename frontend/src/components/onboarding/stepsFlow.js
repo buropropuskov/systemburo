@@ -35,12 +35,16 @@ export function sectionTitleFor(route) {
  * @param {Array<number>|Set<number>} [skipped] индексы выброшенных шагов
  * @returns {Array<{ route: string, title: string, items: Array<{ index: number, title: string }> }>}
  */
+/** One display projection; navigation and persisted progress keep their raw indices. */
+export function visibleStepEntries(steps, skipped = []) {
+  const dropped = new Set([...(skipped || [])].filter(index => Number.isInteger(index) && index >= 0 && index < steps.length));
+  return steps.flatMap((step, index) => dropped.has(index) ? [] : [{ step, index }]);
+}
+
 export function groupStepsBySection(steps, skipped = []) {
-  const dropped = skipped instanceof Set ? skipped : new Set(skipped);
   const groups = [];
   let previousKey;
-  steps.forEach((step, index) => {
-    if (dropped.has(index)) return;
+  visibleStepEntries(steps, skipped).forEach(({ step, index }) => {
     const last = groups[groups.length - 1];
     const key = step.section || step.route;
     if (last && previousKey === key) last.items.push({ index, title: step.title });
@@ -117,11 +121,12 @@ export function tourChapters(steps) {
  * @param {number} index
  * @returns {{ title: string, number: number, total: number, start: number, end: number }|null}
  */
-export function chapterOf(steps, index) {
-  const chapters = tourChapters(steps);
-  const at = chapters.findIndex((c) => index >= c.start && index <= c.end);
+export function chapterOf(steps, index, skipped = []) {
+  const chapters = groupStepsBySection(steps, skipped);
+  const at = chapters.findIndex(c => c.items.some(item => item.index === index));
   if (at < 0) return null;
-  return { ...chapters[at], number: at + 1, total: chapters.length };
+  const chapter = chapters[at];
+  return { ...chapter, start: chapter.items[0].index, end: chapter.items.at(-1).index, number: at + 1, total: chapters.length };
 }
 
 /**
@@ -131,7 +136,7 @@ export function chapterOf(steps, index) {
  * @param {number} index
  * @returns {boolean}
  */
-export function isChapterEnd(steps, index) {
-  const chapter = chapterOf(steps, index);
+export function isChapterEnd(steps, index, skipped = []) {
+  const chapter = chapterOf(steps, index, skipped);
   return Boolean(chapter) && chapter.end === index && chapter.number < chapter.total;
 }
