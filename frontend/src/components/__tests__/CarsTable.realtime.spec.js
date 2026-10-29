@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
@@ -28,8 +28,16 @@ function deferred() {
   return { promise, resolve };
 }
 
+const mountedTables = new Set();
+afterEach(() => {
+  for (const wrapper of mountedTables) {
+    if (wrapper.exists()) wrapper.unmount();
+  }
+  mountedTables.clear();
+});
+
 function mountTable(props = {}) {
-  return mount(CarsTable, {
+  const wrapper = mount(CarsTable, {
     props: {
       tableName: 'КПП 1',
       tableId: 42,
@@ -41,6 +49,8 @@ function mountTable(props = {}) {
       stubs: { teleport: true, transition: false, 'transition-group': false },
     },
   });
+  mountedTables.add(wrapper);
+  return wrapper;
 }
 
 describe('CarsTable - real-time обновление по сигналу tables.refresh (#840)', () => {

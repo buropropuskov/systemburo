@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, afterEach, it, expect, beforeEach, vi } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -75,6 +75,8 @@ async function mountWithItems(props = {}) {
 function numbers(wrapper) {
   return wrapper.vm.displayItems.map(i => i.car_number);
 }
+
+enableAutoUnmount(afterEach);
 
 describe('CarsTable - мультивыбор фильтров (#1398)', () => {
   beforeEach(() => {

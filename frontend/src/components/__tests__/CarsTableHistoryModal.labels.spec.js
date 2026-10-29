@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 vi.mock('@/api/client', () => ({
@@ -17,6 +17,8 @@ import CarsTableHistoryModal from '../CarsTableHistoryModal.vue';
 // GetCarsHistoryByTable (/cars/history/table/:id) не фильтрует action_type (урок #1085),
 // поэтому deactivate (крон CheckExpiredAttachments) и прочие действия текли в журнал
 // сырым английским кодом - словаря для них не было.
+enableAutoUnmount(afterEach);
+
 describe('CarsTableHistoryModal - лейблы действий (#1085 follow-up)', () => {
   beforeEach(() => setActivePinia(createPinia()));
 

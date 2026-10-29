@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -25,6 +25,8 @@ function mountModal(props = {}) {
     global: { stubs: { teleport: true, transition: false, 'transition-group': false } },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('CarsTableHistoryModal - история своей таблицы (#1307)', () => {
   beforeEach(() => {

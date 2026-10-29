@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, afterEach, it, expect, vi, beforeEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -37,6 +37,8 @@ function mountTable(props = {}) {
     },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('CarsTable - Увеличенный режим', () => {
   beforeEach(() => {
