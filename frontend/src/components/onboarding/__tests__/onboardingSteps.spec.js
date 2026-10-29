@@ -418,7 +418,10 @@ describe('сегмент карточки заявки (#1740)', () => {
   it('reveal стоит на КАЖДОМ шаге карточки, а не только на первом', () => {
     // Наследование раскрытия у resolveReveal работает лишь ВНУТРИ группы (нужны оба
     // соседа с тем же значением): на последнем шаге карточка иначе закрылась бы.
-    detailSteps.forEach((s) => expect(s.reveal, s.id).toEqual({ open: 'first-application' }));
+    const actionSteps = ['detail-supplement', 'detail-duplicate', 'detail-revoke'];
+    detailSteps.forEach((s) => expect(s.reveal, s.id).toEqual({
+      open: actionSteps.includes(s.id) ? 'application-actions' : 'first-application',
+    }));
   });
 
   it('сегмент кабинета начинается и заканчивается непропускаемым шагом', () => {
