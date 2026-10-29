@@ -217,6 +217,7 @@ import { SEARCH_TARGETS } from '@/constants/searchTargets';
 const GROUP_PREVIEW = 5;
 import { SEARCH_ACTIONS } from '@/constants/searchActions';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { hasModalAbove, isEscapeHandled } from '@/utils/modalStack';
 
 /** Сколько разделов меню показывать: список длинный, а нужен обычно первый же. */
 const SECTIONS_LIMIT = 5;
@@ -396,6 +397,7 @@ export default {
     onKeydownCapture(e) {
       if (!this.open) return;
       if (e.key === 'Escape') {
+        if (isEscapeHandled(e) || hasModalAbove(0)) return;
         e.stopPropagation();
         e.preventDefault();
         // Escape сворачивает, а не закрывает: результаты и запрос остаются, и вернуться

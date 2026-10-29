@@ -1,5 +1,6 @@
 <template>
-  <BaseModal :show="show" title="Файлы-черновики" width="700px" radius="30px" :closable="!deleting" :close-on-overlay="!deleting" @close="close">
+  <BaseModal :show="show" appear title="Файлы-черновики" width="700px" radius="30px" :closable="!deleting" :close-on-overlay="!deleting" @close="close">
+    <template #header><div class="draft-heading"><h3>Файлы-черновики</h3><RefreshButton class="draft-refresh" title="Обновить список" :loading="loading || deleting" @refresh="load" /></div></template>
     <div class="draft-content">
       <p class="draft-intro">Файлы, которые ещё не отправлены с заявкой. Список общий для всех вкладок.</p>
       <div v-if="snapshot" class="draft-quota" :class="{'draft-quota--full': full}">
@@ -23,7 +24,7 @@
       <div v-if="selected" class="draft-confirm"><span>Удалить «{{ selected.file_name }}»? Он может использоваться в другой вкладке.</span><div><button class="lk-button lk-button--secondary lk-button--sm" :disabled="deleting" @click="selected = null">Отмена</button><button class="lk-button lk-button--danger lk-button--sm" :disabled="deleting" @click="removeSelected">{{ deleting ? 'Удаление…' : 'Удалить файл' }}</button></div></div>
       <p v-else class="draft-footnote">Файл может использоваться в другой незавершённой заявке. Удаление затронет все вкладки.</p>
     </div>
-    <template #actions><RefreshButton :loading="loading || deleting" @refresh="load" /><button class="lk-button lk-button--secondary" :disabled="deleting" @click="close">Закрыть</button></template>
+    <template #actions><button class="lk-button lk-button--secondary" :disabled="deleting" @click="close">Закрыть</button></template>
   </BaseModal>
 </template>
 
@@ -77,6 +78,10 @@ onBeforeUnmount(() => { ++sequence; });
 </script>
 
 <style scoped>
+.draft-heading { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.draft-heading h3 { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
+.draft-refresh { width: 36px; height: 36px; padding: 0; flex: 0 0 36px; margin-left: auto; }
+.draft-refresh :deep(.refresh-btn__text) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .draft-content { padding: 20px; }
 .draft-intro { margin: 0 0 18px; line-height: 1.55; color: var(--text-muted); font-size: 13px; }
 .draft-quota { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 16px; background: var(--surface-2); }

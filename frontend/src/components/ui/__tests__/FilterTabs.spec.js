@@ -18,6 +18,18 @@ function mountTabs(props = {}) {
 }
 
 describe('FilterTabs', () => {
+  it('preserves fractional pill widths instead of rounding a fitting row into two lines', () => {
+    const wrapper=mountTabs({tabs:[{key:'active',label:'Активные'},{key:'archive',label:'Архив'}]});
+    const row=wrapper.vm.$refs.row;row.style.columnGap='10px';
+    Object.defineProperty(row,'clientWidth',{value:190,configurable:true});
+    [...row.children].forEach((el,i)=>{
+      Object.defineProperty(el,'offsetWidth',{value:[102,75][i],configurable:true});
+      el.getBoundingClientRect=()=>({width:[102.265625,75.296875][i]});
+    });
+    wrapper.vm.measure();
+    expect(row.style.width).toBe('188px');expect(wrapper.vm.collapsed).toBe(false);
+    wrapper.unmount();
+  });
   it('renders only visible tabs', () => {
     const wrapper = mountTabs();
     const buttons = wrapper.findAll('.filter-tab');

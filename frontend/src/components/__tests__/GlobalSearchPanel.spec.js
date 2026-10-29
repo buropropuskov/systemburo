@@ -6,6 +6,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import GlobalSearchPanel from '../GlobalSearchPanel.vue';
 import { globalSearch } from '@/api/search';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { setModalOpen, releaseModal } from '@/utils/modalStack';
 
 // Панель показывает найденное, ввод идёт в поле меню и приходит сюда строкой. Проверяем
 // то, что ломается незаметно: разделы находятся без обращения к серверу, пустая строка
@@ -54,6 +55,19 @@ afterEach(() => {
 });
 
 describe('GlobalSearchPanel', () => {
+  it('lets an opened application handle Escape before the search panel', () => {
+    const owner={};const wrapper=mountPanel('',true);
+    try {
+      setModalOpen(owner,true,10002);
+      const event=new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});
+      document.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);expect(wrapper.vm.collapsed).toBe(false);
+      releaseModal(owner);
+      const searchEvent=new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});
+      document.dispatchEvent(searchEvent);
+      expect(searchEvent.defaultPrevented).toBe(true);expect(wrapper.vm.collapsed).toBe(true);
+    } finally {releaseModal(owner);wrapper.unmount();}
+  });
   it('закрытая панель не рисуется', () => {
     wrapper = mountPanel('', false);
 

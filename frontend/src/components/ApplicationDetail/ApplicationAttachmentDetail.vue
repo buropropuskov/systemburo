@@ -1370,6 +1370,7 @@ export default {
 }
 </script>
 
+<style scoped src="./application-custom-values.css"></style>
 <style scoped>
 .attachment-details {
     background: var(--surface);
@@ -1428,31 +1429,6 @@ export default {
 }
 
 .date-value, .time-value {
-    color: var(--text);
-    font-weight: 400;
-    font-size: 15px;
-}
-
-.custom-values-section {
-    padding: 15px;
-    border-bottom: 1px solid var(--color-border);
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px 24px;
-}
-
-.custom-value-row {
-    display: flex;
-    flex-direction: column;
-    font-size: 14px;
-}
-
-.custom-value-label {
-    color: var(--text-muted);
-    font-weight: 400;
-}
-
-.custom-value-text {
     color: var(--text);
     font-weight: 400;
     font-size: 15px;

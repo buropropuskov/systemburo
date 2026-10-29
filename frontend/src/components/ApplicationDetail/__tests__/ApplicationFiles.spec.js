@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import ApplicationFiles from '../ApplicationFiles.vue';
+import { downloadMarks } from '@/utils/downloadMarks';
+vi.mock('@/stores/auth',()=>({useAuthStore:()=>({userId:1,isImpersonating:false})}));
 
 // Плитки вложений над текстом письма, как в почтовом клиенте. Скачивание идёт через
 // Blob с токеном, поэтому плитка - кнопка, а не ссылка: href не несёт авторизацию.
@@ -24,7 +26,22 @@ vi.mock('@/stores/deletions', () => ({
 const file = { id: 3, file_name: 'разрешение.pdf', file_size: 2048, mime_type: 'application/pdf' };
 
 describe('ApplicationFiles', () => {
+    afterEach(()=>downloadMarks.setOwner(null));
+    it('marks successful delivery without disabling a repeated download',async()=>{
+        const wrapper=mount(ApplicationFiles,{props:{applicationId:42}});await flushPromises();
+        await wrapper.find('[data-testid=application-file-item]').trigger('click');await flushPromises();
+        expect(wrapper.find('.app-files-strip__downloaded').text()).toBe('Скачан');
+        expect(wrapper.find('[data-testid=application-file-item]').attributes('disabled')).toBeUndefined();
+        wrapper.unmount();
+    });
+    it('does not mark a failed delivery as downloaded',async()=>{
+        downloadMock.mockRejectedValueOnce(new Error('Не удалось скачать'));
+        const wrapper=mount(ApplicationFiles,{props:{applicationId:42}});await flushPromises();
+        await wrapper.find('[data-testid=application-file-item]').trigger('click');await flushPromises();
+        expect(wrapper.find('.app-files-strip__downloaded').exists()).toBe(false);wrapper.unmount();
+    });
     beforeEach(() => {
+        downloadMarks.setOwner(null);
         vi.clearAllMocks();
         fetchMock.mockResolvedValue([file]);
         downloadMock.mockResolvedValue(undefined);

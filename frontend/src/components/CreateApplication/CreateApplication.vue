@@ -3362,6 +3362,7 @@ export default {
 }
 </script>
 
+<style scoped src="@/assets/create-application-consent.css"></style>
 <style scoped>
     .text-constructor-content :deep(*) {
         overflow-wrap: break-word;
@@ -3733,15 +3734,6 @@ export default {
 
     .blue {
         color: var(--accent-text);
-    }
-
-    .consent-link {
-        text-decoration: underline;
-        cursor: pointer;
-    }
-
-    .consent-link:hover {
-        color: var(--accent-hover);
     }
 
     .form-placeholder {

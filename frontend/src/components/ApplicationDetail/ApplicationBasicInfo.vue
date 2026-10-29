@@ -17,7 +17,9 @@
     <div class="info-row">
       <span class="info-label">Отправитель:</span>
       <span class="info-value sender-value">
-        <span>{{ application.sender_full_name || application.sender_name }}</span>
+        <HintTooltip class="sender-name" :text="visibleSenderName">
+          <span>{{ application.sender_name || visibleSenderName }}</span>
+        </HintTooltip>
         <Badge
           v-if="application.sender_is_important"
           variant="info"
@@ -43,6 +45,7 @@
 
 <script>
 import Badge from '@/components/ui/Badge.vue';
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 
 /**
  * «Основная информация» карточки заявки: чья заявка и кто её подал.
@@ -53,9 +56,14 @@ import Badge from '@/components/ui/Badge.vue';
  */
 export default {
   name: 'ApplicationBasicInfo',
-  components: { Badge },
+  components: { Badge, HintTooltip },
   props: {
     application: { type: Object, required: true },
+  },
+  computed: {
+    // Same permitted label previously rendered inline. The detail API applies
+    // maskName/maskNamePtr to both fields; never resolve an identity by user ID here.
+    visibleSenderName() { return this.application.sender_full_name || this.application.sender_name || '—'; },
   },
 };
 </script>
@@ -88,8 +96,12 @@ export default {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex-wrap: wrap;
+    min-width: 0;
+    flex-wrap: nowrap;
 }
+
+.sender-name { min-width: 0; max-width: 100%; }
+.sender-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sender-important-tag {
     display: inline-flex;

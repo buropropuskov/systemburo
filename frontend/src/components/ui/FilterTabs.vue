@@ -41,6 +41,7 @@
 <script>
 import Badge from '@/components/ui/Badge.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 /**
  * Ряд пилюль-фильтров. Если в строку они не помещаются - сворачивается в
@@ -138,7 +139,8 @@ export default {
       if (!pills.length) return;
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
       if (this.stacked) { row.style.width = ''; this.collapsed = false; return; }
-      const need = pills.reduce((sum, el) => sum + el.offsetWidth, 0) + gap * (pills.length - 1);
+      const zoom = getViewportZoom();
+      const need = pills.reduce((sum, el) => sum + (el.getBoundingClientRect().width / zoom || el.offsetWidth), 0) + gap * (pills.length - 1);
       // The replacement dropdown must not change the width being measured.
       // Keep the tabs' intrinsic basis; max-width still follows the available space.
       row.style.width = `${Math.ceil(need)}px`;
@@ -156,7 +158,7 @@ export default {
   min-width: 0;
   max-width: 100%;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 /* Свёрнутый ряд: пилюли остаются в разметке для замера, но не видны и не кликаются.
