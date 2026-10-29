@@ -8,66 +8,24 @@
     :style="{ '--table-font-size': tableFontSize + 'px' }"
     data-testid="people-table"
   >
-    <div class="card-header">
-      <div class="card-header__title">
-        <!-- Хвост «по заявке» на телефоне скрыт: имя экрана кеглем 18 и так не
-             помещается рядом со счётчиком и «Обновить», а различает таблицы первая
-             половина - соседний блок называется «Люди по факту». -->
-        <h3 class="card-title">
-          <span class="blue">Люди</span><span class="card-title__tail"> по заявке</span>
-        </h3>
-      </div>
-      <div
-        v-if="$slots['header-actions']"
-        class="card-header__actions"
-      >
-        <slot name="header-actions" />
-      </div>
-      <div
-        v-if="!preview"
-        class="card-header__settings"
-      >
-        <span class="items-count">
-          <!-- Подпись счётчика на телефоне короче: отдельным классом, а не обрезкой,
-               иначе она съедает место у имени экрана (эталон §2.2). -->
-          <span class="items-count__text"><span
-            class="items-count__label"
-          >Людей зашло:</span><span
-            class="items-count__label-short"
-          >На территории:</span> <AnimatedCounter :value="peopleOnTerritory" /></span>
-          <button
-            v-if="can(`table.${tableName}.history`)"
-            class="history-btn"
-            @click="openEmployeesHistory"
-          >История</button>
-        </span>
-        <SwitchToggle
-          v-model="enlarged"
-          class="enlarged-toggle"
-          data-testid="enlarged-toggle"
-        />
-        <SwitchToggle
-          class="grid-toggle"
-          :model-value="grid"
-          label="Сетка"
-          title="Показать границы ячеек таблицы"
-          data-testid="grid-toggle"
-          @update:model-value="$emit('update:grid', $event)"
-        />
-      </div>
-      <!-- «Обновить» - прямой ребёнок шапки, а не часть .card-header__settings:
-           на мобилке (#1097 S6) заголовок и «Обновить» обязаны остаться в одной
-           строке, а счётчик с тумблерами уезжают ниже. Десктоп не меняется -
-           .card-header__settings прижат вправо margin-left: auto, кнопка идёт
-           сразу за ним с тем же зазором. -->
-      <PassageTableTools v-if="!preview" kind="employee" :table-i-d="currentTableId" :rows="itemsData" @refresh="_loadData(true)" @clock="passageNow = $event" />
-        <RefreshButton
-        v-if="!preview"
-        class="card-header__refresh"
-        :loading="refreshing"
-        @refresh="loadData"
-      />
-    </div>
+    <PassageTableHeader title="Люди по заявке" compact-title="По заявке" kind="employee"
+      :table-id="currentTableId" :rows="itemsData" :preview="preview" :loading="refreshing"
+      :has-settings="can(`table.${tableName}.history`) || !isNarrow"
+      @refresh="loadData" @boundary-refresh="_loadData(true)" @clock="passageNow = $event">
+      <template #title>
+        <div class="card-header__title"><h3 class="card-title"><span class="blue">Люди</span><span class="card-title__tail"> по заявке</span></h3></div>
+      </template>
+      <template #extra><div v-if="$slots['header-actions']" class="card-header__actions"><slot name="header-actions" /></div></template>
+      <template #counter>
+        <span class="items-count"><span class="items-count__text" :title="`На территории: ${peopleOnTerritory}`"><span class="items-count__label">Людей зашло:</span><span class="items-count__label-short">На территории:</span><span class="items-count__label-mini">На терр.:</span> <AnimatedCounter :value="peopleOnTerritory" /></span></span>
+      </template>
+      <template #commands>
+        <button v-if="can(`table.${tableName}.history`)" class="history-btn" @click="openEmployeesHistory">История</button>
+        <SwitchToggle v-model="enlarged" class="enlarged-toggle" data-testid="enlarged-toggle" />
+        <SwitchToggle class="grid-toggle" :model-value="grid" label="Сетка" title="Показать границы ячеек таблицы"
+          data-testid="grid-toggle" @update:model-value="$emit('update:grid', $event)" />
+      </template>
+    </PassageTableHeader>
 
     <!-- Панель групповых операций (#1194) - оверлей поверх .card-header (не
          reflow, урок #510), появляется при ctrl/shift-выделении строк. -->
@@ -650,7 +608,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 import { useOrientation } from '@/composables/useOrientation';
 import { useRowSelection } from '@/composables/useRowSelection';
 import eventStream from '@/services/eventStream';
-import RefreshButton from './RefreshButton.vue';
+import PassageTableHeader from './PassageTableHeader.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 import TableBulkTargetModal from './TableBulkTargetModal.vue';
@@ -694,7 +652,7 @@ export default {
     mixins: [peopleTablePeriodDetails, passageTableIntegration],
   name: 'PeopleTable',
   components: {
-    RefreshButton,
+    PassageTableHeader,
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
     TableBulkTargetModal,

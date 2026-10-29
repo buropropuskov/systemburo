@@ -11,17 +11,12 @@
     :data-ob-state="onboardingListState"
     @onboarding-retry.prevent="_loadData(true)"
   >
-    <div class="card-header">
-      <FactTableTitle :table-type="tableType" />
-      <div class="card-header__settings">
-        <PassageTableTools :kind="tableType === 'cars' ? 'car' : 'employee'" :table-i-d="tableId" :rows="factData" @refresh="_loadData(true)" @clock="passageNow = $event" />
-        <RefreshButton
-          :loading="refreshing"
-          @refresh="handleManualRefresh"
-        />
-      </div>
-    </div>
-    
+    <PassageTableHeader :title="tableType === 'cars' ? 'Автомобили по факту' : 'Люди по факту'" compact-title="По факту"
+      :kind="tableType === 'cars' ? 'car' : 'employee'" :table-id="tableId" :rows="factData" :loading="refreshing"
+      @refresh="handleManualRefresh" @boundary-refresh="_loadData(true)" @clock="passageNow = $event">
+      <template #title><FactTableTitle :table-type="tableType" /></template>
+    </PassageTableHeader>
+
     <div class="card-content rt-table">
       <!-- Заголовок таблицы -->
       <div class="fact-header">
@@ -411,7 +406,7 @@ import passageTableIntegration from './passageTableIntegration';
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui';
 import eventStream from '@/services/eventStream';
-import RefreshButton from './RefreshButton.vue';
+import PassageTableHeader from './PassageTableHeader.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
@@ -436,7 +431,7 @@ export default {
   mixins: [passageTableIntegration, factTableDetails],
   components: {
     AppIcon,
-    RefreshButton,
+    PassageTableHeader,
     LoaderSpinner,
     StatusBadge,
     VehicleDetailsModal,

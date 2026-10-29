@@ -14,11 +14,12 @@ class TablesPage {
     // Мобильная ветка: вторичные фильтры свёрнуты в кнопку «Фильтр».
     this.filterButton = page.getByTestId('table-filter-btn');
     this.filterSheet = page.locator('.filter-sheet');
-    this.menu = page.locator('.base-dropdown__menu');
+    // У меню фильтра есть строка сброса; постоянные меню команд её не имеют.
+    this.menu = page.locator('.base-dropdown__menu').filter({ has: page.getByTestId('base-dropdown-clear') });
     this.menuItems = this.menu.locator('.base-dropdown__item');
     // Строка сброса живёт в открытом меню и присутствует всегда: при пустом
     // выборе она disabled с текстом «Ничего не выбрано» (#1405).
-    this.clearOption = page.getByTestId('base-dropdown-clear');
+    this.clearOption = this.menu.getByTestId('base-dropdown-clear');
   }
 
   async goto(tableName) {
@@ -43,6 +44,7 @@ class TablesPage {
 
   async openFilterMenu(name) {
     await this.getFilterDropdown(name).locator('.base-dropdown__button').click();
+    await expect(this.menu).toHaveCount(1);
     await expect(this.menu).toBeVisible();
   }
 
