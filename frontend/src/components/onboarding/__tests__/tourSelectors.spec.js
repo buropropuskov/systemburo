@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TOURS, buildTourSteps, allTourSteps } from '../tours';
+import { tourTestIds } from './helpers/tourTestIds';
 
 /**
  * Замок на якоря туров: каждый `element` шага должен реально существовать в
@@ -74,10 +75,10 @@ function collectTestIds() {
 
 /**
  * @param {string} selector
- * @returns {string|null} testid из селектора вида [data-testid="x"]
+ * @returns {string[]|null} все testid, включая адаптивные альтернативы
  */
-function testIdFromSelector(selector) {
-  return selector.match(/^\[data-testid="([^"]+)"\]$/)?.[1] ?? null;
+function testIdsFromSelector(selector) {
+  return tourTestIds(selector);
 }
 
 const testIds = collectTestIds();
@@ -90,8 +91,8 @@ const testIds = collectTestIds();
  * @returns {boolean}
  */
 function anchorExists(selector) {
-  const id = testIdFromSelector(selector);
-  return id !== null && testIds.has(id);
+  const ids = testIdsFromSelector(selector);
+  return ids !== null && ids.length > 0 && ids.every(id => testIds.has(id));
 }
 
 const steps = allTourSteps().filter((s) => s.element);
@@ -104,7 +105,7 @@ describe('якоря шагов туров существуют в исходн�
 
   it('каждый element - селектор по data-testid (иначе замок его не стережёт)', () => {
     steps.forEach((s) => {
-      expect(testIdFromSelector(s.element), `шаг ${s.id}: ${s.element}`).not.toBe(null);
+      expect(testIdsFromSelector(s.element), `шаг ${s.id}: ${s.element}`).not.toBe(null);
     });
   });
 
@@ -118,6 +119,9 @@ describe('якоря шагов туров существуют в исходн�
     expect(anchorExists('[data-testid="ob-anchor-that-never-existed"]')).toBe(false);
     // testid из этой строки в скан не попадает - спеки исключены из обхода.
     expect(anchorExists('[data-testid="ob-anchor-only-in-spec"]')).toBe(false);
+    expect(anchorExists('[data-testid="attachment-assign-all-open"], [data-testid="ob-anchor-that-never-existed"]')).toBe(false);
+    expect(anchorExists('[data-testid="attachment-assign-all-open"], .unsupported-class')).toBe(false);
+    expect(anchorExists('[data-testid="attachment-assign-all-open"],')).toBe(false);
   });
 
   it('шаги без element (центр-модалы) замок не трогает', () => {
