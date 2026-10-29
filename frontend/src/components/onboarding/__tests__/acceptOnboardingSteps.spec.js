@@ -6,16 +6,7 @@ import { getTour, availableTours, buildTourSteps, allTourSteps } from '../tours'
 import { useOnboardingStore } from '@/stores/onboarding';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
-
-// Responsive alternatives must all keep the same role and readiness guarantees.
-function stepAnchors(selector) {
-  if (selector === null) return [];
-  return selector.split(',').map(part => {
-    const match = part.trim().match(/^\[data-testid="([^"]+)"\]$/);
-    if (!match) throw new Error(`Invalid tour anchor: ${part}`);
-    return match[1];
-  });
-}
+import { tourTestIds as stepAnchors } from './helpers/tourTestIds';
 
 /**
  * Тур принимающего: гейт по роли, выпадение шагов по правам, целостность сегментов

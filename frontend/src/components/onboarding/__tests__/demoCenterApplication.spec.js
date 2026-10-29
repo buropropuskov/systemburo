@@ -4,6 +4,7 @@ import { DEMO_CENTER_APPLICATION_ID, DEMO_CENTER_ATTACHMENT_ID, DEMO_CENTER_PEOP
 import { interceptRead } from '@/api/readInterceptor';
 import { acceptOnboardingSteps } from '../acceptOnboardingSteps';
 import { buildDemoCenterScenario } from '../demoCenterScenarios';
+import { tourTestIds } from './helpers/tourTestIds';
 const build = scene => buildDemoCenterScenario({scene,actorId:42,now:Date.parse('2026-10-28T12:00:00Z')});
 const snapshot=build('accept-ready');
 
@@ -117,7 +118,11 @@ describe('примерная заявка Центра', () => {
     };
     const необеспеченные = acceptOnboardingSteps
       .filter((s) => s.element)
-      .map((s) => s.element.match(/^\[data-testid="([^"]+)"\]$/)[1])
+      .flatMap((s) => {
+        const ids = tourTestIds(s.element);
+        expect(ids, s.id).not.toBe(null);
+        return ids;
+      })
       .filter((id) => id in данные && !данные[id]);
     expect(необеспеченные).toEqual([]);
   });
