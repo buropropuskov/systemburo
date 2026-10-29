@@ -22,7 +22,7 @@ import { tourTestIds as stepAnchors } from './helpers/tourTestIds';
 const TOUR_KEY = 'accept';
 
 /** Шаги, живущие в модалке карточки заявки: их открывает reveal, их же и пропускает. */
-const CARD_STEPS = acceptOnboardingSteps.filter((s) => ['first-application', 'attachment-people'].includes(s.reveal?.open));
+const CARD_STEPS = acceptOnboardingSteps.filter((s) => ['first-application', 'attachment-people', 'application-actions'].includes(s.reveal?.open));
 
 /** Права, упомянутые в `requires` тура - чтобы «полный принимающий» не задавался числом. */
 const STEP_RIGHTS = [...new Set(acceptOnboardingSteps.filter((s) => s.requires).map((s) => s.requires))];

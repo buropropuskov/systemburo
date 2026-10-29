@@ -56,9 +56,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   // Сигнал раскрытия свёрнутого узла (`reveal.open` шага): владелец узла
   // (NavMenu/App/UserApplications) реагирует watch'ем и сам закрывает то, что
   // открыл, когда сигнал гаснет. Тур в чужой DOM не лезет - см. reveal.js.
-  const revealOpen = ref(null);
+  const revealOpen = ref(null), revealOpenRevision = ref(0);
   function setRevealOpen(target) {
-    revealOpen.value = target || null;
+    revealOpen.value = target || null; revealOpenRevision.value++;
   }
 
   // Пройденные версии по турам: { [tourKey]: number|null }. Загружается одним
@@ -339,7 +339,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   return {
     ...demo.api,
     revealOpen,
-    setRevealOpen,
+    revealOpenRevision, setRevealOpen,
     isActive,
     currentIndex,
     currentStepId,

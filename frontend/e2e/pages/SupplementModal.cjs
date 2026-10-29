@@ -17,8 +17,6 @@ class SupplementModal {
     this.comment = this.root.getByTestId('supplement-comment');
     this.submitButton = this.root.getByTestId('supplement-submit');
     this.closeButton = this.root.getByTestId('supplement-button-close');
-    // Меню BaseDropdown телепортируется в body, вне корня модалки.
-    this.dropdownMenu = page.locator('.base-dropdown__menu');
     this.employeeForm = new EmployeeFormSection(this.root);
   }
 
@@ -28,8 +26,12 @@ class SupplementModal {
 
   async selectAttachment(label) {
     await this.attachmentDropdown.locator('.base-dropdown__button').click();
-    await expect(this.dropdownMenu).toBeVisible();
-    await this.dropdownMenu.locator('.base-dropdown__item').filter({ hasText: label }).first().click();
+    // Teleport places the popup outside the modal; identify its actual attachment option.
+    const menu = this.page.locator('.base-dropdown__menu').filter({
+      has: this.page.locator('.base-dropdown__item').filter({ hasText: label }),
+    });
+    await expect(menu).toBeVisible();
+    await menu.locator('.base-dropdown__item').filter({ hasText: label }).first().click();
     await expect(this.employeeForm.lastNameInput).toBeVisible();
   }
 

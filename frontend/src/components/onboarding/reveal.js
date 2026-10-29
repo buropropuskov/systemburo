@@ -42,7 +42,7 @@ function setTourNav(store, open) {
 }
 
 /** Допустимые значения `reveal.open` - расширять вместе с резолвером во владельце узла. */
-export const OPEN_TARGETS = ['admin-column', 'search-panel', 'notifications', 'first-application', 'first-attachment', 'attachment-people', 'attachment-blank', 'pass-report', 'work-modes', 'application-history', 'accessible-filters', 'table-actions'];
+export const OPEN_TARGETS = ['admin-column', 'search-panel', 'notifications', 'first-application', 'application-actions', 'first-attachment', 'attachment-people', 'attachment-blank', 'pass-report', 'work-modes', 'application-history', 'accessible-filters', 'table-actions'];
 
 /** @returns {boolean} открыт ли бургер-drawer навигации сейчас. */
 export function isNavDrawerOpen() {

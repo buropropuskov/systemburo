@@ -1,0 +1,32 @@
+.detail-actions-menu {
+    flex: 0 0 auto;
+    min-width: 130px;
+}
+
+.detail-header-actions--compact {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    padding: 8px;
+}
+
+.detail-header-actions--compact :deep(.action-bar-root),
+.detail-header-actions--compact :deep(.action-buttons-wrapper),
+.detail-header-actions--compact :deep(.action-buttons),
+.detail-header-actions--compact :deep(.action-buttons-track),
+.detail-header-actions--compact :deep(.view-buttons),
+.detail-header-actions--compact :deep(.supplement-actions) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+}
+
+.detail-header-actions--compact :deep(button),
+.detail-header-actions--compact .duplicate-dropdown {
+    width: 100%;
+    min-width: 0;
+}
+

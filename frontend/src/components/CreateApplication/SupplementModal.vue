@@ -288,6 +288,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 
 // Окно открывается ПОВЕРХ детали заявки (10002) - см. лестницу z-index в
 // .claude/ui-etalon. Дочерние слои (поиск существующих, меню дропдауна) обязаны
@@ -541,11 +542,13 @@ export default {
     },
     watch: {
         show(open) {
+            setModalOpen(this, open, 10010);
             setBodyScrollLock(this, open);
             if (open) this.initState();
         },
     },
     mounted() {
+        setModalOpen(this, this.show, 10010);
         this.closeRef.fn = this.close;
         document.addEventListener('keydown', this.onKeydown);
         if (this.show) {
@@ -554,12 +557,15 @@ export default {
         }
     },
     beforeUnmount() {
+        releaseModal(this);
         document.removeEventListener('keydown', this.onKeydown);
         releaseBodyScrollLock(this);
     },
     methods: {
         onKeydown(e) {
-            if (e.key === 'Escape' && this.show) this.close();
+            if (e.key !== 'Escape' || !this.show || isEscapeHandled(e) || !isTopModal(this)) return;
+            markEscapeHandled(e);
+            this.close();
         },
         initState() {
             this.resetState();
