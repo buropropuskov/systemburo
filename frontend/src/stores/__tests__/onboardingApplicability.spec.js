@@ -14,6 +14,7 @@ import { getMe } from '@/api/auth';
 
 vi.mock('@/api/onboarding', () => ({ getOnboardingStatus: vi.fn(), markOnboardingComplete: vi.fn(), getSecurityPostContext: vi.fn() }));
 vi.mock('@/api/approvers', () => ({ getMyApprovalRole: vi.fn() }));
+vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn(), getAccessibleAttachments: vi.fn(async () => ({ items: [{ id: 1 }] })) }));
 vi.mock('@/api/auth', async original => ({ ...await original(), getMe: vi.fn() }));
 vi.mock('@/components/onboarding/demoBackend', () => ({ syncDemoBackend: vi.fn() }));
 
@@ -29,6 +30,8 @@ beforeEach(() => {
 function allow(...keys) {
   const permissions = usePermissionsStore();
   permissions.effective = Object.fromEntries(keys.map(key => [key, { value: 'allow' }]));
+  useOnboardingStore().accessibleContext = { hasItems: true };
+  useOnboardingStore().accessibleContextLoaded = true;
 }
 function deny(key) {
   const permissions = usePermissionsStore(); permissions.denied.add(key);
@@ -97,7 +100,7 @@ describe('learning follows available entry points', () => {
   it('keeps the built-in security accessible section despite additive page denial', async () => {
     useAuthStore().userTypeCode = 'security'; deny('page.available');
     getMe.mockResolvedValue({ user_type_code: 'security' });
-    const store = useOnboardingStore(); await store.ensureSelectionContext(); store.start({ tour: 'guard' });
+    const store = useOnboardingStore(); await store.ensureSelectionContext(); await store.prepareTour('guard'); store.start({ tour: 'guard' });
     expect(store.steps.some(step => step.route === '/accessible-attachments')).toBe(true);
   });
   it('does not teach the accessible section to a normal user without its entry point', () => {

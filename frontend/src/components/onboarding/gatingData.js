@@ -1,21 +1,22 @@
 import { computed, ref, watch } from 'vue';
 import { getSecurityPostContext } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
-import { getUserApplicationsPaginated } from '@/api/applications';
+import { getUserApplicationsPaginated, getAccessibleAttachments } from '@/api/applications';
 import { getMe } from '@/api/auth';
 
 /** Per-user resources: successful emptiness is data, a failed request is not. */
-export function createGatingData({ factPolicyKey = () => '' } = {}) {
+export function createGatingData({ factPolicyKey = () => '', availablePolicyKey = () => '' } = {}) {
   let generation = 0;
   const resources = [];
   function resource(initial, read, key = () => '') {
     const fresh = () => initial && typeof initial === 'object' ? { ...initial } : initial;
     const value = ref(fresh()), loaded = ref(false);
     let pending = null;
-    async function ensure() {
-      if (loaded.value) return true;
+    async function ensure(refresh = false) {
       const current = generation, policy = key();
       if (pending?.generation === current && pending.policy === policy) return pending.promise;
+      if (loaded.value && !refresh) return true;
+      if (refresh) loaded.value = false;
       const request = { generation: current, policy };
       request.promise = Promise.resolve().then(async () => {
         if (current !== generation) return false;
@@ -41,6 +42,12 @@ export function createGatingData({ factPolicyKey = () => '' } = {}) {
   });
   const post = resource(null, getSecurityPostContext, factPolicyKey);
   watch(factPolicyKey, () => { post.loaded.value = false; }, { flush: 'sync' });
+  const available = resource(null, async () => {
+    const { items } = await getAccessibleAttachments({ page: 1, per_page: 1 });
+    if (!Array.isArray(items)) throw new Error('Unknown available attachment list');
+    return { hasItems: items.length > 0 };
+  }, availablePolicyKey);
+  watch(availablePolicyKey, () => { available.loaded.value = false; }, { flush: 'sync' });
   const own = resource(false, async () => {
     const current = generation;
     // Avoid the auth -> onboarding -> auth static module cycle.
@@ -62,6 +69,7 @@ export function createGatingData({ factPolicyKey = () => '' } = {}) {
     approvalRole: approval.value, approvalRoleLoaded: approval.loaded, ensureApprovalRole: approval.ensure,
     securityPostContext: post.value, factTableRoute: computed(() => post.value.value?.route || null),
     factRouteLoaded: post.loaded, ensureFactRoute: post.ensure,
+    accessibleContext: available.value, accessibleContextLoaded: available.loaded, ensureAccessibleContext: available.ensure,
     hasOwnApplication: own.value, ownApplicationLoaded: own.loaded, ensureOwnApplication: own.ensure,
     userTypeCode: type.value, userTypeLoaded: type.loaded, ensureUserType: type.ensure,
     getGeneration: () => generation, reset,

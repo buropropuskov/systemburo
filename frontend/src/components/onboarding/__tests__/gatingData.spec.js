@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 
-const api = vi.hoisted(() => ({ fact: vi.fn(), approval: vi.fn(), own: vi.fn() }));
+const api = vi.hoisted(() => ({ fact: vi.fn(), approval: vi.fn(), own: vi.fn(), available: vi.fn() }));
 vi.mock('@/api/onboarding', () => ({ getSecurityPostContext: api.fact }));
 vi.mock('@/api/approvers', () => ({ getMyApprovalRole: api.approval }));
-vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: api.own }));
+vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: api.own, getAccessibleAttachments: api.available }));
 
 function deferred() {
   let resolve, reject;
@@ -23,6 +23,7 @@ beforeEach(async () => {
 });
 
 const cases = [
+  { name: 'available attachments', mock: api.available, ensure: 'ensureAccessibleContext', loaded: 'accessibleContextLoaded', read: state => state.accessibleContext.value, old: { items: [{ id: 1 }] }, fresh: { items: [{ id: 2 }] }, empty: { items: [] }, expected: { hasItems: true }, expectedEmpty: { hasItems: false } },
   { name: 'fact route', mock: api.fact, ensure: 'ensureFactRoute', loaded: 'factRouteLoaded', read: state => state.factTableRoute.value, old: { route: '/table/old' }, fresh: { route: '/table/new' }, empty: null, expected: '/table/new', expectedEmpty: null },
   { name: 'approval role', mock: api.approval, ensure: 'ensureApprovalRole', loaded: 'approvalRoleLoaded', read: state => state.approvalRole.value, old: { is_approver: true, is_reviewer: false }, fresh: { is_approver: false, is_reviewer: true }, empty: { is_approver: false, is_reviewer: false }, expected: { isApprover: false, isReviewer: true }, expectedEmpty: { isApprover: false, isReviewer: false } },
   { name: 'own application', mock: api.own, ensure: 'ensureOwnApplication', read: state => state.hasOwnApplication.value, old: { items: [], meta: { total: 0 } }, fresh: { items: [{ id: 22 }], meta: { total: 1 } }, empty: { items: [], meta: { total: 0 } }, expected: true, expectedEmpty: false },

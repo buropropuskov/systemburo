@@ -12,6 +12,7 @@ export function createContextReadiness({ auth, permissions, data, getContext }) 
     if (key === 'guard') {
       if (!permissions.hasPermission('page.available') && !knownType()) missing.push('type');
       if (!data.factRouteLoaded.value) missing.push('post');
+      if (!data.accessibleContextLoaded.value) missing.push('available');
     }
     if (key === 'user' && !data.ownApplicationLoaded.value) missing.push('own');
     if ((key === 'accept' || (key === 'approve' && !permissions.hasPermission('action.approve.application')))
@@ -33,6 +34,7 @@ export function createContextReadiness({ auth, permissions, data, getContext }) 
     await Promise.all(missing.map(key => ({
       permissions: () => permissions.fetchPermissions(), type: data.ensureUserType,
       post: data.ensureFactRoute, own: data.ensureOwnApplication, approval: data.ensureApprovalRole,
+      available: () => data.ensureAccessibleContext(true),
     })[key]()));
   }
   async function ensureSelectionContext() {
@@ -68,7 +70,10 @@ export function createContextReadiness({ auth, permissions, data, getContext }) 
     if (owner !== identity()) return { status: 'stale' };
     if (key === 'guard' && !permissions.hasPermission('page.available') && !knownType()) return { ...result(['type']), tourKey: key };
     if (key === 'guard' && knownType() && !getTour(key).isAvailable(getContext())) return { status: 'unavailable', tourKey: key };
-    await resolve(prerequisites(key));
+    const needed = prerequisites(key);
+    // A repeated launch must see attachments that arrived since the previous run.
+    if (key === 'guard' && !needed.includes('available')) needed.push('available');
+    await resolve(needed);
     if (owner !== identity()) return { status: 'stale' };
     return status(key);
   }

@@ -7,7 +7,7 @@ import { interceptRead } from '@/api/readInterceptor';
 import { markOnboardingComplete } from '@/api/onboarding';
 vi.mock('@/api/onboarding', () => ({ getOnboardingStatus: vi.fn(async()=>({completed:{}})), markOnboardingComplete: vi.fn(), getSecurityPostContext: vi.fn(async()=>null) }));
 vi.mock('@/api/approvers', () => ({ getMyApprovalRole: vi.fn(async()=>({is_approver:true,is_reviewer:true})) }));
-vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn(async()=>({items:[],meta:{total:0}})) }));
+vi.mock('@/api/applications', () => ({ getAccessibleAttachments: vi.fn(async () => ({ items: [{ id: 1 }], meta: { total: 1 } })),  getUserApplicationsPaginated: vi.fn(async()=>({items:[],meta:{total:0}})) }));
 vi.mock('@/api/auth', async original=>({...await original(),getMe:vi.fn(async()=>({user_type_code:'user'}))}));
 const token=id=>`${btoa('{}')}.${btoa(JSON.stringify({username:'fixture',user_id:id,exp:9999999999}))}.signature`;
 let store,auth;

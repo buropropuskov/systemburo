@@ -19,6 +19,10 @@ export function isStepApplicable(step, context) {
   if ((step.route === '/center' || ['apr-nav-center', 'acc-nav-center'].includes(step.id))
     && !can('page.center')) return false;
   if (step.route === '/accessible-attachments' && !context.canViewAccessibleAttachments) return false;
+  if (['sec-nav-tables', 'sec-nav-tables-open'].includes(step.id)
+    && context.factRouteLoaded === true && !context.factTableRoute) return false;
+  if (['sec-aa-card', 'sec-aa-detail', 'sec-aa-elements', 'sec-aa-preview', 'sec-aa-blank'].includes(step.id)
+    && context.accessibleContext?.hasItems === false) return false;
   if (['sec-fact-report', 'sec-fact-report-window'].includes(step.id)) {
     const name = step.route?.startsWith('/table/') ? decodeURIComponent(step.route.slice(7)) : null;
     if (!name || !can(`table.${name}.report`)) return false;

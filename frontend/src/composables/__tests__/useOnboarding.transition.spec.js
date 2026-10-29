@@ -47,6 +47,20 @@ describe('переход тура принадлежит одному дейст
     expect(state.moves).toEqual([1]);
   });
 
+  it('назад пересекает границу, если первый шаг сегмента тоже был пропущен', async () => {
+    const prior = { id: 'prior' };
+    state.store.steps = [prior, ...steps];
+    state.store.skippedIndexes = [1, 2];
+    state.index = 2;
+    const boundary = vi.fn();
+    const prepare = vi.fn();
+    const driver = useOnboarding().createDriver(steps, { startIndex: 1, onBoundaryPrev: boundary, onBeforeStep: prepare });
+    await driver.obPrev();
+    expect(boundary).toHaveBeenCalledWith(1);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(state.moves).toEqual([]);
+  });
+
   it('уничтожение во время Далее запрещает и перемещение, и запись пропуска', async () => {
     const ready = deferred();
     const driver = useOnboarding().createDriver(steps, { onBeforeStep: () => ready.promise });

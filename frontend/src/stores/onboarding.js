@@ -82,11 +82,13 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   // Роль в согласовании, маршрут фактовой таблицы и наличие своей заявки живут в
   // gatingData.js: от них зависит СОСТАВ тура, поэтому они резолвятся до старта.
-  const gating = createGatingData({ factPolicyKey: () => factPolicyKey(usePermissionsStore()) });
+  const gating = createGatingData({ factPolicyKey: () => factPolicyKey(usePermissionsStore()),
+    availablePolicyKey: () => JSON.stringify([usePermissionsStore().loaded, usePermissionsStore().hasPermission('page.available')]) });
   const {
     approvalRole, approvalRoleLoaded, factTableRoute, hasOwnApplication,
     ensureApprovalRole, ensureFactRoute, ensureOwnApplication, reset: resetGatingData,
     factRouteLoaded, ownApplicationLoaded, securityPostContext,
+    accessibleContext, accessibleContextLoaded,
   } = gating;
   const contextReady = createContextReadiness({ auth: useAuthStore(), permissions: usePermissionsStore(),
     data: gating, getContext: () => tourContext.value });
@@ -99,6 +101,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const tourContext = computed(() => readTourContext(useAuthStore(), usePermissionsStore(), {
     approvalRole, factTableRoute, hasOwnApplication, securityPostContext,
     userTypeCode: contextReady.knownType(), factRouteLoaded,
+    accessibleContext,
   }));
 
   const activeTour = computed(() => (activeTourKey.value ? getTour(activeTourKey.value) : null));
@@ -366,6 +369,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     factTableRoute,
     factRouteLoaded,
     securityPostContext,
+    accessibleContext, accessibleContextLoaded,
     ownApplicationLoaded,
     ensureApprovalRole,
     ensureGatingContext,

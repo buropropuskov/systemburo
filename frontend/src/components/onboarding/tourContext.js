@@ -1,6 +1,6 @@
 /** Read the current stores without changing the application's access policy. */
 export function readTourContext(auth, permissions, {
-  approvalRole, factTableRoute, hasOwnApplication, userTypeCode, securityPostContext, factRouteLoaded,
+  approvalRole, factTableRoute, hasOwnApplication, userTypeCode, securityPostContext, factRouteLoaded, accessibleContext,
 }) {
   return {
     isAuthenticated: auth.isAuthenticated,
@@ -14,6 +14,7 @@ export function readTourContext(auth, permissions, {
     factTableRoute: factTableRoute.value,
     securityPostContext: securityPostContext.value,
     factRouteLoaded: factRouteLoaded.value,
+    accessibleContext: accessibleContext.value,
     hasOwnApplication: hasOwnApplication.value,
   };
 }

@@ -6,13 +6,13 @@ import { useAuthStore } from '../auth';
 import { usePermissionsStore } from '../permissions';
 import { getSecurityPostContext, getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
-import { getUserApplicationsPaginated } from '@/api/applications';
+import { getUserApplicationsPaginated, getAccessibleAttachments } from '@/api/applications';
 import { getMe } from '@/api/auth';
 import { syncDemoBackend } from '@/components/onboarding/demoBackend';
 import { createAutostart } from '@/components/onboarding/tourAutostart';
 vi.mock('@/api/onboarding', () => ({ getOnboardingStatus: vi.fn(), markOnboardingComplete: vi.fn(), getSecurityPostContext: vi.fn() }));
 vi.mock('@/api/approvers', () => ({ getMyApprovalRole: vi.fn() }));
-vi.mock('@/api/applications', () => ({ getUserApplicationsPaginated: vi.fn() }));
+vi.mock('@/api/applications', () => ({ getAccessibleAttachments: vi.fn(async () => ({ items: [{ id: 1 }], meta: { total: 1 } })),  getUserApplicationsPaginated: vi.fn() }));
 vi.mock('@/api/auth', async original => ({ ...await original(), getMe: vi.fn() }));
 vi.mock('@/components/onboarding/demoBackend', () => ({ syncDemoBackend: vi.fn() }));
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
@@ -30,6 +30,45 @@ beforeEach(() => {
   store = useOnboardingStore();
 });
 describe('real launch resource boundaries', () => {
+  it('excludes known empty attachment actions and hidden table links before the first guard step, keeping Fact', async () => {
+    allow('page.available');
+    getAccessibleAttachments.mockResolvedValueOnce({ items: [], meta: { total: 0 } });
+    expect((await store.prepareTour('guard')).status).toBe('ready');
+    expect(store.start({ tour: 'guard', manual: true })).toBe(true);
+    const ids = store.steps.map(step => step.id);
+    expect(ids).not.toContain('sec-nav-tables');
+    expect(ids).not.toContain('sec-nav-tables-open');
+    expect(ids).not.toContain('sec-aa-card');
+    expect(ids).not.toContain('sec-aa-blank');
+    expect(ids).toContain('sec-aa-intro');
+    expect(ids).toContain('sec-aa-filters');
+    expect(ids).toContain('sec-fact-intro');
+    expect(store.steps.find(step => step.id === 'sec-fact-intro').optional).not.toBe(true);
+    expect(getAccessibleAttachments).toHaveBeenCalledWith({ page: 1, per_page: 1 });
+  });
+
+  it('does not turn a failed available-list read into a shortened successful course', async () => {
+    allow('page.available');
+    getAccessibleAttachments.mockRejectedValueOnce(new Error('offline'));
+    expect((await store.prepareTour('guard')).missing).toContain('available');
+    expect(store.start({ tour: 'guard', manual: true })).toBe(false);
+    expect((await store.prepareTour('guard')).status).toBe('ready');
+    expect(store.start({ tour: 'guard', manual: true })).toBe(true);
+    expect(store.steps.some(step => step.id === 'sec-aa-card')).toBe(true);
+  });
+
+  it('refreshes attachment availability on a later launch without adding requests to step navigation', async () => {
+    allow('page.available');
+    getAccessibleAttachments.mockResolvedValueOnce({ items: [] });
+    await store.prepareTour('guard'); store.start({ tour: 'guard', manual: true });
+    expect(store.steps.some(step => step.id === 'sec-aa-card')).toBe(false);
+    store.stop();
+    getAccessibleAttachments.mockResolvedValueOnce({ items: [{ id: 7 }] });
+    await store.prepareTour('guard'); store.start({ tour: 'guard', manual: true });
+    expect(store.steps.some(step => step.id === 'sec-aa-card')).toBe(true);
+    store.setIndex(1); store.setIndex(2);
+    expect(getAccessibleAttachments).toHaveBeenCalledTimes(2);
+  });
   it('keeps the current actor context across token rotation', async () => {
     await store.prepareTour('user'); await store.loadStatus();
     expect(store.start({ tour: 'user', manual: true })).toBe(true);

@@ -26,7 +26,7 @@ vi.mock('@/api/approvers', () => ({
   getMyApprovalRole: vi.fn(),
 }));
 
-vi.mock('@/api/applications', () => ({
+vi.mock('@/api/applications', () => ({ getAccessibleAttachments: vi.fn(async () => ({ items: [{ id: 1 }], meta: { total: 1 } })),
   getUserApplicationsPaginated: vi.fn(),
 }));
 
@@ -61,6 +61,9 @@ function grant(...keys) {
   permissions.mode = 'normal';
   permissions.effective = Object.fromEntries(keys.map((k) => [k, { value: 'allow', source: 'base' }]));
   permissions.loaded = true;
+  // Legacy scenarios begin with known populated data; launch readiness has its own suite.
+  useOnboardingStore().accessibleContext = { hasItems: true };
+  useOnboardingStore().accessibleContextLoaded = true;
 }
 
 // requires берём из конфигурации, а полный fixture явно включает входы в разделы
@@ -83,6 +86,8 @@ describe('onboarding store', () => {
     const store = useOnboardingStore();
     store.ownApplicationLoaded = true;
     store.factRouteLoaded = true;
+    store.accessibleContextLoaded = true;
+    store.accessibleContext = { hasItems: true };
     getOnboardingStatus.mockReset();
     markOnboardingComplete.mockReset();
     markOnboardingComplete.mockResolvedValue({ message: 'ok' });
@@ -215,7 +220,8 @@ describe('onboarding store', () => {
       grant('header.report_problem', 'page.available');
       const store = useOnboardingStore();
       store.start({ tour: 'guard' });
-      expect(store.steps.slice(0, securityOnboardingSteps.length)).toEqual(securityOnboardingSteps);
+      const available = securityOnboardingSteps.filter(step => !['sec-nav-tables', 'sec-nav-tables-open'].includes(step.id));
+      expect(store.steps.slice(0, available.length)).toEqual(available);
       expect(store.steps[store.steps.length - 1].id).toBe('sec-finish');
       expect(store.currentStep).toBe(securityOnboardingSteps[0]);
     });
@@ -780,6 +786,7 @@ describe('onboarding store', () => {
       const store = useOnboardingStore();
       const baseLen = securityOnboardingSteps.length;
       await store.ensureFactRoute();
+      await store.prepareTour('guard');
       store.start({ tour: 'guard' });
 
       expect(store.factTableRoute).toBe('/table/kpp_1');
@@ -811,10 +818,11 @@ describe('onboarding store', () => {
       permissions.mode = 'super';
       const store = useOnboardingStore();
       await store.ensureFactRoute();
+      await store.prepareTour('guard');
       store.start({ tour: 'guard' });
 
       expect(store.factTableRoute).toBe(null);
-      expect(store.totalSteps).toBe(securityOnboardingSteps.length + 2);
+      expect(store.totalSteps).toBe(securityOnboardingSteps.filter(step => !['sec-nav-tables', 'sec-nav-tables-open'].includes(step.id)).length + 2);
       const fact = store.steps.filter(step => step.id === 'sec-fact-intro');
       expect(fact).toHaveLength(1);
       expect(fact[0]).toMatchObject({ route: '/news', element: null });
