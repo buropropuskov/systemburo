@@ -115,6 +115,7 @@ onBeforeUnmount(() => {
 .passage-table-header :deep(.items-count__label-mini) { display: none; }
 .passage-table-header--tight :deep(.items-count__label-short) { display: none; }
 .passage-table-header--tight :deep(.items-count__label-mini) { display: inline; }
+.passage-table-header--tight .passage-table-header__short-title { font-size: 14px; }
 .passage-table-header--compact .passage-table-header__refresh { width: 36px; min-width: 36px; height: 36px; margin: 0; padding: 0; }
 .passage-table-header--compact .passage-table-header__refresh :deep(.refresh-btn__text) { display: none; }
 </style>
