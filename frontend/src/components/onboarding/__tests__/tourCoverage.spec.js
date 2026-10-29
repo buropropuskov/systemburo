@@ -134,4 +134,18 @@ describe('реестр покрытия туров - полнота', () => {
     const covered = Object.values({ ...routeEntries, ...permissionEntries }).filter(isCovered);
     expect(covered.length).toBeGreaterThan(30);
   });
+
+  it('элемент с отдельным шагом не числится пропущенным в реестре', () => {
+    const conflicts = [];
+    for (const [testId, entry] of Object.entries(elementEntries)) {
+      const matches = TOURS.flatMap(tour => buildTourSteps(tour, {
+        factTableRoute: FACT_ROUTE_STUB,
+      }).filter(step => step.element === `[data-testid="${testId}"]`)
+        .map(step => ({ tour: tour.key, step: step.id })));
+      if (matches.length && !matches.some(match => match.tour === entry.tour && match.step === entry.step)) {
+        conflicts.push(testId);
+      }
+    }
+    expect(conflicts).toEqual([]);
+  });
 });
