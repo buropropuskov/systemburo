@@ -69,6 +69,7 @@
         aria-hidden="true"
       />
       <div
+        ref="headerRef"
         class="detail-header"
         data-testid="ob-detail-header"
       >
@@ -186,16 +187,13 @@
               <span class="participants-btn__text">Получатели</span>
             </button>
           </div>
-
         </div>
         <div class="detail-header-right">
-          <!-- Бейдж и action-bar в своей обёртке: у неё свой flex-wrap, поэтому
-               перенос их содержимого не выталкивает крестик на отдельную строку
-               (#1685 -> регрессия шапки, замерено в браузере). -->
-          <div class="detail-header-actions">
-            <!-- Второй бейдж: идёт повторный круг по дополнению (#1685). Рядом с бейджем
-                 согласования, а не вместо него - статус заявки остаётся «Согласовано»,
-                 потому что от него зависит допуск уже выданных пропусков. -->
+          <BaseDropdown ref="headerActionsMenu" class="detail-actions-menu" :options="[]" placeholder="Действия"
+            :inline="headerActionsInline" :disabled="!actionsReady" keep-mounted teleport
+            :menu-z-index="10003" :menu-min-width="300" @click.capture="releaseHeaderMenu">
+            <template #content>
+              <div class="detail-header-actions" :class="{ 'detail-header-actions--compact': !headerActionsInline }" @click="onHeaderActionClick">
             <transition name="fade">
               <Badge
                 v-if="openSupplementBadge"
@@ -249,6 +247,7 @@
                   label-key="label"
                   value-key="key"
                   placeholder="Продублировать / продлить"
+                  teleport :menu-z-index="10005"
                   @update:model-value="handleDuplicatePreset"
                 />
                 <transition name="fade">
@@ -265,8 +264,9 @@
                 </transition>
               </template>
             </ApplicationActionBar>
-          </div>
-
+              </div>
+            </template>
+          </BaseDropdown>
           <button
             class="close-detail-btn"
             @click="close"
@@ -683,6 +683,7 @@
 </template>
 
 <script>
+import { useApplicationHeaderActions } from '@/composables/useApplicationHeaderActions';
 import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { applicationPeriodDetails } from '@/components/entityPeriodParentMixins';
 import { apiRequest } from '@/api/client'
@@ -714,10 +715,8 @@ import { sanitizeHtml } from '@/utils/sanitize'
 import { weekdayName, formatDateTime } from '@/utils/datetime'
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
-
 /** Слой панели заявки - то же значение, что у неё в стилях (.application-detail). */
 const DETAIL_STACK_LAYER = 10002
-
 /**
  * Длительность ухода панели. Совпадает с transition в стилях; о закрытии сообщаем
  * родителю по её истечении, а не по `after-leave`: хук перехода не отрабатывает там,
@@ -801,6 +800,7 @@ export default {
             handleSelector: '.sheet-handle, .detail-header',
         });
         return {
+            ...useApplicationHeaderActions(),
             permissionsStore,
             sheetScroll,
             sheetOffset: swipe.offset,
@@ -2220,8 +2220,8 @@ export default {
     }
 }
 </script>
-
 <style scoped>
+@import "./applicationHeaderActions.css";
 /* Стили остаются без изменений, как в вашем коде */
 .application-status-section {
     background: var(--surface);
@@ -2584,10 +2584,6 @@ export default {
        больше, и на промежуточных ширинах, около 780, кнопка уезжала за край окна:
        карточка кончалась на 761, а кнопка шла до 788. Замерено в браузере. */
     min-width: 0;
-    /* nowrap - перенос содержимого отдан вложенной .detail-header-actions (см.
-       ниже); если бы переносился этот уровень целиком, крестик мог уйти на
-       отдельную СВОЮ строку и всё равно уехать вниз - именно так и было, замерено
-       на ширине 900: closeTop 159.6 при cardTop 45. */
     flex-wrap: nowrap;
     justify-content: flex-end;
     /* .detail-header центрирует своих детей по высоте (align-items: center) - без

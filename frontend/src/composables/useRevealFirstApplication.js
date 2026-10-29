@@ -87,7 +87,7 @@ export function useRevealFirstApplication({ list, isOpen, open, close, reload, c
     () => [store.revealOpen, pickForTour(list()), isOpen()],
     ([target]) => {
       if (replacing) return;
-      if (target === REVEAL_FIRST_APPLICATION) {
+      if (target === REVEAL_FIRST_APPLICATION || target === 'application-actions') {
         if (releasedByUser) return;
         const application = pickForTour(list());
         // Правила 1 и 2: открывать нечего либо карточка уже на экране.

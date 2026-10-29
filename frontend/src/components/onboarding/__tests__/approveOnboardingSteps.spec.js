@@ -24,7 +24,7 @@ const TOUR_KEY = 'approve';
 /** Шаги, живущие в модалке карточки заявки: их открывает reveal, их же и пропускает. */
 // Шаги, идущие поверх открытой карточки: сама карточка (first-application) и
 // журнал, который из неё открывается, - для карточки это одна группа.
-const CARD_OPEN_TARGETS = ['first-application', 'application-history'];
+const CARD_OPEN_TARGETS = ['first-application', 'application-history', 'application-actions'];
 const CARD_STEPS = approveOnboardingSteps.filter((s) => CARD_OPEN_TARGETS.includes(s.reveal?.open));
 
 /** Права, упомянутые в `requires` тура - чтобы «полный согласующий» не задавался числом. */

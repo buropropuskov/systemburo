@@ -108,7 +108,7 @@ export const cabinetApplicationSteps = [
     optional: true,
     requires: 'action.supplement.application',
     side: 'bottom',
-    reveal: { open: 'first-application' },
+    reveal: { open: 'application-actions' },
   },
   {
     id: 'detail-duplicate',
@@ -119,7 +119,7 @@ export const cabinetApplicationSteps = [
       'Кнопка «Продублировать / продлить» создаёт новую заявку с прежним составом. Выберите срок для копии: «На следующий месяц», «На завтра» или «Другой срок». Срок исходной заявки не изменится.',
     optional: true,
     side: 'bottom',
-    reveal: { open: 'first-application' },
+    reveal: { open: 'application-actions' },
   },
   {
     id: 'detail-revoke',
@@ -130,6 +130,6 @@ export const cabinetApplicationSteps = [
       'Передумали или ошиблись - кнопка «Отозвать» снимает заявку с рассмотрения, система переспросит перед этим. Отозвать можно только свою заявку и только пока она не закрыта.',
     optional: true,
     side: 'bottom',
-    reveal: { open: 'first-application' },
+    reveal: { open: 'application-actions' },
   },
 ];

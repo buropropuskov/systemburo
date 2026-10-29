@@ -247,7 +247,7 @@ export const acceptCardSteps = [
     title: 'Согласовать и принять',
     description:
       'Главная кнопка роли берёт заявку в работу: вы становитесь ответственным, а результат виден заявителю. Когда согласующих нет, кнопка называется «Согласовать и принять»; когда они есть - «Принять», и она становится доступна после согласования.',
-    reveal: { open: 'first-application' },
+    reveal: { open: 'application-actions' },
   },
   {
     id: 'acc-detail-reject',
@@ -259,7 +259,7 @@ export const acceptCardSteps = [
     title: 'Отказать по заявке',
     description:
       'Соседняя кнопка закрывает заявку отказом. Комментарий обязателен и попадёт в карточку - заявитель его увидит и поймёт, что исправить. Если дело в мелочи, быстрее спросить в обсуждении, чем отказывать.',
-    reveal: { open: 'first-application' },
+    reveal: { open: 'application-actions' },
   },
   {
     id: 'acc-detail-supplement',

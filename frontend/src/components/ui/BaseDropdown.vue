@@ -2,16 +2,19 @@
   <div
     ref="dropdown"
     class="base-dropdown"
+    :class="{ 'base-dropdown--inline': inline }"
+    :data-dropdown-open="String(isOpen)"
   >
     <!-- Слот триггера: по умолчанию - штатная кнопка-поле. Заменяется, когда
          открывающий элемент уже существует в своём виде (кнопка «Обучение»
          в шапке «Обзора»), чтобы не заводить ради него второй дропдаун. -->
-    <slot
+    <template v-if="!inline"><slot
       name="trigger"
       :toggle="toggle"
       :is-open="isOpen"
     >
       <button
+        ref="triggerButton"
         type="button"
         class="base-dropdown__button"
         :class="{ 'base-dropdown__button--open': isOpen, 'base-dropdown__button--disabled': disabled }"
@@ -48,18 +51,20 @@
           />
         </svg>
       </button>
-    </slot>
+    </slot></template>
 
     <teleport
       to="body"
-      :disabled="!teleport"
+      :disabled="!teleport || inline"
     >
-      <transition name="dropdown">
+      <transition name="dropdown" :css="!inline">
         <div
-          v-if="isOpen"
+          v-if="isOpen || inline || keepMounted"
+          v-show="isOpen || inline"
           ref="menu"
           class="base-dropdown__menu"
-          :style="teleport ? menuStyle : null"
+          :class="{ 'base-dropdown__menu--inline': inline }"
+          :style="teleport && !inline ? menuStyle : null"
         >
           <div
             v-if="searchable"
@@ -144,6 +149,9 @@ const DEFAULT_OPTIONS_SPACE = 250;
 export default {
   name: 'BaseDropdown',
   props: {
+    // Stateful action content is rendered once, both inline and in the popup.
+    inline: { type: Boolean, default: false },
+    keepMounted: { type: Boolean, default: false },
     modelValue: {
       type: [String, Number, Object, Array, Boolean],
       default: null,
@@ -280,6 +288,17 @@ export default {
     },
   },
   watch: {
+    inline(value) {
+      const focused = document.activeElement;
+      const inside = this.$refs.menu?.contains(focused);
+      this.closeDescendants();
+      this.close();
+      this.$nextTick(() => {
+        if (!inside) return;
+        if (value && focused?.isConnected) focused.focus({ preventScroll: true });
+        else if (!value) this.$refs.triggerButton?.focus({ preventScroll: true });
+      });
+    },
     isOpen(open) {
       // Слушатель Escape живёт ровно столько, сколько открыто меню: висеть постоянно
       // ему незачем, дропдаунов на странице бывает десяток.
@@ -287,6 +306,7 @@ export default {
         document.addEventListener('keydown', this.handleEscape, true);
       } else {
         document.removeEventListener('keydown', this.handleEscape, true);
+        this.closeDescendants();
       }
       if (!this.teleport) return;
       if (open) {
@@ -308,10 +328,12 @@ export default {
     // вне себя, и открытие одного не гасило другой (два меню разом). Capture идёт
     // до stopPropagation. Логика containment та же -> вне модалки поведение не меняется.
     document.addEventListener('click', this.handleClickOutside, true);
+    this.$refs.dropdown.addEventListener('base-dropdown-owner-close', this.close);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside, true);
     document.removeEventListener('keydown', this.handleEscape, true);
+    this.$refs.dropdown?.removeEventListener('base-dropdown-owner-close', this.close);
     this.removeRepositionListeners();
   },
   methods: {
@@ -322,7 +344,7 @@ export default {
         .join(' ');
     },
     toggle() {
-      if (this.disabled) return;
+      if (this.disabled || this.inline) return;
       this.isOpen = !this.isOpen;
       if (this.isOpen) {
         // Поле поиска НЕ фокусируем: на мобилке автофокус выбрасывает клавиатуру
@@ -332,6 +354,23 @@ export default {
       } else {
         this.optionsMaxHeight = null;
       }
+    },
+
+    open() {
+      if (this.disabled || this.inline || this.isOpen) return;
+      this.searchQuery = '';
+      this.isOpen = true;
+      this.$nextTick(this.updateOptionsHeight);
+    },
+    close() {
+      this.isOpen = false;
+      this.searchQuery = '';
+      this.optionsMaxHeight = null;
+    },
+    closeDescendants() {
+      this.$refs.menu?.querySelectorAll('.base-dropdown').forEach(node => {
+        node.dispatchEvent(new Event('base-dropdown-owner-close'));
+      });
     },
 
     /**
@@ -425,10 +464,10 @@ export default {
      * и человек потеряет форму вместо того, чтобы свернуть список.
      */
     handleEscape(e) {
-      if (e.key !== 'Escape') return;
-      this.isOpen = false;
-      this.searchQuery = '';
-      e.stopPropagation();
+      if (e.key !== 'Escape' || !this.isOpen || this.inline) return;
+      if (this.$refs.menu?.querySelector('.base-dropdown[data-dropdown-open="true"]')) return;
+      this.close();
+      e.stopImmediatePropagation();
     },
 
     handleClickOutside(e) {
@@ -750,6 +789,11 @@ export default {
 }
 
 /* Transition */
+.base-dropdown--inline,
+.base-dropdown__menu--inline {
+  display: contents;
+}
+
 .dropdown-enter-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
