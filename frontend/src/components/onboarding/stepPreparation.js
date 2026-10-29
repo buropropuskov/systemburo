@@ -61,15 +61,34 @@ export function createStepPreparation({
     // тур перескакивал через него.
     watchers.stopAll();
     const step = store.steps[globalIndex];
+    const emptyResult = () => step.demo || initial || !step.optional ? demoFallback : false;
+    async function ownerReady(key, availability) {
+      const state = await waitForStepOwner(key, { timeout: PAGE_SETTLE_TIMEOUT, signal: operation.signal, availability });
+      if (!operation.isCurrent() || state.kind === 'cancelled') return state;
+      if (['error', 'forbidden', 'timeout'].includes(state.kind)) throw blocked(step, state.kind);
+      return state;
+    }
+    if (step.dataPrerequisite) {
+      const prerequisite = await ownerReady(step.dataPrerequisite);
+      if (!operation.isCurrent() || prerequisite.kind === 'cancelled') return;
+      if (prerequisite.kind === 'empty') return emptyResult();
+    }
+    if (step.demoScene) await store.prepareCenterDemo(step.demoScene, operation);
+    if (!operation.isCurrent()) return;
+    if (step.reveal?.prepare) {
+      await applyReveal([{ ...step, reveal: { ...step.reveal, open: step.reveal.prepare } }], 0, { closeOthers: false, signal: operation.signal });
+      const preparedOwner = await ownerReady(step.dataOwner, step.dataAvailability);
+      if (!operation.isCurrent() || preparedOwner.kind === 'cancelled') return;
+      if (preparedOwner.kind === 'empty') return emptyResult();
+    }
     const attachmentChanged = applyDemoAttachment(globalIndex);
     const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false, signal: operation.signal });
     if (!operation.isCurrent()) return;
     if (!step?.element) return true;
-    const owner = await waitForStepOwner(step.dataOwner, { timeout: PAGE_SETTLE_TIMEOUT, signal: operation.signal });
+    const owner = await ownerReady(step.dataOwner, step.dataAvailability);
     if (!operation.isCurrent() || owner.kind === 'cancelled') return;
-    if (['error', 'forbidden', 'timeout'].includes(owner.kind)) throw blocked(step, owner.kind);
     if (owner.kind === 'empty' && !findTourTarget(waitSelectorOf(step))) {
-      return step.demo || initial || !step.optional ? demoFallback : false;
+      return emptyResult();
     }
     // Необязательный шаг ждём коротко (700 мс): нет цели - значит её тут нет
     // (#1771). Шагу с `waitsData` даём 2,5 с - цель приезжает данными узла (#2584).
@@ -94,7 +113,7 @@ export function createStepPreparation({
       const prepared = await prepareTarget(target, step.scrollTo, operation);
       if (!operation.isCurrent()) return;
       if (!prepared || !isTourTargetVisible(prepared)) throw blocked(step, 'missing-target');
-      if (step.dataOwner && !['ready', 'empty'].includes(readStepOwner(step.dataOwner)?.state)) {
+      if (step.dataOwner && !['ready', 'empty'].includes(readStepOwner(step.dataOwner, document, step.dataAvailability)?.state)) {
         throw blocked(step, 'owner-changed');
       }
       return true;

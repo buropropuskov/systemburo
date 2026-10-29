@@ -546,6 +546,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { readApiError } from '@/utils/apiError'
 import { useUiStore } from '@/stores/ui'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -1017,8 +1018,7 @@ export default {
                 });
 
                 if (!approvalResponse.ok) {
-                    const errorText = await approvalResponse.text();
-                    throw new Error(errorText);
+                    throw new Error(readApiError(await approvalResponse.text(), 'Не удалось выполнить действие', approvalResponse.status));
                 }
 
                 if (action === 'accept') {
@@ -1069,7 +1069,7 @@ export default {
                 this.$emit('comment-clear');
                 this.$emit('action-completed', { success: true, message: 'Заявка принята в работу', type: 'success' });
             } else {
-                const errorText = await response.text();
+                const errorText = readApiError(await response.text(), 'Не удалось выполнить действие', response.status);
                 this.$emit('action-completed', { success: false, message: `Ошибка: ${errorText}`, type: 'error' });
             }
         },
@@ -1087,7 +1087,7 @@ export default {
                 this.$emit('comment-clear');
                 this.$emit('action-completed', { success: true, message: 'Заявка отклонена', type: 'error' });
             } else {
-                const errorText = await response.text();
+                const errorText = readApiError(await response.text(), 'Не удалось выполнить действие', response.status);
                 this.$emit('action-completed', { success: false, message: `Ошибка: ${errorText}`, type: 'error' });
             }
         },
@@ -1105,7 +1105,7 @@ export default {
                 if (response.ok) {
                     this.$emit('action-completed', { success: true, message: 'Заявка отозвана из работы', type: 'success' });
                 } else {
-                    const errorText = await response.text();
+                    const errorText = readApiError(await response.text(), 'Не удалось выполнить действие', response.status);
                     this.$emit('action-completed', { success: false, message: `Ошибка: ${errorText}`, type: 'error' });
                 }
             } catch (error) {
@@ -1129,7 +1129,7 @@ export default {
                 if (response.ok) {
                     this.$emit('action-completed', { success: true, message: 'Заявка возвращена в работу', type: 'success' });
                 } else {
-                    const errorText = await response.text();
+                    const errorText = readApiError(await response.text(), 'Не удалось выполнить действие', response.status);
                     this.$emit('action-completed', { success: false, message: `Ошибка: ${errorText}`, type: 'error' });
                 }
             } catch (error) {
@@ -1160,7 +1160,7 @@ export default {
                 if (response.ok) {
                     this.$emit('action-completed', { success: true, message: 'Ваше решение отозвано', type: 'success' });
                 } else {
-                    const errorText = await response.text();
+                    const errorText = readApiError(await response.text(), 'Не удалось выполнить действие', response.status);
                     this.$emit('action-completed', { success: false, message: `Ошибка: ${errorText}`, type: 'error' });
                 }
             } catch (error) {
@@ -1189,8 +1189,7 @@ export default {
                 });
 
                 if (!userApprovalResponse.ok) {
-                    const errorText = await userApprovalResponse.text();
-                    throw new Error(errorText || "Error updating application confirmation");
+                    throw new Error(readApiError(await userApprovalResponse.text(), 'Не удалось выполнить действие', userApprovalResponse.status));
                 }
 
                 this.$emit('comment-clear');

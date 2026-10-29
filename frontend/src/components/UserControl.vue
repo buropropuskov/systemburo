@@ -110,7 +110,10 @@
       </div>
     </div>
 
-    <div class="users-container">
+    <div
+      class="users-container"
+      data-testid="ob-users-list"
+    >
       <div class="users-list rt-table">
         <!-- Заголовок таблицы -->
         <div class="users-header">
@@ -245,10 +248,7 @@
         </div>
         
         <!-- Тело таблицы -->
-        <div
-          class="users-body"
-          data-testid="ob-users-list"
-        >
+        <div class="users-body">
           <div
             v-for="(user, index) in sortedUsers"
             :key="user.username"

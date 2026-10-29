@@ -99,6 +99,9 @@ export default {
   },
   watch: {
     visibleTabs() {
+      this.$nextTick(() => { this.observeSizes(); this.measure(); });
+    },
+    stacked() {
       this.$nextTick(this.measure);
     },
   },
@@ -108,7 +111,7 @@ export default {
     // событием окна, замер всё равно вызывается на монтировании.
     if (typeof ResizeObserver === 'function') {
       this.observer = new ResizeObserver(() => this.measure());
-      this.observer.observe(this.$refs.row);
+      this.observeSizes();
     } else if (typeof window !== 'undefined') {
       this.onResize = () => this.measure();
       window.addEventListener('resize', this.onResize);
@@ -120,6 +123,13 @@ export default {
     if (this.onResize) window.removeEventListener('resize', this.onResize);
   },
   methods: {
+    observeSizes() {
+      const row = this.$refs.row;
+      if (!this.observer || !row) return;
+      this.observer.disconnect();
+      this.observer.observe(row);
+      row.querySelectorAll('.filter-tab').forEach(pill => this.observer.observe(pill));
+    },
     /** Помещается ли ряд в одну строку. Считаем по пилюлям, список в сумму не берём. */
     measure() {
       const row = this.$refs.row;
@@ -127,11 +137,14 @@ export default {
       const pills = [...row.children].filter((el) => el.classList.contains('filter-tab'));
       if (!pills.length) return;
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
-      if (this.stacked) { this.collapsed = false; return; }
+      if (this.stacked) { row.style.width = ''; this.collapsed = false; return; }
       const need = pills.reduce((sum, el) => sum + el.offsetWidth, 0) + gap * (pills.length - 1);
-      // Гистерезис в один зазор: без него на границе ряд и список мигают друг в
-      // друга, потому что свёрнутый ряд освобождает место и тут же разворачивается.
-      this.collapsed = this.collapsed ? need > row.clientWidth - gap : need > row.clientWidth;
+      // The replacement dropdown must not change the width being measured.
+      // Keep the tabs' intrinsic basis; max-width still follows the available space.
+      row.style.width = `${Math.ceil(need)}px`;
+      // The stable basis removes the resize feedback loop. A one-pixel allowance
+      // covers independent integer rounding of the row and individual tabs.
+      this.collapsed = need > row.clientWidth + 1;
     },
   },
 };
@@ -140,6 +153,8 @@ export default {
 <style scoped>
 .filter-tabs {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -158,7 +173,8 @@ export default {
 }
 
 .filter-tabs__select {
-  min-width: 220px;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Вертикальная укладка: вкладка строкой во всю ширину. Раньше это же делали

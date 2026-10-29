@@ -27,6 +27,31 @@ describe('touch sizing preserves Driver placement ownership', () => {
     const result=touchPresentationLayout({width:768,height:1024,target:target(0,200,200,700),coarse:true});
     expect(result.maxHeight).toBe(976);
   });
+  it('uses a compact side card instead of crushing a landscape search step into 120px', () => {
+    const result = touchPresentationLayout({ width: 1024, height: 768, target: target(604, 0, 420, 768), coarse: true });
+    expect(result.width).toBe(400);
+    expect(result.wide).toBe(false);
+    expect(result.maxHeight).toBe(720);
+    expect(result.fits).toBe(true);
+  });
+  it('uses the remaining side width for a full-height portrait search panel', () => {
+    const result = touchPresentationLayout({ width: 768, height: 1024, target: target(348, 0, 420, 1024), coarse: true });
+    expect(result.width).toBe(308);
+    expect(result.maxHeight).toBe(976);
+    expect(result.fits).toBe(true);
+  });
+  it('keeps room for readable text and controls when a phone target fills the viewport', () => {
+    const result = touchPresentationLayout({ width: 390, height: 844, target: target(0, 0, 390, 844), coarse: true });
+    expect(result.fits).toBe(false);
+    expect(result.maxHeight).toBeGreaterThanOrEqual(240);
+    expect(result.maxHeight).toBeLessThanOrEqual(812);
+  });
+  it('does not treat a 134px gap as readable when the actual title and controls need more', () => {
+    const result = touchPresentationLayout({ width: 1024, height: 768, target: target(16, 174, 992, 554), coarse: true, minimumHeight: 210 });
+    expect(result.fits).toBe(false);
+    expect(result.maxHeight).toBeGreaterThanOrEqual(210);
+    expect(result.maxHeight).toBeLessThanOrEqual(720);
+  });
   it.each([target(420,100,300,700), target(48,100,300,700)])('reserves both viewport gutter and target gap near either side threshold', box => {
     const result=touchPresentationLayout({width:768,height:1024,target:box,coarse:true});
     expect(result.maxHeight).toBe(184);

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readStepOwner, retryStepOwner, waitForStepOwner } from '../ownerReadiness';
+import { readStepOwner, retryStepOwner, retryStepData, waitForStepOwner } from '../ownerReadiness';
 
 function owner(key, state, parent = document.body) {
   const node = document.createElement('div');
@@ -13,6 +13,17 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { document.body.replaceChildren(); vi.clearAllTimers(); vi.useRealTimers(); });
 
 describe('explicit onboarding owner outcomes', () => {
+  it('retries a failed prerequisite without refreshing the default empty detail',()=>{
+    const list=owner('accessible-list','error'),detail=owner('accessible-detail','empty');
+    const listRetry=vi.fn(event=>event.preventDefault()),detailRetry=vi.fn(event=>event.preventDefault());list.addEventListener('onboarding-retry',listRetry);detail.addEventListener('onboarding-retry',detailRetry);
+    expect(retryStepData({dataPrerequisite:'accessible-list',dataOwner:'accessible-detail',dataAvailability:'blank'})).toBe(true);expect(listRetry).toHaveBeenCalledOnce();expect(detailRetry).not.toHaveBeenCalled();
+  });
+  it('unknown blank capability rereads its ready detail instead of treating it as absent',()=>{
+    owner('accessible-list','ready');const detail=owner('accessible-detail','ready');
+    const refresh=vi.fn(event=>event.preventDefault());detail.addEventListener('onboarding-retry',refresh);
+    expect(readStepOwner('accessible-detail',document,'blank').state).toBe('unknown');
+    expect(retryStepData({dataPrerequisite:'accessible-list',dataOwner:'accessible-detail',dataAvailability:'blank'})).toBe(true);expect(refresh).toHaveBeenCalledOnce();
+  });
   it('reads and retries a unique failed owner even when its empty region has no layout height', async () => {
     const node = owner('accessible-list', 'error');
     node.getBoundingClientRect = () => ({ width: 100, height: 0 });

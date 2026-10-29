@@ -537,7 +537,7 @@
 </template>
 
 <script>
-import { applyRegistryViewport, registryScrollRoot } from '@/utils/registryViewport';
+import { applyRegistryViewport, registryScrollRoot, attachRegistryViewport, detachRegistryViewport } from '@/utils/registryViewport';
 import { deleteRegistryEmployee } from '@/api/registryMutations';
 import { canReadRegistryHistory, canReadRegistryRow } from '@/utils/registryPermissions';
 import { employeesRegistryPeriodDetails } from '@/components/entityPeriodParentMixins';
@@ -763,25 +763,14 @@ export default {
         ]);
         await this.fetchEmployees();
         this.openFromSearchLink();
-        this._lastHeight = -1;
-        this.$nextTick(this._applyHeight);
-        window.addEventListener('resize', this._applyHeight);
-        const header = document.querySelector('.theheader');
-        if (header && typeof ResizeObserver !== 'undefined') {
-            this._headerObs = new ResizeObserver(this._applyHeight);
-            this._headerObs.observe(header);
-        }
+        attachRegistryViewport(this);
     },
     beforeUnmount() {
         this.disconnectEmployeesSentinel();
         if (this.searchTimeout) {
             clearTimeout(this.searchTimeout);
         }
-        window.removeEventListener('resize', this._applyHeight);
-        if (this._headerObs) {
-            this._headerObs.disconnect();
-            this._headerObs = null;
-        }
+        detachRegistryViewport(this);
     },
     methods: {
         openFromSearchLink() {

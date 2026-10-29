@@ -17,6 +17,17 @@ function mountView() { return shallowMount(View, { global: { stubs: { AdminPageS
 const state = (w, owner) => w.find('[data-ob-owner="accessible-' + owner + '"]').attributes('data-ob-state');
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); api.list.mockResolvedValue(result()); api.orgs.mockResolvedValue([]); api.companies.mockResolvedValue([]); });
 describe('accessible attachment owners', () => {
+  it.each([[true,'ready'],[false,'empty'],[undefined,'unknown'],[null,'unknown']])('publishes strict blank availability %s as %s',async(has_blank,expected)=>{
+    api.list.mockResolvedValue(result([item]));api.detail.mockResolvedValue({attachment:{...item,has_blank},cars:[]});
+    const w=mountView();await flushPromises();await w.get('[data-testid="aa-card"]').trigger('click');await flushPromises();expect(w.get('[data-ob-owner="accessible-detail"]').attributes('data-ob-blank')).toBe(expected);w.unmount();
+  });
+  it('publishes blank loading and errors instead of default false',async()=>{
+    const d=deferred();api.list.mockResolvedValue(result([item]));api.detail.mockReturnValue(d.promise);
+    const w=mountView();await flushPromises();await w.get('[data-testid="aa-card"]').trigger('click');await flushPromises();expect(w.get('[data-ob-owner="accessible-detail"]').attributes('data-ob-blank')).toBe('loading');d.resolve({attachment:{...item,has_blank:true},cars:[]});await flushPromises();expect(w.get('[data-ob-owner="accessible-detail"]').attributes('data-ob-blank')).toBe('ready');w.unmount();
+  });
+  it.each([[403,'forbidden'],[500,'error']])('preserves blank owner error %s as %s',async(status,expected)=>{
+    api.list.mockResolvedValue(result([item]));api.detail.mockRejectedValue(Object.assign(new Error('detail failed'),{status}));const w=mountView();await flushPromises();await w.get('[data-testid="aa-card"]').trigger('click');await flushPromises();expect(w.get('[data-ob-owner="accessible-detail"]').attributes('data-ob-blank')).toBe(expected);w.unmount();
+  });
   it('retries the failed list through its owned refresh handler', async () => {
     api.list.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(result());
     const w = mountView(); await flushPromises(); expect(state(w, 'list')).toBe('error');

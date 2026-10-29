@@ -9,7 +9,7 @@ import 'driver.js/dist/driver.css';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { showsDemo, fillDynamic, buildPopoverHtml } from '@/components/onboarding/popoverContent';
 import { buildProgressBlock } from '@/components/onboarding/popoverProgress';
-import { isChapterEnd } from '@/components/onboarding/stepsFlow';
+import { isChapterEnd, visibleStepEntries } from '@/components/onboarding/stepsFlow';
 import { applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 import { createTouchPresenter } from '@/components/onboarding/touchPresenter';
 
@@ -61,15 +61,9 @@ export function isSkippableStep(step) {
 
 /**
  * Нумерация «Шаг N из M». Номер растёт на каждом ПОКАЗАННОМ шаге - выброшенные
- * дырок в нём не оставляют. А знаменатель берём как есть, на весь набор, и по
- * ходу тура не трогаем.
- *
- * Раньше из знаменателя вычитались выброшенные шаги, и человек видел, как число
- * тает на глазах: «из 57» превращалось в «из 55», потом в «из 48». Состав набора
- * решается до старта (права, данные - см. gatingData.js), а редкие шаги вроде
- * «организация на проверке» зависят от конкретной заявки, и предсказать их
- * нельзя. Пусть лучше тур закончится на «Шаг 11 из 13» - это читается как «два
- * шага не понадобились», - чем знаменатель будет меняться под рукой.
+ * дырок в нём не оставляют. Номер, знаменатель и меню используют один набор:
+ * применимые шаги минус достоверные runtime-пропуски. Будущие неизвестные цели
+ * остаются в наборе; DOM другой страницы заранее не исключает материал.
  *
  * @param {Array<object>} steps все шаги тура
  * @param {number} currentIndex глобальный индекс текущего шага
@@ -77,12 +71,8 @@ export function isSkippableStep(step) {
  * @returns {{ index: number, total: number }}
  */
 export function countShownSteps(steps, currentIndex, skipped) {
-  const dropped = skipped instanceof Set ? skipped : new Set(skipped || []);
-  let index = 0;
-  for (let i = 0; i <= currentIndex && i < steps.length; i += 1) {
-    if (!dropped.has(i)) index += 1;
-  }
-  return { index, total: steps.length };
+  const visible = visibleStepEntries(steps, skipped);
+  return { index: visible.filter(item => item.index <= currentIndex).length, total: visible.length };
 }
 
 /**
@@ -317,7 +307,7 @@ export function useOnboarding() {
           popover.footerButtons.insertBefore(
             buildSkipButton(
               () => (onCloseRequest ? onCloseRequest() : driverObj.destroy()),
-              isChapterEnd(store.steps, currentGlobal),
+              isChapterEnd(store.steps, currentGlobal, store.skippedIndexes),
             ),
             popover.footerButtons.firstChild,
           );

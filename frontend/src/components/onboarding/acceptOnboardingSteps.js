@@ -155,4 +155,4 @@ export const acceptOnboardingSteps = [
     description:
       'Вы прошли доступные вам разделы обучения приёму заявок. Повторить объяснения можно кнопкой «Обучение» на странице «Обзор и новости».',
   },
-];
+].map(step => step.route === '/center' ? { ...step, demoScene: step.id === 'acc-detail-supplement' ? 'accept-supplement-approved' : 'accept-ready' } : step);

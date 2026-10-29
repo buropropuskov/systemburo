@@ -19,9 +19,13 @@ export function createTouchPresenter({ getDriver, isAlive }) {
     if (!current || !isAlive() || !current.popover.wrapper.isConnected) return;
     const { popover, target, details, demo } = current;
     const viewport = window.visualViewport;
+    const bodyHeight = popover.description.getBoundingClientRect().height;
+    const requiredChrome = Math.max(popover.wrapper.scrollHeight, popover.wrapper.getBoundingClientRect().height) - bodyHeight;
+    const minimumHeight = Math.max(120, requiredChrome + Math.min(60, popover.description.scrollHeight));
     const layout = touchPresentationLayout({ width: viewport?.width || window.innerWidth,
       height: viewport?.height || window.innerHeight, left: viewport?.offsetLeft || 0, top: viewport?.offsetTop || 0,
-      target: target()?.getBoundingClientRect(), coarse: navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches });
+      target: target()?.getBoundingClientRect(), minimumHeight,
+      coarse: navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches });
     popover.wrapper.classList.toggle('ob-touch', layout.touch);
     popover.wrapper.classList.toggle('ob-touch--wide', Boolean(layout.wide));
     popover.wrapper.classList.toggle('ob-touch--expanded', layout.touch && expanded);

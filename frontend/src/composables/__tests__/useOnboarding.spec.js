@@ -382,20 +382,19 @@ describe('createDriver - прогресс и подсказка следующе
     expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 2 из 4');
   });
 
-  // Знаменатель по ходу тура не двигается: человек видел, как «из 57» тает до
-  // «из 48», и читал это как поломку. Выброшенный шаг убирает только свой номер.
-  it('выброшенный шаг выпадает из номера, но знаменатель держится', () => {
+  // Доказанный пропуск исключается и из номера, и из меню, и из знаменателя.
+  it('выброшенный шаг выпадает из номера и знаменателя', () => {
     storeState.skippedIndexes = [2];
     const popover = render(3);
-    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 3 из 4');
+    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 3 из 3');
   });
 
-  it('сколько бы шагов ни выпало, знаменатель тот же', () => {
+  it('все доказанные пропуски исключаются из обоих счётчиков', () => {
     storeState.skippedIndexes = [1, 2];
     const first = render(0).wrapper.querySelector('.ob-popover__step-label').textContent;
     const last = render(3).wrapper.querySelector('.ob-popover__step-label').textContent;
-    expect(first).toBe('Шаг 1 из 4');
-    expect(last).toBe('Шаг 2 из 4');
+    expect(first).toBe('Шаг 1 из 2');
+    expect(last).toBe('Шаг 2 из 2');
   });
 
   it('номер растёт на каждом показанном шаге', () => {

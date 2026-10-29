@@ -14,8 +14,8 @@ export function createActiveStepSet({
   const revision = ref(0);
   let observedIds = [], observedKey = '', observedReady = false;
   const keyFor = items => JSON.stringify(items.map(step =>
-    [step.id, step.route, step.element, step.waitFor, step.dataReady, step.dataOwner,
-      step.demo, step.section, step.sectionTitle, step.title, step.description]));
+    [step.id, step.route, step.element, step.waitFor, step.dataReady, step.dataOwner, step.dataPrerequisite, step.dataAvailability, step.reveal?.prepare,
+      step.demo, step.demoScene, step.section, step.sectionTitle, step.title, step.description]));
   // Availability follows real entry/action gates; unknown access is not a denial.
   // Keep the last known active set until the permission source becomes known again.
   const steps = computed(previous => {

@@ -446,6 +446,7 @@ export default {
 }
 </script>
 
+<style scoped src="@/assets/news-dialog-actions.css"></style>
 <style scoped>
 /* Добавляем стили для лоадера */
 .loading-message {
@@ -957,7 +958,7 @@ export default {
     font-size: 14px;
     line-height: 1.5;
     color: var(--text);
-    margin: 0 0 20px 0;
+    margin: 0;
 }
 
 .modal-full-text {
@@ -969,14 +970,6 @@ export default {
     margin-top: 8px;
 }
 
-.modal-footer {
-    padding: 16px 30px 24px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    flex-shrink: 0;
-}
 
 .btn {
     padding: 8px 24px;
@@ -988,15 +981,6 @@ export default {
     transition: all 0.2s ease;
 }
 
-.close-btn {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    border-color: var(--accent);
-}
-
-.close-btn:hover {
-    background: var(--accent-hover);
-}
 
 /* Ползунок bottom-sheet и короткий заголовок - только на мобилке (@media768). */
 .sheet-handle {

@@ -1,16 +1,6 @@
+import { createCenterDemoResponder } from './centerDemoResponder';
 import { setReadInterceptor } from '@/api/readInterceptor';
-import {
-  DEMO_CENTER_APPLICATION_ID,
-  DEMO_CENTER_ATTACHMENT_ID,
-  DEMO_CENTER_PEOPLE_ID,
-  buildDemoCenterApplication,
-  buildDemoCenterAttachments,
-  buildDemoCenterCars,
-  buildDemoCenterEmployees,
-  buildDemoCenterResponsibleUsers,
-  buildDemoCenterSupplements,
-  buildDemoCenterFiles,
-} from '@/components/onboarding/demoCenterApplication';
+export { createCenterDemoResponder };
 import {
   DEMO_APPLICATION_ID,
   DEMO_ATTACHMENT_ID,
@@ -34,10 +24,6 @@ import {
  */
 
 const LIST_PATH = /^\/applications\/user(\?|$)/;
-const CENTER_LIST_PATH = /^\/applications(\?|$)/;
-const CENTER_DETAIL_PATH = new RegExp(`^/applications/${DEMO_CENTER_APPLICATION_ID}(/|\\?|$)`);
-const CENTER_ATTACHMENT_PATH = new RegExp(`^/attachments/${DEMO_CENTER_ATTACHMENT_ID}(/|\\?|$)`);
-const CENTER_PEOPLE_PATH = new RegExp(`^/attachments/${DEMO_CENTER_PEOPLE_ID}(/|\\?|$)`);
 const DETAIL_PATH = new RegExp(`^/applications/${DEMO_APPLICATION_ID}(/|\\?|$)`);
 const ATTACHMENT_PATH = new RegExp(`^/attachments/${DEMO_ATTACHMENT_ID}(/|\\?|$)`);
 
@@ -71,41 +57,6 @@ export function createDemoResponder(ctx = {}) {
 }
 
 /**
- * Ответчик для Центра заявок: туры принимающего и согласующего разбирают чужую
- * заявку, и у каждого в Центре лежит своё. На время тура показываем одну
- * примерную - с местами, проездом, дополнением и наименованием на проверке,
- * чтобы шаги про них было на чём показать (#2580).
- *
- * @returns {(path: string, method?: string) => object|null}
- */
-export function createCenterDemoResponder() {
-  const application = buildDemoCenterApplication();
-  const responsibleUsers = buildDemoCenterResponsibleUsers();
-  return (path, method = 'GET') => {
-    const own = CENTER_DETAIL_PATH.test(path)
-      || CENTER_ATTACHMENT_PATH.test(path)
-      || CENTER_PEOPLE_PATH.test(path);
-    if (method !== 'GET') return own ? { success: true, data: null } : null;
-    if (CENTER_LIST_PATH.test(path)) return ok([application], { total: 1, page: 1, per_page: 30 });
-    if (CENTER_ATTACHMENT_PATH.test(path)) {
-      if (path.includes('/cars')) return ok(buildDemoCenterCars());
-      return ok([]);
-    }
-    if (CENTER_PEOPLE_PATH.test(path)) {
-      if (path.includes('/employees')) return ok(buildDemoCenterEmployees());
-      return ok([]);
-    }
-    if (!own) return null;
-    if (path.includes('/attachments')) return ok(buildDemoCenterAttachments());
-    if (path.includes('/supplements')) return ok(buildDemoCenterSupplements());
-    if (/\/files(\?|$)/.test(path)) return ok(buildDemoCenterFiles());
-    if (path.includes('/responsible-users')) return ok(responsibleUsers);
-    if (path.includes('/details')) return ok({ ...application, responsible_users: responsibleUsers });
-    return ok([]);
-  };
-}
-
-/**
  * Привести подмену в соответствие с туром. Пример поднимается только тому, у кого
  * своей заявки нет: остальным он стёр бы настоящий список кабинета. Гаснет вместе
  * с туром - следующий запрос идёт на живой бэкенд, и пример исчезает сам.
@@ -114,7 +65,7 @@ export function createCenterDemoResponder() {
  * @param {boolean} [hasOwnApplication] есть ли у человека своя заявка
  * @param {string|null} [tourKey] какой тур идёт - Центру нужен свой пример
  */
-export function syncDemoBackend(tourActive, hasOwnApplication = false, tourKey = 'user') {
+export function syncDemoBackend(tourActive, hasOwnApplication = false, tourKey = 'user', { snapshot } = {}) {
   if (!tourActive) {
     setReadInterceptor(null);
     return;
@@ -123,7 +74,7 @@ export function syncDemoBackend(tourActive, hasOwnApplication = false, tourKey =
   // нужен всегда, а не только на пустой системе: иначе состав обучения зависит от
   // того, что лежит в Центре сегодня (#2580).
   if (tourKey === 'accept' || tourKey === 'approve') {
-    setReadInterceptor(createCenterDemoResponder());
+    setReadInterceptor(snapshot ? createCenterDemoResponder(snapshot) : null);
     return;
   }
   setReadInterceptor(tourKey === 'user' && !hasOwnApplication ? createDemoResponder() : null);

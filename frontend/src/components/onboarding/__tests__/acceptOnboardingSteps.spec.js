@@ -5,6 +5,7 @@ import { collectSegment } from '../stepsFlow';
 import { getTour, availableTours, buildTourSteps, allTourSteps } from '../tours';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
 
 /**
  * Тур принимающего: гейт по роли, выпадение шагов по правам, целостность сегментов
@@ -40,6 +41,9 @@ function ctx({ permissions = [], isSecurity = false, isApprover = false, isRevie
 
 /** Выдать перечисленные права текущему пользователю (режим normal). */
 function grant(...keys) {
+  const auth = useAuthStore();
+  auth.setTokens(`${btoa('{}')}.${btoa(JSON.stringify({ username: 'fixture', user_id: 42, exp: 9999999999 }))}.signature`);
+  auth.userTypeCode = 'user';
   const permissions = usePermissionsStore();
   permissions.mode = 'normal';
   permissions.loaded = true;

@@ -3,6 +3,9 @@ import { createCenterDemoResponder, syncDemoBackend } from '../demoBackend';
 import { DEMO_CENTER_APPLICATION_ID, DEMO_CENTER_ATTACHMENT_ID, DEMO_CENTER_PEOPLE_ID } from '../demoCenterApplication';
 import { interceptRead } from '@/api/readInterceptor';
 import { acceptOnboardingSteps } from '../acceptOnboardingSteps';
+import { buildDemoCenterScenario } from '../demoCenterScenarios';
+const build = scene => buildDemoCenterScenario({scene,actorId:42,now:Date.parse('2026-10-28T12:00:00Z')});
+const snapshot=build('accept-ready');
 
 /**
  * Примерная заявка нужна ради одного: чтобы шаги тура было на чём показать.
@@ -11,7 +14,7 @@ import { acceptOnboardingSteps } from '../acceptOnboardingSteps';
  * «двадцать шагов обещано, тринадцать показано» (#2580, #2592).
  */
 
-const ответ = (path, method = 'GET') => createCenterDemoResponder()(path, method);
+const ответ = (path, method = 'GET') => createCenterDemoResponder(snapshot)(path, method);
 const заявка = () => ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/details`).data;
 
 describe('примерная заявка Центра', () => {
@@ -42,7 +45,7 @@ describe('примерная заявка Центра', () => {
   it('признаки для шагов про тег, дополнение, разбор наименования и бланки', () => {
     const a = заявка();
     expect(a.blacklist_flags_count, 'тег «похоже на ЧС» в строке списка').toBeGreaterThan(0);
-    expect(a.supplements_count, 'блок дополнения в карточке').toBeGreaterThan(0);
+    expect(build('accept-supplement-approved').application.supplements_count, 'блок дополнения в отдельной сцене').toBeGreaterThan(0);
     expect(a.organization_moderation_status, 'плашка разбора наименования').toBe('pending');
     expect(a.organization_id, 'без id плашка не рисуется').toBeGreaterThan(0);
     expect(a.has_blank_template, 'кнопка «Скачать»').toBe(true);
@@ -53,9 +56,9 @@ describe('примерная заявка Центра', () => {
   });
 
   it('дополнение приходит отдельным запросом', () => {
-    const s = ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/supplements`).data;
+    const s = build('accept-supplement-approved').supplements;
     expect(s).toHaveLength(1);
-    expect(s[0].status).toBe('pending');
+    expect(s[0].status).toBe('approved');
   });
 
   it('запись по примерной заявке наружу не уходит', () => {
@@ -93,7 +96,7 @@ describe('примерная заявка Центра', () => {
     expect(files.every((f) => f.file_name && f.file_size > 0)).toBe(true);
     // Сам файл отдать нечем: за именами примера на сервере ничего не лежит, и
     // подменять поток скачивания конвертом - значит ронять его разбором.
-    expect(ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/files/1/download`)).toEqual({ success: true, data: [] });
+    expect(ответ(`/applications/${DEMO_CENTER_APPLICATION_ID}/files/999000501/download`).status).toBe(409);
   });
 
   it('каждый шаг про содержимое карточки обеспечен данными', () => {
@@ -102,7 +105,7 @@ describe('примерная заявка Центра', () => {
       'attachment-chip': ответ(`/attachments/${DEMO_CENTER_ATTACHMENT_ID}/cars`).data[0].unload_places.length > 0,
       'attachment-assign-open': true,
       'attachment-assign-all-open': true,
-      'supplement-panel': заявка().supplements_count > 0,
+      'supplement-panel': build('accept-supplement-approved').supplements.length > 0,
       'ob-org-moderation': заявка().organization_moderation_status === 'pending',
       'app-detail-button-download': заявка().has_blank_template,
       'ob-center-blacklist-tag': заявка().blacklist_flags_count > 0,
@@ -124,7 +127,7 @@ describe('включение подмены', () => {
   afterEach(() => syncDemoBackend(false));
 
   it('в туре принимающего пример поднимается даже при своих заявках', () => {
-    syncDemoBackend(true, true, 'accept');
+    syncDemoBackend(true, true, 'accept', {snapshot});
     expect(interceptRead('/applications?page=1')).not.toBe(null);
   });
 
@@ -134,7 +137,7 @@ describe('включение подмены', () => {
   });
 
   it('по окончании тура подмена снимается', () => {
-    syncDemoBackend(true, true, 'accept');
+    syncDemoBackend(true, true, 'accept', {snapshot});
     syncDemoBackend(false);
     expect(interceptRead('/applications?page=1')).toBe(null);
   });

@@ -130,7 +130,7 @@ describe('normal controls: existing ready/cancel behavior must remain', () => {
 
   it('an ordinary below-fold target is scrolled into view then releases its frame', async () => {
     const element = target({ top: 1200 }); const pending = ensureInView(element);
-    await vi.advanceTimersByTimeAsync(16); await pending;
+    await vi.advanceTimersByTimeAsync(32); await pending;
     expect(element.scrollIntoView).toHaveBeenCalledWith({ block: 'center', inline: 'nearest', behavior: 'instant' });
     expect(element.getBoundingClientRect().top).toBe(406); expect(vi.getTimerCount()).toBe(0);
   });

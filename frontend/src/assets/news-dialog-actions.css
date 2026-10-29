@@ -1,0 +1,19 @@
+.modal-footer {
+    padding: 10px 30px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.close-btn {
+    min-height: 40px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
+}
+
+.close-btn:hover {
+    background: var(--accent-hover);
+}

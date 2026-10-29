@@ -17,6 +17,8 @@
  * заявку, по которой надо принимать решение.
  */
 
+import { moscowDateInput } from '@/utils/datetime';
+
 /** Идентификаторы заведомо вне диапазона живых записей - чтобы не спутать в логах. */
 export const DEMO_CENTER_APPLICATION_ID = 999000002;
 export const DEMO_CENTER_ATTACHMENT_ID = 999000102;
@@ -33,7 +35,7 @@ const HOUR = 60 * 60 * 1000;
 export function buildDemoCenterApplication(ctx = {}) {
   const now = ctx.now || Date.now();
   const sent = new Date(now - DAY).toISOString();
-  const stamp = sent.slice(0, 10).replace(/-/g, '');
+  const stamp = moscowDateInput(sent).replace(/-/g, '');
   return {
     id: DEMO_CENTER_APPLICATION_ID,
     application_number: `№ ${stamp}/001`,

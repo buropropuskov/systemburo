@@ -64,6 +64,7 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions';
 import { getViewportZoom } from '@/utils/viewportScale';
+import { PAGE_LAYOUT_READY } from '@/utils/pageLayout';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotificationsInline from './UserNotificationsInline.vue';
@@ -104,6 +105,7 @@ export default {
     this.fetchUserData();
     this.$nextTick(this.applyDashboardHeight);
     window.addEventListener('resize', this.applyDashboardHeight);
+    window.addEventListener(PAGE_LAYOUT_READY, this.applyDashboardHeight);
     // Шапка in-flow и может менять высоту (анонс, перенос строки) - пересчитываем
     // под неё. Наблюдаем саму шапку, а не body, чтобы Teleport-модалки не будили
     // лишний reflow. Тот же приём, что в AdminPageShell.vue.
@@ -115,6 +117,7 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.applyDashboardHeight);
+    window.removeEventListener(PAGE_LAYOUT_READY, this.applyDashboardHeight);
     if (this.headerObserver) {
       this.headerObserver.disconnect();
       this.headerObserver = null;

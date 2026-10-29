@@ -1,7 +1,7 @@
 import { createRecoveryDriver } from './tourRecovery';
 import { createTourRecoveryState } from './tourRecoveryState';
 import { restoreReveal } from './reveal';
-import { retryStepOwner } from './ownerReadiness';
+import { retryStepData } from './ownerReadiness';
 
 /** Host adapter: recovery owns no completed progress or business data. */
 export function createTourRecoveryHost({
@@ -20,7 +20,7 @@ export function createTourRecoveryHost({
     const index = state.retryAt(stepId);
     if (index === undefined) return;
     cancelTransitions(); restore(null);
-    retryStepOwner(store.steps[index].dataOwner);
+    retryStepData(store.steps[index]);
     // Pending selection does not persist the desired step as already viewed.
     store.retreatSegment(index);
     if (store.steps[index].route !== getRoute()) return pushRoute(store.steps[index].route);

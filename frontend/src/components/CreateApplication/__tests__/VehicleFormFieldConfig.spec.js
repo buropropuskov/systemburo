@@ -92,4 +92,27 @@ describe('VehicleForm - потребление field-config (#529)', () => {
         const w = mountForm({ mark: { visible: false, required: true } });
         expect(w.find('.mark-fact').exists()).toBe(false);
     });
+
+    it('после включения и выключения марки по факту не отправляет прежний ID марки', async () => {
+        const w = mountForm({
+            number: { visible: false },
+            mark: { visible: true, required: false },
+            unloading_places: { visible: false },
+            passage_tables: { visible: false },
+        });
+        try {
+            await w.setData({ selectedMark: 'ГАЗ', selectedMarkId: 42 });
+            const toggle = w.find('.mark-fact input');
+            await toggle.setValue(true);
+            await toggle.setValue(false);
+            expect(w.vm.selectedMark).toBe('');
+            expect(w.vm.canAddVehicle).toBe(true);
+            w.vm.addVehicle();
+            expect(w.emitted('vehicle-added')?.[0]?.[0]).toMatchObject({
+                mark: '', markId: null, markName: null,
+            });
+        } finally {
+            w.unmount();
+        }
+    });
 });

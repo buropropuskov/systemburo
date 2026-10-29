@@ -33,6 +33,25 @@ afterEach(() => {
 });
 
 describe('geometry leases', () => {
+  it('does not prepare an explicitly unreachable target as ready', async () => {
+    deps.scrollTarget.mockResolvedValue(false);
+    await expect(geometry.prepare({ target }, { isCurrent: () => current })).rejects.toMatchObject({ reason: 'target-unreachable' });
+  });
+  it('preserves cancellation when unsuccessful scroll settles after epoch changes', async () => {
+    deps.scrollTarget.mockImplementation(async () => { geometry.stop(); return false; });
+    await expect(geometry.prepare({ target }, { isCurrent: () => current })).resolves.toBeNull();
+  });
+  it('releases runtime correction and reports false-result failure without an unhandled rejection', async () => {
+    deps.shouldScroll = vi.fn(() => true); deps.onError = vi.fn();
+    deps.scrollTarget.mockResolvedValue(false);
+    geometry.dispose(); geometry = createTourGeometry(deps);
+    commit(); flush();
+    for (let tick = 0; tick < 8; tick++) await Promise.resolve();
+    expect(deps.onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ reason: 'target-unreachable' }));
+    deps.shouldScroll.mockReturnValue(false);
+    geometry.invalidate('layout'); flush();
+    expect(deps.applyShape).toHaveBeenCalled();
+  });
   it('restores a viewport-dependent owner before resolving or measuring its connected target', () => {
     geometry.dispose();
     const beforeMeasure = vi.fn(() => false);
