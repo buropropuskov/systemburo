@@ -222,6 +222,7 @@ export default {
       default: 'auto',
       validator: value => ['auto', 'right'].includes(value),
     },
+    menuAlign: { type: String, default: 'start', validator: value => ['start', 'end'].includes(value) },
     menuMinWidth: {
       type: Number,
       default: 0,
@@ -525,7 +526,8 @@ export default {
       // Меню шире триггера уехало бы за правый край - сдвигаем влево ровно
       // настолько, чтобы уместиться. При menuMinWidth=0 ширина равна триггеру,
       // тот всегда на экране, и сдвиг не срабатывает.
-      const left = Math.min(Math.round(r.left), Math.max(margin, Math.round(vw - width - margin)));
+      const anchorLeft = this.menuAlign === 'end' ? Math.max(margin, r.left + r.width - width) : r.left;
+      const left = Math.min(Math.round(anchorLeft), Math.max(margin, Math.round(vw - width - margin)));
       this.menuStyle = {
         position: 'fixed',
         left: `${left}px`,

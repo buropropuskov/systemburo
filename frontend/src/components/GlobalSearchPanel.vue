@@ -5,7 +5,7 @@
         v-if="open"
         ref="panel"
         class="gsp"
-        :class="{ 'gsp--collapsed': collapsed }"
+        :class="{ 'gsp--collapsed': collapsed, 'gsp--under-modal': modalAboveSearch }"
         data-testid="global-search-panel"
         role="complementary"
         aria-label="Результаты поиска"
@@ -217,7 +217,7 @@ import { SEARCH_TARGETS } from '@/constants/searchTargets';
 const GROUP_PREVIEW = 5;
 import { SEARCH_ACTIONS } from '@/constants/searchActions';
 import { useOnboardingStore } from '@/stores/onboarding';
-import { hasModalAbove, isEscapeHandled } from '@/utils/modalStack';
+import { hasModalAbove, isEscapeHandled, subscribeModalStack } from '@/utils/modalStack';
 
 /** Сколько разделов меню показывать: список длинный, а нужен обычно первый же. */
 const SECTIONS_LIMIT = 5;
@@ -247,6 +247,8 @@ export default {
       // одного захода -- каждый раз закреплять заново раздражало бы.
       pinned: localStorage.getItem(PIN_STORAGE_KEY) === '1',
       collapsed: false,
+      modalAboveSearch: false,
+      modalStackOff: null,
     };
   },
   computed: {
@@ -384,12 +386,16 @@ export default {
     },
   },
   mounted() {
+    const updatePriority = () => { this.modalAboveSearch = hasModalAbove(0); };
+    this.modalStackOff = subscribeModalStack(updatePriority);
+    updatePriority();
     // Capture на document: меню слушает Escape на window, и без перехвата он закрыл бы
     // заодно выдвижное меню под панелью.
     document.addEventListener('keydown', this.onKeydownCapture, true);
     document.addEventListener('mousedown', this.onDocumentMousedown);
   },
   beforeUnmount() {
+    this.modalStackOff?.();
     document.removeEventListener('keydown', this.onKeydownCapture, true);
     document.removeEventListener('mousedown', this.onDocumentMousedown);
   },
@@ -486,8 +492,7 @@ export default {
   /* Мягкая и узкая: широкая тень в 24px читалась на светлом фоне как грязная полоса
      вдоль всей панели. В тёмной теме разницы почти нет - чёрное по тёмному. */
   box-shadow: 0 0 5px #0000001f;
-  /* Выше выдвижного меню и карточек, ниже блокирующих окон: подтверждение о
-     несохранённой форме и сообщение о блокировке должны перекрывать результаты. */
+  /* Поиск поверх страницы; открытое окно получает приоритет и для клика, и для Escape. */
   z-index: 15000;
   transition: width 0.2s ease-out;
 }
@@ -515,6 +520,10 @@ export default {
    со страницей, но остаётся под рукой и помнит запрос. */
 .gsp--collapsed {
   width: 52px;
+}
+
+.gsp--under-modal {
+  z-index: 999;
 }
 
 .gsp__strip {
