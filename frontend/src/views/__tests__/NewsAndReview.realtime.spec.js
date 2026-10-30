@@ -18,6 +18,7 @@ vi.mock('@/services/eventStream', () => ({
 
 import eventStream from '@/services/eventStream';
 import NewsAndReview from '../NewsAndReview.vue';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 function jsonResponse(body) {
   return { ok: true, json: async () => body };
@@ -34,6 +35,49 @@ function mockNewsApi() {
 function mountView() {
   return shallowMount(NewsAndReview);
 }
+
+describe('NewsAndReview — блокировка фона читалки', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    apiRequest.mockReset();
+    mockNewsApi();
+  });
+
+  it('блокирует документ только пока открыта новость', async () => {
+    const wrapper = mountView();
+    try {
+      await flushPromises();
+      wrapper.vm.openNewsModal({ id: 1, title: 'Новость', created_at: '2026-10-01T09:00:00Z' });
+      await wrapper.vm.$nextTick();
+      expect(document.body.style.overflow).toBe('hidden');
+      expect(document.documentElement.style.overflow).toBe('hidden');
+      wrapper.vm.closeNewsDetailsModal();
+      await wrapper.vm.$nextTick();
+      expect(document.body.style.overflow).toBe('');
+      expect(document.documentElement.style.overflow).toBe('');
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('при уходе со страницы сохраняет блокировку другого окна', async () => {
+    const other = {};
+    const wrapper = mountView();
+    try {
+      await flushPromises();
+      wrapper.vm.openNewsModal({ id: 1, title: 'Новость', created_at: '2026-10-01T09:00:00Z' });
+      await wrapper.vm.$nextTick();
+      setBodyScrollLock(other, true);
+      wrapper.unmount();
+      expect(document.body.style.overflow).toBe('hidden');
+      expect(document.documentElement.style.overflow).toBe('hidden');
+    } finally {
+      releaseBodyScrollLock(other);
+      if (wrapper.exists()) wrapper.unmount();
+    }
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+});
 
 describe('NewsAndReview - real-time доставка ленты через SSE (#840 news.refresh)', () => {
   beforeEach(() => {

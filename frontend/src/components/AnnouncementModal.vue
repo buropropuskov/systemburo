@@ -65,6 +65,7 @@ import { ref } from 'vue'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { formatDateTime } from '@/utils/datetime';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 export default {
   name: 'AnnouncementModal',
@@ -99,6 +100,14 @@ export default {
       onSheetTouchEnd: swipe.onTouchEnd,
     };
   },
+  watch: {
+    show: {
+      immediate: true,
+      handler(visible) {
+        setBodyScrollLock(this, visible);
+      },
+    },
+  },
   methods: {
     sanitizeHtml,
     formatDate: formatDateTime,
@@ -110,6 +119,7 @@ export default {
     document.addEventListener('keydown', this.escHandler);
   },
   beforeUnmount() {
+    releaseBodyScrollLock(this);
     document.removeEventListener('keydown', this.escHandler);
   }
 }

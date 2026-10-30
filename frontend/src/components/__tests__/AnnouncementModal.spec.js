@@ -22,6 +22,26 @@ describe('AnnouncementModal - bottom-sheet close-пути (#1097 W3)', () => {
   beforeEach(() => { document.body.innerHTML = ''; });
   afterEach(() => { document.body.innerHTML = ''; });
 
+  it('блокирует документ при начальном show и освобождает при скрытии', async () => {
+    const wrapper = mountM();
+    try {
+      expect(document.body.style.overflow).toBe('hidden');
+      expect(document.documentElement.style.overflow).toBe('hidden');
+      await wrapper.setProps({ show: false });
+      expect(document.body.style.overflow).toBe('');
+      expect(document.documentElement.style.overflow).toBe('');
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('снимает свою блокировку при размонтировании открытого окна', () => {
+    const wrapper = mountM();
+    wrapper.unmount();
+    expect(document.body.style.overflow).toBe('');
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+
   it('рендерит контент и ползунок bottom-sheet', () => {
     const wrapper = mountM();
     expect(document.body.querySelector('.announcement-modal')).not.toBeNull();
