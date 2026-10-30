@@ -1632,7 +1632,7 @@ export default {
             // Без административного права получаем доступный список с масками;
             // собственная роль по-прежнему определяется отдельным запросом /me.
             try {
-                const response = await apiRequest(this.can('page.admin.directories') ? '/application-approvers' : '/application-approvers/recipients', { silent403: true });
+                const response = this.can('page.admin.directories') ? await apiRequest('/application-approvers', { silent403: true }) : await apiRequest('/application-approvers/recipients', { silent403: true });
                 if (response.ok) {
                     this.approvers = await response.json();
                 }
