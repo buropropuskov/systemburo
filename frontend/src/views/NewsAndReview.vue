@@ -278,6 +278,7 @@ import WorkModesModal from '../components/news/WorkModesModal.vue'
 import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import { formatDateTime } from '@/utils/datetime';
@@ -355,6 +356,7 @@ export default {
     })
   },
   beforeUnmount() {
+    releaseBodyScrollLock(this)
     window.removeEventListener('keydown', this.handleEscKey)
     if (this.eventStreamOff) {
       this.eventStreamOff()
@@ -363,6 +365,9 @@ export default {
     eventStream.disconnect()
   },
   watch: {
+    showNewsDetailsModal(visible) {
+      setBodyScrollLock(this, visible)
+    },
     /**
      * Онбординг просит показать расписание: открываем окно режимов работы по
      * сигналу и закрываем, когда сигнал гаснет. Чужое окно не трогаем.
