@@ -1628,11 +1628,11 @@ export default {
         },
 
         async fetchApprovers() {
-            // Полный состав принимающих нужен только окну пересылки (исключить их из
-            // адресатов) и доступен администратору. Обычный пользователь получает 403,
-            // и это нормально - на его собственные кнопки состав не влияет.
+            // Состав принимающих нужен окну пересылки для исключения их из адресатов.
+            // Без административного права получаем доступный список с масками;
+            // собственная роль по-прежнему определяется отдельным запросом /me.
             try {
-                const response = await apiRequest("/application-approvers", { silent403: true });
+                const response = await apiRequest(this.can('page.admin.directories') ? '/application-approvers' : '/application-approvers/recipients', { silent403: true });
                 if (response.ok) {
                     this.approvers = await response.json();
                 }
