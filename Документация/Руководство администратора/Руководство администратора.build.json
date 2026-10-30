@@ -1,10 +1,10 @@
 {
   "document": "admin",
-  "version": "1.20",
+  "version": "1.21",
   "pages": 81,
-  "code_revision": "a98e90696badf5e39562997c23e6718791082448",
-  "source_sha256": "66a14c443d2bc10acb7e56b9eb5190a5bd95e0b06b54a3c731caa6589ea6acc6",
-  "builder_sha256": "f701454c36369b90647420490ee9e4b2784abbe2e0cd0fb1bae843abdd72c6bf",
-  "docx_sha256": "b1e36e85cbe4540c0d106b7e4a069a4b8b74fd481f10d61061f85296384c60a3",
-  "pdf_sha256": "1a8c6d98717081ca14bfd35e95b813bef8106ec6e85114795c8ee40f5a55da8a"
+  "code_revision": "6804492912cb86d09bca63e502ac36c4ec3123ac",
+  "source_sha256": "362f242b9363cfaf8e070d287169067b156c896ed6e8e0c2f7944c7b6c91af40",
+  "builder_sha256": "dd6811557d59e1f02bba8cf4e11785cf1cf7cf19fb95bc8af30e6384d3e360ea",
+  "docx_sha256": "6c7a1805907c3ab04fce8ec785d5af4d832fbd70b73cb9818078e8656222eebb",
+  "pdf_sha256": "2e8e2da96dd1b6d2064cc9aff054fe683e2c9aed533f612a0583cb20c87a8fc9"
 }

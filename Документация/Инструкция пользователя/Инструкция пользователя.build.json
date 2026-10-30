@@ -1,10 +1,10 @@
 {
   "document": "user_howto",
-  "version": "1.3",
+  "version": "1.4",
   "pages": 61,
-  "code_revision": "a98e90696badf5e39562997c23e6718791082448",
-  "source_sha256": "a93e355af7567c7d208dfcdb163fd22ed9d422edcc4c20d2ffc7a878fa54f69f",
-  "builder_sha256": "f701454c36369b90647420490ee9e4b2784abbe2e0cd0fb1bae843abdd72c6bf",
-  "docx_sha256": "4d7d8b8881d1d5e70fdc0f962c6453138609d0b96a087ab05a2880e3d0550782",
-  "pdf_sha256": "8232fd4233935a1bfd7ff2db08d72bec053fb6618b3b890fb5d575b0dc65c744"
+  "code_revision": "6804492912cb86d09bca63e502ac36c4ec3123ac",
+  "source_sha256": "ee497b51612dd14b790f018dca7f599470aff6b4d028c68193a9a1a49aac3118",
+  "builder_sha256": "dd6811557d59e1f02bba8cf4e11785cf1cf7cf19fb95bc8af30e6384d3e360ea",
+  "docx_sha256": "5208df423705e61028651042101dbf2bceba71915d44f2ee830115b8f6cf085b",
+  "pdf_sha256": "63c364e2ae60e63a71156c786bfa680b918087b67f8addf56048ad3a1840c9f8"
 }
