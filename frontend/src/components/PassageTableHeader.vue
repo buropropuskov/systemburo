@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import PassageTableTools from './PassageTableTools.vue';
 import RefreshButton from './RefreshButton.vue';
@@ -19,16 +19,62 @@ const header = ref(null), menu = ref(null), compact = ref(true), passageAvailabl
 const more = ref(null), commands = ref(null);
 const tight = ref(false);
 const hasCommands = computed(() => props.hasSettings || passageAvailable.value);
-let observer;
-// Измеряем ширину шапки, а не команды, меняющие свою компоновку.
+let observer, queued = false, disposed = false, observedWidth;
+// Мерим единственные живые узлы в полном виде синхронно, до repaint. Не меняем
+// inline у Dropdown ради замера: его watcher закрывает меню и вложенные окна.
 const measure = () => {
-  const width = header.value?.clientWidth;
-  if (width > 0) { compact.value = width < 1300; tight.value = width < 310; }
+  const root = header.value, width = root?.clientWidth;
+  if (!width || props.preview) return;
+  const full = root.querySelector('.passage-table-header__full-title');
+  const holder = commands.value?.parentElement;
+  const saved = new Map();
+  const style = (node, css) => {
+    if (!node) return;
+    saved.set(node, node.style.cssText);
+    Object.assign(node.style, css);
+  };
+  const wasCompact = root.classList.contains('passage-table-header--compact');
+  const wasTight = root.classList.contains('passage-table-header--tight');
+  const wasPopup = commands.value?.classList.contains('passage-table-commands--popup');
+  let required;
+  try {
+    root.classList.remove('passage-table-header--compact', 'passage-table-header--tight');
+    style(full, { width: 'max-content' });
+    if (hasCommands.value && holder) {
+      commands.value.classList.remove('passage-table-commands--popup');
+      style(holder, { display: 'block', position: 'fixed', width: 'max-content', minWidth: '0', maxWidth: 'none', padding: '0', border: '0' });
+    }
+    const widths = [full?.scrollWidth || 0];
+    for (const node of root.children) {
+      if (node.classList.contains('passage-table-header__title') || node.classList.contains('passage-table-header__menu')) continue;
+      if (node.offsetWidth) widths.push(node.offsetWidth);
+    }
+    if (hasCommands.value && commands.value?.offsetWidth) widths.push(commands.value.offsetWidth);
+    const css = getComputedStyle(root);
+    required = widths.reduce((sum, value) => sum + value, 0)
+      + (parseFloat(css.columnGap) || 0) * (widths.length - 1)
+      + (parseFloat(css.paddingLeft) || 0) + (parseFloat(css.paddingRight) || 0);
+  } finally {
+    saved.forEach((css, node) => { node.style.cssText = css; });
+    root.classList.toggle('passage-table-header--compact', wasCompact);
+    root.classList.toggle('passage-table-header--tight', wasTight);
+    if (commands.value) commands.value.classList.toggle('passage-table-commands--popup', !!wasPopup);
+  }
+  compact.value = required > width + 1;
+  tight.value = width < 310;
 };
+const scheduleMeasure = () => {
+  if (queued || disposed) return;
+  queued = true;
+  nextTick(() => { queued = false; if (!disposed) measure(); });
+};
+onUpdated(scheduleMeasure);
 watch(hasCommands, available => { if (!available) menu.value?.close(); });
 watch(compact, value => {
   if (value && commands.value?.contains(document.activeElement)) {
     nextTick(() => more.value?.focus({ preventScroll: true }));
+  } else if (!value && document.activeElement === more.value) {
+    nextTick(() => commands.value?.querySelector('button, input, [tabindex="0"]')?.focus({ preventScroll: true }));
   }
 });
 watch(() => menu.value?.isOpen, open => {
@@ -40,15 +86,22 @@ function onCommand(event) {
   if (event.target.closest('button')) menu.value?.close();
 }
 onMounted(() => {
-  measure();
+  scheduleMeasure();
+  document.fonts?.ready.then(scheduleMeasure);
   if (typeof ResizeObserver === 'function') {
-    observer = new ResizeObserver(measure);
+    observer = new ResizeObserver(() => {
+      const width = header.value?.clientWidth;
+      if (width === observedWidth) return;
+      observedWidth = width;
+      scheduleMeasure();
+    });
     observer.observe(header.value);
-  } else window.addEventListener('resize', measure);
+  } else window.addEventListener('resize', scheduleMeasure);
 });
 onBeforeUnmount(() => {
+  disposed = true;
   observer?.disconnect();
-  window.removeEventListener('resize', measure);
+  window.removeEventListener('resize', scheduleMeasure);
 });
 </script>
 
