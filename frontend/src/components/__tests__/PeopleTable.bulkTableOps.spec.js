@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -24,6 +24,8 @@ const employeesBulkApi = vi.hoisted(() => ({
 vi.mock('@/api/employees', () => employeesBulkApi);
 
 import PeopleTable from '../PeopleTable.vue';
+
+enableAutoUnmount(afterEach);
 
 function okResponse(data) {
   return { ok: true, json: async () => data };

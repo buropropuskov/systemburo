@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount as trackedMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -17,6 +17,17 @@ vi.mock('@/services/eventStream', () => ({
 
 import eventStream from '@/services/eventStream';
 import PeopleTable from '../PeopleTable.vue';
+
+const liveWrappers = new Set();
+function mount(...args) {
+  const wrapper = trackedMount(...args);
+  liveWrappers.add(wrapper);
+  return wrapper;
+}
+afterEach(() => {
+  for (const wrapper of liveWrappers) if (wrapper.exists()) wrapper.unmount();
+  liveWrappers.clear();
+});
 
 function okResponse(data) {
   return { ok: true, json: async () => data };

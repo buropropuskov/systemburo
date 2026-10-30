@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 const apiRequest = vi.fn();
@@ -13,6 +13,8 @@ vi.mock('@/services/eventStream', () => ({
 
 import CarsTable from '../CarsTable.vue';
 import PeopleTable from '../PeopleTable.vue';
+
+enableAutoUnmount(afterEach);
 
 const STUBS = { teleport: true, transition: false, 'transition-group': false };
 

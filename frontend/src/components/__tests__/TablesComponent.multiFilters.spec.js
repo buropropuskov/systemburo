@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref, nextTick } from 'vue';
 import fs from 'node:fs';
@@ -20,6 +20,8 @@ import CarsTable from '../CarsTable.vue';
 import PeopleTable from '../PeopleTable.vue';
 import FactTable from '../FactTable.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+
+enableAutoUnmount(afterEach);
 
 function okResponse(data) {
   return { ok: true, json: async () => data };

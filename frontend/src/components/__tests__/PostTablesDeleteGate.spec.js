@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { usePermissionsStore } from '@/stores/permissions';
 
@@ -11,6 +11,8 @@ vi.mock('@/services/eventStream', () => ({
 
 import CarsTable from '../CarsTable.vue';
 import FactTable from '../FactTable.vue';
+
+enableAutoUnmount(afterEach);
 
 // Бэк снимает элемент с поста только при праве table.<пост>.delete (#2600), поэтому
 // кнопка удаления видна по нему же. entity.cars.delete есть у базовой роли - это право
