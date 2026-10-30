@@ -125,6 +125,73 @@ class CommandChecks(unittest.TestCase):
 
 
 class PdfChecks(unittest.TestCase):
+    @staticmethod
+    def transfer_table_fixture():
+        # Normalized layout fragment from deploy p163. In the complete page,
+        # '.env в' ends at 1109, 'Сертификат' at 1172, but the first-column
+        # alternative 'Файл параметров' appears only in the later callout (1277).
+        text = (
+            'Таблица 14.1 — Состав переносимых данных '
+            'Элемент Где находится Последствия, если не перенести '
+            'База данных Том pgdata Утрата всех заявок, реестров, учётных записей и журналов '
+            'Загруженные Том uploads Фотографии, шаблоны бланков и приложения к '
+            'файлы заявкам пропадут, записи в базе будут ссылаться в пустоту '
+            'Файл .env в каталоге См. предупреждение ниже параметров системы '
+            'Сертификат nginx/certs/ Потребуется выпустить заново, что при смене '
+            'адреса и так необходимо '
+            'ОПАСНО. Файл параметров переносится со старого сервера, а не создаётся заново.'
+        )
+        headers = ['Элемент', 'Где находится', 'Последствия, если не перенести']
+        rows = [
+            ['База данных', 'Том pgdata', 'Утрата всех заявок'],
+            ['Загруженные файлы', 'Том uploads', 'Фотографии, шаблоны бланков'],
+            ['Файл параметров', '.env в каталоге системы', 'См. предупреждение ниже'],
+            ['Сертификат', 'nginx/certs/', 'Потребуется выпустить заново'],
+        ]
+        metadata = [{'number': '14.1',
+                     'head_probes': [build_docs.cell_probe(h) for h in headers],
+                     'row_probes': build_docs.table_probes(headers, rows)}]
+        return text, metadata
+
+    def test_complete_table_does_not_borrow_probe_from_later_callout(self):
+        text, metadata = self.transfer_table_fixture()
+        with patch.object(build_docs, 'executable', return_value='pdftotext'), \
+             patch.object(build_docs.subprocess, 'run', return_value=
+                          subprocess.CompletedProcess([], 0, text, '')):
+            self.assertEqual(build_docs.find_first_unsplit_break({}, metadata, set()),
+                             (None, None))
+
+    def test_real_table_break_is_still_found_before_missing_last_row(self):
+        text, metadata = self.transfer_table_fixture()
+        text = text.replace(
+            'Сертификат nginx/certs/ Потребуется выпустить заново, что при смене '
+            'адреса и так необходимо ', '') + '\fСертификат nginx/certs/ Потребуется'
+        with patch.object(build_docs, 'executable', return_value='pdftotext'), \
+             patch.object(build_docs.subprocess, 'run', return_value=
+                          subprocess.CompletedProcess([], 0, text, '')):
+            self.assertEqual(build_docs.find_first_unsplit_break({}, metadata, set()),
+                             ('14.1', [3]))
+
+    def test_tail_uses_earliest_alternative_before_real_next_break(self):
+        text, metadata = self.transfer_table_fixture()
+        text = text.replace('Таблица 14.1 — Состав переносимых данных',
+                            'Продолжение таблицы 14.1')
+        metadata[0]['row_probes'] = ([['previous']] + metadata[0]['row_probes']
+                                     + [['next page']])
+        with patch.object(build_docs, 'executable', return_value='pdftotext'), \
+             patch.object(build_docs.subprocess, 'run', return_value=
+                          subprocess.CompletedProcess([], 0, text + '\fnext page', '')):
+            self.assertEqual(build_docs.next_break_in_tail({}, metadata, '14.1', [1]), 5)
+
+    def test_row_probe_selection_is_independent_of_alternative_order(self):
+        for probes, expected in [(['later', 'early'], 5), (['early', 'later'], 5),
+                                 (['missing', 'early'], 5), (['missing'], -1),
+                                 ([], -1)]:
+            with self.subTest(probes=probes):
+                self.assertEqual(build_docs.find_row_probe('early then later', probes, 0), expected)
+        self.assertEqual(build_docs.find_row_probe('early then later', ['early', 'later'], 5), 16)
+        self.assertEqual(build_docs.find_row_probe('15m 5m', ['5m'], 0), 6)
+
     def test_table_caption_is_not_an_unlabelled_continuation(self):
         for caption in ['Таблица 9.14 — Поля, которые затирает команда',
                         'Таблица Б.9 — Параметры уведомлений']:
