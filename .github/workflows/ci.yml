@@ -242,6 +242,28 @@ jobs:
             ghcr.io/${{ steps.repo.outputs.lower }}-frontend:dev
           cache-from: type=gha,scope=systemburo-frontend
           cache-to: type=gha,mode=max,scope=systemburo-frontend
+      # Временно доставляем staging-nginx готовым образом вместе с сервисами.
+      # Используем прежний Dockerfile; публикуем только после smoke-проверки.
+      - name: Build staging nginx image (cached)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./nginx
+          file: ./nginx/Dockerfile.staging
+          tags: |
+            systemburo-nginx:ci
+            ghcr.io/${{ steps.repo.outputs.lower }}-nginx:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.lower }}-nginx:dev
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=systemburo-staging-nginx
+          cache-to: type=gha,mode=max,scope=systemburo-staging-nginx
+      - name: Verify staging nginx has OpenSSL
+        run: docker run --rm --entrypoint openssl systemburo-nginx:ci version
+      - name: Push staging nginx image to ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          docker push ghcr.io/${{ steps.repo.outputs.lower }}-nginx:${{ github.sha }}
+          docker push ghcr.io/${{ steps.repo.outputs.lower }}-nginx:dev
       - name: Verify backend image runs as non-root
         run: docker run --rm systemburo:ci id
 
@@ -270,7 +292,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: dev
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -293,15 +315,19 @@ jobs:
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
             git fetch origin dev
-            git reset --hard origin/dev
+            # Конфигурации и образы должны относиться к одной ревизии деплоя.
+            git reset --hard ${{ github.sha }}
+            test "$(git rev-parse HEAD)" = "${{ github.sha }}"
             test -f .env || bash scripts/init-env.sh staging ${{ secrets.STAGING_DOMAIN }}
             REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             export FRONTEND_IMAGE="ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}"
             export BACKEND_IMAGE="ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}"
+            export NGINX_IMAGE="ghcr.io/${REPO_LOWER}-nginx:${{ github.sha }}"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            echo "Pulling pre-built images: $FRONTEND_IMAGE, $BACKEND_IMAGE"
+            echo "Pulling pre-built images: $FRONTEND_IMAGE, $BACKEND_IMAGE, $NGINX_IMAGE"
             docker pull "$FRONTEND_IMAGE"
             docker pull "$BACKEND_IMAGE"
+            docker pull "$NGINX_IMAGE"
             docker logout ghcr.io
             # Compose без BACKEND_IMAGE берёт метку dev, а её здесь никто не тянул: ручной
             # docker compose up поднимал образ многонедельной давности, и его миграция
@@ -309,13 +335,14 @@ jobs:
             # обязана указывать на выкаченный код.
             docker tag "$FRONTEND_IMAGE" "ghcr.io/${REPO_LOWER}-frontend:dev"
             docker tag "$BACKEND_IMAGE" "ghcr.io/${REPO_LOWER}-backend:dev"
-            # На VPS собирается только nginx: alpine плюс apk add openssl, секунды.
-            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build --pull nginx
-            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate
+            docker tag "$NGINX_IMAGE" "ghcr.io/${REPO_LOWER}-nginx:dev"
+            # Сохраняем локальное имя для ручного запуска Compose без NGINX_IMAGE.
+            docker tag "$NGINX_IMAGE" systemburo-nginx
+            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate --no-build
             # Образы из реестра тегированы по SHA и копятся по одному на деплой.
             # Оставляем текущий и метку dev, остальные сносим: на диске VPS тесно.
             # Уборка best-effort - занятый образ не удалится, и это не повод падать.
-            for image_repo in "${REPO_LOWER}-frontend" "${REPO_LOWER}-backend"; do
+            for image_repo in "${REPO_LOWER}-frontend" "${REPO_LOWER}-backend" "${REPO_LOWER}-nginx"; do
               docker images "ghcr.io/${image_repo}" --format '{{.Repository}}:{{.Tag}}' \
                 | grep -v ':dev$' | grep -v ':${{ github.sha }}$' \
                 | xargs -r docker rmi 2>/dev/null || true
@@ -335,7 +362,7 @@ jobs:
             wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
       - name: Sync staging branch
-        run: git push origin dev:staging
+        run: git push origin HEAD:refs/heads/staging
 
   ci-summary:
     name: CI Summary
