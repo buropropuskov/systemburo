@@ -16,6 +16,7 @@ import { MAIN_SECTIONS, ADMIN_GROUPS } from '@/constants/navSections';
 export function sectionTitleFor(route) {
   const inMain = MAIN_SECTIONS.find((s) => s.path === route);
   if (inMain) return inMain.label;
+  if (route === '/notification-settings') return 'Настройка уведомлений';
   for (const group of ADMIN_GROUPS) {
     const item = group.items.find((i) => i.path === route);
     if (item) return `${group.title}: ${item.label}`;

@@ -33,6 +33,11 @@ describe('главы тура', () => {
     expect(chapterOf(steps, 0).title).not.toBe('/news');
   });
 
+  it('настройка уведомлений названа так же, как страница, в том числе вне главного меню', () => {
+    const chapter = tourChapters(onboardingSteps).find(item => item.route === '/notification-settings');
+    expect(chapter?.title).toBe('Настройка уведомлений');
+  });
+
   it('прерваться предлагаем на последнем шаге главы', () => {
     expect(isChapterEnd(steps, 1)).toBe(true);
     expect(isChapterEnd(steps, 0)).toBe(false);
