@@ -1432,26 +1432,23 @@ export default {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   scrollbar-color: var(--nav-scrollbar) transparent;
 }
 
-/* Резервируем колонку под скролл-бар только в РАЗВЁРНУТОМ меню: когда пунктов
-   больше высоты экрана (напр. после добавления раздела «Оформление»), полоса
-   появляется в зарезервированном жёлобе, а не поверх правого края пунктов
-   (бейджи/стрелки ⌄→). Без этого overlay-бар Chrome рисуется на контенте, а
-   классический дёргает раскладку при появлении. В свёрнутом рельсе (50px) НЕ
-   резервируем - там пункты только иконки по центру, 5px-бар их не пересекает,
-   а жёлоб зря ужимал бы content-box (см. хрупкое центрирование рельса #510). */
+/* Вне телефона полоса скрыта: свободный жёлоб не должен сужать пункты меню.
+   На телефоне резервируем его только в развёрнутом drawer (правило ниже). */
 .nav-menu.expanded .nav-scroll {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 
-.nav-scroll::-webkit-scrollbar {
-  width: 5px;
+.nav-scroll::-webkit-scrollbar,
+.admin-column__scroll::-webkit-scrollbar {
+  width: 0;
 }
 
-.nav-scroll::-webkit-scrollbar-thumb {
+.nav-scroll::-webkit-scrollbar-thumb,
+.admin-column__scroll::-webkit-scrollbar-thumb {
   background: var(--nav-scrollbar);
   border-radius: 3px;
 }
@@ -1968,17 +1965,16 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   scrollbar-color: var(--nav-scrollbar) transparent;
 }
 
-.admin-column__scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.admin-column__scroll::-webkit-scrollbar-thumb {
-  background: var(--nav-scrollbar);
-  border-radius: 3px;
+/* Полоса нужна только на телефоне; колесо/тач/клавиатура работают на всех ширинах. */
+@media (max-width: 767.98px) {
+  .nav-scroll, .admin-column__scroll { scrollbar-width: thin; }
+  .nav-menu.expanded .nav-scroll { scrollbar-gutter: stable; }
+  .nav-scroll::-webkit-scrollbar { width: 5px; }
+  .admin-column__scroll::-webkit-scrollbar { width: 6px; }
 }
 
 .admin-group__title {
@@ -2140,8 +2136,7 @@ export default {
    заскоуплено на .expanded намеренно: свёрнутый рельс занижается так же, иначе
    высота пунктов прыгала бы при hover-разворачивании; центрирование иконки
    (padding-left) не задето (урок #510). Ниже ~800px меню длиннее окна и честно
-   скроллится - бар в зарезервированном жёлобе (scrollbar-gutter), не поверх
-   пунктов. */
+   скроллится, но полоса на десктопе скрыта и не занимает место у пунктов. */
 @media (min-width: 1367px) and (max-height: 880px) and (hover: hover) {
   .nav-item {
     min-height: 36px;
