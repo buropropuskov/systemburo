@@ -1442,11 +1442,13 @@ export default {
   scrollbar-gutter: auto;
 }
 
-.nav-scroll::-webkit-scrollbar {
+.nav-scroll::-webkit-scrollbar,
+.admin-column__scroll::-webkit-scrollbar {
   width: 0;
 }
 
-.nav-scroll::-webkit-scrollbar-thumb {
+.nav-scroll::-webkit-scrollbar-thumb,
+.admin-column__scroll::-webkit-scrollbar-thumb {
   background: var(--nav-scrollbar);
   border-radius: 3px;
 }
@@ -1965,15 +1967,6 @@ export default {
   padding: 4px 0;
   scrollbar-width: none;
   scrollbar-color: var(--nav-scrollbar) transparent;
-}
-
-.admin-column__scroll::-webkit-scrollbar {
-  width: 0;
-}
-
-.admin-column__scroll::-webkit-scrollbar-thumb {
-  background: var(--nav-scrollbar);
-  border-radius: 3px;
 }
 
 /* Полоса нужна только на телефоне; колесо/тач/клавиатура работают на всех ширинах. */
