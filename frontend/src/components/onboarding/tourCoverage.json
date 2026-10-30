@@ -424,6 +424,154 @@
     },
     "row-action-override": {
       "skip": "индивидуальный срок одной строки — исключение из общего срока вложения, доступное по отдельному праву. Основной тур показывает состав и срок вложения; конкретное окно с выбором политики разбирается в инструкции, а не запускается автоматически во время знакомства"
+    },
+    "own-passage-undo": {
+      "tour": "guard",
+      "step": "sec-pass-entry"
+    },
+    "post-passage-journal": {
+      "tour": "guard",
+      "step": "sec-table-instruction"
+    },
+    "report-builder-settings": {
+      "skip": "Конструктор аналитики имеет собственные столбцы, списки значений фильтров и период, включая «Весь период». Их назначение кратко объясняет admin-analytics; отдельный разбор каждой настройки мастера не включён в обзорный тур. Суточный отчёт поста этот конструктор не заменяет."
+    },
+    "document-open": {
+      "tour": "user",
+      "step": "documents"
+    },
+    "bureau-description-document": {
+      "skip": "Конкретный документ с описанием Бюро — публикация администрации, а не гарантированная часть интерфейса. Шаг documents показывает общий блок, сведения о файле и скачивание; отдельный тур по переменному составу публикаций не нужен."
+    },
+    "accessible-responsive-layout": {
+      "tour": "guard",
+      "step": "sec-aa-detail"
+    },
+    "tablet-touch-presentation": {
+      "skip": "Планшет не означает единственную раскладку: до 900 px список «Доступные мне» сменяется деталью, выше видны две колонки; phone-контролы имеют отдельный порог 767.98 px. Нажатие карточки и возврат объясняют sec-aa-card/sec-aa-detail; отдельный шаг про тип устройства не нужен, доступность по касанию проверяется визуально."
+    },
+    "existing-record-range-selection": {
+      "tour": "user",
+      "step": "createapp-car-existing"
+    },
+    "existing-employee-range-selection": {
+      "tour": "user",
+      "step": "createapp-people-existing"
+    },
+    "createapp-long-list-pagination": {
+      "skip": "Длинный состав бланка имеет поиск и страницы по 50 записей; 10 строк описывали высоту области, не текущий размер страницы. В выборе существующих машин/сотрудников список непрерывный, чтобы Shift-диапазон не разрезался страницами. Основное добавление объясняют createapp-car-form/createapp-people-form; отдельный шаг для стандартного пейджера не нужен."
+    },
+    "aa-search": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-type": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-org": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-company": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-completed": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-night": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-reset": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filter-btn": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-filters": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-sheet-type": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-sheet-org": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-sheet-company": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-sheet-completed": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-sheet-night": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-empty-reset": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-filters"
+    },
+    "aa-card": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-card"
+    },
+    "aa-detail-back": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-detail"
+    },
+    "aa-preview-blank": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-preview"
+    },
+    "aa-mark-executed": {
+      "owner": "src/components/AttachmentExecutionMark.vue",
+      "tour": "guard",
+      "step": "sec-aa-detail"
+    },
+    "aa-refresh": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "skip": "Обновление повторно читает текущий список и не меняет записи. Это стандартная кнопка экрана; раздел и его отборы объясняют sec-aa-intro/sec-aa-filters, отдельный шаг для повторного чтения не нужен."
+    },
+    "aa-load-more": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "skip": "«Показать ещё» подгружает следующую часть уже отобранного списка, не меняя вложения. Выбор карточки объясняет sec-aa-card; отдельный шаг для стандартной навигации длинного списка не нужен."
+    },
+    "ob-blank-preview": {
+      "owner": "src/views/AccessibleAttachmentsView.vue",
+      "tour": "guard",
+      "step": "sec-aa-blank"
+    },
+    "aa-mark-summary": {
+      "owner": "src/components/AttachmentExecutionMark.vue",
+      "skip": "Кнопка раскрывает недавние отметки исполнения выбранного вложения. Саму команду объясняет sec-aa-detail; отдельное раскрытие списка подтверждений не включено в обзор и не подменяет журнал проходов/проездов."
     }
   }
 }

@@ -1,10 +1,10 @@
 {
   "document": "admin",
-  "version": "1.21",
-  "pages": 81,
-  "code_revision": "6804492912cb86d09bca63e502ac36c4ec3123ac",
-  "source_sha256": "362f242b9363cfaf8e070d287169067b156c896ed6e8e0c2f7944c7b6c91af40",
-  "builder_sha256": "dd6811557d59e1f02bba8cf4e11785cf1cf7cf19fb95bc8af30e6384d3e360ea",
-  "docx_sha256": "6c7a1805907c3ab04fce8ec785d5af4d832fbd70b73cb9818078e8656222eebb",
-  "pdf_sha256": "2e8e2da96dd1b6d2064cc9aff054fe683e2c9aed533f612a0583cb20c87a8fc9"
+  "version": "1.22",
+  "pages": 82,
+  "code_revision": "0f7bb9cd0ec624eba98307ca9fe834de55ac5900",
+  "source_sha256": "77e6ca31071555917499ebea3e37d532abba3a079680bb3f71e701d67f2ef9b8",
+  "builder_sha256": "3f0b93256beed66b5a7530c939931d1ddb6f3153d87f40cb025901ab510a7a9b",
+  "docx_sha256": "cc3b27c0beea31254b9c0182592b302cdd499be28e279c9cb7a20ba2b283aabb",
+  "pdf_sha256": "05e31f205e0a9b4aefe8b4b008b5a0dea77f2c8426e449c4779575136865b782"
 }

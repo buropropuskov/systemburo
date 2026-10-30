@@ -13,6 +13,7 @@
         >{{ total }}</span>
         <div class="header-controls">
           <RefreshButton
+            data-testid="aa-refresh"
             :loading="listLoading"
             @refresh="refresh"
           />
@@ -173,7 +174,8 @@
       <div
         class="content-container"
         data-ob-owner="accessible-detail"
-        v-bind="detailOwnerAttributes"
+        :data-ob-state="detailOwnerAttributes['data-ob-state']"
+        :data-ob-blank="detailOwnerAttributes['data-ob-blank']"
         @onboarding-retry.prevent="retryDetail"
       >
         <!-- Список вложений -->
@@ -288,6 +290,7 @@
 
           <AccessibleAttachmentsEmptyState
             v-else
+            data-onboarding-action="aa-empty-reset"
             :has-active-filters="hasActiveFilters"
             @reset="resetFilters"
           />
@@ -296,7 +299,6 @@
             Всего: {{ total }}
           </div>
         </div>
-
         <!-- Деталь вложения -->
         <div
           v-if="selectedId !== null"
@@ -384,9 +386,7 @@
                 @marked="refreshDetail(detail.attachment.attachment_id)"
               />
 
-              <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values - эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
-              <!-- Карточку машины/сотрудника здесь не открываем: обработчиков нет,
-                   поэтому строка не должна выглядеть кликабельной (#1392). -->
+              <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values; карточки записей здесь не открываются, строки не кликабельны (#1392). -->
               <ApplicationAttachmentDetail
                 :attachment="detail.attachment"
                 :cars="detail.cars || []"
