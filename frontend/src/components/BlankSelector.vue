@@ -772,9 +772,7 @@ export default {
 </script>
 
 <style scoped>
-/* Панель - карточка на фоне страницы, поэтому несёт --surface. Без своего фона сквозь
-   неё светил --bg, а полоса кнопок ниже (у неё фон есть, он перекрывает уезжающий под
-   неё список) читалась серой заплатой поверх тёмной панели. */
+/* Панель несёт свой фон; стеклянная тема уточняет его через --glass-panel. */
 .selector {
     width: 200px;
     flex-shrink: 0;
@@ -809,7 +807,7 @@ export default {
     gap: 8px;
     flex-direction: column;
     margin-top: 10px;
-    background: var(--surface);
+    background: transparent;
     z-index: 10;
 }
 
