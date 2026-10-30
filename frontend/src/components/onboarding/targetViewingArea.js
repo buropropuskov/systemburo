@@ -11,6 +11,8 @@ export function targetViewingArea(element) {
     bottom: Math.min(view.innerHeight, (viewport?.offsetTop || 0) + (viewport?.height || view.innerHeight)) };
   for (let node = element?.parentElement; node && node !== view.document.body && node !== view.document.documentElement; node = node.parentElement) {
     const style = view.getComputedStyle(node);
+    // A boxless wrapper cannot clip its rendered children to its zero rectangle.
+    if (style.display === 'contents') continue;
     const clipX = clips(style.overflowX || style.overflow), clipY = clips(style.overflowY || style.overflow);
     if (!clipX && !clipY) continue;
     const rect = box(node.getBoundingClientRect());
@@ -46,7 +48,9 @@ export function correctTargetScroll(element) {
   if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) return;
   const view = element.ownerDocument?.defaultView || window;
   for (let node = element.parentElement; node && node !== view.document.body && node !== view.document.documentElement; node = node.parentElement) {
-    const style = view.getComputedStyle(node), bounds = node.getBoundingClientRect();
+    const style = view.getComputedStyle(node);
+    if (style.display === 'contents') continue;
+    const bounds = node.getBoundingClientRect();
     const sx = node.offsetWidth > 0 ? bounds.width / node.offsetWidth : 1;
     const sy = node.offsetHeight > 0 ? bounds.height / node.offsetHeight : 1;
     const x = clips(style.overflowX || style.overflow) && node.scrollWidth > node.clientWidth ? dx / sx : 0;

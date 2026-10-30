@@ -14,7 +14,7 @@ import { createTourDemoData } from '@/components/onboarding/tourDemoData';
 import { createProgressTracker } from '@/components/onboarding/tourProgress';
 import { createTourStatus } from '@/components/onboarding/tourStatus';
 import { createActiveStepSet, applicableTourSteps } from '@/components/onboarding/activeStepSet';
-import { readTourContext } from '@/components/onboarding/tourContext';
+import { createTourContext } from '@/components/onboarding/tourContext';
 import { createContextReadiness, factPolicyKey } from '@/components/onboarding/contextReadiness';
 
 /**
@@ -98,7 +98,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    * Плоский снимок прав и ролей для гейтинга туров - реестр работает с ним, а не
    * с Pinia напрямую, поэтому правила доступности проверяются как чистые функции.
    */
-  const tourContext = computed(() => readTourContext(useAuthStore(), usePermissionsStore(), {
+  const tourContext = createTourContext(useAuthStore, usePermissionsStore, () => ({
     approvalRole, factTableRoute, hasOwnApplication, securityPostContext,
     userTypeCode: contextReady.knownType(), factRouteLoaded,
     accessibleContext,

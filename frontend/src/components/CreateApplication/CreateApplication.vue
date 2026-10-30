@@ -1475,10 +1475,9 @@ export default {
                 this.customFieldDefinitions[uniqueAttachmentId] = Array.isArray(data?.custom) ? data.custom : [];
             } catch {
                 // Конфиг недоступен (сеть/транзиентная ошибка) - деградируем к дефолту:
-                // дефолт = все поля видимы, обязательность как сейчас (спека #529). Пустой
-                // объект falsy -> следующий выбор вложения повторит запрос.
-                this.fieldConfigByAttachment[uniqueAttachmentId] = {};
-                this.customFieldDefinitions[uniqueAttachmentId] = [];
+                // дефолт = все поля видимы, обязательность как сейчас (спека #529).
+                // Ошибку не кэшируем; успешный параллельный результат сохраняем.
+                if (!this.fieldConfigByAttachment[uniqueAttachmentId]) this.customFieldDefinitions[uniqueAttachmentId] = [];
             }
         },
 
