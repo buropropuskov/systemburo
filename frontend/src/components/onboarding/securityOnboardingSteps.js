@@ -135,8 +135,8 @@ export const securityOnboardingSteps = [
     id: 'sec-aa-intro',
     dataOwner: 'accessible-list',
     route: '/accessible-attachments',
-    // Подсвечиваем сам список: центр-модалка без цели читалась как «тур завис».
-    element: '[data-testid="aa-list"]',
+    // Подсвечиваем список или его пустое состояние: центр читался как «тур завис».
+    element: '[data-testid="aa-list"], [data-testid="aa-empty"]',
     optional: true,
     scrollTo: 'start',
     title: 'Раздел «Доступные мне»',
