@@ -495,7 +495,10 @@ describe('сегмент карточки заявки (#1740)', () => {
         <button data-testid="app-detail-button-supplement"></button>
         <button data-testid="app-detail-button-download"></button>
         <button data-testid="ob-detail-revoke"></button>`);
-      detailSteps.forEach((s) => expect(document.querySelector(s.element), s.id).not.toBe(null));
+      detailSteps.filter((s) => s.element).forEach((s) => expect(document.querySelector(s.element), s.id).not.toBe(null));
+      expect(detailSteps.filter((s) => !s.element).map((s) => s.id)).toEqual([
+        'detail-status-section',
+      ]);
     });
   });
 });
@@ -542,11 +545,15 @@ describe('шаги, добавленные срезом S4 (#1740)', () => {
     'createapp-submit',
   ];
 
-  it('все новые шаги на месте и целятся по data-testid (их стережёт tourSelectors.spec)', () => {
+  it('новые шаги сохраняют якоря; условное объяснение не обещает отсутствующий блок', () => {
     NEW_IDS.forEach((id) => {
       const step = byId(id);
       expect(step, id).toBeDefined();
-      expect(step.element, id).toMatch(/^\[data-testid="[^"]+"\]$/);
+      if (id === 'detail-status-section') {
+        expect(step.element, id).toBeNull();
+      } else {
+        expect(step.element, id).toMatch(/^\[data-testid="[^"]+"\]$/);
+      }
     });
   });
 

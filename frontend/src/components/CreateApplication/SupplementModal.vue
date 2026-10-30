@@ -596,10 +596,10 @@ export default {
         // Общий с подачей конфиг GET /attachments/{uaId}/field-config:
         // обязательные документы проверяются до отправки дополнения.
         async loadFieldConfig(uniqueAttachmentId) {
-            if (this.fieldConfigByAttachment[uniqueAttachmentId]) return;
-            // Быстрое переключение вложений пускает несколько загрузок; пишем только
-            // ответ последнего выбора, иначе форма покажет чужую настройку.
             const seq = ++this.fieldConfigSeq;
+            if (this.fieldConfigByAttachment[uniqueAttachmentId]) { this.loadingFieldConfig = false; return; }
+            // Конфиги храним по ID; индикатор завершает только последний запрос,
+            // чтобы запоздалый ответ не менял состояние уже выбранной формы.
             this.loadingFieldConfig = true;
             try {
                 const { getFieldConfig } = await import('@/api/attachment-templates');
@@ -616,9 +616,8 @@ export default {
                 });
                 this.fieldConfigByAttachment[uniqueAttachmentId] = map;
             } catch {
-                // Конфиг недоступен - деградируем к дефолту (все поля видимы), как в подаче.
-                // Пустой объект falsy для проверки выше -> следующий выбор повторит запрос.
-                this.fieldConfigByAttachment[uniqueAttachmentId] = {};
+                // Конфиг недоступен - используем дефолт, но ошибку не кэшируем.
+                // Уже успешный параллельный ответ сохраняем, в том числе пустой {}.
             } finally {
                 if (seq === this.fieldConfigSeq) this.loadingFieldConfig = false;
             }

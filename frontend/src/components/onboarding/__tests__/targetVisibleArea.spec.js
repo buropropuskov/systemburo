@@ -15,6 +15,33 @@ beforeEach(() => {
 });
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 describe('actual target viewing area', () => {
+  it('does not turn a boxless inline dropdown into a zero-sized clipping area', () => {
+    const contents = target({ top: 0, left: 0, width: 0, height: 0 });
+    contents.style.display = 'contents';
+    contents.style.overflowX = 'hidden';
+    contents.style.overflowY = 'hidden';
+    const button = target({ top: 60, left: 780, width: 140, height: 34 }, contents);
+    expect(isTargetInView(button)).toBe(true);
+  });
+  it('keeps real ancestor clipping and scroll correction through a boxless wrapper', async () => {
+    const parent = target({ top: 100, left: 20, width: 400, height: 200 });
+    parent.style.overflowY = 'auto';
+    Object.defineProperties(parent, { scrollHeight: { value: 1000 }, clientHeight: { value: 200 } });
+    const contents = target({ top: 0, left: 0, width: 0, height: 0 }, parent);
+    contents.style.display = 'contents';
+    contents.style.overflowX = 'hidden';
+    contents.style.overflowY = 'hidden';
+    const rect = { top: 350, left: 40, width: 100, height: 50 };
+    const button = target(rect, contents);
+    parent.scrollBy = vi.fn(({ top }) => { rect.top -= top; });
+    expect(isTargetInView(button)).toBe(false);
+    const pending = ensureInView(button);
+    const result = expect(pending).resolves.toBe(true);
+    await vi.advanceTimersByTimeAsync(1300);
+    await result;
+    expect(parent.scrollBy).toHaveBeenCalledExactlyOnceWith({ left: 0, top: 100, behavior: 'instant' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('rejects targets below visual viewport despite fitting layout viewport', () => {
     vi.stubGlobal('visualViewport', { width: 1024, height: 420, offsetLeft: 0, offsetTop: 0 });
     expect(isTargetInView(target({ top: 500, left: 20, width: 200, height: 100 }))).toBe(false);

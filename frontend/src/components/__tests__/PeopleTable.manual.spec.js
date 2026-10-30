@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 vi.mock('@/services/eventStream', () => ({
@@ -12,6 +12,8 @@ vi.mock('@/services/eventStream', () => ({
 }));
 
 import PeopleTable from '../PeopleTable.vue';
+
+enableAutoUnmount(afterEach);
 
 const previewFields = [
   { field_name: 'last_name', is_visible: true, display_order: 0 },

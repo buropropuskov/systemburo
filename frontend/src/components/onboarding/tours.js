@@ -1,4 +1,5 @@
 import { onboardingSteps, ONBOARDING_VERSION } from './onboardingSteps';
+import { buildUserSteps } from './userResponsiveSteps';
 import { securityOnboardingSteps, SECURITY_ONBOARDING_VERSION } from './securityOnboardingSteps';
 import { buildSecurityFactSteps, buildSecurityFinalStep } from './securityFactSteps';
 import { approveOnboardingSteps, APPROVE_ONBOARDING_VERSION } from './approveOnboardingSteps';
@@ -36,6 +37,7 @@ export const TOURS = [
     description: 'Разделы системы, свои справочники и оформление заявки',
     version: ONBOARDING_VERSION,
     steps: onboardingSteps,
+    buildSteps: buildUserSteps,
     isAvailable: (ctx) => ctx.isAuthenticated,
     autostartPriority: 5,
   },

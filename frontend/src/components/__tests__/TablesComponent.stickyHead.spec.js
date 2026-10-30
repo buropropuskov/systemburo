@@ -5,9 +5,9 @@ import { describe, it, expect } from 'vitest';
 const SFC = readFileSync(resolve(__dirname, '../TablesComponent.vue'), 'utf8');
 
 /** Тело мобильного правила для селектора, без учёта переносов. */
-function mobileRule(selector) {
+function mobileRule(selector, source = SFC) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const found = SFC.match(new RegExp(`\\s{4}${escaped}\\s*\\{([^}]*)\\}`));
+  const found = source.match(new RegExp(`^[ \t]{4}${escaped}\\s*\\{([^}]*)\\}`, 'm'));
   return found ? found[1].replace(/\s+/g, ' ').trim() : null;
 }
 
@@ -52,4 +52,15 @@ describe('TablesComponent — закреплённая шапка страниц
     expect(mobileRule('.tables__filters'), 'линия осталась и на фильтрах - будет двойная')
       .toMatch(/border-bottom:\s*none/);
   });
+});
+
+// Переносы Windows не должны превращать пустые строки перед desktop-правилом
+// в отступ мобильного селектора. Проверяем оба формата исходного файла.
+it.each([['LF', '\n'], ['CRLF', '\r\n']])('различает отступы и переносы строк (%s)', (_name, newline) => {
+  const css = [
+    '', '', '.probe { border-bottom: 1px solid black; }',
+    '@media (max-width: 767.98px) {',
+    '    .probe { border-bottom: none; }', '}',
+  ].join(newline);
+  expect(mobileRule('.probe', css)).toBe('border-bottom: none;');
 });
