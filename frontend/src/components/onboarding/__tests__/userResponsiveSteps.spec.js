@@ -23,6 +23,7 @@ describe('user download lesson follows the real responsive entry point', () => {
     const download = steps.find(step => step.id === 'cabinet-download');
     expect(download.element).toBeNull();
     expect(download.description).toContain('шапке карточки');
+    expect(download.description).toContain('если для её вложений настроены бланки');
     expect(onboardingSteps.find(step => step.id === download.id).element).toBe('[data-testid="ob-application-download"]');
   });
 

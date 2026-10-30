@@ -19,7 +19,10 @@ export const cabinetApplicationSteps = [
       'Кнопка «Скачать» в строке заявки открывает окно «Актуальные бланки»: заполненные бланки можно взять по одному или все разом. Она есть только у заявок, для вложений которых бланки настроены.',
     // Кнопки нет у заявок без бланков; на телефоне её убрали из строки - там
     // скачивание живёт в самой карточке.
-    optional: true,
+    dataPrerequisite: 'cabinet-list',
+    dataOwner: 'cabinet-list',
+    dataAvailability: 'blank',
+    optional: false,
     side: 'left',
   },
   {

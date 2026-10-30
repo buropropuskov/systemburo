@@ -65,9 +65,15 @@ describe('starting from a selected section', () => {
     expect(localStorage.getItem('ob:progress:101:user')).toBe(saved);
     expect(markOnboardingComplete).not.toHaveBeenCalled();
   });
-  it('treats starting at the actual first step as a full run', () => {
+  it('does not mark the full tour when the first chapter is selected explicitly', () => {
     const id = store.stepsForTour('user')[0].id;
     store.start({ tour: 'user', manual: true, restart: true, fromStepId: id });
+    expect(store.partialRun).toBe(true); expect(store.currentIndex).toBe(0);
+    store.markCompleted(true);
+    expect(markOnboardingComplete).not.toHaveBeenCalled(); expect(store.hasFinished('user')).toBe(false);
+  });
+  it('keeps an explicit full restart eligible for completion', () => {
+    store.start({ tour: 'user', manual: true, restart: true });
     expect(store.partialRun).toBe(false); expect(store.currentIndex).toBe(0);
     store.markCompleted(true);
     expect(markOnboardingComplete).toHaveBeenCalledOnce(); expect(store.hasFinished('user')).toBe(true);

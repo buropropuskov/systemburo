@@ -1,12 +1,16 @@
 <template>
-  <div class="applications-card">
+  <div
+    class="applications-card"
+    data-ob-owner="cabinet-list"
+    :data-ob-state="!hasApplicationsScope || isLoading || listLoading ? 'loading' : listError ? 'error' : 'ready'"
+    :data-ob-blank="filteredApplications.some(application => application.has_blank_template) ? 'ready' : 'empty'"
+    @onboarding-retry.prevent="retryApplicationsList"
+  >
     <div class="card-header">
       <div class="card-header__title">
         <h3 class="card-title">
           Список заявок
         </h3>
-        
-        <!-- Фильтр Мои/Организации - один выпадающий список (было 2 таба - каша). -->
         <BaseDropdown
           class="cabinet__filter-dropdown"
           :model-value="currentFilter"
@@ -15,11 +19,7 @@
           label-key="label" :menu-min-width="210" :teleport="true"
           @update:model-value="setFilter"
         />
-
-        <!-- Чип "Обновления" (#1349): серверный фильтр status_updated=true (только
-             заявки с обновлённым статусом) + счётчик из отдельного эндпоинта ЛК.
-             Переиспользуем пилюлю .filter-tab (была под 2 таба Мои/Организации,
-             заменённые дропдауном - стиль остался). -->
+        <!-- Обновления: серверный status_updated=true и отдельный счётчик ЛК (#1349). -->
         <button
           type="button"
           class="filter-tab"

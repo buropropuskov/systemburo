@@ -105,4 +105,54 @@ describe('UserApplications — scope владельца до ответа /users
     expect(params.organization_id).toBe(3);
     expect(params.sender_user_id).toBeUndefined();
   });
+
+  it('публикует готовность списка только после ответа, а не по отсутствию кнопки', async () => {
+    useAuthStore().token = tokenWith({ user_id: 7 });
+    let resolvePage;
+    getUserApplicationsPaginated.mockImplementationOnce(() => new Promise(resolve => { resolvePage = resolve; }));
+    wrapper = mountUA({ userId: 7 });
+    await flushPromises();
+    expect(wrapper.attributes('data-ob-owner')).toBe('cabinet-list');
+    expect(wrapper.attributes('data-ob-state')).toBe('loading');
+    resolvePage({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
+    await flushPromises();
+    expect(wrapper.attributes('data-ob-state')).toBe('ready');
+    expect(wrapper.attributes('data-ob-blank')).toBe('empty');
+  });
+
+  it('не считает неизвестного владельца готовым пустым списком', async () => {
+    useAuthStore().token = tokenWith({ username: 'learner' });
+    wrapper = mountUA({ userId: null });
+    await flushPromises();
+    expect(wrapper.attributes('data-ob-state')).toBe('loading');
+    expect(getUserApplicationsPaginated).not.toHaveBeenCalled();
+  });
+
+  it('отражает бланки показанных строк и их скрытие фильтром даты', async () => {
+    useAuthStore().token = tokenWith({ user_id: 7 });
+    getUserApplicationsPaginated.mockResolvedValueOnce({
+      items: [{ id: 71, application_number: '20401030/001', sending_datetime: '2040-10-30T12:00:00', status: 'На согласовании', has_blank_template: true }],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    wrapper = mountUA({ userId: 7 });
+    await flushPromises();
+    expect(wrapper.attributes('data-ob-state')).toBe('ready');
+    expect(wrapper.attributes('data-ob-blank')).toBe('ready');
+    await wrapper.setData({ selectedDate: '2040-10-31' });
+    expect(wrapper.attributes('data-ob-blank')).toBe('empty');
+  });
+
+  it('оставляет ошибку видимой и повторяет штатное чтение по команде тура', async () => {
+    useAuthStore().token = tokenWith({ user_id: 7 });
+    getUserApplicationsPaginated.mockRejectedValueOnce(new Error('List unavailable'));
+    wrapper = mountUA({ userId: 7 });
+    await flushPromises();
+    expect(wrapper.attributes('data-ob-state')).toBe('error');
+    const retry = new CustomEvent('onboarding-retry', { cancelable: true });
+    wrapper.element.dispatchEvent(retry);
+    await flushPromises();
+    expect(retry.defaultPrevented).toBe(true);
+    expect(getUserApplicationsPaginated).toHaveBeenCalledTimes(2);
+    expect(wrapper.attributes('data-ob-state')).toBe('ready');
+  });
 });
