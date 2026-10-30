@@ -3,6 +3,7 @@ import coverage from '../tourCoverage.json';
 import { TOURS, allTourSteps, buildTourSteps } from '../tours';
 import { MAIN_SECTIONS, ADMIN_GROUPS } from '@/constants/navSections';
 import { authRoutePaths } from './routerGates';
+import { AA_ACTION_OWNERS } from './helpers/tourActionCoverage';
 
 /**
  * Замок реестра покрытия туров: новый роут или пункт меню обязан получить решение -
@@ -45,6 +46,11 @@ function isCovered(entry) {
 }
 
 describe('реестр покрытия туров - форма записей', () => {
+  it('owner действий относится к явно ограниченному набору AST-проверки', () => {
+    for (const [id, entry] of Object.entries(elementEntries)) {
+      if (entry.owner !== undefined) expect(AA_ACTION_OWNERS, id).toContain(entry.owner);
+    }
+  });
   it('исходники прочитаны, иначе тест зелёный впустую', () => {
     expect(authRoutePaths().length).toBeGreaterThan(20);
     expect(stepIds.size).toBeGreaterThan(50);
