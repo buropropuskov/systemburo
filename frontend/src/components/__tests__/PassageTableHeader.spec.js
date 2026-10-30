@@ -5,7 +5,7 @@ import PassageTableHeader from '../PassageTableHeader.vue';
 import RefreshButton from '../RefreshButton.vue';
 
 const observers = [], wrappers = [];
-let mountedCommands;
+let mountedCommands, sizes;
 const Tools = defineComponent({
   name: 'PassageTableTools', emits: ['available', 'clock', 'refresh'],
   setup(_, { emit }) { onMounted(() => emit('available', false)); return () => null; },
@@ -21,6 +21,7 @@ const create = (props = {}) => {
       commands: () => h(Commands), extra: '<span data-testid="extra">Поиск в версии</span>' },
     global: { stubs: { PassageTableTools: Tools } },
   });
+  w.element.style.cssText = 'gap:12px;padding:8px 20px';
   wrappers.push(w); return w;
 };
 async function resize(w, width) {
@@ -31,13 +32,56 @@ async function resize(w, width) {
 describe('internal passage table header', () => {
   beforeEach(() => {
     mountedCommands = 0;
+    sizes = { title: 300, counter: 150, extra: 150, commands: 500 };
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function () {
+      return this.classList.contains('passage-table-header__full-title') ? sizes.title : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function () {
+      if (this.classList.contains('passage-table-header__counter')) return sizes.counter;
+      if (this.classList.contains('passage-table-header__refresh')) return 100;
+      if (this.classList.contains('passage-table-commands')) return sizes.commands;
+      return this.dataset.testid === 'extra' ? sizes.extra : 0;
+    });
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
       observe(target) { this.target = target; }
       disconnect() { this.disconnected = true; }
     });
   });
-  afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); observers.splice(0); vi.unstubAllGlobals(); });
+  afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); observers.splice(0); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  it('fits the short fact composition below 1300 rather than compacting every card', async () => {
+    sizes = { title: 180, counter: 0, extra: 0, commands: 180 };
+    const w = create({ hasSettings: false });
+    await resize(w, 560);
+    expect(w.classes()).not.toContain('passage-table-header--compact');
+    w.findComponent(Tools).vm.$emit('available', true); await flushPromises();
+    expect(w.classes()).not.toContain('passage-table-header--compact');
+    await resize(w, 490);
+    expect(w.classes()).toContain('passage-table-header--compact');
+  });
+  it('remeasures changed commands at the same width and preserves an already open menu when still compact', async () => {
+    const w = create(); await resize(w, 900);
+    await w.get('button[aria-label="Действия таблицы"]').trigger('click');
+    const dropdown = w.find('.passage-table-header__menu');
+    const button = w.findComponent(Commands).get('button').element;
+    button.focus();
+    sizes.commands = 600;
+    await w.setProps({ title: 'Новое название' }); await flushPromises();
+    expect(dropdown.attributes('data-dropdown-open')).toBe('true');
+    expect(document.activeElement).toBe(button);
+    expect(mountedCommands).toBe(1);
+    sizes.commands = 0;
+    await w.setProps({ hasSettings: false }); await flushPromises();
+    expect(w.classes()).not.toContain('passage-table-header--compact');
+  });
+  it('ignores height-only ResizeObserver notifications without changing popup state', async () => {
+    const w = create(); await resize(w, 768);
+    await w.get('button[aria-label="Действия таблицы"]').trigger('click');
+    const observer = observers.find(o => o.target === w.element);
+    observer.callback([{ contentRect: { width: 768, height: 99 } }]); await flushPromises();
+    expect(w.find('.passage-table-header__menu').attributes('data-dropdown-open')).toBe('true');
+    expect(mountedCommands).toBe(1);
+  });
   it('uses the table width even on a wide viewport and keeps counter/refresh outside the menu', async () => {
     vi.stubGlobal('innerWidth', 2496);
     const w = create(); await resize(w, 390);
@@ -88,6 +132,12 @@ describe('internal passage table header', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await flushPromises();
     expect(document.activeElement).toBe(w.get('button[aria-label="Действия таблицы"]').element);
+  });
+  it('moves focus from the disappearing trigger to inline commands on expansion', async () => {
+    const w = create(); await resize(w, 768);
+    w.get('button[aria-label="Действия таблицы"]').element.focus();
+    await resize(w, 1500);
+    expect(document.activeElement).toBe(w.findComponent(Commands).get('button').element);
   });
   it('preserves preview actions without mounting live tools or refresh', async () => {
     const w = create({ preview: true }); await resize(w, 390);

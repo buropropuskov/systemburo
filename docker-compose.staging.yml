@@ -19,6 +19,8 @@ services:
     image: ${FRONTEND_IMAGE:-ghcr.io/buropropuskov/systemburo-frontend:dev}
 
   nginx:
+    # Временная доставка из CI; build сохраняет локальную сборку без GHCR.
+    image: ${NGINX_IMAGE:-systemburo-nginx}
     networks:
       default: {}
       backend_proxy:
