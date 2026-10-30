@@ -181,7 +181,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     if (requested !== null && (!manual || requested < 0)) return false;
     activeTourKey.value = entry.key;
     isManual.value = manual;
-    partialRun.value = requested > 0;
+    partialRun.value = requested !== null;
     // Продолжаем с места, где человек остановился: обучение длинное, и начинать
     // заново после перерыва - значит бросить на середине. `restart` - явная просьба
     // из меню; досмотренный тур тоже начинаем с начала, продолжать в нём нечего, а
