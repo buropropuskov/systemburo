@@ -663,13 +663,13 @@ export default {
         };
 
         watch(showInstruction, (open) => {
-            setBodyScrollLock(this, open);
+            setBodyScrollLock(showInstruction, open);
         });
 
         onMounted(() => document.addEventListener('keydown', onKeydown));
         onBeforeUnmount(() => {
             document.removeEventListener('keydown', onKeydown);
-            releaseBodyScrollLock(this);
+            releaseBodyScrollLock(showInstruction);
         });
 
         const permissionsStore = usePermissionsStore();
