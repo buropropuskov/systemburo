@@ -674,7 +674,7 @@
           @mouseup="onAddOverlayMouseup"
         >
           <div
-            class="modal-content"
+            class="modal-content unload-place-modal"
             @mousedown.stop
             @click.stop
           >
