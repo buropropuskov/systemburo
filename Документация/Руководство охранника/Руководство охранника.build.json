@@ -1,10 +1,10 @@
 {
   "document": "guard",
-  "version": "2.6",
+  "version": "2.7",
   "pages": 22,
-  "code_revision": "0f7bb9cd0ec624eba98307ca9fe834de55ac5900",
-  "source_sha256": "1b3bd23fbc76a350e57b6e5fef67f29876832c8f65dc46c558657e9b1f3c5504",
-  "builder_sha256": "3f0b93256beed66b5a7530c939931d1ddb6f3153d87f40cb025901ab510a7a9b",
-  "docx_sha256": "fe0804d499b294861eae8f7c85e960dea7bea7f72f1428de62ad6ae006e99560",
-  "pdf_sha256": "9ece05aaadc48a8ec8183aaa72ef7192f0b18c2a558845b912170e9f60e4a766"
+  "code_revision": "614da8f35aed1a1eed3cb2f0bf6e884b008de74e",
+  "source_sha256": "70869611a39dc2990b3ddcfc563e1841643f44124de9e6a33facfabe46061e72",
+  "builder_sha256": "73ab5b7c3a727147cee0ef8d2af50e511e85a794de6df09cdfcdafad4e9393ae",
+  "docx_sha256": "c918f74e0c33c772639b2f03d02b022957d879b11e662722c0133df4b82c43b8",
+  "pdf_sha256": "8d9f68764df4351d1a7916214a2d1aad9ae9b8861aa4885a562e7e378dcfd432"
 }
