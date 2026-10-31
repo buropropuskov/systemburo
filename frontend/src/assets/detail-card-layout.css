@@ -17,6 +17,32 @@
     pointer-events: auto;
 }
 
+/* На планшете два окна рядом не помещаются. Вложенное окно перекрывает карточку,
+   сохраняя её положение и ширину; анимация по-прежнему принадлежит transition. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .modal-content.main-modal {
+        height: min(450px, 90dvh);
+    }
+
+    .modal-content.main-modal.shifted {
+        transform: translateX(0);
+    }
+
+    .modal-content.main-modal > .modal-body {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .place-modal-container {
+        inset: 0;
+        margin: auto;
+        width: min(550px, calc(100% - 32px));
+        height: min(450px, 90dvh);
+        z-index: 1;
+    }
+}
+
 @media (min-width: 1280px) {
     .modal-content.main-modal {
         width: 600px;
