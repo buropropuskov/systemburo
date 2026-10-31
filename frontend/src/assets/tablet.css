@@ -735,3 +735,20 @@
     inset: -4px 0;
   }
 }
+/* На невысоком экране форма места не должна выталкивать кнопки за край окна.
+   Высоту делит flex-контейнер; прокручивается тело, а не неподвижный футер. */
+@media (max-height: 600px) {
+  .unload-place-modal {
+    display: flex;
+    flex-direction: column;
+    max-height: 90dvh;
+  }
+
+  .unload-place-modal > :is(.modal-header, .modal-footer) {
+    flex-shrink: 0;
+  }
+
+  .unload-place-modal > .modal-body {
+    min-height: 0;
+  }
+}
