@@ -752,3 +752,47 @@
     min-height: 0;
   }
 }
+/* В расширенном реестре семь колонок. Заголовок и строки используют одинаковые
+   минимумы; горизонтально прокручивается один общий контейнер, а не вся страница.
+   Обычные списки с меньшим количеством колонок сохраняют прежнюю раскладку. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  :is(.employeesview, .carsview) .card-content.registry-table--wide {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .employeesview .registry-table--wide :is(.header-row, .employees-body) {
+    min-width: 902px;
+  }
+
+  .carsview .registry-table--wide :is(.header-row, .cars-body) {
+    min-width: 792px;
+  }
+
+  .card-content.registry-table--wide :is(.employees-body, .cars-body) {
+    overflow-x: hidden;
+  }
+
+  .registry-table--wide .registry-table-summary {
+    position: sticky;
+    left: 20px;
+    display: inline-block;
+  }
+
+  .employeesview .registry-table--wide :is(.header-row, .employee-row) {
+    display: grid;
+    grid-template-columns: 48px minmax(200px, 2fr) minmax(150px, 1.5fr) 136px minmax(120px, 1fr) minmax(120px, 1fr) 112px;
+    padding-inline: 8px;
+  }
+
+  .carsview .registry-table--wide :is(.header-row, .car-row) {
+    display: grid;
+    grid-template-columns: 48px minmax(120px, 1fr) minmax(120px, 1fr) 136px minmax(120px, 1fr) minmax(120px, 1fr) 112px;
+    padding-inline: 8px;
+  }
+
+  :is(.employeesview, .carsview) .registry-table--wide :is(.header-col, .employee-col, .car-col) {
+    width: auto;
+    min-width: 0;
+  }
+}

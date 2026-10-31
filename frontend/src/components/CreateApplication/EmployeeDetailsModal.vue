@@ -1655,13 +1655,6 @@ export default {
         transform: none !important;
     }
     
-    .place-modal-container {
-        width: 90%;
-        left: 5%;
-        height: auto;
-        max-height: 80dvh;
-    }
-    
     .modal-header {
         padding: 6px 16px;
         flex-wrap: wrap;
