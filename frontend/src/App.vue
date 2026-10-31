@@ -583,12 +583,12 @@ body.nav-drawer-open {
 /* Поля обоих семейств окон: iOS увеличивает страницу при фокусе текста мельче
    16px. Сенсорный планшет нуждается в этом и в альбомной ориентации >900px. */
 @media (max-width: 899.98px), (pointer: coarse) {
-  :is(.modal-content, .base-modal) input:where(
+  :is(.modal-overlay, .base-modal-overlay, .rpm-overlay, .gpm-overlay) input:where(
     :not([type]), [type="text"], [type="search"], [type="email"], [type="password"],
     [type="tel"], [type="url"], [type="number"], [type="date"], [type="time"], [type="datetime-local"]
   ),
-  :is(.modal-content, .base-modal) textarea,
-  :is(.modal-content, .base-modal) select {
+  :is(.modal-overlay, .base-modal-overlay, .rpm-overlay, .gpm-overlay) textarea,
+  :is(.modal-overlay, .base-modal-overlay, .rpm-overlay, .gpm-overlay) select {
     font-size: 16px !important;
   }
 }
