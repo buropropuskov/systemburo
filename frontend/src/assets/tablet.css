@@ -771,9 +771,9 @@
 
   .card-content.registry-table--wide :is(.employees-body, .cars-body) {
     overflow-x: hidden;
-    /* Горизонтальный жест из строк передаётся общему контейнеру таблицы.
-       Вертикальное ограничение прокрутки тела сохраняется. */
-    overscroll-behavior-x: auto;
+    /* Из строк горизонтальный жест передаётся общему контейнеру таблицы,
+       а вертикальный — странице с длинным списком. */
+    overscroll-behavior: auto;
   }
 
   .registry-table--wide .registry-table-summary {
