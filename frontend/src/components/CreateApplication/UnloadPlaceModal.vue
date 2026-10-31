@@ -630,7 +630,7 @@ export default {
 <style scoped>
 .modal-content-inner {
     width: 100%;
-    height: 450px;
+    height: 100%;
     display: flex;
     flex-direction: column;
     background: var(--surface);
