@@ -50,14 +50,14 @@ describe('open passage real modal #2667', () => {
     listOpenPassages.mockReset().mockResolvedValue(result()); closeOpenPassage.mockReset(); revertPassageCorrection.mockReset();
   });
   afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); vi.useRealTimers(); });
-  it('loads current table attention by default using real project controls without autofocus', async () => {
+  it('loads current table attention with dialog focus and without input autofocus', async () => {
     const wrapper = create(); await flushPromises();
     expect(listOpenPassages).toHaveBeenCalledWith('car', 4, { source: 'table', attentionOnly: true, expiredOnly: false, view: 'open', search: '', organizationID: null, page: 1, perPage: 25 });
     expect(wrapper.text()).toContain('Незакрытых: 3');
     expect(wrapper.text()).toContain('49 ч 0 мин');
     expect(wrapper.find('[autofocus]').exists()).toBe(false);
     expect(wrapper.findAllComponents(BaseDropdown).every(dropdown => !dropdown.vm.isOpen)).toBe(true);
-    expect(document.activeElement.tagName).toBe('BODY');
+    expect(document.activeElement).toBe(wrapper.get('.base-modal').element);
   });
   it('uses all/open and corrections as distinct server-listed filters, with no local correction rows', async () => {
     const wrapper = create(); await flushPromises();

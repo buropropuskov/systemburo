@@ -140,6 +140,7 @@
 import { getViewportZoom } from '@/utils/viewportScale';
 import { wholeItemsHeight, measureChromeHeight } from '@/utils/dropdownMetrics';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { registerFocusPortal, releaseFocusPortal } from '@/utils/dialogFocus';
 
 // Минимум пунктов в списке: даже в тесном месте должно быть видно, что он прокручивается.
 const MIN_VISIBLE_OPTIONS = 2;
@@ -324,6 +325,7 @@ export default {
     },
   },
   mounted() {
+    registerFocusPortal(this.$refs.dropdown, () => (this.isOpen || this.inline) ? this.$refs.menu : null);
     // Capture-фаза (#1132): внутри BaseModal на `.base-modal` висит @click.stop,
     // и bubble-листнер document не срабатывает -> дропдаун не закрывался по клику
     // вне себя, и открытие одного не гасило другой (два меню разом). Capture идёт
@@ -332,6 +334,7 @@ export default {
     this.$refs.dropdown.addEventListener('base-dropdown-owner-close', this.close);
   },
   beforeUnmount() {
+    releaseFocusPortal(this.$refs.dropdown);
     document.removeEventListener('click', this.handleClickOutside, true);
     document.removeEventListener('keydown', this.handleEscape, true);
     this.$refs.dropdown?.removeEventListener('base-dropdown-owner-close', this.close);
@@ -467,7 +470,10 @@ export default {
     handleEscape(e) {
       if (e.key !== 'Escape' || !this.isOpen || this.inline) return;
       if (this.$refs.menu?.querySelector('.base-dropdown[data-dropdown-open="true"]')) return;
+      const returnFocus = this.$refs.menu?.contains(document.activeElement);
+      const trigger = this.$refs.triggerButton || this.$refs.dropdown?.querySelector('button');
       this.close();
+      if (returnFocus) trigger?.focus({ preventScroll: true });
       e.stopImmediatePropagation();
     },
 

@@ -198,9 +198,14 @@
           @click.self="closeNewsDetailsModal"
         >
           <div
+            ref="newsDialog"
             class="modal-content"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="selectedNews?.title"
+            tabindex="-1"
             :class="{ 'is-dragging': sheetDragging }"
-            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            :style="{ outline: 'none', ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
             @touchstart="onSheetTouchStart"
             @touchmove="onSheetTouchMove"
             @touchend="onSheetTouchEnd"
@@ -279,6 +284,8 @@ import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
+import { createDialogFocus } from '@/utils/dialogFocus'
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import { formatDateTime } from '@/utils/datetime';
@@ -330,6 +337,7 @@ export default {
   data() {
     return {
       loadingNews: false,
+      dialogFocus: null,
       showViewAnnouncementModal: false,
       showGuide: false,
       showModes: false,
@@ -356,6 +364,8 @@ export default {
     })
   },
   beforeUnmount() {
+    this.dialogFocus?.close()
+    releaseModal(this)
     releaseBodyScrollLock(this)
     window.removeEventListener('keydown', this.handleEscKey)
     if (this.eventStreamOff) {
@@ -366,6 +376,10 @@ export default {
   },
   watch: {
     showNewsDetailsModal(visible) {
+      this.dialogFocus ||= createDialogFocus(() => this.$refs.newsDialog, () => isTopModal(this))
+      if (visible) this.dialogFocus.open()
+      else this.dialogFocus.close()
+      setModalOpen(this, visible, 1000)
       setBodyScrollLock(this, visible)
     },
     /**
@@ -388,7 +402,10 @@ export default {
 
     sanitizeHtml,
     handleEscKey(e) {
-      if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
+      this.dialogFocus?.handleTab(e)
+      if (e.key !== 'Escape' || !this.showNewsDetailsModal || !isTopModal(this) || isEscapeHandled(e)) return
+      markEscapeHandled(e)
+      this.closeNewsDetailsModal()
     },
     formatDate: formatDateTime,
 

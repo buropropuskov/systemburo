@@ -16,6 +16,7 @@
           :style="{ maxWidth: width, '--base-modal-radius': radius || null, ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
           role="dialog"
           aria-modal="true"
+          tabindex="-1"
           :data-testid="contentTestid || null"
           :aria-label="title"
           @click.stop
@@ -71,6 +72,7 @@ import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
+import { createDialogFocus } from '@/utils/dialogFocus';
 
 export default {
   name: 'BaseModal',
@@ -168,12 +170,16 @@ export default {
   data() {
     return {
       overlayMousedown: false,
+      dialogFocus: null,
     };
   },
   watch: {
     show: {
       immediate: true,
       handler(val) {
+        this.dialogFocus ||= createDialogFocus(() => this.modal, () => isTopModal(this));
+        if (val) this.dialogFocus.open();
+        else this.dialogFocus.close();
         // Через общий замок: окна живут стопкой, и прямое присвоение снимало блокировку,
         // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
         setBodyScrollLock(this, val);
@@ -188,6 +194,7 @@ export default {
     document.addEventListener('keydown', this.handleKeydown);
   },
   beforeUnmount() {
+    this.dialogFocus?.close();
     document.removeEventListener('keydown', this.handleKeydown);
     releaseBodyScrollLock(this);
     releaseModal(this);
@@ -221,23 +228,7 @@ export default {
       }
     },
     trapFocus(e) {
-      const container = this.modal;
-      if (!container) return;
-      const focusable = container.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+      this.dialogFocus?.handleTab(e);
     },
   },
 };
@@ -260,6 +251,7 @@ export default {
 }
 
 .base-modal {
+  outline: none;
   background: var(--surface);
   border-radius: var(--base-modal-radius, 30px);
   box-shadow: 0 8px 30px var(--shadow-drop);
