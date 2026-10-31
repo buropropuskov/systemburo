@@ -68,13 +68,13 @@ describe('single manual attach real modal #2665', () => {
     executeManualAttachSingle.mockReset();
   });
   afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); vi.useRealTimers(); });
-  it('uses project components, starts without focus/open chooser and requires an explicit period choice', async () => {
+  it('uses project components, focuses the dialog with closed choosers and requires an explicit period choice', async () => {
     const wrapper = create();
     await flushPromises();
     expect(getManualAttachContext).toHaveBeenCalledWith('car', 17, 4);
     expect(wrapper.findAllComponents(BaseDropdown).every(d => !d.vm.isOpen)).toBe(true);
     expect(wrapper.find('[autofocus]').exists()).toBe(false);
-    expect(document.activeElement?.tagName).toBe('BODY');
+    expect(document.activeElement).toBe(wrapper.get('.base-modal').element);
     await choose(wrapper, { source: false });
     expect(wrapper.vm.periodChoice).toBe('');
     expect(wrapper.find('[data-testid="manual-attach-preview-button"]').attributes('disabled')).toBeDefined();
