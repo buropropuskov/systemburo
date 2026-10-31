@@ -145,7 +145,7 @@
           />
         </div>
 
-        <div class="card-content rt-table rt-keep-table">
+        <div :class="['card-content rt-table rt-keep-table', { 'registry-table--wide': currentFilter === 'all_system' }]">
           <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
           <div class="cars-header rt-head-row">
             <div class="header-row">
@@ -452,7 +452,7 @@
               class="table-footer"
               data-testid="cars-table-footer"
             >
-              {{ footerText }}
+              <span class="registry-table-summary">{{ footerText }}</span>
             </div>
           </div>
         </div>

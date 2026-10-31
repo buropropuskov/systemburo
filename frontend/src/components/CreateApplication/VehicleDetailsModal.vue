@@ -1744,18 +1744,6 @@ useEscapeClose(() => emit('close'), () => props.show, () => props.source === 'hi
     transform: none !important;
   }
   
-  /* Bottom-sheet: инфо места прохода/разгрузки выезжает снизу во всю ширину поверх
-     детали Т/С (place-slide уже слайдит с translateY(100vh), #1097 R4-10). */
-  .place-modal-container {
-    left: 0;
-    right: 0;
-    width: 100%;
-    bottom: 0;
-    top: auto;
-    height: auto;
-    max-height: 90dvh;
-  }
-  
   .modal-header {
     padding: 6px 16px;
     flex-wrap: wrap;
