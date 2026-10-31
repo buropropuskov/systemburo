@@ -654,6 +654,7 @@ export default {
     emits: ['refresh-data'],
     setup() {
         const showInstruction = ref(false);
+        const instructionScrollOwner = {};
         const openInstruction = () => { showInstruction.value = true; };
         const closeInstruction = () => { showInstruction.value = false; };
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(closeInstruction);
@@ -663,13 +664,13 @@ export default {
         };
 
         watch(showInstruction, (open) => {
-            setBodyScrollLock(this, open);
+            setBodyScrollLock(instructionScrollOwner, open);
         });
 
         onMounted(() => document.addEventListener('keydown', onKeydown));
         onBeforeUnmount(() => {
             document.removeEventListener('keydown', onKeydown);
-            releaseBodyScrollLock(this);
+            releaseBodyScrollLock(instructionScrollOwner);
         });
 
         const permissionsStore = usePermissionsStore();
