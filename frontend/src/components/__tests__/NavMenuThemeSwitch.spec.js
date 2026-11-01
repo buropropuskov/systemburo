@@ -153,6 +153,9 @@ describe('theme panel navigation lifecycle', () => {
     await new Promise(resolve => setTimeout(resolve, 180));
     expect(wrapper.vm.isExpanded).toBe(true);
     panel.matches = vi.fn(() => false);
+    // This case checks pointer departure; focused settings belong to the keyboard case.
+    document.activeElement.blur();
+    await flushPromises();
     wrapper.vm.collapseMenu();
     await new Promise(resolve => setTimeout(resolve, 180));
     expect(wrapper.vm.isExpanded).toBe(false);

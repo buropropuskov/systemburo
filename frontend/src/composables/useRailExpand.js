@@ -20,6 +20,7 @@ const COLLAPSE_DELAY = 150;
 export function useRailExpand(instance) {
   let hoverTimeout = null;
   const themePanelOpen = ref(false);
+  const railFocus = ref(false);
 
   const vm = () => instance.proxy;
 
@@ -42,8 +43,9 @@ export function useRailExpand(instance) {
   function collapseMenu() {
     hoverTimeout = setTimeout(() => {
       const menu = vm();
+      if (railFocus.value) return;
       // Keep the rail open while the pointer is over its teleported settings.
-      if (menu.themePanelOpen && (menu.$refs.navigation?.matches(':hover') || menu.$refs.themeControls?.isHovered())) {
+      if (menu.themePanelOpen && (menu.$refs.navigation?.matches(':hover') || menu.$refs.themeControls?.hasInteraction())) {
         hoverTimeout = null;
         return;
       }
@@ -65,9 +67,19 @@ export function useRailExpand(instance) {
     vm().setMobileOpen(false);
   }
 
+  function onRailFocusIn(event) {
+    railFocus.value = event.target.matches(':focus-visible');
+  }
+
+  function onRailFocusOut(event) {
+    railFocus.value = false;
+    if (!railFocus.value && !event.currentTarget.matches(':hover')) collapseMenu();
+  }
+
   onBeforeUnmount(() => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
   });
 
-  return { expandMenu, collapseMenu, themePanelOpen, onThemePanelChange, closeMobile };
+  return { expandMenu, collapseMenu, themePanelOpen, onThemePanelChange, closeMobile,
+    railFocus, onRailFocusIn, onRailFocusOut };
 }

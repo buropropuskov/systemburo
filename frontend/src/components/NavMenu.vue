@@ -1,5 +1,9 @@
 <template>
-  <div class="nav-root">
+  <div
+    class="nav-root"
+    tabindex="-1"
+    @keydown.tab="onDrawerTab"
+  >
     <!-- Backdrop для мобильного drawer'а -->
     <transition name="nav-backdrop">
       <div
@@ -12,8 +16,9 @@
     </transition>
 
     <nav
-      ref="navigation" class="nav-menu"
-      role="navigation"
+      ref="navigation"
+      class="nav-menu"
+      :inert="navigationInert || undefined"
       aria-label="Основная навигация"
       data-testid="ob-nav-rail"
       :class="{
@@ -26,7 +31,9 @@
       }"
       :style="swipeOffset ? { transform: `translateX(min(0px, calc(-100% + ${swipeOffset}px)))` } : null"
       @mouseenter="expandMenu"
+      @focusin="onRailFocusIn"
       @mouseleave="collapseMenu"
+      @focusout="onRailFocusOut"
     >
       <!-- Кнопка закрытия для мобильного -->
       <button
@@ -38,9 +45,7 @@
         ✕
       </button>
 
-      <!-- «Сообщить о проблеме» переехало из шапки в drawer на мобилке (W3.3).
-           Тот же testid, что у шапочной кнопки: на десктопе она в шапке, на
-           мобилке - здесь, в DOM всегда ровно один экземпляр (тур находит нужный). -->
+      <!-- На телефоне обратная связь только в drawer: testid остаётся единственным для тура. -->
       <button
         v-if="mobileOpen && can('header.report_problem')"
         class="nav-menu__feedback"
@@ -125,14 +130,16 @@
             <div class="section-title">
               ЗАЯВКИ
             </div>
-            <div
+            <button
               v-show="can('page.center')"
+              type="button"
+              :disabled="isBanned"
               class="nav-item"
               :class="{ active: isActive('/center') }"
               data-testid="nav-link-center"
-              @click="navigateToCenter"
+              @click="navigateTo('/center')"
             >
-              <div class="nav-icon-wrapper">
+              <span class="nav-icon-wrapper">
                 <NavIcon
                   name="center"
                   :size="18"
@@ -144,7 +151,7 @@
                 >
                   {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
                 </span>
-              </div>
+              </span>
               <span class="nav-text">Центр заявок</span>
               <span
                 v-if="newApplicationsCount > 0"
@@ -152,13 +159,15 @@
               >
                 {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
               </span>
-            </div>
-            <div
+            </button>
+            <button
               v-show="can('page.new_application')"
+              type="button"
+              :disabled="isBanned"
               class="nav-item"
               :class="{ active: isActive('/new-application') }"
               data-testid="nav-link-new-application"
-              @click="navigateToNewApplication"
+              @click="navigateTo('/new-application', true)"
             >
               <NavIcon
                 name="new-application"
@@ -166,13 +175,15 @@
                 class="nav-icon"
               />
               <span class="nav-text">Новая заявка</span>
-            </div>
-            <div
+            </button>
+            <button
               v-show="authStore.canViewAccessibleAttachments"
+              type="button"
+              :disabled="isBanned"
               class="nav-item"
               :class="{ active: isActive('/accessible-attachments') }"
               data-testid="nav-link-accessible-attachments"
-              @click="navigateToAccessibleAttachments"
+              @click="navigateTo('/accessible-attachments', true)"
             >
               <NavIcon
                 name="attachment-types"
@@ -180,7 +191,7 @@
                 class="nav-icon"
               />
               <span class="nav-text">Доступные мне</span>
-            </div>
+            </button>
           </div>
 
           <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
@@ -197,20 +208,23 @@
               v-show="tablesItemVisible"
               class="nav-item-container"
             >
-              <div
+              <button
+                type="button"
+                :disabled="isBanned"
                 class="nav-item has-dropdown"
                 :class="{ active: isActive('/table') }"
                 data-testid="nav-link-tables"
+                :aria-expanded="dropdowns.tables && (railExpanded || mobileOpen)"
                 @click="toggleDropdown('tables')"
               >
-                <div class="nav-item-content">
+                <span class="nav-item-content">
                   <NavIcon
                     name="tables"
                     :size="18"
                     class="nav-icon"
                   />
                   <span class="nav-text">Таблицы</span>
-                </div>
+                </span>
                 <svg
                   class="dropdown-arrow"
                   :class="{ rotated: dropdowns.tables }"
@@ -226,59 +240,28 @@
                 >
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
-              </div>
+              </button>
 
-              <!-- Раскрытие/сворачивание через grid-rows 0fr<->1fr - высота
-                   анимируется плавно и двигает пункты ниже. -->
-              <div
-                class="dropdown-below"
-                :class="{ open: tablesDropdownOpen && (railExpanded || mobileOpen) }"
-              >
-                <div
-                  class="dropdown-below__inner"
-                  data-testid="nav-tables-list"
-                >
-                  <template
-                    v-for="group in groupedTables"
-                    :key="group.key"
-                  >
-                    <!-- Подпись типа показываем только когда групп несколько:
-                         на одном типе она была бы лишним шумом. -->
-                    <div
-                      v-if="groupedTables.length > 1"
-                      class="dropdown-group-title"
-                    >
-                      {{ group.label }}
-                    </div>
-                    <div
-                      v-for="table in group.tables"
-                      :key="getTableId(table)"
-                      class="dropdown-item"
-                      :class="{ active: isCurrentTable(getTableName(table)) }"
-                      @click="navigateToTable(getTableName(table))"
-                    >
-                      {{ getTableDisplayName(table) }}
-                    </div>
-                  </template>
-                  <div
-                    v-if="filteredTables.length === 0"
-                    class="dropdown-item disabled"
-                  >
-                    Нет доступных таблиц
-                  </div>
-                </div>
-              </div>
+              <NavTableLinks
+                :groups="groupedTables"
+                :disabled="isBanned"
+                :expanded="dropdowns.tables && (railExpanded || mobileOpen)"
+                :current="$route.params.tableName"
+                @navigate="navigateToTable"
+              />
             </div>
 
             <!-- Онбординг подсвечивает группу «Сотрудники + Автомобили» (без
                  «Таблиц» - их нет у большинства ролей). -->
             <div data-testid="ob-nav-group-data">
-              <div
+              <button
                 v-show="can('page.employees')"
+                type="button"
+                :disabled="isBanned"
                 class="nav-item"
                 :class="{ active: isActive('/employeesview') }"
                 data-testid="nav-link-employees"
-                @click="navigateToEmployeesView"
+                @click="navigateTo('/employeesview')"
               >
                 <NavIcon
                   name="employees"
@@ -286,14 +269,16 @@
                   class="nav-icon"
                 />
                 <span class="nav-text">Сотрудники</span>
-              </div>
+              </button>
 
-              <div
+              <button
                 v-show="can('page.cars')"
+                type="button"
+                :disabled="isBanned"
                 class="nav-item"
                 :class="{ active: isActive('/carsview') }"
                 data-testid="nav-link-cars"
-                @click="navigateToCarsView"
+                @click="navigateTo('/carsview')"
               >
                 <NavIcon
                   name="cars"
@@ -301,7 +286,7 @@
                   class="nav-icon"
                 />
                 <span class="nav-text">Автомобили</span>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -313,8 +298,10 @@
             <div class="section-title">
               АНАЛИТИКА
             </div>
-            <div
+            <button
               v-show="can('page.statistics')"
+              type="button"
+              :disabled="isBanned"
               class="nav-item"
               :class="{ active: isActive('/analytics') }"
               data-testid="nav-link-analytics"
@@ -326,7 +313,7 @@
                 class="nav-icon"
               />
               <span class="nav-text">Аналитика</span>
-            </div>
+            </button>
           </div>
 
           <!-- АДМИНИСТРИРОВАНИЕ: виден если есть хотя бы один доступный раздел
@@ -339,15 +326,18 @@
             <div class="section-title">
               АДМИНИСТРИРОВАНИЕ
             </div>
-            <div
+            <button
               v-show="canSeeAdmin"
+              type="button"
+              :disabled="isBanned"
               class="nav-item has-dropdown"
               :class="{ active: adminOpen }"
               data-testid="nav-link-admin"
+              :aria-expanded="adminOpen"
               @click="toggleAdmin"
             >
-              <div class="nav-item-content">
-                <div class="nav-icon-wrapper">
+              <span class="nav-item-content">
+                <span class="nav-icon-wrapper">
                   <NavIcon
                     name="admin"
                     :size="18"
@@ -360,9 +350,9 @@
                   >
                     {{ newFeedbackCount > 9 ? '9+' : newFeedbackCount }}
                   </span>
-                </div>
+                </span>
                 <span class="nav-text">Администрирование</span>
-              </div>
+              </span>
               <!-- Не дропдаун, а открытие боковой колонки: прямая стрелка вправо. -->
               <svg
                 class="panel-indicator"
@@ -384,7 +374,7 @@
                 />
                 <polyline points="13 7 18 12 13 17" />
               </svg>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -396,12 +386,14 @@
           <div class="section-title">
             ПОЛЬЗОВАТЕЛЬ
           </div>
-          <div
+          <button
             v-show="can('page.news')"
+            type="button"
+            :disabled="isBanned"
             class="nav-item"
             :class="{ active: isActive('/news') }"
             data-testid="nav-link-news"
-            @click="navigateToNews"
+            @click="navigateTo('/news')"
           >
             <NavIcon
               name="news"
@@ -409,13 +401,14 @@
               class="nav-icon"
             />
             <span class="nav-text">Обзор и новости</span>
-          </div>
-          <div
+          </button>
+          <button
             v-show="can('page.personal_cabinet')"
+            type="button"
             class="nav-item"
             :class="{ active: isActive('/personal-cabinet') }"
             data-testid="nav-link-cabinet"
-            @click="navigateToAccount"
+            @click="navigateTo('/personal-cabinet')"
           >
             <NavIcon
               name="cabinet"
@@ -423,10 +416,18 @@
               class="nav-icon"
             />
             <span class="nav-text">Личный кабинет</span>
-          </div>
-          <ThemeControls ref="themeControls" :disabled="isBanned" :inline="mobileOpen" @open-change="onThemePanelChange" @panel-leave="collapseMenu" />
+          </button>
+          <ThemeControls
+            ref="themeControls"
+            :disabled="isBanned"
+            :inline="mobileOpen"
+            @open-change="onThemePanelChange"
+            @panel-leave="collapseMenu"
+          />
 
-          <div
+          <button
+            type="button"
+            :disabled="isBanned"
             class="nav-item"
             data-testid="nav-button-logout"
             @click="logout"
@@ -437,7 +438,7 @@
               class="nav-icon"
             />
             <span class="nav-text exit">Выйти</span>
-          </div>
+          </button>
         </div>
       </div>
     </nav>
@@ -449,10 +450,7 @@
       @submitted="onFeedbackSubmitted"
     />
 
-    <!--
-      Двухколоночная Админка (#510): колонка справа от свёрнутого в иконки рельса,
-      поверх готовых /admin/* роутов. Палитра наследуется от .nav-root. Без теней.
-    -->
+    <!-- Колонка администрирования справа от рельса; палитра наследуется от .nav-root. -->
     <transition name="admin-col">
       <aside
         v-if="adminOpen"
@@ -523,9 +521,11 @@
             <div class="admin-group__title">
               {{ group.title }}
             </div>
-            <div
+            <button
               v-for="item in group.items"
               :key="item.path"
+              type="button"
+              :disabled="isBanned"
               class="admin-link"
               :class="{ active: isActive(item.path) }"
               :data-testid="`admin-link-${item.icon}`"
@@ -544,7 +544,7 @@
               >
                 {{ newFeedbackCount > 9 ? '9+' : newFeedbackCount }}
               </span>
-            </div>
+            </button>
           </div>
           <div
             v-if="filteredAdminGroups.length === 0"
@@ -615,12 +615,15 @@ import { useOnboardingStore } from '@/stores/onboarding'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
+import { DRAWER_MEDIA } from '@/constants/breakpoints'
+import '@/assets/nav-keyboard.css'
 import { useEdgeSwipeOpen } from '@/composables/useEdgeSwipeOpen'
 import { useRailExpand } from '@/composables/useRailExpand'
 import { useMobileDrawer } from '@/composables/useMobileDrawer'
 import NavIcon from '@/components/icons/NavIcon.vue'
+import NavTableLinks from '@/components/ui/NavTableLinks.vue'
 import ThemeControls from '@/components/ui/ThemeControls.vue'
-import FeedbackModal from '@/components/FeedbackModal.vue'
+import FeedbackModal from '@/components/ui/LazyFeedbackModal.vue'
 
 // Длительность анимации ухода drawer'а (transform 0.28s) - ждём её перед показом
 // модалки обратной связи, иначе уезжающая панель (z-index 10000) секунду рисуется
@@ -631,7 +634,7 @@ const DRAWER_WIDTH = 280
 
 export default {
   name: 'NavMenu',
-  components: { NavIcon, FeedbackModal, ThemeControls },
+  components: { NavIcon, NavTableLinks, FeedbackModal, ThemeControls },
   emits: ['logout'],
   setup() {
     // Сторы берём в setup для реактивности в шаблоне: authStore - гейт
@@ -738,7 +741,7 @@ export default {
       if (this.adminOpen) return false;
       // tourForceExpand - оверлейный разворот для онбординг-тура: расширяет рельс
       // как hover-превью, БЕЗ сдвига контента (--nav-ml зависит только от пина).
-      return this.uiStore.sidebarExpanded || this.isExpanded || this.uiStore.tourForceExpand;
+      return this.uiStore.sidebarExpanded || this.isExpanded || this.uiStore.tourForceExpand || this.railFocus;
     },
     // Множество путей Админки - по нему route-watcher решает, закрывать ли колонку
     // (переход на «РАБОТА»/кабинет закрывает, переключение между разделами - нет).
@@ -814,9 +817,6 @@ export default {
     tablesItemVisible() {
       return this.filteredTables.length > 0;
     },
-    tablesDropdownOpen() {
-      return this.dropdowns.tables;
-    },
     // Видимость секции = есть хотя бы один доступный по правам пункт. Пустая секция
     // скрывается целиком, без осиротевшего заголовка.
     sectionVisible() {
@@ -875,8 +875,8 @@ export default {
     // панелью на широком экране, а drawer-кнопка feedback (тот же testid, что в
     // шапке) осталась бы в DOM рядом с вернувшейся шапочной - тур нашёл бы дубль.
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      this._desktopMql = window.matchMedia('(min-width: 1367px) and (hover: hover)');
-      this._onDesktopChange = (e) => { if (e.matches) this.closeMobile(); };
+      this._desktopMql = window.matchMedia(DRAWER_MEDIA);
+      this._onDesktopChange = (e) => { this.drawerViewport = e.matches; if (!e.matches) this.closeMobile(); };
       if (this._desktopMql.addEventListener) {
         this._desktopMql.addEventListener('change', this._onDesktopChange);
       } else if (this._desktopMql.addListener) {
@@ -937,10 +937,6 @@ export default {
     // Текущая открытая таблица - для подсветки пункта в списке «Таблицы».
     // Сверяем по декодированному параметру роута /table/:tableName (надёжно к
     // кодированию кириллицы/спецсимволов в URL).
-    isCurrentTable(tableName) {
-      if (!tableName) return false;
-      return this.$route.params.tableName === tableName;
-    },
     togglePin() {
       this.uiStore.toggleSidebarPinned();
       // Отложенное сворачивание отменяем через тот же путь, что и наведение: иначе
@@ -1016,13 +1012,6 @@ export default {
     },
 
     // Работа с данными таблиц
-    getTableId(table) {
-      if (table.table && table.table.id) {
-        return table.table.id;
-      }
-      return table.id;
-    },
-
     getTableName(table) {
       if (table.table && table.table.name) {
         return table.table.name;
@@ -1037,13 +1026,6 @@ export default {
       return table.table_type || '';
     },
 
-    getTableDisplayName(table) {
-      if (table.table && table.table.display_name) {
-        return table.table.display_name;
-      }
-      return table.display_name || 'Без названия';
-    },
-
     navigateToTable(tableName) {
       if (tableName) {
         this.$router.push(`/table/${tableName}`);
@@ -1051,28 +1033,9 @@ export default {
       }
     },
 
-    navigateToCenter() {
-      this.$router.push('/center');
-    },
-    navigateToAccessibleAttachments() {
-      this.$router.push('/accessible-attachments');
-      this.closeMobile();
-    },
-    navigateToNewApplication() {
-      this.$router.push('/new-application');
-      this.closeMobile();
-    },
-    navigateToAccount() {
-      this.$router.push('/personal-cabinet');
-    },
-    navigateToNews() {
-      this.$router.push('/news');
-    },
-    navigateToCarsView() {
-      this.$router.push('/carsview');
-    },
-    navigateToEmployeesView() {
-      this.$router.push('/employeesview');
+    navigateTo(path, closeDrawer = false) {
+      this.$router.push(path);
+      if (closeDrawer) this.closeMobile();
     },
 
     async fetchBanStatus() {
@@ -1541,22 +1504,6 @@ export default {
 /* Пункт растягивается на ширину nav-content минус margin 7px с каждой стороны.
    В свёрнутом - центрированный inset-блок ~36px; иконка (margin 7 + padding-left 9)
    имеет центр на 25px = центр 50px-рельса. Анимируется вместе с шириной рельса. */
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px 0 9px;
-  margin: 4px 7px;
-  border-radius: 12px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  min-height: 40px;
-  flex-shrink: 0;
-  color: var(--nav-text);
-  text-decoration: none;
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
 
 .nav-item.has-dropdown {
   justify-content: space-between;
@@ -1569,22 +1516,17 @@ export default {
   min-width: 0;
 }
 
-.nav-item:hover:not(.disabled) {
+.nav-item:hover:not(:disabled) {
   background-color: var(--nav-hover);
 }
 
-.nav-item:hover:not(.disabled) .nav-icon {
+.nav-item:hover:not(:disabled) .nav-icon {
   color: var(--nav-primary);
 }
 
-.nav-item.disabled {
-  cursor: default;
-  opacity: 0.45;
-}
 
-.nav-item.disabled .nav-icon {
-  color: var(--nav-text-faint);
-}
+
+
 
 /* active: фон primary-soft + левая полоса primary + текст/иконка primary */
 .nav-item.active {
@@ -1627,30 +1569,15 @@ export default {
 .nav-icon {
   width: 18px;
   height: 18px;
-  flex-shrink: 0;
-  color: var(--nav-text-muted);
-  transition: color 0.2s ease;
 }
 
 .nav-text {
   font-family: 'Montserrat', sans-serif;
-  font-weight: 500;
-  font-size: 13px;
-  line-height: 16px;
-  color: var(--nav-text);
-  white-space: nowrap;
   overflow: hidden;
   flex-shrink: 0;
-  opacity: 0;
-  transform: translateX(-5px);
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.nav-menu.expanded .nav-text {
-  opacity: 1;
-  transform: translateX(0);
-  transition-delay: 0.1s;
-}
+
 
 .dropdown-arrow {
   flex-shrink: 0;
@@ -1681,108 +1608,6 @@ export default {
 .nav-menu.expanded .panel-indicator {
   opacity: 0.7;
   transition-delay: 0.15s;
-}
-
-/* Список таблиц раскрывается под пунктом «Таблицы». Высота анимируется через
-   grid-template-rows 0fr<->1fr - плавно, и двигает пункты ниже. */
-.dropdown-below {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.dropdown-below.open {
-  grid-template-rows: 1fr;
-}
-
-.dropdown-below__inner {
-  overflow: hidden;
-  min-height: 0;
-  margin: 0 7px 4px;
-  padding-left: 22px;
-}
-
-/* Подпись типа таблиц внутри выпадающего списка - тот же язык, что у подписей
-   секций рельса, но мельче и без внешних отступов секции. */
-.dropdown-group-title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
-  /* Подпись группы - текст, а не выключенный контрол: faint-тон оставлен
-     заблокированным пунктам, здесь нужен читаемый muted (замер на staging
-     давал 4.09). Та же правка уже сделана у подписи секции и группы Админки. */
-  color: var(--nav-text-muted);
-  text-transform: uppercase;
-  padding: 6px 12px 4px;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-/* Между группами нужен заметный воздух, иначе списки читаются как один. */
-.dropdown-group-title + .dropdown-item {
-  margin-top: 2px;
-}
-
-.dropdown-item + .dropdown-group-title {
-  margin-top: 14px;
-}
-
-.dropdown-item {
-  padding: 7px 12px;
-  border-radius: 10px;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 12.5px;
-  color: var(--nav-text-muted);
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.dropdown-item.active {
-  color: var(--nav-primary);
-  background-color: var(--nav-primary-soft);
-  font-weight: 600;
-}
-
-.dropdown-item:hover {
-  background-color: var(--nav-hover);
-  color: var(--nav-primary);
-}
-
-.dropdown-item.disabled {
-  color: var(--nav-text-faint);
-  cursor: not-allowed;
-}
-
-.dropdown-item.disabled:hover {
-  background-color: transparent;
-  color: var(--nav-text-faint);
-}
-
-/* Пункт «Тёмная тема»: тумблер справа, как подпись - проявляется только на
-   раскрытом рельсе, в иконках остаётся один значок темы. */
-.nav-item--theme {
-  justify-content: space-between;
-}
-
-.nav-theme-switch {
-  flex-shrink: 0;
-  /* Клик ловит вся строка: сам тумблер здесь индикатор, иначе клик по нему
-     переключал бы тему дважды. */
-  pointer-events: none;
-  opacity: 0;
-  transform: translateX(-5px);
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.nav-menu.expanded .nav-theme-switch {
-  opacity: 1;
-  transform: translateX(0);
-  transition-delay: 0.1s;
 }
 
 .icon-badge {
@@ -2198,10 +2023,6 @@ export default {
   /* Тумблер темы проявляется по .expanded, а drawer этот класс не получает
      (expandMenu гейтит hover-разворот на мобилке) - показываем отдельно.
      pointer-events остаются выключены: клик ловит вся строка. */
-  .nav-menu .nav-theme-switch {
-    opacity: 1 !important;
-    transform: none !important;
-  }
 
   /* Пин/сворачивание рельса бессмысленны в тач-drawer'е (B.1, W3.3) - убираем. */
   .nav-menu .nav-controls {
@@ -2210,7 +2031,7 @@ export default {
 
   .nav-menu .nav-item,
   .nav-menu:not(.expanded) .nav-item {
-    width: auto;
+    width: calc(100% - 16px);
     padding: 9px 15px;
     gap: 12px;
     margin: 2px 8px;
@@ -2219,9 +2040,7 @@ export default {
   }
 
   .nav-menu .nav-item.has-dropdown,
-  .nav-menu:not(.expanded) .nav-item.has-dropdown,
-  .nav-menu .nav-item--theme,
-  .nav-menu:not(.expanded) .nav-item--theme {
+  .nav-menu:not(.expanded) .nav-item.has-dropdown {
     justify-content: space-between;
   }
 
@@ -2311,11 +2130,6 @@ export default {
     height: 44px;
   }
 
-  .nav-menu .dropdown-item {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-  }
 
   .nav-unhide {
     width: 44px;

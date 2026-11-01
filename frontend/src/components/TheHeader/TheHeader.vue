@@ -148,7 +148,7 @@ import { useUiStore } from '@/stores/ui'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { DRAWER_MEDIA } from '@/constants/breakpoints'
-import FeedbackModal from '@/components/FeedbackModal.vue';
+import FeedbackModal from '@/components/ui/LazyFeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
 import { SkeletonLine } from '@/components/ui';
