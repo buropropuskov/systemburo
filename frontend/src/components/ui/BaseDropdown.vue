@@ -4,6 +4,7 @@
     class="base-dropdown"
     :class="{ 'base-dropdown--inline': inline }"
     :data-dropdown-open="String(isOpen)"
+    @keydown="onTriggerKeydown"
   >
     <!-- Слот триггера: по умолчанию - штатная кнопка-поле. Заменяется, когда
          открывающий элемент уже существует в своём виде (кнопка «Обучение»
@@ -19,6 +20,9 @@
         class="base-dropdown__button"
         :class="{ 'base-dropdown__button--open': isOpen, 'base-dropdown__button--disabled': disabled }"
         :disabled="disabled"
+        :aria-expanded="String(isOpen)"
+        :aria-haspopup="$slots.content ? undefined : 'listbox'"
+        :aria-controls="isOpen && !$slots.content ? optionsId : undefined"
         @click="toggle"
       >
         <span
@@ -65,6 +69,7 @@
           class="base-dropdown__menu"
           :class="{ 'base-dropdown__menu--inline': inline }"
           :style="teleport && !inline ? menuStyle : null"
+          @keydown="onMenuKeydown"
         >
           <div
             v-if="searchable"
@@ -96,18 +101,28 @@
           <slot name="content">
             <div
               ref="options"
+              :id="optionsId"
               class="base-dropdown__options"
+              role="listbox"
+              tabindex="-1"
+              :aria-label="placeholder"
+              :aria-multiselectable="multiple ? 'true' : undefined"
               :style="optionsStyle"
             >
-              <div
-                v-for="option in filteredOptions"
+              <button
+                v-for="(option, index) in filteredOptions"
                 :key="option[valueKey]"
+                type="button"
+                role="option"
+                :aria-selected="String(isSelected(option))"
+                tabindex="-1"
                 class="base-dropdown__item"
                 :class="{
                   'base-dropdown__item--selected': isSelected(option),
                   'base-dropdown__item--multi': multiple,
                 }"
                 @click="select(option)"
+                @focus="activeOption = index"
               >
                 <span
                   v-if="multiple"
@@ -121,7 +136,7 @@
                 >
                   <span class="base-dropdown__item-text">{{ option[labelKey] }}</span>
                 </slot>
-              </div>
+              </button>
               <div
                 v-if="filteredOptions.length === 0"
                 class="base-dropdown__empty"
@@ -141,6 +156,7 @@ import { getViewportZoom } from '@/utils/viewportScale';
 import { wholeItemsHeight, measureChromeHeight } from '@/utils/dropdownMetrics';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { registerFocusPortal, releaseFocusPortal } from '@/utils/dialogFocus';
+import dropdownKeyboard from '@/mixins/dropdownKeyboard';
 
 // Минимум пунктов в списке: даже в тесном месте должно быть видно, что он прокручивается.
 const MIN_VISIBLE_OPTIONS = 2;
@@ -149,6 +165,7 @@ const DEFAULT_OPTIONS_SPACE = 250;
 
 export default {
   name: 'BaseDropdown',
+  mixins: [dropdownKeyboard],
   props: {
     // Stateful action content is rendered once, both inline and in the popup.
     inline: { type: Boolean, default: false },
@@ -449,6 +466,9 @@ export default {
         return;
       }
       this.$emit('update:modelValue', value);
+      if (!this.inline && this.$refs.menu?.contains(document.activeElement)) {
+        this.dropdownTrigger()?.focus({ preventScroll: true });
+      }
       this.isOpen = false;
       this.searchQuery = '';
     },
@@ -692,6 +712,12 @@ export default {
 }
 
 .base-dropdown__item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -703,6 +729,11 @@ export default {
 
 .base-dropdown__item:hover {
   background-color: var(--row-hover);
+}
+
+.base-dropdown__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .base-dropdown__item--selected {
