@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { h } from 'vue';
 import BaseDropdown from '../BaseDropdown.vue';
 
 const options = [{ id: 1, name: 'Альфа' }, { id: 2, name: 'Бета' }, { id: 3, name: 'Вега' }];
 let wrapper;
 const items = () => [...document.querySelectorAll('.base-dropdown__item')];
 const press = async (node, key) => {
+  if (node !== document.activeElement) node.focus();
   node.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
   await flushPromises();
 };
@@ -119,7 +121,9 @@ describe('BaseDropdown keyboard', () => {
   });
 
   it('supports a custom trigger and preserves custom action content', async () => {
-    const trigger = create({}, { trigger: '<button class="custom-trigger">Открыть</button>' });
+    const trigger = create({}, {
+      trigger: ({ toggle }) => h('button', { class: 'custom-trigger', 'aria-haspopup': 'listbox', onClick: toggle }, 'Открыть'),
+    });
     await press(trigger, 'ArrowDown');
     expect(document.activeElement).toBe(items()[0]);
     await press(document.activeElement, 'Escape');
@@ -171,6 +175,59 @@ describe('BaseDropdown keyboard', () => {
     await flushPromises();
     expect(wrapper.emitted('update:modelValue')).toEqual([[2]]);
     expect(items()).toHaveLength(3);
+  });
+
+  it('leaves native activation of a custom primary action to its owner', async () => {
+    const activate = vi.fn();
+    const trigger = create({}, {
+      trigger: () => h('button', { onClick: activate }, 'Пройти сначала'),
+    });
+    trigger.focus();
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    trigger.dispatchEvent(enter);
+    await flushPromises();
+    expect(enter.defaultPrevented).toBe(false);
+    expect(wrapper.vm.isOpen).toBe(false);
+    trigger.click();
+    expect(activate).toHaveBeenCalledTimes(1);
+    await press(trigger, 'ArrowDown');
+    expect(wrapper.vm.isOpen).toBe(false);
+  });
+
+  it('waits for the custom owner before focusing an asynchronously opened popup', async () => {
+    let ready;
+    const gate = new Promise(resolve => { ready = resolve; });
+    const trigger = create({}, {
+      trigger: ({ toggle }) => h('button', {
+        'aria-haspopup': 'listbox', onClick: async () => { await gate; toggle(); },
+      }, 'Подготовить выбор'),
+    });
+    await press(trigger, 'ArrowDown');
+    expect(wrapper.vm.isOpen).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    ready();
+    await flushPromises();
+    expect(wrapper.vm.isOpen).toBe(true);
+    expect(document.activeElement).toBe(items()[0]);
+  });
+
+  it('does not steal focus if the user left while the owner was preparing', async () => {
+    let ready;
+    const gate = new Promise(resolve => { ready = resolve; });
+    const trigger = create({}, {
+      trigger: ({ toggle }) => h('button', {
+        'aria-haspopup': 'listbox', onClick: async () => { await gate; toggle(); },
+      }, 'Подготовить выбор'),
+    });
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    try {
+      await press(trigger, 'ArrowDown');
+      elsewhere.focus();
+      ready();
+      await flushPromises();
+      expect(document.activeElement).toBe(elsewhere);
+    } finally { elsewhere.remove(); }
   });
 
   it('keeps a parent action menu open when a nested list handles keys', async () => {

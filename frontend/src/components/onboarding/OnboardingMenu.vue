@@ -143,13 +143,15 @@ onMounted(() => {
     :menu-max-height="520"
     @update:model-value="startTour"
   >
-    <template #trigger="{ toggle }">
+    <template #trigger="{ toggle, isOpen }">
       <button
         type="button"
         class="lk-button lk-button--secondary ob-start-button"
         data-testid="ob-start-button"
-        :disabled="preparing"
-        :aria-haspopup="isSingle ? undefined : 'menu'"
+        :aria-disabled="preparing ? 'true' : undefined"
+        :aria-busy="preparing ? 'true' : undefined"
+        :aria-haspopup="isSingle ? undefined : 'listbox'"
+        :aria-expanded="isSingle ? undefined : String(isOpen)"
         @click="onTriggerClick(toggle)"
       >
         <svg
@@ -226,6 +228,14 @@ onMounted(() => {
   height: 25px;
   padding: 0 14px;
   font-size: 13px;
+}
+
+.ob-start-button.lk-button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .ob-menu__item {
