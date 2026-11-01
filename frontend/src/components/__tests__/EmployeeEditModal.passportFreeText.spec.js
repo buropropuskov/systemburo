@@ -33,7 +33,7 @@ describe('EmployeeEditModal — серия и номер паспорта при
       pdConsent: true,
     });
 
-    const input = wrapper.find('input[placeholder="Введите серию и номер паспорта"]');
+    const input = wrapper.find('[data-testid="employee-passport"]');
     await input.setValue('AB-123456 иностр.');
 
     expect(wrapper.vm.passportSeriesNumber).toBe('AB-123456 иностр.');

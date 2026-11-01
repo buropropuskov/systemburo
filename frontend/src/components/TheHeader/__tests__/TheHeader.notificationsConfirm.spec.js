@@ -63,6 +63,20 @@ describe('TheHeader — панель уведомлений и глобальн�
     expect(wrapper.vm.showNotifications).toBe(false)
   })
 
+  it.each(['Enter', ' '])('не перехватывает %s у кнопки внутри списка', async key => {
+    wrapper = mountHeader()
+    await flushPromises()
+    const bell = wrapper.get('[data-testid="ob-header-notifications"]')
+    await bell.trigger('keydown', { key })
+    expect(wrapper.vm.showNotifications).toBe(true)
+    const item = document.createElement('button')
+    bell.element.append(item)
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    item.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(wrapper.vm.showNotifications).toBe(true)
+  })
+
   it('ответ «Очистить» в диалоге панель не закрывает', async () => {
     wrapper = mountHeader()
     dialog = mount(ConfirmDialog, { attachTo: document.body })

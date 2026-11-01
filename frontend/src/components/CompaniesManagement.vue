@@ -133,70 +133,38 @@
                 @change="toggleSelectAll"
               >
             </div>
-            <div
-              class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'id',
-                  'desc': sortField === 'id' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
-              class="header-col name-col"
-              @click="sortBy('name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'name' }">
-                Наименование
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'name',
-                  'desc': sortField === 'name' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
-              class="header-col type-col"
-              @click="sortBy('type')"
-            >
-              <p :class="{ 'active-sort': sortField === 'type' }">
-                Тип
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'type',
-                  'desc': sortField === 'type' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
-              class="header-col users-col"
-              @click="sortBy('user_count')"
-            >
-              <p :class="{ 'active-sort': sortField === 'user_count' }">
-                Пользователи
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'user_count',
-                  'desc': sortField === 'user_count' && sortDirection === 'desc'
-                }"
-              />
-            </div>
+            <RegistrySortButton
+              class="id-col"
+              field="id"
+              label="ID"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
+              class="name-col"
+              field="name"
+              label="Наименование"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
+              class="type-col"
+              field="type"
+              label="Тип"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
+              class="users-col"
+              field="user_count"
+              label="Пользователи"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
           </div>
 
           <div class="table-body">
@@ -234,16 +202,18 @@
                 class="table-col name-col"
                 data-label="Наименование"
               >
-                <span
-                  class="truncate-text"
+                <button
+                  type="button"
+                  class="truncate-text directory-record-open"
                   :title="comp.name"
+                  @click.stop="selectCompany(comp)"
                 >
                   {{ comp.name }}
                   <span
                     v-if="!comp.is_active"
                     class="inactive-badge"
                   >(архив)</span>
-                </span>
+                </button>
                 <!-- Запись заведена подачей заявки и ждёт разбора (#1437): в справочнике
                      она уже живая, поэтому её отличает бейдж, а не отдельный список.
                      Бейдж - сосед усечённого наименования, а не его часть: внутри
@@ -746,13 +716,14 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import CompanyHistoryModal from './CompanyHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 import DirectoryModeration from './directory/DirectoryModeration.vue';
-import AppIcon from '@/components/icons/AppIcon.vue';
+import RegistrySortButton from './ui/RegistrySortButton.vue';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink';
 
 export default {
   name: 'CompaniesManagement',
   components: {
+    RegistrySortButton,
     DirectoryModeration,
     SearchComponent,
     RefreshButton,
@@ -764,7 +735,6 @@ export default {
     LoaderSpinner,
     CompanyHistoryModal,
     BulkOperationsModal,
-    AppIcon,
   },
   mixins: [openFromSearchLink((vm) => vm.companiesWithUsers, 'selectCompany')],
   data() {
@@ -1555,12 +1525,6 @@ export default {
   user-select: none;
 }
 
-.sort-icon {
-  color: var(--text-muted);
-  width: 12px;
-  height: 12px;
-  transition: .2s;
-}
 
 .check-col {
   width: 6%;
