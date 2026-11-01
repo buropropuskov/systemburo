@@ -66,6 +66,7 @@
   </BaseDropdown>
 </template>
 <script setup>
+import '@/assets/nav-keyboard.css';
 import { computed, nextTick, ref, watch } from 'vue';
 import NavIcon from '@/components/icons/NavIcon.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
@@ -95,7 +96,7 @@ watch(() => dropdown.value?.isOpen, async (isOpen, wasOpen) => {
   }
 });
 const close = () => { if (dropdown.value) dropdown.value.isOpen = false; };
-defineExpose({ close, isHovered: () => Boolean(panel.value?.matches(':hover')) });
+defineExpose({ close, hasInteraction: () => Boolean(panel.value?.matches(':hover') || panel.value?.contains(document.activeElement)) });
 const alternative = computed(() => theme.current.startsWith('glass-'));
 const dark = computed(() => theme.current.endsWith('dark'));
 const select = (alt, isDark) => {
@@ -104,29 +105,11 @@ const select = (alt, isDark) => {
 };
 </script>
 <style scoped>
-.theme-trigger {
-  width: calc(100% - 14px);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px 0 9px;
-  margin: 4px 7px;
-  min-height: 40px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  text-align: left;
-  color: var(--nav-text);
-  font-family: inherit;
-  cursor: pointer;
-  overflow: hidden;
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
 .theme-trigger:hover:not(:disabled) { background-color: var(--nav-hover); }
 .theme-trigger:hover:not(:disabled) .nav-icon { color: var(--nav-primary); }
-.theme-trigger:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
+
 .theme-trigger:disabled { opacity: 0.4; cursor: not-allowed; }
-.nav-icon { flex-shrink: 0; color: var(--nav-text-muted); transition: color 0.2s ease; }
+
 .theme-arrow {
   margin-left: auto;
   flex-shrink: 0;
@@ -139,17 +122,8 @@ const select = (alt, isDark) => {
 .theme-controls--inline .theme-arrow { transform: rotate(90deg); }
 .theme-controls--inline .theme-arrow--open { transform: rotate(270deg); }
 .nav-menu.expanded .theme-arrow { opacity: 0.7; transition-delay: 0.15s; }
-.nav-text {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 16px;
-  color: var(--nav-text);
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateX(-5px);
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.nav-menu.expanded .nav-text { opacity: 1; transform: translateX(0); transition-delay: 0.1s; }
+
+
 .theme-options { margin: 0; border: 0; min-width: 0; padding: 4px 14px; display: flex; flex-direction: column; }
 .theme-option { width: 100%; justify-content: space-between; flex-direction: row-reverse; min-height: 40px; font-size: 13px; }
 .theme-option + .theme-option { border-top: 1px solid var(--border); }
