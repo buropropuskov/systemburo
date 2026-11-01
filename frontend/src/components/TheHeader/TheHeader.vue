@@ -68,8 +68,8 @@
         aria-label="Уведомления"
         :aria-expanded="showNotifications"
         @click.stop="showNotifications = !showNotifications"
-        @keydown.enter.prevent="showNotifications = !showNotifications"
-        @keydown.space.prevent="showNotifications = !showNotifications"
+        @keydown.enter.self.prevent="showNotifications = !showNotifications"
+        @keydown.space.self.prevent="showNotifications = !showNotifications"
       >
         <AppIcon
           name="notifications"
