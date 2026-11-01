@@ -62,7 +62,24 @@ describe('single dropdown theme setting', () => {
     const source = fs.readFileSync(resolve(__dirname, '../ThemeControls.vue'), 'utf8');
     const style = parse(source).descriptor.styles[0];
     const css = compileStyle({ source: style.content, filename: 'ThemeControls.vue', id: 'data-v-theme-test', scoped: true }).code;
-    expect(css).toContain('.nav-menu.expanded .nav-text[data-v-theme-test]');
+    expect(source).toContain("import '@/assets/nav-keyboard.css'");
+    const common = fs.readFileSync(resolve(__dirname, '../../../assets/nav-keyboard.css'), 'utf8');
+    const compiled = compileStyle({ source: common, filename: 'nav-keyboard.css', id: 'nav-common', scoped: false });
+    expect(compiled.errors).toEqual([]);
+    expect(compiled.code).toContain(':where(.nav-menu).expanded .nav-text');
+    const stylesheet = document.createElement('style');
+    stylesheet.textContent = compiled.code + css;
+    document.head.append(stylesheet);
+    styles.push(stylesheet);
+    const wrapper = create();
+    const nav = document.createElement('nav');
+    nav.className = 'nav-menu';
+    wrapper.element.replaceWith(nav);
+    nav.append(wrapper.element);
+    const label = wrapper.get('.nav-text').element;
+    expect(getComputedStyle(label).opacity).toBe('0');
+    nav.classList.add('expanded');
+    expect(getComputedStyle(label).opacity).toBe('1');
   });
   it('disables the trigger and prevents a blocked user changing theme', async () => {
     const w = create({ disabled: true });
