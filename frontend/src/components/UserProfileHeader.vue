@@ -653,6 +653,7 @@ export default {
 .user-detail:nth-child(1) { animation-delay: 0.4s; }
 .user-detail:nth-child(2) { animation-delay: 0.45s; }
 .user-detail:nth-child(3) { animation-delay: 0.5s; }
+.user-detail:nth-child(4) { animation-delay: 0.55s; }
 
 /* Ряд с согласием стоит над именем: бейдж единственный в шапке, по которому
    работник что-то делает, и в контактной строке внизу его не замечали. */

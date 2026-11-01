@@ -67,6 +67,7 @@
                 <div class="user-filter">
                   <span class="filter-label">Пользователь:</span>
                   <div
+                    ref="userSelect"
                     class="custom-select"
                     @click="toggleUserDropdown"
                   >
@@ -86,7 +87,7 @@
                         <div 
                           class="select-option"
                           :class="{ 'selected': selectedUserId === null }"
-                          @click="selectUser(null)"
+                          @click.stop="selectUser(null)"
                         >
                           Все пользователи
                         </div>
@@ -95,7 +96,7 @@
                           :key="user.id"
                           class="select-option"
                           :class="{ 'selected': selectedUserId === user.id }"
-                          @click="selectUser(user.id)"
+                          @click.stop="selectUser(user.id)"
                         >
                           {{ user.name }}
                         </div>
@@ -601,7 +602,8 @@ export default {
         },
 
         handleClickOutside(event) {
-            const select = this.$el.querySelector('.custom-select');
+            // Окно Teleport находится вне корневой кнопки истории.
+            const select = this.$refs.userSelect;
             if (select && !select.contains(event.target) && this.userDropdownOpen) {
                 this.userDropdownOpen = false;
             }
