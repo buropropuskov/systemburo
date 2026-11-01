@@ -18,6 +18,7 @@ import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHand
  *   (присутствуют в DOM только когда открыты), guard не нужен - не передавай.
  * @param {number | (() => number)} [zIndex] слой окна для стопки: при равных слоях верхним считается
  *   открытое последним, поэтому значение обязательно только там, где слои неравные.
+ * @returns {() => boolean} проверка того же владельца для управления фокусом окна.
  */
 export function useEscapeClose(onEscape, isActive, zIndex = 0) {
     // Ключ владельца в стопке: свой объект, а не инстанс компонента - композабл вызывают
@@ -56,4 +57,6 @@ export function useEscapeClose(onEscape, isActive, zIndex = 0) {
         document.removeEventListener('keydown', handler);
         releaseModal(owner);
     });
+
+    return () => isTopModal(owner);
 }

@@ -81,27 +81,28 @@
                 />
               </transition>
             </div>
-            <div
+            <button
+              type="button"
               class="notification-content"
               @click="markRead(notif)"
             >
-              <div class="notification-header">
-                <div class="notification-title">
+              <span class="notification-header">
+                <span class="notification-title">
                   {{ notif.title }}
-                </div>
+                </span>
                 <span
                   v-if="(notif.count || 1) > 1"
                   class="notification-count"
                   :title="`Событий: ${notif.count}`"
                 >{{ notif.count }}</span>
-                <div class="notification-date">
+                <span class="notification-date">
                   {{ relativeTime(notif.created_at) }}
-                </div>
-              </div>
-              <div class="notification-message">
+                </span>
+              </span>
+              <span class="notification-message">
                 {{ notificationMessageText(notif) }}
-              </div>
-            </div>
+              </span>
+            </button>
             <button
               type="button"
               class="delete-btn"
@@ -602,9 +603,21 @@ export default {
 }
 
 .notification-content {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
   flex: 1;
   min-width: 0;
   cursor: pointer;
+}
+
+.notification-content:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .notification-header {
