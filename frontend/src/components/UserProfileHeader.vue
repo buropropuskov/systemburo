@@ -122,18 +122,20 @@
           v-if="email"
           class="user-detail"
           :title="emailOwnerHint"
-          @click="copyEmail"
         >
-          <span
+          <button
             ref="emailBadge"
+            type="button"
             class="detail-badge email-badge clickable"
             :style="{ width: emailBadgeWidth ? emailBadgeWidth + 'px' : null }"
+            :aria-label="copiedEmail ? 'Почта скопирована' : 'Скопировать адрес электронной почты'"
+            @click="copyEmail"
           >
             <transition
               name="fade"
               mode="out-in"
             >
-              <div
+              <span
                 v-if="!copiedEmail"
                 key="original"
                 class="badge-content"
@@ -143,32 +145,34 @@
                   name="center"
                 />
                 <span class="badge-text">{{ email }}</span>
-              </div>
-              <div
+              </span>
+              <span
                 v-else
                 key="copied"
                 class="badge-content"
               >
                 <span class="badge-text">Почта скопирована!</span>
-              </div>
+              </span>
             </transition>
-          </span>
+          </button>
         </div>
         <div
           v-if="phone"
           class="user-detail"
-          @click="copyPhone"
         >
-          <span
+          <button
             ref="phoneBadge"
+            type="button"
             class="detail-badge phone-badge clickable"
             :style="{ width: phoneBadgeWidth ? phoneBadgeWidth + 'px' : null }"
+            :aria-label="copiedPhone ? 'Телефон скопирован' : 'Скопировать номер телефона'"
+            @click="copyPhone"
           >
             <transition
               name="fade"
               mode="out-in"
             >
-              <div
+              <span
                 v-if="!copiedPhone"
                 key="original"
                 class="badge-content"
@@ -181,16 +185,16 @@
                   <path d="M8.4 3.6 5.9 6.1a1.8 1.8 0 0 0-.4 1.9 19 19 0 0 0 10.5 10.5 1.8 1.8 0 0 0 1.9-.4l2.5-2.5-3.9-2.9-1.8 1.4a14.5 14.5 0 0 1-5.2-5.2l1.4-1.8-3.5-3.5Z" />
                 </svg>
                 <span class="badge-text">{{ formattedPhone }}</span>
-              </div>
-              <div
+              </span>
+              <span
                 v-else
                 key="copied"
                 class="badge-content"
               >
                 <span class="badge-text">Скопировано!</span>
-              </div>
+              </span>
             </transition>
-          </span>
+          </button>
         </div>
         <div class="user-detail">
           <button
@@ -735,12 +739,16 @@ export default {
 }
 
 .email-badge {
+  font-family: inherit;
+  line-height: inherit;
   background: var(--success-bg);
   color: var(--success-text);
   border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .phone-badge {
+  font-family: inherit;
+  line-height: inherit;
   background: var(--warning-bg);
   color: var(--warning-text);
   border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
