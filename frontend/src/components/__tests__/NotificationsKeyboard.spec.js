@@ -138,4 +138,13 @@ describe('Notification opening and mobile focus', () => {
     const { trigger } = await mountPanel();
     expect(document.activeElement).toBe(trigger);
   });
+  it('focuses the sheet again when an open dropdown returns from desktop to mobile', async () => {
+    const { trigger } = await mountPanel();
+    mediaChange({ matches: false });
+    await flushPromises();
+    expect(document.activeElement).toBe(trigger);
+    mediaChange({ matches: true });
+    await flushPromises();
+    expect(document.activeElement).toBe(document.querySelector('.notifications'));
+  });
 });
