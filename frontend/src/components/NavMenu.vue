@@ -31,7 +31,7 @@
       }"
       :style="swipeOffset ? { transform: `translateX(min(0px, calc(-100% + ${swipeOffset}px)))` } : null"
       @mouseenter="expandMenu"
-      @focusin="railFocus = true"
+      @focusin="onRailFocusIn"
       @mouseleave="collapseMenu"
       @focusout="onRailFocusOut"
     >

@@ -67,8 +67,12 @@ export function useRailExpand(instance) {
     vm().setMobileOpen(false);
   }
 
+  function onRailFocusIn(event) {
+    railFocus.value = event.target.matches(':focus-visible');
+  }
+
   function onRailFocusOut(event) {
-    railFocus.value = event.currentTarget.contains(event.relatedTarget);
+    railFocus.value = false;
     if (!railFocus.value && !event.currentTarget.matches(':hover')) collapseMenu();
   }
 
@@ -77,5 +81,5 @@ export function useRailExpand(instance) {
   });
 
   return { expandMenu, collapseMenu, themePanelOpen, onThemePanelChange, closeMobile,
-    railFocus, onRailFocusOut };
+    railFocus, onRailFocusIn, onRailFocusOut };
 }

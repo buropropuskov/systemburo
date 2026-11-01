@@ -96,7 +96,8 @@ watch(() => dropdown.value?.isOpen, async (isOpen, wasOpen) => {
   }
 });
 const close = () => { if (dropdown.value) dropdown.value.isOpen = false; };
-defineExpose({ close, hasInteraction: () => Boolean(panel.value?.matches(':hover') || panel.value?.contains(document.activeElement)) });
+defineExpose({ close, hasInteraction: () => Boolean(panel.value?.matches(':hover')
+  || (panel.value?.contains(document.activeElement) && document.activeElement.matches(':focus-visible'))) });
 const alternative = computed(() => theme.current.startsWith('glass-'));
 const dark = computed(() => theme.current.endsWith('dark'));
 const select = (alt, isDark) => {

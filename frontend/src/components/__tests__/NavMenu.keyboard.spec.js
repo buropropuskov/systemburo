@@ -37,7 +37,14 @@ beforeEach(() => {
   useAuthStore.mockReturnValue({ isSuperAdmin: true, canViewAccessibleAttachments: true });
   getMyPermissions.mockResolvedValue({ mode: 'super', permissions: [], denied: [] });
 });
-afterEach(() => { wrapper?.unmount(); vi.useRealTimers(); });
+afterEach(() => { wrapper?.unmount(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+// JSDOM has no real input modality; native browser checks cover :focus-visible.
+function keyboardFocus(element) {
+  const matches = element.matches.bind(element);
+  vi.spyOn(element, 'matches').mockImplementation(selector => selector === ':focus-visible' || matches(selector));
+  element.focus();
+}
 
 describe('NavMenu: native keyboard actions', () => {
   it('exposes all visible actions as non-submit buttons and keeps the existing route handler', async () => {
@@ -63,7 +70,8 @@ describe('NavMenu: native keyboard actions', () => {
     await openNav();
     vi.useFakeTimers();
     const nav = wrapper.get('nav');
-    await nav.trigger('focusin');
+    keyboardFocus(wrapper.get('[data-testid="nav-link-tables"]').element);
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="nav-link-tables"]').trigger('click');
     await nav.trigger('mouseleave');
     await vi.advanceTimersByTimeAsync(200);
@@ -76,13 +84,26 @@ describe('NavMenu: native keyboard actions', () => {
     expect(wrapper.get('[data-testid="nav-link-center"]').element.disabled).toBe(true);
     expect(wrapper.get('[data-testid="nav-link-cabinet"]').element.disabled).toBe(false);
   });
+  it('collapses after pointer departure when a clicked button lacks keyboard focus', async () => {
+    await openNav();
+    vi.useFakeTimers();
+    await wrapper.setData({ isExpanded: true });
+    const button = wrapper.get('[data-testid="nav-link-news"]').element;
+    const matches = button.matches.bind(button);
+    const modality = vi.spyOn(button, 'matches').mockImplementation(selector => selector === ':focus-visible' ? false : matches(selector));
+    button.focus();
+    await wrapper.get('nav').trigger('mouseleave');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(wrapper.vm.railExpanded).toBe(false);
+    modality.mockRestore();
+  });
   it('keeps teleported theme controls open while they contain keyboard focus', async () => {
     await openNav();
     await wrapper.setData({ isExpanded: true });
     await wrapper.get('[data-testid="nav-theme-toggle"]').trigger('click');
     await flushPromises();
     const input = document.querySelector('.theme-options input');
-    input.focus();
+    keyboardFocus(input);
     wrapper.vm.$refs.navigation.matches = () => false;
     document.querySelector('.theme-options').matches = () => false;
     wrapper.vm.collapseMenu();
