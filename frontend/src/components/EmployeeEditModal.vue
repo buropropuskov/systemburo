@@ -128,7 +128,8 @@
             <input
               v-model="passportSeriesNumber"
               class="name__input"
-              placeholder="Введите серию и номер паспорта"
+              data-testid="employee-passport"
+              placeholder="Серия и номер"
               maxlength="100"
             >
           </div>
