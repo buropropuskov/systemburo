@@ -4,7 +4,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 const props = defineProps({
   field: { type: String, required: true },
   label: { type: String, required: true },
-  sortField: { type: String, required: true },
+  sortField: { type: [String, null], required: true },
   sortDirection: { type: String, required: true },
 });
 const emit = defineEmits(['sort']);
