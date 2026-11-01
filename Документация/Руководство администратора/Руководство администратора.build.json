@@ -1,10 +1,10 @@
 {
   "document": "admin",
-  "version": "1.22",
+  "version": "1.23",
   "pages": 82,
-  "code_revision": "0f7bb9cd0ec624eba98307ca9fe834de55ac5900",
-  "source_sha256": "77e6ca31071555917499ebea3e37d532abba3a079680bb3f71e701d67f2ef9b8",
-  "builder_sha256": "3f0b93256beed66b5a7530c939931d1ddb6f3153d87f40cb025901ab510a7a9b",
-  "docx_sha256": "cc3b27c0beea31254b9c0182592b302cdd499be28e279c9cb7a20ba2b283aabb",
-  "pdf_sha256": "05e31f205e0a9b4aefe8b4b008b5a0dea77f2c8426e449c4779575136865b782"
+  "code_revision": "614da8f35aed1a1eed3cb2f0bf6e884b008de74e",
+  "source_sha256": "2411f7d76e01f0c9a67ed897691beae1110822405b08dbbcbc266f4b549a06b1",
+  "builder_sha256": "73ab5b7c3a727147cee0ef8d2af50e511e85a794de6df09cdfcdafad4e9393ae",
+  "docx_sha256": "fdc1b4672cb10115e2ae5c3c01753629171c9cb68d47a278a09c3309e6636a5d",
+  "pdf_sha256": "0cc1c5ba76c9dc556b4ac6c18bb108515f03379fbc95c6aa6ac0925e990526d6"
 }
