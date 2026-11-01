@@ -261,7 +261,7 @@ describe('OnboardingMenu', () => {
       await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
       expect(useOnboardingStore().isActive).toBe(false);
       expect(useDeletionsStore().items.some(item => item.type === 'error')).toBe(true);
-      expect(wrapper.find('[data-testid="ob-start-button"]').attributes('disabled')).toBeUndefined();
+      expect(wrapper.find('[data-testid="ob-start-button"]').attributes('aria-disabled')).toBeUndefined();
       await wrapper.find('[data-testid="ob-start-button"]').trigger('click'); await flushPromises();
       document.querySelector('[data-testid="ob-start-full"]').click(); await flushPromises();
       expect(useOnboardingStore().isActive).toBe(true);
@@ -272,15 +272,19 @@ describe('OnboardingMenu', () => {
       getUserApplicationsPaginated.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
       login(); await mountMenu();
       const button = wrapper.find('[data-testid="ob-start-button"]');
+      button.element.focus();
       await button.trigger('click'); await flushPromises();
-      expect(button.attributes('disabled')).toBeDefined();
+      expect(button.attributes('aria-disabled')).toBe('true');
+      expect(button.attributes('aria-busy')).toBe('true');
+      expect(button.element.disabled).toBe(false);
+      expect(document.activeElement).toBe(button.element);
       await button.trigger('click'); await flushPromises();
       expect(getUserApplicationsPaginated).toHaveBeenCalledOnce();
       release({ items: [], meta: { total: 0 } }); await flushPromises();
       expect(useOnboardingStore().isActive).toBe(false);
       document.querySelector('[data-testid="ob-start-full"]').click(); await flushPromises();
       expect(useOnboardingStore().isActive).toBe(true);
-      expect(button.attributes('disabled')).toBeUndefined();
+      expect(button.attributes('aria-disabled')).toBeUndefined();
     });
 
     it('уже загруженный статус повторно не запрашивается', async () => {

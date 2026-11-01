@@ -5,6 +5,7 @@
     :class="{ 'base-dropdown--inline': inline }"
     :data-dropdown-open="String(isOpen)"
     @keydown="onTriggerKeydown"
+    @pointerdown="keyboardIntent = null"
   >
     <!-- Слот триггера: по умолчанию - штатная кнопка-поле. Заменяется, когда
          открывающий элемент уже существует в своём виде (кнопка «Обучение»

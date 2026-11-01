@@ -1,7 +1,7 @@
 // Клавиатура штатного списка. Слоты с произвольными действиями сохраняют свою модель.
 export default {
   data() {
-    return { activeOption: 0, keyboardQuery: '', keyboardQueryAt: 0 };
+    return { activeOption: 0, keyboardQuery: '', keyboardQueryAt: 0, keyboardIntent: null };
   },
   computed: {
     optionsId() { return `base-dropdown-options-${this.$.uid}`; },
@@ -9,9 +9,14 @@ export default {
   watch: {
     isOpen(open) {
       this.keyboardQuery = '';
+      const intent = this.keyboardIntent;
+      this.keyboardIntent = null;
       if (open) {
         const selected = this.filteredOptions.findIndex(this.isSelected);
         this.activeOption = Math.max(0, selected);
+        if (intent) this.$nextTick(() => {
+          if (this.isOpen && document.activeElement === this.dropdownTrigger()) this.focusInitialOption(intent);
+        });
       }
     },
     filteredOptions() {
@@ -43,19 +48,32 @@ export default {
       button.focus({ preventScroll: true });
       button.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
     },
+    focusInitialOption(intent) {
+      const selected = this.filteredOptions.findIndex(this.isSelected);
+      this.focusOption(selected >= 0 ? selected : intent === 'last' ? this.filteredOptions.length - 1 : 0);
+    },
     onTriggerKeydown(event) {
       if (this.disabled || this.inline || this.$slots.content || event.defaultPrevented
         || event.altKey || event.ctrlKey || event.metaKey || event.isComposing
         || this.$refs.menu?.contains(event.target)) return;
       if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) return;
+      const custom = Boolean(this.$slots.trigger);
+      const intent = event.key === 'ArrowUp' ? 'last' : 'first';
+      this.keyboardIntent = intent;
+      // Нативное нажатие принадлежит владельцу слота: он может готовить контекст
+      // асинхронно либо открыть диалог напрямую. Фокус переносим лишь после isOpen.
+      if (custom && ['Enter', ' '].includes(event.key)) return;
+      if (custom && !this.isOpen && !this.dropdownTrigger()?.hasAttribute('aria-haspopup')) {
+        this.keyboardIntent = null;
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
-      this.open();
-      this.$nextTick(() => {
-        const selected = this.filteredOptions.findIndex(this.isSelected);
-        this.focusOption(selected >= 0 ? selected : event.key === 'ArrowUp'
-          ? this.filteredOptions.length - 1 : 0);
-      });
+      if (this.isOpen) {
+        this.keyboardIntent = null;
+        this.focusInitialOption(intent);
+      } else if (custom) this.dropdownTrigger()?.click();
+      else this.open();
     },
     onMenuKeydown(event) {
       // Вложенный список отвечает за свои клавиши, даже без Teleport.
