@@ -291,19 +291,25 @@ export default {
     // Разделители "Сегодня"/"Вчера"/дата (#1748 S7) - сегментирует УЖЕ отсортированную
   },
   watch: {
-    panelFocusActive: {
-      immediate: true,
-      flush: 'sync',
-      handler(active) {
-        if (active) {
-          this.panelFocus ||= createDialogFocus(() => this.$refs.panel,
-            () => !this.showDetailModal && !this.uiStore.confirmState && !hasModalAbove(10001))
-          this.panelFocus.open()
-        } else {
-          this.panelFocus?.close()
-        }
+    panelFocusActive: [
+      {
+        flush: 'sync',
+        handler(active) {
+          if (!active) this.panelFocus?.close()
+        },
       },
-    },
+      {
+        immediate: true,
+        flush: 'post',
+        handler(active) {
+          if (active) {
+            this.panelFocus ||= createDialogFocus(() => this.$refs.panel,
+              () => !this.showDetailModal && !this.uiStore.confirmState && !hasModalAbove(10001))
+            this.panelFocus.open()
+          }
+        },
+      },
+    ],
     show(val) {
       if (val) {
         this.fetchNotifications()
