@@ -9,12 +9,15 @@
         @click.stop
       >
         <div
+          ref="dialogEl"
           class="notif-detail-dialog"
           data-testid="notif-detail-dialog"
           :class="{ 'is-dragging': sheetDragging }"
           :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           role="dialog"
           aria-modal="true"
+          tabindex="-1"
+          @keydown.tab="dialogFocus.handleTab"
           @mousedown.stop
           @touchstart="onSheetTouchStart"
           @touchmove="onSheetTouchMove"
@@ -150,6 +153,7 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
+import { createDialogFocus } from '@/utils/dialogFocus';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import {
   notificationMessageText,
@@ -166,7 +170,16 @@ const props = defineProps({
 const emit = defineEmits(['close', 'action', 'unread', 'delete']);
 
 const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-useEscapeClose(() => emit('close'), () => props.show, 10500);
+const dialogEl = ref(null);
+let dialogFocus;
+// Return focus before the Escape owner is released during unmount.
+onBeforeUnmount(() => dialogFocus?.close());
+const isTop = useEscapeClose(() => emit('close'), () => props.show, 10500);
+dialogFocus = createDialogFocus(() => dialogEl.value, isTop);
+watch(() => props.show, visible => {
+  if (visible) dialogFocus.open();
+  else dialogFocus.close();
+}, { immediate: true, flush: 'sync' });
 
 // Bottom-sheet свайп-вниз-закрытие на мобилке - контракт окна проекта (#1097 R9).
 const bodyEl = ref(null);
@@ -238,6 +251,7 @@ const eventsLabel = computed(() => {
 }
 
 .notif-detail-dialog {
+  outline: none;
   width: 100%;
   max-width: 480px;
   max-height: 80vh;

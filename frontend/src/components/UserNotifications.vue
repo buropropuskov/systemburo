@@ -20,10 +20,16 @@
     <transition :name="isSheet ? 'notif-sheet' : 'panel-slide'">
       <div
         v-if="show"
+        ref="panel"
         class="notifications"
+        :role="isSheet ? 'dialog' : undefined"
+        :aria-modal="isSheet ? 'true' : undefined"
+        :aria-label="isSheet ? 'Уведомления' : undefined"
+        :tabindex="isSheet ? -1 : undefined"
         data-testid="ob-notifications-panel"
         :class="{ 'notifications--sheet': isSheet, 'is-dragging': sheetDragging }"
         :style="isSheet && sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+        @keydown.tab="panelFocus?.handleTab($event)"
         @click.stop
         @touchstart="onSheetTouchStart"
         @touchmove="onSheetTouchMove"
@@ -105,28 +111,32 @@
               role="listitem"
               @click.stop="markAsRead(item)"
             >
-              <div class="notification-item__content">
-                <div class="notification-item__top">
-                  <p
+              <button
+                type="button"
+                class="notification-item__content"
+                @click.stop="markAsRead(item)"
+              >
+                <span class="notification-item__top">
+                  <span
                     v-if="item.title"
                     class="notification-item__title"
                   >
                     {{ item.title }}
-                  </p>
+                  </span>
                   <span
                     v-if="(item.count || 1) > 1"
                     class="notification-item__count"
                     :title="`Событий: ${item.count}`"
                   >{{ item.count }}</span>
                   <time class="notification-item__time">{{ relativeTime(item.created_at) }}</time>
-                </div>
-                <p
+                </span>
+                <span
                   v-if="item.message"
                   class="notification-item__message"
                 >
                   {{ notificationMessageText(item) }}
-                </p>
-              </div>
+                </span>
+              </button>
               <button
                 class="notification-item__delete"
                 aria-label="Удалить уведомление"
@@ -183,6 +193,9 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
 import { getNotificationsPaginated } from '@/api/notifications'
 import { useUiStore } from '@/stores/ui'
+import { useOnboardingStore } from '@/stores/onboarding'
+import { createDialogFocus } from '@/utils/dialogFocus'
+import { hasModalAbove } from '@/utils/modalStack'
 import eventStream from '@/services/eventStream'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
@@ -237,6 +250,7 @@ export default {
     // закрытия панели, пока человек на этот вопрос отвечает.
     const uiStore = useUiStore();
     return {
+      onboardingStore: useOnboardingStore(),
       uiStore,
       sheetScroll,
       isSheet,
@@ -259,6 +273,7 @@ export default {
   },
   data() {
     return {
+      panelFocus: null,
       filter: 'all',
       unreadCount: 0,
       pollTimer: null,
@@ -270,9 +285,25 @@ export default {
     }
   },
   computed: {
+    panelFocusActive() {
+      return this.show && this.isSheet && this.onboardingStore.revealOpen !== 'notifications'
+    },
     // Разделители "Сегодня"/"Вчера"/дата (#1748 S7) - сегментирует УЖЕ отсортированную
   },
   watch: {
+    panelFocusActive: {
+      immediate: true,
+      flush: 'sync',
+      handler(active) {
+        if (active) {
+          this.panelFocus ||= createDialogFocus(() => this.$refs.panel,
+            () => !this.showDetailModal && !this.uiStore.confirmState && !hasModalAbove(10001))
+          this.panelFocus.open()
+        } else {
+          this.panelFocus?.close()
+        }
+      },
+    },
     show(val) {
       if (val) {
         this.fetchNotifications()
@@ -319,6 +350,7 @@ export default {
     document.addEventListener('keydown', this.escHandler, true)
   },
   beforeUnmount() {
+    this.panelFocus?.close()
     this.disconnectNotificationsSentinel()
     if (this.escHandler) document.removeEventListener('keydown', this.escHandler, true)
     this.stopPolling()
@@ -510,6 +542,7 @@ export default {
 
 <style scoped>
 .notifications {
+  outline: none;
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
@@ -652,8 +685,21 @@ export default {
 }
 
 .notification-item__content {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
   flex: 1;
   min-width: 0;
+}
+
+.notification-item__content:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .notification-item__top {
