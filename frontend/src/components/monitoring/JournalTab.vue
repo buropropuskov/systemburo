@@ -91,25 +91,17 @@
     <div class="content-container">
       <div class="table-container rt-table">
         <div class="table-header rt-head-row">
-          <div
+          <RegistrySortButton
             v-for="col in sortableColumns"
             :key="col.field"
             class="header-col"
             :class="col.cls"
-            @click="sortBy(col.field)"
-          >
-            <p :class="{ 'active-sort': state.sort === col.field }">
-              {{ col.label }}
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': state.sort === col.field,
-                'desc': state.sort === col.field && state.order === 'desc'
-              }"
-            />
-          </div>
+            :field="col.field"
+            :label="col.label"
+            :sort-field="state.sort"
+            :sort-direction="state.order"
+            @sort="sortBy"
+          />
         </div>
 
         <!-- Порядок строк на узком экране: шапка колонок там скрыта
@@ -284,7 +276,7 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import RealTimeChart from '@/components/RealTimeChart.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import { BaseDropdown, RegistrySortButton } from '@/components/ui';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import RefreshOverlay from '@/components/ui/RefreshOverlay.vue';
 import DateFilter from '@/components/DateFilter.vue';
@@ -779,26 +771,26 @@ watch(() => props.hidden, (hidden) => {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 600 !important;
 }

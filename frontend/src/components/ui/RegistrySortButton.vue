@@ -6,6 +6,8 @@ const props = defineProps({
   label: { type: String, required: true },
   sortField: { type: [String, null], required: true },
   sortDirection: { type: String, required: true },
+  headerClass: { type: String, default: 'header-col' },
+  icon: { type: Boolean, default: true },
 });
 const emit = defineEmits(['sort']);
 const active = computed(() => props.sortField === props.field);
@@ -15,13 +17,17 @@ const description = computed(() => props.label + ': ' + (active.value
 <template>
   <button
     type="button"
-    class="header-col"
+    :class="headerClass"
     :data-field="field"
     :aria-label="description"
     @click="emit('sort', field)"
   >
-    <span :class="{ 'active-sort': active }">{{ label }}</span>
+    <span
+      class="sort-label"
+      :class="{ 'active-sort': active }"
+    >{{ label }}</span>
     <AppIcon
+      v-if="icon"
       name="sort"
       class="sort-icon"
       :class="{ sorted: active, desc: active && sortDirection === 'desc' }"

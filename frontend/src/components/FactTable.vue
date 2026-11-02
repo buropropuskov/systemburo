@@ -44,22 +44,20 @@
           >
             <p>Номер Т/С</p>
           </div>
-          <div
+          <RegistrySortButton
             v-if="tableType === 'cars' && isFieldVisible('car_brand')"
             class="col brand-col"
             :style="getColStyle('car_brand')"
-            @click="sortBy('car_brand')"
-          >
-            <p :class="{ 'active-sort': sortField === 'car_brand' }">Марка</p>
-          </div>
-          <div
+            v-bind="{ field: 'car_brand', label: 'Марка', sortField, sortDirection, headerClass: 'col', icon: false }"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldVisible('organization')"
             class="col organization-col"
             :style="getColStyle('organization')"
-            @click="sortBy('organization')"
-          >
-            <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
-          </div>
+            v-bind="{ field: 'organization', label: 'Организация', sortField, sortDirection, headerClass: 'col', icon: false }"
+            @sort="sortBy"
+          />
           <div
             v-if="tableType === 'cars' && isFieldVisible('company')"
             class="col company-col"
@@ -81,24 +79,20 @@
           >
             <p>Место разгрузки</p>
           </div>
-          <div
+          <RegistrySortButton
             v-if="isFieldVisible('valid_until')"
             class="col date-col"
             :style="getColStyle('valid_until')"
-            @click="sortBy('entry_date_to')"
-          >
-            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
-          </div>
-          <div
+            v-bind="{ field: 'entry_date_to', label: 'Действует до', sortField, sortDirection, headerClass: 'col', icon: false }"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
             class="col time-col"
             :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
-            @click="sortBy('entry_time')"
-          >
-            <p :class="{ 'active-sort': sortField === 'entry_time' }">
-              {{ tableType === 'cars' ? 'Время' : 'Время прохода' }}
-            </p>
-          </div>
+            v-bind="{ field: 'entry_time', label: tableType === 'cars' ? 'Время' : 'Время прохода', sortField, sortDirection, headerClass: 'col', icon: false }"
+            @sort="sortBy"
+          />
           <div
             v-if="tableType === 'cars' && isFieldVisible('status')"
             class="col status-col"
@@ -407,7 +401,7 @@ import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui';
 import eventStream from '@/services/eventStream';
 import PassageTableHeader from './PassageTableHeader.vue';
-import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import { LoaderSpinner, RegistrySortButton } from '@/components/ui';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import FactPassModal from './FactPassModal.vue';
@@ -429,7 +423,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 export default {
   name: 'FactTable',
   mixins: [passageTableIntegration, factTableDetails],
-  components: {
+  components: { RegistrySortButton,
     AppIcon,
     PassageTableHeader,
     LoaderSpinner,
@@ -1286,7 +1280,7 @@ export default {
 
 /* Подпись столбца сжимается с многоточием: раньше длинный заголовок распирал
    ячейку и наезжал на соседний столбец в режиме «Сетка» (#1307). */
-.header-row .col > p {
+.header-row .col > p, .header-row .col > :deep(.sort-label) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1298,7 +1292,7 @@ export default {
   color: var(--text);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 500 !important;
 }
