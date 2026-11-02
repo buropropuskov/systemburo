@@ -2310,447 +2310,431 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	baseTime := time.Now().UTC()
-	applicationNumber := nextApplicationNumber(tx)
-
-	// Организация и компания заявки: выбранная по id либо найденная по ключу
-	// дедупликации наименования, а незнакомое наименование заводит запись «на
-	// проверке» (#1437). NULL остаётся только там, где сущность не указана вовсе.
-	// Чужую организацию пропускает только право override, свою из профиля - всегда.
-	scope := applicantScope{
-		userID:         user.ID,
-		organizationID: user.OrganizationID,
-		companyID:      user.CompanyID,
-		canOverride:    canOverrideOrganization,
-	}
-	orgRef, err := s.resolveOrganizationRef(ctx, tx, scope, req.OrganizationID, req.OrganizationTitle())
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	companyRefResult, err := s.resolveCompanyRef(ctx, tx, scope, req.CompanyID, req.CompanyTitle())
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	organizationID, companyID := orgRef.ID, companyRefResult.ID
-	// Backstop к гейту выше: при текущем резолве оба nil одновременно недостижимы, но
-	// заявка без организации И компании не должна создаваться ни при каком его изменении -
-	// именно такая сирота и была багом, который срез закрывает.
-	if organizationID == nil && companyID == nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
-	}
-
-	if err := s.ensureNoActiveByFactApplication(tx, organizationID, hasByFactVehicle(req)); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	// Телефон шифруется (#2351). Вставка идёт сырым запросом мимо модели, поэтому
-	// здесь явно; пустое значение оставляем пустым - NULLIF в запросе рассчитывает
-	// именно на пустую строку, а шифротекст от пустой строки пустым не бывает.
-	encryptedContactPhone := ""
-	if phone := strings.TrimSpace(req.ContactPhone); phone != "" {
-		enc, encErr := crypto.Encrypt(phone, crypto.GetGlobalKey())
-		if encErr != nil {
-			tx.Rollback()
-			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить телефон заявки")
-		}
-		encryptedContactPhone = enc
-	}
-
-	// Создаём заявку
 	var appID int
-	err = tx.Raw(`
+	var applicationNumber string
+	var organizationID, companyID *int
+	var orgRef, companyRefResult directoryResolution
+	type respUser = applicationAssignee
+	var responsibleUsers []respUser
+	// Вставленные машины/сотрудники для пост-коммит проверки близости к ЧС (#481).
+	var pendingVehicleFlags []pendingVehicleFlag
+	var pendingEmployeeFlags []pendingEmployeeFlag
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		baseTime := time.Now().UTC()
+		applicationNumber = nextApplicationNumber(tx)
+
+		// Организация и компания заявки: выбранная по id либо найденная по ключу
+		// дедупликации наименования, а незнакомое наименование заводит запись «на
+		// проверке» (#1437). NULL остаётся только там, где сущность не указана вовсе.
+		// Чужую организацию пропускает только право override, свою из профиля - всегда.
+		scope := applicantScope{
+			userID:         user.ID,
+			organizationID: user.OrganizationID,
+			companyID:      user.CompanyID,
+			canOverride:    canOverrideOrganization,
+		}
+		orgRef, err = s.resolveOrganizationRef(ctx, tx, scope, req.OrganizationID, req.OrganizationTitle())
+		if err != nil {
+			return err
+		}
+		companyRefResult, err = s.resolveCompanyRef(ctx, tx, scope, req.CompanyID, req.CompanyTitle())
+		if err != nil {
+			return err
+		}
+		organizationID, companyID = orgRef.ID, companyRefResult.ID
+		// Backstop к гейту выше: при текущем резолве оба nil одновременно недостижимы, но
+		// заявка без организации И компании не должна создаваться ни при каком его изменении -
+		// именно такая сирота и была багом, который срез закрывает.
+		if organizationID == nil && companyID == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
+		}
+
+		if err := s.ensureNoActiveByFactApplication(tx, organizationID, hasByFactVehicle(req)); err != nil {
+			return err
+		}
+
+		// Телефон шифруется (#2351). Вставка идёт сырым запросом мимо модели, поэтому
+		// здесь явно; пустое значение оставляем пустым - NULLIF в запросе рассчитывает
+		// именно на пустую строку, а шифротекст от пустой строки пустым не бывает.
+		encryptedContactPhone := ""
+		if phone := strings.TrimSpace(req.ContactPhone); phone != "" {
+			enc, encErr := crypto.Encrypt(phone, crypto.GetGlobalKey())
+			if encErr != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить телефон заявки")
+			}
+			encryptedContactPhone = enc
+		}
+
+		// Создаём заявку
+		err = tx.Raw(`
 		INSERT INTO applications (application_number, organization_id, company_id, sender_user_id, message, data_approval, status, confirmation, sending_datetime, initiator_name, contact_phone)
 		VALUES (?, ?, ?, ?, ?, ?, 'Непрочитано', 'Согласование', ?, NULLIF(?, ''), NULLIF(?, ''))
 		RETURNING id
 	`, applicationNumber, organizationID, companyID, user.ID, req.Message, fmt.Sprintf("%v", req.DataApproval), baseTime,
-		strings.TrimSpace(req.ResponsiblePerson), encryptedContactPhone).Scan(&appID).Error
-	if err != nil {
-		tx.Rollback()
-		slog.Error("Ошибка создания заявки", "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
-	}
-
-	// Файлы, приложенные при подаче (#1721). Внутри транзакции: не найденный
-	// среди своих черновиков файл откатывает подачу, вместо того чтобы создать
-	// заявку без документа, который заявитель считает приложенным.
-	if s.files != nil {
-		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs, s.fileMaxCount, s.fileMaxTotal); err != nil {
-			tx.Rollback()
-			return nil, err
+			strings.TrimSpace(req.ResponsiblePerson), encryptedContactPhone).Scan(&appID).Error
+		if err != nil {
+			slog.Error("Ошибка создания заявки", "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
 		}
-	}
 
-	// Записываем создание в историю
-	metaCreate, _ := json.Marshal(map[string]string{"confirmation": "Согласование", "status": "Непрочитано"})
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "create", &user.ID,
-		applicationAuditDetails{NewValue: &applicationNumber, Metadata: metaCreate})
-
-	// Собираем ответственных
-	type respUser = applicationAssignee
-	var responsibleUsers []respUser
-	var primaryResponsibleID *int
-
-	if organizationID != nil {
-		var orgResp []struct {
-			UserID           int  `gorm:"column:user_id"`
-			IsPrimary        bool `gorm:"column:is_primary"`
-			RequiredApproval bool `gorm:"column:required_approval"`
-		}
-		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM organization_users WHERE organization_id = ?", *organizationID).Scan(&orgResp)
-		for _, r := range orgResp {
-			responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
-			if r.IsPrimary {
-				primaryResponsibleID = &r.UserID
+		// Файлы, приложенные при подаче (#1721). Внутри транзакции: не найденный
+		// среди своих черновиков файл откатывает подачу, вместо того чтобы создать
+		// заявку без документа, который заявитель считает приложенным.
+		if s.files != nil {
+			if err := s.files.Attach(tx, user.ID, appID, req.FileIDs, s.fileMaxCount, s.fileMaxTotal); err != nil {
+				return err
 			}
 		}
-	}
 
-	if companyID != nil {
-		var compResp []struct {
-			UserID           int  `gorm:"column:user_id"`
-			IsPrimary        bool `gorm:"column:is_primary"`
-			RequiredApproval bool `gorm:"column:required_approval"`
-		}
-		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM companies_users WHERE company_id = ?", *companyID).Scan(&compResp)
-		for _, r := range compResp {
-			exists := false
-			for i := range responsibleUsers {
-				if responsibleUsers[i].UserID == r.UserID {
-					responsibleUsers[i].RequiredApproval = responsibleUsers[i].RequiredApproval || r.RequiredApproval
-					exists = true
-					break
-				}
+		// Записываем создание в историю
+		metaCreate, _ := json.Marshal(map[string]string{"confirmation": "Согласование", "status": "Непрочитано"})
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "create", &user.ID,
+			applicationAuditDetails{NewValue: &applicationNumber, Metadata: metaCreate})
+
+		// Собираем ответственных
+		var primaryResponsibleID *int
+
+		if organizationID != nil {
+			var orgResp []struct {
+				UserID           int  `gorm:"column:user_id"`
+				IsPrimary        bool `gorm:"column:is_primary"`
+				RequiredApproval bool `gorm:"column:required_approval"`
 			}
-			if !exists {
+			tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM organization_users WHERE organization_id = ?", *organizationID).Scan(&orgResp)
+			for _, r := range orgResp {
 				responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
-				if r.IsPrimary && primaryResponsibleID == nil {
+				if r.IsPrimary {
 					primaryResponsibleID = &r.UserID
 				}
 			}
 		}
-	}
 
-	// req.RequiredUsers - список из формы подачи, дублирующий required_approval,
-	// который уже прочитан выше из organization_users/companies_users. Присланное
-	// значение признак не меняет ни в одну сторону (#2037): заявитель не назначает
-	// согласующих, он только видит состав организации, поэтому обязательность
-	// целиком определяется справочником.
-	//
-	// Раньше пользователь, не найденный среди responsibleUsers, тихо ДОБАВЛЯЛСЯ в
-	// согласующие (#2048): подделанный запрос с чужим user_id заводил в ответственные
-	// постороннего из другой организации, тот видел заявку целиком и мог её согласовать.
-	// Форма всегда шлёт id из состава уже прочитанной организации/компании (см. функцию
-	// отправки в CreateApplication.vue - список берётся из ответа /organizations/{id}/users
-	// и /companies/{id}/users), поэтому для легитимной подачи exists здесь истинно всегда,
-	// а расхождение - признак подделанного запроса. Отклоняем подачу целиком, а не тихо
-	// выбрасываем чужого пользователя: заявитель должен получить внятный отказ, а не
-	// заявку, тихо созданную без части того, что он просил.
-	if req.RequiredUsers != nil {
-		for _, reqUser := range *req.RequiredUsers {
-			exists := false
-			for _, ru := range responsibleUsers {
-				if ru.UserID == reqUser.UserID {
-					exists = true
-					break
+		if companyID != nil {
+			var compResp []struct {
+				UserID           int  `gorm:"column:user_id"`
+				IsPrimary        bool `gorm:"column:is_primary"`
+				RequiredApproval bool `gorm:"column:required_approval"`
+			}
+			tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM companies_users WHERE company_id = ?", *companyID).Scan(&compResp)
+			for _, r := range compResp {
+				exists := false
+				for i := range responsibleUsers {
+					if responsibleUsers[i].UserID == r.UserID {
+						responsibleUsers[i].RequiredApproval = responsibleUsers[i].RequiredApproval || r.RequiredApproval
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
+					if r.IsPrimary && primaryResponsibleID == nil {
+						primaryResponsibleID = &r.UserID
+					}
 				}
 			}
-			if !exists {
-				tx.Rollback()
-				return nil, echo.NewHTTPError(http.StatusBadRequest, "Назначить согласующим можно только ответственного этой организации или компании")
+		}
+
+		// req.RequiredUsers - список из формы подачи, дублирующий required_approval,
+		// который уже прочитан выше из organization_users/companies_users. Присланное
+		// значение признак не меняет ни в одну сторону (#2037): заявитель не назначает
+		// согласующих, он только видит состав организации, поэтому обязательность
+		// целиком определяется справочником.
+		//
+		// Раньше пользователь, не найденный среди responsibleUsers, тихо ДОБАВЛЯЛСЯ в
+		// согласующие (#2048): подделанный запрос с чужим user_id заводил в ответственные
+		// постороннего из другой организации, тот видел заявку целиком и мог её согласовать.
+		// Форма всегда шлёт id из состава уже прочитанной организации/компании (см. функцию
+		// отправки в CreateApplication.vue - список берётся из ответа /organizations/{id}/users
+		// и /companies/{id}/users), поэтому для легитимной подачи exists здесь истинно всегда,
+		// а расхождение - признак подделанного запроса. Отклоняем подачу целиком, а не тихо
+		// выбрасываем чужого пользователя: заявитель должен получить внятный отказ, а не
+		// заявку, тихо созданную без части того, что он просил.
+		if req.RequiredUsers != nil {
+			for _, reqUser := range *req.RequiredUsers {
+				exists := false
+				for _, ru := range responsibleUsers {
+					if ru.UserID == reqUser.UserID {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					return echo.NewHTTPError(http.StatusBadRequest, "Назначить согласующим можно только ответственного этой организации или компании")
+				}
 			}
 		}
-	}
 
-	responsibleUsers, primaryResponsibleID, err = prepareApplicationAssignees(ctx, tx, appID, user.ID, responsibleUsers, primaryResponsibleID, baseTime)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if primaryResponsibleID != nil {
-		tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, appID)
-	}
+		responsibleUsers, primaryResponsibleID, err = prepareApplicationAssignees(ctx, tx, appID, user.ID, responsibleUsers, primaryResponsibleID, baseTime)
+		if err != nil {
+			return err
+		}
+		if primaryResponsibleID != nil {
+			tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, appID)
+		}
 
-	for _, ru := range responsibleUsers {
-		tx.Exec(`
+		for _, ru := range responsibleUsers {
+			tx.Exec(`
 			INSERT INTO application_responsible_users (application_id, user_id, is_primary, required_approval, approval_status, created_at)
 			VALUES (?, ?, ?, ?, 'pending', ?)
 			ON CONFLICT (application_id, user_id) DO UPDATE SET is_primary = EXCLUDED.is_primary, required_approval = EXCLUDED.required_approval
 		`, appID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, baseTime)
 
-		meta, _ := json.Marshal(map[string]interface{}{
-			"required_approval": ru.RequiredApproval,
-			"is_primary":        ru.IsPrimary,
-		})
-		ruUserID := ru.UserID
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "assigned_responsible", &ruUserID,
-			applicationAuditDetails{Metadata: meta})
-	}
-
-	// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers
-	// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
-	// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
-	if req.Readers != nil && len(*req.Readers) > 0 {
-		// Читателем можно назначить только того, кого форма и предлагала выбрать:
-		// иначе подделанный запрос открывал бы заявку любому пользователю системы.
-		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
-		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
-		//
-		// Тот же список стережёт пересылку (ForwardApplication): второй путь к INSERT
-		// в application_viewers обязан пускать тот же круг, иначе закрытая на подаче
-		// дыра открывается через /forward.
-		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
+			meta, _ := json.Marshal(map[string]interface{}{
+				"required_approval": ru.RequiredApproval,
+				"is_primary":        ru.IsPrimary,
+			})
+			ruUserID := ru.UserID
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "assigned_responsible", &ruUserID,
+				applicationAuditDetails{Metadata: meta})
 		}
 
-		seenViewer := make(map[int]bool, len(responsibleUsers))
-		for _, ru := range responsibleUsers {
-			seenViewer[ru.UserID] = true
-		}
-		for _, readerID := range *req.Readers {
-			if readerID <= 0 || seenViewer[readerID] {
-				continue
+		// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers
+		// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
+		// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
+		if req.Readers != nil && len(*req.Readers) > 0 {
+			// Читателем можно назначить только того, кого форма и предлагала выбрать:
+			// иначе подделанный запрос открывал бы заявку любому пользователю системы.
+			// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
+			// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
+			//
+			// Тот же список стережёт пересылку (ForwardApplication): второй путь к INSERT
+			// в application_viewers обязан пускать тот же круг, иначе закрытая на подаче
+			// дыра открывается через /forward.
+			allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
+			if err != nil {
+				return err
 			}
-			if _, allowed := allowedReaders[readerID]; !allowed {
-				slog.Warn("читатель заявки отброшен: вне списка доступных получателей",
-					"application_id", appID, "reader_id", readerID, "author_id", user.ID)
-				continue
+
+			seenViewer := make(map[int]bool, len(responsibleUsers))
+			for _, ru := range responsibleUsers {
+				seenViewer[ru.UserID] = true
 			}
-			seenViewer[readerID] = true
-			tx.Exec(`
+			for _, readerID := range *req.Readers {
+				if readerID <= 0 || seenViewer[readerID] {
+					continue
+				}
+				if _, allowed := allowedReaders[readerID]; !allowed {
+					slog.Warn("читатель заявки отброшен: вне списка доступных получателей",
+						"application_id", appID, "reader_id", readerID, "author_id", user.ID)
+					continue
+				}
+				seenViewer[readerID] = true
+				tx.Exec(`
 				INSERT INTO application_viewers (application_id, user_id, created_at, created_by)
 				VALUES (?, ?, ?, ?)
 			`, appID, readerID, baseTime, user.ID)
+			}
 		}
-	}
 
-	// Вставленные машины/сотрудники для пост-коммит проверки близости к ЧС (#481).
-	var pendingVehicleFlags []pendingVehicleFlag
-	var pendingEmployeeFlags []pendingEmployeeFlag
-
-	// Создаём вложения
-	for _, att := range req.Attachments {
-		var attID int
-		err := tx.Raw(`
+		// Создаём вложения
+		for _, att := range req.Attachments {
+			var attID int
+			err := tx.Raw(`
 			INSERT INTO attachments (application_id, attachment_type, attachment_name, attachment_display_name, unique_attachment_id, entry_date_from, entry_date_to, entry_time_from, entry_time_to, roof_access, free_parking, status)
 			VALUES (?, ?, ?, ?, ?, ?::date, ?::date, ?::time, ?::time, ?, ?, 1)
 			RETURNING id
 		`, appID, att.AttachmentType, att.AttachmentName, att.AttachmentDisplayName, att.UniqueAttachmentID,
-			att.EntryDateFrom, att.EntryDateTo, att.EntryTimeFrom, att.EntryTimeTo, att.RoofAccess, att.FreeParking).Scan(&attID).Error
-		if err != nil {
-			tx.Rollback()
-			slog.Error("Ошибка создания вложения", "error", err)
-			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating attachment")
-		}
-
-		switch att.AttachmentType {
-		case "cars":
-			if att.Data.Vehicles != nil {
-				vehicles := *att.Data.Vehicles
-				// Машины остаются raw SQL (у Car нет шифрующих хуков), но одним пакетным
-				// multi-values INSERT вместо построчного (blank-import, срез A2A3).
-				carIDs, err := insertCarsBatch(tx, attID, vehicles, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo, user.ID, baseTime)
-				if err != nil {
-					tx.Rollback()
-					slog.Error("Ошибка создания машин (batch)", "attachment_id", attID, "error", err)
-					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
-				}
-
-				// Дедуп-union мест всех машин вложения для attachment_unload_places (#706).
-				// car_unload_places продолжаем писать для read-side и истории.
-				carPlacesSet := make(map[int]struct{})
-				auditEntries := make([]models.AuditLog, 0, len(vehicles))
-				var unloadBindings []models.CarUnloadPlace
-				var tableBindings []models.CarTargetTable
-				for i, v := range vehicles {
-					carID := carIDs[i]
-					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
-
-					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
-					entry, err := buildAuditLogEntry(ctx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
-					if err != nil {
-						slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
-					} else {
-						auditEntries = append(auditEntries, entry)
-					}
-
-					for _, placeID := range v.UnloadPlaces {
-						pid, oneIdx := placeID, 1
-						unloadBindings = append(unloadBindings, models.CarUnloadPlace{CarID: carID, UnloadPlaceID: pid, OrderIndex: &oneIdx})
-						carPlacesSet[pid] = struct{}{}
-					}
-
-					// Таблицы «Проезд» (#1036): машина видна только в выбранных cars-таблицах
-					// (зеркало employee_target_tables). Историю попадания в таблицу пишем НЕ здесь,
-					// а при активации заявки (status->1) - при подаче машина ещё неактивна (#1085).
-					for _, tableID := range v.TargetTables {
-						tid, oneIdx := tableID, 1
-						tableBindings = append(tableBindings, models.CarTargetTable{CarID: carID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
-					}
-				}
-				if len(auditEntries) > 0 {
-					if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
-						slog.Error("не удалось записать аудит создания машин (submit)", "attachment_id", attID, "error", err)
-					}
-				}
-				if len(unloadBindings) > 0 {
-					if err := tx.CreateInBatches(&unloadBindings, bindingInsertBatchSize).Error; err != nil {
-						slog.Error("не удалось привязать машины к местам разгрузки (submit)", "attachment_id", attID, "error", err)
-					}
-				}
-				if len(tableBindings) > 0 {
-					if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
-						slog.Error("не удалось привязать машины к таблицам (submit)", "attachment_id", attID, "error", err)
-					}
-				}
-				// Пишем дедупированные места в attachment_unload_places (источник для охранника).
-				for placeID := range carPlacesSet {
-					tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
-				}
+				att.EntryDateFrom, att.EntryDateTo, att.EntryTimeFrom, att.EntryTimeTo, att.RoofAccess, att.FreeParking).Scan(&attID).Error
+			if err != nil {
+				slog.Error("Ошибка создания вложения", "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating attachment")
 			}
 
-		case "people":
-			if att.Data.Employees != nil {
-				employeesInput := *att.Data.Employees
-				employeeRecords := make([]models.Employee, 0, len(employeesInput))
-				for _, e := range employeesInput {
-					statusZero := 0
-					lastName := e.LastName
-					firstName := e.FirstName
-					citizenshipID := e.CitizenshipID
-					position := e.Position
-					employeeRecords = append(employeeRecords, models.Employee{
-						AttachmentID:         &attID,
-						LastName:             &lastName,
-						FirstName:            &firstName,
-						MiddleName:           e.MiddleName,
-						CitizenshipID:        &citizenshipID,
-						Position:             &position,
-						PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
-						PatentNumber:         nilIfBlankPtr(e.PatentNumber),
-						OtherPermission:      e.OtherPermission,
-						Status:               &statusZero,
-						PDConsentAt:          consentAt(e.PDConsent, baseTime),
-						PDConsentByUserID:    consentBy(e.PDConsent, user.ID),
-					})
-				}
-				// CreateInBatches, НЕ raw SQL: Employee.BeforeSave (models/employee.go)
-				// шифрует паспорт/патент и пишет HMAC. Хуки срабатывают только через GORM
-				// (Create/CreateInBatches), поэтому пакетная вставка обязана остаться на
-				// нём - иначе персональные данные легли бы в базу открытым текстом
-				// (blank-import, срез A2A3). GORM возвращает id каждой строки в тот же
-				// элемент среза (RETURNING на Postgres), порядок с employeesInput совпадает.
-				if err := tx.CreateInBatches(&employeeRecords, employeeInsertBatchSize).Error; err != nil {
-					tx.Rollback()
-					slog.Error("Ошибка создания сотрудников (batch)", "attachment_id", attID, "error", err)
-					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
-				}
-
-				auditEntries := make([]models.AuditLog, 0, len(employeeRecords))
-				var tableBindings []models.EmployeeTargetTable
-				for i, employee := range employeeRecords {
-					empID := employee.ID
-					e := employeesInput[i]
-
-					empMiddle := ""
-					if e.MiddleName != nil {
-						empMiddle = *e.MiddleName
-					}
-					pendingEmployeeFlags = append(pendingEmployeeFlags, pendingEmployeeFlag{
-						empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
-					})
-					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
-					entry, err := buildAuditLogEntry(ctx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+			switch att.AttachmentType {
+			case "cars":
+				if att.Data.Vehicles != nil {
+					vehicles := *att.Data.Vehicles
+					// Машины остаются raw SQL (у Car нет шифрующих хуков), но одним пакетным
+					// multi-values INSERT вместо построчного (blank-import, срез A2A3).
+					carIDs, err := insertCarsBatch(tx, attID, vehicles, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo, user.ID, baseTime)
 					if err != nil {
-						slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
-					} else {
-						auditEntries = append(auditEntries, entry)
+						slog.Error("Ошибка создания машин (batch)", "attachment_id", attID, "error", err)
+						return echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
 					}
 
-					// Историю попадания в таблицу пишем НЕ здесь, а при активации заявки
-					// (status->1) - при подаче сотрудник ещё неактивен (#1085).
-					for _, tableID := range e.TargetTables {
-						tid, oneIdx := tableID, 1
-						tableBindings = append(tableBindings, models.EmployeeTargetTable{EmployeeID: empID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
+					// Дедуп-union мест всех машин вложения для attachment_unload_places (#706).
+					// car_unload_places продолжаем писать для read-side и истории.
+					carPlacesSet := make(map[int]struct{})
+					auditEntries := make([]models.AuditLog, 0, len(vehicles))
+					var unloadBindings []models.CarUnloadPlace
+					var tableBindings []models.CarTargetTable
+					for i, v := range vehicles {
+						carID := carIDs[i]
+						pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
+
+						carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
+						entry, err := buildAuditLogEntry(ctx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+						if err != nil {
+							slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
+						} else {
+							auditEntries = append(auditEntries, entry)
+						}
+
+						for _, placeID := range v.UnloadPlaces {
+							pid, oneIdx := placeID, 1
+							unloadBindings = append(unloadBindings, models.CarUnloadPlace{CarID: carID, UnloadPlaceID: pid, OrderIndex: &oneIdx})
+							carPlacesSet[pid] = struct{}{}
+						}
+
+						// Таблицы «Проезд» (#1036): машина видна только в выбранных cars-таблицах
+						// (зеркало employee_target_tables). Историю попадания в таблицу пишем НЕ здесь,
+						// а при активации заявки (status->1) - при подаче машина ещё неактивна (#1085).
+						for _, tableID := range v.TargetTables {
+							tid, oneIdx := tableID, 1
+							tableBindings = append(tableBindings, models.CarTargetTable{CarID: carID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
+						}
+					}
+					if len(auditEntries) > 0 {
+						if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
+							slog.Error("не удалось записать аудит создания машин (submit)", "attachment_id", attID, "error", err)
+						}
+					}
+					if len(unloadBindings) > 0 {
+						if err := tx.CreateInBatches(&unloadBindings, bindingInsertBatchSize).Error; err != nil {
+							slog.Error("не удалось привязать машины к местам разгрузки (submit)", "attachment_id", attID, "error", err)
+							return apperr.Internal("Не удалось сохранить связи заявки", err)
+						}
+					}
+					if len(tableBindings) > 0 {
+						if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
+							slog.Error("не удалось привязать машины к таблицам (submit)", "attachment_id", attID, "error", err)
+							return apperr.Internal("Не удалось сохранить связи заявки", err)
+						}
+					}
+					// Пишем дедупированные места в attachment_unload_places (источник для охранника).
+					for placeID := range carPlacesSet {
+						tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
 					}
 				}
 
-				if len(auditEntries) > 0 {
-					if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
-						slog.Error("не удалось записать аудит создания сотрудников (submit)", "attachment_id", attID, "error", err)
+			case "people":
+				if att.Data.Employees != nil {
+					employeesInput := *att.Data.Employees
+					employeeRecords := make([]models.Employee, 0, len(employeesInput))
+					for _, e := range employeesInput {
+						statusZero := 0
+						lastName := e.LastName
+						firstName := e.FirstName
+						citizenshipID := e.CitizenshipID
+						position := e.Position
+						employeeRecords = append(employeeRecords, models.Employee{
+							AttachmentID:         &attID,
+							LastName:             &lastName,
+							FirstName:            &firstName,
+							MiddleName:           e.MiddleName,
+							CitizenshipID:        &citizenshipID,
+							Position:             &position,
+							PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
+							PatentNumber:         nilIfBlankPtr(e.PatentNumber),
+							OtherPermission:      e.OtherPermission,
+							Status:               &statusZero,
+							PDConsentAt:          consentAt(e.PDConsent, baseTime),
+							PDConsentByUserID:    consentBy(e.PDConsent, user.ID),
+						})
 					}
-				}
-				if len(tableBindings) > 0 {
-					if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
-						slog.Error("не удалось привязать сотрудников к таблицам (submit)", "attachment_id", attID, "error", err)
+					// CreateInBatches, НЕ raw SQL: Employee.BeforeSave (models/employee.go)
+					// шифрует паспорт/патент и пишет HMAC. Хуки срабатывают только через GORM
+					// (Create/CreateInBatches), поэтому пакетная вставка обязана остаться на
+					// нём - иначе персональные данные легли бы в базу открытым текстом
+					// (blank-import, срез A2A3). GORM возвращает id каждой строки в тот же
+					// элемент среза (RETURNING на Postgres), порядок с employeesInput совпадает.
+					if err := tx.CreateInBatches(&employeeRecords, employeeInsertBatchSize).Error; err != nil {
+						slog.Error("Ошибка создания сотрудников (batch)", "attachment_id", attID, "error", err)
+						return echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
+					}
+
+					auditEntries := make([]models.AuditLog, 0, len(employeeRecords))
+					var tableBindings []models.EmployeeTargetTable
+					for i, employee := range employeeRecords {
+						empID := employee.ID
+						e := employeesInput[i]
+
+						empMiddle := ""
+						if e.MiddleName != nil {
+							empMiddle = *e.MiddleName
+						}
+						pendingEmployeeFlags = append(pendingEmployeeFlags, pendingEmployeeFlag{
+							empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
+						})
+						empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
+						entry, err := buildAuditLogEntry(ctx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+						if err != nil {
+							slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
+						} else {
+							auditEntries = append(auditEntries, entry)
+						}
+
+						// Историю попадания в таблицу пишем НЕ здесь, а при активации заявки
+						// (status->1) - при подаче сотрудник ещё неактивен (#1085).
+						for _, tableID := range e.TargetTables {
+							tid, oneIdx := tableID, 1
+							tableBindings = append(tableBindings, models.EmployeeTargetTable{EmployeeID: empID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
+						}
+					}
+
+					if len(auditEntries) > 0 {
+						if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
+							slog.Error("не удалось записать аудит создания сотрудников (submit)", "attachment_id", attID, "error", err)
+						}
+					}
+					if len(tableBindings) > 0 {
+						if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
+							slog.Error("не удалось привязать сотрудников к таблицам (submit)", "attachment_id", attID, "error", err)
+							return apperr.Internal("Не удалось сохранить связи заявки", err)
+						}
+					}
+
+					// Сводная запись в ленте самой заявки (blank-import, срез A2A3): N карточек
+					// «Сотрудник ФИО создан» продолжают писаться выше для истории каждого
+					// сотрудника (её читает /employees/:id/history) - эта запись их не
+					// заменяет, а добавляет ОДНУ строку в историю заявки, чтобы не пролистывать
+					// всех сотрудников, чтобы понять сколько их добавлено разом.
+					if len(employeeRecords) > 0 {
+						summary := fmt.Sprintf("Добавлено сотрудников: %d", len(employeeRecords))
+						s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, models.AuditActionEmployeesBulkAdded, &user.ID,
+							applicationAuditDetails{Comment: &summary})
 					}
 				}
 
-				// Сводная запись в ленте самой заявки (blank-import, срез A2A3): N карточек
-				// «Сотрудник ФИО создан» продолжают писаться выше для истории каждого
-				// сотрудника (её читает /employees/:id/history) - эта запись их не
-				// заменяет, а добавляет ОДНУ строку в историю заявки, чтобы не пролистывать
-				// всех сотрудников, чтобы понять сколько их добавлено разом.
-				if len(employeeRecords) > 0 {
-					summary := fmt.Sprintf("Добавлено сотрудников: %d", len(employeeRecords))
-					s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, models.AuditActionEmployeesBulkAdded, &user.ID,
-						applicationAuditDetails{Comment: &summary})
-				}
-			}
-
-		case "items":
-			if att.Data.Items != nil {
-				for _, item := range *att.Data.Items {
-					tx.Exec(`
+			case "items":
+				if att.Data.Items != nil {
+					for _, item := range *att.Data.Items {
+						tx.Exec(`
 						INSERT INTO items (attachment_id, name, count, date_created)
 						VALUES (?, ?, ?, ?)
 					`, attID, item.Name, item.Count, baseTime.Format("2006-01-02"))
+					}
 				}
-			}
-			// Места разгрузки для items приходят на уровне вложения (#706).
-			for _, placeID := range att.UnloadPlaces {
-				tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
+				// Места разгрузки для items приходят на уровне вложения (#706).
+				for _, placeID := range att.UnloadPlaces {
+					tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
+				}
+
+			default:
+				return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment type")
 			}
 
-		default:
-			tx.Rollback()
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment type")
+			if att.CustomValues != nil {
+				for _, cv := range *att.CustomValues {
+					if cv.Value == "" {
+						continue
+					}
+					if err := tx.Create(&models.AttachmentCustomValue{
+						AttachmentID:  attID,
+						CustomFieldID: cv.CustomFieldID,
+						Value:         cv.Value,
+					}).Error; err != nil {
+						return echo.NewHTTPError(http.StatusInternalServerError, "Error saving custom field value")
+					}
+				}
+			}
 		}
 
-		if att.CustomValues != nil {
-			for _, cv := range *att.CustomValues {
-				if cv.Value == "" {
-					continue
-				}
-				if err := tx.Create(&models.AttachmentCustomValue{
-					AttachmentID:  attID,
-					CustomFieldID: cv.CustomFieldID,
-					Value:         cv.Value,
-				}).Error; err != nil {
-					tx.Rollback()
-					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error saving custom field value")
-				}
-			}
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Файловый архив (#1615, B1): подача - первая точка, где у заявки вообще

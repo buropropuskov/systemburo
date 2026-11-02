@@ -200,116 +200,102 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 	comment := trimmedSupplementComment(req.Comment)
 	now := time.Now().UTC()
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Перечитываем заявку под блокировкой строки: между гардом выше и вставкой её могли
-	// отозвать, закрыть или принять в работу - а от статуса зависит сама ветка поведения.
-	var locked struct {
-		Status       *string
-		SenderUserID int
-	}
-	if err := tx.Raw("SELECT status, sender_user_id FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&locked).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось заблокировать заявку", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
-	}
-	if err := ensureSupplementAllowed(locked.SenderUserID, locked.Status, user.ID, isSuperAdmin); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	var openCount int64
-	if err := tx.Model(&models.ApplicationSupplement{}).
-		Where("application_id = ? AND status IN ?", applicationID, models.OpenSupplementStatuses).
-		Count(&openCount).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось проверить открытые раунды", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to check open supplements")
-	}
-	if openCount > 0 {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusConflict, "У заявки уже есть дополнение на рассмотрении - дождитесь решения по нему")
-	}
-
-	var maxNumber int
-	if err := tx.Raw("SELECT COALESCE(MAX(number), 0) FROM application_supplements WHERE application_id = ?", applicationID).
-		Scan(&maxNumber).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось получить номер раунда", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to allocate supplement number")
-	}
-
-	// Граница веток проходит там, где есть что терять: в работе сущности заявки уже
-	// активированы и стоят на КПП, до этого их статус 0 и терять нечего.
-	inWork := locked.Status != nil && *locked.Status == models.StatusInWork
-	supplementStatus := models.SupplementMerged
-	if inWork {
-		supplementStatus = models.SupplementPending
-	}
-
-	supplement := models.ApplicationSupplement{
-		ApplicationID:   applicationID,
-		Number:          maxNumber + 1,
-		Status:          supplementStatus,
-		Comment:         comment,
-		CreatedByUserID: user.ID,
-		CreatedAt:       now,
-	}
-	if err := tx.Create(&supplement).Error; err != nil {
-		tx.Rollback()
-		// Гонка двух подач: частичный уникальный индекс не даст второму открытому раунду
-		// лечь, а проверка выше её не ловит - отвечаем тем же 409, что и явный гард.
-		if isUniqueViolation(err) {
-			return nil, echo.NewHTTPError(http.StatusConflict, "У заявки уже есть дополнение на рассмотрении - дождитесь решения по нему")
-		}
-		slog.Error("дополнение: не удалось создать раунд", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create supplement")
-	}
-
+	var supplement models.ApplicationSupplement
+	var inWork bool
 	var pendingVehicleFlags []pendingVehicleFlag
 	var pendingEmployeeFlags []pendingEmployeeFlag
-	for _, t := range targets {
-		vFlags, eFlags, err := s.insertSupplementEntities(ctx, tx, t, supplement.ID, user.ID, now)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-		pendingVehicleFlags = append(pendingVehicleFlags, vFlags...)
-		pendingEmployeeFlags = append(pendingEmployeeFlags, eFlags...)
-	}
 
-	if inWork {
-		if err := s.snapshotSupplementApprovers(ctx, tx, applicationID, supplement.ID, now); err != nil {
-			tx.Rollback()
-			return nil, err
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Перечитываем заявку под блокировкой строки: между гардом выше и вставкой её могли
+		// отозвать, закрыть или принять в работу - а от статуса зависит сама ветка поведения.
+		var locked struct {
+			Status       *string
+			SenderUserID int
 		}
-	} else if err := s.resetApprovalRound(ctx, tx, applicationID, user.ID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+		if err := tx.Raw("SELECT status, sender_user_id FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&locked).Error; err != nil {
+			slog.Error("дополнение: не удалось заблокировать заявку", "application_id", applicationID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
+		}
+		if err := ensureSupplementAllowed(locked.SenderUserID, locked.Status, user.ID, isSuperAdmin); err != nil {
+			return err
+		}
 
-	meta, _ := json.Marshal(map[string]interface{}{
-		"supplement_id": supplement.ID,
-		"number":        supplement.Number,
-		"status":        supplement.Status,
-		"vehicles":      counts.Vehicles,
-		"employees":     counts.Employees,
-		"items":         counts.Items,
+		var openCount int64
+		if err := tx.Model(&models.ApplicationSupplement{}).
+			Where("application_id = ? AND status IN ?", applicationID, models.OpenSupplementStatuses).
+			Count(&openCount).Error; err != nil {
+			slog.Error("дополнение: не удалось проверить открытые раунды", "application_id", applicationID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check open supplements")
+		}
+		if openCount > 0 {
+			return echo.NewHTTPError(http.StatusConflict, "У заявки уже есть дополнение на рассмотрении - дождитесь решения по нему")
+		}
+
+		var maxNumber int
+		if err := tx.Raw("SELECT COALESCE(MAX(number), 0) FROM application_supplements WHERE application_id = ?", applicationID).
+			Scan(&maxNumber).Error; err != nil {
+			slog.Error("дополнение: не удалось получить номер раунда", "application_id", applicationID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to allocate supplement number")
+		}
+
+		// Граница веток проходит там, где есть что терять: в работе сущности заявки уже
+		// активированы и стоят на КПП, до этого их статус 0 и терять нечего.
+		inWork = locked.Status != nil && *locked.Status == models.StatusInWork
+		supplementStatus := models.SupplementMerged
+		if inWork {
+			supplementStatus = models.SupplementPending
+		}
+
+		supplement = models.ApplicationSupplement{
+			ApplicationID:   applicationID,
+			Number:          maxNumber + 1,
+			Status:          supplementStatus,
+			Comment:         comment,
+			CreatedByUserID: user.ID,
+			CreatedAt:       now,
+		}
+		if err := tx.Create(&supplement).Error; err != nil {
+			// Гонка двух подач: частичный уникальный индекс не даст второму открытому раунду
+			// лечь, а проверка выше её не ловит - отвечаем тем же 409, что и явный гард.
+			if isUniqueViolation(err) {
+				return echo.NewHTTPError(http.StatusConflict, "У заявки уже есть дополнение на рассмотрении - дождитесь решения по нему")
+			}
+			slog.Error("дополнение: не удалось создать раунд", "application_id", applicationID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create supplement")
+		}
+
+		for _, t := range targets {
+			vFlags, eFlags, err := s.insertSupplementEntities(ctx, tx, t, supplement.ID, user.ID, now)
+			if err != nil {
+				return err
+			}
+			pendingVehicleFlags = append(pendingVehicleFlags, vFlags...)
+			pendingEmployeeFlags = append(pendingEmployeeFlags, eFlags...)
+		}
+
+		if inWork {
+			if err := s.snapshotSupplementApprovers(ctx, tx, applicationID, supplement.ID, now); err != nil {
+				return err
+			}
+		} else if err := s.resetApprovalRound(ctx, tx, applicationID, user.ID); err != nil {
+			return err
+		}
+
+		meta, _ := json.Marshal(map[string]interface{}{
+			"supplement_id": supplement.ID,
+			"number":        supplement.Number,
+			"status":        supplement.Status,
+			"vehicles":      counts.Vehicles,
+			"employees":     counts.Employees,
+			"items":         counts.Items,
+		})
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, supplementAuditActionCreated, &user.ID,
+			applicationAuditDetails{Comment: comment, Metadata: meta})
+
+		return nil
 	})
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, supplementAuditActionCreated, &user.ID,
-		applicationAuditDetails{Comment: comment, Metadata: meta})
-
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("дополнение: не удалось зафиксировать транзакцию", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	if err != nil {
+		return nil, err
 	}
 
 	// Мягкое предупреждение о возможном обходе ЧС по похожему номеру/ФИО (#481). Флаги
