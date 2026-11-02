@@ -351,10 +351,10 @@
         >
           <div
             class="nf-modal"
-            @mousedown.stop
+            v-bind="addDialogAttrs"
           >
             <div class="modal-header">
-              <h3>Новый формат номеров</h3>
+              <h3 id="nf-add-title">Новый формат номеров</h3>
               <button
                 class="modal-close"
                 aria-label="Закрыть"
@@ -568,10 +568,10 @@
         >
           <div
             class="nf-modal nf-modal--narrow"
-            @mousedown.stop
+            v-bind="cellDialogAttrs"
           >
             <div class="modal-header">
-              <h3>Редактирование клетки {{ editingCellIndex + 1 }}</h3>
+              <h3 id="nf-cell-title">Редактирование клетки {{ editingCellIndex + 1 }}</h3>
               <button
                 class="modal-close"
                 aria-label="Закрыть"
@@ -751,7 +751,7 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import LicensePlateFormatHistoryModal from './LicensePlateFormatHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
-import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useNumberFormatDialogs } from '@/composables/useNumberFormatDialogs';
 import { apiRequest } from '@/api/client';
 import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
@@ -781,19 +781,7 @@ export default {
   mixins: [openFromSearchLink((vm) => vm.formats, 'selectFormat', (row) => row?.format?.id)],
   components: { RegistrySortButton, SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal },
   setup() {
-    // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
-    const addOverlay = { close: () => {} };
-    const cellOverlay = { close: () => {} };
-    const a = useOverlayClose(() => addOverlay.close());
-    const c = useOverlayClose(() => cellOverlay.close());
-    return {
-      addOverlay,
-      cellOverlay,
-      onAddOverlayMousedown: a.onOverlayMousedown,
-      onAddOverlayMouseup: a.onOverlayMouseup,
-      onCellOverlayMousedown: c.onOverlayMousedown,
-      onCellOverlayMouseup: c.onOverlayMouseup,
-    };
+    return useNumberFormatDialogs();
   },
   data() {
     return {
@@ -807,11 +795,9 @@ export default {
       originalSnapshot: '',
       detailError: '',
       isSaving: false,
-      showAddModal: false,
       addForm: { name: '', country_code: '', is_default: false, cells: [defaultCell()] },
       addError: '',
       isAdding: false,
-      showCellEditModal: false,
       editingCellIndex: null,
       editingCell: null,
       cellEditError: '',
@@ -908,18 +894,11 @@ export default {
         if (this.isDetailsDirty) await this.saveDetails();
       },
     });
-    document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
     this._stopGuard?.();
-    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    onKeydown(e) {
-      if (e.key !== 'Escape') return;
-      if (this.showCellEditModal) this.showCellEditModal = false;
-      else if (this.showAddModal) this.requestCloseAdd();
-    },
     sortList(list) {
       const arr = [...list];
       if (!this.sortField) {
