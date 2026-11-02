@@ -1837,12 +1837,10 @@ export default {
   .applications-card {
     height: 500px;
   }
-  
   .card-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
-    height: auto;
     padding: 16px;
   }
   
@@ -1867,10 +1865,8 @@ export default {
   .card-header__settings {
     width: 100%;
     /* Следующая строка: дата (меньше) + Обновить-иконка + поиск. */
-    justify-content: flex-start;
     gap: 8px;
   }
-
   /* Обновить - только иконка (кружок) на мобилке, текст скрыт (как в Обзоре). */
   .card-header__settings :deep(.refresh-btn) {
     width: 40px;
@@ -1883,9 +1879,13 @@ export default {
   .card-header__settings :deep(.refresh-btn__text) {
     display: none;
   }
-
   /* Дата (DateFilter) компактнее на мобилке - меньше шрифт и высота. */
+  .card-header__settings :deep(.date-filter) {
+    flex: 0 1 215px;
+    min-width: 0;
+  }
   .card-header__settings :deep(.date-field) {
+    width: 100%;
     font-size: 13px;
     min-height: 40px;
   }
