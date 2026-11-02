@@ -6,11 +6,26 @@
         class="dirty-overlay"
         @click.self="onCancel"
       >
-        <div class="dirty-modal">
-          <div class="dirty-modal__header">
+        <div
+          ref="dialog"
+          class="dirty-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dirty-confirm-title"
+          tabindex="-1"
+          @keydown.tab="onTab"
+        >
+          <div
+            id="dirty-confirm-title"
+            class="dirty-modal__header"
+          >
             Несохранённые изменения
           </div>
-          <div class="dirty-modal__content">
+          <div
+            class="dirty-modal__content"
+            tabindex="0"
+            aria-label="Сведения об изменениях"
+          >
             <p class="dirty-modal__message">
               {{ confirmState.message }}
             </p>
@@ -83,10 +98,27 @@
 </template>
 
 <script>
+import { ref, watch, onBeforeUnmount } from 'vue';
 import { confirmState, resolveDirtyConfirm, saveAllDirty } from '@/utils/dirtyTracker';
+import { useEscapeClose } from '@/composables/useEscapeClose';
+import { createDialogFocus } from '@/utils/dialogFocus';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 export default {
   name: 'DirtyConfirmModal',
+  setup() {
+    const dialog = ref(null), owner = {};
+    let focus;
+    onBeforeUnmount(() => { focus?.close(); releaseBodyScrollLock(owner); });
+    const isTop = useEscapeClose(() => resolveDirtyConfirm(false), () => confirmState.show, 21000);
+    focus = createDialogFocus(() => dialog.value, isTop);
+    watch(() => confirmState.show, visible => {
+      setBodyScrollLock(owner, visible);
+      if (!visible) focus.close();
+    }, { immediate: true, flush: 'sync' });
+    watch(() => confirmState.show, visible => { if (visible) focus.open(); }, { immediate: true, flush: 'post' });
+    return { dialog, onTab: event => focus.handleTab(event) };
+  },
   data() {
     return { confirmState, savingAll: false };
   },
@@ -107,15 +139,6 @@ export default {
         this.savingAll = false;
       }
     },
-  },
-  mounted() {
-    this.escHandler = (e) => {
-      if (e.key === 'Escape' && this.confirmState.show) this.onCancel();
-    };
-    document.addEventListener('keydown', this.escHandler);
-  },
-  beforeUnmount() {
-    document.removeEventListener('keydown', this.escHandler);
   },
 };
 </script>
@@ -140,6 +163,11 @@ export default {
 }
 
 .dirty-modal {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   background: var(--surface);
   border-radius: 16px;
   padding: 22px 24px 18px;
@@ -149,6 +177,7 @@ export default {
 }
 
 .dirty-modal__header {
+  flex-shrink: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
@@ -156,8 +185,13 @@ export default {
 }
 
 .dirty-modal__content {
+  min-height: 0;
+  overflow-y: auto;
   margin-bottom: 20px;
 }
+
+.dirty-modal__content > :last-child { margin-bottom: 0; }
+.dirty-modal__content:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .dirty-modal__message {
   margin: 0 0 12px;
@@ -228,6 +262,7 @@ export default {
 
 .dirty-modal__actions {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: 10px;
 }
@@ -278,6 +313,13 @@ export default {
 .dirty-modal__btn:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+@media (max-width: 600px) {
+  .dirty-modal__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .dirty-fade-enter-active,
