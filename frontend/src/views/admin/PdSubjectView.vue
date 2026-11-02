@@ -39,7 +39,8 @@
           v-model="fio"
           class="lk-input pds__search-input"
           type="text"
-          placeholder="Фамилия Имя Отчество"
+          placeholder="ФИО"
+          aria-label="Фамилия, имя и отчество"
           data-testid="pds-fio"
         >
         <input
@@ -47,7 +48,8 @@
           v-model="document"
           class="lk-input pds__search-input"
           type="text"
-          placeholder="Серия и номер паспорта или патента"
+          placeholder="Серия и номер"
+          aria-label="Серия и номер паспорта или патента"
           data-testid="pds-document"
         >
         <button
@@ -426,6 +428,19 @@ function refresh() {
 
 .pds__search-input {
   max-width: 360px;
+}
+
+@media (max-width: 576px) {
+  .pds__search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pds__modes {
+    grid-column: 1 / -1;
+  }
+  .pds__search-input {
+    min-width: 0;
+  }
 }
 
 .pds__section-title {
