@@ -2,6 +2,17 @@ import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RegistrySortButton from '../RegistrySortButton.vue';
 describe('Registry sorting button', () => {
+  it('keeps a configured table column without introducing a sort icon', async () => {
+    const w = mount(RegistrySortButton, { props: { field: 'organization', label: 'Организация', sortField: 'organization', sortDirection: 'desc', headerClass: 'col', icon: false } });
+    expect(w.classes()).toContain('col');
+    expect(w.classes()).not.toContain('header-col');
+    expect(w.find('.sort-icon').exists()).toBe(false);
+    expect(w.get('.sort-label').text()).toBe('Организация');
+    expect(w.attributes('aria-label')).toContain('по убыванию');
+    await w.trigger('click');
+    expect(w.emitted('sort')).toEqual([['organization']]);
+    w.unmount();
+  });
   it('accepts the initial unsorted state without a Vue warning', () => {
     const warn = vi.spyOn(console, 'warn');
     const w = mount(RegistrySortButton, { props: { field: 'name', label: 'Наименование', sortField: null, sortDirection: 'asc' } });

@@ -453,102 +453,54 @@
         data-testid="ob-center-table-head"
       >
         <div class="header-row rt-head-row">
-          <div
+          <RegistrySortButton
             class="header-col confirmation-col"
-            @click="sortBy('confirmation')"
-          >
-            <p :class="{ 'active-sort': sortField === 'confirmation' }">
-              Подтверждение
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': sortField === 'confirmation',
-                'desc': sortField === 'confirmation' && sortDirection === 'desc'
-              }"
-            />
-          </div>
-          <div
+            field="confirmation"
+            label="Подтверждение"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             class="header-col number-col"
-            @click="sortBy('number')"
-          >
-            <p :class="{ 'active-sort': sortField === 'number' }">
-              Номер заявки
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': sortField === 'number',
-                'desc': sortField === 'number' && sortDirection === 'desc'
-              }"
-            />
-          </div>
-          <div
+            field="number"
+            label="Номер заявки"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             class="header-col date-col"
-            @click="sortBy('date')"
-          >
-            <p :class="{ 'active-sort': sortField === 'date' }">
-              Дата и время
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': sortField === 'date',
-                'desc': sortField === 'date' && sortDirection === 'desc'
-              }"
-            />
-          </div>
-          <div
+            field="date"
+            label="Дата и время"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             class="header-col organization-col"
-            @click="sortBy('organization')"
-          >
-            <p :class="{ 'active-sort': sortField === 'organization' }">
-              Организация
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': sortField === 'organization',
-                'desc': sortField === 'organization' && sortDirection === 'desc'
-              }"
-            />
-          </div>
-          <div
+            field="organization"
+            label="Организация"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             class="header-col sender-col"
-            @click="sortBy('sender')"
-          >
-            <p :class="{ 'active-sort': sortField === 'sender' }">
-              Отправитель
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': sortField === 'sender',
-                'desc': sortField === 'sender' && sortDirection === 'desc'
-              }"
-            />
-          </div>
-          <div
+            field="sender"
+            label="Отправитель"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             class="header-col status-col"
-            @click="sortBy('status')"
-          >
-            <p :class="{ 'active-sort': sortField === 'status' }">
-              Статус заявки
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{
-                'sorted': sortField === 'status',
-                'desc': sortField === 'status' && sortDirection === 'desc'
-              }"
-            />
-          </div>
+            field="status"
+            label="Статус заявки"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
           <div
             ref="tagsHeaderCol"
             class="header-col tags-col"
@@ -837,7 +789,7 @@ import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
 import ApplicationsFilterModal from '@/components/ApplicationsFilterModal.vue';
-import FilterTabs from '@/components/ui/FilterTabs.vue';
+import { FilterTabs, RegistrySortButton } from '@/components/ui';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -866,7 +818,7 @@ const UNREAD_STATUS = 'Непрочитано';
 
 export default {
     name: 'ApplicationsCenter',
-    components: {
+    components: { RegistrySortButton,
         DateFilter,
         RefreshButton,
         ApplicationDetail,
@@ -2832,26 +2784,26 @@ export default {
     color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
     color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
     color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
     color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
     transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
     color: var(--text) !important;
     font-weight: 500 !important;
 }
@@ -3019,7 +2971,7 @@ export default {
     text-overflow: ellipsis;
 }
 
-.header-col .sort-icon {
+.header-col :deep(.sort-icon) {
     flex-shrink: 0;
 }
 

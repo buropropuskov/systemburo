@@ -149,120 +149,64 @@
           <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
           <div class="cars-header rt-head-row">
             <div class="header-row">
-              <div
+              <RegistrySortButton
                 class="header-col number-col"
-                @click="sortBy('id')"
-              >
-                <p :class="{ 'active-sort': sortField === 'id' }">
-                  №
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'id',
-                    'desc': sortField === 'id' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="id"
+                label="№"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col car-number-col"
-                @click="sortBy('number')"
-              >
-                <p :class="{ 'active-sort': sortField === 'number' }">
-                  Номер
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'number',
-                    'desc': sortField === 'number' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="number"
+                label="Номер"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col brand-col"
-                @click="sortBy('mark')"
-              >
-                <p :class="{ 'active-sort': sortField === 'mark' }">
-                  Марка
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'mark',
-                    'desc': sortField === 'mark' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="mark"
+                label="Марка"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col format-col"
-                @click="sortBy('format_name')"
-              >
-                <p :class="{ 'active-sort': sortField === 'format_name' }">
-                  Формат номера
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'format_name',
-                    'desc': sortField === 'format_name' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="format_name"
+                label="Формат номера"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col status-col"
-                @click="sortBy('status')"
-              >
-                <p :class="{ 'active-sort': sortField === 'status' }">
-                  Статус
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'status',
-                    'desc': sortField === 'status' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="status"
+                label="Статус"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
                 class="header-col org-col"
-                @click="sortBy('organization_name')"
-              >
-                <p :class="{ 'active-sort': sortField === 'organization_name' }">
-                  Организация
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'organization_name',
-                    'desc': sortField === 'organization_name' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="organization_name"
+                label="Организация"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 v-if="currentFilter === 'company' || currentFilter === 'all_system'"
                 class="header-col company-col"
-                @click="sortBy('company_name')"
-              >
-                <p :class="{ 'active-sort': sortField === 'company_name' }">
-                  Компания
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'company_name',
-                    'desc': sortField === 'company_name' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
+                field="company_name"
+                label="Компания"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
               <div class="header-col actions-col">
                 Действия
               </div>
@@ -804,7 +748,7 @@ import OwnershipFilterTabs from '@/components/filters/OwnershipFilterTabs.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
 import RegistryLogModal from '@/components/RegistryLogModal.vue';
-import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import { LoaderSpinner, RegistrySortButton } from '@/components/ui';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
@@ -818,7 +762,7 @@ const CARS_PER_PAGE = 30;
 
 export default {
     mixins: [carsRegistryPeriodDetails],
-    components: {
+    components: { RegistrySortButton,
         OwnershipFilterTabs,
         SearchComponent,
         FilterButton,
@@ -1953,26 +1897,26 @@ export default {
     color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
     color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
     color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
     color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
     transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
     color: var(--text) !important;
     font-weight: 500 !important;
 }

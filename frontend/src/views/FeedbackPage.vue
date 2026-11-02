@@ -31,30 +31,39 @@
         <!-- Список обращений (на мобилке rt-* сворачивает строки в карточки) -->
         <div class="list-section rt-table">
           <div class="list-header rt-head-row">
-            <div
+            <RegistrySortButton
               class="header-col col-id"
               :class="{ 'active-sort': sortKey === 'id' }"
-              @click="sortBy('id')"
-            >
-              #
-            </div>
-            <div
+              field="id"
+              label="#"
+              :icon="false"
+              :sort-field="sortKey"
+              :sort-direction="sortDir"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col col-author"
               :class="{ 'active-sort': sortKey === 'author' }"
-              @click="sortBy('author')"
-            >
-              Автор
-            </div>
+              field="author"
+              label="Автор"
+              :icon="false"
+              :sort-field="sortKey"
+              :sort-direction="sortDir"
+              @sort="sortBy"
+            />
             <div class="header-col col-status">
               Статус
             </div>
-            <div
+            <RegistrySortButton
               class="header-col col-date"
               :class="{ 'active-sort': sortKey === 'date' }"
-              @click="sortBy('date')"
-            >
-              Дата
-            </div>
+              field="date"
+              label="Дата"
+              :icon="false"
+              :sort-field="sortKey"
+              :sort-direction="sortDir"
+              @sort="sortBy"
+            />
             <div class="header-col col-flag" />
           </div>
 
@@ -259,7 +268,7 @@ import { openItemFromRoute } from '@/utils/openQueryParam';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { FilterTabs, SkeletonTransition, SkeletonCard } from '@/components/ui';
+import { RegistrySortButton, FilterTabs, SkeletonTransition, SkeletonCard } from '@/components/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead, setFeedbackFlag } from '@/api/feedback';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';

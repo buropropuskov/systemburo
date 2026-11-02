@@ -98,186 +98,142 @@
           >
             Выход
           </div>
-          <div
+          <RegistrySortButton
             v-if="isFieldInDom('last_name')"
             class="col last-name-col"
             :class="fieldColClass('last_name')"
             :style="getColStyle('last_name', true)"
-            @click="sortBy('last_name')"
-          >
-            <p :class="{ 'active-sort': sortField === 'last_name' }">
-              Фамилия
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'last_name', 'desc': sortField === 'last_name' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="last_name"
+            label="Фамилия"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('first_name')"
             class="col first-name-col"
             :class="fieldColClass('first_name')"
             :style="getColStyle('first_name', true)"
-            @click="sortBy('first_name')"
-          >
-            <p :class="{ 'active-sort': sortField === 'first_name' }">
-              Имя
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'first_name', 'desc': sortField === 'first_name' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="first_name"
+            label="Имя"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('middle_name')"
             class="col middle-name-col"
             :class="fieldColClass('middle_name')"
             :style="getColStyle('middle_name', true)"
-            @click="sortBy('middle_name')"
-          >
-            <p :class="{ 'active-sort': sortField === 'middle_name' }">
-              Отчество
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'middle_name', 'desc': sortField === 'middle_name' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="middle_name"
+            label="Отчество"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('position')"
             class="col position-col"
             :class="fieldColClass('position')"
             :style="getColStyle('position', true)"
-            @click="sortBy('position')"
-          >
-            <p :class="{ 'active-sort': sortField === 'position' }">
-              Должность
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'position', 'desc': sortField === 'position' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="position"
+            label="Должность"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('citizenship_name')"
             class="col citizenship-col"
             :class="fieldColClass('citizenship_name')"
             :style="getColStyle('citizenship_name', true)"
-            @click="sortBy('citizenship_name')"
-          >
-            <p :class="{ 'active-sort': sortField === 'citizenship_name' }">
-              Гражданство
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'citizenship_name', 'desc': sortField === 'citizenship_name' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="citizenship_name"
+            label="Гражданство"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('organization')"
             class="col organization-col"
             :class="fieldColClass('organization')"
             :style="getColStyle('organization', true)"
-            @click="sortBy('organization')"
-          >
-            <p :class="{ 'active-sort': sortField === 'organization' }">
-              Организация
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="organization"
+            label="Организация"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('company')"
             class="col company-col"
             :class="fieldColClass('company')"
             :style="getColStyle('company', true)"
-            @click="sortBy('company')"
-          >
-            <p :class="{ 'active-sort': sortField === 'company' }">
-              Компания
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'company', 'desc': sortField === 'company' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="company"
+            label="Компания"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('valid_until')"
             class="col date-col"
             :class="fieldColClass('valid_until')"
             :style="getColStyle('valid_until', true)"
-            @click="sortBy('entry_date_to')"
-          >
-            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
-              Действует до
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="entry_date_to"
+            label="Действует до"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('pass_time')"
             class="col time-col"
             :class="fieldColClass('pass_time')"
             :style="getColStyle('pass_time', true)"
-            @click="sortBy('pass_time')"
-          >
-            <p :class="{ 'active-sort': sortField === 'pass_time' }">
-              Время прохода
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'pass_time', 'desc': sortField === 'pass_time' && sortDirection === 'desc' }"
-            />
-          </div>
-          <div
+            field="pass_time"
+            label="Время прохода"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
+          <RegistrySortButton
             v-if="isFieldInDom('application_id')"
             class="col application-col"
             :class="fieldColClass('application_id')"
             :style="getColStyle('application_id', true)"
-            @click="sortBy('application_id')"
-          >
-            <p :class="{ 'active-sort': sortField === 'application_id' }">
-              Номер заявки
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
-            />
-          </div>
+            field="application_id"
+            label="Номер заявки"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
           <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке. -->
           <div
             v-if="hiddenInPortraitFields().length"
             class="col expand-col"
             style="order: 9997;"
           />
-          <div
+          <RegistrySortButton
             class="col status-col"
             style="order: 9998;"
-            @click="sortBy('status')"
-          >
-            <p :class="{ 'active-sort': sortField === 'status' }">
-              Статус
-            </p>
-            <AppIcon
-              name="sort"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
-            />
-          </div>
+            field="status"
+            label="Статус"
+            header-class="col"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
+            @sort="sortBy"
+          />
           <div
             class="col actions-col"
             style="order: 9999;"
@@ -614,7 +570,7 @@ import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistor
 import TableBulkTargetModal from './TableBulkTargetModal.vue';
 import TableRowRemoveMenu from './TableRowRemoveMenu.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
-import StatusBadge from './ui/StatusBadge.vue';
+import { StatusBadge, RegistrySortButton } from '@/components/ui';
 import SwitchToggle from './ui/SwitchToggle.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AnimatedCounter from './ui/AnimatedCounter.vue';
@@ -651,7 +607,7 @@ const MOBILE_CARD_FIELDS = [
 export default {
     mixins: [peopleTablePeriodDetails, passageTableIntegration],
   name: 'PeopleTable',
-  components: {
+  components: { RegistrySortButton,
     PassageTableHeader,
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
@@ -1986,7 +1942,7 @@ export default {
 /* Подпись столбца сжимается с многоточием, а иконка сортировки - нет: раньше
    длинный заголовок выталкивал её за пределы ячейки, и она либо срезалась,
    либо наезжала на соседний столбец в режиме «Сетка» (#1307). */
-.header-row .col > p {
+.header-row .col > p, .header-row .col > :deep(.sort-label) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1994,7 +1950,7 @@ export default {
   margin: 0;
 }
 
-.header-row .col .sort-icon {
+.header-row .col :deep(.sort-icon) {
   flex-shrink: 0;
 }
 
@@ -2002,26 +1958,26 @@ export default {
   color: var(--text);
 }
 
-.header-row .col:hover .sort-icon {
+.header-row .col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 500 !important;
 }
