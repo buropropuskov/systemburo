@@ -12,6 +12,7 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // --- DTO Q&A (#973) ---
@@ -278,57 +279,44 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		}
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
 	question := models.ApplicationQuestion{
 		ApplicationID: applicationID,
 		AuthorUserID:  user.ID,
 		Subject:       subject,
 		Text:          text,
 	}
-	if err := tx.Create(&question).Error; err != nil {
-		tx.Rollback()
-		slog.Error("Ошибка создания вопроса", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create question")
-	}
-	// created_at проставила БД (default now()) - читаем для ответа.
-	if err := tx.Raw("SELECT created_at FROM application_questions WHERE id = ?", question.ID).Scan(&question.CreatedAt).Error; err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-
-	for _, attID := range validAttIDs {
-		if err := tx.Exec("INSERT INTO application_question_attachments (question_id, attachment_id) VALUES (?, ?) ON CONFLICT (question_id, attachment_id) DO NOTHING", question.ID, attID).Error; err != nil {
-			tx.Rollback()
-			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to link attachment")
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&question).Error; err != nil {
+			slog.Error("Ошибка создания вопроса", "application_id", applicationID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create question")
 		}
-	}
+		// created_at проставила БД (default now()) - читаем для ответа.
+		if err := tx.Raw("SELECT created_at FROM application_questions WHERE id = ?", question.ID).Scan(&question.CreatedAt).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
 
-	// История: создание вопроса пишется в audit_log (Record=в tx: провал откатит вопрос).
-	meta, _ := json.Marshal(map[string]any{"question_id": question.ID, "subject": subject, "attachment_ids": validAttIDs})
-	if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &applicationID, "question_created", &user.ID,
-		applicationAuditDetails{Comment: &text, Metadata: meta}); err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to record history")
-	}
+		for _, attID := range validAttIDs {
+			if err := tx.Exec("INSERT INTO application_question_attachments (question_id, attachment_id) VALUES (?, ?) ON CONFLICT (question_id, attachment_id) DO NOTHING", question.ID, attID).Error; err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to link attachment")
+			}
+		}
 
-	// Автор просмотрел свой вопрос -> его маркер по этой заявке не загорается.
-	if err := tx.Exec(questionViewUpsert, applicationID, user.ID).Error; err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to update seen state")
-	}
+		// История: создание вопроса пишется в audit_log (Record=в tx: провал откатит вопрос).
+		meta, _ := json.Marshal(map[string]any{"question_id": question.ID, "subject": subject, "attachment_ids": validAttIDs})
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &applicationID, "question_created", &user.ID,
+			applicationAuditDetails{Comment: &text, Metadata: meta}); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to record history")
+		}
 
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("Ошибка коммита обсуждения", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		// Автор просмотрел свой вопрос -> его маркер по этой заявке не загорается.
+		if err := tx.Exec(questionViewUpsert, applicationID, user.ID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update seen state")
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Уведомление инициатору о новом обсуждении (best-effort).
@@ -397,43 +385,32 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Текст ответа обязателен")
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
 	answer := models.ApplicationAnswer{
 		QuestionID:    questionID,
 		ApplicationID: applicationID,
 		AuthorUserID:  user.ID,
 		Text:          text,
 	}
-	if err := tx.Create(&answer).Error; err != nil {
-		tx.Rollback()
-		slog.Error("Ошибка создания ответа", "question_id", questionID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create answer")
-	}
-	if err := tx.Raw("SELECT created_at FROM application_answers WHERE id = ?", answer.ID).Scan(&answer.CreatedAt).Error; err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-	if err := tx.Exec(questionViewUpsert, applicationID, user.ID).Error; err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to update seen state")
-	}
-	// Автор ответа участвовал в топике -> он прочитал его (свой ответ и всё прежнее не светят
-	// ему новизну; чужой ответ позже снова пометит топик новым, #973).
-	if err := tx.Exec(questionReadUpsert, questionID, user.ID).Error; err != nil {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark question read")
-	}
-	if err := tx.Commit().Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&answer).Error; err != nil {
+			slog.Error("Ошибка создания ответа", "question_id", questionID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create answer")
+		}
+		if err := tx.Raw("SELECT created_at FROM application_answers WHERE id = ?", answer.ID).Scan(&answer.CreatedAt).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+		if err := tx.Exec(questionViewUpsert, applicationID, user.ID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update seen state")
+		}
+		// Автор ответа участвовал в топике -> он прочитал его (свой ответ и всё прежнее не светят
+		// ему новизну; чужой ответ позже снова пометит топик новым, #973).
+		if err := tx.Exec(questionReadUpsert, questionID, user.ID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark question read")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Уведомления участникам обсуждения (best-effort): автор вопроса + все ответившие, кроме
