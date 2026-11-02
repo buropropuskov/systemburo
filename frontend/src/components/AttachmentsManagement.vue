@@ -43,32 +43,22 @@
       >
         <div class="table-container rt-table">
           <div class="table-header rt-head-row">
-            <div
-              class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              />
-            </div>
-            <div
-              class="header-col name-col"
-              @click="sortBy('display_name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'display_name' }">
-                Наименование
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'display_name', desc: sortField === 'display_name' && sortDirection === 'desc' }"
-              />
-            </div>
+            <RegistrySortButton
+              class="id-col"
+              field="id"
+              label="ID"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
+              class="name-col"
+              field="display_name"
+              label="Наименование"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
           </div>
 
           <div class="table-body">
@@ -94,10 +84,14 @@
                 data-label="Наименование"
               >
                 <div class="name-with-badges">
-                  <span
-                    class="truncate-text"
+                  <button
+                    type="button"
+                    class="truncate-text directory-record-open"
                     :title="a.display_name"
-                  >{{ a.display_name }}</span>
+                    @click.stop="selectAttachment(a)"
+                  >
+                    {{ a.display_name }}
+                  </button>
                   <span
                     class="type-badge"
                     :class="a.attachment_type"
@@ -495,6 +489,7 @@
 </template>
 
 <script>
+import RegistrySortButton from './ui/RegistrySortButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
@@ -532,8 +527,7 @@ function emptyForm() {
 
 export default {
   name: 'AttachmentsManagement',
-  components: {
-    SearchComponent,
+  components: { RegistrySortButton,     SearchComponent,
     RefreshButton,
     ConfirmationModal,
     TextConstructor,
@@ -1417,3 +1411,5 @@ export default {
   flex: 1;
 }
 </style>
+
+<style scoped src="../assets/registry-record.css"></style>

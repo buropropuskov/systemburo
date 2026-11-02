@@ -88,32 +88,22 @@
                 @change="toggleSelectAll"
               >
             </div>
-            <div
-              class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              />
-            </div>
-            <div
-              class="header-col name-col"
-              @click="sortBy('name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'name' }">
-                Наименование
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              />
-            </div>
+            <RegistrySortButton
+              class="id-col"
+              field="id"
+              label="ID"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
+              class="name-col"
+              field="name"
+              label="Наименование"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
           </div>
 
           <div class="table-body">
@@ -151,9 +141,11 @@
                 class="table-col name-col"
                 data-label="Наименование"
               >
-                <span
-                  class="truncate-text"
+                <button
+                  type="button"
+                  class="truncate-text directory-record-open fill-column"
                   :title="item.format.name"
+                  @click.stop="selectFormat(item)"
                 >
                   {{ item.format.name }}
                   <span
@@ -164,7 +156,7 @@
                     v-if="!item.format.is_active"
                     class="inactive-badge"
                   >(архив)</span>
-                </span>
+                </button>
               </div>
             </div>
 
@@ -749,6 +741,7 @@
 </template>
 
 <script>
+import RegistrySortButton from './ui/RegistrySortButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
@@ -761,7 +754,6 @@ import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
-import AppIcon from '@/components/icons/AppIcon.vue';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import { formatMomentDate } from '@/utils/datetime';
@@ -787,7 +779,7 @@ const CELL_TYPE_LABELS = {
 export default {
   name: 'NumberFormat',
   mixins: [openFromSearchLink((vm) => vm.formats, 'selectFormat', (row) => row?.format?.id)],
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal, AppIcon },
+  components: { RegistrySortButton, SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal },
   setup() {
     // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
     const addOverlay = { close: () => {} };
@@ -1525,26 +1517,26 @@ export default {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 600 !important;
 }
@@ -2271,3 +2263,5 @@ export default {
   }
 }
 </style>
+
+<style scoped src="../assets/registry-record.css"></style>
