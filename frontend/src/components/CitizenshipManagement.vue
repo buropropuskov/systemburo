@@ -90,32 +90,22 @@
                 @change="toggleSelectAll"
               >
             </div>
-            <div
-              class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              />
-            </div>
-            <div
-              class="header-col name-col"
-              @click="sortBy('name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'name' }">
-                Наименование
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              />
-            </div>
+            <RegistrySortButton
+              class="id-col"
+              field="id"
+              label="ID"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
+              class="name-col"
+              field="name"
+              label="Наименование"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
           </div>
 
           <div class="table-body">
@@ -153,9 +143,11 @@
                 class="table-col name-col"
                 data-label="Наименование"
               >
-                <span
-                  class="truncate-text"
+                <button
+                  type="button"
+                  class="truncate-text directory-record-open fill-column"
                   :title="c.name"
+                  @click.stop="selectCitizenship(c)"
                 >
                   {{ c.name }}
                   <span
@@ -166,7 +158,7 @@
                     v-if="!c.is_active"
                     class="inactive-badge"
                   >(архив)</span>
-                </span>
+                </button>
               </div>
             </div>
 
@@ -426,6 +418,7 @@
 </template>
 
 <script>
+import RegistrySortButton from './ui/RegistrySortButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
@@ -446,14 +439,13 @@ import {
   bulkArchiveCitizenships,
   bulkRestoreCitizenships,
 } from '@/api/citizenships';
-import AppIcon from '@/components/icons/AppIcon.vue';
 import { readSearchFromRoute } from '@/utils/searchQueryParam';
 import { formatMomentDate } from '@/utils/datetime';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'CitizenshipManagement',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, BaseModal, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
+  components: { RegistrySortButton, SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, BaseModal, LoaderSpinner, CitizenshipHistoryModal, },
   mixins: [openFromSearchLink((vm) => vm.items, 'selectCitizenship')],
   data() {
     return {
@@ -982,12 +974,6 @@ export default {
   margin: 0;
 }
 
-.sort-icon {
-  color: var(--text-muted);
-  width: 12px;
-  height: 12px;
-  transition: 0.2s;
-}
 
 .id-col {
   width: 22%;
@@ -1293,3 +1279,5 @@ export default {
   }
 }
 </style>
+
+<style scoped src="../assets/registry-record.css"></style>
