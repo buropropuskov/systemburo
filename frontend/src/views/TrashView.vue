@@ -175,18 +175,20 @@
                 v-for="col in columns"
                 :key="col.key"
                 :class="['trash-table__th', col.sortable && 'trash-table__th--sortable', sortField === col.key && 'trash-table__th--active']"
+                :aria-sort="col.sortable ? (sortField === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined"
                 @click="col.sortable && sortBy(col.key)"
               >
-                <span>{{ col.label }}</span>
-                <AppIcon
+                <RegistrySortButton
                   v-if="col.sortable"
-                  name="sort"
-                  class="trash-table__sort"
-                  :class="{
-                    'trash-table__sort--sorted': sortField === col.key,
-                    'trash-table__sort--desc': sortField === col.key && sortDir === 'desc',
-                  }"
+                  :field="col.key"
+                  :label="col.label"
+                  :sort-field="sortField"
+                  :sort-direction="sortDir"
+                  header-class="trash-table__sort-control"
+                  @sort="sortBy"
+                  @click.stop
                 />
+                <span v-else>{{ col.label }}</span>
               </th>
               <th class="trash-table__th-actions" />
             </tr>
@@ -366,7 +368,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { downloadExcelSheet } from '@/utils/excelSheet';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
-import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import { BaseDropdown, RegistrySortButton } from '@/components/ui';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
@@ -380,7 +382,7 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 export default {
   name: 'TrashView',
   components: {
-    SearchComponent, BaseDropdown, DateFilter, RefreshButton,
+    SearchComponent, BaseDropdown, RegistrySortButton, DateFilter, RefreshButton,
     VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
     ApplicationDetail,
     AppIcon,
@@ -1113,7 +1115,7 @@ export default {
   vertical-align: middle;
 }
 
-.trash-table__th--sortable {
+.trash-table__th--sortable, .trash-table__sort-control {
   cursor: pointer;
 }
 
@@ -1121,7 +1123,7 @@ export default {
   color: var(--text);
 }
 
-.trash-table__th--sortable:hover .trash-table__sort {
+.trash-table__th--sortable:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
@@ -1129,7 +1131,8 @@ export default {
   color: var(--text);
 }
 
-.trash-table__sort {
+.trash-table__sort-control { padding: 0; color: inherit; text-align: inherit; }
+.trash-table__sort-control :deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
@@ -1139,14 +1142,12 @@ export default {
   transition: transform 0.2s ease;
 }
 
-.trash-table__sort--sorted {
+.trash-table__sort-control :deep(.sort-icon.sorted) {
   color: var(--text);
   opacity: 1;
 }
 
-.trash-table__sort--desc {
-  transform: rotate(180deg);
-}
+.trash-table__sort-control :deep(.sort-icon.desc) { transform: rotate(180deg); }
 
 .trash-table__th-actions {
   width: 60px;
