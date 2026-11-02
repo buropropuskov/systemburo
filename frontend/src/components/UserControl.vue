@@ -132,118 +132,62 @@
                 @change="toggleSelectAll"
               >
             </div>
-            <div
+            <RegistrySortButton
               class="header-col login-col"
-              @click="sortBy('username')"
-            >
-              <p :class="{ 'active-sort': sortField === 'username' }">
-                Логин
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'username',
-                  'desc': sortField === 'username' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="username"
+              label="Логин"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col name-col"
-              @click="sortBy('full_name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'full_name' }">
-                Фамилия И.О.
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'full_name',
-                  'desc': sortField === 'full_name' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="full_name"
+              label="Фамилия И.О."
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col org-col"
-              @click="sortBy('organization')"
-            >
-              <p :class="{ 'active-sort': sortField === 'organization' }">
-                Организация / Отдел
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'organization',
-                  'desc': sortField === 'organization' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="organization"
+              label="Организация / Отдел"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col company-col"
-              @click="sortBy('company')"
-            >
-              <p :class="{ 'active-sort': sortField === 'company' }">
-                Компания
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'company',
-                  'desc': sortField === 'company' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="company"
+              label="Компания"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col position-col"
-              @click="sortBy('position')"
-            >
-              <p :class="{ 'active-sort': sortField === 'position' }">
-                Должность
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'position',
-                  'desc': sortField === 'position' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="position"
+              label="Должность"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col type-col"
-              @click="sortBy('user_type')"
-            >
-              <p :class="{ 'active-sort': sortField === 'user_type' }">
-                Тип
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'user_type',
-                  'desc': sortField === 'user_type' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="user_type"
+              label="Тип"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col seen-col"
-              @click="sortBy('last_seen')"
-            >
-              <p :class="{ 'active-sort': sortField === 'last_seen' }">
-                В сети
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'last_seen',
-                  'desc': sortField === 'last_seen' && sortDirection === 'desc'
-                }"
-              />
-            </div>
+              field="last_seen"
+              label="В сети"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
           </div>
         </div>
         
@@ -285,7 +229,6 @@
                   data-testid="users-row-lockout"
                   :title="lockoutTitle(user)"
                 >вход заблокирован</span>
-
               </div>
               <div
                 class="user-col name-col"
@@ -297,7 +240,9 @@
                   data-testid="users-row-no-consent"
                   title="Работник не подтвердил согласие на обработку персональных данных"
                 >без согласия</span>
-                <template v-else>{{ formatUserName(user) }}</template>
+                <template v-else>
+                  {{ formatUserName(user) }}
+                </template>
               </div>
               <div
                 class="user-col org-col"
@@ -1125,7 +1070,7 @@ import { getPasswordPolicy } from '@/api/settings';
 import { evaluatePassword, passwordMeetsPolicy, generatePassword as buildPassword, DEFAULT_PASSWORD_POLICY } from '@/utils/passwordPolicy';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseModal from './ui/BaseModal.vue';
-import BaseDropdown from './ui/BaseDropdown.vue';
+import { BaseDropdown, RegistrySortButton } from '@/components/ui';
 import Badge from './ui/Badge.vue';
 import HintTooltip from './ui/HintTooltip.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
@@ -1152,7 +1097,7 @@ const PRESENCE_TICK_MS = 1000;
 const PRESENCE_POLL_MS = 60_000;
 
 export default {
-  components: {
+  components: { RegistrySortButton,
     SearchComponent,
     RefreshButton,
     PasswordInput,
@@ -2709,26 +2654,26 @@ export default {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 500 !important;
 }

@@ -90,38 +90,22 @@
                 @change="toggleSelectAll"
               >
             </div>
-            <div
+            <RegistrySortButton
               class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'id',
-                  'desc': sortField === 'id' && sortDirection === 'desc'
-                }"
-              />
-            </div>
-            <div
+              field="id"
+              label="ID"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col name-col"
-              @click="sortBy('name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'name' }">
-                Наименование
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': sortField === 'name',
-                  'desc': sortField === 'name' && sortDirection === 'desc'
-                }"
-              />
-            </div>
+              field="name"
+              label="Наименование"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
             <div class="header-col status-col">
               <p>Статус</p>
             </div>
@@ -610,7 +594,8 @@
                   class="photo-preview"
                   @click="viewPhoto(photo)"
                 >
-                  <img v-auth-image
+                  <img
+                    v-auth-image
                     :src="photo.photo_url"
                     :alt="photo.file_name"
                   >
@@ -794,7 +779,8 @@
               </button>
             </div>
             <div class="modal-body photo-view-body">
-              <img v-auth-image
+              <img
+                v-auth-image
                 :src="viewingPhoto?.photo_url"
                 class="full-photo"
                 alt="Full size"
@@ -877,7 +863,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
-import BaseDropdown from '../ui/BaseDropdown.vue';
+import { BaseDropdown, RegistrySortButton } from '@/components/ui';
 import WorkScheduleTab from '../WorkScheduleTab.vue';
 import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
@@ -888,7 +874,7 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   mixins: [openFromSearchLink((vm) => vm.unloadPlaces, 'selectPlace')],
-  components: {
+  components: { RegistrySortButton,
     SearchComponent,
     RefreshButton,
     ConfirmationModal,
@@ -1903,26 +1889,26 @@ async uploadPhotoFiles(files) {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 600 !important;
 }
