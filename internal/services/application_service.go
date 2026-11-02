@@ -2401,7 +2401,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 				IsPrimary        bool `gorm:"column:is_primary"`
 				RequiredApproval bool `gorm:"column:required_approval"`
 			}
-			tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM organization_users WHERE organization_id = ?", *organizationID).Scan(&orgResp)
+			if err := tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM organization_users WHERE organization_id = ?", *organizationID).Scan(&orgResp).Error; err != nil {
+				return apperr.Internal("Не удалось загрузить согласующих заявки", err)
+			}
 			for _, r := range orgResp {
 				responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
 				if r.IsPrimary {
@@ -2416,7 +2418,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 				IsPrimary        bool `gorm:"column:is_primary"`
 				RequiredApproval bool `gorm:"column:required_approval"`
 			}
-			tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM companies_users WHERE company_id = ?", *companyID).Scan(&compResp)
+			if err := tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, required_approval FROM companies_users WHERE company_id = ?", *companyID).Scan(&compResp).Error; err != nil {
+				return apperr.Internal("Не удалось загрузить согласующих заявки", err)
+			}
 			for _, r := range compResp {
 				exists := false
 				for i := range responsibleUsers {
@@ -2470,15 +2474,19 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			return err
 		}
 		if primaryResponsibleID != nil {
-			tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, appID)
+			if err := tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, appID).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+			}
 		}
 
 		for _, ru := range responsibleUsers {
-			tx.Exec(`
+			if err := tx.Exec(`
 			INSERT INTO application_responsible_users (application_id, user_id, is_primary, required_approval, approval_status, created_at)
 			VALUES (?, ?, ?, ?, 'pending', ?)
 			ON CONFLICT (application_id, user_id) DO UPDATE SET is_primary = EXCLUDED.is_primary, required_approval = EXCLUDED.required_approval
-		`, appID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, baseTime)
+		`, appID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, baseTime).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+			}
 
 			meta, _ := json.Marshal(map[string]interface{}{
 				"required_approval": ru.RequiredApproval,
@@ -2520,10 +2528,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					continue
 				}
 				seenViewer[readerID] = true
-				tx.Exec(`
+				if err := tx.Exec(`
 				INSERT INTO application_viewers (application_id, user_id, created_at, created_by)
 				VALUES (?, ?, ?, ?)
-			`, appID, readerID, baseTime, user.ID)
+			`, appID, readerID, baseTime, user.ID).Error; err != nil {
+					return apperr.Internal("Не удалось сохранить получателей заявки", err)
+				}
 			}
 		}
 
@@ -2604,7 +2614,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					}
 					// Пишем дедупированные места в attachment_unload_places (источник для охранника).
 					for placeID := range carPlacesSet {
-						tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
+						if err := tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID).Error; err != nil {
+							return apperr.Internal("Не удалось сохранить места разгрузки заявки", err)
+						}
 					}
 				}
 
@@ -2700,15 +2712,19 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			case "items":
 				if att.Data.Items != nil {
 					for _, item := range *att.Data.Items {
-						tx.Exec(`
+						if err := tx.Exec(`
 						INSERT INTO items (attachment_id, name, count, date_created)
 						VALUES (?, ?, ?, ?)
-					`, attID, item.Name, item.Count, baseTime.Format("2006-01-02"))
+					`, attID, item.Name, item.Count, baseTime.Format("2006-01-02")).Error; err != nil {
+							return apperr.Internal("Не удалось сохранить ТМЦ заявки", err)
+						}
 					}
 				}
 				// Места разгрузки для items приходят на уровне вложения (#706).
 				for _, placeID := range att.UnloadPlaces {
-					tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
+					if err := tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID).Error; err != nil {
+						return apperr.Internal("Не удалось сохранить места разгрузки заявки", err)
+					}
 				}
 
 			default:
