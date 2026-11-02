@@ -39,32 +39,22 @@
         >
           <div class="table-container rt-table">
             <div class="table-header rt-head-row">
-              <div
+              <RegistrySortButton
                 class="header-col id-col"
-                @click="sortBy('id')"
-              >
-                <p :class="{ 'active-sort': sortField === 'id' }">
-                  ID
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-                />
-              </div>
-              <div
+                field="id"
+                label="ID"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col name-col"
-                @click="sortBy('name')"
-              >
-                <p :class="{ 'active-sort': sortField === 'name' }">
-                  Наименование
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-                />
-              </div>
+                field="name"
+                label="Наименование"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
               <div class="header-col groups-col">
                 <p>Группы</p>
               </div>
@@ -394,12 +384,12 @@ import {
   listPermissionGroups,
   getPermissionCatalog,
 } from '@/api/permissions';
-import AppIcon from '@/components/icons/AppIcon.vue';
+import RegistrySortButton from '@/components/ui/RegistrySortButton.vue';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 export default {
   name: 'AdminRoles',
-  components: { AdminPageShell, SearchComponent, RefreshButton, ConfirmationModal, LoaderSpinner, RolePermissionsModal, AppIcon },
+  components: { RegistrySortButton, AdminPageShell, SearchComponent, RefreshButton, ConfirmationModal, LoaderSpinner, RolePermissionsModal },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
     const overlay = { close: () => {} };
@@ -824,26 +814,26 @@ export default {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 600 !important;
 }

@@ -42,45 +42,30 @@
       >
         <div class="table-container rt-table">
           <div class="table-header rt-head-row">
-            <div
+            <RegistrySortButton
               class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              />
-            </div>
-            <div
+              field="id"
+              label="ID"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col name-col"
-              @click="sortBy('full_name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'full_name' }">
-                ФИО
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'full_name', desc: sortField === 'full_name' && sortDirection === 'desc' }"
-              />
-            </div>
-            <div
+              field="full_name"
+              label="ФИО"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
+            <RegistrySortButton
               class="header-col date-col"
-              @click="sortBy('created_at')"
-            >
-              <p :class="{ 'active-sort': sortField === 'created_at' }">
-                Добавлен
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{ sorted: sortField === 'created_at', desc: sortField === 'created_at' && sortDirection === 'desc' }"
-              />
-            </div>
+              field="created_at"
+              label="Добавлен"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+            />
           </div>
 
           <div class="table-body">
@@ -381,11 +366,11 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { getApprovers, getAllUsers, addApprover, updateApprover, deleteApprover } from '@/api/approvers';
-import AppIcon from '@/components/icons/AppIcon.vue';
+import RegistrySortButton from '@/components/ui/RegistrySortButton.vue';
 
 export default {
   name: 'ApplicationApproversManagement',
-  components: { SearchComponent, RefreshButton, ApplicationApproverHistoryModal, AppIcon },
+  components: { RegistrySortButton, SearchComponent, RefreshButton, ApplicationApproverHistoryModal },
   setup() {
     const overlay = { close: () => {} };
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
@@ -757,26 +742,26 @@ export default {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 600 !important;
 }

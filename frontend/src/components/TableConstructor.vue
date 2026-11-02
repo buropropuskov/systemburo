@@ -91,54 +91,30 @@
                   @change="toggleSelectAll"
                 >
               </div>
-              <div
+              <RegistrySortButton
                 class="header-col id-col"
-                @click="sortBy('id')"
-              >
-                <p :class="{ 'active-sort': sortField === 'id' }">
-                  ID
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'id',
-                    'desc': sortField === 'id' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="id"
+                label="ID"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col name-col"
-                @click="sortBy('name')"
-              >
-                <p :class="{ 'active-sort': sortField === 'name' }">
-                  Наименование
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'name',
-                    'desc': sortField === 'name' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
-              <div
+                field="name"
+                label="Наименование"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
+              <RegistrySortButton
                 class="header-col type-col"
-                @click="sortBy('type')"
-              >
-                <p :class="{ 'active-sort': sortField === 'type' }">
-                  Тип
-                </p>
-                <AppIcon
-                  name="sort"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'type',
-                    'desc': sortField === 'type' && sortDirection === 'desc'
-                  }"
-                />
-              </div>
+                field="type"
+                label="Тип"
+                :sort-field="sortField"
+                :sort-direction="sortDirection"
+                @sort="sortBy"
+              />
               <div class="header-col status-col">
                 <p>Статус</p>
               </div>
@@ -481,7 +457,10 @@
                   <label class="section-label">Настройки отображения:</label>
 
                   <!-- Только машины: у сотрудников тумблера "по факту" нет (#2019). -->
-                  <div v-if="selectedTable.table.table_type === 'cars'" class="checkbox-group">
+                  <div
+                    v-if="selectedTable.table.table_type === 'cars'"
+                    class="checkbox-group"
+                  >
                     <label class="checkbox-label">
                       <input
                         v-model="selectedTable.table.show_fact_table"
@@ -917,7 +896,7 @@ import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
 import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
 import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
-import BaseDropdown from './ui/BaseDropdown.vue';
+import { BaseDropdown, RegistrySortButton } from '@/components/ui';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
@@ -925,7 +904,7 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 export default {
   name: 'TableConstructor',
   mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id, 'searchQuery')],
-  components: {
+  components: { RegistrySortButton,
     SearchComponent,
     RefreshButton,
     TextConstructor,
@@ -1970,11 +1949,11 @@ export default {
   color: var(--text);
 }
 
-.header-col:hover .sort-icon {
+.header-col:hover :deep(.sort-icon) {
   color: var(--text);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   color: var(--text-muted);
   width: 12px;
   height: 12px;
@@ -1982,15 +1961,15 @@ export default {
   flex-shrink: 0;
 }
 
-.sort-icon.sorted {
+:deep(.sort-icon.sorted) {
   color: var(--text);
 }
 
-.sort-icon.desc {
+:deep(.sort-icon.desc) {
   transform: rotate(180deg);
 }
 
-.active-sort {
+:deep(.active-sort) {
   color: var(--text) !important;
   font-weight: 600 !important;
 }
