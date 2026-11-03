@@ -1660,7 +1660,9 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 				IsPrimary        bool `gorm:"column:is_primary"`
 				RequiredApproval bool `gorm:"column:required_approval"`
 			}
-			tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM organization_users WHERE organization_id = ?", *req.OrganizationID).Scan(&orgResp)
+			if err := tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM organization_users WHERE organization_id = ?", *req.OrganizationID).Scan(&orgResp).Error; err != nil {
+				return apperr.Internal("Не удалось загрузить согласующих заявки", err)
+			}
 			for _, r := range orgResp {
 				responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
 				if r.IsPrimary {
@@ -1675,7 +1677,9 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 				IsPrimary        bool `gorm:"column:is_primary"`
 				RequiredApproval bool `gorm:"column:required_approval"`
 			}
-			tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM companies_users WHERE company_id = ?", *req.CompanyID).Scan(&compResp)
+			if err := tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM companies_users WHERE company_id = ?", *req.CompanyID).Scan(&compResp).Error; err != nil {
+				return apperr.Internal("Не удалось загрузить согласующих заявки", err)
+			}
 			for _, r := range compResp {
 				exists := false
 				for i := range responsibleUsers {
@@ -1699,15 +1703,19 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 			return err
 		}
 		if primaryResponsibleID != nil {
-			tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, app.ID)
+			if err := tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, app.ID).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+			}
 		}
 
 		for _, ru := range responsibleUsers {
-			tx.Exec(`
+			if err := tx.Exec(`
 			INSERT INTO application_responsible_users (application_id, user_id, is_primary, required_approval, approval_status, created_at)
 			VALUES (?, ?, ?, ?, 'pending', ?)
 			ON CONFLICT (application_id, user_id) DO NOTHING
-		`, app.ID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, now)
+		`, app.ID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, now).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+			}
 		}
 
 		return nil

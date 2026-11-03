@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -169,7 +170,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		for _, fu := range req.Users {
 			// Проверяем существование пользователя
 			var userExists bool
-			tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", fu.UserID).Scan(&userExists)
+			if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", fu.UserID).Scan(&userExists).Error; err != nil {
+				return apperr.Internal("Не удалось проверить получателей заявки", err)
+			}
 			if !userExists {
 				continue
 			}
@@ -199,7 +202,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 						"Этот пользователь не может согласовать вашу заявку. Выберите другого согласующего")
 				}
 				var alreadyAdded bool
-				tx.Raw("SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
+				if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded).Error; err != nil {
+					return apperr.Internal("Не удалось проверить получателей заявки", err)
+				}
 
 				// Обязательность голоса задаёт справочник согласующих при подаче (#2037), а не
 				// тот, кто пересылает: иначе снятие её с ожидающего согласующего делает заявку
@@ -209,10 +214,12 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 						"application_id", applicationID, "recipient_id", fu.UserID, "actor_id", user.ID)
 					continue
 				}
-				tx.Exec(`
+				if err := tx.Exec(`
 				INSERT INTO application_responsible_users (application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
 				VALUES (?, ?, ?, 'pending', ?, ?, false)
-			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID)
+			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID).Error; err != nil {
+					return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+				}
 				addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
 				recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
 					UserID: fu.UserID, Purpose: "approval", RequiredApproval: fu.RequiredApproval, AccessGranted: true,
@@ -220,13 +227,17 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			} else {
 				// Просматривающий
 				var alreadyAdded bool
-				tx.Raw("SELECT EXISTS(SELECT 1 FROM application_viewers WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
+				if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM application_viewers WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded).Error; err != nil {
+					return apperr.Internal("Не удалось проверить получателей заявки", err)
+				}
 
 				if !alreadyAdded {
-					tx.Exec(`
+					if err := tx.Exec(`
 					INSERT INTO application_viewers (application_id, user_id, created_at, created_by)
 					VALUES (?, ?, ?, ?)
-				`, applicationID, fu.UserID, baseTime, user.ID)
+				`, applicationID, fu.UserID, baseTime, user.ID).Error; err != nil {
+						return apperr.Internal("Не удалось сохранить получателей заявки", err)
+					}
 				}
 				addedViewers = append(addedViewers, fu.UserID)
 				recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
@@ -251,15 +262,19 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				// Только вложения самой заявки - чужие ID отбрасываем, чтобы строка не ссылалась
 				// на чужое вложение и фильтр чтения не прятал всё подряд.
 				var validAttIDs []int
-				tx.Raw("SELECT id FROM attachments WHERE application_id = ? AND id IN ?", applicationID, req.AttachmentIDs).Scan(&validAttIDs)
+				if err := tx.Raw("SELECT id FROM attachments WHERE application_id = ? AND id IN ?", applicationID, req.AttachmentIDs).Scan(&validAttIDs).Error; err != nil {
+					return apperr.Internal("Не удалось загрузить вложения заявки", err)
+				}
 
 				for _, recipientID := range recipients {
 					for _, attID := range validAttIDs {
-						tx.Exec(`
+						if err := tx.Exec(`
 						INSERT INTO forward_attachments (application_id, recipient_user_id, attachment_id, created_at, created_by)
 						VALUES (?, ?, ?, ?, ?)
 						ON CONFLICT (application_id, recipient_user_id, attachment_id) DO NOTHING
-					`, applicationID, recipientID, attID, baseTime, user.ID)
+					`, applicationID, recipientID, attID, baseTime, user.ID).Error; err != nil {
+							return apperr.Internal("Не удалось сохранить доступ к вложениям заявки", err)
+						}
 					}
 				}
 			}
@@ -378,7 +393,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 
 		// Проверяем изменение confirmation
-		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
+		if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation).Error; err != nil {
+			return apperr.Internal("Не удалось загрузить состояние согласования заявки", err)
+		}
 
 		confirmationChanged = (oldConfirmation == nil) != (newConfirmation == nil) ||
 			(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
@@ -524,16 +541,20 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		}
 
 		// Сохраняем старый confirmation
-		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
+		if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation).Error; err != nil {
+			return apperr.Internal("Не удалось загрузить состояние согласования заявки", err)
+		}
 
 		nowUTC := time.Now().UTC()
 
 		// Обновляем голос
-		tx.Exec(`
+		if err := tx.Exec(`
 		UPDATE application_responsible_users
 		SET approval_status = ?, approval_comment = ?, approval_datetime = ?
 		WHERE application_id = ? AND user_id = ?
-	`, req.Status, req.Comment, nowUTC, applicationID, user.ID)
+	`, req.Status, req.Comment, nowUTC, applicationID, user.ID).Error; err != nil {
+			return apperr.Internal("Не удалось сохранить голос по заявке", err)
+		}
 
 		// Записываем действие в историю
 		actionType := "approve"
@@ -550,7 +571,9 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		}
 
 		// Проверяем изменение confirmation
-		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
+		if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation).Error; err != nil {
+			return apperr.Internal("Не удалось загрузить состояние согласования заявки", err)
+		}
 
 		confirmationChanged = (oldConfirmation == nil) != (newConfirmation == nil) ||
 			(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
@@ -654,13 +677,17 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		}
 
 		var oldConfirmation *string
-		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
+		if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation).Error; err != nil {
+			return apperr.Internal("Не удалось загрузить состояние согласования заявки", err)
+		}
 
-		tx.Exec(`
+		if err := tx.Exec(`
 		UPDATE application_responsible_users
 		SET approval_status = 'pending', approval_comment = NULL, approval_datetime = NULL
 		WHERE application_id = ? AND user_id = ?
-	`, applicationID, user.ID)
+	`, applicationID, user.ID).Error; err != nil {
+			return apperr.Internal("Не удалось сохранить голос по заявке", err)
+		}
 
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_approval", &user.ID,
 			applicationAuditDetails{Comment: req.Comment})
@@ -670,7 +697,9 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		}
 
 		var newConfirmation *string
-		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
+		if err := tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation).Error; err != nil {
+			return apperr.Internal("Не удалось загрузить состояние согласования заявки", err)
+		}
 
 		if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
 			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
