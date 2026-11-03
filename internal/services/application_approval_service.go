@@ -130,285 +130,270 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// WithdrawApplication блокирует эту же строку. Проверяем статус под тем же
-	// FOR UPDATE до назначений: отзыв не может проскочить между проверкой и INSERT.
-	var lockedApplication struct {
-		Status       *string
-		Confirmation *string
-	}
-	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&lockedApplication)
-	if result.Error != nil {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
-	}
-	if result.RowsAffected == 0 {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
-	}
-	if lockedApplication.Status != nil && *lockedApplication.Status == models.StatusWithdrawn {
-		for _, recipient := range req.Users {
-			if recipient.RequiredApproval || !recipient.CanView {
-				tx.Rollback()
-				return echo.NewHTTPError(http.StatusForbidden,
-					"Заявка отозвана: пересылка доступна только для просмотра, назначение согласующих недоступно")
-			}
-		}
-	}
-	oldConfirmation := lockedApplication.Confirmation
-
-	baseTime := time.Now().UTC()
-
 	type addedResp struct {
 		UserID           int
 		RequiredApproval bool
 	}
 	var addedResponsibleUsers []addedResp
 	var addedViewers []int
-	recipientDetails := make([]forwardRecipientDetail, 0, len(req.Users))
-
-	for _, fu := range req.Users {
-		// Проверяем существование пользователя
-		var userExists bool
-		tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", fu.UserID).Scan(&userExists)
-		if !userExists {
-			continue
+	var newConfirmation *string
+	var confirmationChanged bool
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// WithdrawApplication блокирует эту же строку. Проверяем статус под тем же
+		// FOR UPDATE до назначений: отзыв не может проскочить между проверкой и INSERT.
+		var lockedApplication struct {
+			Status       *string
+			Confirmation *string
 		}
-
-		// Получателем можно назначить только того, кого форма и предлагала выбрать -
-		// иначе подделанный запрос открывает заявку любому пользователю системы тем же
-		// INSERT в application_viewers, который закрыт на подаче. Чужой идентификатор
-		// отбрасываем молча, как и там: запрос остаётся валидным, пересылка проходит.
-		if !authority.allowsRecipient(fu.UserID) {
-			slog.Warn("получатель пересылки отброшен: вне списка доступных получателей",
-				"application_id", applicationID, "recipient_id", fu.UserID, "actor_id", user.ID)
-			continue
+		result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&lockedApplication)
+		if result.Error != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
 		}
-
-		if fu.RequiredApproval && fu.CanView {
-			continue
+		if result.RowsAffected == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, "Application not found")
 		}
-
-		if fu.RequiredApproval || !fu.CanView {
-			// Ответственный пользователь
-			allowed, err := applicationActionAvailable(ctx, tx, fu.UserID, KeyActionApproveApplication)
-			if err != nil {
-				tx.Rollback()
-				return err
+		if lockedApplication.Status != nil && *lockedApplication.Status == models.StatusWithdrawn {
+			for _, recipient := range req.Users {
+				if recipient.RequiredApproval || !recipient.CanView {
+					return echo.NewHTTPError(http.StatusForbidden,
+						"Заявка отозвана: пересылка доступна только для просмотра, назначение согласующих недоступно")
+				}
 			}
-			if !allowed {
-				tx.Rollback()
-				return echo.NewHTTPError(http.StatusBadRequest,
-					"Этот пользователь не может согласовать вашу заявку. Выберите другого согласующего")
-			}
-			var alreadyAdded bool
-			tx.Raw("SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
+		}
+		oldConfirmation := lockedApplication.Confirmation
 
-			// Обязательность голоса задаёт справочник согласующих при подаче (#2037), а не
-			// тот, кто пересылает: иначе снятие её с ожидающего согласующего делает заявку
-			// Согласованной без его голоса. Форма пересылки уже назначенных не предлагает.
-			if alreadyAdded {
-				slog.Warn("получатель пересылки отброшен: уже назначен ответственным",
+		baseTime := time.Now().UTC()
+
+		recipientDetails := make([]forwardRecipientDetail, 0, len(req.Users))
+
+		for _, fu := range req.Users {
+			// Проверяем существование пользователя
+			var userExists bool
+			tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", fu.UserID).Scan(&userExists)
+			if !userExists {
+				continue
+			}
+
+			// Получателем можно назначить только того, кого форма и предлагала выбрать -
+			// иначе подделанный запрос открывает заявку любому пользователю системы тем же
+			// INSERT в application_viewers, который закрыт на подаче. Чужой идентификатор
+			// отбрасываем молча, как и там: запрос остаётся валидным, пересылка проходит.
+			if !authority.allowsRecipient(fu.UserID) {
+				slog.Warn("получатель пересылки отброшен: вне списка доступных получателей",
 					"application_id", applicationID, "recipient_id", fu.UserID, "actor_id", user.ID)
 				continue
 			}
-			tx.Exec(`
+
+			if fu.RequiredApproval && fu.CanView {
+				continue
+			}
+
+			if fu.RequiredApproval || !fu.CanView {
+				// Ответственный пользователь
+				allowed, err := applicationActionAvailable(ctx, tx, fu.UserID, KeyActionApproveApplication)
+				if err != nil {
+					return err
+				}
+				if !allowed {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						"Этот пользователь не может согласовать вашу заявку. Выберите другого согласующего")
+				}
+				var alreadyAdded bool
+				tx.Raw("SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
+
+				// Обязательность голоса задаёт справочник согласующих при подаче (#2037), а не
+				// тот, кто пересылает: иначе снятие её с ожидающего согласующего делает заявку
+				// Согласованной без его голоса. Форма пересылки уже назначенных не предлагает.
+				if alreadyAdded {
+					slog.Warn("получатель пересылки отброшен: уже назначен ответственным",
+						"application_id", applicationID, "recipient_id", fu.UserID, "actor_id", user.ID)
+					continue
+				}
+				tx.Exec(`
 				INSERT INTO application_responsible_users (application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
 				VALUES (?, ?, ?, 'pending', ?, ?, false)
 			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID)
-			addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
-			recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
-				UserID: fu.UserID, Purpose: "approval", RequiredApproval: fu.RequiredApproval, AccessGranted: true,
-			})
-		} else {
-			// Просматривающий
-			var alreadyAdded bool
-			tx.Raw("SELECT EXISTS(SELECT 1 FROM application_viewers WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
+				addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
+				recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
+					UserID: fu.UserID, Purpose: "approval", RequiredApproval: fu.RequiredApproval, AccessGranted: true,
+				})
+			} else {
+				// Просматривающий
+				var alreadyAdded bool
+				tx.Raw("SELECT EXISTS(SELECT 1 FROM application_viewers WHERE application_id = ? AND user_id = ?)", applicationID, fu.UserID).Scan(&alreadyAdded)
 
-			if !alreadyAdded {
-				tx.Exec(`
+				if !alreadyAdded {
+					tx.Exec(`
 					INSERT INTO application_viewers (application_id, user_id, created_at, created_by)
 					VALUES (?, ?, ?, ?)
 				`, applicationID, fu.UserID, baseTime, user.ID)
+				}
+				addedViewers = append(addedViewers, fu.UserID)
+				recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
+					UserID: fu.UserID, Purpose: "view", AccessGranted: !alreadyAdded,
+				})
 			}
-			addedViewers = append(addedViewers, fu.UserID)
-			recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
-				UserID: fu.UserID, Purpose: "view", AccessGranted: !alreadyAdded,
-			})
 		}
-	}
 
-	// Пер-вложенный пересыл (#680): фиксируем, какие вложения видит каждый получатель.
-	// Список общий на действие, разворачиваем построчно (получатель x вложение). Пустой
-	// список не пишет строк -> получатели видят все вложения (обратная совместимость).
-	// Семантика аддитивная: повторная пересылка с другим набором ДОБАВЛЯет строки
-	// (ON CONFLICT DO NOTHING), а не заменяет; сужение видимости здесь не предусмотрено.
-	if len(req.AttachmentIDs) > 0 {
-		recipients := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
-		for _, resp := range addedResponsibleUsers {
-			recipients = append(recipients, resp.UserID)
-		}
-		recipients = append(recipients, addedViewers...)
+		// Пер-вложенный пересыл (#680): фиксируем, какие вложения видит каждый получатель.
+		// Список общий на действие, разворачиваем построчно (получатель x вложение). Пустой
+		// список не пишет строк -> получатели видят все вложения (обратная совместимость).
+		// Семантика аддитивная: повторная пересылка с другим набором ДОБАВЛЯет строки
+		// (ON CONFLICT DO NOTHING), а не заменяет; сужение видимости здесь не предусмотрено.
+		if len(req.AttachmentIDs) > 0 {
+			recipients := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
+			for _, resp := range addedResponsibleUsers {
+				recipients = append(recipients, resp.UserID)
+			}
+			recipients = append(recipients, addedViewers...)
 
-		if len(recipients) > 0 {
-			// Только вложения самой заявки - чужие ID отбрасываем, чтобы строка не ссылалась
-			// на чужое вложение и фильтр чтения не прятал всё подряд.
-			var validAttIDs []int
-			tx.Raw("SELECT id FROM attachments WHERE application_id = ? AND id IN ?", applicationID, req.AttachmentIDs).Scan(&validAttIDs)
+			if len(recipients) > 0 {
+				// Только вложения самой заявки - чужие ID отбрасываем, чтобы строка не ссылалась
+				// на чужое вложение и фильтр чтения не прятал всё подряд.
+				var validAttIDs []int
+				tx.Raw("SELECT id FROM attachments WHERE application_id = ? AND id IN ?", applicationID, req.AttachmentIDs).Scan(&validAttIDs)
 
-			for _, recipientID := range recipients {
-				for _, attID := range validAttIDs {
-					tx.Exec(`
+				for _, recipientID := range recipients {
+					for _, attID := range validAttIDs {
+						tx.Exec(`
 						INSERT INTO forward_attachments (application_id, recipient_user_id, attachment_id, created_at, created_by)
 						VALUES (?, ?, ?, ?, ?)
 						ON CONFLICT (application_id, recipient_user_id, attachment_id) DO NOTHING
 					`, applicationID, recipientID, attID, baseTime, user.ID)
+					}
 				}
 			}
 		}
-	}
 
-	// Записываем историю назначений ответственных. Актор в user_id - НАЗНАЧЕННЫЙ
-	// пользователь (квирк заявки), действующий лежит в metadata.forwarded_by.
-	for _, resp := range addedResponsibleUsers {
-		meta, _ := json.Marshal(map[string]interface{}{
-			"required_approval": resp.RequiredApproval,
-			"is_primary":        false,
-			"forwarded_by":      currentUserName,
-			"type":              "responsible",
-		})
-		respUserID := resp.UserID
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "assigned_responsible", &respUserID,
-			applicationAuditDetails{Metadata: meta})
-	}
+		// Записываем историю назначений ответственных. Актор в user_id - НАЗНАЧЕННЫЙ
+		// пользователь (квирк заявки), действующий лежит в metadata.forwarded_by.
+		for _, resp := range addedResponsibleUsers {
+			meta, _ := json.Marshal(map[string]interface{}{
+				"required_approval": resp.RequiredApproval,
+				"is_primary":        false,
+				"forwarded_by":      currentUserName,
+				"type":              "responsible",
+			})
+			respUserID := resp.UserID
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "assigned_responsible", &respUserID,
+				applicationAuditDetails{Metadata: meta})
+		}
 
-	// Записываем историю назначений просматривающих (user_id - назначенный viewer).
-	for _, viewerID := range addedViewers {
-		meta, _ := json.Marshal(map[string]interface{}{
-			"forwarded_by": currentUserName,
-			"type":         "viewer",
-		})
-		vID := viewerID
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "assigned_viewer", &vID,
-			applicationAuditDetails{Metadata: meta})
-	}
+		// Записываем историю назначений просматривающих (user_id - назначенный viewer).
+		for _, viewerID := range addedViewers {
+			meta, _ := json.Marshal(map[string]interface{}{
+				"forwarded_by": currentUserName,
+				"type":         "viewer",
+			})
+			vID := viewerID
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "assigned_viewer", &vID,
+				applicationAuditDetails{Metadata: meta})
+		}
 
-	// Сводная запись о пересылке: всю заявку или конкретные вложения (#680).
-	// Пишем один раз на действие и только если кому-то реально переслали. Имена
-	// вложений кладём в metadata, текст собирает фронт (как у assigned_*).
-	if len(addedResponsibleUsers) > 0 || len(addedViewers) > 0 {
-		var attNames []string
-		attachmentDetails := make([]forwardAttachmentDetail, 0)
-		if len(req.AttachmentIDs) > 0 {
-			tx.Raw(`
+		// Сводная запись о пересылке: всю заявку или конкретные вложения (#680).
+		// Пишем один раз на действие и только если кому-то реально переслали. Имена
+		// вложений кладём в metadata, текст собирает фронт (как у assigned_*).
+		if len(addedResponsibleUsers) > 0 || len(addedViewers) > 0 {
+			var attNames []string
+			attachmentDetails := make([]forwardAttachmentDetail, 0)
+			if len(req.AttachmentIDs) > 0 {
+				tx.Raw(`
 				SELECT COALESCE(attachment_display_name, attachment_name, '')
 				FROM attachments
 				WHERE application_id = ? AND id IN ?
 				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
 			`, applicationID, req.AttachmentIDs).Scan(&attNames)
-		}
-		if len(req.AttachmentIDs) > 0 {
-			if err := tx.Raw(`SELECT id, COALESCE(attachment_display_name, attachment_name, '') AS name
+			}
+			if len(req.AttachmentIDs) > 0 {
+				if err := tx.Raw(`SELECT id, COALESCE(attachment_display_name, attachment_name, '') AS name
 				FROM attachments WHERE application_id = ? AND id IN ?
 				ORDER BY COALESCE(attachment_display_name, attachment_name, ''), id`,
-				applicationID, req.AttachmentIDs).Scan(&attachmentDetails).Error; err != nil {
-				tx.Rollback()
-				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load forwarding materials")
-			}
-		}
-		// Получатели этой пересылки (#967, ветка заявки): ответственные, затем
-		// просматривающие - в том же порядке кладём в metadata.recipients, чтобы
-		// GetForwardMessages показал "Кому переслано" без досбора из assigned_* записей.
-		recipientIDs := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
-		seenRecipient := make(map[int]struct{}, cap(recipientIDs))
-		addRecipient := func(id int) {
-			if _, dup := seenRecipient[id]; dup {
-				return
-			}
-			seenRecipient[id] = struct{}{}
-			recipientIDs = append(recipientIDs, id)
-		}
-		for _, resp := range addedResponsibleUsers {
-			addRecipient(resp.UserID)
-		}
-		for _, viewerID := range addedViewers {
-			addRecipient(viewerID)
-		}
-		recipientNames := make([]string, 0, len(recipientIDs))
-		if len(recipientIDs) > 0 {
-			type recipientRow struct {
-				ID         int
-				LastName   *string
-				FirstName  *string
-				MiddleName *string
-			}
-			var recipientRows []recipientRow
-			tx.Raw("SELECT id, last_name, first_name, middle_name FROM users WHERE id IN ?", recipientIDs).Scan(&recipientRows)
-			nameByID := make(map[int]string, len(recipientRows))
-			for _, r := range recipientRows {
-				nameByID[r.ID] = formatFullName(r.LastName, r.FirstName, r.MiddleName)
-			}
-			for _, id := range recipientIDs {
-				if name := nameByID[id]; name != "" {
-					recipientNames = append(recipientNames, name)
+					applicationID, req.AttachmentIDs).Scan(&attachmentDetails).Error; err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load forwarding materials")
 				}
 			}
+			// Получатели этой пересылки (#967, ветка заявки): ответственные, затем
+			// просматривающие - в том же порядке кладём в metadata.recipients, чтобы
+			// GetForwardMessages показал "Кому переслано" без досбора из assigned_* записей.
+			recipientIDs := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
+			seenRecipient := make(map[int]struct{}, cap(recipientIDs))
+			addRecipient := func(id int) {
+				if _, dup := seenRecipient[id]; dup {
+					return
+				}
+				seenRecipient[id] = struct{}{}
+				recipientIDs = append(recipientIDs, id)
+			}
+			for _, resp := range addedResponsibleUsers {
+				addRecipient(resp.UserID)
+			}
+			for _, viewerID := range addedViewers {
+				addRecipient(viewerID)
+			}
+			recipientNames := make([]string, 0, len(recipientIDs))
+			if len(recipientIDs) > 0 {
+				type recipientRow struct {
+					ID         int
+					LastName   *string
+					FirstName  *string
+					MiddleName *string
+				}
+				var recipientRows []recipientRow
+				tx.Raw("SELECT id, last_name, first_name, middle_name FROM users WHERE id IN ?", recipientIDs).Scan(&recipientRows)
+				nameByID := make(map[int]string, len(recipientRows))
+				for _, r := range recipientRows {
+					nameByID[r.ID] = formatFullName(r.LastName, r.FirstName, r.MiddleName)
+				}
+				for _, id := range recipientIDs {
+					if name := nameByID[id]; name != "" {
+						recipientNames = append(recipientNames, name)
+					}
+				}
+			}
+			meta, _ := json.Marshal(map[string]interface{}{
+				"forwarded_by":           currentUserName,
+				"whole":                  len(attNames) == 0,
+				"attachments":            attNames,
+				"recipients":             recipientNames,
+				"forward_schema_version": 2,
+				"recipient_details":      recipientDetails,
+				"attachment_scope":       forwardAttachmentScope(req.AttachmentIDs),
+				"attachment_details":     attachmentDetails,
+			})
+			// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
+			// Пустое после trim -> comment не пишем; пересылка всё равно попадёт в ветку
+			// заявки (message пустой), т.к. GetForwardMessages по comment больше не фильтрует.
+			details := applicationAuditDetails{Metadata: meta}
+			if msg := strings.TrimSpace(req.Message); msg != "" {
+				details.Comment = &msg
+			}
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionForwarded, &user.ID, details)
 		}
-		meta, _ := json.Marshal(map[string]interface{}{
-			"forwarded_by":           currentUserName,
-			"whole":                  len(attNames) == 0,
-			"attachments":            attNames,
-			"recipients":             recipientNames,
-			"forward_schema_version": 2,
-			"recipient_details":      recipientDetails,
-			"attachment_scope":       forwardAttachmentScope(req.AttachmentIDs),
-			"attachment_details":     attachmentDetails,
-		})
-		// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
-		// Пустое после trim -> comment не пишем; пересылка всё равно попадёт в ветку
-		// заявки (message пустой), т.к. GetForwardMessages по comment больше не фильтрует.
-		details := applicationAuditDetails{Metadata: meta}
-		if msg := strings.TrimSpace(req.Message); msg != "" {
-			details.Comment = &msg
+
+		// Обновляем confirmation если были добавлены ответственные
+		if len(addedResponsibleUsers) > 0 {
+			if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
+				return err
+			}
 		}
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionForwarded, &user.ID, details)
-	}
 
-	// Обновляем confirmation если были добавлены ответственные
-	if len(addedResponsibleUsers) > 0 {
-		if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
-			tx.Rollback()
-			return err
+		// Проверяем изменение confirmation
+		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
+
+		confirmationChanged = (oldConfirmation == nil) != (newConfirmation == nil) ||
+			(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
+		if confirmationChanged {
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
+				applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
+			if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+				return err
+			}
 		}
-	}
 
-	// Проверяем изменение confirmation
-	var newConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
-
-	confirmationChanged := (oldConfirmation == nil) != (newConfirmation == nil) ||
-		(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
-	if confirmationChanged {
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
-			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("не удалось зафиксировать транзакцию пересылки заявки", "application_id", applicationID, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Автоматически выдаём права tab.applications.view ответственным пользователям
@@ -491,113 +476,96 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be 'approved' or 'rejected'")
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	var oldConfirmation, newConfirmation *string
+	var confirmationChanged bool
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockApplicationForVote(tx, applicationID); err != nil {
+			return err
 		}
-	}()
 
-	if _, err := lockApplicationForVote(tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Проверяем, что пользователь -- ответственный
-	var responsible struct {
-		ID               int
-		ApprovalStatus   *string
-		RequiredApproval bool
-	}
-	result := tx.Raw(`
+		// Проверяем, что пользователь -- ответственный
+		var responsible struct {
+			ID               int
+			ApprovalStatus   *string
+			RequiredApproval bool
+		}
+		result := tx.Raw(`
 		SELECT id, approval_status, required_approval
 		FROM application_responsible_users
 		WHERE application_id = ? AND user_id = ?
 	`, applicationID, user.ID).Scan(&responsible)
-	if result.Error != nil || responsible.ID == 0 {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
-	}
+		if result.Error != nil || responsible.ID == 0 {
+			return echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
+		}
 
-	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := checkApplicationNotWithdrawn(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus != "pending" {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusBadRequest, "You have already voted on this application")
-	}
-
-	// Гейт обхода ЧС (#481): согласовать ('approved') нельзя, пока по всем помеченным
-	// похожими на ЧС элементам не подтверждён пропуск (override). Отказ ('rejected') не
-	// блокируем - отклонить подозрительную заявку можно сразу.
-	if req.Status == "approved" {
-		blocked, err := hasUnoverriddenBlacklistFlags(ctx, tx, applicationID)
-		if err != nil {
-			tx.Rollback()
+		if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
 			return err
 		}
-		if blocked {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusConflict,
-				"Заявка содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
+		if err := checkApplicationNotWithdrawn(ctx, tx, applicationID); err != nil {
+			return err
 		}
-	}
 
-	// Сохраняем старый confirmation
-	var oldConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
+		if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus != "pending" {
+			return echo.NewHTTPError(http.StatusBadRequest, "You have already voted on this application")
+		}
 
-	nowUTC := time.Now().UTC()
+		// Гейт обхода ЧС (#481): согласовать ('approved') нельзя, пока по всем помеченным
+		// похожими на ЧС элементам не подтверждён пропуск (override). Отказ ('rejected') не
+		// блокируем - отклонить подозрительную заявку можно сразу.
+		if req.Status == "approved" {
+			blocked, err := hasUnoverriddenBlacklistFlags(ctx, tx, applicationID)
+			if err != nil {
+				return err
+			}
+			if blocked {
+				return echo.NewHTTPError(http.StatusConflict,
+					"Заявка содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
+			}
+		}
 
-	// Обновляем голос
-	tx.Exec(`
+		// Сохраняем старый confirmation
+		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
+
+		nowUTC := time.Now().UTC()
+
+		// Обновляем голос
+		tx.Exec(`
 		UPDATE application_responsible_users
 		SET approval_status = ?, approval_comment = ?, approval_datetime = ?
 		WHERE application_id = ? AND user_id = ?
 	`, req.Status, req.Comment, nowUTC, applicationID, user.ID)
 
-	// Записываем действие в историю
-	actionType := "approve"
-	if req.Status == "rejected" {
-		actionType = "reject"
-	}
-	meta, _ := json.Marshal(map[string]interface{}{"required_approval": responsible.RequiredApproval})
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, actionType, &user.ID,
-		applicationAuditDetails{Comment: req.Comment, Metadata: meta})
+		// Записываем действие в историю
+		actionType := "approve"
+		if req.Status == "rejected" {
+			actionType = "reject"
+		}
+		meta, _ := json.Marshal(map[string]interface{}{"required_approval": responsible.RequiredApproval})
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, actionType, &user.ID,
+			applicationAuditDetails{Comment: req.Comment, Metadata: meta})
 
-	// Пересчитываем confirmation
-	if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Проверяем изменение confirmation
-	var newConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
-
-	confirmationChanged := (oldConfirmation == nil) != (newConfirmation == nil) ||
-		(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
-	if confirmationChanged {
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
-			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
+		// Пересчитываем confirmation
+		if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
 			return err
 		}
-	}
 
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("не удалось зафиксировать транзакцию одобрения заявки", "application_id", applicationID, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		// Проверяем изменение confirmation
+		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
+
+		confirmationChanged = (oldConfirmation == nil) != (newConfirmation == nil) ||
+			(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
+		if confirmationChanged {
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
+				applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
+			if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Заявка перешла в "Согласовано" -> её вложения появились в "Доступные мне"
@@ -654,84 +622,68 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		return nil, err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		status, err := lockApplicationForVote(tx, applicationID)
+		if err != nil {
+			return err
 		}
-	}()
 
-	status, err := lockApplicationForVote(tx, applicationID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+		var responsible struct {
+			ApprovalStatus   *string
+			RequiredApproval bool
+		}
+		result := tx.Raw("SELECT approval_status, required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+			applicationID, user.ID).Scan(&responsible)
+		if result.Error != nil || result.RowsAffected == 0 {
+			return echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
+		}
 
-	var responsible struct {
-		ApprovalStatus   *string
-		RequiredApproval bool
-	}
-	result := tx.Raw("SELECT approval_status, required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
-		applicationID, user.ID).Scan(&responsible)
-	if result.Error != nil || result.RowsAffected == 0 {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusForbidden, "You are not responsible for this application")
-	}
+		if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
+			return err
+		}
+		if err := checkApplicationNotWithdrawn(ctx, tx, applicationID); err != nil {
+			return err
+		}
 
-	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if err := checkApplicationNotWithdrawn(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+		if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus == "pending" {
+			return echo.NewHTTPError(http.StatusBadRequest, "You haven't voted yet")
+		}
 
-	if responsible.ApprovalStatus == nil || *responsible.ApprovalStatus == "pending" {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "You haven't voted yet")
-	}
+		if status != nil && (*status == models.StatusInWork || *status == models.StatusCompleted) {
+			return echo.NewHTTPError(http.StatusConflict, "Заявка уже принята в работу - голос по ней не отзывается")
+		}
 
-	if status != nil && (*status == models.StatusInWork || *status == models.StatusCompleted) {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusConflict, "Заявка уже принята в работу - голос по ней не отзывается")
-	}
+		var oldConfirmation *string
+		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
 
-	var oldConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
-
-	tx.Exec(`
+		tx.Exec(`
 		UPDATE application_responsible_users
 		SET approval_status = 'pending', approval_comment = NULL, approval_datetime = NULL
 		WHERE application_id = ? AND user_id = ?
 	`, applicationID, user.ID)
 
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_approval", &user.ID,
-		applicationAuditDetails{Comment: req.Comment})
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_approval", &user.ID,
+			applicationAuditDetails{Comment: req.Comment})
 
-	if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	var newConfirmation *string
-	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
-
-	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
-			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return nil, err
+		if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
+			return err
 		}
-	}
 
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("не удалось зафиксировать транзакцию отзыва одобрения", "application_id", applicationID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		var newConfirmation *string
+		tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
+
+		if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
+				applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
+			if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	slog.Info("одобрение отозвано", "application_id", applicationID, "user_id", user.ID)
