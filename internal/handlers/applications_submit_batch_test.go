@@ -1,7 +1,10 @@
 package handlers_test
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -230,13 +233,31 @@ func TestSubmitCompleteApplication_BatchEmployeesEncryptedAndBound(t *testing.T)
 
 	// В базе поле должно быть НЕ в открытом виде - иначе BeforeSave не отработал под
 	// CreateInBatches, а это и есть риск, ради которого сотрудники остались на GORM.
-	var plaintextCount int64
+	var stored []struct {
+		ID                   int
+		PassportSeriesNumber string
+		PatentNumber         string
+	}
 	require.NoError(t, db.Raw(
-		`SELECT COUNT(*) FROM employees
+		`SELECT id, passport_series_number, patent_number FROM employees
 		  WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)
-		    AND passport_series_number LIKE '12%'`, appID,
-	).Scan(&plaintextCount).Error)
-	assert.Zero(t, plaintextCount, "паспорт в столбце БД должен быть шифротекстом, не читаемой строкой")
+		  ORDER BY id`, appID,
+	).Scan(&stored).Error)
+	require.Len(t, stored, n)
+	for i, row := range stored {
+		require.Equal(t, employees[i].ID, row.ID)
+		passport, patent := fmt.Sprintf("12%02d 654321", i), fmt.Sprintf("77%02d123456", i)
+		require.NotEqual(t, passport, row.PassportSeriesNumber)
+		require.NotEqual(t, patent, row.PatentNumber)
+		// Base64 starts with a random nonce: a textual prefix cannot identify
+		// plaintext. Require authenticated decryption of every raw stored value.
+		decoded, err := crypto.Decrypt(row.PassportSeriesNumber, key)
+		require.NoError(t, err)
+		require.Equal(t, passport, decoded)
+		decoded, err = crypto.Decrypt(row.PatentNumber, key)
+		require.NoError(t, err)
+		require.Equal(t, patent, decoded)
+	}
 
 	var hmacCount int64
 	require.NoError(t, db.Raw(
@@ -251,6 +272,25 @@ func TestSubmitCompleteApplication_BatchEmployeesEncryptedAndBound(t *testing.T)
 		Where("employee_id IN (?)", ownEmployees.Session(&gorm.Session{}).Model(&models.Employee{}).Select("id")).
 		Count(&bindingCount).Error)
 	assert.EqualValues(t, n, bindingCount, "привязка к таблице проходной должна быть создана для КАЖДОГО сотрудника пачки")
+}
+
+func TestSubmitBatchCiphertextPrefixIsNotPlaintext(t *testing.T) {
+	key := make([]byte, 32)
+	block, err := aes.NewCipher(key)
+	require.NoError(t, err)
+	gcm, err := cipher.NewGCM(block)
+	require.NoError(t, err)
+	// Test-only nonce makes the first two Base64 symbols exactly "12".
+	// Production Encrypt continues to obtain its nonce from crypto/rand.
+	nonce := make([]byte, gcm.NonceSize())
+	nonce[0], nonce[1] = 0xd7, 0x60
+	const plaintext = "1200 654321"
+	stored := base64.StdEncoding.EncodeToString(gcm.Seal(nonce, nonce, []byte(plaintext), nil))
+	require.True(t, strings.HasPrefix(stored, "12"))
+	require.NotEqual(t, plaintext, stored)
+	decoded, err := crypto.Decrypt(stored, key)
+	require.NoError(t, err)
+	require.Equal(t, plaintext, decoded)
 }
 
 // submittedApplicationID достаёт идентификатор созданной заявки из ответа подачи.
