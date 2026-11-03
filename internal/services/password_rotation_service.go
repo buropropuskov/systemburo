@@ -347,6 +347,11 @@ func (s *PasswordRotationService) loginsWithoutEmail(ctx context.Context) ([]str
 // которого он не видел. reason попадает в журнал действий - обновление всем и
 // сброс из карточки выглядят там одинаково, различает их только он.
 func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, policy models.PasswordPolicy, reason string, startedBy int, permission string) error {
+	ctx, release, err := admitPasswordOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		actor, target, err := lockAdminTarget(ctx, tx, startedBy, u.ID)
 		if err != nil {

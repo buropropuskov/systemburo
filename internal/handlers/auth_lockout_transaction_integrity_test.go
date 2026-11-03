@@ -67,6 +67,61 @@ func authIntegrityCount(t *testing.T, db *gorm.DB, table, condition string, args
 	return count
 }
 
+func TestPasswordAdmission_HTTPBusyLeavesCredentialsUntouched(t *testing.T) {
+	e, base, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, base)
+	td := testutil.SeedTestData(t, base)
+	const username = "password_admission_user"
+	token := testutil.RegisterAndLogin(t, e, username, selfPassOld, 1, td.OrgID, td.CompanyID)
+	var before models.User
+	require.NoError(t, base.Where("username = ?", username).First(&before).Error)
+	events := authIntegrityCount(t, base, "auth_events", "username = ?", username)
+	history := authIntegrityCount(t, base, "used_passwords", "user_id = ?", before.ID)
+	sessions := authIntegrityCount(t, base, "refresh_tokens", "user_id = ? AND is_revoked = false", before.ID)
+	services.SetArgon2Concurrency(1)
+	t.Cleanup(func() { services.SetArgon2Concurrency(0) })
+
+	// Hold the sole slot with an actual login on a separate callback registry.
+	// The synthetic account is missing, so releasing the holder creates no session.
+	db := authIntegrityDB(t, base, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	entered, done := make(chan struct{}), make(chan struct{})
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:hold_password_slot", func(tx *gorm.DB) {
+		close(entered)
+		<-ctx.Done()
+		tx.AddError(ctx.Err())
+	}))
+	holder := authIntegrityService(db)
+	go func() {
+		defer close(done)
+		_, _ = holder.Login(ctx, models.LoginRequest{Username: "password_admission_holder"}, nil)
+	}()
+	defer func() { cancel(); authIntegrityAwait(t, done) }()
+	authIntegrityAwait(t, entered)
+
+	read := testutil.GET(t, e, "/user-types", nil)
+	require.Equal(t, http.StatusOK, read.Code)
+	login := testutil.POST(t, e, "/login", `{"username":"password_admission_user","password":"wrong-password"}`, nil)
+	require.Equal(t, http.StatusServiceUnavailable, login.Code)
+	require.Equal(t, "2", login.Header().Get("Retry-After"))
+	change := testutil.PUT(t, e, "/api/users/me/password", `{"current_password":"oldpassword12345","new_password":"newpassword67890"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusServiceUnavailable, change.Code)
+	require.Equal(t, "2", change.Header().Get("Retry-After"))
+	after := authIntegrityReadUser(t, base, before.ID)
+	require.Equal(t, before.Password, after.Password)
+	require.Equal(t, before.PasswordChangedAt, after.PasswordChangedAt)
+	require.Equal(t, before.FailedLoginCount, after.FailedLoginCount)
+	require.Equal(t, events, authIntegrityCount(t, base, "auth_events", "username = ?", username))
+	require.Equal(t, history, authIntegrityCount(t, base, "used_passwords", "user_id = ?", before.ID))
+	require.Equal(t, sessions, authIntegrityCount(t, base, "refresh_tokens", "user_id = ? AND is_revoked = false", before.ID))
+
+	cancel()
+	authIntegrityAwait(t, done)
+	rec := testutil.POST(t, e, "/login", `{"username":"password_admission_user","password":"oldpassword12345"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
 func TestAuthLockoutIntegrity_ConcurrentWrongAttemptsAndSingleTransition(t *testing.T) {
 	_, base, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -75,6 +130,10 @@ func TestAuthLockoutIntegrity_ConcurrentWrongAttemptsAndSingleTransition(t *test
 	td := testutil.SeedTestData(t, db)
 	user := mkBareUser(t, db, td, "auth_atomic_wrong", "correct-password123")
 	const attempts = 8
+	// This test needs all eight snapshots at the barrier before any can proceed.
+	// Saturation of the password queue is covered separately.
+	services.SetArgon2Concurrency(attempts)
+	t.Cleanup(func() { services.SetArgon2Concurrency(0) })
 	ready, release := make(chan struct{}, attempts), make(chan struct{})
 	var releaseOnce sync.Once
 	defer releaseOnce.Do(func() { close(release) })
