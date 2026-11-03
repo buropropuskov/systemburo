@@ -327,9 +327,14 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating user")
 	}
 
+	hashed, err := hashPasswordContext(ctx, req.Password)
+	if err != nil {
+		return err
+	}
+
 	user := models.User{
 		Username:          req.Username,
-		Password:          hashPassword(req.Password),
+		Password:          hashed,
 		PasswordChangedAt: &passwordSetAt,
 		OrganizationID:    intPtrOrNil(req.OrganizationID),
 		CompanyID:         intPtrOrNil(req.CompanyID),
@@ -540,7 +545,10 @@ func (s *userService) updatePassword(ctx context.Context, callerUserID int, user
 		return err
 	}
 	var user models.User
-	hashed := hashPassword(req.Password)
+	hashed, err := hashPasswordContext(ctx, req.Password)
+	if err != nil {
+		return err
+	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		actor, current, err := lockAdminTarget(ctx, tx, callerUserID, target.ID)
 		if err != nil {
@@ -661,8 +669,11 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 		return apperr.New(http.StatusServiceUnavailable, "Не удалось прочитать пользователя", err)
 	}
 
-	currentMatches, err := verifyPassword(user.Password, req.CurrentPassword)
+	currentMatches, err := verifyPasswordContext(ctx, user.Password, req.CurrentPassword)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
 		// Хеш в базе не разбирается - дефект данных этой учётки, а не ошибка во
 		// введённом пароле. "Текущий пароль указан неверно" тут была бы такой же
 		// ложью, как счётчик неудачных попыток при входе по битому хешу (#2017):
@@ -679,8 +690,11 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 
 	// user.Password уже успешно разобран строкой выше - вторая проверка того же
 	// хеша ошибку разбора вернуть не может, но обрабатываем её на случай расхождения.
-	sameAsCurrent, err := verifyPassword(user.Password, req.NewPassword)
+	sameAsCurrent, err := verifyPasswordContext(ctx, user.Password, req.NewPassword)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
 		slog.Error("не удалось сравнить новый пароль с текущим", "username", user.Username, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить новый пароль. Обратитесь к администратору.")
 	}
