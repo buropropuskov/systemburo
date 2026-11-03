@@ -170,6 +170,10 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		return nil, err
 	}
 
+	if err := ValidateSupplementComposition(req); err != nil {
+		return nil, err
+	}
+
 	targets, counts, err := s.resolveSupplementTargets(ctx, applicationID, req.Additions)
 	if err != nil {
 		return nil, err
@@ -521,6 +525,8 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 	// Дедуп-union мест добавленных машин: attachment_unload_places - источник видимости
 	// вложения для охраны, и новое место должно в него попасть (#706).
 	carPlacesSet := make(map[int]struct{})
+	var carUnloadBindings []models.CarUnloadPlace
+	var carTableBindings []models.CarTargetTable
 	for _, v := range t.addition.Vehicles {
 		var carID int
 		// Даты и время берём прямо из вложения тем же INSERT..SELECT: копия колонки в
@@ -542,19 +548,27 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 		s.recorder.Log(ctx, tx, models.AuditEntityCar, &carID, "create", &actorID, carAuditDetails{Comment: &carComment})
 
 		for _, placeID := range v.UnloadPlaces {
-			if err := tx.Exec("INSERT INTO car_unload_places (car_id, unload_place_id, order_index) VALUES (?, ?, 1)", carID, placeID).Error; err != nil {
-				slog.Error("дополнение: не удалось привязать место разгрузки", "car_id", carID, "unload_place_id", placeID, "error", err)
-				return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error linking unload place")
-			}
+			oneIdx := 1
+			carUnloadBindings = append(carUnloadBindings, models.CarUnloadPlace{CarID: carID, UnloadPlaceID: placeID, OrderIndex: &oneIdx})
 			carPlacesSet[placeID] = struct{}{}
 		}
 		// Историю попадания в таблицу пишет активация раунда, не подача - здесь машина
 		// ещё неактивна и охране не видна (#1085).
 		for _, tableID := range v.TargetTables {
-			if err := tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID).Error; err != nil {
-				slog.Error("дополнение: не удалось привязать машину к таблице", "car_id", carID, "table_id", tableID, "error", err)
-				return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error linking car to table")
-			}
+			oneIdx := 1
+			carTableBindings = append(carTableBindings, models.CarTargetTable{CarID: carID, TableID: tableID, OrderIndex: &oneIdx, Source: "application"})
+		}
+	}
+	if len(carUnloadBindings) > 0 {
+		if err := tx.CreateInBatches(&carUnloadBindings, bindingInsertBatchSize).Error; err != nil {
+			slog.Error("дополнение: не удалось привязать места разгрузки", "attachment_id", attID, "error", err)
+			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error linking unload place")
+		}
+	}
+	if len(carTableBindings) > 0 {
+		if err := tx.CreateInBatches(&carTableBindings, bindingInsertBatchSize).Error; err != nil {
+			slog.Error("дополнение: не удалось привязать машины к таблицам", "attachment_id", attID, "error", err)
+			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error linking car to table")
 		}
 	}
 	for placeID := range carPlacesSet {
@@ -564,12 +578,14 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 		}
 	}
 
-	for _, e := range t.addition.Employees {
+	employeesInput := t.addition.Employees
+	employeeRecords := make([]models.Employee, 0, len(employeesInput))
+	for _, e := range employeesInput {
 		statusZero := 0
 		lastName, firstName := e.LastName, e.FirstName
 		citizenshipID, position := e.CitizenshipID, e.Position
 		attachmentID, roundID := attID, supplementID
-		employee := models.Employee{
+		employeeRecords = append(employeeRecords, models.Employee{
 			AttachmentID:         &attachmentID,
 			SupplementID:         &roundID,
 			LastName:             &lastName,
@@ -583,11 +599,18 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 			Status:               &statusZero,
 			PDConsentAt:          consentAt(e.PDConsent, now),
 			PDConsentByUserID:    consentBy(e.PDConsent, actorID),
-		}
-		if err := tx.Create(&employee).Error; err != nil {
-			slog.Error("дополнение: не удалось создать сотрудника", "attachment_id", attID, "error", err)
+		})
+	}
+	// Хуки GORM обязательны: Employee.BeforeSave шифрует паспорт/патент и пишет HMAC.
+	if len(employeeRecords) > 0 {
+		if err := tx.CreateInBatches(&employeeRecords, employeeInsertBatchSize).Error; err != nil {
+			slog.Error("дополнение: не удалось создать сотрудников", "attachment_id", attID, "error", err)
 			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
 		}
+	}
+	var employeeTableBindings []models.EmployeeTargetTable
+	for i, employee := range employeeRecords {
+		e := employeesInput[i]
 		empID := employee.ID
 
 		middle := ""
@@ -595,17 +618,22 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 			middle = *e.MiddleName
 		}
 		employeeFlags = append(employeeFlags, pendingEmployeeFlag{
-			empID: empID, lastName: lastName, firstName: firstName, middleName: middle,
+			empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: middle,
 		})
 		empComment := fmt.Sprintf("Сотрудник %s добавлен дополнением",
-			strings.TrimSpace(strings.Join([]string{lastName, firstName, middle}, " ")))
+			strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, middle}, " ")))
 		s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "create", &actorID, carAuditDetails{Comment: &empComment})
 
 		for _, tableID := range e.TargetTables {
-			if err := tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID).Error; err != nil {
-				slog.Error("дополнение: не удалось привязать сотрудника к таблице", "employee_id", empID, "table_id", tableID, "error", err)
-				return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error linking employee to table")
-			}
+			oneIdx := 1
+			employeeTableBindings = append(employeeTableBindings, models.EmployeeTargetTable{EmployeeID: empID, TableID: tableID, OrderIndex: &oneIdx, Source: "application"})
+		}
+	}
+
+	if len(employeeTableBindings) > 0 {
+		if err := tx.CreateInBatches(&employeeTableBindings, bindingInsertBatchSize).Error; err != nil {
+			slog.Error("дополнение: не удалось привязать сотрудников к таблицам", "attachment_id", attID, "error", err)
+			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error linking employee to table")
 		}
 	}
 
