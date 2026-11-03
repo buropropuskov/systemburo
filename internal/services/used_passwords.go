@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -59,8 +60,11 @@ func passwordAlreadyUsed(ctx context.Context, db *gorm.DB, userID int, password 
 		return false, fmt.Errorf("чтение прежних паролей: %w", err)
 	}
 	for _, h := range hashes {
-		matched, err := verifyPassword(h, password)
+		matched, err := verifyPasswordContext(ctx, h, password)
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false, err
+			}
 			// Одна из последних usedPasswordDepth записей повреждена - дефект
 			// данных этой конкретной учётки, а не текущей попытки. Отказывать
 			// в смене пароля из-за него - тот же грех, что и запирать вход по

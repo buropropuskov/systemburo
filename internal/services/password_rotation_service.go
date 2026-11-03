@@ -373,7 +373,10 @@ func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, 
 		if err != nil {
 			return err
 		}
-		hashed := hashPassword(password)
+		hashed, err := hashPasswordContext(ctx, password)
+		if err != nil {
+			return err
+		}
 		now := time.Now()
 		updates := map[string]any{
 			"password":             hashed,

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"runtime"
 	"sync/atomic"
 )
@@ -55,8 +56,27 @@ func argon2Concurrency() int {
 // освободить у другого - значит навсегда потерять место в очереди, если между двумя
 // строками кто-то вызвал SetArgon2Concurrency.
 func withArgon2Slot(fn func()) {
+	// Legacy-вызовы без context сохраняют прежнее ожидание свободного слота.
+	_ = withArgon2SlotContext(context.Background(), fn)
+}
+
+// withArgon2SlotContext отменяет ожидание, но не отрывает начатый Argon2 от слота.
+// Уже выполняющийся IDKey завершается синхронно; отменённый результат не используется.
+func withArgon2SlotContext(ctx context.Context, fn func()) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	sem := argon2Sem.Load().(chan struct{})
-	sem <- struct{}{}
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	defer func() { <-sem }()
+	// Отмена и свободный слот могли стать готовы одновременно.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	fn()
+	return ctx.Err()
 }

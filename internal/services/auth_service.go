@@ -128,34 +128,55 @@ func HashPassword(password string) string {
 }
 
 func hashPassword(password string) string {
+	// Background не отменяется: сигнатура CLI/seed/testutil остаётся совместимой.
+	hash, err := hashPasswordContext(context.Background(), password)
+	if err != nil {
+		panic(err) // Background не отменяется; не выдаём пустой хеш при изменении контракта.
+	}
+	return hash
+}
+
+func verifyPassword(phcHash, password string) (bool, error) {
+	return verifyPasswordContext(context.Background(), phcHash, password)
+}
+
+func hashPasswordContext(ctx context.Context, password string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	salt := generateSalt()
 	// Argon2id with default params matching Rust argon2 0.5.3 defaults:
 	// m=19456 (19 MiB), t=2, p=1
 	var hash []byte
-	withArgon2Slot(func() {
+	if err := withArgon2SlotContext(ctx, func() {
 		hash = argon2.IDKey([]byte(password), salt, 2, 19456, 1, 32)
-	})
+	}); err != nil {
+		return "", err
+	}
 	// PHC format: $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>
 	saltB64 := base64RawEncode(salt)
 	hashB64 := base64RawEncode(hash)
-	return fmt.Sprintf("$argon2id$v=%d$m=19456,t=2,p=1$%s$%s", goargon2.Version, saltB64, hashB64)
+	return fmt.Sprintf("$argon2id$v=%d$m=19456,t=2,p=1$%s$%s", goargon2.Version, saltB64, hashB64), nil
 }
 
-// verifyPassword сравнивает пароль с сохранённым PHC-хешем. Второй результат -
-// ошибка РАЗБОРА хеша (обрезанная строка, чужой алгоритм, битый base64), а не
-// "пароль не подошёл". Вызывающий обязан различать эти два случая: иначе дефект
-// сохранённых данных выглядит как неверно введённый пароль и наказывается как
-// он - счётчиком неудачных попыток и лестницей блокировки (#2017).
-func verifyPassword(phcHash, password string) (bool, error) {
+// verifyPasswordContext сравнивает пароль с сохранённым PHC-хешем. Ошибки разбора
+// PHC и отмена context отличаются от несовпадения пароля: ни одна из них не должна
+// увеличивать счётчик неудачных попыток или лестницу блокировки (#2017).
+func verifyPasswordContext(ctx context.Context, phcHash, password string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	// Parse PHC format
 	salt, expectedHash, params, err := parsePHC(phcHash)
 	if err != nil {
 		return false, err
 	}
 	var computed []byte
-	withArgon2Slot(func() {
+	if err := withArgon2SlotContext(ctx, func() {
 		computed = argon2.IDKey([]byte(password), salt, params.time, params.memory, params.threads, uint32(len(expectedHash)))
-	})
+	}); err != nil {
+		return false, err
+	}
 	return subtleCompare(computed, expectedHash), nil
 }
 
@@ -347,6 +368,9 @@ func (s *authService) loginBadHash(ctx context.Context, username string, meta *R
 
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	ip := ""
 	if meta != nil {
 		ip = meta.IPAddress
@@ -380,6 +404,9 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, s.loginUnavailable(ctx, req.Username, meta, "user lookup", err)
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
 		// Счётчик показываем и для несуществующего логина (тот же ответ, что и при
 		// неверном пароле) - иначе по наличию счётчика можно перебирать имена.
@@ -396,82 +423,111 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		return nil, s.lockoutError(remaining)
 	}
 
-	// Блокировка ИСТЕКЛА (LockedUntil в прошлом) -> сбрасываем счётчик, даём свежий
-	// цикл из maxFailedLoginsBeforeLock попыток. Без этого счётчик остаётся на пороге,
-	// и первая же новая неверная попытка мгновенно лочит заново с "осталось 0".
-	if user.LockedUntil != nil {
-		if err := s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
-			"failed_login_count": 0,
-			"locked_until":       nil,
-		}).Error; err != nil {
-			slog.Error("не удалось снять истёкшую блокировку входа", "username", user.Username, "error", err)
-		}
-		user.FailedLoginCount = 0
-		user.LockedUntil = nil
-	}
-
-	passwordMatches, verifyErr := verifyPassword(user.Password, req.Password)
+	passwordMatches, verifyErr := verifyPasswordContext(ctx, user.Password, req.Password)
 	if verifyErr != nil {
+		if errors.Is(verifyErr, context.Canceled) || errors.Is(verifyErr, context.DeadlineExceeded) {
+			return nil, verifyErr
+		}
 		// Хеш не разбирается - это не "человек ошибся паролем", а дефект данных
 		// этой учётки. Считать его неверным паролем значит копить лестницу
 		// блокировки на человеке, который мог ввести пароль верно (#2017).
 		return nil, s.loginBadHash(ctx, user.Username, meta, verifyErr)
 	}
 	if !passwordMatches {
-		// registerFailedLogin ведёт per-user счётчик - бэкстоп от distributed
-		// brute-force (атака с разных IP, которую per-IP guard не ловит).
-		lockedUntil := s.registerFailedLogin(ctx, &user)
+		var transition failedLoginTransition
+		var response error
+		err := withAuthTransitionContext(ctx, user.ID, func() error {
+			var err error
+			transition, err = s.registerFailedLogin(ctx, user.ID, user.Password)
+			if err != nil {
+				return err
+			}
+			// RAM-счётчик следует за успешным commit под той же полосой, что success/reset.
+			response = s.loginFailureResponse(ip, transition.user.Username, transition.lockedUntil)
+			return nil
+		})
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			var domain *apperr.Error
+			if errors.As(err, &domain) && (domain.Code == http.StatusUnauthorized || domain.Code == http.StatusTooManyRequests) {
+				if domain.Code == http.StatusTooManyRequests && transition.lockedUntil != nil {
+					// Параллельная попытка уже поставила lock: это заблокированный вход,
+					// а не новая неудача или повторный переход учётки в блокировку.
+					s.recordAuthEvent(ctx, &transition.user.ID, transition.user.Username, models.AuthEventLoginLocked, false, meta,
+						fmt.Sprintf("locked for %ss", domain.Headers["Retry-After"]))
+				}
+				return nil, err
+			}
+			return nil, s.loginUnavailable(ctx, user.Username, meta, "failed login state", err)
+		}
+		user = transition.user
+		if transition.newlyLocked {
+			s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventAccountLocked, false, nil,
+				fmt.Sprintf("locked for %s after %d failed attempts (step %d)", transition.duration, maxFailedLoginsBeforeLock, user.LockoutLevel))
+		}
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
-		return nil, s.loginFailureResponse(ip, user.Username, lockedUntil)
+		if transition.newlyLocked {
+			s.notifyLoginBlocked(ctx, &user, maxFailedLoginsBeforeLock, *transition.lockedUntil)
+		}
+		return nil, response
 	}
 
 	verifiedHash := user.Password
 	disabled := false
 	loginStage := "user lock"
 	var accessToken, refreshJWT string
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		current, err := lockSessionUser(ctx, tx, user.ID)
+	err = withAuthTransitionContext(ctx, user.ID, func() error {
+		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			current, err := lockSessionUser(ctx, tx, user.ID)
+			if err != nil {
+				return err
+			}
+			if current.Password != verifiedHash {
+				return apperr.Unauthorized("Неверный логин или пароль")
+			}
+			now := time.Now().UTC()
+			if current.LockedUntil != nil && current.LockedUntil.After(now) {
+				return s.lockoutError(secondsUntil(*current.LockedUntil))
+			}
+			if !current.IsActive {
+				disabled = true
+				return apperr.Forbidden("Учётная запись отключена. Обратитесь к администратору.")
+			}
+			loginStage = "maintenance lookup"
+			if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
+				return err
+			}
+			loginStage = "user preload"
+			if err := tx.Preload("Organization").Preload("Company").Preload("UserType").First(current, current.ID).Error; err != nil {
+				return err
+			}
+			familyID := uuid.NewString()
+			accessToken, err = s.createAccessToken(current.Username, current.ID, current.TypeID, current.IsSuperAdmin, familyID)
+			if err != nil {
+				return err
+			}
+			refreshJWT, err = s.createRefreshJWT(current.Username)
+			if err != nil {
+				return err
+			}
+			loginStage = "successful login state"
+			if err := tx.Model(current).Updates(map[string]any{"last_login_at": now, "failed_login_count": 0, "locked_until": nil, "lockout_level": 0, "last_failed_login_at": nil}).Error; err != nil {
+				return err
+			}
+			rt := models.RefreshToken{UserID: current.ID, FamilyID: familyID, TokenHash: hashRefreshToken(refreshJWT), ExpiresAt: now.Add(s.refreshTTL), IPAddress: metaIPPtr(meta), UserAgent: metaUAPtr(meta)}
+			loginStage = "refresh token store"
+			if err := tx.Create(&rt).Error; err != nil {
+				return err
+			}
+			user = *current
+			return nil
+		})
 		if err != nil {
 			return err
 		}
-		if current.Password != verifiedHash {
-			return apperr.Unauthorized("Неверный логин или пароль")
-		}
-		now := time.Now().UTC()
-		if current.LockedUntil != nil && current.LockedUntil.After(now) {
-			return s.lockoutError(secondsUntil(*current.LockedUntil))
-		}
-		if !current.IsActive {
-			disabled = true
-			return apperr.Forbidden("Учётная запись отключена. Обратитесь к администратору.")
-		}
-		loginStage = "maintenance lookup"
-		if err := checkSessionMaintenance(ctx, tx, current, now); err != nil {
-			return err
-		}
-		loginStage = "user preload"
-		if err := tx.Preload("Organization").Preload("Company").Preload("UserType").First(current, current.ID).Error; err != nil {
-			return err
-		}
-		familyID := uuid.NewString()
-		accessToken, err = s.createAccessToken(current.Username, current.ID, current.TypeID, current.IsSuperAdmin, familyID)
-		if err != nil {
-			return err
-		}
-		refreshJWT, err = s.createRefreshJWT(current.Username)
-		if err != nil {
-			return err
-		}
-		loginStage = "successful login state"
-		if err := tx.Model(current).Updates(map[string]any{"last_login_at": now, "failed_login_count": 0, "locked_until": nil, "lockout_level": 0, "last_failed_login_at": nil}).Error; err != nil {
-			return err
-		}
-		rt := models.RefreshToken{UserID: current.ID, FamilyID: familyID, TokenHash: hashRefreshToken(refreshJWT), ExpiresAt: now.Add(s.refreshTTL), IPAddress: metaIPPtr(meta), UserAgent: metaUAPtr(meta)}
-		loginStage = "refresh token store"
-		if err := tx.Create(&rt).Error; err != nil {
-			return err
-		}
-		user = *current
+		s.loginGuard.reset(ip)
 		return nil
 	})
 	if err != nil {
@@ -485,8 +541,6 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		}
 		return nil, sessionTransactionError(err)
 	}
-	s.loginGuard.reset(ip)
-
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginSuccess, true, meta, "")
 
 	return &models.LoginResponse{
@@ -757,62 +811,70 @@ func (s *authService) GetUserTypes(ctx context.Context) ([]models.UserType, erro
 	return types, nil
 }
 
-// registerFailedLogin увеличивает счётчик неудачных попыток и лочит учётку,
-// если достигнут порог. Запрос не прерывается - клиент всё равно получит
-// "Неверный логин или пароль", чтобы не раскрывать состояние лока.
-// Возвращает момент окончания блокировки, если эта попытка её и поставила,
-// иначе nil - вызывающий показывает пользователю честный таймер.
-func (s *authService) registerFailedLogin(ctx context.Context, user *models.User) *time.Time {
-	now := time.Now().UTC()
+// failedLoginTransition хранит свежий снимок результата. newlyLocked означает
+// новый переход; его событие и уведомление разрешены только после успешного commit.
+// При уже действующем lock снимок нужен для LoginLocked, без штрафа и уведомления.
+type failedLoginTransition struct {
+	user        models.User
+	lockedUntil *time.Time
+	newlyLocked bool
+	duration    time.Duration
+}
 
-	// Давняя неудача не копится: попытки считаются в пределах окна, иначе одна
-	// опечатка утром и четыре вечером сложились бы в блокировку.
-	count := user.FailedLoginCount
-	if user.LastFailedLoginAt == nil || now.Sub(*user.LastFailedLoginAt) > loginFailureWindow {
-		count = 0
-	}
-	// Сутки без неудач возвращают лестницу на первую ступень.
-	level := user.LockoutLevel
-	if user.LastFailedLoginAt == nil || now.Sub(*user.LastFailedLoginAt) > lockoutLevelDecay {
-		level = 0
-	}
-
-	count++
-	updates := map[string]interface{}{
-		"failed_login_count":   count,
-		"last_failed_login_at": now,
-		"lockout_level":        level,
-	}
-	user.FailedLoginCount = count
-	user.LastFailedLoginAt = &now
-	user.LockoutLevel = level
-
-	if count < maxFailedLoginsBeforeLock {
-		s.saveFailedLoginState(ctx, user, updates)
+// Вызывающий удерживает auth transition gate до применения postcommit RAM-эффекта.
+// Пароль уже проверен: внутри row lock нет Argon2 или ожидания его семафора.
+func (s *authService) registerFailedLogin(ctx context.Context, userID int, verifiedHash string) (failedLoginTransition, error) {
+	var result failedLoginTransition
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		user, err := lockSessionUser(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		if user.Password != verifiedHash {
+			return apperr.Unauthorized("Неверный логин или пароль")
+		}
+		now := time.Now().UTC()
+		if user.LockedUntil != nil && user.LockedUntil.After(now) {
+			result.user = *user
+			result.lockedUntil = user.LockedUntil
+			return s.lockoutError(secondsUntil(*user.LockedUntil))
+		}
+		count := user.FailedLoginCount
+		if user.LockedUntil != nil || user.LastFailedLoginAt == nil || now.Sub(*user.LastFailedLoginAt) > loginFailureWindow {
+			count = 0
+		}
+		level := user.LockoutLevel
+		if user.LastFailedLoginAt == nil || now.Sub(*user.LastFailedLoginAt) > lockoutLevelDecay {
+			level = 0
+		}
+		count++
+		updates := map[string]interface{}{
+			"failed_login_count": count, "last_failed_login_at": now,
+			"lockout_level": level, "locked_until": nil,
+		}
+		user.FailedLoginCount = count
+		user.LastFailedLoginAt = &now
+		user.LockoutLevel = level
+		user.LockedUntil = nil
+		if count >= maxFailedLoginsBeforeLock {
+			result.duration = lockoutDuration(level)
+			until := now.Add(result.duration)
+			updates["locked_until"] = until
+			updates["failed_login_count"] = 0
+			updates["lockout_level"] = level + 1
+			user.FailedLoginCount = 0
+			user.LockedUntil = &until
+			user.LockoutLevel = level + 1
+			result.lockedUntil = &until
+			result.newlyLocked = true
+		}
+		if err := tx.Model(user).Updates(updates).Error; err != nil {
+			return err
+		}
+		result.user = *user
 		return nil
-	}
-
-	// Порог достигнут: блокируем на текущую ступень и поднимаем её для следующего
-	// круга. Счётчик обнуляем - после отсидки человек получает свежие попытки,
-	// а не мгновенный ре-лок с первой же ошибки.
-	dur := lockoutDuration(level)
-	lockUntil := now.Add(dur)
-	updates["locked_until"] = lockUntil
-	updates["failed_login_count"] = 0
-	updates["lockout_level"] = level + 1
-	user.FailedLoginCount = 0
-	user.LockedUntil = &lockUntil
-	user.LockoutLevel = level + 1
-	// Отдельное event - удобно алёртить "аккаунт только что залочили".
-	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventAccountLocked, false, nil,
-		fmt.Sprintf("locked for %s after %d failed attempts (step %d)", dur, maxFailedLoginsBeforeLock, level+1))
-	s.saveFailedLoginState(ctx, user, updates)
-	// Уведомление - РОВНО в момент перехода в блокировку, не на каждой неудачной
-	// попытке (иначе спам ровно там, где его боятся). user здесь всегда существующая
-	// запись из БД (registerFailedLogin зовётся Login() только после успешного поиска
-	// по username) - для выдуманного логина уведомлять некого и нечего.
-	s.notifyLoginBlocked(ctx, user, maxFailedLoginsBeforeLock, lockUntil)
-	return &lockUntil
+	})
+	return result, err
 }
 
 // notifyLoginBlocked создаёт персистентное уведомление о блокировке входа.
@@ -852,42 +914,45 @@ func (s *authService) notifyLoginBlocked(ctx context.Context, user *models.User,
 	}
 }
 
-// saveFailedLoginState пишет состояние счётчика/блокировки. Запрос не прерываем -
-// клиент в любом случае получит отказ, - но провал записи означает, что защита от
-// перебора не работает, и молчать о нём нельзя.
-func (s *authService) saveFailedLoginState(ctx context.Context, user *models.User, updates map[string]interface{}) {
-	if err := s.db.WithContext(ctx).Model(user).Updates(updates).Error; err != nil {
-		slog.Error("не удалось сохранить счётчик неудачных входов", "username", user.Username, "error", err)
-	}
-}
-
 // ResetLoginLockout снимает блокировку входа с учётной записи: обнуляет счётчик
 // неудач, лестницу кулдаунов и сам лок, а заодно чистит per-IP счётчики адресов,
 // с которых этот логин не проходил. Возвращает false, если сбрасывать было нечего.
 func (s *authService) ResetLoginLockout(ctx context.Context, username string, actorUserID int) (bool, error) {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return false, err
+		}
 		return false, apperr.NotFound("Пользователь не найден")
 	}
-
-	s.loginGuard.resetUser(user.Username)
-
-	hadLockout := user.LockedUntil != nil || user.FailedLoginCount > 0 || user.LockoutLevel > 0
+	var hadLockout bool
+	err := withAuthTransitionContext(ctx, user.ID, func() error {
+		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			current, err := lockSessionUser(ctx, tx, user.ID)
+			if err != nil {
+				return err
+			}
+			user = *current
+			hadLockout = user.LockedUntil != nil || user.FailedLoginCount > 0 || user.LockoutLevel > 0
+			if !hadLockout {
+				return nil
+			}
+			return tx.Model(current).Updates(map[string]interface{}{
+				"failed_login_count": 0, "locked_until": nil,
+				"lockout_level": 0, "last_failed_login_at": nil,
+			}).Error
+		}); err != nil {
+			return err
+		}
+		s.loginGuard.resetUser(user.Username)
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("reset login lockout: %w", err)
+	}
 	if !hadLockout {
 		return false, nil
 	}
-
-	if err := s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
-		"failed_login_count":   0,
-		"locked_until":         nil,
-		"lockout_level":        0,
-		"last_failed_login_at": nil,
-	}).Error; err != nil {
-		return false, fmt.Errorf("reset login lockout: %w", err)
-	}
-
-	// Событие ложится в ту же ленту, где живут сами блокировки (вкладка «История
-	// входов», категория «Блокировки») - иначе снятие пришлось бы искать в другом журнале.
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLockoutReset, true, nil,
 		fmt.Sprintf("сброшено администратором %s", s.usernameByID(ctx, actorUserID)))
 	return true, nil
