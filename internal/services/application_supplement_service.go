@@ -527,20 +527,13 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 	carPlacesSet := make(map[int]struct{})
 	var carUnloadBindings []models.CarUnloadPlace
 	var carTableBindings []models.CarTargetTable
-	for _, v := range t.addition.Vehicles {
-		var carID int
-		// Даты и время берём прямо из вложения тем же INSERT..SELECT: копия колонки в
-		// колонку исключает расхождение форматов с путём подачи.
-		err := tx.Raw(`
-			INSERT INTO cars (attachment_id, supplement_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status, pd_consent_at, pd_consent_by_user_id)
-			SELECT a.id, ?, ?, ?, ?, a.entry_date_from, a.entry_time_from, a.entry_date_to, a.entry_time_to, 0, ?, ?
-			FROM attachments a WHERE a.id = ?
-			RETURNING id
-		`, supplementID, v.CarNumber, v.CarBrand, v.UnloadPlace, consentAt(v.PDConsent, now), consentBy(v.PDConsent, actorID), attID).Scan(&carID).Error
-		if err != nil || carID == 0 {
-			slog.Error("дополнение: не удалось создать машину", "attachment_id", attID, "error", err)
-			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
-		}
+	carIDs, err := insertSupplementCarsBatch(tx, attID, supplementID, t.addition.Vehicles, actorID, now)
+	if err != nil {
+		slog.Error("дополнение: не удалось создать машины", "attachment_id", attID, "error", err)
+		return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
+	}
+	for i, v := range t.addition.Vehicles {
+		carID := carIDs[i]
 
 		vehicleFlags = append(vehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
@@ -637,14 +630,9 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 		}
 	}
 
-	for _, item := range t.addition.Items {
-		if err := tx.Exec(`
-			INSERT INTO items (attachment_id, supplement_id, name, count, date_created)
-			VALUES (?, ?, ?, ?, ?)
-		`, attID, supplementID, item.Name, item.Count, now.Format("2006-01-02")).Error; err != nil {
-			slog.Error("дополнение: не удалось создать ТМЦ", "attachment_id", attID, "error", err)
-			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating item")
-		}
+	if err := insertSupplementItemsBatch(tx, attID, supplementID, t.addition.Items, now); err != nil {
+		slog.Error("дополнение: не удалось создать ТМЦ", "attachment_id", attID, "error", err)
+		return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating item")
 	}
 
 	return vehicleFlags, employeeFlags, nil
