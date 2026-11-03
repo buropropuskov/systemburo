@@ -79,94 +79,81 @@ func (s *applicationService) DecideSupplement(ctx context.Context, username stri
 		return nil, err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	round, err := s.lockSupplementRound(tx, applicationID, supplementID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if round.Status != models.SupplementApproved {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusConflict,
-			"Решение принимают по согласованному дополнению - круг согласования по этому ещё не закрыт")
-	}
-
-	now := time.Now().UTC()
-	comment := trimmedSupplementComment(req.Comment)
-	newStatus := models.SupplementAccepted
-	action := models.AuditActionSupplementAccepted
-	if req.Action == supplementActionReject {
-		newStatus = models.SupplementRefused
-		action = models.AuditActionSupplementRefused
-	}
-
-	activated := 0
-	if req.Action == supplementActionAccept {
-		// Статус заявки перечитываем внутри транзакции: между гардом принимающего и
-		// активацией заявку могли вывести из работы, и тогда её строки погашены, а состав
-		// раунда встал бы на КПП поверх снятых пропусков.
-		//
-		// Отдельный FOR UPDATE здесь не нужен - строка заявки уже заблокирована
-		// lockSupplementRound, он берёт её первой именно ради единого порядка захвата.
-		var appStatus *string
-		if err := tx.Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&appStatus).Error; err != nil {
-			tx.Rollback()
-			slog.Error("дополнение: не удалось перечитать статус заявки", "application_id", applicationID, "error", err)
-			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
-		}
-		current := ""
-		if appStatus != nil {
-			current = *appStatus
-		}
-		if current != models.StatusInWork {
-			tx.Rollback()
-			return nil, echo.NewHTTPError(http.StatusConflict,
-				fmt.Sprintf("Заявка в статусе «%s» - принять дополнение нельзя", current))
-		}
-
-		activated, err = s.activateSupplementItems(ctx, tx, round.ID, &user.ID)
+	var round supplementRound
+	var newStatus string
+	var activated int
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		round, err = s.lockSupplementRound(tx, applicationID, supplementID)
 		if err != nil {
-			tx.Rollback()
-			return nil, err
+			return err
 		}
-	}
+		if round.Status != models.SupplementApproved {
+			return echo.NewHTTPError(http.StatusConflict,
+				"Решение принимают по согласованному дополнению - круг согласования по этому ещё не закрыт")
+		}
 
-	if err := tx.Exec(`
+		now := time.Now().UTC()
+		comment := trimmedSupplementComment(req.Comment)
+		newStatus = models.SupplementAccepted
+		action := models.AuditActionSupplementAccepted
+		if req.Action == supplementActionReject {
+			newStatus = models.SupplementRefused
+			action = models.AuditActionSupplementRefused
+		}
+
+		if req.Action == supplementActionAccept {
+			// Статус заявки перечитываем внутри транзакции: между гардом принимающего и
+			// активацией заявку могли вывести из работы, и тогда её строки погашены, а состав
+			// раунда встал бы на КПП поверх снятых пропусков.
+			//
+			// Отдельный FOR UPDATE здесь не нужен - строка заявки уже заблокирована
+			// lockSupplementRound, он берёт её первой именно ради единого порядка захвата.
+			var appStatus *string
+			if err := tx.Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&appStatus).Error; err != nil {
+				slog.Error("дополнение: не удалось перечитать статус заявки", "application_id", applicationID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
+			}
+			current := ""
+			if appStatus != nil {
+				current = *appStatus
+			}
+			if current != models.StatusInWork {
+				return echo.NewHTTPError(http.StatusConflict,
+					fmt.Sprintf("Заявка в статусе «%s» - принять дополнение нельзя", current))
+			}
+
+			activated, err = s.activateSupplementItems(ctx, tx, round.ID, &user.ID)
+			if err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Exec(`
 		UPDATE application_supplements
 		SET status = ?, decided_by_user_id = ?, decided_at = ?, decision_comment = ?
 		WHERE id = ?
 	`, newStatus, user.ID, now, comment, round.ID).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось записать решение", "supplement_id", round.ID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to save supplement decision")
-	}
+			slog.Error("дополнение: не удалось записать решение", "supplement_id", round.ID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to save supplement decision")
+		}
 
-	oldStatus := round.Status
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, action, &user.ID,
-		applicationAuditDetails{
-			OldValue: &oldStatus,
-			NewValue: &newStatus,
-			Comment:  comment,
-			Metadata: supplementAuditMetadata(round, map[string]any{"activated": activated}),
-		})
+		oldStatus := round.Status
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, action, &user.ID,
+			applicationAuditDetails{
+				OldValue: &oldStatus,
+				NewValue: &newStatus,
+				Comment:  comment,
+				Metadata: supplementAuditMetadata(round, map[string]any{"activated": activated}),
+			})
 
-	if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-		tx.Rollback()
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		return nil, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("дополнение: не удалось зафиксировать решение", "supplement_id", round.ID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	slog.Info("решение по дополнению", "application_id", applicationID, "supplement_id", round.ID,
@@ -218,57 +205,46 @@ func (s *applicationService) CancelSupplement(ctx context.Context, username stri
 		return nil, err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	var round supplementRound
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		round, err = s.lockSupplementRound(tx, applicationID, supplementID)
+		if err != nil {
+			return err
 		}
-	}()
+		// Снимать можно только идущий раунд. Принятый снять нельзя тем более: его строки уже
+		// на КПП, и «снятие» пришлось бы делать отзывом пропусков, а это другая операция.
+		if !slices.Contains(models.OpenSupplementStatuses, round.Status) {
+			return echo.NewHTTPError(http.StatusConflict, "По этому дополнению решение уже принято - снять его нельзя")
+		}
 
-	round, err := s.lockSupplementRound(tx, applicationID, supplementID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	// Снимать можно только идущий раунд. Принятый снять нельзя тем более: его строки уже
-	// на КПП, и «снятие» пришлось бы делать отзывом пропусков, а это другая операция.
-	if !slices.Contains(models.OpenSupplementStatuses, round.Status) {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusConflict, "По этому дополнению решение уже принято - снять его нельзя")
-	}
-
-	now := time.Now().UTC()
-	comment := trimmedSupplementComment(req.Comment)
-	if err := tx.Exec(`
+		now := time.Now().UTC()
+		comment := trimmedSupplementComment(req.Comment)
+		if err := tx.Exec(`
 		UPDATE application_supplements
 		SET status = ?, decided_by_user_id = ?, decided_at = ?, decision_comment = ?
 		WHERE id = ?
 	`, models.SupplementCancelled, user.ID, now, comment, round.ID).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось снять раунд", "supplement_id", round.ID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to cancel supplement")
-	}
+			slog.Error("дополнение: не удалось снять раунд", "supplement_id", round.ID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to cancel supplement")
+		}
 
-	oldStatus := round.Status
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionSupplementCancelledByAuthor, &user.ID,
-		applicationAuditDetails{
-			OldValue: &oldStatus,
-			NewValue: ptrString(models.SupplementCancelled),
-			Comment:  comment,
-			Metadata: supplementAuditMetadata(round, nil),
-		})
+		oldStatus := round.Status
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionSupplementCancelledByAuthor, &user.ID,
+			applicationAuditDetails{
+				OldValue: &oldStatus,
+				NewValue: ptrString(models.SupplementCancelled),
+				Comment:  comment,
+				Metadata: supplementAuditMetadata(round, nil),
+			})
 
-	if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-		tx.Rollback()
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		return nil, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("дополнение: не удалось зафиксировать снятие раунда", "supplement_id", round.ID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	slog.Info("дополнение снято автором", "application_id", applicationID, "supplement_id", round.ID, "user_id", user.ID)

@@ -1630,98 +1630,98 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 	now := time.Now().UTC()
 	applicationNumber := nextApplicationNumber(s.db.WithContext(ctx))
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	var app models.Application
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		app = models.Application{
+			ApplicationNumber: &applicationNumber,
+			OrganizationID:    safeDerefInt(req.OrganizationID),
+			CompanyID:         req.CompanyID,
+			SenderUserID:      user.ID,
+			Message:           req.Message,
+			DataApproval:      ptrString("true"),
+			Status:            ptrString("Непрочитано"),
+			Confirmation:      ptrString("Согласование"),
+			SendingDatetime:   &now,
 		}
-	}()
 
-	app := models.Application{
-		ApplicationNumber: &applicationNumber,
-		OrganizationID:    safeDerefInt(req.OrganizationID),
-		CompanyID:         req.CompanyID,
-		SenderUserID:      user.ID,
-		Message:           req.Message,
-		DataApproval:      ptrString("true"),
-		Status:            ptrString("Непрочитано"),
-		Confirmation:      ptrString("Согласование"),
-		SendingDatetime:   &now,
-	}
-
-	if err := tx.Create(&app).Error; err != nil {
-		tx.Rollback()
-		slog.Error("Ошибка создания заявки", "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
-	}
-
-	// Собираем ответственных из организации и компании
-	type respUser = applicationAssignee
-	var responsibleUsers []respUser
-	var primaryResponsibleID *int
-
-	if req.OrganizationID != nil {
-		var orgResp []struct {
-			UserID           int  `gorm:"column:user_id"`
-			IsPrimary        bool `gorm:"column:is_primary"`
-			RequiredApproval bool `gorm:"column:required_approval"`
+		if err := tx.Create(&app).Error; err != nil {
+			slog.Error("Ошибка создания заявки", "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
 		}
-		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM organization_users WHERE organization_id = ?", *req.OrganizationID).Scan(&orgResp)
-		for _, r := range orgResp {
-			responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
-			if r.IsPrimary {
-				primaryResponsibleID = &r.UserID
+
+		// Собираем ответственных из организации и компании
+		type respUser = applicationAssignee
+		var responsibleUsers []respUser
+		var primaryResponsibleID *int
+
+		if req.OrganizationID != nil {
+			var orgResp []struct {
+				UserID           int  `gorm:"column:user_id"`
+				IsPrimary        bool `gorm:"column:is_primary"`
+				RequiredApproval bool `gorm:"column:required_approval"`
 			}
-		}
-	}
-
-	if req.CompanyID != nil {
-		var compResp []struct {
-			UserID           int  `gorm:"column:user_id"`
-			IsPrimary        bool `gorm:"column:is_primary"`
-			RequiredApproval bool `gorm:"column:required_approval"`
-		}
-		tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM companies_users WHERE company_id = ?", *req.CompanyID).Scan(&compResp)
-		for _, r := range compResp {
-			exists := false
-			for i := range responsibleUsers {
-				if responsibleUsers[i].UserID == r.UserID {
-					responsibleUsers[i].RequiredApproval = responsibleUsers[i].RequiredApproval || r.RequiredApproval
-					exists = true
-					break
-				}
+			if err := tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM organization_users WHERE organization_id = ?", *req.OrganizationID).Scan(&orgResp).Error; err != nil {
+				return apperr.Internal("Не удалось загрузить согласующих заявки", err)
 			}
-			if !exists {
+			for _, r := range orgResp {
 				responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
-				if r.IsPrimary && primaryResponsibleID == nil {
+				if r.IsPrimary {
 					primaryResponsibleID = &r.UserID
 				}
 			}
 		}
-	}
 
-	responsibleUsers, primaryResponsibleID, err = prepareApplicationAssignees(ctx, tx, app.ID, user.ID, responsibleUsers, primaryResponsibleID, now)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if primaryResponsibleID != nil {
-		tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, app.ID)
-	}
+		if req.CompanyID != nil {
+			var compResp []struct {
+				UserID           int  `gorm:"column:user_id"`
+				IsPrimary        bool `gorm:"column:is_primary"`
+				RequiredApproval bool `gorm:"column:required_approval"`
+			}
+			if err := tx.Raw("SELECT user_id, COALESCE(is_primary, false) as is_primary, COALESCE(required_approval, false) as required_approval FROM companies_users WHERE company_id = ?", *req.CompanyID).Scan(&compResp).Error; err != nil {
+				return apperr.Internal("Не удалось загрузить согласующих заявки", err)
+			}
+			for _, r := range compResp {
+				exists := false
+				for i := range responsibleUsers {
+					if responsibleUsers[i].UserID == r.UserID {
+						responsibleUsers[i].RequiredApproval = responsibleUsers[i].RequiredApproval || r.RequiredApproval
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					responsibleUsers = append(responsibleUsers, respUser{r.UserID, r.IsPrimary, r.RequiredApproval})
+					if r.IsPrimary && primaryResponsibleID == nil {
+						primaryResponsibleID = &r.UserID
+					}
+				}
+			}
+		}
 
-	for _, ru := range responsibleUsers {
-		tx.Exec(`
+		responsibleUsers, primaryResponsibleID, err = prepareApplicationAssignees(ctx, tx, app.ID, user.ID, responsibleUsers, primaryResponsibleID, now)
+		if err != nil {
+			return err
+		}
+		if primaryResponsibleID != nil {
+			if err := tx.Exec("UPDATE applications SET responsible_user_id = ? WHERE id = ?", *primaryResponsibleID, app.ID).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+			}
+		}
+
+		for _, ru := range responsibleUsers {
+			if err := tx.Exec(`
 			INSERT INTO application_responsible_users (application_id, user_id, is_primary, required_approval, approval_status, created_at)
 			VALUES (?, ?, ?, ?, 'pending', ?)
 			ON CONFLICT (application_id, user_id) DO NOTHING
-		`, app.ID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, now)
-	}
+		`, app.ID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, now).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить согласующих заявки", err)
+			}
+		}
 
-	if err := tx.Commit().Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return &ApplicationCreateResponse{

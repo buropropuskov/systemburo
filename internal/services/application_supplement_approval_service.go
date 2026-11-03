@@ -83,89 +83,74 @@ func (s *applicationService) ApproveSupplement(ctx context.Context, username str
 		return nil, err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	round, err := s.lockSupplementRound(tx, applicationID, supplementID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	// Членство и принадлежность раунда проверены; архив доступен только для чтения.
-	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if round.Status != models.SupplementPending {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusConflict, "По этому дополнению голосование уже закрыто")
-	}
-
-	// Свой голос перечитываем под блокировкой раунда: между проверкой членства и записью
-	// тот же пользователь мог проголосовать соседним запросом.
-	vote, err := s.readSupplementVote(tx, supplementID, user.ID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if vote.ApprovalStatus == nil || *vote.ApprovalStatus != voteStatusPending {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Вы уже голосовали по этому дополнению")
-	}
-
-	// Гейт обхода ЧС (#481) в границах раунда: согласовать нельзя, пока по помеченным
-	// строкам ЭТОГО раунда не подтверждён пропуск. Отказ не блокируем - отклонить
-	// подозрительную добавку можно сразу.
-	if req.Status == voteStatusApproved {
-		blocked, err := hasUnoverriddenSupplementBlacklistFlags(ctx, tx, applicationID, supplementID)
+	var round supplementRound
+	var newStatus string
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		round, err = s.lockSupplementRound(tx, applicationID, supplementID)
 		if err != nil {
-			tx.Rollback()
-			return nil, err
+			return err
 		}
-		if blocked {
-			tx.Rollback()
-			return nil, echo.NewHTTPError(http.StatusConflict,
-				"Дополнение содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
+		// Членство и принадлежность раунда проверены; архив доступен только для чтения.
+		if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
+			return err
 		}
-	}
+		if round.Status != models.SupplementPending {
+			return echo.NewHTTPError(http.StatusConflict, "По этому дополнению голосование уже закрыто")
+		}
 
-	now := time.Now().UTC()
-	if err := tx.Exec(`
+		// Свой голос перечитываем под блокировкой раунда: между проверкой членства и записью
+		// тот же пользователь мог проголосовать соседним запросом.
+		vote, err := s.readSupplementVote(tx, supplementID, user.ID)
+		if err != nil {
+			return err
+		}
+		if vote.ApprovalStatus == nil || *vote.ApprovalStatus != voteStatusPending {
+			return echo.NewHTTPError(http.StatusBadRequest, "Вы уже голосовали по этому дополнению")
+		}
+
+		// Гейт обхода ЧС (#481) в границах раунда: согласовать нельзя, пока по помеченным
+		// строкам ЭТОГО раунда не подтверждён пропуск. Отказ не блокируем - отклонить
+		// подозрительную добавку можно сразу.
+		if req.Status == voteStatusApproved {
+			blocked, err := hasUnoverriddenSupplementBlacklistFlags(ctx, tx, applicationID, supplementID)
+			if err != nil {
+				return err
+			}
+			if blocked {
+				return echo.NewHTTPError(http.StatusConflict,
+					"Дополнение содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
+			}
+		}
+
+		now := time.Now().UTC()
+		if err := tx.Exec(`
 		UPDATE application_supplement_approvals
 		SET approval_status = ?, approval_comment = ?, approval_datetime = ?
 		WHERE supplement_id = ? AND user_id = ?
 	`, req.Status, req.Comment, now, supplementID, user.ID).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось записать голос", "supplement_id", supplementID, "user_id", user.ID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to save supplement vote")
-	}
+			slog.Error("дополнение: не удалось записать голос", "supplement_id", supplementID, "user_id", user.ID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to save supplement vote")
+		}
 
-	action := models.AuditActionSupplementApprove
-	if req.Status == voteStatusRejected {
-		action = models.AuditActionSupplementReject
-	}
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, action, &user.ID,
-		applicationAuditDetails{
-			Comment:  req.Comment,
-			Metadata: supplementAuditMetadata(round, map[string]any{"required_approval": vote.RequiredApproval}),
-		})
+		action := models.AuditActionSupplementApprove
+		if req.Status == voteStatusRejected {
+			action = models.AuditActionSupplementReject
+		}
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, action, &user.ID,
+			applicationAuditDetails{
+				Comment:  req.Comment,
+				Metadata: supplementAuditMetadata(round, map[string]any{"required_approval": vote.RequiredApproval}),
+			})
 
-	newStatus, err := s.recalcSupplementStatus(ctx, tx, applicationID, round, &user.ID, now)
+		newStatus, err = s.recalcSupplementStatus(ctx, tx, applicationID, round, &user.ID, now)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
-		tx.Rollback()
 		return nil, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("дополнение: не удалось зафиксировать голос", "supplement_id", supplementID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	slog.Info("голос по дополнению", "application_id", applicationID, "supplement_id", supplementID,
@@ -198,73 +183,59 @@ func (s *applicationService) RevokeSupplementApproval(ctx context.Context, usern
 		return nil, err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	var round supplementRound
+	var newStatus string
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		round, err = s.lockSupplementRound(tx, applicationID, supplementID)
+		if err != nil {
+			return err
 		}
-	}()
-
-	round, err := s.lockSupplementRound(tx, applicationID, supplementID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if !slices.Contains(supplementRevocableStatuses, round.Status) {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusConflict, "По этому дополнению голос отозвать уже нельзя")
-	}
-	// Отклонённый раунд отзыв голоса открывает заново, а открытое дополнение у заявки
-	// бывает только одно и только пока заявка жива. Оба условия проверяем до записи.
-	if round.Status == models.SupplementRejected {
-		if err := s.ensureRoundCanReopen(tx, applicationID, round.ID); err != nil {
-			tx.Rollback()
-			return nil, err
+		if err := checkApplicationNotArchived(ctx, tx, applicationID); err != nil {
+			return err
 		}
-	}
+		if !slices.Contains(supplementRevocableStatuses, round.Status) {
+			return echo.NewHTTPError(http.StatusConflict, "По этому дополнению голос отозвать уже нельзя")
+		}
+		// Отклонённый раунд отзыв голоса открывает заново, а открытое дополнение у заявки
+		// бывает только одно и только пока заявка жива. Оба условия проверяем до записи.
+		if round.Status == models.SupplementRejected {
+			if err := s.ensureRoundCanReopen(tx, applicationID, round.ID); err != nil {
+				return err
+			}
+		}
 
-	vote, err := s.readSupplementVote(tx, supplementID, user.ID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	if vote.ApprovalStatus == nil || *vote.ApprovalStatus == voteStatusPending {
-		tx.Rollback()
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Вы ещё не голосовали по этому дополнению")
-	}
+		vote, err := s.readSupplementVote(tx, supplementID, user.ID)
+		if err != nil {
+			return err
+		}
+		if vote.ApprovalStatus == nil || *vote.ApprovalStatus == voteStatusPending {
+			return echo.NewHTTPError(http.StatusBadRequest, "Вы ещё не голосовали по этому дополнению")
+		}
 
-	if err := tx.Exec(`
+		if err := tx.Exec(`
 		UPDATE application_supplement_approvals
 		SET approval_status = ?, approval_comment = NULL, approval_datetime = NULL
 		WHERE supplement_id = ? AND user_id = ?
 	`, voteStatusPending, supplementID, user.ID).Error; err != nil {
-		tx.Rollback()
-		slog.Error("дополнение: не удалось отозвать голос", "supplement_id", supplementID, "user_id", user.ID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke supplement vote")
-	}
+			slog.Error("дополнение: не удалось отозвать голос", "supplement_id", supplementID, "user_id", user.ID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke supplement vote")
+		}
 
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionSupplementRevokeApproval, &user.ID,
-		applicationAuditDetails{
-			Comment:  req.Comment,
-			Metadata: supplementAuditMetadata(round, nil),
-		})
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionSupplementRevokeApproval, &user.ID,
+			applicationAuditDetails{
+				Comment:  req.Comment,
+				Metadata: supplementAuditMetadata(round, nil),
+			})
 
-	newStatus, err := s.recalcSupplementStatus(ctx, tx, applicationID, round, &user.ID, time.Now().UTC())
+		newStatus, err = s.recalcSupplementStatus(ctx, tx, applicationID, round, &user.ID, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
-		tx.Rollback()
 		return nil, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("дополнение: не удалось зафиксировать отзыв голоса", "supplement_id", supplementID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	slog.Info("голос по дополнению отозван", "application_id", applicationID, "supplement_id", supplementID, "user_id", user.ID)
