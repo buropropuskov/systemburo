@@ -15,6 +15,7 @@ import (
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +24,15 @@ func TestSupplementBatch_BoundariesBranchesAndRollback(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, originalDB)
 	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
-	db := originalDB.Session(&gorm.Session{NowFunc: func() time.Time { return now }})
+	// A Session shares callbacks with the HTTP DB. Its asynchronous PDAudit
+	// writer must not race with this test's SQL observers and fault callbacks.
+	// Keep the same pool/schema, but give the service its own callback registry.
+	sqlDB, err := originalDB.DB()
+	require.NoError(t, err)
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{
+		Logger: originalDB.Logger, NowFunc: func() time.Time { return now },
+	})
+	require.NoError(t, err)
 	td := testutil.SeedTestData(t, db)
 	transactionIntegrityKey(t)
 	authorID, token := suppAuthor(t, e, db, "batch_budget_author", td.OrgID, td.CompanyID)
