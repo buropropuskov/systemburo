@@ -1,7 +1,9 @@
 package handlers_test
 
 import (
+	"archive/zip"
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,8 +21,37 @@ const dpDocPath = "/api/settings/data-processing/document"
 // minimalPDF -- содержимое с корректной PDF magic-сигнатурой (%PDF).
 var minimalPDF = []byte("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n")
 
-// minimalOOXML -- содержимое с magic-сигнатурой zip (PK), общей для docx/xlsx/pptx.
+// minimalOOXML retains the old PK-plus-padding payload as an invalid fixture.
 var minimalOOXML = append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 64)...)
+
+func dpOfficePackage(t *testing.T, extension string) []byte {
+	t.Helper()
+	var main, contentType, xml string
+	switch extension {
+	case ".xlsx":
+		main, contentType = "xl/workbook.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+		xml = `<s:workbook xmlns:s="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><s:sheets/></s:workbook>`
+	case ".pptx":
+		main, contentType = "ppt/presentation.xml", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+		xml = `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldIdLst/></p:presentation>`
+	default:
+		t.Fatalf("unsupported data-processing Office fixture %q", extension)
+	}
+	var data bytes.Buffer
+	writer := zip.NewWriter(&data)
+	for _, part := range []struct{ name, content string }{
+		{"[Content_Types].xml", `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/` + main + `" ContentType="` + contentType + `"/></Types>`},
+		{"_rels/.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="` + main + `"/></Relationships>`},
+		{main, xml},
+	} {
+		entry, err := writer.Create(part.name)
+		require.NoError(t, err)
+		_, err = io.WriteString(entry, part.content)
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+	return data.Bytes()
+}
 
 // uploadDPDoc загружает документ согласия multipart-запросом от имени token.
 func uploadDPDoc(t *testing.T, e *echo.Echo, token, filename string, content []byte) *httptest.ResponseRecorder {
@@ -167,7 +198,7 @@ func TestDataProcessing_Upload_Xlsx_Success(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	rec := uploadDPDoc(t, e, admin, "Перечень данных.xlsx", minimalOOXML)
+	rec := uploadDPDoc(t, e, admin, "Перечень данных.xlsx", dpOfficePackage(t, ".xlsx"))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	meta := testutil.ParseResponse[*models.DataProcessingDocument](t, rec)
@@ -185,8 +216,31 @@ func TestDataProcessing_Upload_Pptx_Rejected(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	rec := uploadDPDoc(t, e, admin, "Презентация.pptx", minimalOOXML)
+	rec := uploadDPDoc(t, e, admin, "Презентация.pptx", dpOfficePackage(t, ".pptx"))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestDataProcessing_Upload_FakeOfficePreservesExistingPDF(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	initial := uploadDPDoc(t, e, admin, "existing-consent.pdf", minimalPDF)
+	require.Equal(t, http.StatusOK, initial.Code, initial.Body.String())
+	before := testutil.ParseResponse[*models.DataProcessingDocument](t, initial)
+	require.NotNil(t, before)
+
+	rejected := uploadDPDoc(t, e, admin, "invalid-package.xlsx", minimalOOXML)
+	require.Equal(t, http.StatusBadRequest, rejected.Code, rejected.Body.String())
+	metaResponse := testutil.GET(t, e, "/settings/data-processing/document/meta", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, metaResponse.Code, metaResponse.Body.String())
+	after := testutil.ParseResponse[*models.DataProcessingDocument](t, metaResponse)
+	require.Equal(t, before, after, "failed Office validation must preserve name, stored file, MIME and upload timestamp")
+	download := testutil.GET(t, e, "/settings/data-processing/document?download=1", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, download.Code)
+	require.Equal(t, "application/pdf", download.Header().Get("Content-Type"))
+	require.Equal(t, minimalPDF, download.Body.Bytes(), "the previous PDF must still be present and unchanged")
 }
 
 func TestDataProcessing_Upload_InvalidExt(t *testing.T) {

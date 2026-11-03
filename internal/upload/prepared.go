@@ -71,7 +71,13 @@ func PrepareFile(ctx context.Context, file *multipart.FileHeader, opts Options, 
 	if err != nil {
 		return result, apperr.Validation("Недопустимый тип файла")
 	}
-	stored := OfficeMimeByName(detected, file.Filename)
+	stored := detected
+	if isOfficeType(detected) {
+		stored, err = validateOfficeFile(ctx, bytes.NewReader(data), int64(len(data)), file.Filename, opts.AllowedTypes)
+		if err != nil {
+			return result, err
+		}
+	}
 	if opts.Normalize != nil && imaging.Normalizable(detected) {
 		normalize := *opts.Normalize
 		normalize.MaxEncodedBytes = opts.MaxFileSize

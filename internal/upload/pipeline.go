@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -71,7 +72,7 @@ func SaveMultipart(c echo.Context, field string, opts Options) ([]SavedFile, err
 
 	saved := make([]SavedFile, 0, len(files))
 	for _, fh := range files {
-		file, err := saveOne(fh, opts)
+		file, err := saveOneContext(c.Request().Context(), fh, opts)
 		if err != nil {
 			if cleanupErr := Cleanup(saved, opts.Dir); cleanupErr != nil {
 				return nil, errors.Join(apperr.Internal("Не удалось удалить загруженные файлы"), err, cleanupErr)
@@ -86,6 +87,10 @@ func SaveMultipart(c echo.Context, field string, opts Options) ([]SavedFile, err
 // saveOne сохраняет один файл; вынесен отдельно, чтобы defer Close срабатывал
 // на каждой итерации, а не копился до конца функции (утечка дескрипторов).
 func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
+	return saveOneContext(context.Background(), fh, opts)
+}
+
+func saveOneContext(ctx context.Context, fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	if opts.MaxFileSize > 0 && fh.Size > opts.MaxFileSize {
 		return SavedFile{}, apperr.Validation("Файл слишком большой")
 	}
@@ -110,9 +115,23 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	// уходит в jpeg, потому что кодера webp нет.
 	var content io.Reader = src
 	size := fh.Size
-	// Офисные форматы неразличимы по сигнатуре (все они zip), поэтому тип
-	// уточняется по имени: иначе таблица сохраняется как текстовый документ.
-	stored := OfficeMimeByName(detected, fh.Filename)
+	stored := detected
+	if isOfficeType(detected) {
+		actualSize, err := src.Seek(0, io.SeekEnd)
+		if err != nil {
+			return SavedFile{}, apperr.Validation("Не удалось прочитать файл")
+		}
+		if actualSize <= 0 || (opts.MaxFileSize > 0 && actualSize > opts.MaxFileSize) {
+			return SavedFile{}, apperr.Validation("Файл пуст или превышает допустимый размер")
+		}
+		stored, err = validateOfficeFile(ctx, src, actualSize, fh.Filename, opts.AllowedTypes)
+		if err != nil {
+			return SavedFile{}, err
+		}
+		if _, err := src.Seek(0, io.SeekStart); err != nil {
+			return SavedFile{}, apperr.Validation("Не удалось прочитать файл")
+		}
+	}
 	if opts.Normalize != nil && imaging.Normalizable(detected) {
 		normalize := *opts.Normalize
 		normalize.MaxEncodedBytes = opts.MaxFileSize
