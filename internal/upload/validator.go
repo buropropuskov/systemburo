@@ -1,16 +1,20 @@
 package upload
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"systemburo/internal/apperr"
 )
 
 // ValidateFileType reads the first 512 bytes from r, detects the MIME type
 // via http.DetectContentType, and checks it against allowedTypes.
-// Returns the detected MIME type or an error if the type is not allowed.
+// Office results are provisional ZIP-family matches. Saving an Office document
+// also requires ValidateOOXML; magic bytes do not establish its format.
 func ValidateFileType(r io.Reader, allowedTypes []string) (string, error) {
 	buf := make([]byte, 512)
 	n, err := r.Read(buf)
@@ -27,6 +31,21 @@ func ValidateFileType(r io.Reader, allowedTypes []string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("file type %q not allowed (allowed: %v)", detected, allowedTypes)
+}
+
+// validateOfficeFile checks the package before applying the MIME allowlist.
+// The first Office entry in allowedTypes must not determine the stored format.
+func validateOfficeFile(ctx context.Context, src io.ReaderAt, size int64, filename string, allowedTypes []string) (string, error) {
+	mime, err := ValidateOOXML(ctx, src, size, strings.ToLower(filepath.Ext(filename)))
+	if err != nil {
+		return "", err
+	}
+	for _, allowed := range allowedTypes {
+		if allowed == mime {
+			return mime, nil
+		}
+	}
+	return "", apperr.Validation("Недопустимый тип файла")
 }
 
 // OfficeMimeByName уточняет тип офисного документа по имени файла. Нужен потому,

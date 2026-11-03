@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"systemburo/internal/upload"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -83,7 +85,7 @@ func (s *documentFileService) UploadDir() string {
 	return s.uploadDir
 }
 
-func (s *documentFileService) Save(_ context.Context, file *multipart.FileHeader, maxSize int64) (string, string, error) {
+func (s *documentFileService) Save(ctx context.Context, file *multipart.FileHeader, maxSize int64) (string, string, error) {
 	// Проверяем размер
 	if file.Size > maxSize {
 		maxMB := maxSize / 1024 / 1024
@@ -119,6 +121,21 @@ func (s *documentFileService) Save(_ context.Context, file *multipart.FileHeader
 	if !matchesMagic(header, family) {
 		return "", "", echo.NewHTTPError(http.StatusBadRequest,
 			"Содержимое файла не соответствует расширению. Возможно, файл повреждён или переименован")
+	}
+	if family == familyOOXML {
+		actualSize, err := src.Seek(0, io.SeekEnd)
+		if err != nil {
+			return "", "", echo.NewHTTPError(http.StatusBadRequest, "Ошибка чтения файла")
+		}
+		if actualSize <= 0 || actualSize > maxSize {
+			return "", "", echo.NewHTTPError(http.StatusBadRequest, "Файл пуст или превышает допустимый размер")
+		}
+		if _, err := upload.ValidateOOXML(ctx, src, actualSize, ext); err != nil {
+			return "", "", err
+		}
+		if _, err := src.Seek(int64(len(header)), io.SeekStart); err != nil {
+			return "", "", echo.NewHTTPError(http.StatusBadRequest, "Ошибка чтения файла")
+		}
 	}
 
 	// Перемотка через многочитаемый reader (header + остаток файла)

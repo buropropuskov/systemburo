@@ -1,8 +1,10 @@
 package services
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/textproto"
@@ -10,6 +12,46 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+// documentTestOPC is a real ZIP/OPC package, not a PK signature followed by
+// padding. Each Office family declares and relates its matching main XML part.
+func documentTestOPC(t *testing.T, extension string) []byte {
+	t.Helper()
+	var mainPath, contentType, mainXML string
+	switch extension {
+	case ".docx":
+		mainPath, contentType = "word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+		mainXML = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Fixture</w:t></w:r></w:p></w:body></w:document>`
+	case ".xlsx":
+		mainPath, contentType = "xl/workbook.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+		mainXML = `<s:workbook xmlns:s="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><s:sheets/></s:workbook>`
+	case ".pptx":
+		mainPath, contentType = "ppt/presentation.xml", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+		mainXML = `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldIdLst/></p:presentation>`
+	default:
+		t.Fatalf("unsupported test Office extension %q", extension)
+	}
+	parts := []struct{ name, body string }{
+		{"[Content_Types].xml", `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/` + mainPath + `" ContentType="` + contentType + `"/></Types>`},
+		{"_rels/.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="` + mainPath + `"/></Relationships>`},
+		{mainPath, mainXML},
+	}
+	var result bytes.Buffer
+	writer := zip.NewWriter(&result)
+	for _, part := range parts {
+		entry, err := writer.Create(part.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(entry, part.body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return result.Bytes()
+}
 
 // makeFileHeader создаёт тестовый multipart.FileHeader с указанным именем и содержимым.
 func makeFileHeader(t *testing.T, name string, content []byte) *multipart.FileHeader {
@@ -111,20 +153,36 @@ func TestDocumentFileService_ValidateMagicBytes(t *testing.T) {
 		{
 			name:    "docx_valid",
 			fname:   "doc.docx",
-			content: append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 100)...),
+			content: documentTestOPC(t, ".docx"),
 			wantErr: false,
 		},
 		{
 			name:    "xlsx_valid",
 			fname:   "sheet.xlsx",
-			content: append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 100)...),
+			content: documentTestOPC(t, ".xlsx"),
 			wantErr: false,
 		},
 		{
 			name:    "pptx_valid",
 			fname:   "pres.pptx",
-			content: append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 100)...),
+			content: documentTestOPC(t, ".pptx"),
 			wantErr: false,
+		},
+		{
+			name: "docx_signature_padding_is_not_a_package", fname: "fake.docx",
+			content: append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 100)...), wantErr: true,
+		},
+		{
+			name: "xlsx_signature_padding_is_not_a_package", fname: "fake.xlsx",
+			content: append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 100)...), wantErr: true,
+		},
+		{
+			name: "pptx_signature_padding_is_not_a_package", fname: "fake.pptx",
+			content: append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 100)...), wantErr: true,
+		},
+		{
+			name: "word_package_with_spreadsheet_extension", fname: "renamed.xlsx",
+			content: documentTestOPC(t, ".docx"), wantErr: true,
 		},
 		{
 			name:    "doc_valid_ole2",
@@ -172,6 +230,13 @@ func TestDocumentFileService_ValidateMagicBytes(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
+				entries, readErr := os.ReadDir(uploadDir)
+				if readErr != nil && !os.IsNotExist(readErr) {
+					t.Fatal(readErr)
+				}
+				if len(entries) != 0 {
+					t.Errorf("rejected document left permanent files: %v", entries)
+				}
 			} else {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
@@ -182,6 +247,43 @@ func TestDocumentFileService_ValidateMagicBytes(t *testing.T) {
 						t.Errorf("expected file in upload dir %s, none found", uploadDir)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestDocumentFileService_OfficeActualSizeAndCancellation(t *testing.T) {
+	content := documentTestOPC(t, ".docx")
+	for _, scenario := range []string{"actual_size", "cancelled_context"} {
+		t.Run(scenario, func(t *testing.T) {
+			svc := NewDocumentFileService(t.TempDir())
+			file := testableFile(t, t.TempDir(), "fixture.docx", content)
+			ctx := context.Background()
+			limit := int64(len(content))
+			if scenario == "actual_size" {
+				file.Size = 1
+				limit--
+			} else {
+				cancelled, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = cancelled
+			}
+			name, _, err := svc.Save(ctx, file, limit)
+			if err == nil {
+				t.Fatal("invalid Office upload was accepted")
+			}
+			if scenario == "cancelled_context" && !errors.Is(err, context.Canceled) {
+				t.Fatalf("expected context cancellation, got %v", err)
+			}
+			if name != "" {
+				t.Errorf("rejected Office upload returned stored name %q", name)
+			}
+			entries, readErr := os.ReadDir(svc.UploadDir())
+			if readErr != nil && !os.IsNotExist(readErr) {
+				t.Fatal(readErr)
+			}
+			if len(entries) != 0 {
+				t.Errorf("rejected Office upload left files: %v", entries)
 			}
 		})
 	}
