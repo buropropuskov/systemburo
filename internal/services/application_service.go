@@ -2281,6 +2281,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
 	}
 
+	if err := ValidateSubmitComposition(req); err != nil {
+		return nil, err
+	}
+
 	// Серверная валидация настроенных обязательных полей (#529 H-9): поля, помеченные
 	// админом required, должны присутствовать; скрытые/ненастроенные пропускаются.
 	if err := s.validateConfiguredRequiredFields(ctx, req); err != nil {

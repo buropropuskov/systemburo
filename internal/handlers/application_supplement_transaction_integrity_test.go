@@ -47,13 +47,20 @@ func TestSupplementTransactionIntegrity_BothBranchesRollbackAndRecover(t *testin
 			originalApp := suppReadApplication(t, db, appID)
 			var originalEmployee models.Employee
 			require.NoError(t, db.First(&originalEmployee, originalID).Error)
-			for _, mode := range []string{"error_second_employee", "panic_service", "panic_HTTP"} {
+			for _, mode := range []string{"error_second_employee_batch", "panic_service", "panic_HTTP"} {
 				t.Run(mode, func(t *testing.T) {
+					attemptReq := req
+					if mode == "error_second_employee_batch" {
+						// Cross the 500-row batch boundary so the first batch is written
+						// before the second insert fails. Keep the original request intact.
+						attemptReq.Additions = append([]services.SupplementAddition(nil), req.Additions...)
+						attemptReq.Additions[0].Employees = transactionIntegrityEmployees(501, citizenship, []int{tableID})
+					}
 					before := transactionIntegritySnapshot(t, db)
 					publisher := &fakePublisher{}
 					var calls *int
 					latePanic := false
-					if mode == "error_second_employee" {
+					if mode == "error_second_employee_batch" {
 						calls = transactionIntegrityCreateFault(t, db, "employees", 2, func(tx *gorm.DB) {
 							tx.AddError(errors.New("synthetic supplement employee failure"))
 						})
@@ -84,10 +91,10 @@ func TestSupplementTransactionIntegrity_BothBranchesRollbackAndRecover(t *testin
 					}
 					if mode == "panic_service" {
 						require.PanicsWithValue(t, "synthetic supplement panic", func() {
-							_, _ = transactionIntegrityService(db, publisher).CreateSupplement(context.Background(), "integrity_supp_author", appID, false, req)
+							_, _ = transactionIntegrityService(db, publisher).CreateSupplement(context.Background(), "integrity_supp_author", appID, false, attemptReq)
 						})
 					} else {
-						rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), transactionIntegrityJSON(t, req), testutil.AuthHeader(token))
+						rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), transactionIntegrityJSON(t, attemptReq), testutil.AuthHeader(token))
 						require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
 					}
 					if calls != nil {
