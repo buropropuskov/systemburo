@@ -278,8 +278,8 @@ func TestApprovalWorkflow(t *testing.T) {
 }
 
 // TestForwardAttachments проверяет запись строк forward_attachments при пересылке (#680):
-// общий список вложений разворачивается построчно на каждого получателя, чужие ID
-// отбрасываются, пустой список не пишет строк (обратная совместимость).
+// Общий список вложений разворачивается на получателей; неверный выбор целиком
+// отклоняется. Пустой список полного актёра сохраняет пересылку всей заявки.
 func TestForwardAttachments(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -390,16 +390,15 @@ func TestForwardAttachments(t *testing.T) {
 		testutil.RegisterUser(t, e, "fa_resp4", "pass123", 1, td.OrgID, td.CompanyID)
 		respID := getUserID(t, db, "fa_resp4")
 
-		// Все ID чужие (не из этой заявки) - все отброшены, строк нет. Важно для чтения:
-		// получатель остаётся в режиме "видит все" (нет строк), а не "видит ничего".
+		// Неверный явный выбор не превращается в пересылку всей заявки.
 		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}],"attachment_ids":[999998,999999]}`, respID)
 		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
-		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
-
-		assert.Empty(t, forwardRows(t, appID), "чужие attachment_ids отброшены -> строк нет")
+		require.Equal(t, http.StatusBadRequest, rec.Code, "forward: %s", rec.Body.String())
+		assert.Empty(t, forwardRows(t, appID))
+		assert.False(t, responsibleIDsOf(t, e, senderToken, appID)[respID], "неверный выбор не назначает получателя")
 	})
 
-	t.Run("fanout_to_recipients_filters_foreign_ids", func(t *testing.T) {
+	t.Run("fanout_rejects_foreign_then_accepts_valid_selection", func(t *testing.T) {
 		testutil.CleanDB(t, db)
 		td := testutil.SeedTestData(t, db)
 
@@ -411,16 +410,23 @@ func TestForwardAttachments(t *testing.T) {
 		testutil.RegisterUser(t, e, "fa_view3", "pass123", 1, td.OrgID, td.CompanyID)
 		viewerID := getUserID(t, db, "fa_view3")
 
-		// Чужой attachment_id 999999 должен быть отброшен фильтром по application_id.
+		// Смешанный выбор тоже отклоняется целиком, даже при наличии валидных ID.
 		body := fmt.Sprintf(`{"users":[
 			{"user_id":%d,"required_approval":true,"can_view":false},
 			{"user_id":%d,"required_approval":false,"can_view":true}
 		],"attachment_ids":[%d,%d,999999]}`, respID, viewerID, attID1, attID2)
 		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		assert.Empty(t, forwardRows(t, appID))
+		assert.False(t, responsibleIDsOf(t, e, senderToken, appID)[respID])
+		assert.False(t, viewerIDsOf(t, e, senderToken, appID)[viewerID])
+		// Повтор с корректным выбором сохраняет прежнюю fanout-семантику.
+		body = fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false},{"user_id":%d,"required_approval":false,"can_view":true}],"attachment_ids":[%d,%d]}`, respID, viewerID, attID1, attID2)
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
 		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
 
 		rows := forwardRows(t, appID)
-		require.Len(t, rows, 4, "2 получателя x 2 валидных вложения, чужой ID отброшен")
+		require.Len(t, rows, 4, "2 получателя x 2 валидных вложения")
 		got := map[int][]int{}
 		for _, r := range rows {
 			got[r.RecipientUserID] = append(got[r.RecipientUserID], r.AttachmentID)
