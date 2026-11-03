@@ -10,6 +10,7 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // GetApplicationViewers возвращает просматривающих заявки с информацией о пользователях.
@@ -54,12 +55,17 @@ func (s *applicationService) GetApplicationViewers(ctx context.Context, applicat
 // forward_attachments для этой заявки (обратная совместимость). restricted=true -> allowed
 // содержит только перечисленные при пересылке вложения.
 func (s *applicationService) resolveForwardFilter(ctx context.Context, applicationID, viewerUserID int) (allowed map[int]bool, restricted bool, err error) {
+	return resolveForwardFilterWithDB(ctx, s.db, applicationID, viewerUserID)
+}
+
+// The forwarding writer uses the same read policy inside its transaction.
+func resolveForwardFilterWithDB(ctx context.Context, db *gorm.DB, applicationID, viewerUserID int) (allowed map[int]bool, restricted bool, err error) {
 	if viewerUserID == 0 {
 		return nil, false, nil
 	}
 
 	var ids []int
-	if e := s.db.WithContext(ctx).Raw(
+	if e := db.WithContext(ctx).Raw(
 		"SELECT attachment_id FROM forward_attachments WHERE application_id = ? AND recipient_user_id = ?",
 		applicationID, viewerUserID,
 	).Scan(&ids).Error; e != nil {
@@ -72,7 +78,7 @@ func (s *applicationService) resolveForwardFilter(ctx context.Context, applicati
 
 	// Отправитель видит все вложения независимо от строк (напр. пересылка ему же).
 	var isSender bool
-	if e := s.db.WithContext(ctx).Raw(
+	if e := db.WithContext(ctx).Raw(
 		"SELECT EXISTS(SELECT 1 FROM applications WHERE id = ? AND sender_user_id = ?)",
 		applicationID, viewerUserID,
 	).Scan(&isSender).Error; e != nil {

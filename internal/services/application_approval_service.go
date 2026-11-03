@@ -139,6 +139,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	var addedViewers []int
 	var newConfirmation *string
 	var confirmationChanged bool
+	var forwardAttachmentIDs []int
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// WithdrawApplication блокирует эту же строку. Проверяем статус под тем же
 		// FOR UPDATE до назначений: отзыв не может проскочить между проверкой и INSERT.
@@ -162,6 +163,22 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 		}
 		oldConfirmation := lockedApplication.Confirmation
+		actorID := user.ID
+		if isSuperAdmin {
+			actorID = 0
+		}
+		selected, scopeErr := resolveForwardSelection(ctx, tx, applicationID, actorID, req.AttachmentIDs)
+		if scopeErr != nil {
+			return scopeErr
+		}
+		forwardAttachmentIDs = selected
+		var previouslyFull map[int]bool
+		if len(forwardAttachmentIDs) > 0 {
+			previouslyFull, scopeErr = priorFullForwardRecipients(ctx, tx, applicationID, req.Users)
+			if scopeErr != nil {
+				return scopeErr
+			}
+		}
 
 		baseTime := time.Now().UTC()
 
@@ -248,10 +265,11 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 		// Пер-вложенный пересыл (#680): фиксируем, какие вложения видит каждый получатель.
 		// Список общий на действие, разворачиваем построчно (получатель x вложение). Пустой
-		// список не пишет строк -> получатели видят все вложения (обратная совместимость).
+		// список не пишет строк только у актёра с полным доступом. Ограниченный актёр
+		// уже получил непустой проверенный subset до изменения назначений.
 		// Семантика аддитивная: повторная пересылка с другим набором ДОБАВЛЯет строки
 		// (ON CONFLICT DO NOTHING), а не заменяет; сужение видимости здесь не предусмотрено.
-		if len(req.AttachmentIDs) > 0 {
+		if len(forwardAttachmentIDs) > 0 {
 			recipients := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
 			for _, resp := range addedResponsibleUsers {
 				recipients = append(recipients, resp.UserID)
@@ -259,15 +277,11 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			recipients = append(recipients, addedViewers...)
 
 			if len(recipients) > 0 {
-				// Только вложения самой заявки - чужие ID отбрасываем, чтобы строка не ссылалась
-				// на чужое вложение и фильтр чтения не прятал всё подряд.
-				var validAttIDs []int
-				if err := tx.Raw("SELECT id FROM attachments WHERE application_id = ? AND id IN ?", applicationID, req.AttachmentIDs).Scan(&validAttIDs).Error; err != nil {
-					return apperr.Internal("Не удалось загрузить вложения заявки", err)
-				}
-
 				for _, recipientID := range recipients {
-					for _, attID := range validAttIDs {
+					if previouslyFull[recipientID] {
+						continue // Не сужаем уже существовавший полный доступ.
+					}
+					for _, attID := range forwardAttachmentIDs {
 						if err := tx.Exec(`
 						INSERT INTO forward_attachments (application_id, recipient_user_id, attachment_id, created_at, created_by)
 						VALUES (?, ?, ?, ?, ?)
@@ -311,19 +325,19 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		if len(addedResponsibleUsers) > 0 || len(addedViewers) > 0 {
 			var attNames []string
 			attachmentDetails := make([]forwardAttachmentDetail, 0)
-			if len(req.AttachmentIDs) > 0 {
+			if len(forwardAttachmentIDs) > 0 {
 				tx.Raw(`
 				SELECT COALESCE(attachment_display_name, attachment_name, '')
 				FROM attachments
 				WHERE application_id = ? AND id IN ?
 				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
-			`, applicationID, req.AttachmentIDs).Scan(&attNames)
+			`, applicationID, forwardAttachmentIDs).Scan(&attNames)
 			}
-			if len(req.AttachmentIDs) > 0 {
+			if len(forwardAttachmentIDs) > 0 {
 				if err := tx.Raw(`SELECT id, COALESCE(attachment_display_name, attachment_name, '') AS name
 				FROM attachments WHERE application_id = ? AND id IN ?
 				ORDER BY COALESCE(attachment_display_name, attachment_name, ''), id`,
-					applicationID, req.AttachmentIDs).Scan(&attachmentDetails).Error; err != nil {
+					applicationID, forwardAttachmentIDs).Scan(&attachmentDetails).Error; err != nil {
 					return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load forwarding materials")
 				}
 			}
@@ -367,12 +381,12 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 			meta, _ := json.Marshal(map[string]interface{}{
 				"forwarded_by":           currentUserName,
-				"whole":                  len(attNames) == 0,
+				"whole":                  len(forwardAttachmentIDs) == 0,
 				"attachments":            attNames,
 				"recipients":             recipientNames,
 				"forward_schema_version": 2,
 				"recipient_details":      recipientDetails,
-				"attachment_scope":       forwardAttachmentScope(req.AttachmentIDs),
+				"attachment_scope":       forwardAttachmentScope(forwardAttachmentIDs),
 				"attachment_details":     attachmentDetails,
 			})
 			// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
