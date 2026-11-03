@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"slices"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // TakeApplicationToWork принимает заявку в работу или отказывает в ней.
@@ -33,125 +35,108 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		return err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var app struct {
+			Status       *string
+			Confirmation *string
 		}
-	}()
+		result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
+		if result.Error != nil || result.RowsAffected == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, "Application not found")
+		}
+		oldStatus := app.Status
 
-	var app struct {
-		Status       *string
-		Confirmation *string
-	}
-	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
-	if result.Error != nil || result.RowsAffected == 0 {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
-	}
-	oldStatus := app.Status
-
-	if req.Action == "accept" {
-		if oldStatus != nil && *oldStatus == models.StatusCompleted {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusBadRequest, "Завершённую заявку нельзя принять в работу повторно")
-		}
-		if oldStatus != nil && *oldStatus == models.StatusInWork {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusBadRequest, "Application is already in work")
-		}
-
-		// Expiry is authoritative even before the scheduled lifecycle worker runs.
-		expired, err := applicationAdmissionsExpired(tx, applicationID)
-		if err != nil {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить срок действия заявки")
-		}
-		if expired {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusConflict, "Заявку нельзя принять в работу: срок всех допусков истёк")
-		}
-
-		// Гейт согласования: принять в работу можно только когда заявка согласована
-		// (confirmation='Согласовано' = все обязательные approved, при отсутствии обязательных -
-		// хотя бы один approved). Исключение - заявка вообще без согласующих (согласовывать
-		// нечего) - её принять можно. FE-кнопка "Согласовать и принять" тоже это проверяет,
-		// но барьер обязан быть на бэке: FE-гейт обходится гонкой/устаревшим состоянием.
-		if app.Confirmation == nil || *app.Confirmation != models.ConfirmationApproved {
-			var approverCount int64
-			if err := tx.Model(&models.ApplicationResponsibleUser{}).
-				Where("application_id = ?", applicationID).Count(&approverCount).Error; err != nil {
-				tx.Rollback()
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error checking approvals")
+		if req.Action == "accept" {
+			if oldStatus != nil && *oldStatus == models.StatusCompleted {
+				return echo.NewHTTPError(http.StatusBadRequest, "Завершённую заявку нельзя принять в работу повторно")
 			}
-			if approverCount > 0 {
-				tx.Rollback()
-				return echo.NewHTTPError(http.StatusBadRequest, "Заявку нельзя принять в работу: не завершено согласование")
+			if oldStatus != nil && *oldStatus == models.StatusInWork {
+				return echo.NewHTTPError(http.StatusBadRequest, "Application is already in work")
 			}
-			// Согласующих нет - согласовывать нечего, и решение принимающего его заменяет:
-			// отмечаем согласование выполненным. Иначе заявка остаётся в подтверждении
-			// "Согласование" навсегда: пересчёт голосов на пустом списке ничего не меняет,
-			// и заявитель видит принятую в работу заявку как ожидающую согласования.
-			if err := tx.Exec(`
+
+			// Expiry is authoritative even before the scheduled lifecycle worker runs.
+			expired, err := applicationAdmissionsExpired(tx, applicationID)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить срок действия заявки")
+			}
+			if expired {
+				return echo.NewHTTPError(http.StatusConflict, "Заявку нельзя принять в работу: срок всех допусков истёк")
+			}
+
+			// Гейт согласования: принять в работу можно только когда заявка согласована
+			// (confirmation='Согласовано' = все обязательные approved, при отсутствии обязательных -
+			// хотя бы один approved). Исключение - заявка вообще без согласующих (согласовывать
+			// нечего) - её принять можно. FE-кнопка "Согласовать и принять" тоже это проверяет,
+			// но барьер обязан быть на бэке: FE-гейт обходится гонкой/устаревшим состоянием.
+			if app.Confirmation == nil || *app.Confirmation != models.ConfirmationApproved {
+				var approverCount int64
+				if err := tx.Model(&models.ApplicationResponsibleUser{}).
+					Where("application_id = ?", applicationID).Count(&approverCount).Error; err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error checking approvals")
+				}
+				if approverCount > 0 {
+					return echo.NewHTTPError(http.StatusBadRequest, "Заявку нельзя принять в работу: не завершено согласование")
+				}
+				// Согласующих нет - согласовывать нечего, и решение принимающего его заменяет:
+				// отмечаем согласование выполненным. Иначе заявка остаётся в подтверждении
+				// "Согласование" навсегда: пересчёт голосов на пустом списке ничего не меняет,
+				// и заявитель видит принятую в работу заявку как ожидающую согласования.
+				if err := tx.Exec(`
 				UPDATE applications
 				SET confirmation = ?,
 				    confirmation_datetime = COALESCE(confirmation_datetime, NOW())
 				WHERE id = ?`, models.ConfirmationApproved, applicationID).Error; err != nil {
-				tx.Rollback()
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating confirmation")
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error updating confirmation")
+				}
+			}
+
+			// accepted_at через COALESCE: заявку могли отозвать из работы и принять снова
+			// (revoke/restore -> "В обработке"), но T2 воронки обработки - ПЕРВОЕ принятие.
+			if err := tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ?, accepted_at = COALESCE(accepted_at, NOW()) WHERE id = ?",
+				models.StatusInWork, user.ID, req.Comment, applicationID).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить статус заявки", err)
+			}
+
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionTakeToWork, &user.ID,
+				applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusInWork), Comment: req.Comment})
+
+			if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+				return err
+			}
+
+			if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
+				return err
+			}
+		} else if req.Action == "reject" {
+			if oldStatus != nil && *oldStatus == models.StatusRefused {
+				return echo.NewHTTPError(http.StatusBadRequest, "Application is already rejected")
+			}
+
+			if err := tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ? WHERE id = ?",
+				models.StatusRefused, user.ID, req.Comment, applicationID).Error; err != nil {
+				return apperr.Internal("Не удалось сохранить статус заявки", err)
+			}
+
+			s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionReject, &user.ID,
+				applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusRefused), Comment: req.Comment})
+
+			if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+				return err
+			}
+
+			if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
+				return err
+			}
+
+			if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+				return err
 			}
 		}
 
-		// accepted_at через COALESCE: заявку могли отозвать из работы и принять снова
-		// (revoke/restore -> "В обработке"), но T2 воронки обработки - ПЕРВОЕ принятие.
-		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ?, accepted_at = COALESCE(accepted_at, NOW()) WHERE id = ?",
-			models.StatusInWork, user.ID, req.Comment, applicationID)
-
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionTakeToWork, &user.ID,
-			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusInWork), Comment: req.Comment})
-
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
-			tx.Rollback()
-			return err
-		}
-	} else if req.Action == "reject" {
-		if oldStatus != nil && *oldStatus == models.StatusRefused {
-			tx.Rollback()
-			return echo.NewHTTPError(http.StatusBadRequest, "Application is already rejected")
-		}
-
-		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ? WHERE id = ?",
-			models.StatusRefused, user.ID, req.Comment, applicationID)
-
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionReject, &user.ID,
-			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusRefused), Comment: req.Comment})
-
-		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if req.Action == "accept" {
@@ -224,53 +209,43 @@ func (s *applicationService) returnToProcessing(ctx context.Context, username st
 		return err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// FOR UPDATE: параллельный переход (принятие, отзыв отправителем) не проскочит
+		// между сверкой статуса и записью.
+		var app struct{ Status *string }
+		result := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
+		if result.Error != nil || result.RowsAffected == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, "Application not found")
 		}
-	}()
+		if app.Status == nil || *app.Status != t.from {
+			return echo.NewHTTPError(http.StatusConflict, t.conflict)
+		}
 
-	// FOR UPDATE: параллельный переход (принятие, отзыв отправителем) не проскочит
-	// между сверкой статуса и записью.
-	var app struct{ Status *string }
-	result := tx.Raw("SELECT status FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
-	if result.Error != nil || result.RowsAffected == 0 {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
-	}
-	if app.Status == nil || *app.Status != t.from {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusConflict, t.conflict)
-	}
+		if err := tx.Exec("UPDATE applications SET status = ?, responsible_user_id = NULL, responsible_comment = NULL WHERE id = ?", models.StatusProcessing, applicationID).Error; err != nil {
+			return apperr.Internal("Не удалось сохранить статус заявки", err)
+		}
 
-	tx.Exec("UPDATE applications SET status = ?, responsible_user_id = NULL, responsible_comment = NULL WHERE id = ?", models.StatusProcessing, applicationID)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, t.action, &user.ID,
+			applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, t.action, &user.ID,
-		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			return err
+		}
 
-	if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-		tx.Rollback()
+		if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
+			return err
+		}
+
+		// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+		// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+		if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		return err
-	}
-
-	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
-	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
-	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
@@ -287,81 +262,66 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return err
 	}
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	var pendingApproverIDs []int
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Читаем статус/владельца внутри транзакции с блокировкой строки (FOR UPDATE),
+		// чтобы конкурентное действие не проскочило мимо терминального гейта.
+		var app struct {
+			Status       *string
+			SenderUserID int
 		}
-	}()
+		result := tx.Raw("SELECT status, sender_user_id FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
+		if result.Error != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
+		}
+		if result.RowsAffected == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, "Application not found")
+		}
+		if app.SenderUserID != user.ID {
+			return echo.NewHTTPError(http.StatusForbidden, "Отозвать можно только собственную заявку")
+		}
+		// Терминальные (закрытые) статусы совпадают с ArchivableStatuses - из них отзыв запрещён.
+		if app.Status != nil && slices.Contains(models.ArchivableStatuses, *app.Status) {
+			return echo.NewHTTPError(http.StatusConflict, "Заявку в этом статусе отозвать нельзя")
+		}
 
-	// Читаем статус/владельца внутри транзакции с блокировкой строки (FOR UPDATE),
-	// чтобы конкурентное действие не проскочило мимо терминального гейта.
-	var app struct {
-		Status       *string
-		SenderUserID int
-	}
-	result := tx.Raw("SELECT status, sender_user_id FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
-	if result.Error != nil {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
-	}
-	if result.RowsAffected == 0 {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
-	}
-	if app.SenderUserID != user.ID {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusForbidden, "Отозвать можно только собственную заявку")
-	}
-	// Терминальные (закрытые) статусы совпадают с ArchivableStatuses - из них отзыв запрещён.
-	if app.Status != nil && slices.Contains(models.ArchivableStatuses, *app.Status) {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusConflict, "Заявку в этом статусе отозвать нельзя")
-	}
+		// Кому уведомление об отзыве (#1748, S4): согласующие, чьё решение ещё не
+		// поступило. Собираем ДО смены статуса - предикат матчит только живую заявку.
+		pendingApproverIDs = s.pendingApproversBeforeWithdraw(ctx, tx, applicationID)
 
-	// Кому уведомление об отзыве (#1748, S4): согласующие, чьё решение ещё не
-	// поступило. Собираем ДО смены статуса - предикат матчит только живую заявку.
-	pendingApproverIDs := s.pendingApproversBeforeWithdraw(ctx, tx, applicationID)
+		// withdrawn_at - точка отсчёта месяца до архива (вложения при отзыве гасятся,
+		// их сроки для архивации больше не показательны).
+		if err := tx.Exec("UPDATE applications SET status = ?, withdrawn_at = NOW() WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to withdraw application")
+		}
 
-	// withdrawn_at - точка отсчёта месяца до архива (вложения при отзыве гасятся,
-	// их сроки для архивации больше не показательны).
-	if err := tx.Exec("UPDATE applications SET status = ?, withdrawn_at = NOW() WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to withdraw application")
-	}
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionWithdraw, &user.ID,
+			applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusWithdrawn)})
 
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionWithdraw, &user.ID,
-		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusWithdrawn)})
+		// Актор - сам отправитель: флаг загорится у принимающих/согласующих, но не у него (#1349).
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			return err
+		}
 
-	// Актор - сам отправитель: флаг загорится у принимающих/согласующих, но не у него (#1349).
-	if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
-		tx.Rollback()
+		// Деактивируем машины и сотрудников вложений...
+		if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
+			return err
+		}
+
+		// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+		// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+		if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+			return err
+		}
+		// ...и сами вложения (общий helper их не трогает - он про cars/employees).
+		if err := tx.Exec("UPDATE attachments SET status = 0 WHERE application_id = ?", applicationID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to deactivate attachments")
+		}
+
+		return nil
+	})
+	if err != nil {
 		return err
-	}
-
-	// Деактивируем машины и сотрудников вложений...
-	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
-	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
-	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
-		tx.Rollback()
-		return err
-	}
-	// ...и сами вложения (общий helper их не трогает - он про cars/employees).
-	if err := tx.Exec("UPDATE attachments SET status = 0 WHERE application_id = ?", applicationID).Error; err != nil {
-		tx.Rollback()
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to deactivate attachments")
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)

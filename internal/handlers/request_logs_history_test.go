@@ -65,9 +65,9 @@ func TestRequestLogs_History_JoinsAggregatesAndFreshDays(t *testing.T) {
 	rolled := today.AddDate(0, 0, -40)
 	insertDailyAggregate(t, db, rolled, "/api/rolled", 100, 10, 200_000, 500_000)
 
-	now := time.Now().UTC()
-	insertRequestLog(t, db, "/api/fresh", now.Add(-2*time.Hour))
-	insertRequestLog(t, db, "/api/fresh", now.Add(-1*time.Hour))
+	// Both details belong to today's UTC bucket at every hour of the test run.
+	insertRequestLog(t, db, "/api/fresh", today.Add(10*time.Hour))
+	insertRequestLog(t, db, "/api/fresh", today.Add(11*time.Hour))
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	res := fetchHistory(t, e, token, today.AddDate(0, 0, -45), today)
@@ -171,9 +171,10 @@ func TestRequestLogs_History_RolledDayCountedOnce(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	now := time.Now().UTC()
-	today := now.Truncate(24 * time.Hour)
-	insertRequestLog(t, db, "/api/twice", now.Add(-3*time.Hour))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Both rows describe the same UTC day, including runs before 03:00 UTC.
+	// Subtracting three hours from the current time can move the detail to yesterday.
+	insertRequestLog(t, db, "/api/twice", today.Add(12*time.Hour))
 	insertDailyAggregate(t, db, today, "/api/twice", 1, 0, 1_500, 1_500)
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
