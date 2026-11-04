@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"gorm.io/gorm"
 	"systemburo/internal/models"
 )
 
@@ -53,53 +54,89 @@ func (s *BlankExportService) spaceAvailable(ctx context.Context, stage string) b
 	return true
 }
 
-// ProcessQueue разбирает очередь enqueue: вызывается воркером на каждом тике
-// ArchiveWorkerTick и по Nudge. Ошибка одной заявки не останавливает разбор
-// остальных - иначе проблемная заявка держала бы очередь от всех, кто встал за ней.
+// ProcessQueue advances at most one persisted scan page and processes one job batch.
+// A concurrent call returns immediately; each job remains durable until its ACK.
 func (s *BlankExportService) ProcessQueue(ctx context.Context) (processed, failed int) {
-	// Пустую очередь не сторожим: проверка порогов ходит в statfs и агрегирует
-	// реестр, а тик идёт каждые 15 секунд и разбирать чаще всего нечего.
-	if s.queue.empty() {
+	if s == nil || s.outbox == nil || s.writer == nil || ctx.Err() != nil || !s.processing.CompareAndSwap(false, true) {
 		return 0, 0
 	}
-	// Всё, что может отказать, спрашиваем ДО того, как выдернуть заявки из очереди:
-	// вычерпнутый список нигде не сохраняется, и отказ после drain стоил бы заявкам
-	// ожидания до ночной сверки. Сорванное чтение настроек - именно такой отказ.
+	defer s.processing.Store(false)
 	settings, err := s.settings.GetArchiveSettings(ctx)
 	if err != nil {
-		slog.Error("очередь файлового архива: не удалось прочитать настройки", "error", err)
+		slog.Error("archive worker settings unavailable", "error", err)
 		return 0, 0
 	}
 	if !settings.Enabled {
-		// Выключенный рубильник - осознанное «не пишем»: очередь вычерпывается и
-		// заявки забываются, следующий реальный триггер (правка, ручное
-		// пересоздание) поставит их заново, когда архив включат. Копить очередь до
-		// бесконечности молча хуже.
-		s.queue.drain()
 		return 0, 0
 	}
-	// Сначала узнаём, есть ли место, потом пишем. Очередь при нехватке места НЕ
-	// вычерпывается: заявки дождутся тика, на котором писать будет куда.
-	if !s.spaceAvailable(ctx, "очередь") {
+	if _, err := s.outbox.AdvanceRecheck(ctx, archiveRecheckBatchLimit); err != nil {
+		slog.Error("archive scan page failed", "error", err)
+		// Already queued work can still progress after a scan failure.
+	}
+	if ctx.Err() != nil || !s.spaceAvailable(ctx, "очередь") {
 		return 0, 0
 	}
-
-	pending := s.queue.drain()
-	if len(pending) == 0 {
+	jobs, err := s.outbox.ListDue(ctx, archiveSweepBatchLimit)
+	if err != nil {
+		slog.Error("archive job selection failed", "error", err)
 		return 0, 0
 	}
-
-	for id, reason := range pending {
-		if _, err := s.ExportApplication(ctx, id, reason); err != nil {
-			// Уничтоженная по сроку заявка - не сбой прогона, а его штатный исход:
-			// файлов у неё быть не должно. Считать это ошибкой значило бы красить
-			// ленту архива каждую ночь после включения срока хранения.
-			if errors.Is(err, ErrArchivePurged) {
+	for _, job := range jobs {
+		if ctx.Err() != nil {
+			break
+		}
+		// A missing dependency or an arbitrary 404 must not discard a job.
+		// Only a successful query proving the application absent is terminal.
+		var applications int64
+		err := s.db.WithContext(ctx).Model(&models.Application{}).Where("id = ?", job.ApplicationID).Count(&applications).Error
+		if ctx.Err() != nil {
+			break
+		}
+		if err == nil && applications == 0 {
+			err = s.db.WithContext(ctx).Model(&models.BlankExport{}).
+				Where("application_id = ? AND status <> ?", job.ApplicationID, models.BlankExportPurged).
+				Updates(map[string]interface{}{"status": models.BlankExportOrphan, "next_attempt_at": nil}).Error
+			if ctx.Err() != nil {
+				break
+			}
+			if err == nil {
+				if err := s.outbox.Ack(ctx, job); err != nil {
+					failed++
+					slog.Error("archive missing application ACK failed", "error", err)
+				} else {
+					processed++
+				}
 				continue
 			}
+		}
+		var result *models.BlankExportResult
+		if err == nil {
+			result, err = s.ExportApplication(ctx, job.ApplicationID, job.Reason)
+		}
+		if ctx.Err() != nil {
+			break
+		}
+		if errors.Is(err, ErrArchiveDisabled) {
+			break
+		}
+		if errors.Is(err, ErrArchivePurged) || errors.Is(err, ErrArchiveDestructionPending) {
+			if err := s.outbox.Suppress(ctx, job.ApplicationID); err != nil {
+				failed++
+				slog.Error("archive terminal job suppression failed", "error", err)
+			}
+			continue
+		}
+		if err != nil || !archiveExportComplete(result) {
 			failed++
-			slog.Error("выгрузка заявки из очереди файлового архива завершилась ошибкой",
-				"application_id", id, "reason", reason, "error", err)
+			slog.Error("archive job incomplete", "application_id", job.ApplicationID, "error", err)
+			if retryErr := s.outbox.Retry(ctx, job); retryErr != nil {
+				slog.Error("archive job retry scheduling failed", "error", retryErr)
+			}
+			continue
+		}
+		if err := s.outbox.Ack(ctx, job); err != nil {
+			failed++
+			slog.Error("archive job ACK failed", "error", err)
 			continue
 		}
 		processed++
@@ -107,111 +144,73 @@ func (s *BlankExportService) ProcessQueue(ctx context.Context) (processed, faile
 	return processed, failed
 }
 
-// Sweep подбирает заявки, чья прошлая попытка выгрузки не состоялась и подошёл срок
-// повтора (next_attempt_at по backoff из ExportApplication либо пятнадцатиминутная
-// пауза остановки по месту). Дополняет очередь на короткой дистанции: очередь ловит
-// новые заявки сразу после commit, подметатель - те, что уже пробовались и не удались
-// (интервал ArchiveSweepInterval).
-//
-// Строки, остановленные нехваткой места (blocked), подбираются наравне с failed:
-// им обещан повтор через archiveBlockRetry, а других претендентов на этот повтор в
-// системе нет - без них blocked оказался бы состоянием в один конец.
-//
-// Известное ограничение: заявка, чья САМАЯ ПЕРВАЯ попытка выгрузки потерялась вместе
-// с очередью (процесс перезапущен между commit и разбором), строки в blank_exports
-// не оставляет вовсе - подметателю нечего подбирать. Такую заявку донесёт только
-// ночная сверка (Recheck), с задержкой до recheck_days. Постановка в очередь и так
-// намеренно best-effort (см. blank_export_queue.go) - полный диск не должен ронять
-// подачу заявки, а редкая гонка перезапуска дешевле полноценного персистентного outbox.
-func (s *BlankExportService) Sweep(ctx context.Context) (processed, failed int) {
-	settings, err := s.settings.GetArchiveSettings(ctx)
-	if err != nil {
-		slog.Error("подметатель файлового архива: не удалось прочитать настройки", "error", err)
-		return 0, 0
+// Successful outcomes include intentional skips whose registry writes succeeded.
+// Snapshot is mandatory even for applications with no ordinary attachments.
+func archiveExportComplete(result *models.BlankExportResult) bool {
+	if result == nil || result.Snapshot.Status != models.BlankExportOK {
+		return false
 	}
-	if !settings.Enabled {
-		return 0, 0
+	for _, item := range result.Items {
+		switch item.Status {
+		case models.BlankExportOK, models.BlankExportSkipped, models.BlankExportNoTemplate, models.BlankExportOrphan:
+		default:
+			return false
+		}
 	}
-	if !s.spaceAvailable(ctx, "подметатель") {
-		return 0, 0
-	}
-
-	var ids []int
-	err = s.db.WithContext(ctx).Model(&models.BlankExport{}).
-		Where("status IN ? AND next_attempt_at IS NOT NULL AND next_attempt_at <= ?",
-			[]string{models.BlankExportFailed, models.BlankExportBlocked}, time.Now()).
-		Distinct("application_id").
-		Limit(archiveSweepBatchLimit).
-		Pluck("application_id", &ids).Error
-	if err != nil {
-		slog.Error("подметатель файлового архива: не удалось выбрать заявки на повтор", "error", err)
-		return 0, 0
-	}
-
-	return s.exportBatch(ctx, ids, BlankExportReasonSweep)
+	return true
 }
 
-// Recheck - ночная сверка реестра с диском (03:00 по ResetTimezone). Полный прогон
-// заявок в окне recheck_days независимо от состояния очереди: ловит заявки, чья
-// самая первая постановка потерялась вместе с процессом, и заодно чинит расхождение
-// реестра с диском (файл подменили или удалили руками) - ExportApplication
-// перепроверяет каждую заявку с нуля и хэш-дедуп решает сам, писать ли заново.
-//
-// Тот же прогон закрывает долг A5c про слепок-сироту: заявка без единого бланка не
-// заводит строк реестра для своих обычных вложений, но её заявка.json с B1 ведёт
-// строку сам (archiveSnapshotAttachmentID), и relocate внутри ExportApplication
-// подхватывает фактический путь слепка наравне с бланками - специального обхода
-// каталога на диске не требуется.
-func (s *BlankExportService) Recheck(ctx context.Context) (processed, failed int) {
+// Sweep imports one bounded batch of legacy failed/blocked registry entries.
+// Existing durable jobs retain their revision and backoff.
+func (s *BlankExportService) Sweep(ctx context.Context) (processed, failed int) {
+	if s == nil || s.outbox == nil || ctx.Err() != nil {
+		return 0, 0
+	}
 	settings, err := s.settings.GetArchiveSettings(ctx)
+	if err != nil || !settings.Enabled {
+		if err != nil {
+			slog.Error("archive sweep settings unavailable", "error", err)
+		}
+		return 0, 0
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		_, err := s.outbox.EnqueueSelectionTx(ctx, tx, `
+			SELECT DISTINCT b.application_id
+			FROM blank_exports b
+			WHERE b.status IN ? AND b.next_attempt_at IS NOT NULL AND b.next_attempt_at <= ?
+			AND NOT EXISTS (SELECT 1 FROM archive_export_jobs j WHERE j.application_id = b.application_id)
+			ORDER BY b.application_id LIMIT ?`,
+			[]interface{}{[]string{models.BlankExportFailed, models.BlankExportBlocked}, time.Now(), archiveSweepBatchLimit}, BlankExportReasonSweep)
+		return err
+	})
 	if err != nil {
-		slog.Error("ночная сверка файлового архива: не удалось прочитать настройки", "error", err)
+		slog.Error("archive legacy sweep enqueue failed", "error", err)
 		return 0, 0
 	}
-	if !settings.Enabled {
+	s.outbox.Nudge()
+	return s.ProcessQueue(ctx)
+}
+
+// Recheck starts a persisted bounded scan. ProcessQueue continues an active scan
+// on later ticks, including after restart; a second nightly signal cannot reset it.
+func (s *BlankExportService) Recheck(ctx context.Context) (processed, failed int) {
+	if s == nil || s.outbox == nil || ctx.Err() != nil {
 		return 0, 0
 	}
-	if !s.spaceAvailable(ctx, "сверка") {
+	settings, err := s.settings.GetArchiveSettings(ctx)
+	if err != nil || !settings.Enabled {
+		if err != nil {
+			slog.Error("archive recheck settings unavailable", "error", err)
+		}
 		return 0, 0
 	}
 	days := settings.RecheckDays
 	if days <= 0 {
 		days = 1
 	}
-	cutoff := time.Now().AddDate(0, 0, -days)
-
-	// UNION вместо одного условия по applications: заявка могла лишиться строк
-	// реестра (заморозка/сирота-статус не убирает их, но перестраховка не лишняя),
-	// а строка реестра - пережить окно sending_datetime у самой заявки (bucket_date
-	// у неё считается по дню подачи и не двигается вместе с правками).
-	var ids []int
-	err = s.db.WithContext(ctx).Raw(`
-		SELECT id FROM applications WHERE sending_datetime >= ?
-		UNION
-		SELECT application_id FROM blank_exports WHERE bucket_date >= ?
-		ORDER BY 1
-		LIMIT ?
-	`, cutoff, cutoff, archiveRecheckBatchLimit).Scan(&ids).Error
-	if err != nil {
-		slog.Error("ночная сверка файлового архива: не удалось выбрать заявки окна", "error", err)
+	if err := s.outbox.BeginRecheck(ctx, time.Now().AddDate(0, 0, -days)); err != nil {
+		slog.Error("archive scan initialization failed", "error", err)
 		return 0, 0
 	}
-
-	return s.exportBatch(ctx, ids, BlankExportReasonRecheck)
-}
-
-// exportBatch прогоняет ExportApplication по списку заявок, не давая сбою одной
-// прервать остальные - это фоновый прогон, а не запрос администратора, которому
-// нужно вернуть ошибку ответом.
-func (s *BlankExportService) exportBatch(ctx context.Context, applicationIDs []int, reason string) (processed, failed int) {
-	for _, id := range applicationIDs {
-		if _, err := s.ExportApplication(ctx, id, reason); err != nil {
-			failed++
-			slog.Error("фоновая выгрузка заявки в архив завершилась ошибкой",
-				"application_id", id, "reason", reason, "error", err)
-			continue
-		}
-		processed++
-	}
-	return processed, failed
+	return s.ProcessQueue(ctx)
 }

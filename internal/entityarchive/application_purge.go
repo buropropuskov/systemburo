@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"systemburo/internal/archivecoord"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 )
@@ -73,14 +74,20 @@ var applicationPurgeNodes = []applicationPurgeNode{
 	{Table: "blank_exports"},
 }
 
+// Минимальный терминальный запрет восстановления переживает физическое удаление
+// заявки. Содержимого документов и персональных полей в этой таблице нет.
+// Не включается в число уничтожаемых строк и не удаляется вместе с заявкой.
+var applicationRetainedTables = []string{"archive_export_jobs"}
+
 // ApplicationGraphTables - имена таблиц графа заявки. Экспортируется ради замка
 // TestApplicationGraph_NoUnaccountedTables: тесту нужна карта графа, а заводить ради
 // него вторую копию перечня хуже, чем узкий геттер (тот же приём, что у GraphTables).
 func ApplicationGraphTables() []string {
-	out := make([]string, 0, len(applicationPurgeNodes))
+	out := make([]string, 0, len(applicationPurgeNodes)+len(applicationRetainedTables))
 	for _, n := range applicationPurgeNodes {
 		out = append(out, n.Table)
 	}
+	out = append(out, applicationRetainedTables...)
 	return out
 }
 
@@ -148,6 +155,21 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		return res, nil
 	}
 
+	release, err := archivecoord.Acquire(ctx)
+	if err != nil {
+		return ApplicationPurgeResult{}, err
+	}
+	defer release()
+	exists, err := applicationExists(ctx, db, id)
+	if err != nil {
+		return ApplicationPurgeResult{}, err
+	}
+	if !exists {
+		return ApplicationPurgeResult{}, errApplicationNotFound
+	}
+	if err := services.NewArchiveExportOutbox(db).Suppress(ctx, id); err != nil {
+		return ApplicationPurgeResult{}, fmt.Errorf("запрет повторной выгрузки заявки #%d: %w", id, err)
+	}
 	// Диск первым, по тому же доводу, что и у обезличивания: удаление файла откатить
 	// нечем, и сбой посередине чинится повторным прогоном.
 	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true)

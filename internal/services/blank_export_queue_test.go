@@ -3,86 +3,62 @@ package services
 import (
 	"testing"
 	"time"
+
+	"systemburo/internal/models"
 )
 
-// Очередь файлового архива (#1615, B1) - чистая in-memory структура, без БД:
-// табличные тесты по testing.md, не в internal/handlers.
-
-func TestBlankExportQueue_PushDrain(t *testing.T) {
-	q := newBlankExportQueue()
-
-	if got := q.drain(); got != nil {
-		t.Fatalf("drain() на пустой очереди = %v, хочу nil", got)
-	}
-
-	q.push(1, BlankExportReasonSubmit)
-	q.push(2, BlankExportReasonUpdate)
-
-	got := q.drain()
-	want := map[int]string{1: BlankExportReasonSubmit, 2: BlankExportReasonUpdate}
-	if len(got) != len(want) {
-		t.Fatalf("drain() = %v, хочу %v", got, want)
-	}
-	for id, reason := range want {
-		if got[id] != reason {
-			t.Errorf("drain()[%d] = %q, хочу %q", id, got[id], reason)
-		}
-	}
-
-	// Разбор очищает очередь - повторный drain пуст.
-	if got := q.drain(); got != nil {
-		t.Fatalf("drain() после разбора = %v, хочу nil", got)
-	}
-}
-
-func TestBlankExportQueue_PushOverwritesReason(t *testing.T) {
-	q := newBlankExportQueue()
-	q.push(1, BlankExportReasonSubmit)
-	q.push(1, BlankExportReasonUpdate)
-
-	got := q.drain()
-	if got[1] != BlankExportReasonUpdate {
-		t.Fatalf("повторный push не перебил причину: got %q, хочу %q", got[1], BlankExportReasonUpdate)
-	}
-	if len(got) != 1 {
-		t.Fatalf("повторный push той же заявки создал лишнюю запись: %v", got)
-	}
-}
-
-func TestBlankExportQueue_PushWakes(t *testing.T) {
-	q := newBlankExportQueue()
-	q.push(1, BlankExportReasonSubmit)
-
-	select {
-	case <-q.wake:
-	case <-time.After(time.Second):
-		t.Fatal("push не разбудил канал wake")
-	}
-}
-
+// Persistence, coalescing and ACK behavior live in handlers' DB-backed tests.
 func TestBlankExportQueue_NudgeNonBlocking(t *testing.T) {
-	q := newBlankExportQueue()
-	// Канал ёмкостью 1: второй nudge подряд не должен блокироваться и не должен
-	// паниковать, даже если никто не читает из wake.
-	q.nudge()
+	outbox := NewArchiveExportOutbox(nil)
+	outbox.Nudge()
 	done := make(chan struct{})
 	go func() {
-		q.nudge()
+		outbox.Nudge()
 		close(done)
 	}()
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("nudge() заблокировался при полном канале")
+		t.Fatal("nudge blocked while the wake channel was full")
+	}
+	select {
+	case <-outbox.Wake():
+	default:
+		t.Fatal("nudge did not wake the worker")
 	}
 }
 
-// EnqueueApplication/EnqueueApplications/Nudge обязаны быть no-op на nil-получателе:
-// точки изменения заявки не должны знать, поднялся ли писатель архива.
 func TestBlankExportService_NilReceiverSafe(t *testing.T) {
-	var svc *BlankExportService
+	var service *BlankExportService
+	service.EnqueueApplication(1, BlankExportReasonSubmit)
+	service.EnqueueApplications([]int{1, 2}, BlankExportReasonUpdate)
+	service.Nudge()
+	service.SetArchiveExportOutbox(nil)
+	var outbox *ArchiveExportOutbox
+	outbox.EnqueueApplication(1, BlankExportReasonSubmit)
+	outbox.EnqueueApplications([]int{1, 2}, BlankExportReasonUpdate)
+}
 
-	svc.EnqueueApplication(1, BlankExportReasonSubmit)
-	svc.EnqueueApplications([]int{1, 2, 3}, BlankExportReasonUpdate)
-	svc.Nudge()
+func TestBlankExportWorker_CompleteOutcomes(t *testing.T) {
+	result := &models.BlankExportResult{Snapshot: models.BlankExportSnapshotResult{Status: models.BlankExportOK}}
+	if !archiveExportComplete(result) {
+		t.Fatal("an application without ordinary attachments can complete")
+	}
+	for _, status := range []string{models.BlankExportOK, models.BlankExportSkipped, models.BlankExportNoTemplate, models.BlankExportOrphan} {
+		result.Items = []models.BlankExportItem{{Status: status, Frozen: true}}
+		if !archiveExportComplete(result) {
+			t.Fatalf("persisted outcome %s was rejected", status)
+		}
+	}
+	for _, status := range []string{"", models.BlankExportPending, models.BlankExportFailed, models.BlankExportBlocked} {
+		result.Items = []models.BlankExportItem{{Status: status}}
+		if archiveExportComplete(result) {
+			t.Fatalf("incomplete outcome %s was accepted", status)
+		}
+	}
+	result.Items = nil
+	result.Snapshot.Status = models.BlankExportFailed
+	if archiveExportComplete(result) || archiveExportComplete(nil) {
+		t.Fatal("failed or absent snapshot was accepted")
+	}
 }

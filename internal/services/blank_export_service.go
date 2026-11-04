@@ -12,8 +12,10 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"systemburo/internal/archivecoord"
 	"systemburo/internal/blankpath"
 	"systemburo/internal/models"
 
@@ -59,20 +61,22 @@ var ErrArchiveDisabled = errors.New("file archive is disabled")
 // хранения велел уничтожить, - пусть и собранные уже из затёртых полей.
 var ErrArchivePurged = errors.New("application files were purged by retention")
 
+// ErrArchiveDestructionPending prevents recreation once destruction is intended.
+// It does not assert that physical destruction has already completed.
+var ErrArchiveDestructionPending = errors.New("archive recreation is unavailable")
+
 // BlankExportService пишет заполненные бланки заявки в файловый архив (#1615).
 //
 // Единица обработки - заявка целиком: папка принадлежит ей, и переименование,
 // запущенное из нескольких строк реестра одновременно, было бы гонкой.
 type BlankExportService struct {
-	db       *gorm.DB
-	blanks   AttachmentBlankService
-	paths    *ArchivePathService
-	writer   *ArchiveWriter
-	settings SettingsService
-	// queue - набор заявок, ожидающих разбора фоновым воркером (B1). Отдельная
-	// маленькая структура, а не поле-канал прямо здесь: push/drain/nudge должны
-	// быть безопасны без блокировки остального сервиса.
-	queue *blankExportQueue
+	db         *gorm.DB
+	blanks     AttachmentBlankService
+	paths      *ArchivePathService
+	writer     *ArchiveWriter
+	settings   SettingsService
+	outbox     *ArchiveExportOutbox
+	processing atomic.Bool
 	// quota - пороги места (B2). Спрашивается перед каждой фоновой записью: узнать
 	// про нехватку места надо ДО записи, а не по факту сбоя.
 	quota ArchiveQuotaGuard
@@ -97,14 +101,17 @@ func NewBlankExportService(
 ) *BlankExportService {
 	return &BlankExportService{
 		db: db, blanks: blanks, paths: paths, writer: writer, settings: settings,
-		queue: newBlankExportQueue(), quota: quota,
+		outbox: NewArchiveExportOutbox(db), quota: quota,
 	}
 }
 
 // Wake отдаёт канал пробуждения воркера - сигнал приходит по каждому enqueue и
 // по явному Nudge. Воркер (cmd/server) селектит его рядом с тикерами.
 func (s *BlankExportService) Wake() <-chan struct{} {
-	return s.queue.wake
+	if s == nil || s.outbox == nil {
+		return nil
+	}
+	return s.outbox.Wake()
 }
 
 // Writer отдаёт писателя архива - воркеру (cmd/server) он нужен для уборки
@@ -165,6 +172,12 @@ func targetLevels(levels []string, target blankExportTarget) []string {
 // прогоном (фактического каталога уже нет, файлы просто перепишутся), обратный
 // порядок оставил бы каталог-сироту, про который система забыла.
 func (s *BlankExportService) ExportApplication(ctx context.Context, applicationID int, reason string) (*models.BlankExportResult, error) {
+	release, err := archivecoord.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	settings, err := s.settings.GetArchiveSettings(ctx)
 	if err != nil {
 		return nil, err
@@ -179,6 +192,13 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 	}
 	if purged {
 		return nil, ErrArchivePurged
+	}
+	suppressed, err := s.outbox.IsSuppressed(ctx, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	if suppressed {
+		return nil, ErrArchiveDestructionPending
 	}
 
 	appValues, err := s.paths.Values(ctx, applicationID, 0)
@@ -352,6 +372,7 @@ func (s *BlankExportService) exportOne(ctx context.Context, req exportRequest) m
 		// Не сложившаяся запись в реестр не должна подменять собой причину отказа:
 		// администратор чинит шаблон, а не базу, и текст ему нужен исходный.
 		if saveErr := s.saveState(ctx, req, item.Status, item.Error, nil); saveErr != nil {
+			item.Status = models.BlankExportFailed
 			slog.Error("не удалось записать состояние выгрузки бланка",
 				"application_id", req.applicationID, "attachment_id", req.target.AttachmentID, "error", saveErr)
 		}
@@ -867,6 +888,15 @@ func (s *BlankExportService) applicationPurged(ctx context.Context, applicationI
 		Count(&n).Error
 	if err != nil {
 		return false, fmt.Errorf("failed to check purged archive rows: %w", err)
+	}
+	if n > 0 {
+		return true, nil
+	}
+	err = s.db.WithContext(ctx).Model(&models.DestructionRecord{}).
+		Where("entity_type = ? AND entity_id = ? AND action IN ?", models.AuditEntityApplication,
+			applicationID, []string{"anonymized", "purged"}).Count(&n).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to check archive destruction records: %w", err)
 	}
 	return n > 0, nil
 }

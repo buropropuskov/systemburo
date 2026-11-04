@@ -520,6 +520,8 @@ func main() {
 	// настроек всё равно должен открываться, поэтому сервис выгрузки остаётся nil,
 	// а ручка пересоздания честно отвечает «архив недоступен».
 	var blankExportService *services.BlankExportService
+	// Намерения обновить архив сохраняются даже при недоступном файловом каталоге.
+	archiveExportOutbox := services.NewArchiveExportOutbox(db)
 	var archiveDownloadService *services.ArchiveDownloadService
 	// Шифрование архива разбирается до писателя: неверная пара ключей должна
 	// останавливать старт, а не всплывать при первой выгрузке.
@@ -563,14 +565,15 @@ func main() {
 	// Точки изменения заявки ставят её в очередь на выгрузку (#1615, B1). Сеттеры,
 	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
 	// поднят только сейчас (зависит от attachmentBlankService/archivePathService).
-	// blankExportService типизированный nil безопасен - Enqueue* на нём no-op.
+	// Хранилище заданий не зависит от доступности файлового писателя.
 	// Приложенные к заявке файлы уезжают в архив тем же путём, что и бланки.
 	blankExportService.SetApplicationFiles(applicationFileService)
-	applicationService.SetBlankExportEnqueuer(blankExportService)
-	organizationService.SetBlankExportEnqueuer(blankExportService)
-	companyService.SetBlankExportEnqueuer(blankExportService)
-	carService.SetBlankExportEnqueuer(blankExportService)
-	employeeService.SetBlankExportEnqueuer(blankExportService)
+	blankExportService.SetArchiveExportOutbox(archiveExportOutbox)
+	applicationService.SetBlankExportEnqueuer(archiveExportOutbox)
+	organizationService.SetBlankExportEnqueuer(archiveExportOutbox)
+	companyService.SetBlankExportEnqueuer(archiveExportOutbox)
+	carService.SetBlankExportEnqueuer(archiveExportOutbox)
+	employeeService.SetBlankExportEnqueuer(archiveExportOutbox)
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(settingsService, blankExportService)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	// access/resolver - те же зависимости, что у AttachmentBlankHandler ниже: гейт

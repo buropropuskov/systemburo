@@ -52,6 +52,7 @@ var tables = []string{
 	// снимает: прошлый прогон оставлял заявку с тем же идентификатором уже
 	// выгруженной и замороженной, и следующий видел чужое состояние (#1615).
 	"blank_exports",
+	"archive_export_jobs", "archive_export_scan_states",
 	// Партии вымышленных данных стенда (#1682): внешних ключей у них нет намеренно -
 	// перечень созданного должен пережить удаление самих записей, иначе удалять партию
 	// будет не по чему. Значит и чистка соседних таблиц их не снимает.
@@ -508,9 +509,17 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	blankExportQuotaService := services.NewBlankExportQuotaService(
 		db, settingsService, notificationService, permissionResolver, auditRecorder,
 		archiveDir, uploadDir, "")
-	blankArchiveHandler := handlers.NewBlankArchiveHandler(settingsService,
-		services.NewBlankExportService(db, attachmentBlankService, archivePathService,
-			archiveWriter, settingsService, blankExportQuotaService))
+	archiveExportOutbox := services.NewArchiveExportOutbox(db)
+	blankExportService := services.NewBlankExportService(db, attachmentBlankService, archivePathService,
+		archiveWriter, settingsService, blankExportQuotaService)
+	blankExportService.SetArchiveExportOutbox(archiveExportOutbox)
+	blankExportService.SetApplicationFiles(applicationFileService)
+	applicationService.SetBlankExportEnqueuer(archiveExportOutbox)
+	organizationService.SetBlankExportEnqueuer(archiveExportOutbox)
+	companyService.SetBlankExportEnqueuer(archiveExportOutbox)
+	carService.SetBlankExportEnqueuer(archiveExportOutbox)
+	employeeService.SetBlankExportEnqueuer(archiveExportOutbox)
+	blankArchiveHandler := handlers.NewBlankArchiveHandler(settingsService, blankExportService)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	// Скачивание из файлового архива (#1615, срез B3) - тот же писатель и корень, что
 	// у сервиса выгрузки выше; access/resolver повторяют пару, которой пользуется
