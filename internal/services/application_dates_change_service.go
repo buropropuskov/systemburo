@@ -124,7 +124,7 @@ func (s *applicationService) ChangeApplicationDates(ctx context.Context, usernam
 			}); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи в историю заявки")
 		}
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err

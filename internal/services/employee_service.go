@@ -755,26 +755,26 @@ func (s *employeeService) loadTableNames(ctx context.Context, tableIDs []int) (m
 // (BulkAddTable) она нужна, при переносе (BulkMoveTable) - нет, там пишется одна
 // сводная запись moved_between_tables (зеркало car-стороны, чтобы перенос не порождал
 // лишних added_to_table на каждую целевую таблицу).
-func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *gorm.DB, employeeID, tableID int, actorID int, recordAdd bool) error {
+func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *gorm.DB, employeeID, tableID int, actorID int, recordAdd bool) (bool, error) {
 	var exists int64
 	if err := tx.Model(&models.EmployeeTargetTable{}).
 		Where("employee_id = ? AND table_id = ?", employeeID, tableID).Count(&exists).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки привязки")
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки привязки")
 	}
 	if exists > 0 {
-		return nil
+		return false, nil
 	}
 	orderIdx := 1
 	ett := models.EmployeeTargetTable{EmployeeID: employeeID, TableID: tableID, OrderIndex: &orderIdx, Source: "manual"}
 	if err := tx.Create(&ett).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка привязки к таблице")
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка привязки к таблице")
 	}
 	if recordAdd {
 		if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employeeID, tableID, &actorID); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+			return false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // BulkMoveTable переносит набор сотрудников из FromTableID в каждую из ToTableIDs
@@ -823,7 +823,7 @@ func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMov
 				return echo.NewHTTPError(http.StatusBadRequest, "Сотрудник не привязан к исходной таблице")
 			}
 			for _, tableID := range toIDs {
-				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, false); err != nil {
+				if _, err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, false); err != nil {
 					return err
 				}
 			}
@@ -831,7 +831,7 @@ func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMov
 			if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, models.AuditActionMovedBetweenTables, &actorID, carAuditDetails{Comment: &comment, TableID: &fromTableID}); err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории переноса")
 			}
-			return nil
+			return s.enqueueArchiveExportForEmployeeTx(ctx, tx, id)
 		})
 		if err != nil {
 			res.addError(id, fullName, bulkErrMsg(err))
@@ -873,12 +873,18 @@ func (s *employeeService) BulkAddTable(ctx context.Context, req EmployeeBulkAddT
 			continue
 		}
 		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			changed := false
 			for _, tableID := range tableIDs {
-				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, true); err != nil {
+				added, err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, true)
+				if err != nil {
 					return err
 				}
+				changed = changed || added
 			}
-			return nil
+			if !changed {
+				return nil
+			}
+			return s.enqueueArchiveExportForEmployeeTx(ctx, tx, id)
 		})
 		if err != nil {
 			res.addError(id, fullName, bulkErrMsg(err))
@@ -953,7 +959,7 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 					return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории деактивации")
 				}
 			}
-			return nil
+			return s.enqueueArchiveExportForEmployeeTx(ctx, tx, id)
 		})
 		if err != nil {
 			res.addError(id, fullName, bulkErrMsg(err))
@@ -994,4 +1000,12 @@ func (s *employeeService) enqueueArchiveExportForEmployees(ctx context.Context, 
 		return
 	}
 	s.blankExports.EnqueueApplications(appIDs, BlankExportReasonUpdate)
+}
+
+// enqueueArchiveExportForEmployeeTx resolves the application inside the row transaction.
+func (s *employeeService) enqueueArchiveExportForEmployeeTx(ctx context.Context, tx *gorm.DB, employeeID int) error {
+	_, err := enqueueArchiveSelectionTx(ctx, tx, `SELECT a.application_id FROM employees e
+		JOIN attachments a ON a.id = e.attachment_id
+		WHERE e.id = ? AND a.application_id IS NOT NULL`, []interface{}{employeeID}, BlankExportReasonUpdate)
+	return err
 }

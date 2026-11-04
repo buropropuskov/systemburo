@@ -1356,6 +1356,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 
 	// Обновляем статус при первом прочтении не отправителем. Этот переход НЕ бампает
 	// status_updated_at (#1349): смена от факта открытия - шум, а не событие для участников.
+	archiveChanged := false
 	if row.Status != nil && *row.Status == "Непрочитано" && row.SenderUserID != user.ID {
 		if err := tx.Exec("UPDATE applications SET status = 'В обработке', reading_datetime = NOW() WHERE id = ?", applicationID).Error; err != nil {
 			tx.Rollback()
@@ -1364,6 +1365,10 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		// Записываем прочтение в историю
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "read", &user.ID,
 			applicationAuditDetails{OldValue: ptrString("Непрочитано"), NewValue: ptrString("В обработке")})
+		if err := enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate); err != nil {
+			return nil, err
+		}
+		archiveChanged = true
 	}
 
 	// Просмотр детали гасит флаг "статус обновился" для смотрящего (#1349). Здесь - путь
@@ -1382,6 +1387,10 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	}
+
+	if archiveChanged {
+		s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
 	}
 
 	orgName := ""
@@ -1718,11 +1727,13 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 			}
 		}
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{app.ID}, BlankExportReasonSubmit)
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	s.enqueueArchiveExport(app.ID, BlankExportReasonSubmit)
 
 	return &ApplicationCreateResponse{
 		Success:           true,
@@ -2751,7 +2762,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			}
 		}
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{appID}, BlankExportReasonSubmit)
 	})
 	if err != nil {
 		return nil, err

@@ -276,7 +276,10 @@ func (s *manualAttachService) AttachToApplication(ctx context.Context, orphanAtt
 				return err
 			}
 		}
-		return s.recordAttach(ctx, tx, attachmentType, carIDs, empIDs, app.ApplicationNumber, userID)
+		if err := s.recordAttach(ctx, tx, attachmentType, carIDs, empIDs, app.ApplicationNumber, userID); err != nil {
+			return err
+		}
+		return enqueueArchiveExportTx(ctx, tx, []int{appID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err

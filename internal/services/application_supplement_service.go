@@ -296,7 +296,7 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, supplementAuditActionCreated, &user.ID,
 			applicationAuditDetails{Comment: comment, Metadata: meta})
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err

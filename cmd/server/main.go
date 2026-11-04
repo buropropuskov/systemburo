@@ -569,11 +569,12 @@ func main() {
 	// Приложенные к заявке файлы уезжают в архив тем же путём, что и бланки.
 	blankExportService.SetApplicationFiles(applicationFileService)
 	blankExportService.SetArchiveExportOutbox(archiveExportOutbox)
-	applicationService.SetBlankExportEnqueuer(archiveExportOutbox)
-	organizationService.SetBlankExportEnqueuer(archiveExportOutbox)
-	companyService.SetBlankExportEnqueuer(archiveExportOutbox)
-	carService.SetBlankExportEnqueuer(archiveExportOutbox)
-	employeeService.SetBlankExportEnqueuer(archiveExportOutbox)
+	archiveExportWakeup := services.NewArchiveExportWakeup(archiveExportOutbox)
+	applicationService.SetBlankExportEnqueuer(archiveExportWakeup)
+	organizationService.SetBlankExportEnqueuer(archiveExportWakeup)
+	companyService.SetBlankExportEnqueuer(archiveExportWakeup)
+	carService.SetBlankExportEnqueuer(archiveExportWakeup)
+	employeeService.SetBlankExportEnqueuer(archiveExportWakeup)
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(settingsService, blankExportService)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	// access/resolver - те же зависимости, что у AttachmentBlankHandler ниже: гейт

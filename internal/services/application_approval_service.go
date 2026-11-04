@@ -162,6 +162,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				}
 			}
 		}
+		archiveChanged := false
 		oldConfirmation := lockedApplication.Confirmation
 		actorID := user.ID
 		if isSuperAdmin {
@@ -237,6 +238,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			`, applicationID, fu.UserID, fu.RequiredApproval, baseTime, user.ID).Error; err != nil {
 					return apperr.Internal("Не удалось сохранить согласующих заявки", err)
 				}
+				archiveChanged = true
 				addedResponsibleUsers = append(addedResponsibleUsers, addedResp{fu.UserID, fu.RequiredApproval})
 				recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
 					UserID: fu.UserID, Purpose: "approval", RequiredApproval: fu.RequiredApproval, AccessGranted: true,
@@ -255,6 +257,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				`, applicationID, fu.UserID, baseTime, user.ID).Error; err != nil {
 						return apperr.Internal("Не удалось сохранить получателей заявки", err)
 					}
+					archiveChanged = true
 				}
 				addedViewers = append(addedViewers, fu.UserID)
 				recipientDetails = appendForwardRecipient(recipientDetails, forwardRecipientDetail{
@@ -282,13 +285,15 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 						continue // Не сужаем уже существовавший полный доступ.
 					}
 					for _, attID := range forwardAttachmentIDs {
-						if err := tx.Exec(`
+						result := tx.Exec(`
 						INSERT INTO forward_attachments (application_id, recipient_user_id, attachment_id, created_at, created_by)
 						VALUES (?, ?, ?, ?, ?)
 						ON CONFLICT (application_id, recipient_user_id, attachment_id) DO NOTHING
-					`, applicationID, recipientID, attID, baseTime, user.ID).Error; err != nil {
-							return apperr.Internal("Не удалось сохранить доступ к вложениям заявки", err)
+					`, applicationID, recipientID, attID, baseTime, user.ID)
+						if result.Error != nil {
+							return apperr.Internal("Не удалось сохранить доступ к вложениям заявки", result.Error)
 						}
+						archiveChanged = archiveChanged || result.RowsAffected > 0
 					}
 				}
 			}
@@ -421,6 +426,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 		}
 
+		if archiveChanged || confirmationChanged {
+			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
+		}
 		return nil
 	})
 	if err != nil {
@@ -599,7 +607,7 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 			}
 		}
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return err
@@ -723,7 +731,7 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 			}
 		}
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err

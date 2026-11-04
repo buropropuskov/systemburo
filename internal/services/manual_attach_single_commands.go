@@ -519,9 +519,11 @@ func (s *SingleManualAttachCommandService) run(ctx context.Context, actor int, k
 				OldPeriod models.EffectivePeriod `json:"old_period"`
 				NewPeriod models.EffectivePeriod `json:"new_period"`
 			}{&field, &oldValue, &newValue, &reason, row.PeriodMode, nextMode, current, next}
-			return s.recorder.Record(ctx, tx, entityType, &id, models.AuditActionDatesChanged, &actor, periodDetails)
+			if err := s.recorder.Record(ctx, tx, entityType, &id, models.AuditActionDatesChanged, &actor, periodDetails); err != nil {
+				return err
+			}
 		}
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{appID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err
