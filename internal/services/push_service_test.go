@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -158,42 +159,62 @@ func TestDeliver_PayloadTooLarge_DoesNotTouchDB(t *testing.T) {
 	svc.deliver(context.Background(), sub, huge)
 }
 
-// Shutdown() чистая логика без БД/HTTP - управляет напрямую s.wg, минуя Send()/sendNow.
+// Shutdown() чистая логика без БД/HTTP: контролируемая работа настоящего пула.
 // Защищает разбор team-lead (#974, пункт 1): drain при остановке сервера.
 
 // TestPushService_Shutdown_WaitsForPendingWork: Shutdown должен дождаться работы,
-// зарегистрированной в wg, а не вернуться немедленно.
+// принятой пулом, а не вернуться немедленно.
 func TestPushService_Shutdown_WaitsForPendingWork(t *testing.T) {
 	t.Parallel()
 	s := &pushService{}
-	s.wg.Add(1)
+	s.delivery.workers = 1
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(func() { unblock(); stopTestPushQueue(t, &s.delivery) })
 	var finished atomic.Bool
-	go func() {
-		time.Sleep(50 * time.Millisecond)
+	s.delivery.enqueue(1, []byte("{}"), func(context.Context, int, []byte) {
+		close(started)
+		<-release
 		finished.Store(true)
-		s.wg.Done()
-	}()
+	})
+	waitTestPushSignal(t, started)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	s.Shutdown(ctx)
+	done := make(chan struct{})
+	go func() { s.Shutdown(ctx); close(done) }()
+	select {
+	case <-done:
+		t.Fatal("Shutdown вернулся до завершения принятой работы")
+	case <-time.After(20 * time.Millisecond):
+	}
+	unblock()
+	waitTestPushSignal(t, done)
 
 	if !finished.Load() {
-		t.Error("Shutdown должен был дождаться завершения работы в wg, а не вернуться раньше")
+		t.Error("Shutdown должен был дождаться завершения работы пула, а не вернуться раньше")
 	}
 }
 
 // TestPushService_Shutdown_ReturnsOnContextDeadline: зависшая работа (никогда не
-// вызывает wg.Done) не должна держать Shutdown дольше отведённого ctx - иначе один
+// завершается) не должна держать Shutdown дольше отведённого ctx - иначе один
 // зависший push-сервис не дал бы процессу завершиться вовсе.
 func TestPushService_Shutdown_ReturnsOnContextDeadline(t *testing.T) {
 	t.Parallel()
 	s := &pushService{}
-	s.wg.Add(1)
-	// Done() в конце теста подчищает внутреннюю горутину Shutdown (она ждёт s.wg.Wait()
-	// в фоне даже после того, как сам Shutdown уже вернулся по ctx) - иначе она
-	// протекла бы на весь процесс тестового бинаря.
-	t.Cleanup(func() { s.wg.Done() })
+	s.delivery.workers = 1
+	startedWork := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(func() { unblock(); stopTestPushQueue(t, &s.delivery) })
+	s.delivery.enqueue(1, []byte("{}"), func(context.Context, int, []byte) {
+		close(startedWork)
+		<-release // deliberately ignore cancellation to verify bounded Shutdown
+	})
+	waitTestPushSignal(t, startedWork)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -205,8 +226,11 @@ func TestPushService_Shutdown_ReturnsOnContextDeadline(t *testing.T) {
 	if elapsed > 500*time.Millisecond {
 		t.Errorf("Shutdown должен был вернуться по истечении ctx (50мс), реально занял %s", elapsed)
 	}
-	if !s.shuttingDown.Load() {
-		t.Error("Shutdown обязан взвести shuttingDown до начала ожидания")
+	s.delivery.mu.Lock()
+	stopping := s.delivery.stopping
+	s.delivery.mu.Unlock()
+	if !stopping {
+		t.Error("Shutdown обязан закрыть admission до начала ожидания")
 	}
 }
 

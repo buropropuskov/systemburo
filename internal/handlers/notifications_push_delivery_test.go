@@ -380,6 +380,7 @@ func TestPushService_Send_RespectsConcurrencyLimit(t *testing.T) {
 	// WithPushLocalEndpoints - адрес httptest-сервера внутренний (#2466), без опции
 	// доставка до него не дошла бы вовсе.
 	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com", services.WithPushLocalEndpoints()) // без WithPushSyncSend - боевой асинхронный путь
+	defer shutdownPushFixture(svc, releaseHandlers)
 
 	for i := 0; i < totalUsers; i++ {
 		uid := seedPushUser(t, db, td, fmt.Sprintf("push_concurrency_%d", i))
@@ -426,6 +427,7 @@ func TestPushService_Shutdown_WaitsForInFlightSend(t *testing.T) {
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
 	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com", services.WithPushLocalEndpoints())
+	defer shutdownPushFixture(svc, nil)
 
 	userID := seedPushUser(t, db, td, "push_shutdown_wait")
 	seedSubscription(t, db, userID, srv.URL)
@@ -452,7 +454,7 @@ func TestPushService_Shutdown_WaitsForInFlightSend(t *testing.T) {
 // httptest не гарантирует, что отмена соединения со стороны сервера мгновенно отменяет
 // контекст УЖЕ ПРИНЯТОГО запроса - на практике обработчик иногда оставался висеть, и
 // httptest.Server.Close() (тоже defer) ждал его вечно, вешая пакет целиком (поймано
-// ревью team-lead: "httptest.Server blocked in Close after 5 seconds"). defer close(stop)
+// ревью team-lead: "httptest.Server blocked in Close after 5 seconds"). releaseStop()
 // зарегистрирован ПОСЛЕ defer srv.Close() - выполняется первым (LIFO) и гарантированно
 // освобождает обработчик до того, как Close начнёт его ждать, независимо от таймингов
 // HTTP-слоя.
@@ -470,12 +472,16 @@ func TestPushService_Shutdown_GivesUpAfterGracePeriod(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	defer close(stop)
+	var stopOnce sync.Once
+	releaseStop := func() { stopOnce.Do(func() { close(stop) }) }
+	defer releaseStop()
 
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
 	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com", services.WithPushLocalEndpoints())
+	defer shutdownPushFixture(svc, nil)
 
+	defer shutdownPushFixture(svc, releaseStop)
 	userID := seedPushUser(t, db, td, "push_shutdown_giveup")
 	seedSubscription(t, db, userID, srv.URL)
 	svc.Send(context.Background(), userID, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})

@@ -2,14 +2,11 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"systemburo/internal/models"
@@ -62,15 +59,8 @@ const pushMessageTTLSeconds = 24 * 60 * 60
 // не подчиняется - проверено на Samsung в двух браузерах, см. #974.
 const pushMessageUrgency = webpush.UrgencyHigh
 
-// pushMaxConcurrentDeliveries -- общий на весь pushService потолок ОДНОВРЕМЕННЫХ
-// исходящих запросов к push-сервисам (не на пользователя и не на одну рассылку).
-// Без предела уведомление о новости на пару сотен активных пользователей открыло бы
-// столько же одновременных HTTPS-соединений разом (разбор #974): каждый Send()
-// сегодня - отдельная горутина без какого-либо троттлинга. 30 - компромисс между
-// "не открывать сотни сокетов одновременно" и скоростью рассылки: даже в худшем
-// случае, когда каждая отправка тратит весь PushSendTimeout=10с, пара сотен подписок
-// разъедутся из очереди за десятки секунд, а не за минуты; запас от типичных
-// системных лимитов дескрипторов (обычно 1024) остаётся большим.
+// pushMaxConcurrentDeliveries limits active user deliveries per service. A user's
+// subscriptions are processed sequentially within one shared timeout.
 const pushMaxConcurrentDeliveries = 30
 
 // PushShutdownGrace -- сколько main.go ждёт завершения уже запущенных отправок при
@@ -139,20 +129,11 @@ type pushService struct {
 	// проде остаётся false -- см. WithPushSyncSend.
 	sync bool
 
-	// wg отслеживает все запущенные фоновые отправки (#974): Shutdown ждёт её
-	// опустошения вместо того, чтобы дать рантайму молча убить их вместе с процессом.
-	wg sync.WaitGroup
-	// deliverySem -- общий на сервис семафор одновременных отправок, см.
-	// pushMaxConcurrentDeliveries.
-	deliverySem chan struct{}
+	delivery pushDeliveryQueue
 	// endpointGuard -- проверка адреса службы доставки (#2466): адрес приходит от
 	// браузера и без проверки уводил бы исходящий запрос сервера куда угодно, в том
 	// числе внутрь сети заказчика. Читать через guard(), не напрямую.
 	endpointGuard *pushEndpointGuard
-	// shuttingDown взводится в начале Shutdown: Send(), вызванный после этого момента,
-	// не встаёт в очередь - сервер уже останавливается, новая отправка не успеет уйти
-	// за отведённый Shutdown срок, а только продлит ожидание.
-	shuttingDown atomic.Bool
 }
 
 // PushServiceOption конфигурирует pushService при создании.
@@ -205,7 +186,6 @@ func WithPushLocalEndpoints() PushServiceOption {
 func NewPushService(db *gorm.DB, publicKey, privateKey, subscriber string, opts ...PushServiceOption) PushService {
 	s := &pushService{
 		db: db, publicKey: publicKey, privateKey: privateKey, subscriber: normalizePushSubscriber(subscriber),
-		deliverySem:   make(chan struct{}, pushMaxConcurrentDeliveries),
 		endpointGuard: newPushEndpointGuard(nil),
 	}
 	for _, opt := range opts {
@@ -334,76 +314,82 @@ func (s *pushService) Send(ctx context.Context, userID int, payload PushPayload)
 	if !s.Configured() {
 		return
 	}
+	body, valid := preparePushMessage(payload)
+	if !valid {
+		s.delivery.counters.invalid.Add(1)
+		s.delivery.reportLoss()
+		return
+	}
 	if s.sync {
-		s.sendNow(ctx, userID, payload)
+		s.delivery.mu.Lock()
+		stopping := s.delivery.stopping
+		s.delivery.mu.Unlock()
+		if !stopping {
+			s.sendBody(ctx, userID, body)
+		}
 		return
 	}
-	if s.shuttingDown.Load() {
-		return
-	}
-	// Своя горутина и свой контекст с таймаутом (не ctx запроса): вызывающая сторона
-	// (например, рассылка новости всем активным пользователям, notifyNewsPublished)
-	// не должна ждать НИ приобретения слота в пуле, ни самой отправки - Send()
-	// обязан вернуться мгновенно. Ограничение конкурентности (deliverySem) применяется
-	// ВНУТРИ этой уже отсоединённой горутины, а не здесь.
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-
-		// Ждём место в общем пуле НЕ по ctx запроса: тот отменится, как только
-		// Echo отправит ответ клиенту, а очередь на отправку может быть длиннее
-		// одного запроса (рассылка новости на сотни пользователей). Ограничена
-		// только явным Shutdown снаружи - при остановке горутина, застрявшая тут,
-		// просто не успеет за отведённый срок и умрёт вместе с процессом,
-		// не зависнув никого другого.
-		s.deliverySem <- struct{}{}
-		defer func() { <-s.deliverySem }()
-
-		sendCtx, cancel := context.WithTimeout(context.Background(), PushSendTimeout)
-		defer cancel()
-		s.sendNow(sendCtx, userID, payload)
-	}()
+	// Request cancellation does not retract a notification already stored in-app.
+	// enqueue is bounded and nonblocking; no goroutine is created for this job.
+	s.delivery.enqueue(userID, body, s.sendBody)
 }
 
 // Shutdown -- см. PushService.Shutdown.
 func (s *pushService) Shutdown(ctx context.Context) {
-	s.shuttingDown.Store(true)
-
-	done := make(chan struct{})
-	go func() {
-		s.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		slog.Info("push: все отправки завершены до остановки сервера")
-	case <-ctx.Done():
-		slog.Warn("push: остановка не дождалась части отправок - истёк отведённый срок, часть доставок и отметок об успехе может быть потеряна")
-	}
+	s.delivery.shutdown(ctx)
 }
 
-func (s *pushService) sendNow(ctx context.Context, userID int, payload PushPayload) {
-	var subs []models.PushSubscription
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&subs).Error; err != nil {
-		slog.Error("push: не удалось прочитать подписки пользователя", "user_id", userID, "error", err)
+const pushSubscriptionPageSize = 100
+
+func (s *pushService) sendBody(ctx context.Context, userID int, message []byte) {
+	if ctx.Err() != nil {
 		return
 	}
-	if len(subs) == 0 {
+	var upperID int
+	if err := s.db.WithContext(ctx).Model(&models.PushSubscription{}).
+		Where("user_id = ?", userID).Select("COALESCE(MAX(id), 0)").Scan(&upperID).Error; err != nil {
+		if ctx.Err() == nil {
+			slog.Error("push: не удалось определить границу подписок", "user_id", userID, "error", err)
+		}
 		return
 	}
-	message := buildPushMessage(payload)
-	for _, sub := range subs {
-		s.deliver(ctx, sub, message)
+	lastID := 0
+	for lastID < upperID && ctx.Err() == nil {
+		var subs []models.PushSubscription
+		if err := s.db.WithContext(ctx).
+			Select([]string{"id", "user_id", "endpoint", "p256dh", "auth", "failed_count"}).
+			Where("user_id = ? AND id > ? AND id <= ?", userID, lastID, upperID).
+			Order("id").Limit(pushSubscriptionPageSize).Find(&subs).Error; err != nil {
+			if ctx.Err() == nil {
+				slog.Error("push: не удалось прочитать подписки пользователя", "user_id", userID, "error", err)
+			}
+			return
+		}
+		if len(subs) == 0 {
+			return
+		}
+		lastID = subs[len(subs)-1].ID
+		for _, sub := range subs {
+			if ctx.Err() != nil {
+				return
+			}
+			s.deliver(ctx, sub, message)
+		}
 	}
 }
 
 func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, message []byte) {
+	if ctx.Err() != nil {
+		return
+	}
 	// Повторная проверка перед отправкой (#2466): в базе лежат подписки, сохранённые
 	// до того, как проверка появилась, а разрешение имени могло измениться с момента
 	// подписки. Неразрешимое имя допускается только с проверенной политикой маршрута:
 	// direct проверит IP при соединении, proxy ограничен разрешёнными службами.
 	if err := s.checkEndpoint(ctx, sub.Endpoint); err != nil && !errors.Is(err, errPushEndpointUnresolved) {
+		if ctx.Err() != nil {
+			return
+		}
 		slog.Warn("push: отправка отменена - недопустимый адрес службы уведомлений",
 			"subscription_id", sub.ID, "user_id", sub.UserID, "endpoint_host", pushEndpointHost(sub.Endpoint), "error", err)
 		// Через счётчик неудач, а не удалением на месте: причина остаётся видна
@@ -411,6 +397,9 @@ func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, 
 		// уйдёт после pushSubscriptionFailureLimit попыток - годным такой адрес уже
 		// не станет.
 		s.recordFailure(ctx, sub, "адрес отклонён проверкой: "+err.Error())
+		return
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	resp, err := webpush.SendNotificationWithContext(ctx, message, &webpush.Subscription{
@@ -424,6 +413,12 @@ func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, 
 		VAPIDPublicKey:  s.publicKey,
 		VAPIDPrivateKey: s.privateKey,
 	})
+	if ctx.Err() != nil {
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+		return
+	}
 	if err != nil {
 		if errors.Is(err, webpush.ErrMaxPadExceeded) {
 			// Payload не влез в бюджет push-сервиса ДО сетевого запроса (webpush-go
@@ -477,6 +472,9 @@ func (s *pushService) recordSuccess(ctx context.Context, id int) {
 // pushSubscriptionFailureLimit -- иначе мёртвые строки (сеть/таймаут/5xx без явного
 // 404/410) копились бы вечно.
 func (s *pushService) recordFailure(ctx context.Context, sub models.PushSubscription, errMsg string) {
+	if ctx.Err() != nil {
+		return
+	}
 	newCount := sub.FailedCount + 1
 	if newCount >= pushSubscriptionFailureLimit {
 		if err := s.db.WithContext(ctx).Delete(&models.PushSubscription{}, sub.ID).Error; err != nil {
@@ -491,34 +489,6 @@ func (s *pushService) recordFailure(ctx context.Context, sub models.PushSubscrip
 		Updates(map[string]any{"failed_count": newCount, "last_error": errMsg}).Error; err != nil {
 		slog.Error("push: не удалось записать неудачную доставку", "subscription_id", sub.ID, "error", err)
 	}
-}
-
-// buildPushMessage сериализует payload в JSON для webpush.SendNotificationWithContext,
-// обрезая длинный текст под предел размера push-сообщений (pushPayloadMaxMessageLen,
-// pushPayloadMaxTitleLen) - явно для обоих полей, не полагаясь на побочные ограничения
-// схемы БД.
-func buildPushMessage(payload PushPayload) []byte {
-	payload.Title = truncatePushText(payload.Title, pushPayloadMaxTitleLen)
-	payload.Message = truncatePushText(payload.Message, pushPayloadMaxMessageLen)
-	body, err := json.Marshal(payload)
-	if err != nil {
-		// Marshal валится только на нерепрезентируемых значениях (каналы/функции),
-		// которых в PushPayload нет -- сюда код дойти не должен, но best-effort
-		// пустой payload лучше, чем паника на фоне бизнес-операции.
-		slog.Error("push: не удалось сериализовать payload", "error", err)
-		return []byte("{}")
-	}
-	return body
-}
-
-// truncatePushText режет текст по границе рун, чтобы не разрезать многобайтовый символ
-// (кириллица) пополам.
-func truncatePushText(s string, max int) string {
-	r := []rune(s)
-	if len(r) <= max {
-		return s
-	}
-	return string(r[:max]) + "…"
 }
 
 // nullableString -- пустая строка становится nil: пустой User-Agent незачем хранить как
