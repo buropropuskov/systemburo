@@ -415,8 +415,21 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 
 	// map-обновление (а не Save структуры) - чтобы явно записать type=NULL при снятии типа.
 	// name_normalized пишем явно: BeforeSave до map-обновления не достаёт.
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("id = ?", companyID).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
+	var nameChanged bool
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&company, companyID).Error; err != nil {
+			return err
+		}
+		nameChanged = company.Name != req.Name
+		if err := tx.Model(&models.Company{}).
+			Where("id = ?", companyID).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
+			return err
+		}
+		if nameChanged {
+			return enqueueDirectoryArchiveExportTx(ctx, tx, companyModeration, companyID)
+		}
+		return nil
+	}); err != nil {
 		slog.Error("не удалось обновить компанию", "id", companyID, "error", err)
 		return nil, directoryWriteError(err, "Компания с таким названием уже существует", "Error updating company")
 	}
@@ -427,7 +440,9 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	company.Name = req.Name
 	company.Type = req.Type
 	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
-	nameChanged := oldName != req.Name
+	if nameChanged && s.blankExports != nil {
+		s.blankExports.EnqueueApplications(nil, BlankExportReasonUpdate)
+	}
 	typeChanged := !strPtrEqual(oldType, req.Type)
 	if !nameChanged && !typeChanged {
 		// Ничего не поменялось (PUT с теми же значениями) - не пишем ложную

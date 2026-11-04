@@ -180,7 +180,13 @@ func (s *EntityPeriodCommandService) run(ctx context.Context, actorID int, kind 
 		if kind == ElementCar {
 			entityType = models.AuditEntityCar
 		}
-		return s.recorder.Record(ctx, tx, entityType, &entityID, models.AuditActionDatesChanged, &actorID, details)
+		if err := s.recorder.Record(ctx, tx, entityType, &entityID, models.AuditActionDatesChanged, &actorID, details); err != nil {
+			return err
+		}
+		if snapshot.ApplicationID != nil {
+			return enqueueArchiveExportTx(ctx, tx, []int{*snapshot.ApplicationID}, BlankExportReasonUpdate)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err

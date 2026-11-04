@@ -509,7 +509,10 @@ func (s *AttachmentPeriodCommandService) run(ctx context.Context, actorID, appli
 			ChangedEmployeeIDs   []int                         `json:"changed_employee_ids"`
 			ChangedCarIDs        []int                         `json:"changed_car_ids"`
 		}{formatApplicationPeriods(oldPeriods), attachmentPeriodText(next), req.Reason, req.IndividualPolicy, before.Attachments, parents, result.ChangedEmployeeIDs, result.ChangedCarIDs}
-		return s.recorder.Record(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionDatesChanged, &actorID, details)
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionDatesChanged, &actorID, details); err != nil {
+			return err
+		}
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err

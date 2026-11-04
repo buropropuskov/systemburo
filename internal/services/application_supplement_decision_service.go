@@ -150,6 +150,9 @@ func (s *applicationService) DecideSupplement(ctx context.Context, username stri
 			return err
 		}
 
+		if req.Action == supplementActionAccept {
+			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
+		}
 		return nil
 	})
 	if err != nil {

@@ -388,16 +388,31 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 
 	// map-обновление (а не struct) - чтобы явно записать type=NULL при снятии типа.
 	// name_normalized пишем явно: BeforeSave до map-обновления не достаёт.
-	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
+	var nameChanged bool
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&org, id).Error; err != nil {
+			return err
+		}
+		nameChanged = org.Name != req.Name
+		if err := tx.Model(&models.Organization{}).
+			Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
+			return err
+		}
+		if nameChanged {
+			return enqueueDirectoryArchiveExportTx(ctx, tx, organizationModeration, id)
+		}
+		return nil
+	}); err != nil {
 		slog.Error("Не удалось обновить организацию", "id", id, "error", err)
 		return nil, directoryWriteError(err, "Организация с таким названием уже существует", "Error updating organization")
 	}
 	slog.Info("организация обновлена", "id", id, "name", req.Name)
+	if nameChanged && s.blankExports != nil {
+		s.blankExports.EnqueueApplications(nil, BlankExportReasonUpdate)
+	}
 	// org.* - старые значения (map-обновление структуру не трогает), req.* - новые.
 	// Различаем, что изменилось, чтобы история не писала «переименована» при
 	// смене одного лишь типа.
-	nameChanged := org.Name != req.Name
 	typeChanged := !strPtrEqual(org.Type, req.Type)
 	if !nameChanged && !typeChanged {
 		// Ничего не поменялось (PUT с теми же значениями) - не пишем ложную

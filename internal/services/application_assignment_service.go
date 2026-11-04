@@ -193,6 +193,7 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		changed := false
 		for _, elementID := range elementIDs {
 			var current []int
 			if err := tx.Raw(fmt.Sprintf("SELECT table_id FROM %s WHERE %s = ?", linkTable, linkColumn), elementID).
@@ -206,6 +207,7 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 			}
 
 			for _, tableID := range diffInts(target, current) {
+				changed = true
 				if err := tx.Exec(
 					fmt.Sprintf("INSERT INTO %s (%s, table_id, source) VALUES (?, ?, ?)", linkTable, linkColumn),
 					elementID, tableID, TargetTableSourceApprover,
@@ -218,6 +220,7 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 			}
 
 			for _, tableID := range diffInts(current, target) {
+				changed = true
 				if err := tx.Exec(
 					fmt.Sprintf("DELETE FROM %s WHERE %s = ? AND table_id = ?", linkTable, linkColumn),
 					elementID, tableID,
@@ -228,6 +231,9 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 					return err
 				}
 			}
+		}
+		if changed {
+			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 		}
 		return nil
 	})
@@ -264,6 +270,7 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		changed := false
 		for _, carID := range carIDs {
 			var current []int
 			if err := tx.Raw("SELECT unload_place_id FROM car_unload_places WHERE car_id = ? ORDER BY order_index", carID).
@@ -279,6 +286,7 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 				continue
 			}
 
+			changed = true
 			if err := tx.Exec("DELETE FROM car_unload_places WHERE car_id = ?", carID).Error; err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось обновить места разгрузки")
 			}
@@ -296,6 +304,9 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 			if err := s.recordUnloadPlacesChange(ctx, tx, carID, current, target, actx.userID); err != nil {
 				return err
 			}
+		}
+		if changed {
+			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 		}
 		return nil
 	})

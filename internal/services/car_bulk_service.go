@@ -185,7 +185,7 @@ func (s *carService) moveCarTable(ctx context.Context, carID, fromTableID int, t
 				return err
 			}
 		}
-		return nil
+		return s.enqueueArchiveExportForCarTx(ctx, tx, carID)
 	})
 }
 
@@ -204,6 +204,7 @@ func (s *carService) addCarTables(ctx context.Context, carID int, tableIDs []int
 		for _, id := range current {
 			currentSet[id] = struct{}{}
 		}
+		changed := false
 		for _, tableID := range tableIDs {
 			if _, ok := currentSet[tableID]; ok {
 				continue
@@ -211,12 +212,16 @@ func (s *carService) addCarTables(ctx context.Context, carID int, tableIDs []int
 			if err := tx.Create(&models.CarTargetTable{CarID: carID, TableID: tableID, Source: "manual"}).Error; err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error binding car table")
 			}
+			changed = true
 			currentSet[tableID] = struct{}{}
 			if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityCar, carID, tableID, actorID); err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car table history")
 			}
 		}
-		return nil
+		if !changed {
+			return nil
+		}
+		return s.enqueueArchiveExportForCarTx(ctx, tx, carID)
 	})
 }
 
@@ -248,7 +253,7 @@ func (s *carService) unbindCarTable(ctx context.Context, carID, tableID int, act
 				return err
 			}
 		}
-		return nil
+		return s.enqueueArchiveExportForCarTx(ctx, tx, carID)
 	})
 }
 
@@ -389,4 +394,12 @@ func (s *carService) carNumbersByIDs(ctx context.Context, ids []int) map[int]str
 		}
 	}
 	return out
+}
+
+// enqueueArchiveExportForCarTx resolves the application inside the row transaction.
+func (s *carService) enqueueArchiveExportForCarTx(ctx context.Context, tx *gorm.DB, carID int) error {
+	_, err := enqueueArchiveSelectionTx(ctx, tx, `SELECT a.application_id FROM cars c
+		JOIN attachments a ON a.id = c.attachment_id
+		WHERE c.id = ? AND a.application_id IS NOT NULL`, []interface{}{carID}, BlankExportReasonUpdate)
+	return err
 }

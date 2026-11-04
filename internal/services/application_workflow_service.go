@@ -133,6 +133,9 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 			}
 		}
 
+		if req.Action == "accept" || req.Action == "reject" {
+			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
+		}
 		return nil
 	})
 	if err != nil {
@@ -242,7 +245,7 @@ func (s *applicationService) returnToProcessing(ctx context.Context, username st
 			return err
 		}
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return err
@@ -318,7 +321,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to deactivate attachments")
 		}
 
-		return nil
+		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return err
@@ -526,6 +529,15 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 			return err
 		}
 		completedAppIDs = append(completedAppIDs, id)
+	}
+	archiveIDs := make([]int, 0, len(changedApps))
+	for _, id := range appIDs {
+		if changedApps[id] {
+			archiveIDs = append(archiveIDs, id)
+		}
+	}
+	if err := enqueueArchiveExportTx(ctx, tx, archiveIDs, BlankExportReasonUpdate); err != nil {
+		return err
 	}
 	if err := tx.Commit().Error; err != nil {
 		return err
