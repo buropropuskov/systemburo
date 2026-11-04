@@ -318,8 +318,8 @@ func (s *authService) accountLockSeconds(ctx context.Context, username string) i
 // эта попытка её не заперла). Таймер берётся БОЛЬШИЙ из двух: у слоёв разные
 // длительности (у адреса плоская минута, у учётки лестница), и показать меньший
 // значит пообещать вход раньше, чем он откроется.
-func (s *authService) loginFailureResponse(ip, username string, accountLockedUntil *time.Time) error {
-	remaining, blockedSec, _ := s.loginGuard.recordFailure(ip, username)
+func (s *authService) loginFailureResponse(lease *loginGuardLease, username string, accountLockedUntil *time.Time) error {
+	remaining, blockedSec, _ := s.loginGuard.recordFailure(lease, username)
 	if accountLockedUntil != nil {
 		if sec := secondsUntil(*accountLockedUntil); sec > blockedSec {
 			blockedSec = sec
@@ -394,6 +394,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		return nil, s.lockoutError(sec)
 	}
 
+	guardLease, err := s.loginGuard.reserve(ip)
+	if err != nil {
+		return nil, err
+	}
+	defer guardLease.release()
+
 	ctx, release, err := admitPasswordOperation(ctx)
 	if err != nil {
 		return nil, err
@@ -420,7 +426,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
 		// Счётчик показываем и для несуществующего логина (тот же ответ, что и при
 		// неверном пароле) - иначе по наличию счётчика можно перебирать имена.
-		return nil, s.loginFailureResponse(ip, req.Username, nil)
+		return nil, s.loginFailureResponse(guardLease, req.Username, nil)
 	}
 
 	// Учётка заблокирована - не разрешаем попытки (даже с правильным паролем),
@@ -453,7 +459,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 				return err
 			}
 			// RAM-счётчик следует за успешным commit под той же полосой, что success/reset.
-			response = s.loginFailureResponse(ip, transition.user.Username, transition.lockedUntil)
+			response = s.loginFailureResponse(guardLease, transition.user.Username, transition.lockedUntil)
 			return nil
 		})
 		if err != nil {

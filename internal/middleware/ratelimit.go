@@ -7,9 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
+)
+
+const (
+	rateLimitMaxKeys = 20000
+	// Retained int64 backing arrays only; map/key memory and old arrays awaiting
+	// garbage collection are outside this budget.
+	rateLimitMaxSlots = 1 << 20
 )
 
 type rateLimiter struct {
@@ -19,6 +27,14 @@ type rateLimiter struct {
 	window      int64 // seconds
 	now         func() time.Time
 	nextCleanup int64
+	maxKeys     int
+	maxSlots    int
+	slots       int // sum of cap(timestamps), not the number of live timestamps
+}
+
+type rateLimitResult struct {
+	retryAfter   int64
+	capacityBusy bool
 }
 
 // RateLimit limits requests by the address selected by Echo.IPExtractor.
@@ -48,15 +64,26 @@ func newRateLimit(limit int, windowSeconds int64, now func() time.Time,
 	key func(echo.Context) (string, error), message string,
 ) echo.MiddlewareFunc {
 	rl := &rateLimiter{requests: make(map[string][]int64), limit: limit, window: windowSeconds, now: now}
+	return rl.middleware(key, message)
+}
+
+func (rl *rateLimiter) middleware(key func(echo.Context) (string, error), message string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			identifier, err := key(c)
 			if err != nil {
 				return err
 			}
-			if retryAfter := rl.take(identifier); retryAfter > 0 {
-				c.Response().Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
-				return echo.NewHTTPError(http.StatusTooManyRequests, fmt.Sprintf(message, retryAfter))
+			result := rl.take(identifier)
+			if result.capacityBusy {
+				retry := strconv.FormatInt(result.retryAfter, 10)
+				c.Response().Header().Set("Retry-After", retry)
+				return apperr.New(http.StatusServiceUnavailable, "Сервис временно занят. Повторите запрос позже.").
+					WithHeader("Retry-After", retry)
+			}
+			if result.retryAfter > 0 {
+				c.Response().Header().Set("Retry-After", strconv.FormatInt(result.retryAfter, 10))
+				return echo.NewHTTPError(http.StatusTooManyRequests, fmt.Sprintf(message, result.retryAfter))
 			}
 			return next(c)
 		}
@@ -65,39 +92,107 @@ func newRateLimit(limit int, windowSeconds int64, now func() time.Time,
 
 // take atomically prunes, checks and records a request. Lazy cleanup avoids
 // creating a permanent goroutine for each limiter or test application.
-func (rl *rateLimiter) take(key string) int64 {
+// Frequency (429) and state-budget (503) rejections record no request.
+func (rl *rateLimiter) take(key string) rateLimitResult {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	now := rl.now().Unix()
 	cutoff := now - rl.window
+	// Zero fields retain the production defaults for existing private callers.
+	if rl.maxKeys == 0 {
+		rl.maxKeys = rateLimitMaxKeys
+	}
+	if rl.maxSlots == 0 {
+		rl.maxSlots = rateLimitMaxSlots
+	}
 	if now >= rl.nextCleanup {
 		for identifier, timestamps := range rl.requests {
-			if len(timestamps) == 0 || timestamps[len(timestamps)-1] <= cutoff {
+			live := false
+			for _, ts := range timestamps {
+				if ts > cutoff {
+					live = true
+					break
+				}
+			}
+			if !live {
+				rl.slots -= cap(timestamps)
 				delete(rl.requests, identifier)
 			}
 		}
 		rl.nextCleanup = now + 60
 	}
-	timestamps := rl.requests[key]
+	busy := func() rateLimitResult {
+		retryAfter := rl.nextCleanup - now
+		if retryAfter < 1 {
+			retryAfter = 1
+		}
+		return rateLimitResult{retryAfter: retryAfter, capacityBusy: true}
+	}
+	if rl.limit <= 0 || rl.window <= 0 || rl.maxKeys < 0 || rl.maxSlots < 0 {
+		return busy()
+	}
+	timestamps, exists := rl.requests[key]
+	validCount := 0
+	for _, ts := range timestamps {
+		if ts > cutoff {
+			validCount++
+		}
+	}
+	if validCount >= rl.limit {
+		valid := pruneRateTimestamps(timestamps, cutoff)
+		rl.requests[key] = valid
+		remaining := rl.window - (now - valid[0])
+		if remaining < 1 {
+			remaining = 1
+		}
+		return rateLimitResult{retryAfter: remaining}
+	}
+	if exists && validCount == 0 {
+		rl.slots -= cap(timestamps)
+		delete(rl.requests, key)
+		timestamps = nil
+		exists = false
+	}
+	if !exists && len(rl.requests) >= rl.maxKeys {
+		return busy()
+	}
+	if validCount == cap(timestamps) {
+		oldCap := cap(timestamps)
+		newCap := 1
+		if oldCap > 0 {
+			// Clamp before doubling so even an extreme configured limit cannot overflow.
+			newCap = rl.limit
+			if oldCap < rl.limit-oldCap {
+				newCap = 2 * oldCap
+			}
+		}
+		delta := newCap - oldCap
+		if delta > rl.maxSlots-rl.slots {
+			return busy()
+		}
+		grown := make([]int64, len(timestamps), newCap)
+		copy(grown, timestamps)
+		timestamps = grown
+		rl.slots += delta
+	}
+	valid := pruneRateTimestamps(timestamps, cutoff)
+	// Capacity was reserved above; this append cannot allocate.
+	valid = append(valid, now)
+	if rl.requests == nil {
+		rl.requests = make(map[string][]int64)
+	}
+	rl.requests[key] = valid
+	return rateLimitResult{}
+}
+
+func pruneRateTimestamps(timestamps []int64, cutoff int64) []int64 {
 	valid := timestamps[:0]
 	for _, ts := range timestamps {
 		if ts > cutoff {
 			valid = append(valid, ts)
 		}
 	}
-	if len(valid) >= rl.limit {
-		rl.requests[key] = valid
-		if len(valid) == 0 {
-			return 1
-		}
-		remaining := rl.window - (now - valid[0])
-		if remaining < 1 {
-			remaining = 1
-		}
-		return remaining
-	}
-	rl.requests[key] = append(valid, now)
-	return 0
+	return valid
 }
 
 // LoginRateLimit preserves the independent per-IP login budget.

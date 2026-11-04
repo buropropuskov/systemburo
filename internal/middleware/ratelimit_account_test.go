@@ -45,17 +45,17 @@ func TestAccountRateLimit_SharedIdentity(t *testing.T) {
 func TestRateLimit_WindowAndRetryAfter(t *testing.T) {
 	now := time.Unix(1000, 0)
 	rl := &rateLimiter{requests: map[string][]int64{}, limit: 2, window: 60, now: func() time.Time { return now }}
-	require.Zero(t, rl.take("a"))
+	require.Zero(t, rl.take("a").retryAfter)
 	now = now.Add(10 * time.Second)
-	require.Zero(t, rl.take("a"))
-	require.EqualValues(t, 50, rl.take("a"))
+	require.Zero(t, rl.take("a").retryAfter)
+	require.EqualValues(t, 50, rl.take("a").retryAfter)
 	now = now.Add(49 * time.Second)
-	require.EqualValues(t, 1, rl.take("a"))
+	require.EqualValues(t, 1, rl.take("a").retryAfter)
 	now = now.Add(time.Second)
-	require.Zero(t, rl.take("a"), "oldest entry expires exactly at the window boundary")
-	require.EqualValues(t, 10, rl.take("a"))
+	require.Zero(t, rl.take("a").retryAfter, "oldest entry expires exactly at the window boundary")
+	require.EqualValues(t, 10, rl.take("a").retryAfter)
 	now = now.Add(120 * time.Second)
-	require.Zero(t, rl.take("b"))
+	require.Zero(t, rl.take("b").retryAfter)
 	require.NotContains(t, rl.requests, "a", "inactive keys are pruned without background goroutines")
 }
 
@@ -68,7 +68,7 @@ func TestRateLimit_ConcurrentBudget(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if rl.take("same-account") == 0 {
+			if rl.take("same-account").retryAfter == 0 {
 				admitted.Add(1)
 			}
 		}()
