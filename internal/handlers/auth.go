@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -109,7 +110,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 			if err != nil {
 				return err
 			}
-			return echo.NewHTTPError(http.StatusServiceUnavailable,
+			return apperr.New(http.StatusServiceUnavailable,
 				"Сервис временно недоступен: технические работы")
 		}
 	}

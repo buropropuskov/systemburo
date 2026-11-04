@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"systemburo/internal/apperr"
+	"systemburo/internal/httpx"
 
 	"github.com/labstack/echo/v4"
 )
@@ -49,46 +51,41 @@ func RespondPaginated(c echo.Context, data any, meta any) error {
 // CustomHTTPErrorHandler wraps all errors in the unified envelope format.
 // Replaces Echo's default error handler. Единая точка маппинга ошибок в статус и
 // тело {success:false,error}: типизированные apperr.Error -> свой статус/сообщение,
-// echo.HTTPError -> как раньше, всё прочее -> 500 + лог.
+// echo.HTTPError поддерживает обёртки. Технические 5xx имеют нейтральный ответ.
 func CustomHTTPErrorHandler(err error, c echo.Context) {
 	if c.Response().Committed {
 		return
 	}
 
-	code := http.StatusInternalServerError
+	code := httpx.StatusCode(c, err)
 	msg := "Internal server error"
 
 	var ae *apperr.Error
-	if errors.As(err, &ae) {
-		code = ae.Code
+	if errors.As(err, &ae) && ae != nil {
 		msg = ae.Message
 		// Доп. заголовки ошибки (Retry-After и т.п.) выставляем до тела ответа.
 		for k, v := range ae.Headers {
 			c.Response().Header().Set(k, v)
 		}
-		if code >= http.StatusInternalServerError {
-			slog.Error("internal error", "error", err, "path", c.Request().URL.Path, "method", c.Request().Method)
-		}
-	} else if he, ok := err.(*echo.HTTPError); ok {
-		code = he.Code
-		switch m := he.Message.(type) {
-		case string:
-			msg = m
-		case error:
-			msg = m.Error()
-		default:
-			msg = http.StatusText(code)
-		}
-		// 5xx через echo.HTTPError раньше не логировался вовсе: клиент получал
-		// текст, а в логах не оставалось ничего, и такую аварию нельзя было
-		// разобрать постфактум. Путь этот массовый - сервисы отдают 500 именно так.
-		if code >= http.StatusInternalServerError {
-			slog.Error("internal error", "error", err, "path", c.Request().URL.Path, "method", c.Request().Method)
-		}
 	} else {
-		slog.Error("unhandled error", "error", err)
-		msg = "Internal server error"
+		var he *echo.HTTPError
+		if errors.As(err, &he) && he != nil && code < http.StatusInternalServerError {
+			switch m := he.Message.(type) {
+			case string:
+				msg = m
+			case error:
+				msg = m.Error()
+			default:
+				msg = http.StatusText(code)
+			}
+		}
 	}
 
-	c.JSON(code, Response{Success: false, Error: msg})
+	if code >= http.StatusInternalServerError {
+		slog.Error("internal error",
+			"status", code, "route", c.Path(), "method", c.Request().Method,
+			"request_id", c.Response().Header().Get(echo.HeaderXRequestID),
+			"error_type", fmt.Sprintf("%T", err))
+	}
+	_ = c.JSON(code, Response{Success: false, Error: msg})
 }

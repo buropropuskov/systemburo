@@ -23,6 +23,7 @@ import (
 	"systemburo/internal/entityarchive"
 	"systemburo/internal/handlers"
 	"systemburo/internal/httpx"
+	"systemburo/internal/logmask"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/models"
 	"systemburo/internal/pdsubject"
@@ -117,7 +118,9 @@ func main() {
 			Compress:   cfg.LogCompress,
 		})
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: logLevel})))
+	slog.SetDefault(slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{
+		Level: logLevel, ReplaceAttr: logmask.ReplaceAttr,
+	})))
 
 	encKey, err := crypto.ParseHexKey(cfg.DataEncryptionKey)
 	if err != nil {
@@ -141,7 +144,7 @@ func main() {
 	// в Postgres. Issue #184.
 	dsnWithTZ := database.EnsureUTCTimezone(cfg.DatabaseURL)
 	db, err := gorm.Open(postgres.Open(dsnWithTZ), &gorm.Config{
-		Logger: logger.Default.LogMode(gormLogLevel),
+		Logger: database.NewSafeLogger(slog.Default(), gormLogLevel),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -227,9 +230,10 @@ func main() {
 		"idle", cfg.HTTPIdleTimeout)
 
 	// Global middleware
+	e.Use(mw.PrivateAPICache())
 	e.Use(mw.RequestID())
-	e.Use(echomw.LoggerWithConfig(echomw.LoggerConfig{Output: logOut}))
-	e.Use(echomw.Recover())
+	e.Use(mw.DiagnosticLogger())
+	e.Use(mw.SafeRecover())
 	// Security headers: HSTS, CSP, X-Frame-Options и т.д. HSTS включается только
 	// в режиме CookieSecure (prod/staging) - на http://localhost HSTS бесполезен
 	// и даже вреден (браузер запомнит домен как HTTPS-only).

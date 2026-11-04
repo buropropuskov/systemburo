@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -22,7 +23,7 @@ func MaintenanceBlock(svc services.MaintenanceService) echo.MiddlewareFunc {
 			}
 			st := svc.GetStatusCached(c.Request().Context())
 			if st != nil && st.Enabled {
-				return echo.NewHTTPError(http.StatusServiceUnavailable,
+				return apperr.New(http.StatusServiceUnavailable,
 					"Сервис временно недоступен: технические работы")
 			}
 			return next(c)
