@@ -128,11 +128,15 @@ func HashPassword(password string) string {
 }
 
 func hashPassword(password string) string {
-	// Background не отменяется: сигнатура CLI/seed/testutil остаётся совместимой.
-	hash, err := hashPasswordContext(context.Background(), password)
-	if err != nil {
-		panic(err) // Background не отменяется; не выдаём пустой хеш при изменении контракта.
-	}
+	var hash string
+	withArgon2Slot(func() {
+		ctx := context.WithValue(context.Background(), passwordSlotKey{}, true)
+		var err error
+		hash, err = hashPasswordContext(ctx, password)
+		if err != nil {
+			panic(err)
+		}
+	})
 	return hash
 }
 
@@ -390,8 +394,14 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		return nil, s.lockoutError(sec)
 	}
 
+	ctx, release, err := admitPasswordOperation(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	var user models.User
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Preload("Organization").
 		Preload("Company").
 		Preload("UserType").

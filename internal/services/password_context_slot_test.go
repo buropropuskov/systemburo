@@ -55,7 +55,7 @@ func TestPasswordContextSlot_CancelledWaitDoesNotRunOrLoseSlot(t *testing.T) {
 		t.Fatal("cancelled slot waiter remained queued")
 	}
 	require.False(t, ran.Load())
-	sem := argon2Sem.Load().(chan struct{})
+	sem := passwordLimit.Load().slots
 	require.Len(t, sem, 1, "cancelled waiter must neither consume nor release the holder's slot")
 	releaseOnce.Do(func() { close(release) })
 	passwordContextAwait(t, holderDone)
@@ -67,7 +67,7 @@ func TestPasswordContextSlot_CancelledWaitDoesNotRunOrLoseSlot(t *testing.T) {
 func TestPasswordContextSlot_LegacyWaitAndPanicRelease(t *testing.T) {
 	SetArgon2Concurrency(1)
 	defer SetArgon2Concurrency(0)
-	sem := argon2Sem.Load().(chan struct{})
+	sem := passwordLimit.Load().slots
 	sem <- struct{}{}
 	entered, done := make(chan struct{}), make(chan struct{})
 	var ran atomic.Bool
@@ -118,7 +118,7 @@ func TestPasswordContextSlot_RunningWorkRetainsSlotUntilCompletion(t *testing.T)
 	go func() { defer close(done); result <- withArgon2SlotContext(ctx, func() { close(started); <-finish }) }()
 	passwordContextAwait(t, started)
 	cancel()
-	require.Len(t, argon2Sem.Load().(chan struct{}), 1, "cancellation must not detach running work from its memory slot")
+	require.Len(t, passwordLimit.Load().slots, 1, "cancellation must not detach running work from its memory slot")
 	select {
 	case <-result:
 		t.Fatal("running work returned before its controlled completion")
@@ -131,7 +131,7 @@ func TestPasswordContextSlot_RunningWorkRetainsSlotUntilCompletion(t *testing.T)
 	case <-time.After(5 * time.Second):
 		t.Fatal("completed computation retained its slot")
 	}
-	require.Empty(t, argon2Sem.Load().(chan struct{}))
+	require.Empty(t, passwordLimit.Load().slots)
 }
 
 func TestAuthTransitionGate_CancelledWaitIndependentStripeAndPanicRelease(t *testing.T) {

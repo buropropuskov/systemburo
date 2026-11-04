@@ -2,28 +2,29 @@ package services
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"runtime"
 	"sync/atomic"
+	"time"
+
+	"systemburo/internal/admission"
+	"systemburo/internal/apperr"
 )
 
-// argon2Sem ограничивает число одновременных вычислений Argon2id.
-//
-// Проверка пароля намеренно дорогая: каждая держит 19 МБ рабочей памяти и занимает
-// ядро целиком (m=19456, t=2, p=1). Без предела утренний вход смены умножает эти
-// 19 МБ на число одновременных попыток, и защита от подбора пароля превращается в
-// способ положить сервер силами собственных пользователей.
-//
-// Слот занимается только на время самого IDKey, поэтому лишние входы ждут очереди -
-// именно ждут, а не получают отказ: вход, отклонённый из-за нагрузки, человек
-// повторит вручную, и очередь от этого станет длиннее, а не короче.
-//
-// Хранится через atomic.Value, а не простой переменной: перенастройка происходит
-// один раз на старте, но hashPassword зовут и параллельные тесты пакета, а обычная
-// запись в переменную рядом с их чтениями - гонка, и go test -race её ловит.
-var argon2Sem atomic.Value
+const passwordQueueWait = 2 * time.Second
+
+type passwordLimiter struct {
+	slots chan struct{}
+	gate  *admission.Gate
+}
+
+var passwordLimit atomic.Pointer[passwordLimiter]
+
+type passwordSlotKey struct{}
 
 func init() {
-	argon2Sem.Store(make(chan struct{}, defaultArgon2Concurrency()))
+	SetArgon2Concurrency(0)
 }
 
 // defaultArgon2Concurrency - по числу доступных процессору ядер. Больше смысла не
@@ -43,40 +44,54 @@ func SetArgon2Concurrency(n int) {
 	if n <= 0 {
 		n = defaultArgon2Concurrency()
 	}
-	argon2Sem.Store(make(chan struct{}, n))
+	slots := make(chan struct{}, n)
+	passwordLimit.Store(&passwordLimiter{
+		slots: slots,
+		gate:  admission.NewWithSlots(slots, 2*n, passwordQueueWait),
+	})
 }
 
 // argon2Concurrency сообщает действующий предел.
 func argon2Concurrency() int {
-	return cap(argon2Sem.Load().(chan struct{}))
+	return cap(passwordLimit.Load().slots)
 }
 
-// withArgon2Slot выполняет fn, заняв слот семафора, и освобождает его после.
-// Семафор захватывается в локальную переменную: занять слот одного экземпляра, а
-// освободить у другого - значит навсегда потерять место в очереди, если между двумя
-// строками кто-то вызвал SetArgon2Concurrency.
+// withArgon2Slot обслуживает синхронные CLI и fixtures с прежним контрактом.
 func withArgon2Slot(fn func()) {
-	// Legacy-вызовы без context сохраняют прежнее ожидание свободного слота.
-	_ = withArgon2SlotContext(context.Background(), fn)
+	slots := passwordLimit.Load().slots
+	slots <- struct{}{}
+	defer func() { <-slots }()
+	fn()
 }
 
-// withArgon2SlotContext отменяет ожидание, но не отрывает начатый Argon2 от слота.
-// Уже выполняющийся IDKey завершается синхронно; отменённый результат не используется.
+// admitPasswordOperation вызывается до транзакции. Производный контекст
+// используется только внутри синхронной операции, пока её слот занят.
+func admitPasswordOperation(ctx context.Context) (context.Context, func(), error) {
+	if err := ctx.Err(); err != nil {
+		return ctx, nil, err
+	}
+	if ctx.Value(passwordSlotKey{}) != nil {
+		return ctx, func() {}, nil
+	}
+	release, err := passwordLimit.Load().gate.Acquire(ctx)
+	if errors.Is(err, admission.ErrBusy) {
+		err = apperr.New(http.StatusServiceUnavailable,
+			"Сервис временно занят. Повтори попытку чуть позже.", err).
+			WithHeader("Retry-After", "2")
+	}
+	if err != nil {
+		return ctx, nil, err
+	}
+	return context.WithValue(ctx, passwordSlotKey{}, true), release, nil
+}
+
+// Начатый IDKey завершается синхронно и удерживает слот до окончания.
 func withArgon2SlotContext(ctx context.Context, fn func()) error {
-	if err := ctx.Err(); err != nil {
+	ctx, release, err := admitPasswordOperation(ctx)
+	if err != nil {
 		return err
 	}
-	sem := argon2Sem.Load().(chan struct{})
-	select {
-	case sem <- struct{}{}:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	defer func() { <-sem }()
-	// Отмена и свободный слот могли стать готовы одновременно.
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+	defer release()
 	fn()
 	return ctx.Err()
 }

@@ -544,6 +544,11 @@ func (s *userService) updatePassword(ctx context.Context, callerUserID int, user
 	if err != nil {
 		return err
 	}
+	ctx, release, err := admitPasswordOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	var user models.User
 	hashed, err := hashPasswordContext(ctx, req.Password)
 	if err != nil {
@@ -669,6 +674,11 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 		return apperr.New(http.StatusServiceUnavailable, "Не удалось прочитать пользователя", err)
 	}
 
+	ctx, release, err := admitPasswordOperation(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	currentMatches, err := verifyPasswordContext(ctx, user.Password, req.CurrentPassword)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
