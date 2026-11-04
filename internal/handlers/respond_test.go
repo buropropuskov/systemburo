@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,13 @@ func TestCustomHTTPErrorHandler_AppErr(t *testing.T) {
 		{"forbidden", apperr.Forbidden("нет доступа"), http.StatusForbidden, "нет доступа"},
 		{"wrapped keeps code", apperr.Validation("плохой ввод", errors.New("low-level")), http.StatusBadRequest, "плохой ввод"},
 		{"echo httperror still works", echo.NewHTTPError(http.StatusTeapot, "teapot"), http.StatusTeapot, "teapot"},
+		{"wrapped echo", fmt.Errorf("private wrapper: %w", echo.NewHTTPError(http.StatusForbidden, "denied")), http.StatusForbidden, "denied"},
+		{"echo 500 private message", echo.NewHTTPError(500, "private SQL or path"), 500, "Internal server error"},
+		{"wrapped echo 503", fmt.Errorf("private wrapper: %w", echo.NewHTTPError(503, "private detail")), 503, "Internal server error"},
+		{"domain safe server message", apperr.Internal("Не удалось открыть шаблон", errors.New("private path")), 500, "Не удалось открыть шаблон"},
+		{"trusted maintenance", apperr.New(503, "Сервис временно недоступен: технические работы"), 503, "Сервис временно недоступен: технические работы"},
+		{"generic", errors.New("private SQL or path"), 500, "Internal server error"},
+		{"invalid echo status", echo.NewHTTPError(200, "private detail"), 500, "Internal server error"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -76,15 +84,38 @@ func TestCustomHTTPErrorHandler_LogsServerErrors(t *testing.T) {
 
 			e := echo.New()
 			rec := httptest.NewRecorder()
-			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/some/path", nil), rec)
+			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/private-person?token=private-token", nil), rec)
+			c.SetPath("/api/:id")
+			rec.Header().Set(echo.HeaderXRequestID, "generated-request-id")
 
 			handlers.CustomHTTPErrorHandler(tc.err, c)
 
 			logged := strings.Contains(buf.String(), "internal error")
 			require.Equal(t, tc.wantLog, logged, "лог: %q", buf.String())
 			if tc.wantLog {
-				require.Contains(t, buf.String(), "/api/some/path", "в логе должен быть путь запроса")
+				require.Contains(t, buf.String(), "/api/:id")
+				require.Contains(t, buf.String(), "request_id=generated-request-id")
+				require.Contains(t, buf.String(), "error_type=")
+				require.NotContains(t, buf.String(), "private-person")
+				require.NotContains(t, buf.String(), "private-token")
+				require.NotContains(t, buf.String(), tc.err.Error())
 			}
 		})
 	}
+}
+
+func TestCustomHTTPErrorHandler_DomainHeadersAndCommittedResponse(t *testing.T) {
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+	handlers.CustomHTTPErrorHandler(fmt.Errorf("private wrapper: %w",
+		apperr.New(503, "Сервис временно занят").WithHeader("Retry-After", "2")), c)
+	require.Equal(t, 503, rec.Code)
+	require.Equal(t, "2", rec.Header().Get("Retry-After"))
+	require.NotContains(t, rec.Body.String(), "private wrapper")
+
+	before := rec.Body.String()
+	handlers.CustomHTTPErrorHandler(echo.ErrInternalServerError, c)
+	require.Equal(t, 503, rec.Code)
+	require.Equal(t, before, rec.Body.String())
 }

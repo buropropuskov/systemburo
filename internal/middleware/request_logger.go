@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"systemburo/internal/logmask"
+	"systemburo/internal/httpx"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -154,15 +154,18 @@ func (w *RequestLogWriter) Middleware() echo.MiddlewareFunc {
 
 			err := next(c)
 
-			if skipRequestLog(c.Request().URL.Path, c.Response().Status) {
+			status := httpx.StatusCode(c, err)
+			if skipRequestLog(c.Request().URL.Path, status) {
 				return err
 			}
 
 			elapsed := time.Since(start)
 
 			method := c.Request().Method
-			reqURL := logmask.Query(c.Request().URL)
-			status := c.Response().Status
+			reqURL := c.Path()
+			if reqURL == "" {
+				reqURL = "/unmatched"
+			}
 			durationMs := int(elapsed.Milliseconds())
 			durationUs := elapsed.Microseconds()
 

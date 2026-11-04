@@ -1,6 +1,10 @@
 package middleware
 
 import (
+	"strings"
+
+	"systemburo/internal/httpx"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -14,23 +18,33 @@ const (
 )
 
 // RequestID returns middleware that ensures every request has a unique ID.
-// If the client sends an X-Request-ID header, that value is reused;
-// otherwise a new UUID v4 is generated. The ID is stored in the
+// A UUID supplied by the proxy is reused. Other values are replaced.
+// The ID is stored in the
 // echo.Context and set as a response header.
 func RequestID() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			reqID := c.Request().Header.Get(HeaderRequestID)
-			if reqID == "" {
+			if !validRequestID(reqID) {
 				reqID = uuid.New().String()
 			}
+			reqID = strings.ToLower(reqID)
 
 			c.Set(ContextKeyRequestID, reqID)
+			c.SetRequest(c.Request().WithContext(httpx.WithRequestID(c.Request().Context(), reqID)))
 			c.Response().Header().Set(HeaderRequestID, reqID)
 
 			return next(c)
 		}
 	}
+}
+
+func validRequestID(value string) bool {
+	if len(value) != 32 && len(value) != 36 {
+		return false
+	}
+	_, err := uuid.Parse(value)
+	return err == nil
 }
 
 // GetRequestID extracts the request ID from the echo.Context.

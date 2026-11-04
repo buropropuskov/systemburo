@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -215,11 +216,11 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
 	templateBytes, err := s.loadTemplateFile(template.FilePath)
 	if err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+		return nil, "", apperr.Internal("Не удалось открыть шаблон", err)
 	}
 	f, err := OpenSpreadsheet(templateBytes)
 	if err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+		return nil, "", apperr.Internal("Не удалось открыть шаблон", err)
 	}
 	defer f.Close()
 	sheet := f.GetSheetName(0)
@@ -331,11 +332,11 @@ func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueA
 
 	templateBytes, err := s.loadTemplateFile(template.FilePath)
 	if err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+		return nil, "", apperr.Internal("Не удалось открыть шаблон", err)
 	}
 	f, err := OpenSpreadsheet(templateBytes)
 	if err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+		return nil, "", apperr.Internal("Не удалось открыть шаблон", err)
 	}
 	defer f.Close()
 
@@ -344,14 +345,14 @@ func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueA
 		TemplateID:         template.ID,
 		ListStartRow:       template.ListStartRow,
 	}); err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
-			fmt.Sprintf("Не удалось подготовить бланк (шаблон %d): %s", template.ID, err.Error()))
+		return nil, "", apperr.Internal("Не удалось подготовить бланк",
+			fmt.Errorf("stamp template %d: %w", template.ID, err))
 	}
 
 	var buf bytes.Buffer
 	if _, err := f.WriteTo(&buf); err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
-			fmt.Sprintf("Не удалось собрать бланк (шаблон %d): %s", template.ID, err.Error()))
+		return nil, "", apperr.Internal("Не удалось собрать бланк",
+			fmt.Errorf("write template %d: %w", template.ID, err))
 	}
 	return bytes.NewReader(buf.Bytes()), emptyBlankFilename(&ua, template.OriginalFileName), nil
 }

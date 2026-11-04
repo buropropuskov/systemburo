@@ -2,12 +2,11 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
+	"systemburo/internal/httpx"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -328,14 +327,7 @@ func isAvailableAttachmentPath(path string) bool {
 // ошибок уже после цепочки middleware, поэтому у неудачного запроса Response().Status
 // здесь ещё дефолтные 200 - и отказ в доступе попадал в журнал как успешный просмотр.
 func pdStatusCode(c echo.Context, err error) int {
-	var he *echo.HTTPError
-	if errors.As(err, &he) && he.Code != 0 {
-		return he.Code
-	}
-	if err != nil && !c.Response().Committed {
-		return http.StatusInternalServerError
-	}
-	return c.Response().Status
+	return httpx.StatusCode(c, err)
 }
 
 // pdUserID достаёт идентификатор пользователя из контекста JWT: по одному имени

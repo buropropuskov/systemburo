@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"systemburo/internal/httpx"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -46,10 +47,7 @@ func callMW(t *testing.T, enabled bool, isSuperAdmin bool) int {
 		return c.NoContent(http.StatusOK)
 	})
 	if err := h(ctx); err != nil {
-		if he, ok := err.(*echo.HTTPError); ok {
-			return he.Code
-		}
-		return http.StatusInternalServerError
+		return httpx.StatusCode(ctx, err)
 	}
 	return rec.Code
 }
