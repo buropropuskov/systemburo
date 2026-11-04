@@ -1,9 +1,13 @@
 package services
 
 import (
-	"sort"
+	"crypto/sha256"
+	"net/http"
+	"strconv"
 	"sync"
 	"time"
+
+	"systemburo/internal/apperr"
 )
 
 // loginFailureWindow - окно накопления неудачных попыток входа. Неудачи старше
@@ -18,9 +22,11 @@ const guardUsernamesPerIP = 16
 
 // guardMaxEntries - потолок числа адресов в памяти. Ступень пары живёт сутки,
 // поэтому без потолка перебор с тысяч адресов раздувал бы карту весь этот срок.
-// Сверх потолка вытесняются самые давние из незаблокированных: они уже ничего
-// не стерегут, а действующая блокировка не теряется.
+// Включает зарезервированные незавершёнными попытками записи. Состояние,
+// влияющее на счётчик или ступень блокировки, не вытесняется ради нового адреса.
 const guardMaxEntries = 20000
+
+const guardCleanupInterval = 5 * time.Minute
 
 // loginGuard - счётчик НЕУДАЧНЫХ попыток входа в памяти. Ведёт два среза:
 //
@@ -35,21 +41,25 @@ const guardMaxEntries = 20000
 //
 // Счётчик "осталось попыток" по той же причине показывается всегда и одинаково.
 type loginGuard struct {
-	mu       sync.Mutex
-	entries  map[string]*loginAttempt
-	max      int
-	window   time.Duration
-	blockDur time.Duration
+	mu          sync.Mutex
+	entries     map[string]*loginAttempt
+	max         int
+	window      time.Duration
+	blockDur    time.Duration
+	maxEntries  int
+	now         func() time.Time
+	nextCleanup time.Time
 }
 
 type loginAttempt struct {
+	refs         int
 	failures     int
 	lastFailure  time.Time
 	blockedUntil time.Time
-	// users - состояние по каждому логину, который падал с этого адреса. Нужно
+	// users - состояние по SHA256 точных байтов логина, который падал с адреса. Нужно
 	// и для лестницы по паре, и для адресного сброса администратором: без второго
 	// админ снимает лок с учётки, а человек упирается в блокировку своего адреса.
-	users map[string]*userAttempt
+	users map[[sha256.Size]byte]*userAttempt
 }
 
 // userAttempt - срез счётчика по паре «адрес + логин». level повторяет ступень
@@ -63,13 +73,73 @@ type userAttempt struct {
 
 func newLoginGuard(max int, window, blockDur time.Duration) *loginGuard {
 	g := &loginGuard{
-		entries:  make(map[string]*loginAttempt),
-		max:      max,
-		window:   window,
-		blockDur: blockDur,
+		entries:    make(map[string]*loginAttempt),
+		max:        max,
+		window:     window,
+		blockDur:   blockDur,
+		maxEntries: guardMaxEntries,
+		now:        time.Now,
 	}
-	go g.cleanup()
 	return g
+}
+
+// loginGuardLease keeps an address resident until the attempt finishes, including
+// when a concurrent success or administrative reset clears its counters.
+type loginGuardLease struct {
+	guard    *loginGuard
+	ip       string
+	entry    *loginAttempt
+	released bool
+}
+
+func (g *loginGuard) reserve(ip string) (*loginGuardLease, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	lease := &loginGuardLease{guard: g, ip: ip}
+	if ip == "" {
+		return lease, nil
+	}
+	now := g.now()
+	g.cleanupLocked(now)
+	entry := g.entries[ip]
+	if entry == nil {
+		if len(g.entries) >= g.maxEntries {
+			wait := g.nextCleanup.Sub(now)
+			seconds := int64(wait / time.Second)
+			if wait%time.Second > 0 {
+				seconds++
+			}
+			if seconds < 1 {
+				seconds = 1
+			}
+			return nil, apperr.New(http.StatusServiceUnavailable,
+				"Сервис временно занят. Повтори попытку чуть позже.").
+				WithHeader("Retry-After", strconv.FormatInt(seconds, 10))
+		}
+		entry = &loginAttempt{users: make(map[[sha256.Size]byte]*userAttempt)}
+		g.entries[ip] = entry
+	}
+	entry.refs++
+	lease.entry = entry
+	return lease, nil
+}
+
+func (lease *loginGuardLease) release() {
+	g := lease.guard
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if lease.released {
+		return
+	}
+	lease.released = true
+	if lease.entry == nil {
+		return
+	}
+	lease.entry.refs--
+	if lease.entry.refs == 0 && lease.entry.failures == 0 && lease.entry.lastFailure.IsZero() &&
+		lease.entry.blockedUntil.IsZero() && len(lease.entry.users) == 0 {
+		delete(g.entries, lease.ip)
+	}
 }
 
 // blockedSeconds возвращает остаток блокировки в секундах, если адрес или пара
@@ -85,13 +155,14 @@ func (g *loginGuard) blockedSeconds(ip, username string) (int, bool) {
 	if e == nil {
 		return 0, false
 	}
-	now := time.Now()
+	now := g.now()
+	g.cleanupLocked(now)
 	sec := 0
 	if e.blockedUntil.After(now) {
-		sec = secondsUntil(e.blockedUntil)
+		sec = guardSecondsUntil(e.blockedUntil, now)
 	}
-	if u := e.users[username]; u != nil && u.blockedUntil.After(now) {
-		if s := secondsUntil(u.blockedUntil); s > sec {
+	if u := e.users[sha256.Sum256([]byte(username))]; u != nil && u.blockedUntil.After(now) {
+		if s := guardSecondsUntil(u.blockedUntil, now); s > sec {
 			sec = s
 		}
 	}
@@ -102,21 +173,17 @@ func (g *loginGuard) blockedSeconds(ip, username string) (int, bool) {
 // блокировки и, если попытка исчерпала лимит, остаток её длительности. Остаток
 // попыток - меньший из двух срезов: он не должен обещать больше, чем есть.
 // Пустой ip не учитывается (remaining = max).
-func (g *loginGuard) recordFailure(ip, username string) (remaining, blockedSec int, blocked bool) {
-	if ip == "" {
-		return g.max, 0, false
-	}
+func (g *loginGuard) recordFailure(lease *loginGuardLease, username string) (remaining, blockedSec int, blocked bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	now := time.Now()
-	e := g.entries[ip]
-	if e == nil {
-		if len(g.entries) >= guardMaxEntries {
-			g.pruneLocked(now)
-		}
-		e = &loginAttempt{users: make(map[string]*userAttempt)}
-		g.entries[ip] = e
+	if lease == nil || lease.guard != g || lease.released {
+		panic("login failure requires an active guard reservation")
 	}
+	if lease.entry == nil {
+		return g.max, 0, false
+	}
+	now := g.now()
+	e := lease.entry
 
 	// Срез по адресу: плоская блокировка.
 	if g.cycleExpired(e.blockedUntil, e.lastFailure, now) {
@@ -127,7 +194,7 @@ func (g *loginGuard) recordFailure(ip, username string) (remaining, blockedSec i
 	e.lastFailure = now
 	if e.failures >= g.max {
 		e.blockedUntil = now.Add(g.blockDur)
-		blockedSec = secondsUntil(e.blockedUntil)
+		blockedSec = guardSecondsUntil(e.blockedUntil, now)
 	}
 	remaining = g.max - e.failures
 	if remaining < 0 {
@@ -137,10 +204,11 @@ func (g *loginGuard) recordFailure(ip, username string) (remaining, blockedSec i
 	// Срез по паре «адрес + логин»: лестница. Новый логин сверх потолка своего
 	// среза не заводит - за него отвечает счётчик адреса, который к этому моменту
 	// заведомо близок к блокировке.
-	u := e.users[username]
+	key := sha256.Sum256([]byte(username))
+	u := e.users[key]
 	if u == nil && username != "" && len(e.users) < guardUsernamesPerIP {
 		u = &userAttempt{}
-		e.users[username] = u
+		e.users[key] = u
 	}
 	if u != nil {
 		if g.cycleExpired(u.blockedUntil, u.lastFailure, now) {
@@ -157,7 +225,7 @@ func (g *loginGuard) recordFailure(ip, username string) (remaining, blockedSec i
 			u.blockedUntil = now.Add(stepDuration(g.blockDur, u.level))
 			u.level++
 			u.failures = 0
-			if sec := secondsUntil(u.blockedUntil); sec > blockedSec {
+			if sec := guardSecondsUntil(u.blockedUntil, now); sec > blockedSec {
 				blockedSec = sec
 			}
 		}
@@ -187,7 +255,19 @@ func (g *loginGuard) reset(ip string) {
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	delete(g.entries, ip)
+	g.resetLocked(ip)
+}
+
+func (g *loginGuard) resetLocked(ip string) {
+	e := g.entries[ip]
+	if e == nil {
+		return
+	}
+	if e.refs == 0 {
+		delete(g.entries, ip)
+		return
+	}
+	*e = loginAttempt{refs: e.refs, users: make(map[[sha256.Size]byte]*userAttempt)}
 }
 
 // resetUser снимает счётчики со всех адресов, где падал этот логин. Зовётся, когда
@@ -201,73 +281,50 @@ func (g *loginGuard) resetUser(username string) int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	cleared := 0
+	key := sha256.Sum256([]byte(username))
 	for ip, e := range g.entries {
-		if _, ok := e.users[username]; ok {
-			delete(g.entries, ip)
+		if _, ok := e.users[key]; ok {
+			g.resetLocked(ip)
 			cleared++
 		}
 	}
 	return cleared
 }
 
-func (g *loginGuard) cleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for range ticker.C {
-		g.mu.Lock()
-		g.pruneLocked(time.Now())
-		g.mu.Unlock()
+func (g *loginGuard) cleanupLocked(now time.Time) {
+	if !now.Before(g.nextCleanup) {
+		g.pruneLocked(now)
+		g.nextCleanup = now.Add(guardCleanupInterval)
 	}
 }
 
-// pruneLocked выбрасывает отработавшие записи и, если после этого адресов всё
-// ещё больше потолка, самые давние из незаблокированных. Вызывается под мьютексом.
+// pruneLocked removes only state that no longer affects failures or the ladder.
+// In-flight attempts retain their address even when all counters have expired.
 func (g *loginGuard) pruneLocked(now time.Time) {
 	for ip, e := range g.entries {
-		// Пара живёт дольше окна: в ней лестница, и забыть её сразу значит
+		// Поднятая ступень пары живёт дольше окна: забыть её сразу значит
 		// отдать перебирающему свежий цикл с первой ступени.
 		for name, u := range e.users {
-			idle := u.lastFailure.IsZero() || now.Sub(u.lastFailure) > lockoutLevelDecay
-			if idle && !u.blockedUntil.After(now) {
+			idle := u.lastFailure.IsZero() || g.cycleExpired(u.blockedUntil, u.lastFailure, now)
+			levelDone := u.level == 0 || now.Sub(u.lastFailure) > lockoutLevelDecay
+			if idle && levelDone && !u.blockedUntil.After(now) {
 				delete(e.users, name)
 			}
 		}
 		blockDone := e.blockedUntil.IsZero() || !e.blockedUntil.After(now)
-		stale := e.lastFailure.IsZero() || now.Sub(e.lastFailure) > g.window
-		if blockDone && stale && len(e.users) == 0 {
+		stale := e.lastFailure.IsZero() || g.cycleExpired(e.blockedUntil, e.lastFailure, now)
+		if e.refs == 0 && blockDone && stale && len(e.users) == 0 {
 			delete(g.entries, ip)
 		}
 	}
-	if len(g.entries) <= guardMaxEntries {
-		return
+}
+
+func guardSecondsUntil(until, now time.Time) int {
+	seconds := int(until.Sub(now) / time.Second)
+	if seconds < 1 {
+		return 1
 	}
-	type aged struct {
-		ip   string
-		seen time.Time
-	}
-	free := make([]aged, 0, len(g.entries))
-	for ip, e := range g.entries {
-		if e.blockedUntil.After(now) {
-			continue
-		}
-		blocked := false
-		for _, u := range e.users {
-			if u.blockedUntil.After(now) {
-				blocked = true
-				break
-			}
-		}
-		if !blocked {
-			free = append(free, aged{ip, e.lastFailure})
-		}
-	}
-	sort.Slice(free, func(i, j int) bool { return free[i].seen.Before(free[j].seen) })
-	for _, item := range free {
-		if len(g.entries) <= guardMaxEntries {
-			break
-		}
-		delete(g.entries, item.ip)
-	}
+	return seconds
 }
 
 func secondsUntil(t time.Time) int {
