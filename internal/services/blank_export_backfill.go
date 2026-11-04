@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"systemburo/internal/models"
-
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // Backfill ставит в очередь на выгрузку все заявки периода [from, toExclusive), по
@@ -53,22 +52,22 @@ func (s *BlankExportService) Backfill(ctx context.Context, from, toExclusive tim
 		return 0, ErrArchiveDisabled
 	}
 
-	q := s.db.WithContext(ctx).Model(&models.Application{}).
-		Where("sending_datetime >= ? AND sending_datetime < ?", from, toExclusive)
+	selection := "SELECT a.id AS application_id FROM applications a WHERE a.sending_datetime >= ? AND a.sending_datetime < ?"
+	args := []interface{}{from, toExclusive}
 	if uniqueAttachmentID != nil {
-		// EXISTS, а не JOIN: заявке с двумя вложениями искомого типа полагается одна
-		// запись в очереди, а не по одной на каждое совпадение.
-		q = q.Where(
-			"EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = applications.id AND att.unique_attachment_id = ?)",
-			*uniqueAttachmentID,
-		)
+		selection += " AND EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.unique_attachment_id = ?)"
+		args = append(args, *uniqueAttachmentID)
 	}
-
-	var ids []int
-	if err := q.Pluck("id", &ids).Error; err != nil {
-		return 0, fmt.Errorf("failed to select applications for archive backfill: %w", err)
+	selection += " ORDER BY application_id"
+	var queued int64
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var enqueueErr error
+		queued, enqueueErr = s.outbox.EnqueueSelectionTx(ctx, tx, selection, args, BlankExportReasonBackfill)
+		return enqueueErr
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to enqueue archive backfill: %w", err)
 	}
-
-	s.EnqueueApplications(ids, BlankExportReasonBackfill)
-	return len(ids), nil
+	s.outbox.Nudge()
+	return int(queued), nil
 }

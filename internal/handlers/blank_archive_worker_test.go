@@ -229,8 +229,8 @@ func archiveWorkerSweepLimitSection(t *testing.T, w archiveWorld) {
 	require.NoError(t, w.db.Exec("DELETE FROM blank_exports").Error)
 	t.Cleanup(func() { require.NoError(t, w.db.Exec("DELETE FROM blank_exports").Error) })
 
-	// Строки заведомо несуществующих заявок: выгрузка каждой отваливается на первом
-	// же запросе, зато прогон дёшев, а проверить надо ровно потолок выборки.
+	// Строки заведомо несуществующих заявок помечаются сиротами: повторять такую
+	// выгрузку бесконечно нельзя, а проверить надо ровно потолок выборки.
 	// Реестр живёт без внешних ключей, такие строки для него легальны.
 	past := time.Now().Add(-time.Minute)
 	rows := make([]models.BlankExport, 0, archiveWorkerBatchLimit+1)
@@ -250,9 +250,17 @@ func archiveWorkerSweepLimitSection(t *testing.T, w archiveWorld) {
 	defer slog.SetDefault(restore)
 
 	processed, failed := svc.Sweep(ctx)
-	assert.Zero(t, processed, "заявок под этими строками не существует - выгружать нечего")
-	assert.Equal(t, archiveWorkerBatchLimit, failed,
+	assert.Zero(t, failed, "подтверждённое отсутствие заявки учитывается терминально")
+	assert.Equal(t, archiveWorkerBatchLimit, processed,
 		"прогон обязан упереться в потолок выборки, а не забрать всё разом")
+	var orphans, remaining int64
+	require.NoError(t, w.db.Model(&models.BlankExport{}).Where("status = ?", models.BlankExportOrphan).Count(&orphans).Error)
+	require.EqualValues(t, archiveWorkerBatchLimit, orphans)
+	require.NoError(t, w.db.Model(&models.BlankExport{}).Where("status = ? AND next_attempt_at IS NOT NULL", models.BlankExportFailed).Count(&remaining).Error)
+	require.EqualValues(t, 1, remaining, "остаток должен дождаться следующей ограниченной пачки")
+	processed, failed = svc.Sweep(ctx)
+	require.Equal(t, 1, processed, "учтённые сироты не должны занимать повторную пачку")
+	require.Zero(t, failed)
 }
 
 // Ночная сверка перепроверяет заявки окна recheck_days и возвращает на диск файл,

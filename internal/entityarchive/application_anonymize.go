@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"systemburo/internal/archivecoord"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 )
@@ -91,6 +92,11 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 		return res, nil
 	}
 
+	release, err := archivecoord.Acquire(ctx)
+	if err != nil {
+		return AnonymizeResult{}, err
+	}
+	defer release()
 	// Существование проверяется до уничтожения файлов: ошибиться идентификатором
 	// заявки можно, а вернуть снятый с диска скан паспорта - нет.
 	exists, err := applicationExists(ctx, db, id)
@@ -101,6 +107,9 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 		return AnonymizeResult{}, errApplicationNotFound
 	}
 
+	if err := services.NewArchiveExportOutbox(db).Suppress(ctx, id); err != nil {
+		return AnonymizeResult{}, fmt.Errorf("запрет повторной выгрузки заявки #%d: %w", id, err)
+	}
 	res := AnonymizeResult{Type: TypeApplication, ID: id, Tables: applicationAnonymizeTargets()}
 	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true)
 	if err != nil {
