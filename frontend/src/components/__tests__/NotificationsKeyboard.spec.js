@@ -27,6 +27,9 @@ beforeEach(() => {
     matches: true, addEventListener: (_name, callback) => { mediaChange = callback; },
     removeEventListener: vi.fn(),
   }));
+  apiRequest.mockResolvedValue({ ok: true, json: async () => ({
+    id: 1, is_read: true, type: 'info', title: 'Сообщение', message: 'Свежий текст', data: null,
+  }) });
   apiRequestRaw.mockResolvedValue({
     ok: true,
     json: async () => ({ success: true, data: [{ id: 1, is_read: true, title: 'Сообщение', message: 'Текст', created_at: '2030-01-01T12:00:00Z' }], meta: { total: 1, unread_count: 0 } }),
@@ -69,7 +72,11 @@ describe('Notification opening and mobile focus', () => {
     button.click();
     await flushPromises();
     expect(document.querySelector('[data-testid="notif-detail-dialog"]')).not.toBeNull();
-    expect(apiRequest).not.toHaveBeenCalled();
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith('/notifications/1/read', {
+      method: 'PUT', body: JSON.stringify({ is_read: true }),
+      silent403: true, silent: true, localServerErrors: true,
+    });
+    expect(document.querySelector('.notif-detail-dialog__message').textContent).toBe('Свежий текст');
     wrapper.vm.showDetailModal = false;
     await nextTick();
     expect(document.activeElement).toBe(button);

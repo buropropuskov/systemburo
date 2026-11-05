@@ -5,7 +5,7 @@ vi.mock('@/api/client', () => ({
   apiRequestRaw: vi.fn(),
 }));
 import { apiRequest, apiRequestRaw } from '@/api/client';
-import { getNotificationsPaginated, markAllNotificationsRead } from '../notifications';
+import { getNotificationsPaginated, markAllNotificationsRead, readNotificationDetails } from '../notifications';
 
 function rawOk(body) {
   return { ok: true, status: 200, json: vi.fn().mockResolvedValue(body) };
@@ -19,6 +19,34 @@ function okJson(payload) {
 
 describe('api/notifications', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  describe('readNotificationDetails', () => {
+    const dto = { id: 7, is_read: true, type: 'application_question',
+      title: 'Есть обновление', message: 'Есть обновление', data: null };
+    it('returns the complete unwrapped public DTO and sends a real read even for an already-read row', async () => {
+      apiRequest.mockResolvedValue(okJson(dto));
+      expect(await readNotificationDetails(7)).toBe(dto);
+      expect(apiRequest).toHaveBeenCalledExactlyOnceWith('/notifications/7/read', {
+        method: 'PUT', body: JSON.stringify({ is_read: true }),
+        silent403: true, silent: true, localServerErrors: true,
+      });
+    });
+    it.each([403, 404, 500])('rejects HTTP %s without returning cached details', async status => {
+      apiRequest.mockResolvedValue(rawErr({ message: 'Отказ' }, status));
+      await expect(readNotificationDetails(7)).rejects.toThrow();
+    });
+    it.each([null, [], { ...dto, id: 8 }, { ...dto, is_read: false }, { ...dto, message: null },
+      { ...dto, data: '{broken' }, { ...dto, data: '[]' }, { ...dto, data: '{}' , title: undefined }])('rejects an invalid DTO %#', async value => {
+      apiRequest.mockResolvedValue(okJson(value));
+      await expect(readNotificationDetails(7)).rejects.toThrow();
+    });
+    it('propagates a network failure and rejects a broken JSON response', async () => {
+      apiRequest.mockRejectedValueOnce(new Error('network'));
+      await expect(readNotificationDetails(7)).rejects.toThrow();
+      apiRequest.mockResolvedValueOnce({ ok: true, json: async () => { throw new Error('json'); } });
+      await expect(readNotificationDetails(7)).rejects.toThrow();
+    });
+  });
 
   describe('getNotificationsPaginated', () => {
     it('шлёт limit/offset/filter и разворачивает data+meta (envelope, не .json() apiRequest)', async () => {
