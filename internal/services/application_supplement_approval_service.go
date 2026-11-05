@@ -498,7 +498,7 @@ func (s *applicationService) notifySupplementReadyForApprovers(ctx context.Conte
 	message := fmt.Sprintf("Дополнение №%d к заявке %s согласовано - требуется принятие.", round.Number, appNumber)
 
 	for _, userID := range recipients {
-		if err := s.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationSupplementReady,
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationSupplementReady, ApplicationID: applicationID, SupplementID: round.ID}), userID, NotificationTypeApplicationSupplementReady,
 			"Дополнение согласовано", message, &payloadStr); err != nil {
 			slog.Warn("дополнение: уведомление принимающему не создано", "user_id", userID,
 				"application_id", applicationID, "err", err)

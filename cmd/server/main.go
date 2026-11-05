@@ -250,6 +250,7 @@ func main() {
 		ContentSecurityPolicy: "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'",
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 	}))
+	e.Use(mw.BodyAdmission())
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	ipLimiter := mw.RateLimit(cfg.RateLimitIPPerMinute, cfg.RateLimitIPWindowSec)
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {

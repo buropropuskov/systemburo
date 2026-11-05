@@ -2,7 +2,7 @@ package handlers_test
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"testing"
 
 	"systemburo/internal/models"
@@ -15,7 +15,7 @@ import (
 
 // TestUserService_UpdatePassword_AdminChange_CreatesNotification проверяет, что
 // при смене пароля админом (id вызывающего != целевого) у пользователя
-// появляется уведомление password_changed с текстом про администратора.
+// появляется уведомление password_changed с текущей безопасной проекцией для UI.
 func TestUserService_UpdatePassword_AdminChange_CreatesNotification(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -62,7 +62,19 @@ func TestUserService_UpdatePassword_AdminChange_CreatesNotification(t *testing.T
 	assert.NotContains(t, *n.Message, "Администратор")
 	require.NotNil(t, n.Data)
 	assert.Contains(t, *n.Data, "changed_at")
-	assert.Contains(t, *n.Data, fmt.Sprintf("\"changed_by_user_id\": %d", callerUserID))
+	assert.NotContains(t, *n.Data, "changed_by_user_id")
+	assert.Nil(t, n.ProjectionRef, "internal actor provenance is not a public response field")
+	var stored models.Notification
+	require.NoError(t, db.First(&stored, n.ID).Error)
+	assert.Equal(t, "Есть обновление", *stored.Title)
+	assert.Equal(t, "Есть обновление", *stored.Message)
+	assert.Nil(t, stored.Data)
+	require.NotNil(t, stored.ProjectionRef)
+	var reference struct {
+		ActorID int `json:"actor_id"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(*stored.ProjectionRef), &reference))
+	assert.Equal(t, callerUserID, reference.ActorID, "the original actor is retained only in server provenance")
 }
 
 // TestUserService_UpdatePassword_SelfChange_Notification проверяет, что при

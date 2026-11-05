@@ -30,13 +30,23 @@ func TestNotifications_Create_Admin(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&target).Error)
 
-	body := fmt.Sprintf(`{"user_id":%d,"title":"Внимание"}`, target.ID)
+	body := fmt.Sprintf(`{"user_id":%d,"title":"Внимание","type":"application_forwarded","message":"Private manual text","data":"{\"application_id\":701,\"projection_ref\":{\"v\":1,\"type\":\"application_forwarded\",\"application_id\":701,\"actor_id\":1,\"facts\":{}}}"}`, target.ID)
 	rec := testutil.POST(t, e, "/notifications", body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	n := testutil.ParseMap(t, rec)
-	assert.Equal(t, "Внимание", n["title"])
+	assert.Equal(t, "Есть обновление", n["title"])
+	assert.Equal(t, "Есть обновление", n["message"])
+	assert.Nil(t, n["data"])
+	assert.NotContains(t, n, "projection_ref")
+	assert.NotContains(t, n, "group_key")
 	assert.Equal(t, float64(target.ID), n["user_id"])
+	var stored models.Notification
+	require.NoError(t, db.Where("user_id = ?", target.ID).Take(&stored).Error)
+	assert.Equal(t, "Есть обновление", *stored.Title)
+	assert.Equal(t, "Есть обновление", *stored.Message)
+	assert.Nil(t, stored.Data)
+	assert.Nil(t, stored.ProjectionRef)
 }
 
 // TestNotifications_Create_Forbidden_NonAdmin: обычный пользователь не может

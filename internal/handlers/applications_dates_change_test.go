@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -151,11 +153,30 @@ func TestChangeDates_ApproverChangesPeriod(t *testing.T) {
 
 	assert.Equal(t, 1, datesNotifCount(t, db, senderID), "заявитель уведомлён")
 	assert.Equal(t, 0, datesNotifCount(t, db, actorID), "автору правки уведомление не шлём")
-	var message string
-	require.NoError(t, db.Raw("SELECT message FROM notifications WHERE user_id = ? AND type = 'application_dates_changed'", senderID).
-		Scan(&message).Error)
-	assert.Contains(t, message, datesFixture("стало 01.02.2099 08:30 - 03.02.2099 20:00"))
-	assert.Contains(t, message, "Причина: заявитель ошибся на месяц")
+	var stored models.Notification
+	require.NoError(t, db.Where("user_id = ? AND type = ?", senderID, services.NotificationTypeApplicationDatesChanged).Take(&stored).Error)
+	assert.Equal(t, "Есть обновление", *stored.Title)
+	assert.Equal(t, "Есть обновление", *stored.Message)
+	require.NotNil(t, stored.ProjectionRef)
+	assert.NotContains(t, *stored.ProjectionRef, "заявитель ошибся на месяц")
+	feed, err := services.NewNotificationService(db).GetByUserID(context.Background(), senderID)
+	require.NoError(t, err)
+	require.Len(t, feed, 1)
+	assert.Equal(t, stored.ID, feed[0].ID)
+	assert.Contains(t, *feed[0].Message, resp.Data.OldPeriod)
+	assert.Contains(t, *feed[0].Message, resp.Data.NewPeriod)
+	require.NotNil(t, feed[0].Data)
+	var projectedData map[string]any
+	require.NoError(t, json.Unmarshal([]byte(*feed[0].Data), &projectedData))
+	assert.EqualValues(t, appID, projectedData["application_id"])
+	assert.Equal(t, resp.Data.OldPeriod, projectedData["old_period"])
+	assert.Equal(t, resp.Data.NewPeriod, projectedData["new_period"])
+	assert.Equal(t, resp.Data.ApprovalsReset, projectedData["approvals_reset"])
+	assert.Nil(t, feed[0].ProjectionRef)
+	publicJSON, err := json.Marshal(feed)
+	require.NoError(t, err)
+	assert.NotContains(t, string(publicJSON), "projection_ref")
+	assert.NotContains(t, string(publicJSON), "заявитель ошибся на месяц")
 }
 
 // Поданный голос сохраняется; ожидающий участник продолжает согласование нового окна.
@@ -199,10 +220,16 @@ func TestChangeDates_PreservesCastVotes(t *testing.T) {
 	assert.Equal(t, models.ConfirmationPending, confirmation)
 
 	assert.Equal(t, 1, datesNotifCount(t, db, voterA), "согласующий уведомлён")
-	var message string
-	require.NoError(t, db.Raw("SELECT message FROM notifications WHERE user_id = ? AND type = 'application_dates_changed'", voterA).
-		Scan(&message).Error)
-	assert.NotContains(t, message, "сброшены")
+	feed, err := services.NewNotificationService(db).GetByUserID(context.Background(), voterA)
+	require.NoError(t, err)
+	require.Len(t, feed, 1)
+	require.NotNil(t, feed[0].Message)
+	assert.Contains(t, *feed[0].Message, datesFixture("01.03.2099"), "проверяется содержательная проекция нового периода")
+	assert.NotContains(t, *feed[0].Message, "сброшены")
+	require.NotNil(t, feed[0].Data)
+	var projectedData map[string]any
+	require.NoError(t, json.Unmarshal([]byte(*feed[0].Data), &projectedData))
+	assert.Equal(t, false, projectedData["approvals_reset"])
 	var voteAfter string
 	require.NoError(t, db.Raw(`SELECT ROW(approval_status, approval_comment, approval_datetime)::text
 		FROM application_responsible_users WHERE application_id = ? AND user_id = ?`, appID, voterA).Scan(&voteAfter).Error)

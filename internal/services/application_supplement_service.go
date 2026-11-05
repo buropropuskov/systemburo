@@ -808,7 +808,7 @@ func (s *applicationService) notifySupplementApprovers(ctx context.Context, appl
 		if userID == authorID {
 			continue
 		}
-		if err := s.notificationService.CreateForUser(ctx, userID,
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationApprovalRequired, ApplicationID: applicationID, SupplementID: supplement.ID, ActorID: authorID, Variant: "supplement", Facts: notificationEventFacts{InWork: inWork}}), userID,
 			NotificationTypeApplicationApprovalRequired, "Требуется согласование", message, &payloadStr); err != nil {
 			slog.Warn("дополнение: уведомление не создано", "user_id", userID, "application_id", applicationID, "err", err)
 		}

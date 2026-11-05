@@ -60,12 +60,19 @@ func TestCreateForUser_SendsPush(t *testing.T) {
 	calls := sender.Calls()
 	require.Len(t, calls, 1, "уведомление должно уйти в push ровно один раз")
 	assert.Equal(t, userID, calls[0].userID)
-	assert.Equal(t, "Статус изменился", calls[0].payload.Title)
-	assert.Equal(t, "Заявка согласована", calls[0].payload.Message)
-	assert.Equal(t, services.NotificationTypeApplicationStatusChanged, calls[0].payload.Type)
-	require.NotNil(t, calls[0].payload.ApplicationID)
-	assert.Equal(t, 701, *calls[0].payload.ApplicationID)
+	assert.Equal(t, "Бюро пропусков", calls[0].payload.Title)
+	assert.Equal(t, "Есть обновление", calls[0].payload.Message)
+	assert.Empty(t, calls[0].payload.Type)
+	assert.Nil(t, calls[0].payload.ApplicationID)
+	assert.Equal(t, "/personal-cabinet", calls[0].payload.URL)
 	assert.NotZero(t, calls[0].payload.NotificationID)
+	var stored models.Notification
+	require.NoError(t, db.First(&stored, calls[0].payload.NotificationID).Error)
+	assert.Equal(t, userID, stored.UserID)
+	assert.Equal(t, "Есть обновление", *stored.Title)
+	assert.Equal(t, "Есть обновление", *stored.Message)
+	assert.Nil(t, stored.ProjectionRef, "unreferenced caller data cannot establish provenance")
+	assert.Nil(t, stored.Data)
 }
 
 // TestCreateForUser_DisabledPreference_NoPush защищает порядок: точка вызова push стоит
@@ -95,7 +102,7 @@ func TestCreateForUser_DisabledPreference_NoPush(t *testing.T) {
 
 // TestCreateForUser_Collapse_SendsPushForEachEvent защищает срез "схлопывание тоже
 // событие для человека" (#974): второе событие той же группы обновляет существующую
-// запись ленты, но push должно уйти и на него, с актуальным (обновлённым) текстом.
+// запись ленты, но generic push должен уйти и на него с тем же notification ID.
 func TestCreateForUser_Collapse_SendsPushForEachEvent(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -122,8 +129,19 @@ func TestCreateForUser_Collapse_SendsPushForEachEvent(t *testing.T) {
 
 	calls := sender.Calls()
 	require.Len(t, calls, 2, "push должен уйти на оба события, включая схлопнутое")
-	assert.Equal(t, "Первое сообщение", calls[0].payload.Message)
-	assert.Equal(t, "Второе сообщение", calls[1].payload.Message)
+	for _, call := range calls {
+		assert.Equal(t, userID, call.userID)
+		assert.Equal(t, "Бюро пропусков", call.payload.Title)
+		assert.Equal(t, "Есть обновление", call.payload.Message)
+		assert.Empty(t, call.payload.Type)
+		assert.Nil(t, call.payload.ApplicationID)
+		assert.Equal(t, "/personal-cabinet", call.payload.URL)
+		assert.Equal(t, stored.ID, call.payload.NotificationID)
+	}
+	assert.Equal(t, "Есть обновление", *stored.Title)
+	assert.Equal(t, "Есть обновление", *stored.Message)
+	assert.Nil(t, stored.Data)
+	assert.Nil(t, stored.ProjectionRef)
 	assert.Equal(t, stored.ID, calls[1].payload.NotificationID, "push схлопнутого события ссылается на ту же запись")
 }
 
@@ -143,11 +161,18 @@ func TestNotificationsCreate_Admin_SendsPush(t *testing.T) {
 	ctx := context.Background()
 
 	title := "Важное объявление"
-	_, err := svc.Create(ctx, models.CreateNotificationRequest{UserID: userID, Title: &title})
+	created, err := svc.Create(ctx, models.CreateNotificationRequest{UserID: userID, Title: &title})
 	require.NoError(t, err)
 
 	calls := sender.Calls()
 	require.Len(t, calls, 1)
 	assert.Equal(t, userID, calls[0].userID)
-	assert.Equal(t, title, calls[0].payload.Title)
+	assert.Equal(t, "Бюро пропусков", calls[0].payload.Title)
+	assert.Equal(t, "Есть обновление", calls[0].payload.Message)
+	assert.Empty(t, calls[0].payload.Type)
+	assert.Nil(t, calls[0].payload.ApplicationID)
+	assert.Equal(t, "/personal-cabinet", calls[0].payload.URL)
+	assert.Equal(t, created.ID, calls[0].payload.NotificationID)
+	assert.Equal(t, "Есть обновление", *created.Title)
+	assert.Nil(t, created.ProjectionRef)
 }

@@ -103,7 +103,7 @@ func (s *UserBanService) notifyBanned(ctx context.Context, targetUserID, actorUs
 	dataStr := string(dataBytes)
 
 	if err := s.notificationService.CreateForUser(
-		ctx, targetUserID, NotificationTypeUserBanned,
+		withNotificationReference(ctx, notificationReference{Type: NotificationTypeUserBanned, ActorID: actorUserID}), targetUserID, NotificationTypeUserBanned,
 		"Учётная запись заблокирована", message, &dataStr,
 	); err != nil {
 		slog.Warn("не удалось создать уведомление о блокировке учётки", "user_id", targetUserID, "error", err)
@@ -130,7 +130,7 @@ func (s *UserBanService) notifyUnbanned(ctx context.Context, targetUserID, actor
 	dataStr := string(dataBytes)
 
 	if err := s.notificationService.CreateForUser(
-		ctx, targetUserID, NotificationTypeUserUnbanned,
+		withNotificationReference(ctx, notificationReference{Type: NotificationTypeUserUnbanned, ActorID: actorUserID}), targetUserID, NotificationTypeUserUnbanned,
 		"Учётная запись разблокирована", "Доступ к вашей учётной записи восстановлен.", &dataStr,
 	); err != nil {
 		slog.Warn("не удалось создать уведомление о разблокировке учётки", "user_id", targetUserID, "error", err)

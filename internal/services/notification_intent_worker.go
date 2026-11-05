@@ -68,8 +68,12 @@ func (w *NotificationIntentWorker) Process(ctx context.Context) (processed, fail
 		if err == nil {
 			err = w.db.WithContext(jobCtx).Transaction(func(tx *gorm.DB) error {
 				var app notificationIntentApplication
+				columns := "id, application_number, organization_id, company_id, sender_user_id, message"
+				if importedNotificationIntent(candidate.Kind) {
+					columns = "id, organization_id, company_id, sender_user_id"
+				}
 				loadErr := tx.Table("applications").Clauses(clause.Locking{Strength: "KEY SHARE"}).
-					Select("id, application_number, organization_id, company_id, sender_user_id, message").
+					Select(columns).
 					Where("id = ?", candidate.ApplicationID).Take(&app).Error
 				if errors.Is(loadErr, gorm.ErrRecordNotFound) {
 					// No rows may be recreated after physical purge.
@@ -142,18 +146,30 @@ func (w *NotificationIntentWorker) retry(ctx context.Context, intent models.Noti
 
 func (w *NotificationIntentWorker) prepareModeratorRights(ctx context.Context, intent models.NotificationIntent) (map[int]bool, error) {
 	rights := make(map[int]bool)
-	if intent.Kind != notificationIntentSubmit || (intent.PendingOrganizationID == nil && intent.PendingCompanyID == nil) {
+	if (intent.Kind != notificationIntentSubmit && intent.Kind != notificationIntentImportedSubmit) || (intent.PendingOrganizationID == nil && intent.PendingCompanyID == nil) {
 		return rights, nil
 	}
 	if w.app.permissionResolver == nil {
 		return nil, fmt.Errorf("notification moderation resolver is required")
 	}
-	audience, err := notificationIntentAudience(ctx, w.db, intent.ApplicationID, intent.ActorUserID)
+	excludedID := intent.ActorUserID
+	if intent.Kind == notificationIntentImportedSubmit {
+		var app struct{ SenderUserID int }
+		err := w.db.WithContext(ctx).Table("applications").Select("sender_user_id").Where("id = ?", intent.ApplicationID).Take(&app).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return rights, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		excludedID = app.SenderUserID
+	}
+	audience, err := notificationIntentAudience(ctx, w.db, intent.ApplicationID, excludedID)
 	if err != nil {
 		return nil, err
 	}
 	for _, userID := range audience {
-		if userID == intent.ActorUserID {
+		if userID == excludedID {
 			continue
 		}
 		set, err := w.app.permissionResolver.ResolveFresh(ctx, userID)

@@ -100,14 +100,13 @@ func (s *notificationService) GetByUserID(ctx context.Context, userID int) ([]mo
 	// будто оно только что создано заново. У обычного, не схлопнутого уведомления
 	// last_event_at пуст, и сортировка падает обратно на created_at. id DESC вторым
 	// ключом - устойчивость при совпадении момента (например, массовая рассылка).
-	err := s.db.WithContext(ctx).
-		Where("user_id = ?", userID).
+	err := s.notificationMetadataQuery(ctx, userID, "all").
 		Order("COALESCE(last_event_at, created_at) DESC, id DESC").
 		Find(&notifications).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching notifications")
 	}
-	return notifications, nil
+	return s.projectNotifications(ctx, userID, notifications)
 }
 
 // notificationListQuery -- базовый запрос ленты с фильтром read/unread, без сортировки и
@@ -129,7 +128,7 @@ func (s *notificationService) GetByUserIDPaginated(ctx context.Context, userID, 
 	}
 
 	notifications := make([]models.Notification, 0, limit)
-	err := s.notificationListQuery(ctx, userID, filter).
+	err := s.notificationMetadataQuery(ctx, userID, filter).
 		Order("COALESCE(last_event_at, created_at) DESC, id DESC").
 		Limit(limit).Offset(offset).
 		Find(&notifications).Error
@@ -146,12 +145,16 @@ func (s *notificationService) GetByUserIDPaginated(ctx context.Context, userID, 
 		return nil, 0, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting unread notifications")
 	}
 
-	return notifications, total, unread, nil
+	projected, err := s.projectNotifications(ctx, userID, notifications)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return projected, total, unread, nil
 }
 
 func (s *notificationService) findOwned(ctx context.Context, userID int, id int) (*models.Notification, error) {
 	var n models.Notification
-	err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).First(&n).Error
+	err := s.notificationMetadataQuery(ctx, userID, "all").Where("id = ?", id).First(&n).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Notification not found")
 	}
@@ -167,6 +170,10 @@ func (s *notificationService) MarkRead(ctx context.Context, userID int, id int, 
 		return nil, err
 	}
 
+	projected, err := s.projectNotifications(ctx, userID, []models.Notification{*n})
+	if err != nil {
+		return nil, err
+	}
 	result := s.db.WithContext(ctx).Model(n).Where("user_id = ?", userID).Update("is_read", req.IsRead)
 	if result.Error != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating notification")
@@ -175,8 +182,8 @@ func (s *notificationService) MarkRead(ctx context.Context, userID int, id int, 
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Notification not found")
 	}
 
-	n.IsRead = req.IsRead
-	return n, nil
+	projected[0].IsRead = req.IsRead
+	return &projected[0], nil
 }
 
 // MarkAllRead -- один UPDATE по user_id AND is_read=false, без выборки в память.
@@ -239,10 +246,9 @@ func (s *notificationService) Create(ctx context.Context, req models.CreateNotif
 	}
 	n := models.Notification{
 		UserID:  req.UserID,
-		Type:    req.Type,
-		Title:   req.Title,
-		Message: req.Message,
-		Data:    req.Data,
+		Type:    notificationStoredType(notifType),
+		Title:   notificationString(genericNotificationText),
+		Message: notificationString(genericNotificationText),
 	}
 	if err := s.db.WithContext(ctx).Create(&n).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating notification")
@@ -254,7 +260,12 @@ func (s *notificationService) Create(ctx context.Context, req models.CreateNotif
 		s.realtimePublisher.Publish(n.UserID, realtime.Event{Type: "notification.new", Scope: "notifications"})
 	}
 	s.sendPush(ctx, &n)
-	return &n, nil
+	// Manual payloads cannot supply server provenance, including via req.Data.
+	projected, err := s.projectNotifications(ctx, req.UserID, []models.Notification{n})
+	if err != nil {
+		return nil, err
+	}
+	return &projected[0], nil
 }
 
 // CreateForUser -- helper для триггеров из других сервисов. Ключ схлопывания
@@ -278,6 +289,7 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 		var err error
 		dispatches, err = s.PersistNotificationBatchTx(ctx, tx, []NotificationDraft{{
 			UserID: userID, Type: notifType, Title: title, Message: message, Data: data, GroupKey: groupKey,
+			reference: notificationReferenceFromContext(ctx, notifType),
 		}})
 		return err
 	})
@@ -295,6 +307,7 @@ type NotificationDraft struct {
 	Type, Title, Message string
 	Data                 *string
 	GroupKey             string
+	reference            *notificationReference
 }
 
 // NotificationDispatch refers to a row already persisted by the caller's TX.
@@ -345,14 +358,15 @@ func (s *notificationService) persistNotification(ctx context.Context, draft Not
 	if err != nil || !allowed {
 		return nil, err
 	}
-	t, ti, m := draft.Type, draft.Title, draft.Message
-	n := &models.Notification{UserID: draft.UserID, Type: &t, Title: &ti, Message: &m, CreatedAt: now}
-	if draft.Data != nil {
-		data := *draft.Data
-		n.Data = &data
-	}
+	// Persist no personal preview, including when policy changed after a producer
+	// formatted its draft. References and whitelisted technical facts are enough
+	// to rebuild the current DTO. Existing history is never backfilled.
+	n := &models.Notification{UserID: draft.UserID, Type: notificationStoredType(draft.Type),
+		Title: notificationString(genericNotificationText), Message: notificationString(genericNotificationText),
+		CreatedAt: now, ProjectionRef: encodeNotificationReference(draft.reference)}
+	n.Data = notificationStoredData(n.ProjectionRef)
 	if draft.GroupKey != "" {
-		id, collapsed, err := s.collapseNotificationAt(ctx, draft.UserID, draft.Type, draft.GroupKey, draft.Message, draft.Data, now)
+		id, collapsed, err := s.collapseNotificationAt(ctx, draft.UserID, draft.Type, draft.GroupKey, genericNotificationText, n.Data, now, n.ProjectionRef)
 		if err != nil {
 			return nil, err
 		}
@@ -392,7 +406,19 @@ func (s *notificationService) collapseNotification(ctx context.Context, userID i
 	return s.collapseNotificationAt(ctx, userID, notifType, groupKey, message, data, time.Now())
 }
 
-func (s *notificationService) collapseNotificationAt(ctx context.Context, userID int, notifType, groupKey, message string, data *string, now time.Time) (int, bool, error) {
+func (s *notificationService) collapseNotificationAt(ctx context.Context, userID int, notifType, groupKey, message string, data *string, now time.Time, references ...*string) (int, bool, error) {
+	var reference *string
+	if len(references) == 1 {
+		reference = references[0]
+	}
+	if parsed, valid := decodeNotificationReference(reference, &notifType); valid {
+		reference = encodeNotificationReference(&parsed)
+	} else {
+		reference = nil
+	}
+	// Keep this internal boundary safe as well as persistNotification: legacy
+	// callers/tests cannot append a new raw snapshot by invoking collapse directly.
+	data = notificationStoredData(reference)
 	cutoff := now.Add(-notificationAggregationWindow)
 	var row models.Notification
 	result := s.db.WithContext(ctx).Model(&row).
@@ -400,10 +426,11 @@ func (s *notificationService) collapseNotificationAt(ctx context.Context, userID
 		Where("user_id = ? AND type = ? AND group_key = ? AND is_read = ? AND COALESCE(last_event_at, created_at) >= ?",
 			userID, notifType, groupKey, false, cutoff).
 		Updates(map[string]any{
-			"count":         gorm.Expr("count + 1"),
-			"last_event_at": now,
-			"message":       message,
-			"data":          data,
+			"count":          gorm.Expr("count + 1"),
+			"last_event_at":  now,
+			"message":        genericNotificationText,
+			"data":           data,
+			"projection_ref": reference,
 		})
 	if result.Error != nil {
 		return 0, false, echo.NewHTTPError(http.StatusInternalServerError, "Error collapsing notification")
@@ -419,22 +446,7 @@ func (s *notificationService) sendPush(ctx context.Context, n *models.Notificati
 	if s.pushSender == nil {
 		return
 	}
-	title, message, notifType := "", "", ""
-	if n.Title != nil {
-		title = *n.Title
-	}
-	if n.Message != nil {
-		message = *n.Message
-	}
-	if n.Type != nil {
-		notifType = *n.Type
-	}
-	payload := PushPayload{Title: title, Message: message, Type: notifType, NotificationID: n.ID}
-	if p := parseNotificationDataPayload(n.Data); p != nil {
-		if id, ok := notificationPayloadInt(p, "application_id"); ok {
-			payload.ApplicationID = &id
-		}
-	}
+	payload := genericPushPayload(n.ID)
 	s.pushSender.Send(ctx, n.UserID, payload)
 }
 
@@ -476,7 +488,7 @@ func (s *notificationService) recipientAcceptsNotifications(ctx context.Context,
 func (s *notificationService) notificationAllowed(ctx context.Context, userID int, notifType string) (bool, error) {
 	meta, ok := NotificationTypeMeta(notifType)
 	if !ok {
-		slog.Warn("уведомление типа вне каталога - доставляется без проверки подписки", "type", notifType)
+		slog.Warn("уведомление типа вне каталога - доставляется без проверки подписки")
 		return true, nil
 	}
 	if meta.Mandatory {

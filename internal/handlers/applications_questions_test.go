@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -86,22 +87,49 @@ func TestQuestions_RoundTrip(t *testing.T) {
 	entry := findHistoryEntry(t, hist, "question_created")
 	assert.Equal(t, wantText, entry["comment"], "question_created должен нести текст вопроса")
 
-	// Уведомление инициатору: тип application_question, payload с application_id,
-	// текст содержит имя автора вопроса (информативность).
-	var notif struct {
-		Type    *string
-		Data    *string
-		Message *string
-	}
-	require.NoError(t, db.Raw("SELECT type, data, message FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1", senderID).Scan(&notif).Error)
+	// Хранение нейтрально; актуальное имя и ссылки доступны только через проекцию.
+	var notif models.Notification
+	require.NoError(t, db.Where("user_id = ?", senderID).Order("id DESC").Take(&notif).Error)
 	require.NotNil(t, notif.Type)
 	assert.Equal(t, "application_question", *notif.Type)
 	require.NotNil(t, notif.Data)
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(*notif.Data), &payload))
 	assert.EqualValues(t, appID, payload["application_id"], "payload несёт application_id для навигации")
+	assert.EqualValues(t, created.ID, payload["question_id"])
+	require.NotNil(t, notif.Title)
+	assert.Equal(t, "Есть обновление", *notif.Title)
 	require.NotNil(t, notif.Message)
-	assert.Contains(t, *notif.Message, wantAuthor, "уведомление называет автора вопроса")
+	assert.Equal(t, "Есть обновление", *notif.Message)
+	require.NotNil(t, notif.ProjectionRef)
+	assert.NotContains(t, *notif.Data, wantAuthor)
+	assert.NotContains(t, *notif.Data, wantSubject)
+	assert.NotContains(t, *notif.Data, wantText)
+	assert.NotContains(t, *notif.ProjectionRef, wantAuthor)
+	feed, err := services.NewNotificationService(db).GetByUserID(context.Background(), senderID)
+	require.NoError(t, err)
+	var projected *models.Notification
+	for i := range feed {
+		if feed[i].ID == notif.ID {
+			projected = &feed[i]
+			break
+		}
+	}
+	require.NotNil(t, projected)
+	require.NotNil(t, projected.Message)
+	assert.Contains(t, *projected.Message, wantAuthor, "проекция называет текущего автора вопроса")
+	require.NotNil(t, projected.Data)
+	var projectedPayload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(*projected.Data), &projectedPayload))
+	assert.EqualValues(t, appID, projectedPayload["application_id"])
+	assert.EqualValues(t, created.ID, projectedPayload["question_id"])
+	assert.Contains(t, projectedPayload, "application_number")
+	assert.Nil(t, projected.ProjectionRef)
+	publicJSON, err := json.Marshal(projected)
+	require.NoError(t, err)
+	assert.NotContains(t, string(publicJSON), "projection_ref")
+	assert.NotContains(t, string(publicJSON), wantSubject)
+	assert.NotContains(t, string(publicJSON), wantText)
 
 	// GET /questions виден инициатору.
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/questions", appID), testutil.AuthHeader(senderToken))

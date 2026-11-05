@@ -377,7 +377,7 @@ func (s *applicationService) notifyDatesChanged(ctx context.Context, application
 		if userID == actorID {
 			continue
 		}
-		if err := s.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationDatesChanged,
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationDatesChanged, ApplicationID: applicationID, ActorID: actorID, Facts: notificationEventFacts{OldPeriod: result.OldPeriod, NewPeriod: result.NewPeriod, ApprovalsReset: result.ApprovalsReset}}), userID, NotificationTypeApplicationDatesChanged,
 			"Изменён срок заявки", message, &payloadStr); err != nil {
 			slog.Warn("срок заявки: уведомление не создано", "user_id", userID,
 				"application_id", applicationID, "err", err)

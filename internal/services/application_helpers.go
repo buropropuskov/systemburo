@@ -532,7 +532,7 @@ func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, a
 	}
 	payload, _ := json.Marshal(data)
 	payloadStr := string(payload)
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationStatusChanged, title, body, &payloadStr); err != nil {
+	if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationStatusChanged, ApplicationID: applicationID, ActorID: safeDerefInt(actorUserID), Facts: notificationEventFacts{Outcome: outcome}}), *app.SenderUserID, NotificationTypeApplicationStatusChanged, title, body, &payloadStr); err != nil {
 		slog.Warn("не удалось создать уведомление инициатору об исходе заявки", "user_id", *app.SenderUserID, "error", err)
 	}
 }
@@ -580,7 +580,7 @@ func (s *applicationService) pendingApproversBeforeWithdraw(ctx context.Context,
 // (pendingApproversBeforeWithdraw) - тем же предикатом, что и напоминания
 // согласующим. Инициатору не шлём: это его собственное действие. Best-effort: ошибка
 // логируется, WithdrawApplication уже закоммичен.
-func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID int, withdrawnByName string, userIDs []int) {
+func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID int, withdrawnByName string, userIDs []int, actorIDs ...int) {
 	if s.notificationService == nil || len(userIDs) == 0 {
 		return
 	}
@@ -597,6 +597,10 @@ func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID 
 		number = fmt.Sprintf("№ %d", applicationID)
 	}
 
+	actorID := 0
+	if len(actorIDs) == 1 {
+		actorID = actorIDs[0]
+	}
 	title := "Заявка отозвана"
 	body := fmt.Sprintf("Заявку %s отозвал(а) %s - рассматривать её больше не нужно.", number, withdrawnByName)
 
@@ -609,7 +613,7 @@ func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID 
 	payloadStr := string(payload)
 
 	for _, userID := range userIDs {
-		if err := s.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationWithdrawn, title, body, &payloadStr); err != nil {
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationWithdrawn, ApplicationID: applicationID, ActorID: actorID}), userID, NotificationTypeApplicationWithdrawn, title, body, &payloadStr); err != nil {
 			slog.Warn("не удалось создать уведомление об отзыве заявки", "user_id", userID, "application_id", applicationID, "error", err)
 		}
 	}
@@ -1153,7 +1157,7 @@ func (s *applicationService) notifyApproversAboutNewApplication(
 	}
 	for _, userID := range approverIDs {
 		if err := s.notificationService.CreateForUser(
-			ctx, userID,
+			withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationPendingAcceptance, ApplicationID: appID, ActorID: authorID}), userID,
 			NotificationTypeApplicationPendingAcceptance,
 			"Новая заявка",
 			note.message(),

@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -404,6 +405,40 @@ func TestDirectoryModeration(t *testing.T) {
 	t.Run("разбор сообщает инициатору наименования", func(t *testing.T) {
 		var plain models.User
 		require.NoError(t, db.Where("username = ?", "modplain").First(&plain).Error)
+		checkResolved := func(note models.Notification, table string, id int, oldName, newName string) {
+			t.Helper()
+			require.Equal(t, "Есть обновление", *note.Title)
+			require.Equal(t, "Есть обновление", *note.Message)
+			require.Nil(t, note.Data)
+			require.NotNil(t, note.ProjectionRef)
+			var reference struct {
+				DirectoryID   int    `json:"directory_id"`
+				DirectoryKind string `json:"directory_kind"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(*note.ProjectionRef), &reference))
+			assert.Equal(t, id, reference.DirectoryID)
+			assert.Equal(t, table, reference.DirectoryKind)
+			assert.NotContains(t, *note.ProjectionRef, oldName)
+			assert.NotContains(t, *note.ProjectionRef, newName)
+			feed, err := services.NewNotificationService(db).GetByUserID(context.Background(), plain.ID)
+			require.NoError(t, err)
+			var projected *models.Notification
+			for i := range feed {
+				if feed[i].ID == note.ID {
+					projected = &feed[i]
+					break
+				}
+			}
+			require.NotNil(t, projected)
+			assert.Equal(t, "Запись справочника разобрана", *projected.Title)
+			assert.Equal(t, "Указанная вами запись справочника разобрана.", *projected.Message)
+			assert.Nil(t, projected.ProjectionRef)
+			body, err := json.Marshal(projected)
+			require.NoError(t, err)
+			assert.NotContains(t, string(body), "projection_ref")
+			assert.NotContains(t, string(body), oldName)
+			assert.NotContains(t, string(body), newName)
+		}
 
 		draft := seedModerationOrgBy(t, db, `ооо снежинка`, models.ModerationPending, plain.ID)
 		rec := testutil.PATCH(t, e, fmt.Sprintf("/organizations/%d/moderation/rename", draft.ID),
@@ -413,8 +448,7 @@ func TestDirectoryModeration(t *testing.T) {
 		notes := notificationsFor(t, db, plain.ID, services.NotificationTypeDirectoryResolved)
 		require.Len(t, notes, 1, "исправление наименования обязано дойти до инициатора")
 		require.NotNil(t, notes[0].Message)
-		assert.Contains(t, *notes[0].Message, `ооо снежинка`, "в тексте должно быть исходное наименование")
-		assert.Contains(t, *notes[0].Message, `ООО "Снежинка"`, "и то, на которое его исправили")
+		checkResolved(notes[0], "organizations", draft.ID, `ооо снежинка`, `ООО "Снежинка"`)
 
 		// Привязка - тот же класс события; проверяем на компании, чтобы зеркальность
 		// справочников держалась тестом, а не только общим кодом.
@@ -434,8 +468,7 @@ func TestDirectoryModeration(t *testing.T) {
 		notes = notificationsFor(t, db, plain.ID, services.NotificationTypeDirectoryResolved)
 		require.Len(t, notes, 2, "привязка к существующей записи тоже доходит до инициатора")
 		require.NotNil(t, notes[1].Message)
-		assert.Contains(t, *notes[1].Message, `ООО "Мороз-дубль"`)
-		assert.Contains(t, *notes[1].Message, `ООО "Мороз"`)
+		checkResolved(notes[1], "companies", target.ID, `ООО "Мороз-дубль"`, `ООО "Мороз"`)
 
 		// Подтверждение молчит: наименование осталось тем же, что ввёл инициатор.
 		approved := seedModerationOrgBy(t, db, `ООО "Тихая"`, models.ModerationPending, plain.ID)

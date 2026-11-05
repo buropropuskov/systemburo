@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -319,6 +320,47 @@ func TestApplicationOrgResolve(t *testing.T) {
 		}
 		moderator := newApprover("orgresolve_moder", true)
 		plainApprover := newApprover("orgresolve_appr", false)
+		checkPending := func(note models.Notification, applicationID int, table string, directoryID int, privateName string) {
+			t.Helper()
+			require.Equal(t, "Есть обновление", *note.Title)
+			require.Equal(t, "Есть обновление", *note.Message)
+			require.NotNil(t, note.ProjectionRef)
+			require.NotNil(t, note.Data)
+			var reference struct {
+				ApplicationID int    `json:"application_id"`
+				DirectoryID   int    `json:"directory_id"`
+				DirectoryKind string `json:"directory_kind"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(*note.ProjectionRef), &reference))
+			assert.Equal(t, applicationID, reference.ApplicationID)
+			assert.Equal(t, directoryID, reference.DirectoryID)
+			assert.Equal(t, table, reference.DirectoryKind)
+			assert.NotContains(t, *note.ProjectionRef, privateName)
+			assert.NotContains(t, *note.Data, privateName)
+			feed, err := services.NewNotificationService(db).GetByUserID(context.Background(), moderator.ID)
+			require.NoError(t, err)
+			var projected *models.Notification
+			for i := range feed {
+				if feed[i].ID == note.ID {
+					projected = &feed[i]
+					break
+				}
+			}
+			require.NotNil(t, projected)
+			assert.Equal(t, "Запись справочника на проверке", *projected.Title)
+			assert.Contains(t, *projected.Message, "создана запись справочника")
+			assert.NotContains(t, *projected.Message, privateName)
+			require.NotNil(t, projected.Data)
+			var payload struct {
+				ApplicationID int `json:"application_id"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(*projected.Data), &payload))
+			assert.Equal(t, applicationID, payload.ApplicationID)
+			assert.Nil(t, projected.ProjectionRef)
+			body, err := json.Marshal(projected)
+			require.NoError(t, err)
+			assert.NotContains(t, string(body), "projection_ref")
+		}
 
 		// Право есть, но заявки не видит: не принимающий, не автор, не согласующий.
 		testutil.RegisterAndLogin(t, e, "orgresolve_outsider", "pass123", 1, td.OrgID, td.CompanyID)
@@ -336,7 +378,9 @@ func TestApplicationOrgResolve(t *testing.T) {
 		notes := notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending)
 		require.Len(t, notes, 1, "принимающий с правом разбора обязан узнать о новой записи")
 		require.NotNil(t, notes[0].Message)
-		assert.Contains(t, *notes[0].Message, `ООО "Заря-Новая"`)
+		refs := readAppOrgRefs(t, db, appID)
+		require.NotNil(t, refs.OrganizationID)
+		checkPending(notes[0], appID, "organizations", *refs.OrganizationID, `ООО "Заря-Новая"`)
 		require.NotNil(t, notes[0].Data)
 		// application_id в data - по нему уведомление ведёт в заявку, где стоит плашка
 		// разбора. Разбираем JSON, а не ищем подстроку: jsonb хранится переформатированным.
@@ -359,13 +403,14 @@ func TestApplicationOrgResolve(t *testing.T) {
 		assert.Len(t, notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending), 1)
 
 		// Компания идёт тем же кодом, но зеркальность должна держаться тестом, а не верой.
-		submittedAppID(t, submitWithRefs(t, e, token, uaID, "A111AA777", `"company_name":"ООО \"Заря-Компания\""`))
+		companyAppID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A111AA777", `"company_name":"ООО \"Заря-Компания\""`))
 		notes = notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending)
 		require.Len(t, notes, 2)
 		require.NotNil(t, notes[1].Title)
-		assert.Equal(t, "Новая компания на проверке", *notes[1].Title)
 		require.NotNil(t, notes[1].Message)
-		assert.Contains(t, *notes[1].Message, `ООО "Заря-Компания"`)
+		companyRefs := readAppOrgRefs(t, db, companyAppID)
+		require.NotNil(t, companyRefs.CompanyID)
+		checkPending(notes[1], companyAppID, "companies", *companyRefs.CompanyID, `ООО "Заря-Компания"`)
 	})
 
 	// Ровно тот ввод, с которого правило и потребовали: строчная ОПФ, строчное название,

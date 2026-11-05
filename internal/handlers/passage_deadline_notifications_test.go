@@ -42,13 +42,26 @@ func countExpiryNotifications(t *testing.T, db *gorm.DB, userID int) int64 {
 	return count
 }
 
-// expiryMessages возвращает тексты предупреждений пользователя в порядке создания.
+// expiryMessages проверяет безопасное хранение и возвращает проекцию текста для UI.
 func expiryMessages(t *testing.T, db *gorm.DB, userID int) []string {
 	t.Helper()
+	var stored []models.Notification
+	require.NoError(t, db.Where("user_id = ? AND type = ?", userID, services.NotificationTypeApplicationExpiring).Find(&stored).Error)
+	for _, notification := range stored {
+		require.Equal(t, "Есть обновление", *notification.Title)
+		require.Equal(t, "Есть обновление", *notification.Message)
+		require.NotNil(t, notification.ProjectionRef)
+	}
+	notifications, err := services.NewNotificationService(db).GetByUserID(context.Background(), userID)
+	require.NoError(t, err)
 	var messages []string
-	require.NoError(t, db.Model(&models.Notification{}).
-		Where("user_id = ? AND type = ?", userID, services.NotificationTypeApplicationExpiring).
-		Order("id").Pluck("message", &messages).Error)
+	for _, notification := range notifications {
+		if notification.Type != nil && *notification.Type == services.NotificationTypeApplicationExpiring {
+			require.NotNil(t, notification.Message)
+			require.Nil(t, notification.ProjectionRef)
+			messages = append(messages, *notification.Message)
+		}
+	}
 	return messages
 }
 

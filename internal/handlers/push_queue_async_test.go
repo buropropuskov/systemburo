@@ -109,7 +109,18 @@ func TestPushQueueAsync_OverflowPreservesNotifications(t *testing.T) {
 	require.NoError(t, db.Where("user_id = ? AND group_key = ?", uid, "queue-group").First(&grouped).Error)
 	require.Equal(t, 2, grouped.Count)
 	require.NotNil(t, grouped.Message)
-	require.Equal(t, "Third", *grouped.Message)
+	require.Equal(t, "Есть обновление", *grouped.Message)
+	require.Equal(t, "Есть обновление", *grouped.Title)
+	require.Nil(t, grouped.Data)
+	require.Nil(t, grouped.ProjectionRef)
+	feed, err := notifications.GetByUserID(context.Background(), uid)
+	require.NoError(t, err)
+	require.Len(t, feed, 2)
+	for _, notice := range feed {
+		require.Equal(t, "Есть обновление", *notice.Message)
+		require.Nil(t, notice.Data)
+		require.Nil(t, notice.GroupKey)
+	}
 	for i := 0; i < 3; i++ {
 		select {
 		case ev := <-events:

@@ -324,7 +324,7 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		appNum := applicationNumberOrFallback(app.ApplicationNumber, applicationID)
 		authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 		payloadStr := questionNotificationPayload(applicationID, appNum, question.ID)
-		if err := s.notificationService.CreateForUser(ctx, app.SenderUserID, NotificationTypeApplicationQuestion,
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationQuestion, ApplicationID: applicationID, ActorID: user.ID, QuestionID: question.ID}), app.SenderUserID, NotificationTypeApplicationQuestion,
 			"Новое обсуждение по заявке",
 			fmt.Sprintf("%s начал(-а) обсуждение по заявке %s: %s", authorName, appNum, subject),
 			&payloadStr); err != nil {
@@ -432,7 +432,7 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 			authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 			payloadStr := questionNotificationPayload(applicationID, appNum, questionID)
 			for _, rid := range recipientIDs {
-				if err := s.notificationService.CreateForUser(ctx, rid, NotificationTypeApplicationAnswer,
+				if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationAnswer, ApplicationID: applicationID, ActorID: user.ID, QuestionID: questionID, AnswerID: answer.ID}), rid, NotificationTypeApplicationAnswer,
 					"Новый ответ в обсуждении",
 					fmt.Sprintf("%s ответил(-а) в обсуждении «%s» по заявке %s", authorName, q.Subject, appNum),
 					&payloadStr); err != nil {

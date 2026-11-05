@@ -774,7 +774,7 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 	dataStr := string(dataBytes)
 
 	if err := s.notificationService.CreateForUser(
-		ctx, target.ID,
+		withNotificationReference(ctx, notificationReference{Type: NotificationTypePasswordChanged, ActorID: callerUserID, Facts: notificationEventFacts{At: time.Now().UTC(), SelfChange: selfChange}}), target.ID,
 		NotificationTypePasswordChanged,
 		"Пароль изменён",
 		message,

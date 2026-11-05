@@ -614,7 +614,7 @@ func (s *trashService) notifyTrashRestored(ctx context.Context, kind string, ids
 			label = kind
 		}
 		body := fmt.Sprintf("%s «%s» восстановили из корзины.", kind, label)
-		if err := s.notificationService.CreateForUser(ctx, authorID, NotificationTypeTrashRestored, title, body, nil); err != nil {
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeTrashRestored, ActorID: actorUserID, EntityID: id, EntityKind: notificationTrashKind(kind)}), authorID, NotificationTypeTrashRestored, title, body, nil); err != nil {
 			slog.Warn("не удалось уведомить о восстановлении записи из корзины",
 				"entity", kind, "entity_id", id, "user_id", authorID, "error", err)
 		}
