@@ -127,7 +127,6 @@ func (s *consentService) HasActive(ctx context.Context, userID int, consentType 
 	return count > 0, nil
 }
 
-
 // IsRevoked сообщает, отозвал ли работник согласие на обработку своих данных.
 //
 // Отзыв и отсутствие согласия - разные состояния, и различать их обязательно.
@@ -141,7 +140,7 @@ func (s *consentService) HasActive(ctx context.Context, userID int, consentType 
 func consentRevoked(ctx context.Context, db *gorm.DB, userID int) (bool, error) {
 	var active int64
 	if err := db.WithContext(ctx).Model(&models.PDConsent{}).
-		Where("user_id = ? AND granted = ? AND revoked_at IS NULL", userID, true).
+		Where("user_id = ? AND consent_type = ? AND granted = ? AND revoked_at IS NULL", userID, ConsentTypePDProcessing, true).
 		Count(&active).Error; err != nil {
 		return false, err
 	}
@@ -151,7 +150,7 @@ func consentRevoked(ctx context.Context, db *gorm.DB, userID int) (bool, error) 
 
 	var revoked int64
 	if err := db.WithContext(ctx).Model(&models.PDConsent{}).
-		Where("user_id = ? AND revoked_at IS NOT NULL", userID).
+		Where("user_id = ? AND consent_type = ? AND revoked_at IS NOT NULL", userID, ConsentTypePDProcessing).
 		Count(&revoked).Error; err != nil {
 		return false, err
 	}
