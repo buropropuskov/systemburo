@@ -406,7 +406,7 @@ func TestBodyAdmissionMultipartCleanupBeforeRelease(t *testing.T) {
 // Use real net/http sockets: ResponseRecorder cannot expose implicit server
 // drain, Expect handling, or the read deadline needed before Body.Close.
 func TestBodyAdmissionSocketUnreadRejectExpectAndPartial(t *testing.T) {
-	for _, mode := range []string{"busy", "auth", "partial", "early-response", "panic"} {
+	for _, mode := range []string{"busy", "auth", "partial", "early-response", "early-flush", "panic"} {
 		for _, framing := range []string{"length", "chunked", "expect"} {
 			t.Run(mode+"/"+framing, func(t *testing.T) {
 				gate := admission.New(1, 0, 0)
@@ -426,6 +426,11 @@ func TestBodyAdmissionSocketUnreadRejectExpectAndPartial(t *testing.T) {
 					}
 					if mode == "early-response" {
 						return c.NoContent(http.StatusAccepted)
+					}
+					if mode == "early-flush" {
+						c.Response().WriteHeader(http.StatusAccepted)
+						c.Response().Flush()
+						return nil
 					}
 					if mode == "panic" {
 						panic("synthetic")
@@ -473,13 +478,16 @@ func TestBodyAdmissionSocketUnreadRejectExpectAndPartial(t *testing.T) {
 				switch mode {
 				case "busy":
 					want = http.StatusServiceUnavailable
-				case "early-response":
+				case "early-response", "early-flush":
 					want = http.StatusAccepted
 				case "panic":
 					want = http.StatusInternalServerError
 				}
 				if response.StatusCode != want {
 					t.Fatalf("status=%d want=%d", response.StatusCode, want)
+				}
+				if (mode == "early-response" || mode == "early-flush") && !response.Close {
+					t.Fatal("early response did not declare connection shutdown before committing headers")
 				}
 				_ = response.Body.Close()
 				if _, err := reader.ReadByte(); err == nil {

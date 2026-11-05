@@ -42,6 +42,16 @@ func bodyAdmissionWithGate(gate *admission.Gate) echo.MiddlewareFunc {
 			// closes the transport before returning to the server's final cleanup.
 			if req.ProtoMajor == 1 {
 				_ = http.NewResponseController(c.Response()).EnableFullDuplex()
+				// Declare shutdown before headers are copied by net/http. On Go 1.26
+				// the server cannot detect an early body close through our wrapper;
+				// changing headers only in deferred Close is too late for early replies.
+				// Keep reading/closing under the lease in cleanup, not in this hook.
+				c.Response().Before(func() {
+					if !body.complete.Load() {
+						req.Close = true
+						c.Response().Header().Set("Connection", "close")
+					}
+				})
 			}
 			var release func()
 			defer func() {
@@ -129,8 +139,8 @@ func (b *admittedBody) Close() error {
 		b.closing.Store(true)
 		if !b.complete.Load() && b.req.ProtoMajor == 1 {
 			// Close can itself drain an unread HTTP/1 body. Interrupt socket reads
-			// first. Request shutdown before committing headers; an already committed
-			// reply may still permit bounded cleanup of a fully buffered short body.
+			// first. The Before hook declares connection shutdown for early replies;
+			// this header also covers rejection paths before a handler writes.
 			// This cancels reading, rather than imposing a body-read timeout.
 			b.req.Close = true
 			b.response.Header().Set("Connection", "close")

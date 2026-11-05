@@ -107,6 +107,7 @@
           >
             <li
               class="notification-item"
+              :data-notification-id="item.id"
               :class="{ 'notification-item--unread': !item.is_read }"
               role="listitem"
               @click.stop="markAsRead(item)"

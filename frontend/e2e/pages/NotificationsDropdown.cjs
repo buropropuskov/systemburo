@@ -37,6 +37,10 @@ class NotificationsDropdown {
     return this.items.filter({ hasText: title });
   }
 
+  itemById(id) {
+    return this.panel.locator(`[data-notification-id="${id}"]`);
+  }
+
   // Клик по карточке (#1748 S6): раскрывает подробности в NotificationDetailModal
   // и помечает уведомление прочитанным - переход к заявке теперь делает кнопка
   // действия внутри модалки, не сам клик по карточке. Кликаем по заголовку внутри

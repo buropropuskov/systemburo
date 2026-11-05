@@ -71,6 +71,7 @@
         >
           <div
             class="notification-item"
+            :data-notification-id="notif.id"
             :class="{ unread: !notif.is_read }"
           >
             <div class="notification-dot-wrapper">
