@@ -19,6 +19,7 @@ import { usePDConsentStore } from '@/stores/pdConsent';
 import { usePasswordChangeStore } from '@/stores/passwordChange';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import { useAuthStore } from '@/stores/auth';
+import { getNotificationsPaginated, readNotificationDetails } from '../notifications';
 
 function okJson(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -34,6 +35,64 @@ function err429(retryAfterSec) {
   if (retryAfterSec != null) headers['Retry-After'] = String(retryAfterSec);
   return new Response(JSON.stringify({ success: false, error: 'too many' }), { status: 429, headers });
 }
+
+describe('notification detail server errors stay with the guarded caller', () => {
+  let fetchMock;
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    routerPush.mockReset();
+    notifyMock.mockReset();
+    useAuthStore().setTokens('owned-detail-session');
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it.each([500, 503])('does not navigate for late detail A HTTP %s after detail B succeeds', async status => {
+    const maintenance = useMaintenanceStore();
+    maintenance.enabled = true;
+    const probe = vi.spyOn(maintenance, 'fetchStatus').mockResolvedValue(true);
+    let finishA;
+    fetchMock.mockReturnValueOnce(new Promise(resolve => { finishA = resolve; }))
+      .mockResolvedValueOnce(okJson({ success: true, data: {
+        id: 2, is_read: true, type: 'info', title: 'Есть обновление', message: 'Есть обновление', data: null,
+      } }));
+    // Real notifications helper -> real apiRequest/baseRequest -> mocked fetch.
+    // No apiRequest mock can hide its pre-return redirect or maintenance probe.
+    const a = readNotificationDetails(1);
+    const failure = expect(a).rejects.toThrow('Не удалось загрузить подробности уведомления');
+    expect((await readNotificationDetails(2)).id).toBe(2);
+    finishA(errJson({ success: false, error: 'Unavailable' }, status));
+    await failure;
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(probe).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(useAuthStore().token).toBe('owned-detail-session');
+  });
+
+  it('preserves ordinary request navigation to /500 without the opt-in', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ success: false, error: 'Unavailable' }, 500));
+    expect((await apiRequest('/ordinary-view')).status).toBe(500);
+    expect(routerPush).toHaveBeenCalledExactlyOnceWith('/500');
+  });
+
+  it.each([500, 503])('keeps a late background detail count HTTP %s local', async status => {
+    const maintenance = useMaintenanceStore();
+    maintenance.enabled = true;
+    const probe = vi.spyOn(maintenance, 'fetchStatus').mockResolvedValue(true);
+    let finish;
+    fetchMock.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const pending = getNotificationsPaginated({ limit: 1, offset: 0, filter: 'all' }, { localServerErrors: true });
+    const failure = expect(pending).rejects.toThrow();
+    finish(errJson({ success: false, error: 'Unavailable' }, status));
+    await failure;
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(probe).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('503 session and maintenance handling', () => {
   let fetchMock;

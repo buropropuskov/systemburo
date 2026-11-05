@@ -29,6 +29,7 @@ import UserNotifications from '../UserNotifications.vue';
 // микротаском ПОЗЖЕ synchronous-возврата mount(). Если тестовые уведомления
 // присвоить сразу, эта отложенная загрузка потом (на первом же flushPromises)
 // молча затирает их пустым массивом. Ждём её здесь ДО присвоения тестовых данных.
+let notificationRows = [];
 async function mountN(notifications, { hasCenter = true } = {}) {
   setActivePinia(createPinia());
   const perms = usePermissionsStore();
@@ -36,10 +37,11 @@ async function mountN(notifications, { hasCenter = true } = {}) {
   perms.effective = {};
   const push = vi.fn(() => Promise.resolve());
   const wrapper = mount(UserNotifications, {
-    props: { show: false },
+    props: { show: true },
     global: { mocks: { $router: { push } } },
   });
   await flushPromises();
+  notificationRows = notifications;
   wrapper.vm.notifications = notifications;
   return { wrapper, push };
 }
@@ -47,7 +49,11 @@ async function mountN(notifications, { hasCenter = true } = {}) {
 describe('UserNotifications — подробности и навигация по заявке (#973, #1748 S6)', () => {
   beforeEach(() => {
     apiRequest.mockClear();
-    apiRequest.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    notificationRows = [];
+    apiRequest.mockImplementation(async path => {
+      const id = Number(path.split('/')[2]);
+      return { ok: true, json: async () => ({ ...notificationRows.find(n => n.id === id), is_read: true }) };
+    });
   });
 
   it('клик по карточке помечает прочитанным и открывает модалку подробностей, не роутит сразу', async () => {
@@ -152,12 +158,13 @@ describe('UserNotifications — подробности и навигация п�
       global: { mocks: { $router: { push } } },
     });
     await flushPromises();
-    wrapper.vm.notifications = [
+    notificationRows = [
       { id: 6, is_read: false, type: 'application_question', data: JSON.stringify({ application_id: 9 }), title: 'Вопрос', message: 'm' },
     ];
+    wrapper.vm.notifications = notificationRows;
     await wrapper.vm.$nextTick();
 
-    await wrapper.find('.notification-item').trigger('click');
+    await wrapper.find('.notification-item__content').trigger('click');
     await flushPromises();
 
     expect(push).not.toHaveBeenCalled();

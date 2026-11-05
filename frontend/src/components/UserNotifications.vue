@@ -182,7 +182,7 @@
   <NotificationDetailModal
     :show="showDetailModal"
     :notification="detailNotification"
-    @close="showDetailModal = false"
+    @close="closeDetail"
     @action="handleDetailAction"
     @unread="handleDetailUnread"
     @delete="handleDetailDelete"
@@ -192,7 +192,8 @@
 <script>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
-import { getNotificationsPaginated } from '@/api/notifications'
+import { getNotificationsPaginated, readNotificationDetails } from '@/api/notifications'
+import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { createDialogFocus } from '@/utils/dialogFocus'
@@ -283,6 +284,10 @@ export default {
       sseConnected: false,
       showDetailModal: false,
       detailNotification: null,
+      detailRequestVersion: 0,
+      detailRequestPending: false,
+      detailAlive: true,
+      unreadRequestVersion: 0,
     }
   },
   computed: {
@@ -311,10 +316,12 @@ export default {
         },
       },
     ],
-    show(val) {
-      if (val) {
-        this.fetchNotifications()
-      }
+    show: {
+      flush: 'sync',
+      handler(val) {
+        if (val) this.fetchNotifications()
+        else this.closeDetail()
+      },
     },
     unreadCount(count) {
       this.$emit('update:unread-count', count)
@@ -351,12 +358,16 @@ export default {
     // закрыло бы панель, оставив вопрос об очистке висеть над пустым местом.
     this.escHandler = (e) => {
       if (e.key === 'Escape' && this.show && !this.showDetailModal && !this.uiStore.confirmState) {
+        this.closeDetail()
         this.$emit('close')
       }
     }
     document.addEventListener('keydown', this.escHandler, true)
   },
   beforeUnmount() {
+    this.detailAlive = false
+    this.unreadRequestVersion++
+    this.closeDetail()
     this.panelFocus?.close()
     this.disconnectNotificationsSentinel()
     if (this.escHandler) document.removeEventListener('keydown', this.escHandler, true)
@@ -377,13 +388,14 @@ export default {
     // meta.unread_count независим от страницы/фильтра - обновляет счётчик в шапке
     // на КАЖДОМ ответе (первичном и догрузке), не только на первой странице.
     async buildNotificationsPage(page, perPage) {
+      const version = ++this.unreadRequestVersion
       const offset = (page - 1) * perPage
       const { items, total, unreadCount } = await getNotificationsPaginated({
         limit: perPage,
         offset,
         filter: this.filter,
       })
-      this.unreadCount = unreadCount
+      if (version === this.unreadRequestVersion && this.detailAlive) this.unreadCount = unreadCount
       return { items, total }
     },
 
@@ -420,27 +432,44 @@ export default {
         .catch(() => this.$emit('close'))
     },
 
-    async markAsRead(item) {
-      if (!item.is_read) {
-        try {
-          const response = await apiRequest(`/notifications/${item.id}/read`, {
-            method: 'PUT',
-            body: JSON.stringify({ is_read: true }),
-          })
-          if (response.ok) {
-            item.is_read = true
-            // meta.unread_count независим от текущей страницы - держим его синхронным
-            // локально между рефетчами, иначе счётчик в шапке отстанет до следующего poll.
-            this.unreadCount = Math.max(0, this.unreadCount - 1)
-          }
-        } catch {
-          // ignore
-        }
+    async refreshUnreadCount() {
+      const version = ++this.unreadRequestVersion
+      try {
+        const { unreadCount } = await getNotificationsPaginated({ limit: 1, offset: 0, filter: 'all' }, { localServerErrors: true })
+        if (version === this.unreadRequestVersion && this.detailAlive) this.unreadCount = unreadCount
+      } catch {
+        // Keep last confirmed count; next successful list/event fetch can reconcile it.
       }
-      // Клик по карточке раскрывает подробности в модалке (#1748 S6) - переход
-      // к заявке теперь делает кнопка действия внутри неё, не сам клик.
-      this.detailNotification = item
-      this.showDetailModal = true
+    },
+
+    closeDetail() {
+      this.detailRequestVersion++
+      this.detailRequestPending = false
+      this.showDetailModal = false
+      this.detailNotification = null
+    },
+
+    async markAsRead(item) {
+      const version = ++this.detailRequestVersion
+      this.showDetailModal = false
+      this.detailNotification = null
+      this.detailRequestPending = true
+      try {
+        const fresh = await readNotificationDetails(item.id)
+        if (this.detailAlive) this.refreshUnreadCount()
+        if (version !== this.detailRequestVersion || !this.show) return
+        // Replace the WHOLE projection: generic DTOs remove old data/group_key.
+        const index = this.notifications.findIndex(n => n.id === fresh.id)
+        if (index !== -1) this.notifications.splice(index, 1, fresh)
+        this.detailNotification = fresh
+        this.showDetailModal = true
+      } catch {
+        if (version === this.detailRequestVersion && this.show) {
+          useDeletionsStore().notify({ type: 'error', prefix: 'Не удалось загрузить подробности уведомления' })
+        }
+      } finally {
+        if (version === this.detailRequestVersion) this.detailRequestPending = false
+      }
     },
 
     // Кнопка действия модалки — то же, что раньше делал клик по карточке о заявке (#973).
@@ -449,7 +478,7 @@ export default {
       const data = parseNotificationData(this.detailNotification)
       const appId = data.application_id ? Number(data.application_id) : null
       if (!appId) return
-      this.showDetailModal = false
+      this.closeDetail()
       this.$emit('close')
       this.$router.push(this.resolveApplicationRoute(appId)).catch(() => {})
     },
@@ -457,30 +486,31 @@ export default {
     async handleDetailUnread() {
       const item = this.detailNotification
       if (!item) return
+      this.closeDetail()
       try {
         const response = await apiRequest(`/notifications/${item.id}/read`, {
           method: 'PUT',
           body: JSON.stringify({ is_read: false }),
         })
         if (response.ok) {
-          const wasRead = item.is_read
           item.is_read = false
-          if (wasRead) this.unreadCount += 1
+          const current = this.notifications.find(n => n.id === item.id)
+          if (current) current.is_read = false
+          if (this.detailAlive) this.refreshUnreadCount()
         }
       } catch {
         // ignore
       }
-      this.showDetailModal = false
     },
 
     async handleDetailDelete() {
       const item = this.detailNotification
       if (!item) return
       await this.deleteNotification(item.id)
-      this.showDetailModal = false
     },
 
     async deleteNotification(id) {
+      this.closeDetail()
       try {
         const response = await apiRequest(`/notifications/${id}`, {
           method: 'DELETE',
@@ -498,6 +528,7 @@ export default {
     },
 
     async clearAll() {
+      this.closeDetail()
       // Очистка необратима и сносит ВСЕ уведомления пользователя, а не только
       // видимые на текущей вкладке: DeleteAll бьёт по user_id без фильтра.
       const ok = await this.uiStore.confirm({

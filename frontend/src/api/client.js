@@ -244,6 +244,9 @@ async function baseRequest(path, options = {}) {
   let response = await doFetch(path, options, authStore.token)
   options.signal?.throwIfAborted()
   if (identity !== requestIdentity(authStore)) return response
+  // Opt-in for transient views whose current-request guard owns error handling.
+  // Do not navigate (including the 503 maintenance probe) for a superseded view.
+  if (options.localServerErrors === true && response.status >= 500 && response.status <= 599) return response
   // Для 503 подтверждаем включённые техработы свежим чтением, без старого кэша.
   if (response.status === 503) {
     const maintenance = useMaintenanceStore()
