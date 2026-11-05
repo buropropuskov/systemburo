@@ -434,6 +434,7 @@ import { employeeDocumentErrors } from '@/utils/employeeDocuments';
 import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
+import { prepareApplicationCommand, finishApplicationCommand, resetApplicationCommand } from '@/services/applicationCommand'
 import { usePermissionsStore } from '@/stores/permissions'
 import { downloadBlankTemplate as fetchBlankTemplate, uploadImportList } from '@/api/blankImport'
 import { saveBlobAs } from '@/api/attachment-templates'
@@ -442,6 +443,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
 import ApplicationFilesUpload from './ApplicationFilesUpload.vue';
+import applicationCommandRecovery from './applicationCommandRecovery';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
 import VehicleForm from './VehicleForm.vue';
@@ -506,6 +508,7 @@ function isQuotaExceededError(error) {
 }
 
 export default {
+    mixins: [applicationCommandRecovery],
     name: 'CreateApplication',
     components: {
         ApplicationFilesUpload,
@@ -1053,7 +1056,8 @@ export default {
         } catch (error) {
             console.error('Не удалось загрузить данные профиля:', error);
         }
-        this.restoreFromLocalStorage();
+        await this.restoreFromLocalStorage();
+        this.recoverSubmittedCommand().catch(error => useDeletionsStore().notify({ bold: error.message, type: 'error' }));
         this.checkPendingDuplicate();
         this.loadAllUnloadingPlaces();
         this.loadLicensePlateFormats();
@@ -2367,6 +2371,7 @@ export default {
             let handedOffToBindingModal = false;
 
             try {
+                if (await this.recoverSubmittedCommand({ allowUnknown: true })) return;
                 this.validateAllFields();
 
                 if (!this.canSubmit) {
@@ -2791,6 +2796,7 @@ export default {
                 applicationData.attachments.push(attachmentData);
             }
 
+            let command;
             try {
                 const authStore = useAuthStore();
                 if (!authStore.token) {
@@ -2846,7 +2852,10 @@ export default {
                     required_users: requiredUsers
                 };
 
-                const response = await apiRequest("/applications/submit-complete-application", {
+                command = await prepareApplicationCommand('application.submit', finalRequestData);
+                finalRequestData.request_idempotency_key = command.key;
+                if (!command.result) this.saveToLocalStorage();
+                const response = command.result ? { ok: true, json: async () => command.result } : await apiRequest("/applications/submit-complete-application", {
                     method: "POST",
                     body: JSON.stringify(finalRequestData),
                     // Массовый импорт даёт до 2000 строк - дефолтных 10с apiRequest не хватает.
@@ -2855,36 +2864,15 @@ export default {
 
                 if (response.ok) {
                     const result = await response.json();
-                    // Файлы уже привязаны к заявке - список в форме больше не нужен.
-                    this.applicationFileIds = [];
-                    this.$refs.filesUpload?.reset();
-                    this.createdApplicationNumber = result.application_number;
-                    this.createdAttachmentsData = this.attachments.map(att => {
-                        const dateData = this.attachmentDatesByAttachment[this.attachmentKey(att)] || this.getDefaultDateData();
-                        let period = '';
-                        let time = '';
-
-                        if (dateData.isOneDay) {
-                            period = dateData.singleDate || '';
-                        } else if (dateData.startDate || dateData.endDate) {
-                            period = `${dateData.startDate || ''} - ${dateData.endDate || ''}`.trim();
-                        }
-
-                        if (dateData.startTime && dateData.endTime) {
-                            time = `${dateData.startTime} - ${dateData.endTime}`;
-                        }
-
-                        return {
-                            display_name: att.display_name || att.name,
-                            period,
-                            time
-                        };
-                    });
-                    this.showSuccessModal = true;
+                    if (!result?.application_id || !result.application_number) throw new Error('Результат отправки не подтверждён. Проверь список заявок и повтори отправку без изменения формы.');
+                    finishApplicationCommand(command, 'success');
+                    this.acceptSubmittedApplication(result);
                 } else {
+                    finishApplicationCommand(command, response.status);
                     notifyApiError('Ошибка отправки заявки: ', await response.text(), undefined, response.status);
                 }
             } catch (error) {
+                finishApplicationCommand(command, error.status);
                 console.error('Ошибка отправки заявки:', error);
                 useDeletionsStore().notify({ prefix: 'Произошла ошибка при отправке заявки: ', bold: error.message, type: 'error' });
             }
@@ -2961,6 +2949,7 @@ export default {
         },
 
         resetForm() {
+            resetApplicationCommand('application.submit').catch(() => {});
             this.applicationNumber++;
 
             this.vehiclesByAttachment = {};
@@ -3059,6 +3048,7 @@ export default {
                     phoneNumber: this.phoneNumber,
                     consentGiven: this.consentGiven,
                     readers: this.readers,
+                    applicationFileIds: [...this.applicationFileIds],
 
                     // attachments - источник истины для UI. Без них vehiclesByAttachment
                     // остаётся сиротским (ключи без самих attachment-записей) - BlankSelector
@@ -3124,6 +3114,7 @@ export default {
                     if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
                     this.consentGiven = parsedData.consentGiven || false;
                     this.readers = parsedData.readers || [];
+                    this.applicationFileIds = (parsedData.applicationFileIds || []).filter(id => Number.isInteger(id) && id > 0);
 
                     this.attachments = parsedData.attachments || [];
 

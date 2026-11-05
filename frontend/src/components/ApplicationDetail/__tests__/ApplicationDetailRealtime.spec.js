@@ -39,7 +39,7 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
     mountDetail();
     await flushPromises();
     expect(eventStream.connect).toHaveBeenCalledTimes(1);
-    expect(eventStream.subscribe).toHaveBeenCalledWith('application:7', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('application:7', expect.any(Function), { fallback: true });
   });
 
   it('колбэк сигнала перезапрашивает деталь (loadApplicationDetails)', async () => {
@@ -65,7 +65,7 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
     await flushPromises();
 
     expect(unsub).toHaveBeenCalled();
-    expect(eventStream.subscribe).toHaveBeenCalledWith('application:8', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('application:8', expect.any(Function), { fallback: true });
   });
 
   it('при unmount отписывается и отключает eventStream', async () => {
@@ -107,4 +107,57 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
 
     expect(wrapper.vm.selectedAttachment.id).toBe(20);
   });
+  it('refresh Promise waits for detail, history, questions and forward messages', async () => {
+    const releases = [];
+    const deferred = () => new Promise((resolve) => releases.push(resolve));
+    const host = {
+      applicationData: { id: 7 },
+      loadApplicationDetails: vi.fn(deferred),
+      $refs: {
+        historyComponent: { loadHistory: vi.fn(deferred) },
+        questionsComponent: { load: vi.fn(deferred) },
+        forwardMessagesComponent: { load: vi.fn(deferred) },
+      },
+    };
+    let done = false;
+    const pending = ApplicationDetail.methods.refreshLiveDetail.call(host).then(() => { done = true; });
+    expect(releases).toHaveLength(4);
+    releases.slice(0, 3).forEach((resolve) => resolve());
+    await flushPromises();
+    expect(done).toBe(false);
+    releases[3]();
+    await pending;
+    expect(done).toBe(true);
+  });
+
+  it('live refresh preserves a locally edited comment', async () => {
+    const wrapper = mountDetail();
+    await flushPromises();
+    wrapper.vm.actionComment = 'local draft';
+    apiRequest.mockImplementation((url) => Promise.resolve({ ok: true, json: async () =>
+      url.endsWith('/details') ? { responsible_users: [{ id: 1, approval_comment: 'saved comment' }] }
+        : url.endsWith('/attachments') ? [] : [] }));
+    await wrapper.vm.refreshLiveDetail();
+    expect(wrapper.vm.actionComment).toBe('local draft');
+    wrapper.unmount();
+  });
+
+  it('live refresh waits for the separately loaded supplements', async () => {
+    const wrapper = mountDetail();
+    await flushPromises();
+    let finish;
+    vi.spyOn(wrapper.vm, 'loadSupplements').mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    apiRequest.mockImplementation((url) => Promise.resolve({ ok: true, json: async () =>
+      url.endsWith('/details') ? { id: 7, supplements_count: 1 } : [] }));
+    let done = false;
+    const pending = wrapper.vm.refreshLiveDetail().then(() => { done = true; });
+    await flushPromises();
+    expect(finish).toBeTypeOf('function');
+    expect(done).toBe(false);
+    finish();
+    await pending;
+    expect(done).toBe(true);
+    wrapper.unmount();
+  });
+
 });

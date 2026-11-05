@@ -35,43 +35,89 @@ type subscriber struct {
 // расширения на несколько инстансов (LISTEN/NOTIFY или брокер) - за интерфейсом
 // Publish, менять только реализацию.
 type Hub struct {
-	mu   sync.RWMutex
-	subs map[int]map[*subscriber]struct{}
+	mu          sync.RWMutex
+	subs        map[int]map[*subscriber]struct{}
+	owners      map[int]int
+	total       int
+	ownerLimit  int
+	systemLimit int
+	closed      bool
 }
 
 // NewHub создаёт пустой хаб.
 func NewHub() *Hub {
-	return &Hub{subs: make(map[int]map[*subscriber]struct{})}
+	return NewHubWithLimits(defaultOwnerSubscriptions, defaultSystemSubscriptions)
 }
 
-// Subscribe регистрирует получателя для userID (одна вкладка = одна подписка) и
-// возвращает канал событий и функцию отписки. Отписка идемпотентна, удаляет
-// подписку и закрывает канал.
-func (h *Hub) Subscribe(userID int) (<-chan Event, func()) {
-	sub := &subscriber{ch: make(chan Event, subscriberBuffer)}
+// NewHubWithLimits задаёт положительные process-local пределы. Неположительные
+// значения запрещают соответствующий допуск, не отключают ограничение.
+func NewHubWithLimits(owner, system int) *Hub {
+	return &Hub{subs: make(map[int]map[*subscriber]struct{}), owners: make(map[int]int), ownerLimit: owner, systemLimit: system}
+}
 
+// Subscribe учитывает квоту настоящего владельца ownerID, доставляя события по
+// effective userID. Отказ происходит до выделения канала. Release идемпотентен.
+func (h *Hub) Subscribe(ownerID, userID int) (<-chan Event, func(), error) {
 	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return nil, nil, ErrClosed
+	}
+	if ownerID <= 0 || userID <= 0 {
+		return nil, nil, ErrInvalidIdentity
+	}
+	if h.owners[ownerID] >= h.ownerLimit {
+		return nil, nil, ErrOwnerLimit
+	}
+	if h.total >= h.systemLimit {
+		return nil, nil, ErrSystemLimit
+	}
+	sub := &subscriber{ch: make(chan Event, subscriberBuffer)}
 	if h.subs[userID] == nil {
 		h.subs[userID] = make(map[*subscriber]struct{})
 	}
 	h.subs[userID][sub] = struct{}{}
-	h.mu.Unlock()
+	h.owners[ownerID]++
+	h.total++
 
-	var once sync.Once
 	unsub := func() {
-		once.Do(func() {
-			h.mu.Lock()
-			if set := h.subs[userID]; set != nil {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if set := h.subs[userID]; set != nil {
+			if _, exists := set[sub]; exists {
 				delete(set, sub)
 				if len(set) == 0 {
 					delete(h.subs, userID)
 				}
+				h.total--
+				h.owners[ownerID]--
+				if h.owners[ownerID] == 0 {
+					delete(h.owners, ownerID)
+				}
+				close(sub.ch)
 			}
-			h.mu.Unlock()
-			close(sub.ch)
-		})
+		}
 	}
-	return sub.ch, unsub
+	return sub.ch, unsub, nil
+}
+
+// Close запрещает новые подписки и закрывает существующие под publish-lock.
+// Buffered events остаются в канале; lifecycle потребителя отменяется отдельно.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return
+	}
+	h.closed = true
+	for _, set := range h.subs {
+		for sub := range set {
+			close(sub.ch)
+		}
+	}
+	clear(h.subs)
+	clear(h.owners)
+	h.total = 0
 }
 
 // Publish адресно шлёт событие всем подпискам userID. Доставка неблокирующая:

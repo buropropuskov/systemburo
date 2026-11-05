@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -67,9 +67,10 @@ type SystemTableService interface {
 	// Вызывается один раз при старте сервиса для миграции старых таблиц.
 	SeedMissingFields(ctx context.Context) error
 
-	// GetHistory возвращает историю изменений системной таблицы (новые сверху).
-	// Переходный период #870: чтение объединяет legacy system_table_histories и audit_log.
+	// GetHistory returns the bounded default page for direct service callers.
 	GetHistory(ctx context.Context, tableID int) ([]models.SystemTableHistoryItem, error)
+	GetHistoryPage(ctx context.Context, tableID int, q SystemTableHistoryQuery) ([]models.SystemTableHistoryItem, SystemTableHistoryMeta, error)
+	GetHistoryUsers(ctx context.Context, tableID int, q SystemTableHistoryQuery) ([]PassageFilterUser, SystemTableHistoryMeta, error)
 }
 
 type systemTableService struct {
@@ -1336,49 +1337,140 @@ func (s *systemTableService) fixFactVisibilityFromCatalog(ctx context.Context, t
 }
 
 // GetHistory возвращает историю изменений системной таблицы (новые сверху).
-// Переходный период #870: запись идёт в audit_log, старые строки — в замороженной
-// system_table_histories. Union объединяет обе таблицы в идентичную форму ответа.
+type SystemTableHistoryQuery struct {
+	models.PassageHistoryQuery
+	// nil starts a new view; zero is a valid snapshot of an empty history.
+	SnapshotMaxID *int
+}
+
+type SystemTableHistoryMeta struct {
+	Total            int64  `json:"total"`
+	Page             int    `json:"page"`
+	PerPage          int    `json:"per_page"`
+	SnapshotMaxID    int    `json:"snapshot_max_id"`
+	NameMaskRevision string `json:"name_mask_revision"`
+}
+
+const systemTableHistoryActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+
+// Search includes the visible Russian action/field/value labels, not just the
+// stored English action code. Names are replaced by nameMaskQuery before SQL.
+const systemTableHistorySourceSQL = `(SELECT a.id, a.action AS action_type, a.details,
+	a.actor_user_id AS user_id, ` + systemTableHistoryActorName + ` AS user_name, a.created_at,
+	CASE a.action
+	 WHEN 'created' THEN 'Таблица создана' WHEN 'updated' THEN 'Изменены данные таблицы'
+	 WHEN 'archived' THEN 'Таблица архивирована' WHEN 'restored' THEN 'Таблица восстановлена из архива'
+	 WHEN 'columns_updated' THEN 'Изменены столбцы' WHEN 'appearance_updated' THEN 'Изменено оформление'
+	 ELSE a.action END AS action_text,
+	CONCAT_WS(' ', a.details::text,
+	 (SELECT string_agg(CONCAT_WS(': ', CASE field.key
+	  WHEN 'display_name' THEN 'Наименование' WHEN 'name' THEN 'Системное имя'
+	  WHEN 'table_type' THEN 'Тип таблицы' WHEN 'show_fact_table' THEN 'Показывать таблицу по факту'
+	  WHEN 'fact_table_hint' THEN 'Подсказка для FactTable' WHEN 'instruction' THEN 'Инструкция'
+	  WHEN 'map_link' THEN 'Ссылка на карту' WHEN 'status' THEN 'Статус'
+	  WHEN 'status_comment' THEN 'Комментарий статуса' WHEN 'location_description' THEN 'Описание местоположения'
+	  WHEN 'font_size' THEN 'Размер шрифта' WHEN 'row_density' THEN 'Плотность строк'
+	  WHEN 'font_size_fact' THEN 'Размер шрифта (По факту)' WHEN 'row_density_fact' THEN 'Плотность строк (По факту)'
+	  ELSE field.key END,
+	 CASE WHEN field.key = 'table_type' AND field.value = 'cars' THEN 'Машины'
+	  WHEN field.key = 'table_type' AND field.value = 'people' THEN 'Люди'
+	  WHEN field.key IN ('row_density', 'row_density_fact') AND field.value = 'compact' THEN 'Компактная'
+	  WHEN field.key IN ('row_density', 'row_density_fact') AND field.value = 'normal' THEN 'Стандартная'
+	  WHEN field.key IN ('row_density', 'row_density_fact') AND field.value = 'spacious' THEN 'Просторная'
+	  WHEN field.key = 'status' AND field.value = 'active' THEN 'Активна'
+	  WHEN field.key = 'status' AND field.value = 'maintenance' THEN 'На обслуживании'
+	  WHEN field.key = 'status' AND field.value = 'closed' THEN 'Закрыта'
+	  WHEN field.value = 'true' THEN 'да' WHEN field.value = 'false' THEN 'нет'
+	  ELSE field.value END), ' / ')
+	 FROM jsonb_each_text(CASE WHEN jsonb_typeof(a.details) = 'object' THEN a.details ELSE '{}'::jsonb END) AS field),
+	 CASE WHEN a.action = 'columns_updated' THEN CONCAT(
+	  CASE WHEN a.details->>'variant' = 'fact' THEN 'По факту' ELSE 'Основная таблица' END,
+	  '. Изменено столбцов: ', CASE WHEN jsonb_typeof(a.details->'fields') = 'array' THEN jsonb_array_length(a.details->'fields') ELSE 0 END)
+	 END) AS search_details
+	FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+	WHERE a.entity_type = ? AND a.entity_id = ? AND a.id <= ?) h`
+
+func (s *systemTableService) historySnapshot(ctx context.Context, tableID int, q SystemTableHistoryQuery) (int, error) {
+	if q.SnapshotMaxID != nil {
+		if *q.SnapshotMaxID < 0 {
+			return 0, echo.NewHTTPError(http.StatusBadRequest, "invalid history snapshot")
+		}
+		return *q.SnapshotMaxID, nil
+	}
+	var maxID int
+	if err := s.db.WithContext(ctx).Raw(`SELECT COALESCE(MAX(id), 0) FROM audit_log WHERE entity_type = ? AND entity_id = ?`, models.AuditEntitySystemTable, tableID).Scan(&maxID).Error; err != nil {
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error reading system table history snapshot")
+	}
+	return maxID, nil
+}
+
 func (s *systemTableService) GetHistory(ctx context.Context, tableID int) ([]models.SystemTableHistoryItem, error) {
-	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
-	// Read-switch #870 (F.3): до-cutover строки system_table_histories подняты в
-	// audit_log разовым backfill'ом (details уже jsonb, verbatim), читаем только
-	// audit_log. Старая таблица system_table_histories дропнута в дроп-sweep (F.8).
-	sql := `
-		SELECT a.id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
-			` + actorName + ` AS user_name,
-			a.created_at
-		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
-		WHERE a.entity_type = ? AND a.entity_id = ?
-		ORDER BY a.created_at DESC, a.id DESC`
+	items, _, err := s.GetHistoryPage(ctx, tableID, SystemTableHistoryQuery{})
+	return items, err
+}
 
-	type row struct {
-		ID         int             `gorm:"column:id"`
-		ActionType string          `gorm:"column:action_type"`
-		Details    json.RawMessage `gorm:"column:details"`
-		UserID     *int            `gorm:"column:user_id"`
-		UserName   string          `gorm:"column:user_name"`
-		CreatedAt  time.Time       `gorm:"column:created_at"`
+func (s *systemTableService) GetHistoryPage(ctx context.Context, tableID int, q SystemTableHistoryQuery) ([]models.SystemTableHistoryItem, SystemTableHistoryMeta, error) {
+	q.Normalize()
+	meta := SystemTableHistoryMeta{Page: q.Page, PerPage: q.PerPage}
+	limitSQL, limitArgs, err := passageHistoryLimitSQL(q.PassageHistoryQuery)
+	if err != nil {
+		return nil, meta, err
 	}
-	var rows []row
-	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTable, tableID).Scan(&rows).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table history")
+	filterSQL, filterArgs, err := passageHistoryConditions(q.PassageHistoryQuery, passageFilterSpec{
+		alias: "h", searchExprs: []string{"h.user_name", "h.action_text", "h.search_details"},
+	})
+	if err != nil {
+		return nil, meta, err
 	}
+	meta.SnapshotMaxID, err = s.historySnapshot(ctx, tableID, q)
+	if err != nil {
+		return nil, meta, err
+	}
+	masks, err := loadNameMaskQuery(ctx, s.db)
+	if err != nil {
+		return nil, meta, err
+	}
+	meta.NameMaskRevision = fmt.Sprintf("%x", sha256.Sum256([]byte(masks.encoded)))
+	args := append([]any{models.AuditEntitySystemTable, tableID, meta.SnapshotMaxID}, filterArgs...)
+	from := " FROM " + systemTableHistorySourceSQL + " WHERE TRUE" + filterSQL
+	if err := masks.rawActor(s.db.WithContext(ctx), "u.id", systemTableHistoryActorName, "SELECT COUNT(*)"+from, args...).Scan(&meta.Total).Error; err != nil {
+		return nil, meta, echo.NewHTTPError(http.StatusInternalServerError, "Error counting system table history")
+	}
+	items := make([]models.SystemTableHistoryItem, 0, q.PerPage)
+	query := "SELECT h.id, h.action_type, h.details, h.user_id, h.user_name, h.created_at" + from + passageHistoryOrderSQL(q.PassageHistoryQuery, "h") + limitSQL
+	if err := masks.rawActor(s.db.WithContext(ctx), "u.id", systemTableHistoryActorName, query, append(args, limitArgs...)...).Scan(&items).Error; err != nil {
+		return nil, meta, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table history")
+	}
+	return items, meta, nil
+}
 
-	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
-	masks, maskErr := loadNameMasks(ctx, s.db)
-	if maskErr != nil {
-		return nil, maskErr
+// Actor options cover the whole table history, independently of the current
+// filters, but each response is bounded. The same snapshot prevents drift.
+func (s *systemTableService) GetHistoryUsers(ctx context.Context, tableID int, q SystemTableHistoryQuery) ([]PassageFilterUser, SystemTableHistoryMeta, error) {
+	q.Normalize()
+	meta := SystemTableHistoryMeta{Page: q.Page, PerPage: q.PerPage}
+	limitSQL, limitArgs, err := passageHistoryLimitSQL(q.PassageHistoryQuery)
+	if err != nil {
+		return nil, meta, err
 	}
-	items := make([]models.SystemTableHistoryItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, models.SystemTableHistoryItem{
-			ID:         r.ID,
-			ActionType: r.ActionType,
-			Details:    r.Details,
-			UserID:     r.UserID,
-			UserName:   maskName(masks, r.UserID, r.UserName),
-			CreatedAt:  r.CreatedAt,
-		})
+	meta.SnapshotMaxID, err = s.historySnapshot(ctx, tableID, q)
+	if err != nil {
+		return nil, meta, err
 	}
-	return items, nil
+	masks, err := loadNameMaskQuery(ctx, s.db)
+	if err != nil {
+		return nil, meta, err
+	}
+	meta.NameMaskRevision = fmt.Sprintf("%x", sha256.Sum256([]byte(masks.encoded)))
+	from := ` FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id WHERE a.entity_type = ? AND a.entity_id = ? AND a.id <= ? AND a.actor_user_id IS NOT NULL`
+	args := []any{models.AuditEntitySystemTable, tableID, meta.SnapshotMaxID}
+	if err := s.db.WithContext(ctx).Raw("SELECT COUNT(DISTINCT a.actor_user_id)"+from, args...).Scan(&meta.Total).Error; err != nil {
+		return nil, meta, echo.NewHTTPError(http.StatusInternalServerError, "Error counting system table history users")
+	}
+	users := make([]PassageFilterUser, 0, q.PerPage)
+	query := "SELECT DISTINCT a.actor_user_id AS id, " + systemTableHistoryActorName + " AS name" + from + " ORDER BY a.actor_user_id ASC" + limitSQL
+	if err := masks.rawActor(s.db.WithContext(ctx), "u.id", systemTableHistoryActorName, query, append(args, limitArgs...)...).Scan(&users).Error; err != nil {
+		return nil, meta, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table history users")
+	}
+	return users, meta, nil
 }

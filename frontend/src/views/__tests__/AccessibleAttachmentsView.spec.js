@@ -577,7 +577,7 @@ describe('AccessibleAttachmentsView - real-time available.new (#840 V3)', () => 
     await flushPromises();
 
     expect(eventStream.connect).toHaveBeenCalledTimes(1);
-    expect(eventStream.subscribe).toHaveBeenCalledWith('available', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('available', expect.any(Function), { fallback: true });
 
     const cb = eventStream.subscribe.mock.calls.find((c) => c[0] === 'available')[1];
     getAccessibleAttachments.mockClear();
@@ -589,6 +589,24 @@ describe('AccessibleAttachmentsView - real-time available.new (#840 V3)', () => 
     wrapper = null;
     expect(unsub).toHaveBeenCalledTimes(1);
     expect(eventStream.disconnect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AccessibleAttachmentsView fallback Promise', () => {
+  it('scope callback waits for the list request to complete', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    wrapper = mountView();
+    await flushPromises();
+    let finish;
+    getAccessibleAttachments.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const callback = eventStream.subscribe.mock.calls.find(([scope]) => scope === 'available')[1];
+    let done = false;
+    const pending = callback().then(() => { done = true; });
+    await flushPromises();
+    expect(done).toBe(false);
+    finish({ items: [], meta: { total: 0 } });
+    await pending;
+    expect(done).toBe(true);
   });
 });
 

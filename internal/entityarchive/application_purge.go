@@ -59,6 +59,7 @@ var applicationPurgeNodes = []applicationPurgeNode{
 	{Table: "application_responsible_users", Cascade: true},
 	{Table: "application_viewers", Cascade: true},
 	{Table: "application_supplements", Cascade: true},
+	{Table: "notification_intents", Cascade: true},
 	{Table: "application_files", Cascade: true},
 	// Ниже - таблицы без внешнего ключа (философия audit_log и blank_exports: каскад
 	// снёс бы строку и оставил файл-сироту). Их уносит явный DELETE.
@@ -77,7 +78,9 @@ var applicationPurgeNodes = []applicationPurgeNode{
 // Минимальный терминальный запрет восстановления переживает физическое удаление
 // заявки. Содержимого документов и персональных полей в этой таблице нет.
 // Не включается в число уничтожаемых строк и не удаляется вместе с заявкой.
-var applicationRetainedTables = []string{"archive_export_jobs"}
+// Command receipts contain only IDs/result metadata and expire after 25 hours.
+// Keeping the receipt prevents a lost-response retry from recreating purged data.
+var applicationRetainedTables = []string{"archive_export_jobs", "application_operations"}
 
 // ApplicationGraphTables - имена таблиц графа заявки. Экспортируется ради замка
 // TestApplicationGraph_NoUnaccountedTables: тесту нужна карта графа, а заводить ради

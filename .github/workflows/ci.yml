@@ -49,6 +49,8 @@ jobs:
             infra:
               - 'docker-compose*.yml'
               - 'nginx/**'
+              - 'postgres/**'
+              - 'pgadmin/**'
               - 'scripts/**'
               - 'Makefile'
             workflows:
@@ -185,10 +187,20 @@ jobs:
       - working-directory: frontend
         run: npm run lint:bundle
 
+  release-policy-tests:
+    name: Release Policy Tests
+    runs-on: ubuntu-latest
+    needs: paths
+    if: needs.paths.outputs.workflows == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check exact-SHA release gates
+        run: python3 -m unittest discover -s .github/scripts -p 'test_wait_release_checks.py'
+
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [paths, backend-test, frontend-test]
+    needs: [paths, backend-test, frontend-lint, frontend-test, frontend-bundle, release-policy-tests]
     if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     permissions:
       contents: read
@@ -196,10 +208,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
-      # Логинимся в ghcr.io только когда пушим (push в dev/main).
+      # GHCR: публикуем только просканированные dev/prod образы.
       # Для PR/manual builds логин пропускаем - в этих случаях push: false.
       - name: Log in to ghcr.io
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/prod')
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -218,10 +230,10 @@ jobs:
         with:
           context: .
           target: production
+          no-cache-filters: production
           tags: |
             systemburo:ci
             ghcr.io/${{ steps.repo.outputs.lower }}-backend:${{ github.sha }}
-            ghcr.io/${{ steps.repo.outputs.lower }}-backend:dev
           load: true
           cache-from: type=gha,scope=systemburo-backend
           cache-to: type=gha,mode=max,scope=systemburo-backend
@@ -230,16 +242,16 @@ jobs:
       # node_modules). На GA runner это <2 минут, и deploy на VPS
       # сводится к docker pull (~30s) + up. Тэгируем SHA для воспроизводимости
       # + dev для последнего.
-      - name: Build frontend image (cached + push на dev)
+      - name: Build frontend image (cached)
         uses: docker/build-push-action@v7
         with:
           context: ./frontend
           target: production
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
-          load: ${{ github.event_name != 'push' || github.ref != 'refs/heads/dev' }}
+          no-cache-filters: production
+          load: true
           tags: |
+            systemburo-frontend:ci
             ghcr.io/${{ steps.repo.outputs.lower }}-frontend:${{ github.sha }}
-            ghcr.io/${{ steps.repo.outputs.lower }}-frontend:dev
           cache-from: type=gha,scope=systemburo-frontend
           cache-to: type=gha,mode=max,scope=systemburo-frontend
       # Временно доставляем staging-nginx готовым образом вместе с сервисами.
@@ -249,29 +261,142 @@ jobs:
         with:
           context: ./nginx
           file: ./nginx/Dockerfile.staging
+          target: staging
+          no-cache-filters: production,staging
           tags: |
             systemburo-nginx:ci
             ghcr.io/${{ steps.repo.outputs.lower }}-nginx:${{ github.sha }}
-            ghcr.io/${{ steps.repo.outputs.lower }}-nginx:dev
           labels: org.opencontainers.image.revision=${{ github.sha }}
           load: true
           cache-from: type=gha,scope=systemburo-staging-nginx
           cache-to: type=gha,mode=max,scope=systemburo-staging-nginx
       - name: Verify staging nginx has OpenSSL
         run: docker run --rm --entrypoint openssl systemburo-nginx:ci version
-      - name: Push staging nginx image to ghcr.io
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        run: |
-          docker push ghcr.io/${{ steps.repo.outputs.lower }}-nginx:${{ github.sha }}
-          docker push ghcr.io/${{ steps.repo.outputs.lower }}-nginx:dev
+      - name: Build production nginx image (cached dependencies, fresh runtime)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./nginx
+          file: ./nginx/Dockerfile.staging
+          target: production
+          no-cache-filters: production
+          tags: |
+            systemburo-nginx-prod:ci
+            ghcr.io/${{ steps.repo.outputs.lower }}-nginx-prod:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=systemburo-production-nginx
+          cache-to: type=gha,mode=max,scope=systemburo-production-nginx
+      - name: Build PostgreSQL runtime with pinned gosu
+        uses: docker/build-push-action@v7
+        with:
+          context: ./postgres
+          target: production
+          tags: |
+            systemburo-postgres:ci
+            ghcr.io/${{ steps.repo.outputs.lower }}-postgres:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=systemburo-postgres
+          cache-to: type=gha,mode=max,scope=systemburo-postgres
+      - name: Verify PostgreSQL startup and restart compatibility
+        run: bash .github/scripts/verify_postgres_runtime.sh systemburo-postgres:ci
+      - name: Build pgAdmin runtime
+        uses: docker/build-push-action@v7
+        with:
+          context: ./pgadmin
+          target: production
+          no-cache-filters: production
+          tags: |
+            systemburo-pgadmin:ci
+            ghcr.io/${{ steps.repo.outputs.lower }}-pgadmin:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=systemburo-pgadmin
+          cache-to: type=gha,mode=max,scope=systemburo-pgadmin
+      - name: Scan pgAdmin runtime
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.76.1'
+          image-ref: systemburo-pgadmin:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
+      - name: Scan PostgreSQL runtime
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.76.1'
+          image-ref: systemburo-postgres:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
+      - name: Scan backend runtime
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.76.1'
+          image-ref: systemburo:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
+      - name: Scan frontend runtime
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.76.1'
+          image-ref: systemburo-frontend:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
+      - name: Scan staging edge runtime
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.76.1'
+          image-ref: systemburo-nginx:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
+      - name: Scan production edge runtime
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.76.1'
+          image-ref: systemburo-nginx-prod:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
       - name: Verify backend image runs as non-root
         run: docker run --rm systemburo:ci id
-
-      - name: Push backend image to ghcr.io
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+      - name: Record scanned image identities
         run: |
-          docker push ghcr.io/${{ steps.repo.outputs.lower }}-backend:${{ github.sha }}
-          docker push ghcr.io/${{ steps.repo.outputs.lower }}-backend:dev
+          for image in systemburo:ci systemburo-frontend:ci systemburo-nginx:ci systemburo-nginx-prod:ci systemburo-postgres:ci systemburo-pgadmin:ci; do
+            docker image inspect --format '{{.Id}} {{json .RepoDigests}}' "$image"
+          done
+      - name: Push scanned images to ghcr.io
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/prod')
+        env:
+          REPO_LOWER: ${{ steps.repo.outputs.lower }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -e
+          for component in backend frontend nginx nginx-prod postgres pgadmin; do
+            image="ghcr.io/${REPO_LOWER}-${component}"
+            docker push "${image}:${RELEASE_SHA}"
+            # Prod never changes the staging/default dev aliases.
+            if [ "$RELEASE_BRANCH" = dev ]; then
+              docker tag "${image}:${RELEASE_SHA}" "${image}:dev"
+              docker push "${image}:dev"
+            fi
+          done
 
   deploy-staging:
     name: Deploy to Staging
@@ -289,11 +414,17 @@ jobs:
     permissions:
       contents: write
       packages: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Require trusted host and exact-SHA security checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VPS_HOST_FINGERPRINT: ${{ secrets.VPS_HOST_FINGERPRINT }}
+        run: python3 .github/scripts/wait_release_checks.py --branch dev --workflow security.yml
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         env:
@@ -305,6 +436,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
           # Передаём GITHUB_TOKEN на VPS чтобы docker login в ghcr.io
           # (org buropropuskov не разрешает public packages, нужна auth).
           envs: GHCR_USER,GHCR_TOKEN
@@ -323,11 +455,16 @@ jobs:
             export FRONTEND_IMAGE="ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}"
             export BACKEND_IMAGE="ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}"
             export NGINX_IMAGE="ghcr.io/${REPO_LOWER}-nginx:${{ github.sha }}"
+            export POSTGRES_IMAGE="ghcr.io/${REPO_LOWER}-postgres:${{ github.sha }}"
+            export PGADMIN_IMAGE="ghcr.io/${REPO_LOWER}-pgadmin:${{ github.sha }}"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            echo "Pulling pre-built images: $FRONTEND_IMAGE, $BACKEND_IMAGE, $NGINX_IMAGE"
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+            echo "Pulling pre-built images: $FRONTEND_IMAGE, $BACKEND_IMAGE, $NGINX_IMAGE, $POSTGRES_IMAGE, $PGADMIN_IMAGE"
             docker pull "$FRONTEND_IMAGE"
             docker pull "$BACKEND_IMAGE"
             docker pull "$NGINX_IMAGE"
+            docker pull "$POSTGRES_IMAGE"
+            docker pull "$PGADMIN_IMAGE"
             docker logout ghcr.io
             # Compose без BACKEND_IMAGE берёт метку dev, а её здесь никто не тянул: ручной
             # docker compose up поднимал образ многонедельной давности, и его миграция
@@ -336,13 +473,21 @@ jobs:
             docker tag "$FRONTEND_IMAGE" "ghcr.io/${REPO_LOWER}-frontend:dev"
             docker tag "$BACKEND_IMAGE" "ghcr.io/${REPO_LOWER}-backend:dev"
             docker tag "$NGINX_IMAGE" "ghcr.io/${REPO_LOWER}-nginx:dev"
+            docker tag "$POSTGRES_IMAGE" "ghcr.io/${REPO_LOWER}-postgres:dev"
+            docker tag "$POSTGRES_IMAGE" systemburo-postgres:production
+            docker tag "$PGADMIN_IMAGE" "ghcr.io/${REPO_LOWER}-pgadmin:dev"
+            docker tag "$PGADMIN_IMAGE" systemburo-pgadmin:production
             # Сохраняем локальное имя для ручного запуска Compose без NGINX_IMAGE.
             docker tag "$NGINX_IMAGE" systemburo-nginx
+              # Удаляем только служебный контейнер: без -v том с данными сохраняется.
+              # Старый restart:always не должен возвращать его после перезапуска Docker.
+              # Следующий ручной запуск tools применит текущие лимиты и образ.
+              docker compose -f docker-compose.base.yml -f docker-compose.staging.yml --profile tools rm --stop --force pgadmin
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate --no-build
             # Образы из реестра тегированы по SHA и копятся по одному на деплой.
             # Оставляем текущий и метку dev, остальные сносим: на диске VPS тесно.
             # Уборка best-effort - занятый образ не удалится, и это не повод падать.
-            for image_repo in "${REPO_LOWER}-frontend" "${REPO_LOWER}-backend" "${REPO_LOWER}-nginx"; do
+            for image_repo in "${REPO_LOWER}-frontend" "${REPO_LOWER}-backend" "${REPO_LOWER}-nginx" "${REPO_LOWER}-postgres" "${REPO_LOWER}-pgadmin"; do
               docker images "ghcr.io/${image_repo}" --format '{{.Repository}}:{{.Tag}}' \
                 | grep -v ':dev$' | grep -v ':${{ github.sha }}$' \
                 | xargs -r docker rmi 2>/dev/null || true
@@ -375,6 +520,7 @@ jobs:
       - frontend-lint
       - frontend-test
       - frontend-bundle
+      - release-policy-tests
       - docker-build
       - deploy-staging
     if: always()

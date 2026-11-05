@@ -95,7 +95,7 @@ describe('NewsAndReview - real-time доставка ленты через SSE (
     await flushPromises();
 
     expect(eventStream.connect).toHaveBeenCalledTimes(1);
-    expect(eventStream.subscribe).toHaveBeenCalledWith('news', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('news', expect.any(Function), { fallback: true });
 
     wrapper.unmount();
   });
@@ -126,5 +126,25 @@ describe('NewsAndReview - real-time доставка ленты через SSE (
 
     expect(unsubScope).toHaveBeenCalledTimes(1);
     expect(eventStream.disconnect).toHaveBeenCalledTimes(1);
+  });
+  it('scope callback waits for both news and announcement responses', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const callback = eventStream.subscribe.mock.calls.find(([scope]) => scope === 'news')[1];
+    let finishNews;
+    let finishAnnouncement;
+    apiRequest.mockImplementation((path) => new Promise((resolve) => {
+      if (path === '/news') finishNews = resolve;
+      if (path === '/announcements/active') finishAnnouncement = resolve;
+    }));
+    let done = false;
+    const pending = callback().then(() => { done = true; });
+    finishNews({ ok: true, json: async () => [] });
+    await flushPromises();
+    expect(done).toBe(false);
+    finishAnnouncement({ ok: true, json: async () => null });
+    await pending;
+    expect(done).toBe(true);
+    wrapper.unmount();
   });
 });

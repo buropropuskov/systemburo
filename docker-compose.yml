@@ -1,6 +1,9 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-systemburo-postgres:production}
+    build:
+      context: ./postgres
+      target: production
     environment:
       POSTGRES_DB: ${DB_NAME:-auto_registry}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -57,9 +60,11 @@ services:
     restart: unless-stopped
 
   pgadmin:
-    # Та же версия, что на стенде: расхождение между машиной разработчика и
-    # стендом само по себе становится источником «у меня работает».
-    image: dpage/pgadmin4:9.14
+    # Тот же воспроизводимый runtime, что на стенде.
+    image: ${PGADMIN_IMAGE:-systemburo-pgadmin:production}
+    build:
+      context: ./pgadmin
+      target: production
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}

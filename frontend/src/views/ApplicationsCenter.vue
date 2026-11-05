@@ -777,6 +777,7 @@ import { getApplicationsPaginated, getApplicationById, downloadApplicationsRegis
 import { useHeaderCounters } from '@/composables/useHeaderCounters'
 import { useRowTransition } from '@/composables/useRowTransition'
 import eventStream from '@/services/eventStream'
+import realtimeRefresh from './applicationsCenter/realtimeRefresh'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
@@ -817,6 +818,7 @@ const APPLICATIONS_PER_PAGE = 30;
 const UNREAD_STATUS = 'Непрочитано';
 
 export default {
+    mixins: [realtimeRefresh],
     name: 'ApplicationsCenter',
     components: { RegistrySortButton,
         DateFilter,
@@ -1316,17 +1318,11 @@ export default {
 
         // Real-time обновление Центра (#840): по сигналу сервера тихо рефрешим (#1158).
         eventStream.connect();
-        this.eventStreamOff = eventStream.subscribe('applications-center', async () => {
-            if (this.isInitialLoad) return; // как поллинг: не трогаем в первую секунду после mount
-            await this.refreshFromRealtime();
-        });
+        this.eventStreamOff = eventStream.subscribe('applications-center', this.handleRealtimeRefresh);
         this.eventStreamStatusOff = eventStream.onStatus((status) => {
             this.sseConnected = status === 'connected';
         });
 
-        setTimeout(() => {
-            this.isInitialLoad = false;
-        }, 1000);
 
         this._soundEscapeHandler = (e) => {
             if (e.key === 'Escape' && this.showSoundPopover) {
@@ -1949,9 +1945,7 @@ export default {
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
-                if (seq === this.fetchSeq) {
-                    this.loading = false;
-                }
+                await this.completeRealtimeInitialLoad(seq);
                 // refreshing развязан от seq-токена (по ревью): считаем активные non-silent
                 // запросы, оверлей гаснет с завершением последнего. Иначе гонка silent(SSE)
                 // и non-silent(фильтр) могла оставить оверлей «Обновление…» залипшим.

@@ -281,6 +281,7 @@ import EmployeesList from '@/components/CreateApplication/EmployeesList.vue';
 import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
+import { prepareApplicationCommand, finishApplicationCommand, rememberApplicationCommandDraft, restoreApplicationCommandDraft, recoverApplicationCommand } from '@/services/applicationCommand';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { SUPPLEMENT_MERGED } from '@/utils/supplementStatuses';
@@ -422,6 +423,7 @@ export default {
     data() {
         return {
             selectedAttachmentId: null,
+            recoverySeq: 0,
             // Строки копим ПО ВЛОЖЕНИЯМ: смена вложения в дропдауне не должна терять
             // уже набранное, а контракт additions[] и так принимает несколько целей.
             rowsByAttachment: {},
@@ -545,6 +547,7 @@ export default {
             setModalOpen(this, open, 10010);
             setBodyScrollLock(this, open);
             if (open) this.initState();
+            else this.recoverySeq++;
         },
     },
     mounted() {
@@ -557,6 +560,7 @@ export default {
         }
     },
     beforeUnmount() {
+        this.recoverySeq++;
         releaseModal(this);
         document.removeEventListener('keydown', this.onKeydown);
         releaseBodyScrollLock(this);
@@ -567,10 +571,28 @@ export default {
             markEscapeHandled(e);
             this.close();
         },
-        initState() {
+        async initState() {
+            const seq = ++this.recoverySeq;
+            const appId = this.application.id;
+            const scope = `application.supplement:${appId}`;
             this.resetState();
             const first = this.activeAttachments[0];
             if (first) this.onAttachmentChange(first.id);
+            try {
+                const draft = await restoreApplicationCommandDraft(scope);
+                if (seq !== this.recoverySeq || !this.show || this.application.id !== appId) return;
+                if (draft) {
+                    this.rowsByAttachment = draft.rowsByAttachment;
+                    this.rowIdCounter = draft.rowIdCounter;
+                    this.comment = draft.comment;
+                    this.onAttachmentChange(draft.selectedAttachmentId);
+                    return;
+                }
+                const result = await recoverApplicationCommand(scope);
+                if (result && seq === this.recoverySeq && this.show && this.application.id === appId) this.acceptSubmittedResult(result);
+            } catch (error) {
+                if (seq === this.recoverySeq && this.show && this.application.id === appId) useDeletionsStore().notify({ bold: error.message, type: 'error' });
+            }
         },
         attachmentLabel(attachment) {
             const name = attachment.unique_attachment_display_name
@@ -675,6 +697,15 @@ export default {
             }
             return additions;
         },
+        acceptSubmittedResult(result) {
+            useDeletionsStore().notify({
+                prefix: result.status === SUPPLEMENT_MERGED ? 'Строки добавлены в заявку ' : 'Дополнение отправлено на согласование по заявке ',
+                bold: this.application.application_number,
+                type: 'success',
+            });
+            this.$emit('submitted', result);
+            this.$emit('close');
+        },
         async submit() {
             if (!this.canSubmit) return;
             const additions = this.buildAdditions();
@@ -682,22 +713,21 @@ export default {
 
             this.submitting = true;
             const deletions = useDeletionsStore();
+            let command;
             try {
                 const trimmed = this.comment.trim();
-                const result = await createSupplement(this.application.id, {
-                    comment: trimmed || null,
-                    additions,
+                const payload = { comment: trimmed || null, additions };
+                command = await prepareApplicationCommand(`application.supplement:${this.application.id}`, payload);
+                if (!command.result) rememberApplicationCommandDraft(command, {
+                    rowsByAttachment: this.rowsByAttachment, rowIdCounter: this.rowIdCounter,
+                    comment: this.comment, selectedAttachmentId: this.selectedAttachmentId,
                 });
-                deletions.notify({
-                    prefix: result.status === SUPPLEMENT_MERGED
-                        ? 'Строки добавлены в заявку '
-                        : 'Дополнение отправлено на согласование по заявке ',
-                    bold: this.application.application_number,
-                    type: 'success',
-                });
-                this.$emit('submitted', result);
-                this.$emit('close');
+                const result = command.result || await createSupplement(this.application.id, { ...payload, request_idempotency_key: command.key });
+                if (!result?.supplement_id || !result.number || !['pending', 'merged'].includes(result.status)) throw new Error('Результат отправки не подтверждён. Проверь список дополнений перед новой отправкой.');
+                finishApplicationCommand(command, 'success');
+                this.acceptSubmittedResult(result);
             } catch (e) {
+                finishApplicationCommand(command, e.status);
                 deletions.notify({
                     bold: e.status === 409
                         // 409 приходит и на «уже есть незакрытый раунд», и на закрытый статус

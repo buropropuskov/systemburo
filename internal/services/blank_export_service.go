@@ -172,6 +172,13 @@ func targetLevels(levels []string, target blankExportTarget) []string {
 // прогоном (фактического каталога уже нет, файлы просто перепишутся), обратный
 // порядок оставил бы каталог-сироту, про который система забыла.
 func (s *BlankExportService) ExportApplication(ctx context.Context, applicationID int, reason string) (*models.BlankExportResult, error) {
+	ctx, cancel := ResourcePreparationContext(ctx)
+	defer cancel()
+	ctx, releaseBudget, err := AcquireResourceBudget(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseBudget()
 	release, err := archivecoord.Acquire(ctx)
 	if err != nil {
 		return nil, err

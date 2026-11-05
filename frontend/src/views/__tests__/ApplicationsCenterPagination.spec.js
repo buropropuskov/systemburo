@@ -508,4 +508,27 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     expect(wrapper.vm.isFullLoad).toBe(true);
     expect([...wrapper.vm.applications.map((a) => a.id)].sort()).toEqual([1, 2]);
   });
+  it('coalesces reconnect signals until the latest initial load completes', async () => {
+    let resolveFirst;
+    let resolveLatest;
+    getApplicationsPaginated.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveLatest = resolve; }));
+    wrapper = mountCenter();
+    await flushPromises();
+    const callback = eventStream.subscribe.mock.calls.find(([scope]) => scope === 'applications-center')[1];
+    const refresh = vi.spyOn(wrapper.vm, 'refreshFromRealtime').mockResolvedValue(undefined);
+    await callback();
+    await callback();
+    const latest = wrapper.vm.fetchApplications();
+    resolveFirst({ items: [makeApp(1)], meta: { total: 1 } });
+    await flushPromises();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(wrapper.vm.isInitialLoad).toBe(true);
+    resolveLatest({ items: [makeApp(2)], meta: { total: 1 } });
+    await latest;
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(wrapper.vm.isInitialLoad).toBe(false);
+    expect(wrapper.vm.realtimeRefreshPending).toBe(false);
+  });
+
 });

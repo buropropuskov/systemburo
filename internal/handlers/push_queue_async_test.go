@@ -93,7 +93,8 @@ func TestPushQueueAsync_OverflowPreservesNotifications(t *testing.T) {
 		svc.Send(context.Background(), uid, payload)
 	}
 	hub := realtime.NewHub()
-	events, unsubscribe := hub.Subscribe(uid)
+	events, unsubscribe, subscribeErr := hub.Subscribe(uid, uid)
+	require.NoError(t, subscribeErr)
 	defer unsubscribe()
 	notifications := services.NewNotificationService(db, services.WithNotificationPushSender(svc), services.WithNotificationRealtimePublisher(hub))
 	title, message, typ := "Retained notification", "First", services.NotificationTypeApplicationApprovalRequired

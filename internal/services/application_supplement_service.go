@@ -28,6 +28,7 @@ import (
 
 // CreateSupplementRequest - тело запроса на дополнение поданной заявки.
 type CreateSupplementRequest struct {
+	RequestIdempotencyKey string `json:"request_idempotency_key,omitempty"`
 	// Comment - зачем понадобилась добавка; виден согласующим в карточке раунда.
 	Comment   *string              `json:"comment"`
 	Additions []SupplementAddition `json:"additions"`
@@ -141,9 +142,6 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 	if err != nil {
 		return nil, err
 	}
-	if len(req.Additions) == 0 {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Дополнение без добавленных строк")
-	}
 
 	// Отдельных checkNotArchived/checkNotWithdrawn тут нет намеренно: статус заявки гейтит
 	// один allow-list supplementAllowedStatuses под тем же локом, что и остальные проверки,
@@ -166,40 +164,29 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 	}
 	// Владение проверяем ДО валидации содержимого: иначе посторонний по тексту ошибок
 	// («вложение не принадлежит заявке» против «поле обязательно») выяснял бы состав чужой заявки.
-	if err := ensureSupplementAllowed(app.SenderUserID, app.Status, user.ID, isSuperAdmin); err != nil {
-		return nil, err
+	if !(isSuperAdmin && user.IsSuperAdmin) && app.SenderUserID != user.ID {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Дополнить можно только собственную заявку")
 	}
 
-	if err := ValidateSupplementComposition(req); err != nil {
-		return nil, err
-	}
-
-	targets, counts, err := s.resolveSupplementTargets(ctx, applicationID, req.Additions)
+	body := req
+	body.RequestIdempotencyKey = ""
+	command, err := newApplicationCommand(ctx, user, fmt.Sprintf("application.supplement:%d", applicationID), req.RequestIdempotencyKey, body)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, t := range targets {
-		uniqueID := 0
-		if t.attachment.UniqueAttachmentID != nil {
-			uniqueID = *t.attachment.UniqueAttachmentID
-		}
-		if err := s.validateAttachmentRequiredFields(ctx, uniqueID, t.attachment.AttachmentType, t.content()); err != nil {
-			return nil, err
-		}
-		if err := s.validateBlacklistEntries(ctx, t.addition.Vehicles, t.addition.Employees); err != nil {
-			return nil, err
-		}
-		if err := validateNoSupplementDuplicates(t); err != nil {
-			return nil, err
-		}
-		if err := s.validateNotAlreadyInAttachment(ctx, t); err != nil {
-			return nil, err
-		}
-		if err := s.ensureSupplementByFactAllowed(s.db.WithContext(ctx), applicationID, t.addition.Vehicles); err != nil {
-			return nil, err
-		}
+	var saved CreateSupplementResponse
+	if found, lookupErr := command.lookup(s.db.WithContext(ctx), &saved); lookupErr != nil {
+		return nil, lookupErr
+	} else if found {
+		return &saved, nil
 	}
+	ctx, release, err := admitApplicationCommand(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	var replayed bool
+	var counts SupplementCounts
 
 	comment := trimmedSupplementComment(req.Comment)
 	now := time.Now().UTC()
@@ -210,6 +197,11 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 	var pendingEmployeeFlags []pendingEmployeeFlag
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var reserveErr error
+		replayed, reserveErr = command.reserve(tx, &saved)
+		if reserveErr != nil || replayed {
+			return reserveErr
+		}
 		// Перечитываем заявку под блокировкой строки: между гардом выше и вставкой её могли
 		// отозвать, закрыть или принять в работу - а от статуса зависит сама ветка поведения.
 		var locked struct {
@@ -222,6 +214,41 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		}
 		if err := ensureSupplementAllowed(locked.SenderUserID, locked.Status, user.ID, isSuperAdmin); err != nil {
 			return err
+		}
+
+		if len(req.Additions) == 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Дополнение без добавленных строк")
+		}
+		if err := ValidateSupplementComposition(req); err != nil {
+			return err
+		}
+
+		var targets []supplementTarget
+		targets, counts, err = s.resolveSupplementTargets(ctx, applicationID, req.Additions)
+		if err != nil {
+			return err
+		}
+
+		for _, t := range targets {
+			uniqueID := 0
+			if t.attachment.UniqueAttachmentID != nil {
+				uniqueID = *t.attachment.UniqueAttachmentID
+			}
+			if err := s.validateAttachmentRequiredFields(ctx, uniqueID, t.attachment.AttachmentType, t.content()); err != nil {
+				return err
+			}
+			if err := s.validateBlacklistEntries(ctx, t.addition.Vehicles, t.addition.Employees); err != nil {
+				return err
+			}
+			if err := validateNoSupplementDuplicates(t); err != nil {
+				return err
+			}
+			if err := s.validateNotAlreadyInAttachment(ctx, t); err != nil {
+				return err
+			}
+			if err := s.ensureSupplementByFactAllowed(s.db.WithContext(ctx), applicationID, t.addition.Vehicles); err != nil {
+				return err
+			}
 		}
 
 		var openCount int64
@@ -296,10 +323,23 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, supplementAuditActionCreated, &user.ID,
 			applicationAuditDetails{Comment: comment, Metadata: meta})
 
+		if err := EnqueueApplicationSupplementNotificationTx(ctx, tx, applicationID, supplement.ID, user.ID, inWork); err != nil {
+			return err
+		}
+		if err := command.save(tx, &CreateSupplementResponse{SupplementID: supplement.ID, Number: supplement.Number, Status: supplement.Status, Counts: counts}); err != nil {
+			return err
+		}
 		return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if replayed {
+		if err := s.checkCommandReplayAccess(ctx, username, applicationID); err != nil {
+			return nil, err
+		}
+		return &saved, nil
 	}
 
 	// Мягкое предупреждение о возможном обходе ЧС по похожему номеру/ФИО (#481). Флаги
@@ -307,7 +347,7 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 	s.detectBlacklistSimilarity(ctx, applicationID, &supplement.ID, pendingVehicleFlags, pendingEmployeeFlags)
 
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
-	s.notifySupplementApprovers(ctx, applicationID, supplement, app.ApplicationNumber, user.ID, inWork)
+	s.wakeNotificationIntents()
 
 	return &CreateSupplementResponse{
 		SupplementID: supplement.ID,

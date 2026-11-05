@@ -79,7 +79,11 @@ func (h *ApplicationHandler) ExportApplications(c echo.Context) error {
 		return err
 	}
 
-	apps, err := h.service.GetApplications(c.Request().Context(), username, filter)
+	// Bound SQL preparation without replacing the HTTP context used to deliver
+	// the completed workbook. Both reads share the same preparation deadline.
+	prepCtx, cancelPreparation := services.ResourcePreparationContext(c.Request().Context())
+	defer cancelPreparation()
+	apps, err := h.service.GetApplications(prepCtx, username, filter)
 	if err != nil {
 		return err
 	}
@@ -88,10 +92,11 @@ func (h *ApplicationHandler) ExportApplications(c echo.Context) error {
 	for i := range apps {
 		ids = append(ids, apps[i].ID)
 	}
-	extras, err := h.service.GetRegistryExtras(c.Request().Context(), ids)
+	extras, err := h.service.GetRegistryExtras(prepCtx, ids)
 	if err != nil {
 		return err
 	}
+	cancelPreparation()
 
 	table := export.Table{
 		Title:    "Реестр заявок",

@@ -468,13 +468,18 @@ func (s *ArchiveDownloadService) rowsForApplication(ctx context.Context, applica
 // сохраняет структуру каталогов (RelDir/FileName), в отличие от ZIP заявки, где
 // все файлы и так лежат в одной папке.
 func (s *ArchiveDownloadService) periodEntries(ctx context.Context, from, to time.Time) ([]download.ZipEntry, error) {
-	if err := s.CheckOriginalDisclosure(ctx); err != nil {
+	// Only SQL preparation has this deadline. The caller retains its original
+	// request context and admission lease throughout the later ZIP stream.
+	prepCtx, cancelPreparation := ResourcePreparationContext(ctx)
+	defer cancelPreparation()
+	if err := s.CheckOriginalDisclosure(prepCtx); err != nil {
 		return nil, err
 	}
-	rows, err := s.rowsForRange(ctx, from, to)
+	rows, err := s.rowsForRange(prepCtx, from, to)
 	if err != nil {
 		return nil, err
 	}
+	cancelPreparation()
 
 	entries := make([]download.ZipEntry, 0, len(rows))
 	for _, row := range rows {

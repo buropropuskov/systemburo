@@ -841,8 +841,7 @@ function closePreview() {
 
 // Real-time (#840 V3): при согласовании заявки её вложения появляются в списке -
 // сервер шлёт available.new, обновляем список без F5. Раньше вкладка была F5-only,
-// поллинг не добавляем (fetchList сбрасывает пагинацию - периодический сброс мешал
-// бы прокрутке; approve - редкое событие, SSE даёт живость без дизрапта).
+// при обрыве потоков общий fallback опрашивает только эту opt-in подписку.
 let unsubAvailable = null;
 /*
  * Раскрытие карточки вложения для онбординга: без него шаги про детали, скрытое
@@ -898,7 +897,7 @@ onMounted(() => {
   loadFilterOptions();
   fetchList({ reset: true });
   eventStream.connect();
-  unsubAvailable = eventStream.subscribe('available', () => fetchList({ reset: true }));
+  unsubAvailable = eventStream.subscribe('available', () => fetchList({ reset: true }), { fallback: true });
 });
 
 onBeforeUnmount(() => {

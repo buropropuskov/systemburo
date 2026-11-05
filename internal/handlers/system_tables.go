@@ -473,12 +473,21 @@ func (h *SystemTableHandler) BulkRestore(c echo.Context) error {
 
 // GetHistory godoc
 // @Summary      История изменений системной таблицы
-// @Description  Возвращает все CRUD-действия над таблицей (created/updated/archived/restored/columns/appearance)
+// @Description  Страница CRUD-аудита. Поиск и фильтры применяются ко всей истории; snapshot_max_id фиксирует верхнюю границу для подгрузки и экспорта.
 // @Tags         system-tables
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID таблицы"
-// @Success      200 {array} models.SystemTableHistoryItem
+// @Param        page query int false "Страница" default(1)
+// @Param        per_page query int false "Размер страницы, максимум 200" default(50)
+// @Param        search query string false "Поиск по отображаемому пользователю, действию и деталям"
+// @Param        user_id query int false "Автор действия"
+// @Param        date_from query string false "Первый московский день, YYYY-MM-DD"
+// @Param        date_to query string false "Последний московский день, YYYY-MM-DD"
+// @Param        order query string false "asc или desc"
+// @Param        snapshot_max_id query int false "Верхняя граница из meta первой страницы"
+// @Param        filter_options query int false "1: страница пользователей фильтра вместо событий"
+// @Success      200 {object} Response
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
@@ -488,11 +497,33 @@ func (h *SystemTableHandler) GetHistory(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	items, err := h.service.GetHistory(c.Request().Context(), id)
+	page, err := bindPassageHistoryQuery(c)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, items)
+	q := services.SystemTableHistoryQuery{PassageHistoryQuery: page}
+	if raw := c.QueryParam("snapshot_max_id"); raw != "" {
+		maxID, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || maxID < 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid history snapshot")
+		}
+		q.SnapshotMaxID = &maxID
+	}
+	if options := c.QueryParam("filter_options"); options != "" {
+		if options != "1" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid history filter options")
+		}
+		users, meta, err := h.service.GetHistoryUsers(c.Request().Context(), id, q)
+		if err != nil {
+			return err
+		}
+		return RespondPaginated(c, users, meta)
+	}
+	items, meta, err := h.service.GetHistoryPage(c.Request().Context(), id, q)
+	if err != nil {
+		return err
+	}
+	return RespondPaginated(c, items, meta)
 }
 
 // UpdateFields godoc

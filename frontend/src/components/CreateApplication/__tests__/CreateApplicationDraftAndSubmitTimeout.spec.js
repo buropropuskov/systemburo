@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CreateApplication from '../CreateApplication.vue';
+import { recoverApplicationCommand } from '@/services/applicationCommand';
 
 // Эпик blank-import, срез E2E3: черновик не давится импортом (saveToLocalStorage не
 // сериализуется на каждую строку, переполнение квоты не роняет форму), а подача
@@ -151,6 +152,7 @@ describe('CreateApplication - подача большого списка не р
         );
         expect(submitCall).toBeTruthy();
         expect(submitCall[1].signal).toBe('FAKE_EXTENDED_SIGNAL');
+        expect(JSON.parse(submitCall[1].body).request_idempotency_key).toBe('test-command-key');
     });
 
     it('повторное нажатие "Отправить заявку" во время подачи не шлёт второй запрос', async () => {
@@ -177,7 +179,7 @@ describe('CreateApplication - подача большого списка не р
 
         resolveSubmit({
             ok: true,
-            json: vi.fn().mockResolvedValue({ application_number: '№ 1' }),
+            json: vi.fn().mockResolvedValue({ application_id: 1, application_number: '№ 1' }),
         });
         await Promise.all([first, second]);
         await flushPromises();
@@ -214,9 +216,45 @@ describe('CreateApplication - подача большого списка не р
 
         resolveSubmit({
             ok: true,
-            json: vi.fn().mockResolvedValue({ application_number: '№ 1' }),
+            json: vi.fn().mockResolvedValue({ application_id: 1, application_number: '№ 1' }),
         });
         await submitPromise;
         await flushPromises();
     });
 });
+
+describe('file identifiers in the existing owned draft', () => {
+    it('restores file_ids for same-command retry after reload', async () => {
+        const w = await mountApp();
+        w.vm.applicationFileIds = [17, 23];
+        w.vm.saveToLocalStorage();
+        expect(JSON.parse(localStorage.getItem('draftApplicationState')).applicationFileIds).toEqual([17, 23]);
+        w.vm.applicationFileIds = [];
+        await w.vm.restoreFromLocalStorage();
+        expect(w.vm.applicationFileIds).toEqual([17, 23]);
+        w.unmount();
+    });
+});
+
+describe('committed command recovery before new-form validation', () => {
+    it('shows the saved result without another write even when the reloaded form is empty', async () => {
+        const w = await mountApp();
+        const validate = vi.spyOn(w.vm, 'validateAllFields');
+        recoverApplicationCommand.mockResolvedValueOnce({ application_id: 91, application_number: 'RECOVERED-91' });
+        apiRequestMock.mockClear();
+        await w.vm.submitApplication();
+        expect(validate).not.toHaveBeenCalled();
+        expect(w.vm.createdApplicationNumber).toBe('RECOVERED-91');
+        expect(w.vm.showSuccessModal).toBe(true);
+        expect(apiRequestMock.mock.calls.some(([path]) => path === '/applications/submit-complete-application')).toBe(false);
+        w.unmount();
+    });
+});
+
+// Command lifecycle is covered by applicationCommand.spec.js; retain these form contracts.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(async () => ({ key: 'test-command-key' })),
+    finishApplicationCommand: vi.fn(),
+    resetApplicationCommand: vi.fn(async () => {}),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

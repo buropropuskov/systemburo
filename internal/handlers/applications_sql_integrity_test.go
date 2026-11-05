@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"systemburo/internal/apperr"
 	"systemburo/internal/models"
@@ -152,7 +153,8 @@ func TestApplicationSQLIntegrity_CheckedReadsAndWrites(t *testing.T) {
 
 	t.Run("success_preserves_assignees_viewers_and_attachment_places", func(t *testing.T) {
 		pub := &fakePublisher{}
-		resp, err := newService(pub).SubmitCompleteApplication(context.Background(), sender, req, false)
+		svc := newService(pub)
+		resp, err := svc.SubmitCompleteApplication(context.Background(), sender, req, false)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		require.NotEmpty(t, resp.ApplicationNumber)
@@ -208,7 +210,30 @@ func TestApplicationSQLIntegrity_CheckedReadsAndWrites(t *testing.T) {
 		require.NoError(t, db.First(&attached, file.ID).Error)
 		require.Equal(t, app.ID, *attached.ApplicationID)
 		require.NotEmpty(t, pub.events, "successful commit retains realtime refresh")
+		// Direct service calls commit durable work; unlike the HTTP fixture,
+		// they do not drive the worker after the request completes.
+		var intent models.NotificationIntent
+		require.NoError(t, db.Where("event_key = ?", fmt.Sprintf("submit:%d", app.ID)).Take(&intent).Error)
+		require.Positive(t, intent.ID)
+		require.Equal(t, app.ID, intent.ApplicationID)
+		require.Equal(t, senderID, intent.ActorUserID)
+		require.Equal(t, "pending", intent.State, "business commit must retain the notification intent")
 		var notices int64
+		require.NoError(t, db.Table("notifications").Where("user_id = ? AND type = ? AND data->>'application_id' = ?",
+			senderID, services.NotificationTypeApplicationCreated, fmt.Sprint(app.ID)).Count(&notices).Error)
+		require.Zero(t, notices, "committing durable work must not synchronously materialize notifications")
+		worker, err := services.NewNotificationIntentWorker(db, svc, services.NewNotificationService(db))
+		require.NoError(t, err)
+		workCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		processed, failed := worker.Process(workCtx)
+		require.Equal(t, 1, processed)
+		require.Zero(t, failed)
+		var completed models.NotificationIntent
+		require.NoError(t, db.Where("event_key = ?", intent.EventKey).Take(&completed).Error)
+		require.Equal(t, intent.ID, completed.ID)
+		require.Equal(t, "done", completed.State)
+		require.NotNil(t, completed.CompletedAt)
 		require.NoError(t, db.Table("notifications").Where("user_id = ? AND type = ? AND data->>'application_id' = ?",
 			senderID, services.NotificationTypeApplicationCreated, fmt.Sprint(app.ID)).Count(&notices).Error)
 		require.EqualValues(t, 1, notices)

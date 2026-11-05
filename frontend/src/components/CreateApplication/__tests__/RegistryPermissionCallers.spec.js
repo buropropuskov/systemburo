@@ -52,3 +52,11 @@ it('submits without optional registry writes after permissions are revoked', asy
   expect(apiRequest).not.toHaveBeenCalled(); expect(vm.sendCompleteApplication).toHaveBeenCalledOnce();
   expect(vm.isBindingActionInProgress).toBe(false);
 });
+
+// Command lifecycle is covered by applicationCommand.spec.js; retain these form contracts.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(async () => ({ key: 'test-command-key' })),
+    finishApplicationCommand: vi.fn(),
+    resetApplicationCommand: vi.fn(async () => {}),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

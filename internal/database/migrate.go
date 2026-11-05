@@ -216,6 +216,8 @@ func AllModels() []interface{} {
 		&models.BlankExport{},
 		&models.ArchiveExportJob{},
 		&models.ArchiveExportScanState{},
+		&models.ApplicationOperation{},
+		&models.NotificationIntent{},
 
 		// Партии вымышленных данных проверочного стенда (#1682): перечень созданного,
 		// по которому партия удаляется целиком. На рабочем сервере таблицы остаются

@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,16 @@ type argon2Params struct {
 	time    uint32
 	threads uint8
 }
+
+// Both the Go generator and its Rust argon2 0.5.3 predecessor use this
+// Argon2id-v19 profile. Supporting a new stored profile requires an explicit
+// compatibility review: the semaphore bounds concurrent work, not one hash.
+const passwordPHCPrefix = "$argon2id$v=19$m=19456,t=2,p=1$"
+const passwordPHCMaxLength = 97
+
+// Public, synthetic data. Its comparison result is deliberately ignored;
+// deriving it still costs exactly one ordinary current-profile verification.
+const unknownLoginPHC = passwordPHCPrefix + "AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 // generateSalt creates a 16-byte random salt.
 func generateSalt() []byte {
@@ -29,40 +40,55 @@ func base64RawEncode(data []byte) string {
 // parsePHC parses an Argon2 PHC-format hash string.
 // Format: $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>
 func parsePHC(phc string) (salt, hash []byte, params argon2Params, err error) {
+	invalid := func() ([]byte, []byte, argon2Params, error) {
+		return nil, nil, argon2Params{}, fmt.Errorf("invalid PHC format: unsupported or malformed password profile")
+	}
+	// Bound splitting and base64 allocation before inspecting attacker-corrupted
+	// stored data. Never include any part of the stored PHC in an error.
+	if len(phc) > passwordPHCMaxLength {
+		return invalid()
+	}
 	parts := strings.Split(phc, "$")
-	if len(parts) != 6 {
-		return nil, nil, params, fmt.Errorf("invalid PHC format: expected 6 parts, got %d", len(parts))
+	if len(parts) != 6 || parts[0] != "" || parts[1] != "argon2id" || parts[2] != "v=19" {
+		return invalid()
 	}
-
-	// parts[0] = "" (leading $)
-	// parts[1] = "argon2id"
-	// parts[2] = "v=19"
-	// parts[3] = "m=19456,t=2,p=1"
-	// parts[4] = base64(salt)
-	// parts[5] = base64(hash)
-
-	if parts[1] != "argon2id" && parts[1] != "argon2i" && parts[1] != "argon2d" {
-		return nil, nil, params, fmt.Errorf("unsupported algorithm: %s", parts[1])
+	fields := strings.Split(parts[3], ",")
+	if len(fields) != 3 {
+		return invalid()
 	}
-
-	// Parse params
-	var m, t, p uint32
-	_, err = fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &m, &t, &p)
-	if err != nil {
-		return nil, nil, params, fmt.Errorf("failed to parse params: %w", err)
+	var values [3]uint32
+	for i, name := range []string{"m=", "t=", "p="} {
+		if !strings.HasPrefix(fields[i], name) {
+			return invalid()
+		}
+		digits := strings.TrimPrefix(fields[i], name)
+		if digits == "" {
+			return invalid()
+		}
+		for _, digit := range digits {
+			if digit < '0' || digit > '9' {
+				return invalid()
+			}
+		}
+		value, parseErr := strconv.ParseUint(digits, 10, 32)
+		if parseErr != nil || strconv.FormatUint(value, 10) != digits {
+			return invalid()
+		}
+		values[i] = uint32(value)
 	}
-	params = argon2Params{memory: m, time: t, threads: uint8(p)}
-
-	salt, err = base64.RawStdEncoding.DecodeString(parts[4])
-	if err != nil {
-		return nil, nil, params, fmt.Errorf("failed to decode salt: %w", err)
+	// Check the whole profile before narrowing parallelism to uint8 or IDKey.
+	if values != [3]uint32{19456, 2, 1} || len(parts[4]) != 22 || len(parts[5]) != 43 {
+		return invalid()
 	}
-
-	hash, err = base64.RawStdEncoding.DecodeString(parts[5])
-	if err != nil {
-		return nil, nil, params, fmt.Errorf("failed to decode hash: %w", err)
+	salt, err = base64.RawStdEncoding.Strict().DecodeString(parts[4])
+	if err != nil || len(salt) != 16 || base64RawEncode(salt) != parts[4] {
+		return invalid()
 	}
-
+	hash, err = base64.RawStdEncoding.Strict().DecodeString(parts[5])
+	if err != nil || len(hash) != 32 || base64RawEncode(hash) != parts[5] {
+		return invalid()
+	}
+	params = argon2Params{memory: values[0], time: values[1], threads: uint8(values[2])}
 	return salt, hash, params, nil
 }
 

@@ -316,8 +316,8 @@ export default {
       if (!userId) return
       eventStream.connect()
       this.banEventOff = eventStream.subscribe(`user:${userId}`, () => {
-        usePermissionsStore().fetchPermissions(true)
-      })
+        return usePermissionsStore().fetchPermissions(true)
+      }, { fallback: true })
       this.banSubUserId = userId
     },
     teardownBanSubscription() {

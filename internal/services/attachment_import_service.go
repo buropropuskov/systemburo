@@ -103,6 +103,11 @@ func NewAttachmentImportService(db *gorm.DB, recorder AuditRecorder, uploadPath 
 // сохраняется на диск как первоисточник (uploads/imports/), в аудит пишется кто, когда,
 // из какого файла и со сколькими строками.
 func (s *attachmentImportService) ImportList(ctx context.Context, uniqueAttachmentID, userID int, file *multipart.FileHeader) (*ImportListResult, error) {
+	ctx, releaseBudget, admissionErr := AcquireResourceBudget(ctx)
+	if admissionErr != nil {
+		return nil, admissionErr
+	}
+	defer releaseBudget()
 	template, ua, err := s.loadActiveTemplate(ctx, uniqueAttachmentID)
 	if err != nil {
 		return nil, err

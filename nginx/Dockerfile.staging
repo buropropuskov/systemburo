@@ -1,4 +1,8 @@
-FROM nginx:1.25-alpine
+FROM nginx:1.30.6-alpine AS production
+RUN apk upgrade --no-cache
+
+# Keep staging as the default target for existing local Compose builds.
+FROM production AS staging
 # openssl нужен entrypoint-скрипту /docker-entrypoint.d/40-htpasswd.sh для
 # генерации apr1-хеша в .htpasswd. В nginx:alpine он НЕ предустановлен.
 # Без этого entrypoint падает с "openssl: not found" и basic auth не работает.

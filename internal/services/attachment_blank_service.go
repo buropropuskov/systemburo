@@ -179,6 +179,11 @@ func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
 //  4. Для list-fields - заполнить строки списка с авторасширением.
 //  5. Сохранить в buffer, вернуть.
 func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error) {
+	ctx, releaseBudget, admissionErr := AcquireResourceBudget(ctx)
+	if admissionErr != nil {
+		return nil, "", admissionErr
+	}
+	defer releaseBudget()
 	// 1. Attachment + UniqueAttachment + Template.
 	var att models.Attachment
 	if err := s.db.WithContext(ctx).
@@ -305,6 +310,11 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 // в файл не подставляется ничего, кроме отпечатка, по которому загруженный обратно
 // файл узнаётся как бланк именно этого типа вложения.
 func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error) {
+	ctx, releaseBudget, admissionErr := AcquireResourceBudget(ctx)
+	if admissionErr != nil {
+		return nil, "", admissionErr
+	}
+	defer releaseBudget()
 	// Архивный тип вложения бланка не получает: подать по нему заявку всё равно
 	// нельзя, а форма подачи такие типы не показывает (attachments.GetActive). У
 	// заполненного бланка ограничения нет и быть не может - заявку подали, когда тип

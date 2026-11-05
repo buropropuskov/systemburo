@@ -20,7 +20,7 @@
             <div class="header-actions">
               <button
                 class="export-btn"
-                :disabled="filteredHistory.length === 0 || isExporting"
+                :disabled="total === 0 || loading || isExporting"
                 @click="exportToExcel"
               >
                 <AppIcon
@@ -188,6 +188,11 @@
                   </div>
                 </div>
               </template>
+              <div class="history-footer">
+                <span>Показано {{ history.length }} из {{ total }}</span>
+                <LoaderSpinner v-if="loadingMore" label="Загрузка ещё" />
+                <button v-else-if="hasMore" class="lk-button" @click="loadMore">Показать ещё</button>
+              </div>
             </div>
           </div>
         </div>
@@ -198,7 +203,7 @@
 
 <script>
 import { ref } from 'vue';
-import { apiRequest } from '@/api/client';
+import { collectSystemTableHistory, fetchSystemTableHistoryPage } from '@/utils/systemTableHistory';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadDirectoryHistory } from '@/utils/directoryHistoryExcel';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -287,20 +292,22 @@ export default {
       dateTo: '',
       userDropdownOpen: false,
       isExporting: false,
+      total: 0,
+      page: 1,
+      loadingMore: false,
+      filterUsers: [],
+      loadSeq: 0,
+      optionsSeq: 0,
+      searchTimer: null,
+      snapshotMaxID: null,
+      nameMaskRevision: null,
+      exportController: null,
+      optionsController: null,
     };
   },
   computed: {
     uniqueUsers() {
-      const users = new Map();
-      this.history.forEach((item) => {
-        if (item.user_id && !users.has(item.user_id)) {
-          users.set(item.user_id, {
-            id: item.user_id,
-            name: item.user_name || 'Система',
-          });
-        }
-      });
-      return Array.from(users.values()).sort((a, b) => a.name.localeCompare(b.name));
+      return this.filterUsers;
     },
 
     selectedUserName() {
@@ -310,41 +317,10 @@ export default {
     },
 
     filteredHistory() {
-      let filtered = [...this.history];
-
-      if (this.searchQuery && this.searchQuery.trim() !== '') {
-        const query = this.searchQuery.toLowerCase().trim();
-        filtered = filtered.filter((item) => {
-          const userName = (item.user_name || '').toLowerCase();
-          const actionText = this.getActionText(item).toLowerCase();
-          const comment = this.getActionComment(item).toLowerCase();
-          return userName.includes(query)
-            || actionText.includes(query)
-            || comment.includes(query);
-        });
-      }
-
-      if (this.selectedUserId) {
-        filtered = filtered.filter((item) => item.user_id === this.selectedUserId);
-      }
-
-      if (this.dateFrom) {
-        const fromDate = new Date(this.dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        filtered = filtered.filter((item) => new Date(item.created_at) >= fromDate);
-      }
-
-      if (this.dateTo) {
-        const toDate = new Date(this.dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        filtered = filtered.filter((item) => new Date(item.created_at) <= toDate);
-      }
-
-      return filtered.sort((a, b) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
-      });
+      return this.history;
+    },
+    hasMore() {
+      return this.history.length < this.total;
     },
 
     historyGroupedByDate() {
@@ -377,6 +353,22 @@ export default {
     },
 
   },
+  watch: {
+    searchQuery() { this.applyFilters(); },
+    selectedUserId() { this.applyFilters(true); },
+    dateFrom() { this.applyFilters(true); },
+    dateTo() { this.applyFilters(true); },
+    sortOrder() { this.applyFilters(true); },
+    visible(value) {
+      if (!value) {
+        this.exportController?.abort();
+        this.optionsController?.abort();
+        clearTimeout(this.searchTimer);
+        this.loadSeq += 1;
+        this.optionsSeq += 1;
+      }
+    },
+  },
   mounted() {
     this.visible = true;
     this.loadHistory();
@@ -384,6 +376,11 @@ export default {
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
+    clearTimeout(this.searchTimer);
+    this.exportController?.abort();
+    this.optionsController?.abort();
+    this.loadSeq += 1;
+    this.optionsSeq += 1;
     document.removeEventListener('click', this.handleClickOutside);
     document.removeEventListener('keydown', this.onKeydown);
   },
@@ -400,18 +397,76 @@ export default {
       }
     },
 
-    async loadHistory() {
+    historyFilters() {
+      return { search: this.searchQuery, userId: this.selectedUserId, dateFrom: this.dateFrom, dateTo: this.dateTo, order: this.sortOrder };
+    },
+    applyFilters(immediate = false) {
+      clearTimeout(this.searchTimer);
+      this.exportController?.abort();
+      // Invalidate immediately, including during the debounce interval.
+      this.loadSeq += 1;
+      this.optionsSeq += 1;
+      this.optionsController?.abort();
+      this.history = [];
+      this.total = 0;
       this.loading = true;
+      this.loadingMore = false;
+      if (immediate) this.loadHistory();
+      else this.searchTimer = setTimeout(() => this.loadHistory(), 300);
+    },
+    async loadHistory({ append = false } = {}) {
+      const seq = ++this.loadSeq;
+      if (append) this.loadingMore = true;
+      else { this.loading = true; this.page = 1; }
       try {
-        const response = await apiRequest(`/system-tables/${this.table.id}/history`);
-        if (response.ok) {
-          const data = await response.json();
-          this.history = Array.isArray(data) ? data : [];
+        const result = await fetchSystemTableHistoryPage(this.table.id, this.historyFilters(), {
+          page: this.page, perPage: 50, snapshotMaxID: append ? this.snapshotMaxID : null,
+        });
+        if (seq !== this.loadSeq) return;
+        if (append && (result.total !== this.total || result.snapshotMaxID !== this.snapshotMaxID
+          || result.nameMaskRevision !== this.nameMaskRevision)) {
+          // Clear previously disclosed names on a privacy-policy transition.
+          this.history = [];
+          this.filterUsers = [];
+          this.total = 0;
+          await this.loadHistory();
+          return;
         }
-      } catch (error) {
-        console.error('Error loading system table history:', error);
+        this.history = append ? [...this.history, ...result.items] : result.items;
+        this.total = result.total;
+        this.snapshotMaxID = result.snapshotMaxID;
+        this.nameMaskRevision = result.nameMaskRevision;
+        if (!append) this.loadFilterUsers(result);
+      } catch {
+        if (seq !== this.loadSeq) return;
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'историю таблицы', type: 'error' });
+        if (append) this.page = Math.max(1, this.page - 1);
       } finally {
-        this.loading = false;
+        if (seq === this.loadSeq) { this.loading = false; this.loadingMore = false; }
+      }
+    },
+    async loadMore() {
+      if (this.loading || this.loadingMore || !this.hasMore) return;
+      this.page += 1;
+      await this.loadHistory({ append: true });
+    },
+    async loadFilterUsers(result) {
+      const seq = ++this.optionsSeq;
+      this.optionsController?.abort();
+      const controller = new AbortController();
+      this.optionsController = controller;
+      this.filterUsers = [];
+      try {
+        const users = await collectSystemTableHistory(this.table.id, {}, {
+          filterOptions: true, snapshotMaxID: result.snapshotMaxID,
+          expectedRevision: result.nameMaskRevision, signal: controller.signal,
+        });
+        if (seq !== this.optionsSeq) return;
+        this.filterUsers = users.map(user => ({ ...user, name: user.name || 'Система' }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      } catch {
+        if (seq !== this.optionsSeq || controller.signal.aborted) return;
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'пользователей истории', type: 'error' });
       }
     },
 
@@ -489,14 +544,18 @@ export default {
     },
 
     async exportToExcel() {
-      if (this.filteredHistory.length === 0) return;
+      if (this.total === 0 || this.isExporting) return;
 
       this.isExporting = true;
+      const controller = new AbortController();
+      this.exportController = controller;
       try {
+        const rows = await collectSystemTableHistory(this.table.id, this.historyFilters(), { signal: controller.signal });
+        if (controller.signal.aborted) return;
         await downloadDirectoryHistory({
           sheetName: `Istoriya_${this.safeTableName}`,
           filename: `Istoriya_tablitsy_${this.safeTableName}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`,
-          rows: this.filteredHistory.map(item => [
+          rows: rows.map(item => [
             this.formatDateTime(item.created_at),
             item.user_name || 'Система',
             this.getActionText(item),
@@ -508,9 +567,11 @@ export default {
           formedAt: this.formattedCurrentDateTime,
         });
       } catch {
+        if (controller.signal.aborted) return;
         useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'выгрузить историю', type: 'error' });
       } finally {
         this.isExporting = false;
+        if (this.exportController === controller) this.exportController = null;
       }
     },
   },
@@ -518,6 +579,13 @@ export default {
 </script>
 
 <style scoped>
+.history-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+}
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;

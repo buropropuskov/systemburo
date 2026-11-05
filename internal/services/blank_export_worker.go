@@ -61,87 +61,131 @@ func (s *BlankExportService) ProcessQueue(ctx context.Context) (processed, faile
 		return 0, 0
 	}
 	defer s.processing.Store(false)
+	jobs := s.prepareArchiveJobs(ctx)
+	for _, job := range jobs {
+		if ctx.Err() != nil {
+			break
+		}
+		done, unsuccessful, stop := s.processArchiveJob(ctx, job)
+		processed += done
+		failed += unsuccessful
+		if stop {
+			break
+		}
+	}
+	return processed, failed
+}
+
+// Preparation does not lend an expiring context to the whole 200-job batch.
+// Its deadline covers the existing scan transaction and bounded queue read.
+func (s *BlankExportService) prepareArchiveJobs(parent context.Context) []models.ArchiveExportJob {
+	ctx, cancel := ResourcePreparationContext(parent)
+	defer cancel()
 	settings, err := s.settings.GetArchiveSettings(ctx)
 	if err != nil {
 		slog.Error("archive worker settings unavailable", "error", err)
-		return 0, 0
+		return nil
 	}
 	if !settings.Enabled {
-		return 0, 0
+		return nil
 	}
 	if _, err := s.outbox.AdvanceRecheck(ctx, archiveRecheckBatchLimit); err != nil {
 		slog.Error("archive scan page failed", "error", err)
 		// Already queued work can still progress after a scan failure.
 	}
 	if ctx.Err() != nil || !s.spaceAvailable(ctx, "очередь") {
-		return 0, 0
+		return nil
 	}
 	jobs, err := s.outbox.ListDue(ctx, archiveSweepBatchLimit)
 	if err != nil {
 		slog.Error("archive job selection failed", "error", err)
-		return 0, 0
+		return nil
 	}
-	for _, job := range jobs {
+	return jobs
+}
+
+// Each job gets its own finite lifetime. Settlement starts from the live worker
+// parent, so a timed-out export can still persist retry/backoff independently.
+func (s *BlankExportService) processArchiveJob(parent context.Context, job models.ArchiveExportJob) (processed, failed int, stop bool) {
+	ctx, cancel := ResourcePreparationContext(parent)
+	defer cancel()
+	// A missing dependency or an arbitrary 404 must not discard a job.
+	// Only a successful query proving the application absent is terminal.
+	var applications int64
+	err := s.db.WithContext(ctx).Model(&models.Application{}).Where("id = ?", job.ApplicationID).Count(&applications).Error
+	if parent.Err() != nil {
+		return 0, 0, true
+	}
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	if err == nil && applications == 0 {
+		err = s.db.WithContext(ctx).Model(&models.BlankExport{}).
+			Where("application_id = ? AND status <> ?", job.ApplicationID, models.BlankExportPurged).
+			Updates(map[string]interface{}{"status": models.BlankExportOrphan, "next_attempt_at": nil}).Error
+		if parent.Err() != nil {
+			return 0, 0, true
+		}
 		if ctx.Err() != nil {
-			break
+			err = ctx.Err()
 		}
-		// A missing dependency or an arbitrary 404 must not discard a job.
-		// Only a successful query proving the application absent is terminal.
-		var applications int64
-		err := s.db.WithContext(ctx).Model(&models.Application{}).Where("id = ?", job.ApplicationID).Count(&applications).Error
-		if ctx.Err() != nil {
-			break
-		}
-		if err == nil && applications == 0 {
-			err = s.db.WithContext(ctx).Model(&models.BlankExport{}).
-				Where("application_id = ? AND status <> ?", job.ApplicationID, models.BlankExportPurged).
-				Updates(map[string]interface{}{"status": models.BlankExportOrphan, "next_attempt_at": nil}).Error
-			if ctx.Err() != nil {
-				break
-			}
-			if err == nil {
-				if err := s.outbox.Ack(ctx, job); err != nil {
-					failed++
-					slog.Error("archive missing application ACK failed", "error", err)
-				} else {
-					processed++
-				}
-				continue
-			}
-		}
-		var result *models.BlankExportResult
 		if err == nil {
-			result, err = s.ExportApplication(ctx, job.ApplicationID, job.Reason)
-		}
-		if ctx.Err() != nil {
-			break
-		}
-		if errors.Is(err, ErrArchiveDisabled) {
-			break
-		}
-		if errors.Is(err, ErrArchivePurged) || errors.Is(err, ErrArchiveDestructionPending) {
-			if err := s.outbox.Suppress(ctx, job.ApplicationID); err != nil {
+			cancel()
+			if err := settleArchiveJob(parent, func(ctx context.Context) error { return s.outbox.Ack(ctx, job) }); err != nil {
 				failed++
-				slog.Error("archive terminal job suppression failed", "error", err)
+				slog.Error("archive missing application ACK failed", "error", err)
+			} else {
+				processed++
 			}
-			continue
+			return processed, failed, parent.Err() != nil
 		}
-		if err != nil || !archiveExportComplete(result) {
-			failed++
-			slog.Error("archive job incomplete", "application_id", job.ApplicationID, "error", err)
-			if retryErr := s.outbox.Retry(ctx, job); retryErr != nil {
-				slog.Error("archive job retry scheduling failed", "error", retryErr)
-			}
-			continue
-		}
-		if err := s.outbox.Ack(ctx, job); err != nil {
-			failed++
-			slog.Error("archive job ACK failed", "error", err)
-			continue
-		}
-		processed++
 	}
-	return processed, failed
+	var result *models.BlankExportResult
+	if err == nil {
+		result, err = s.ExportApplication(ctx, job.ApplicationID, job.Reason)
+	}
+	if parent.Err() != nil {
+		return 0, 0, true
+	}
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	// File/SQL work is finished; release its timer before fresh settlement.
+	cancel()
+	if errors.Is(err, ErrArchiveDisabled) {
+		return 0, 0, true
+	}
+	if errors.Is(err, ErrArchivePurged) || errors.Is(err, ErrArchiveDestructionPending) {
+		if err := settleArchiveJob(parent, func(ctx context.Context) error { return s.outbox.Suppress(ctx, job.ApplicationID) }); err != nil {
+			failed++
+			slog.Error("archive terminal job suppression failed", "error", err)
+		}
+		return processed, failed, parent.Err() != nil
+	}
+	if err != nil || !archiveExportComplete(result) {
+		failed++
+		slog.Error("archive job incomplete", "application_id", job.ApplicationID, "error", err)
+		if retryErr := settleArchiveJob(parent, func(ctx context.Context) error { return s.outbox.Retry(ctx, job) }); retryErr != nil {
+			slog.Error("archive job retry scheduling failed", "error", retryErr)
+		}
+		return processed, failed, parent.Err() != nil
+	}
+	if err := settleArchiveJob(parent, func(ctx context.Context) error { return s.outbox.Ack(ctx, job) }); err != nil {
+		failed++
+		slog.Error("archive job ACK failed", "error", err)
+		return processed, failed, parent.Err() != nil
+	}
+	processed++
+	return processed, failed, parent.Err() != nil
+}
+
+func settleArchiveJob(parent context.Context, action func(context.Context) error) error {
+	ctx, cancel := ResourcePreparationContext(parent)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return action(ctx)
 }
 
 // Successful outcomes include intentional skips whose registry writes succeeded.
@@ -166,15 +210,17 @@ func (s *BlankExportService) Sweep(ctx context.Context) (processed, failed int) 
 	if s == nil || s.outbox == nil || ctx.Err() != nil {
 		return 0, 0
 	}
-	settings, err := s.settings.GetArchiveSettings(ctx)
+	prepCtx, cancelPreparation := ResourcePreparationContext(ctx)
+	defer cancelPreparation()
+	settings, err := s.settings.GetArchiveSettings(prepCtx)
 	if err != nil || !settings.Enabled {
 		if err != nil {
 			slog.Error("archive sweep settings unavailable", "error", err)
 		}
 		return 0, 0
 	}
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		_, err := s.outbox.EnqueueSelectionTx(ctx, tx, `
+	err = s.db.WithContext(prepCtx).Transaction(func(tx *gorm.DB) error {
+		_, err := s.outbox.EnqueueSelectionTx(prepCtx, tx, `
 			SELECT DISTINCT b.application_id
 			FROM blank_exports b
 			WHERE b.status IN ? AND b.next_attempt_at IS NOT NULL AND b.next_attempt_at <= ?
@@ -188,6 +234,7 @@ func (s *BlankExportService) Sweep(ctx context.Context) (processed, failed int) 
 		return 0, 0
 	}
 	s.outbox.Nudge()
+	cancelPreparation()
 	return s.ProcessQueue(ctx)
 }
 
@@ -197,7 +244,9 @@ func (s *BlankExportService) Recheck(ctx context.Context) (processed, failed int
 	if s == nil || s.outbox == nil || ctx.Err() != nil {
 		return 0, 0
 	}
-	settings, err := s.settings.GetArchiveSettings(ctx)
+	prepCtx, cancelPreparation := ResourcePreparationContext(ctx)
+	defer cancelPreparation()
+	settings, err := s.settings.GetArchiveSettings(prepCtx)
 	if err != nil || !settings.Enabled {
 		if err != nil {
 			slog.Error("archive recheck settings unavailable", "error", err)
@@ -208,9 +257,10 @@ func (s *BlankExportService) Recheck(ctx context.Context) (processed, failed int
 	if days <= 0 {
 		days = 1
 	}
-	if err := s.outbox.BeginRecheck(ctx, time.Now().AddDate(0, 0, -days)); err != nil {
+	if err := s.outbox.BeginRecheck(prepCtx, time.Now().AddDate(0, 0, -days)); err != nil {
 		slog.Error("archive scan initialization failed", "error", err)
 		return 0, 0
 	}
+	cancelPreparation()
 	return s.ProcessQueue(ctx)
 }

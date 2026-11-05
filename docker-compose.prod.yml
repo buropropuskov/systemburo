@@ -2,6 +2,7 @@ services:
   # На выделенном prod-сервере (6 vCPU / 32 GB, только prod) снимаем лимиты памяти
   # из base.yml: они заданы под слабые машины. !reset убирает ключ из base-оверлея.
   db:
+    image: ${POSTGRES_IMAGE:-systemburo-postgres:production}
     mem_limit: !reset null
     memswap_limit: !reset null
     # Без явного тюнинга Postgres сидит на дефолтных shared_buffers=128MB независимо
@@ -31,6 +32,7 @@ services:
       - "effective_io_concurrency=200"
 
   backend:
+    image: ${BACKEND_IMAGE:-systemburo-backend:production}
     networks:
       backend_proxy:
         ipv4_address: ${PROXY_NETWORK_PREFIX:-172.30.251}.3
@@ -49,6 +51,7 @@ services:
       - logs:/app/logs
 
   frontend:
+    image: ${FRONTEND_IMAGE:-systemburo-frontend:production}
     mem_limit: !reset null
     memswap_limit: !reset null
 
@@ -57,7 +60,11 @@ services:
       default: {}
       backend_proxy:
         ipv4_address: ${PROXY_NETWORK_PREFIX:-172.30.251}.2
-    image: nginx:1.25-alpine
+    image: ${NGINX_IMAGE:-systemburo-nginx:production}
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.staging
+      target: production
     environment:
       EDGE_TRUSTED_PROXY_CIDRS: ${EDGE_TRUSTED_PROXY_CIDRS:-}
     ports:

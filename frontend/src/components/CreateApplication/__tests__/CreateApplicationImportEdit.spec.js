@@ -3,6 +3,7 @@ import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CreateApplication from '../CreateApplication.vue';
 import BlankImportPanel from '../BlankImportPanel.vue';
+import { recoverApplicationCommand } from '@/services/applicationCommand';
 
 // Правка строки не должна убивать разбор бланка: форма правки открывается на месте
 // панели, а сводка возвращается, когда правка завершена (сохранена или отменена).
@@ -15,6 +16,15 @@ vi.mock('@/stores/deletions', () => ({
 vi.mock('@/api/client', () => ({
     apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
     createExtendedTimeoutSignal: vi.fn(() => 'FAKE_SIGNAL'),
+}));
+
+// Эти сценарии проверяют импорт. Recovery проверяется отдельно с полной сессией;
+// token-only auth fixture здесь не является сессией для проверки receipt.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(async () => ({ key: 'test-command-key' })),
+    finishApplicationCommand: vi.fn(),
+    resetApplicationCommand: vi.fn(async () => {}),
+    recoverApplicationCommand: vi.fn(async () => null),
 }));
 
 vi.mock('@/stores/auth', () => ({
@@ -53,6 +63,7 @@ async function mountApp() {
         global: { stubs: { VehicleForm: VehicleFormStub, EmployeeForm: EmployeeFormStub } },
     });
     await flushPromises();
+    expect(recoverApplicationCommand).toHaveBeenCalledWith('application.submit', undefined);
     return w;
 }
 
