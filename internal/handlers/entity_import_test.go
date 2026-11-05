@@ -107,6 +107,57 @@ func TestEntityImport_RoundTrip(t *testing.T) {
 	require.NoError(t, err, "успешный импорт обязан оставить запись в audit_log")
 }
 
+func TestEntityImport_NotificationIntentRoundTrip(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	f := setupExportFixture(t, db, uploadDir)
+	now := time.Date(2026, time.November, 5, 12, 0, 0, 0, time.UTC)
+	intent := models.NotificationIntent{
+		EventKey: "submit:archive-fixture", Kind: "application_submitted",
+		ApplicationID: f.app.ID, ActorUserID: f.app.SenderUserID,
+		State: "pending", OccurredAt: now, NextAttemptAt: now,
+	}
+	require.NoError(t, db.Create(&intent).Error)
+	require.Positive(t, intent.ID)
+	var foreign models.Application
+	require.NoError(t, db.Where("organization_id = ?", f.otherOrg.ID).Take(&foreign).Error)
+	foreignIntent := models.NotificationIntent{
+		EventKey: "submit:foreign-archive-fixture", Kind: "application_submitted",
+		ApplicationID: foreign.ID, ActorUserID: foreign.SenderUserID,
+		State: "pending", OccurredAt: now, NextAttemptAt: now,
+	}
+	require.NoError(t, db.Create(&foreignIntent).Error)
+	exported, err := entityarchive.Export(context.Background(), db, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.ExportOptions{Root: t.TempDir(), UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Now: now})
+	require.NoError(t, err)
+	testutil.CleanDB(t, db)
+	// Prove that the ordinary numeric archive path also repairs this sequence.
+	require.NoError(t, db.Exec(`SELECT setval(pg_get_serial_sequence('notification_intents', 'id'), ?, false)`, intent.ID).Error)
+	res, err := entityarchive.Import(context.Background(), db, exported.Dir, entityarchive.ImportOptions{
+		UploadPath: t.TempDir(), Recorder: services.NewAuditRecorder(db), Apply: true,
+	})
+	require.NoError(t, err, "problems: %v, conflicts: %v", res.Problems, res.Conflicts)
+	require.Empty(t, res.Conflicts)
+	var restored models.NotificationIntent
+	require.NoError(t, db.Where("event_key = ?", intent.EventKey).Take(&restored).Error)
+	require.Equal(t, intent.ID, restored.ID)
+	require.Equal(t, intent.ApplicationID, restored.ApplicationID)
+	require.Equal(t, intent.ActorUserID, restored.ActorUserID)
+	require.Equal(t, "pending", restored.State)
+	require.True(t, now.Equal(restored.OccurredAt))
+	var count int64
+	require.NoError(t, db.Model(&models.NotificationIntent{}).Count(&count).Error)
+	require.EqualValues(t, 1, count, "another organization's intent must not enter the package")
+	next := models.NotificationIntent{
+		EventKey: "submit:after-archive-fixture", Kind: intent.Kind,
+		ApplicationID: restored.ApplicationID, ActorUserID: restored.ActorUserID,
+		State: "pending", OccurredAt: now, NextAttemptAt: now,
+	}
+	require.NoError(t, db.Create(&next).Error)
+	require.Greater(t, next.ID, restored.ID)
+}
+
 // TestEntityImport_FixesSequenceAfterExplicitIDs: последовательность organizations нарочно
 // сдвинута так, чтобы БЕЗ починки следующая обычная вставка получила ровно тот id, который
 // только что занял импорт, - и упала бы на дубле ключа. Сломать: закомментировать цикл

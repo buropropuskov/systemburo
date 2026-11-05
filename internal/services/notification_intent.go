@@ -56,7 +56,7 @@ func enqueueNotificationIntentTx(ctx context.Context, tx *gorm.DB, intent models
 	intent.NextAttemptAt = intent.OccurredAt
 	intent.State = "pending"
 	// A duplicate business command must not overwrite a pending immutable event.
-	return tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&intent).Error
+	return tx.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "event_key"}}, DoNothing: true}).Create(&intent).Error
 }
 
 func notificationIntentBackoff(attempts int) time.Duration {

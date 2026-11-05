@@ -6,7 +6,8 @@ import "time"
 // cancellation. A completed technical key prevents re-enqueue duplicates until
 // domain deletion through the application FK; no silent TTL sweep drops work.
 type NotificationIntent struct {
-	EventKey              string      `gorm:"primaryKey;size:120"`
+	ID                    int         `gorm:"primaryKey"`
+	EventKey              string      `gorm:"size:120;not null;uniqueIndex"`
 	Kind                  string      `gorm:"size:32;not null"`
 	ApplicationID         int         `gorm:"not null;index"`
 	Application           Application `gorm:"constraint:OnDelete:CASCADE" json:"-"`

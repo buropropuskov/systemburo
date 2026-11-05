@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -110,6 +111,9 @@ func TestNotificationIntentBusinessRollbackAndRestartDedup(t *testing.T) {
 		app = f.createApplication(t, tx)
 		return services.EnqueueApplicationSubmittedNotificationTx(ctx, tx, app.ID, f.author.ID)
 	}))
+	var committed models.NotificationIntent
+	require.NoError(t, f.db.Where("event_key = ?", fmt.Sprintf("submit:%d", app.ID)).Take(&committed).Error)
+	require.Positive(t, committed.ID)
 	require.Zero(t, intentCount(t, f.db, &models.Notification{}), "no in-app rows before materialization")
 	r, p := f.probe.counts()
 	require.Zero(t, r)
@@ -125,6 +129,11 @@ func TestNotificationIntentBusinessRollbackAndRestartDedup(t *testing.T) {
 	require.Equal(t, 2, r)
 	require.Equal(t, 2, p)
 	require.NoError(t, services.EnqueueApplicationSubmittedNotificationTx(ctx, f.db, app.ID, f.author.ID))
+	var deduplicated models.NotificationIntent
+	require.NoError(t, f.db.Where("event_key = ?", committed.EventKey).Take(&deduplicated).Error)
+	require.Equal(t, committed.ID, deduplicated.ID, "unique event key must retain the original durable row")
+	require.Equal(t, "done", deduplicated.State)
+	require.EqualValues(t, 1, intentCount(t, f.db, &models.NotificationIntent{}))
 	processed, failed = f.worker.Process(ctx)
 	require.Zero(t, processed)
 	require.Zero(t, failed)
