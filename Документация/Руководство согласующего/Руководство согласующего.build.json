@@ -1,10 +1,10 @@
 {
   "document": "approver",
-  "version": "1.11",
+  "version": "1.12",
   "pages": 25,
-  "code_revision": "6804492912cb86d09bca63e502ac36c4ec3123ac",
-  "source_sha256": "938dca8bc31d2e49069f8b157878eeba1e8b58e5012e607f7d6dcf6075d1bb30",
-  "builder_sha256": "dd6811557d59e1f02bba8cf4e11785cf1cf7cf19fb95bc8af30e6384d3e360ea",
-  "docx_sha256": "020c2db9dcf81fc4b9b78f81c2a1cfef0d7acb65071be707ab06fb06e6a247f2",
-  "pdf_sha256": "c92431f25be128a10ac9a26b045ee0c8c42a80ded23e77207ee3b721825ea9a3"
+  "code_revision": "39b0da2e672406b280f48db4ab13cd0d8298a324",
+  "source_sha256": "d262b63a6d4cc9f8baece4f00ac919e1864f2388417dc3ead3e61914657fd8e2",
+  "builder_sha256": "24da7b5b76f3a64472146ca8d1512b1138bafb0adf7d14225eb3bdde915e2746",
+  "docx_sha256": "ddcf508919e0a2bba3447c0e2b23e22e88237a62c80c6ab042e83038fa7fbeb9",
+  "pdf_sha256": "c5e3c69d5bddc0947c84435bccf0c21854aaff0a50c35322cecddf04ae430042"
 }

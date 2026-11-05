@@ -184,6 +184,7 @@ def inventories():
                 "startApplicationRetentionWorker": "Обезличивание заявок по сроку хранения",
                 "startFileArchiveWorker": "Выгрузка бланков в файловый архив",
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
+                "startApplicationOperationCleanup": "Уборка результатов команд подачи",
                 "startMailWorker": "Разбор очереди писем",
                 "startPasswordRotationScheduler": "Проверка сроков действия паролей",
                 "startErrorSpikeScheduler": "Проверка всплеска серверных ошибок",
