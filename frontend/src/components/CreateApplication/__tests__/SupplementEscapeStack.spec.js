@@ -50,3 +50,11 @@ describe.each(cases)('$0.name Escape ownership', (Component, flag, props, layer)
     expect(isTopModal(parent)).toBe(true);
   });
 });
+
+// Recovery is tested separately; these checks cover the existing modal stack.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(), finishApplicationCommand: vi.fn(),
+    rememberApplicationCommandDraft: vi.fn(),
+    restoreApplicationCommandDraft: vi.fn(async () => null),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

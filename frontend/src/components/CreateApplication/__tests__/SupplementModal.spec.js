@@ -10,6 +10,7 @@ vi.mock('@/api/attachment-templates', () => ({ getFieldConfig: (...a) => getFiel
 
 import { useDeletionsStore } from '@/stores/deletions';
 import SupplementModal from '../SupplementModal.vue';
+import { restoreApplicationCommandDraft, recoverApplicationCommand, rememberApplicationCommandDraft } from '@/services/applicationCommand';
 
 const APPLICATION = {
   id: 42,
@@ -120,6 +121,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
     const [applicationId, payload] = createSupplement.mock.calls[0];
     expect(applicationId).toBe(42);
     expect(payload.comment).toBe('Подрядчик прислал ещё одну машину');
+    expect(payload.request_idempotency_key).toBe('test-command-key');
     expect(payload.additions).toEqual([
       {
         attachment_id: 12,
@@ -346,3 +348,51 @@ describe('SupplementModal - результат отправки (#1685)', () => 
   });
 
 });
+
+describe('SupplementModal unknown command recovery', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    createSupplement.mockReset();
+    restoreApplicationCommandDraft.mockReset().mockResolvedValue(null);
+    recoverApplicationCommand.mockReset().mockResolvedValue(null);
+    rememberApplicationCommandDraft.mockClear();
+  });
+
+  it('restores the submitted unknown draft after close/reopen without storing PII', async () => {
+    const wrapper = await mountModal();
+    await emitRow(wrapper, 'VehicleForm', 'vehicle-added', VEHICLE_ROW);
+    wrapper.vm.comment = 'original command';
+    createSupplement.mockRejectedValueOnce(new Error('network lost'));
+    await wrapper.vm.submit();
+    const draft = rememberApplicationCommandDraft.mock.calls[0][1];
+    restoreApplicationCommandDraft.mockResolvedValueOnce(JSON.parse(JSON.stringify(draft)));
+    await wrapper.setProps({ show: false });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+    expect(wrapper.vm.comment).toBe('original command');
+    expect(wrapper.vm.totalRows).toBe(1);
+    expect(wrapper.vm.rowsByAttachment).toEqual(draft.rowsByAttachment);
+    wrapper.unmount();
+  });
+
+  it('adopts a committed command found after reload without submitting it again', async () => {
+    const result = { supplement_id: 9, number: 3, status: 'pending', counts: {} };
+    recoverApplicationCommand.mockResolvedValueOnce(result);
+    const wrapper = await mountModal();
+    await flushPromises();
+    expect(wrapper.emitted('submitted')[0][0]).toEqual(result);
+    expect(wrapper.emitted('close')).toBeTruthy();
+    expect(createSupplement).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+});
+
+// Command lifecycle is covered by applicationCommand.spec.js; retain these form contracts.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(async () => ({ key: 'test-command-key' })),
+    finishApplicationCommand: vi.fn(),
+    resetApplicationCommand: vi.fn(async () => {}),
+    rememberApplicationCommandDraft: vi.fn(),
+    restoreApplicationCommandDraft: vi.fn(async () => null),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

@@ -157,13 +157,26 @@ func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 	if ticket == "" {
 		return echo.NewHTTPError(http.StatusUnauthorized, "missing ticket")
 	}
+	// The public route must authenticate its single-use ticket before admission.
+	// Hold the lease through streaming, not only while collecting the entries.
+	releaseBudget := func() {}
+	defer func() { releaseBudget() }()
 
 	entries, name, userID, err := h.downloads.ConsumeAndCollect(c.Request().Context(), ticket, time.Now(), func(identity models.SessionIdentity) error {
 		middleware.SetSessionIdentity(c, identity)
 		if err := h.requestPolicy.Check(c.Request().Context(), identity, http.MethodGet, c.Path(), c.Request()); err != nil {
 			return err
 		}
-		return requireBlankDocumentsExport(c, nil, h.resolver, 0)
+		if err := requireBlankDocumentsExport(c, nil, h.resolver, 0); err != nil {
+			return err
+		}
+		ctx, release, err := services.AcquireResourceBudget(c.Request().Context())
+		if err != nil {
+			return err
+		}
+		releaseBudget = release
+		c.SetRequest(c.Request().WithContext(ctx))
+		return nil
 	})
 	if err != nil {
 		return err

@@ -360,8 +360,8 @@ export default {
     // перезапрашиваем новости и активное объявление вместо ожидания F5.
     eventStream.connect()
     this.eventStreamOff = eventStream.subscribe('news', () => {
-      this.fetchAllData()
-    })
+      return this.fetchAllData()
+    }, { fallback: true })
   },
   beforeUnmount() {
     this.dialogFocus?.close()

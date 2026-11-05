@@ -155,3 +155,11 @@ describe('CreateApplication - организация и компания в по
     expect(w.vm.companyId).toBe(7);
   });
 });
+
+// Command lifecycle is covered by applicationCommand.spec.js; retain these form contracts.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(async () => ({ key: 'test-command-key' })),
+    finishApplicationCommand: vi.fn(),
+    resetApplicationCommand: vi.fn(async () => {}),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

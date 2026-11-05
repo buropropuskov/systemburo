@@ -1271,25 +1271,19 @@ export default {
             }
             if (!appId) return;
             this.eventStreamAppId = appId;
-            this.eventStreamOff = eventStream.subscribe(`application:${appId}`, () => this.refreshLiveDetail());
+            this.eventStreamOff = eventStream.subscribe(`application:${appId}`, () => this.refreshLiveDetail(), { fallback: true });
         },
         // Тихий рефетч открытой детали по сигналу application.updated: статус/
         // согласующие/вложения (loadApplicationDetails) + история + вопросы. Обновляет
         // только текущую заявку - участник видит изменения без F5.
-        refreshLiveDetail() {
+        async refreshLiveDetail() {
             if (!this.applicationData || !this.applicationData.id) return;
-            // preserveSelection: фоновый рефетч от чужого действия не должен сбрасывать
-            // выбранное вложение и мигать кнопками действий (это не наше действие).
-            this.loadApplicationDetails(this.applicationData, { preserveSelection: true });
-            if (this.$refs.historyComponent && this.$refs.historyComponent.loadHistory) {
-                this.$refs.historyComponent.loadHistory();
+            // Сохраняем выбор вложения и собственную защиту редактируемых полей.
+            const requests = [this.loadApplicationDetails(this.applicationData, { preserveSelection: true })];
+            for (const [ref, method] of [['historyComponent', 'loadHistory'], ['questionsComponent', 'load'], ['forwardMessagesComponent', 'load']]) {
+                if (this.$refs[ref]?.[method]) requests.push(this.$refs[ref][method]());
             }
-            if (this.$refs.questionsComponent && this.$refs.questionsComponent.load) {
-                this.$refs.questionsComponent.load();
-            }
-            if (this.$refs.forwardMessagesComponent && this.$refs.forwardMessagesComponent.load) {
-                this.$refs.forwardMessagesComponent.load();
-            }
+            await Promise.allSettled(requests);
         },
         updateMessageClamp() {
             const el = this.$refs.messagePreview;
@@ -1500,6 +1494,7 @@ export default {
 
         async loadApplicationDetails(application, { preserveSelection = false } = {}) {
             const seq = ++this.loadDetailSeq;
+            let supplementsRequest;
             // На фоновом live-рефетче (не наше действие) кнопки не гасим - иначе мигание.
             if (!preserveSelection) this.actionsReady = false;
             try {
@@ -1532,9 +1527,9 @@ export default {
                     this.resetParticipantsCache();
 
                     // Раунды дополнения (#1685) - отдельной ручкой, признак их наличия
-                    // приезжает только что вместе с деталью. Без await: у панели свой
-                    // лоадер, а кнопки действий заявки её ждать не должны.
-                    this.loadSupplements();
+                    // приезжает только что вместе с деталью. Готовность кнопок прежняя;
+                    // Promise всего рефетча дожидается панели в finally.
+                    supplementsRequest = this.loadSupplements();
 
                     if (appData.responsible_users) {
                         this.responsibleUsers = appData.responsible_users.map(user => ({
@@ -1542,7 +1537,7 @@ export default {
                             approval_status: user.approval_status || 'pending'
                         }));
                         
-                        if (this.currentUserId) {
+                        if (this.currentUserId && !preserveSelection) {
                             const currentUser = this.responsibleUsers.find(u => u.id === this.currentUserId);
                             if (currentUser && currentUser.approval_comment) {
                                 this.actionComment = currentUser.approval_comment;
@@ -1597,6 +1592,7 @@ export default {
                 // П.46: кнопки действий показываем только после загрузки ролей/согласующих,
                 // иначе мигают не те кнопки пока responsibleUsers/approvers пустые.
                 this.actionsReady = true;
+                await supplementsRequest;
             }
         },
 

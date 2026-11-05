@@ -111,3 +111,11 @@ describe('Слой окна поиска существующих (#1685)', () =
     expect(supplementOverlayLayer()).toBeGreaterThan(detailLayer);
   });
 });
+
+// Recovery is tested separately; these checks cover the existing modal stack.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(), finishApplicationCommand: vi.fn(),
+    rememberApplicationCommandDraft: vi.fn(),
+    restoreApplicationCommandDraft: vi.fn(async () => null),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

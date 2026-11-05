@@ -397,7 +397,8 @@ type ApplicationCreateRequest struct {
 
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
-	Message *string `json:"message"`
+	RequestIdempotencyKey string  `json:"request_idempotency_key,omitempty"`
+	Message               *string `json:"message"`
 	// Organization и Company - наименования организации и компании в прежнем контракте
 	// подачи. Оставлены рядом с organization_name/company_name (#1437), потому что
 	// бандл, уже загруженный в браузере пользователя, продолжает слать именно их:
@@ -833,16 +834,17 @@ type ItemInfo struct {
 // --- Реализация ---
 
 type applicationService struct {
-	db                  *gorm.DB
-	permissionService   PermissionService
-	notificationService NotificationService
-	vehicleBlacklist    VehicleBlacklistService
-	personBlacklist     PersonBlacklistService
-	recorder            AuditRecorder
-	realtimePublisher   realtime.Publisher
-	tablesProducer      *TablesRefreshPublisher
-	availableProducer   *AvailableRefreshPublisher
-	permissionResolver  *PermissionResolver
+	db                     *gorm.DB
+	permissionService      PermissionService
+	notificationService    NotificationService
+	notificationIntentWake func()
+	vehicleBlacklist       VehicleBlacklistService
+	personBlacklist        PersonBlacklistService
+	recorder               AuditRecorder
+	realtimePublisher      realtime.Publisher
+	tablesProducer         *TablesRefreshPublisher
+	availableProducer      *AvailableRefreshPublisher
+	permissionResolver     *PermissionResolver
 	// blankExports - постановка заявки в очередь на выгрузку в файловый архив
 	// (#1615, B1). Сеттер, а не конструкторская опция: BlankExportService поднимается
 	// позже applicationService в cmd/server/main.go (зависит от attachmentBlankService).
@@ -859,6 +861,18 @@ type applicationService struct {
 // этом всё равно открывается (архив мог не подняться из-за каталога).
 func (s *applicationService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
 	s.blankExports = e
+}
+
+// SetNotificationIntentWake installs a post-commit hint; the durable row remains
+// authoritative if no worker is listening or the process stops before the hint.
+func (s *applicationService) SetNotificationIntentWake(wake func()) {
+	s.notificationIntentWake = wake
+}
+
+func (s *applicationService) wakeNotificationIntents() {
+	if s.notificationIntentWake != nil {
+		s.notificationIntentWake()
+	}
 }
 
 // enqueueArchiveExport ставит заявку в очередь на выгрузку бланков в файловый
@@ -2279,51 +2293,27 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, err
 	}
 
-	if !req.DataApproval {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Data approval is required")
-	}
-	if len(req.Attachments) == 0 {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
-	}
-	// Организация и компания взаимозаменяемы: для отправки достаточно одной из двух -
-	// выбранной по id либо введённой наименованием (#1437).
-	if req.OrganizationID == nil && strings.TrimSpace(req.OrganizationTitle()) == "" &&
-		req.CompanyID == nil && strings.TrimSpace(req.CompanyTitle()) == "" {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
-	}
-
-	if err := ValidateSubmitComposition(req); err != nil {
+	body := req
+	body.RequestIdempotencyKey = ""
+	command, err := newApplicationCommand(ctx, user, "application.submit", req.RequestIdempotencyKey, body)
+	if err != nil {
 		return nil, err
 	}
-
-	// Серверная валидация настроенных обязательных полей (#529 H-9): поля, помеченные
-	// админом required, должны присутствовать; скрытые/ненастроенные пропускаются.
-	if err := s.validateConfiguredRequiredFields(ctx, req); err != nil {
+	var saved CompleteApplicationResponse
+	if found, lookupErr := command.lookup(s.db.WithContext(ctx), &saved); lookupErr != nil {
+		return nil, lookupErr
+	} else if found {
+		if err := s.checkCommandReplayAccess(ctx, username, saved.ApplicationID); err != nil {
+			return nil, err
+		}
+		return &saved, nil
+	}
+	ctx, release, err := admitApplicationCommand(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком
-	// до старта транзакции - на случай обхода фронтовой проверки.
-	// Человек, возразивший против обработки, в новых заявках не заводится (#2361):
-	// иначе отметка о возражении не значила бы ничего - его данные вносили бы снова
-	// следующей же заявкой. Проверка стоит рядом с чёрным списком: та же природа
-	// (заявку целиком отклоняем до создания), тот же приём сбора плоского списка.
-	if err := s.validateObjections(ctx, req); err != nil {
-		return nil, err
-	}
-
-	if err := s.validateBlacklist(ctx, req); err != nil {
-		return nil, err
-	}
-
-	// Один человек или одна машина не могут попасть во вложение дважды.
-	if err := validateByFactVehicles(req, time.Now()); err != nil {
-		return nil, err
-	}
-
-	if err := validateNoDuplicates(req); err != nil {
-		return nil, err
-	}
+	defer release()
+	var replayed bool
 
 	var appID int
 	var applicationNumber string
@@ -2336,6 +2326,57 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	var pendingEmployeeFlags []pendingEmployeeFlag
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var reserveErr error
+		replayed, reserveErr = command.reserve(tx, &saved)
+		if reserveErr != nil || replayed {
+			return reserveErr
+		}
+		if !req.DataApproval {
+			return echo.NewHTTPError(http.StatusBadRequest, "Data approval is required")
+		}
+		if len(req.Attachments) == 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
+		}
+		// Организация и компания взаимозаменяемы: для отправки достаточно одной из двух -
+		// выбранной по id либо введённой наименованием (#1437).
+		if req.OrganizationID == nil && strings.TrimSpace(req.OrganizationTitle()) == "" &&
+			req.CompanyID == nil && strings.TrimSpace(req.CompanyTitle()) == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
+		}
+
+		if err := ValidateSubmitComposition(req); err != nil {
+			return err
+		}
+
+		// Серверная валидация настроенных обязательных полей (#529 H-9): поля, помеченные
+		// админом required, должны присутствовать; скрытые/ненастроенные пропускаются.
+		if err := s.validateConfiguredRequiredFields(ctx, req); err != nil {
+			return err
+		}
+
+		// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком
+		// до старта транзакции - на случай обхода фронтовой проверки.
+		// Человек, возразивший против обработки, в новых заявках не заводится (#2361):
+		// иначе отметка о возражении не значила бы ничего - его данные вносили бы снова
+		// следующей же заявкой. Проверка стоит рядом с чёрным списком: та же природа
+		// (заявку целиком отклоняем до создания), тот же приём сбора плоского списка.
+		if err := s.validateObjections(ctx, req); err != nil {
+			return err
+		}
+
+		if err := s.validateBlacklist(ctx, req); err != nil {
+			return err
+		}
+
+		// Один человек или одна машина не могут попасть во вложение дважды.
+		if err := validateByFactVehicles(req, time.Now()); err != nil {
+			return err
+		}
+
+		if err := validateNoDuplicates(req); err != nil {
+			return err
+		}
+
 		baseTime := time.Now().UTC()
 		applicationNumber = nextApplicationNumber(tx)
 
@@ -2762,10 +2803,32 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			}
 		}
 
+		pendingDirectories := NotificationPendingDirectoryIDs{}
+		if orgRef.PendingName != "" {
+			pendingDirectories.OrganizationID = orgRef.ID
+		}
+		if companyRefResult.PendingName != "" {
+			pendingDirectories.CompanyID = companyRefResult.ID
+		}
+		if err := EnqueueApplicationSubmittedNotificationTx(ctx, tx, appID, user.ID, pendingDirectories); err != nil {
+			return err
+		}
+		if err := command.save(tx, &CompleteApplicationResponse{
+			Success: true, Message: "Application created successfully", ApplicationID: appID, ApplicationNumber: applicationNumber,
+		}); err != nil {
+			return err
+		}
 		return enqueueArchiveExportTx(ctx, tx, []int{appID}, BlankExportReasonSubmit)
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if replayed {
+		if err := s.checkCommandReplayAccess(ctx, username, saved.ApplicationID); err != nil {
+			return nil, err
+		}
+		return &saved, nil
 	}
 
 	// Файловый архив (#1615, B1): подача - первая точка, где у заявки вообще
@@ -2778,85 +2841,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// заявки и детерминированны для тестов; сабмит не hot-path, элементов в заявке мало.
 	s.detectBlacklistSimilarity(ctx, appID, nil, pendingVehicleFlags, pendingEmployeeFlags)
 
-	// Данные для подробностей уведомления: без них окно показывает один текст, а
-	// кнопка перехода к заявке не появляется вовсе - именно на этих двух типах
-	// согласующий и заявитель упирались в тупик (#1748).
-	// Отправитель кладётся в данные, а не только в текст: окно подробностей строит поля
-	// из них, и без организации принимающий видит один номер заявки.
-	senderTitle := s.applicationSenderTitle(ctx, organizationID, companyID)
-	senderPerson := formatFullName(user.LastName, user.FirstName, user.MiddleName)
-	if strings.TrimSpace(senderPerson) == "" {
-		senderPerson = user.Username
-	}
-	submitPayloadFields := map[string]any{
-		"application_id":     appID,
-		"application_number": applicationNumber,
-	}
-	if senderTitle != "" {
-		submitPayloadFields["organization"] = senderTitle
-	}
-	if senderPerson != "" {
-		submitPayloadFields["sender_name"] = senderPerson
-	}
-	submitPayloadBytes, _ := json.Marshal(submitPayloadFields)
-	submitPayload := string(submitPayloadBytes)
-
-	// Уведомление отправителю о создании заявки
-	if s.notificationService != nil {
-		if err := s.notificationService.CreateForUser(
-			ctx, user.ID,
-			NotificationTypeApplicationCreated,
-			"Заявка отправлена",
-			fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", applicationNumber),
-			&submitPayload,
-		); err != nil {
-			slog.Warn("notification create failed", "err", err, "user_id", user.ID, "app_id", appID)
-		}
-	}
-
-	// Уведомления ответственным (approvers) о новой заявке
-	if s.notificationService != nil {
-		for _, ru := range responsibleUsers {
-			if !ru.RequiredApproval || ru.UserID == user.ID {
-				continue
-			}
-			if err := s.notificationService.CreateForUser(
-				ctx, ru.UserID,
-				NotificationTypeApplicationApprovalRequired,
-				"Требуется согласование",
-				fmt.Sprintf("Поступила новая заявка %s на согласование.", applicationNumber),
-				&submitPayload,
-			); err != nil {
-				slog.Warn("notification create failed", "err", err, "user_id", ru.UserID, "app_id", appID)
-			}
-		}
-	}
-
-	// Принимающим - о заявке, которая легла в Центр и ждёт, что её возьмут в работу.
-	// Согласующий и принимающий - разные роли: первый голосует и получает уведомление
-	// выше, второй берёт заявку в работу и до этого о подаче не узнавал вообще ничего,
-	// хотя именно он ждёт её в Центре.
-	if s.notificationService != nil {
-		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, pendingAcceptanceNote{
-			number:       applicationNumber,
-			organization: senderTitle,
-			sender:       senderPerson,
-			messageText:  optionalString(req.Message),
-			fileNames:    s.applicationFileNames(ctx, req.FileIDs),
-		}, submitPayload)
-	}
-
-	// Подача завела наименование, которого не было в справочнике (#1437): зовём тех,
-	// кто может его разобрать. Записи, легшие на существующую организацию или компанию,
-	// сюда не попадают - разбирать там нечего.
-	var pending []pendingDirectoryNotice
-	if orgRef.PendingName != "" {
-		pending = append(pending, pendingDirectoryNotice{label: organizationModeration.label, name: orgRef.PendingName})
-	}
-	if companyRefResult.PendingName != "" {
-		pending = append(pending, pendingDirectoryNotice{label: companyModeration.label, name: companyRefResult.PendingName})
-	}
-	s.notifyDirectoryPending(ctx, appID, applicationNumber, user.ID, pending)
+	// Fanout is materialized from the committed durable intent, never the request context.
+	s.wakeNotificationIntents()
 
 	// Real-time сигнал обновления Центра заявок (#840): тем, у кого новая заявка
 	// появляется в списке (автор, ответственные/согласующие, принимающие). Лёгкий

@@ -31,9 +31,11 @@ func TestPermissionResolver_Invalidate_PublishesToUser(t *testing.T) {
 	resolver := services.NewPermissionResolver(nil)
 	resolver.SetRealtimePublisher(hub)
 
-	ch5, unsub5 := hub.Subscribe(5)
+	ch5, unsub5, subscribeErr5 := hub.Subscribe(5, 5)
+	require.NoError(t, subscribeErr5)
 	defer unsub5()
-	ch9, unsub9 := hub.Subscribe(9)
+	ch9, unsub9, subscribeErr9 := hub.Subscribe(9, 9)
+	require.NoError(t, subscribeErr9)
 	defer unsub9()
 
 	resolver.Invalidate(5)
@@ -56,9 +58,11 @@ func TestPermissionResolver_InvalidateAll_BroadcastsToConnected(t *testing.T) {
 	resolver := services.NewPermissionResolver(nil)
 	resolver.SetRealtimePublisher(hub)
 
-	ch5, unsub5 := hub.Subscribe(5)
+	ch5, unsub5, subscribeErr5 := hub.Subscribe(5, 5)
+	require.NoError(t, subscribeErr5)
 	defer unsub5()
-	ch9, unsub9 := hub.Subscribe(9)
+	ch9, unsub9, subscribeErr9 := hub.Subscribe(9, 9)
+	require.NoError(t, subscribeErr9)
 	defer unsub9()
 
 	resolver.InvalidateAll()

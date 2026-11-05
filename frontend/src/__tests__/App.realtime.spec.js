@@ -71,7 +71,7 @@ describe('App.vue - real-time бан (#840)', () => {
     mountApp();
     await flushPromises();
     expect(eventStream.connect).toHaveBeenCalledTimes(1);
-    expect(eventStream.subscribe).toHaveBeenCalledWith('user:42', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('user:42', expect.any(Function), { fallback: true });
   });
 
   it('колбэк сигнала бана форсит перезапрос прав (fetchPermissions(true), игнор кэша)', async () => {
@@ -109,7 +109,7 @@ describe('App.vue - real-time бан (#840)', () => {
     eventStream.subscribe.mockImplementation((scope) => (scope === 'user:42' ? unsub42 : vi.fn()));
     mountApp();
     await flushPromises();
-    expect(eventStream.subscribe).toHaveBeenCalledWith('user:42', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('user:42', expect.any(Function), { fallback: true });
 
     // client.js на провале refresh обнуляет токен НЕ через logout() - подписка обязана сняться реактивно.
     authState.token = null;
@@ -120,6 +120,18 @@ describe('App.vue - real-time бан (#840)', () => {
     authState.token = 'tok2';
     authState.userPayload = { user_id: 99 };
     await flushPromises();
-    expect(eventStream.subscribe).toHaveBeenCalledWith('user:99', expect.any(Function));
+    expect(eventStream.subscribe).toHaveBeenCalledWith('user:99', expect.any(Function), { fallback: true });
+  });
+  it('scope callback returns the complete permissions refresh Promise', async () => {
+    const wrapper = mountApp();
+    await flushPromises();
+    let finish;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    fetchPermissions.mockReturnValueOnce(pending);
+    const callback = eventStream.subscribe.mock.calls.find(([scope]) => scope === 'user:42')[1];
+    expect(callback()).toBe(pending);
+    finish();
+    await pending;
+    wrapper.unmount();
   });
 });

@@ -388,6 +388,17 @@ func main() {
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
 	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder, services.DraftQuotaLimits{MaxCount: cfg.ApplicationFileDraftMaxCount, MaxBytes: cfg.ApplicationFileDraftMaxTotal})
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal))
+	notificationIntentWorker, err := services.NewNotificationIntentWorker(db, applicationService, notificationService)
+	if err != nil {
+		slog.Error("notification worker initialization failed", "error", err)
+		os.Exit(1)
+	}
+	notificationIntentSource, ok := applicationService.(interface{ SetNotificationIntentWake(func()) })
+	if !ok {
+		slog.Error("application notification worker binding unavailable")
+		os.Exit(1)
+	}
+	notificationIntentSource.SetNotificationIntentWake(notificationIntentWorker.Nudge)
 	if err := services.ConfigureEntityPeriodUpdates(entityPeriodCommands, applicationService); err != nil {
 		slog.Error("configure period updates", "error", err)
 		os.Exit(1)
@@ -798,6 +809,12 @@ func main() {
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
+	go startApplicationOperationCleanup(ctxSig, db)
+	notificationIntentsDone := make(chan struct{})
+	go func() {
+		defer close(notificationIntentsDone)
+		startNotificationIntentWorker(ctxSig, notificationIntentWorker)
+	}()
 
 	// Разбор очереди исходящих писем (#1906). При пустом SMTP_HOST горутина
 	// завершается сразу: очередь тогда и не наполняется.
@@ -817,16 +834,21 @@ func main() {
 	// Graceful shutdown. О завершении сообщаем каналом: e.Start возвращает
 	// ErrServerClosed сразу после e.Shutdown, и без ожидания main выходил, пока
 	// эта горутина только принималась дожимать фоновые отправки.
+	eventsCleanupDone := make(chan struct{})
+	go func() { defer close(eventsCleanupDone); eventsHandler.RunCleanup(ctxSig) }()
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
 		<-ctxSig.Done()
 		slog.Info("shutting down server...")
+		eventsHandler.Close()
+		<-eventsCleanupDone
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := e.Shutdown(ctx); err != nil {
 			slog.Error("server shutdown error", "error", err)
 		}
+		<-notificationIntentsDone
 		// Push-рассылка (#974): HTTP-сервер уже остановлен и новых запросов не
 		// примет, но фоновые push-горутины, запущенные ДО остановки, могли ещё не
 		// закончить отправку. Даём им отдельный, короткий срок - иначе рантайм Go
@@ -1025,6 +1047,50 @@ func startMailWorker(ctx context.Context, svc services.MailSender, tick time.Dur
 			return
 		case <-ticker.C:
 			run()
+		}
+	}
+}
+
+func startNotificationIntentWorker(ctx context.Context, worker *services.NotificationIntentWorker) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	run := func() { worker.Process(ctx) }
+	run() // Recover committed work left by the previous process before waiting for hints.
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		case <-worker.Wake():
+			run()
+		}
+	}
+}
+
+func startApplicationOperationCleanup(ctx context.Context, db *gorm.DB) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			cleanupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			// Bound both each SQL statement and the total work of a single tick.
+			for batch := 0; batch < 10; batch++ {
+				removed, err := services.CleanupApplicationOperations(cleanupCtx, db, now)
+				if err != nil {
+					if ctx.Err() == nil {
+						slog.Error("application command cleanup failed", "error", err)
+					}
+					break
+				}
+				if removed < 500 {
+					break
+				}
+			}
+			cancel()
 		}
 	}
 }

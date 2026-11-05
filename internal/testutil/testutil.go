@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,6 +48,8 @@ const (
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
 	"application_file_reservations",
+	"application_operations",
+	"notification_intents",
 	"audit_log",
 	// blank_exports живёт без внешних ключей, поэтому чистка заявок её строк не
 	// снимает: прошлый прогон оставлял заявку с тем же идентификатором уже
@@ -419,6 +422,10 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	uploadDir := t.TempDir()
 	applicationFileService := services.NewApplicationFileService(db, uploadDir, auditRecorder)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, 30, 100*1024*1024))
+	notificationIntentWorker, workerErr := services.NewNotificationIntentWorker(db, applicationService, notificationService)
+	if workerErr != nil {
+		t.Fatalf("notification fixture worker initialization: %v", workerErr)
+	}
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads", testConfig.UploadMaxFileSize)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
@@ -566,6 +573,22 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	// без него сверка путей проверялась бы только юнитом, а именно она молча разъехалась
 	// с реальными адресами (#1472).
 	e.Use(mw.PDAudit(db))
+	// Existing HTTP fixtures inspect the completed notification fanout after a
+	// command. Drive the real durable worker explicitly, without a background
+	// goroutine or a synchronous product-only fallback. Worker tests drive it
+	// themselves and cover pending/restart/failure states separately.
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			err := next(c)
+			if c.Request().Method == http.MethodPost &&
+				(c.Path() == "/api/applications/submit-complete-application" || c.Path() == "/api/applications/:id/supplements") {
+				workCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				notificationIntentWorker.Process(workCtx)
+				cancel()
+			}
+			return err
+		}
+	})
 	// Гейт согласия идёт в паре с проверкой блокировки: их порядок - часть контракта
 	// (забаненный не может дать согласие, поэтому ему показывается блокировка, а не
 	// требование). В обычном тестовом приложении BanCheck не навешивается, чтобы не

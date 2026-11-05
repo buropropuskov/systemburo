@@ -435,3 +435,28 @@ func (h *ApplicationHandler) GetUserStatusUpdatesCount(c echo.Context) error {
 	}
 	return RespondSuccess(c, resp)
 }
+
+// ApplicationOperationStatus reads a minimal committed result without replaying a write.
+func (h *ApplicationHandler) ApplicationOperationStatus(c echo.Context) error {
+	var req services.ApplicationOperationStatusRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if req.Scope != "application.submit" {
+		if h.resolver == nil {
+			return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
+		}
+		permissions, err := h.resolver.ResolveFresh(c.Request().Context(), GetUserID(c))
+		if err != nil {
+			return err
+		}
+		if !permissions.Has(services.KeyActionSupplementApplication) {
+			return echo.NewHTTPError(http.StatusForbidden, "Доступ запрещён")
+		}
+	}
+	result, err := services.LookupApplicationOperationStatus(c.Request().Context(), h.service, c.Get("username").(string), req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}

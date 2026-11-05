@@ -423,6 +423,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		// The outer login admission already owns the password slot. Reuse its
+		// context through the normal verifier; do not acquire a second slot or
+		// skip ordinary password work merely because the username is absent.
+		if _, err := verifyPasswordContext(ctx, unknownLoginPHC, req.Password); err != nil {
+			return nil, err
+		}
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
 		// Счётчик показываем и для несуществующего логина (тот же ответ, что и при
 		// неверном пароле) - иначе по наличию счётчика можно перебирать имена.

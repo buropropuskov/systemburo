@@ -431,3 +431,11 @@ describe('U5: список показывает предварительные �
         expect(rows[1].classes()).toContain('is-pending');
     });
 });
+
+// Command lifecycle is covered by applicationCommand.spec.js; retain these form contracts.
+vi.mock('@/services/applicationCommand', () => ({
+    prepareApplicationCommand: vi.fn(async () => ({ key: 'test-command-key' })),
+    finishApplicationCommand: vi.fn(),
+    resetApplicationCommand: vi.fn(async () => {}),
+    recoverApplicationCommand: vi.fn(async () => null),
+}));

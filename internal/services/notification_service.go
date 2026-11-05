@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"time"
 
 	"systemburo/internal/models"
@@ -272,60 +273,112 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 	if userID <= 0 || title == "" {
 		return nil
 	}
-
-	deliverable, err := s.recipientAcceptsNotifications(ctx, userID, notifType)
+	var dispatches []NotificationDispatch
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		dispatches, err = s.PersistNotificationBatchTx(ctx, tx, []NotificationDraft{{
+			UserID: userID, Type: notifType, Title: title, Message: message, Data: data, GroupKey: groupKey,
+		}})
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	if !deliverable {
-		return nil
-	}
+	s.DispatchCommitted(ctx, dispatches)
+	return nil
+}
 
-	allowed, err := s.notificationAllowed(ctx, userID, notifType)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return nil
-	}
+// NotificationDraft is transient materialization input, never an outbox payload.
+// GroupKey is explicit: an empty key disables grouping, as in CreateForUserGrouped.
+type NotificationDraft struct {
+	UserID               int
+	Type, Title, Message string
+	Data                 *string
+	GroupKey             string
+}
 
-	if groupKey != "" {
-		collapsedID, collapsed, err := s.collapseNotification(ctx, userID, notifType, groupKey, message, data)
+// NotificationDispatch refers to a row already persisted by the caller's TX.
+// Its contents are private so callers cannot turn it into an arbitrary sender.
+type NotificationDispatch struct{ notification models.Notification }
+
+// PersistNotificationBatchTx does only DB work through tx. The caller owns
+// commit/rollback and must dispatch returned effects only after commit succeeds.
+func (s *notificationService) PersistNotificationBatchTx(ctx context.Context, tx *gorm.DB, drafts []NotificationDraft) ([]NotificationDispatch, error) {
+	if tx == nil {
+		return nil, fmt.Errorf("notification transaction is required")
+	}
+	ordered := append([]NotificationDraft(nil), drafts...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].UserID != ordered[j].UserID {
+			return ordered[i].UserID < ordered[j].UserID
+		}
+		if ordered[i].Type != ordered[j].Type {
+			return ordered[i].Type < ordered[j].Type
+		}
+		return ordered[i].GroupKey < ordered[j].GroupKey
+	})
+	scoped := *s
+	scoped.db = tx
+	now := time.Now()
+	effects := make([]NotificationDispatch, 0, len(ordered))
+	for _, draft := range ordered {
+		n, err := scoped.persistNotification(ctx, draft, now)
 		if err != nil {
-			return err
+			return nil, err
+		}
+		if n != nil {
+			effects = append(effects, NotificationDispatch{notification: *n})
+		}
+	}
+	return effects, nil
+}
+
+func (s *notificationService) persistNotification(ctx context.Context, draft NotificationDraft, now time.Time) (*models.Notification, error) {
+	if draft.UserID <= 0 || draft.Title == "" {
+		return nil, nil
+	}
+	deliverable, err := s.recipientAcceptsNotifications(ctx, draft.UserID, draft.Type)
+	if err != nil || !deliverable {
+		return nil, err
+	}
+	allowed, err := s.notificationAllowed(ctx, draft.UserID, draft.Type)
+	if err != nil || !allowed {
+		return nil, err
+	}
+	t, ti, m := draft.Type, draft.Title, draft.Message
+	n := &models.Notification{UserID: draft.UserID, Type: &t, Title: &ti, Message: &m, CreatedAt: now}
+	if draft.Data != nil {
+		data := *draft.Data
+		n.Data = &data
+	}
+	if draft.GroupKey != "" {
+		id, collapsed, err := s.collapseNotificationAt(ctx, draft.UserID, draft.Type, draft.GroupKey, draft.Message, draft.Data, now)
+		if err != nil {
+			return nil, err
 		}
 		if collapsed {
-			if s.realtimePublisher != nil {
-				s.realtimePublisher.Publish(userID, realtime.Event{Type: "notification.new", Scope: "notifications"})
-			}
-			nt, ti, m := notifType, title, message
-			s.sendPush(ctx, &models.Notification{ID: collapsedID, UserID: userID, Type: &nt, Title: &ti, Message: &m, Data: data})
-			return nil
+			n.ID = id
+			return n, nil
 		}
-		// RowsAffected == 0 - падаем в обычное создание ниже, оно заведёт новую запись
-		// с тем же group_key (следующее событие схлопнется уже в неё).
+		key := draft.GroupKey
+		n.GroupKey = &key
 	}
+	if err := s.db.WithContext(ctx).Create(n).Error; err != nil {
+		return nil, err
+	}
+	return n, nil
+}
 
-	t, ti, m := notifType, title, message
-	n := models.Notification{
-		UserID:  userID,
-		Type:    &t,
-		Title:   &ti,
-		Message: &m,
-		Data:    data,
+// DispatchCommitted is best-effort; it never creates notification rows. A crash
+// here can lose a wake/push, while the committed in-app feed remains complete.
+func (s *notificationService) DispatchCommitted(ctx context.Context, dispatches []NotificationDispatch) {
+	for _, effect := range dispatches {
+		n := effect.notification
+		if s.realtimePublisher != nil {
+			s.realtimePublisher.Publish(n.UserID, realtime.Event{Type: "notification.new", Scope: "notifications"})
+		}
+		s.sendPush(ctx, &n)
 	}
-	if groupKey != "" {
-		gk := groupKey
-		n.GroupKey = &gk
-	}
-	if err := s.db.WithContext(ctx).Create(&n).Error; err != nil {
-		return err
-	}
-	if s.realtimePublisher != nil {
-		s.realtimePublisher.Publish(userID, realtime.Event{Type: "notification.new", Scope: "notifications"})
-	}
-	s.sendPush(ctx, &n)
-	return nil
 }
 
 // collapseNotification пытается схлопнуть событие в существующую непрочитанную запись той
@@ -336,7 +389,11 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 // Возвращает id схлопнутой записи (Returning) -- push поверх схлопнутого события всё
 // равно ссылается на конкретное уведомление, а не только на факт обновления счётчика.
 func (s *notificationService) collapseNotification(ctx context.Context, userID int, notifType, groupKey, message string, data *string) (int, bool, error) {
-	cutoff := time.Now().Add(-notificationAggregationWindow)
+	return s.collapseNotificationAt(ctx, userID, notifType, groupKey, message, data, time.Now())
+}
+
+func (s *notificationService) collapseNotificationAt(ctx context.Context, userID int, notifType, groupKey, message string, data *string, now time.Time) (int, bool, error) {
+	cutoff := now.Add(-notificationAggregationWindow)
 	var row models.Notification
 	result := s.db.WithContext(ctx).Model(&row).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
@@ -344,7 +401,7 @@ func (s *notificationService) collapseNotification(ctx context.Context, userID i
 			userID, notifType, groupKey, false, cutoff).
 		Updates(map[string]any{
 			"count":         gorm.Expr("count + 1"),
-			"last_event_at": time.Now(),
+			"last_event_at": now,
 			"message":       message,
 			"data":          data,
 		})

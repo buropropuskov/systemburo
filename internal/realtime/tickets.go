@@ -21,30 +21,53 @@ type ticketEntry struct {
 // открывает поток уже с ним. Билет одноразовый и живёт секунды, поэтому его попадание
 // в журналы безвредно. In-process, на один инстанс backend.
 type TicketStore struct {
-	mu      sync.Mutex
-	tickets map[string]ticketEntry
-	ttl     time.Duration
+	mu          sync.Mutex
+	tickets     map[string]ticketEntry
+	ttl         time.Duration
+	owners      map[int]int
+	ownerLimit  int
+	systemLimit int
+	closed      bool
 }
 
 // NewTicketStore создаёт хранилище билетов с временем жизни ttl.
 func NewTicketStore(ttl time.Duration) *TicketStore {
-	return &TicketStore{tickets: make(map[string]ticketEntry), ttl: ttl}
+	return NewTicketStoreWithLimits(ttl, defaultOwnerTickets, defaultSystemTickets)
+}
+
+// NewTicketStoreWithLimits задаёт process-local пределы. Неположительный предел
+// запрещает соответствующий допуск, не делает хранилище неограниченным.
+func NewTicketStoreWithLimits(ttl time.Duration, owner, system int) *TicketStore {
+	return &TicketStore{tickets: make(map[string]ticketEntry), ttl: ttl, owners: make(map[int]int), ownerLimit: owner, systemLimit: system}
 }
 
 // Issue создаёт новый одноразовый билет для userID и попутно чистит протухшие.
 // now инъектируется для детерминизма в тестах; в проде - time.Now().
 func (s *TicketStore) Issue(identity models.SessionIdentity, now time.Time) (string, error) {
-	if identity.EffectiveUserID <= 0 || identity.FamilyID == "" || !now.Before(identity.AccessExpiresAt) {
-		return "", fmt.Errorf("invalid session identity")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return "", ErrClosed
+	}
+	if identity.OwnerUserID <= 0 || identity.EffectiveUserID <= 0 || identity.FamilyID == "" || !now.Before(identity.AccessExpiresAt) {
+		return "", ErrInvalidIdentity
+	}
+	s.gcLocked(now)
+	if s.owners[identity.OwnerUserID] >= s.ownerLimit {
+		return "", ErrOwnerLimit
+	}
+	if len(s.tickets) >= s.systemLimit {
+		return "", ErrSystemLimit
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("failed to generate ticket: %w", err)
 	}
 	ticket := base64.RawURLEncoding.EncodeToString(raw)
-
-	s.mu.Lock()
-	s.gcLocked(now)
+	// Даже случайная коллизия не должна заменять живой билет.
+	if _, exists := s.tickets[ticket]; exists {
+		return "", fmt.Errorf("ticket collision")
+	}
 	expiresAt := now.Add(s.ttl)
 	if identity.AccessExpiresAt.Before(expiresAt) {
 		expiresAt = identity.AccessExpiresAt
@@ -54,7 +77,7 @@ func (s *TicketStore) Issue(identity models.SessionIdentity, now time.Time) (str
 		identity.ImpersonatedBy = &actor
 	}
 	s.tickets[ticket] = ticketEntry{identity: identity, expiresAt: expiresAt}
-	s.mu.Unlock()
+	s.owners[identity.OwnerUserID]++
 	return ticket, nil
 }
 
@@ -67,7 +90,7 @@ func (s *TicketStore) Consume(ticket string, now time.Time) (models.SessionIdent
 	if !ok {
 		return models.SessionIdentity{}, false
 	}
-	delete(s.tickets, ticket)
+	s.deleteLocked(ticket, e)
 	if !now.Before(e.expiresAt) {
 		return models.SessionIdentity{}, false
 	}
@@ -77,7 +100,32 @@ func (s *TicketStore) Consume(ticket string, now time.Time) (models.SessionIdent
 func (s *TicketStore) gcLocked(now time.Time) {
 	for k, e := range s.tickets {
 		if !now.Before(e.expiresAt) {
-			delete(s.tickets, k)
+			s.deleteLocked(k, e)
 		}
 	}
+}
+
+func (s *TicketStore) deleteLocked(ticket string, e ticketEntry) {
+	delete(s.tickets, ticket)
+	owner := e.identity.OwnerUserID
+	s.owners[owner]--
+	if s.owners[owner] == 0 {
+		delete(s.owners, owner)
+	}
+}
+
+// Cleanup освобождает истёкшие билеты без фоновых goroutine на запись.
+func (s *TicketStore) Cleanup(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gcLocked(now)
+}
+
+// Close идемпотентно запрещает выдачу и удаляет все непогашенные билеты.
+func (s *TicketStore) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed = true
+	clear(s.tickets)
+	clear(s.owners)
 }

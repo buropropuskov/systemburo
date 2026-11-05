@@ -256,6 +256,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Все API-роуты под префиксом /api — разделяет API и SPA-роуты (/news, /center
 	// и т.д. в Vue router). Nginx проксирует /api/ на backend, остальное — на frontend.
 	api := e.Group("/api")
+	// Handler wrapping keeps group and route permission checks ahead of admission.
+	operationBudget := mw.OperationBudget()
 
 	// Статика загруженных файлов (фото мест разгрузки и системных таблиц).
 	// Под /api, чтобы прод-nginx (проксирует /api на backend) раздавал файлы без
@@ -290,8 +292,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	if loginLimiter != nil {
 		loginHandlers = append(loginHandlers, loginLimiter)
 	}
+	loginHandlers = append(loginHandlers, mw.SmallAuthBodyBudget)
 	api.POST("/login", auth.Login, loginHandlers...)
-	api.POST("/refresh-token", auth.RefreshToken)
+	api.POST("/refresh-token", auth.RefreshToken, mw.SmallAuthBodyBudget)
 	api.GET("/user-types", auth.GetUserTypes)
 	// Публичный статус техработ - без JWT, чтобы страница /maintenance и форма /login
 	// могли его опросить.
@@ -361,8 +364,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// что в тестах смена пароля из чужой учётной записи проходит.
 	protected.Use(mw.DenyUnderImpersonation())
 
-	protected.POST("/logout", auth.Logout)
-	protected.POST("/logout-all", auth.LogoutAll)
+	protected.POST("/logout", auth.Logout, mw.SmallAuthBodyBudget)
+	protected.POST("/logout-all", auth.LogoutAll, mw.SmallAuthBodyBudget)
 	protected.GET("/user-data", auth.GetUserData)
 	protected.GET("/users/me", auth.GetCurrentUser)
 	protected.GET("/users/current", auth.GetCurrentUser)
@@ -386,6 +389,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		if d.SelfPasswordLimiter != nil {
 			selfPasswordHandlers = append(selfPasswordHandlers, d.SelfPasswordLimiter)
 		}
+		selfPasswordHandlers = append(selfPasswordHandlers, mw.SmallAuthBodyBudget)
 		protected.PUT("/users/me/password", users.ChangeOwnPassword, selfPasswordHandlers...)
 	}
 
@@ -400,7 +404,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Выдача одноразового билета для SSE-потока (#840). Защищён JWTAuth+banCheck:
 	// забаненный/разлогиненный билет не получит, значит и поток не переоткроет.
 	if events != nil {
-		protected.POST("/events/ticket", events.IssueTicket)
+		protected.POST("/events/ticket", events.IssueTicket, mw.SmallAuthBodyBudget)
 	}
 
 	// Шаблоны вложений (unique_attachments). Изменяющие операции и админ-выборки -
@@ -418,12 +422,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Пустой бланк для заполнения списка участников и приём заполненного - под одним
 	// правом action.import.list (blank-import, C1C2): скачивание без права загрузки
 	// оставило бы пользователя с заполненным файлом, который загрузить некуда.
-	att.GET("/:id/blank-template", attachmentBlanks.DownloadTemplate, requireImportList)
+	att.GET("/:id/blank-template", operationBudget(attachmentBlanks.DownloadTemplate), requireImportList)
 	importListHandlers := []echo.MiddlewareFunc{requireImportList}
 	if importListLimiter != nil {
 		importListHandlers = append(importListHandlers, importListLimiter)
 	}
-	att.POST("/:id/import-list", attachmentImport.ImportList, importListHandlers...)
+	att.POST("/:id/import-list", operationBudget(attachmentImport.ImportList), importListHandlers...)
 	// Привязка ручного вложения-сироты к заявке (#1049 режим-2): только super/admin.
 	// Внимание: :id здесь = экземпляр attachments.id (ручная сирота), а НЕ unique_attachment
 	// (шаблон), как в CRUD-маршрутах группы выше. Разные таблицы под одним префиксом.
@@ -533,7 +537,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attRoot := protected.Group("/attachments", requireDirectories)
 	attRoot.GET("/:id/template", attachmentTemplates.Get)
 	attRoot.GET("/:id/templates", attachmentTemplates.ListTemplates)
-	attRoot.POST("/:id/template", attachmentTemplates.Upload)
+	attRoot.POST("/:id/template", operationBudget(attachmentTemplates.Upload))
 	attRoot.GET("/:id/template/file", attachmentTemplates.DownloadFile)
 	attRoot.GET("/:id/template/:tid/file", attachmentTemplates.DownloadFileByID)
 	attRoot.PUT("/:id/template/mappings", attachmentTemplates.UpdateMappings)
@@ -679,7 +683,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.POST("/:id/warning-windows", up.AddWarningWindow, requireDirectories)
 	upg.PUT("/:place_id/warning-windows/:window_id", up.UpdateWarningWindow, requireDirectories)
 	upg.DELETE("/:place_id/warning-windows/:window_id", up.DeleteWarningWindow, requireDirectories)
-	upg.POST("/:id/photos", up.UploadPhoto, requireDirectories)
+	upg.POST("/:id/photos", operationBudget(up.UploadPhoto), requireDirectories)
 	upg.DELETE("/:place_id/photos/:photo_id", up.DeletePhoto, requireDirectories)
 	upg.POST("/:place_id/photos/:photo_id/main", up.SetMainPhoto, requireDirectories)
 
@@ -709,7 +713,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.POST("/users", users.Create, requireUsers)
 	protected.GET("/users/all", users.GetAll, requireUsers)
 	protected.PUT("/users/:username/type", users.UpdateType, requireUsers)
-	protected.PUT("/users/:username/password", users.UpdatePassword, requireUsers)
+	protected.PUT("/users/:username/password", users.UpdatePassword, requireUsers, mw.SmallAuthBodyBudget)
 	// Смена пароля с отправкой письмом (#1910) - под тем же правом, что и ручная
 	// установка пароля: это её замена, а не новое полномочие.
 	protected.POST("/users/:username/rotate-password", users.RotatePassword, requireUsers)
@@ -833,14 +837,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.PUT("/:id", st.Update, requireTablesCtor)
 	stg.DELETE("/:id", st.Delete, requireTablesCtor)
 	stg.POST("/:id/restore", st.Restore, requireTablesCtor)
-	stg.GET("/:id/usage", st.GetUsage)
+	stg.GET("/:id/usage", st.GetUsage, requireTablesCtor)
 	stg.POST("/:id/detach-all", st.DetachAll, requireAdmin)
 	stg.DELETE("/:id/organizations/:org_id", st.DetachOrganization, requireAdmin)
 	stg.DELETE("/:id/companies/:company_id", st.DetachCompany, requireAdmin)
 	// param :id в Echo, поэтому /bulk/archive и /bulk/restore не конфликтуют с /:id/restore.
 	stg.POST("/bulk/archive", st.BulkArchive, requireTablesCtor)
 	stg.POST("/bulk/restore", st.BulkRestore, requireTablesCtor)
-	stg.GET("/:id/history", st.GetHistory)
+	stg.GET("/:id/history", st.GetHistory, requireTablesCtor)
 	stg.GET("/name/:name", st.GetByName)
 	stg.GET("/:id/time-slots", st.GetTimeSlots)
 	stg.POST("/:id/time-slots", st.AddTimeSlot, requireTablesCtor)
@@ -850,7 +854,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.POST("/:id/warning-windows", st.AddWarningWindow, requireTablesCtor)
 	stg.PUT("/:table_id/warning-windows/:window_id", st.UpdateWarningWindow, requireTablesCtor)
 	stg.DELETE("/:table_id/warning-windows/:window_id", st.DeleteWarningWindow, requireTablesCtor)
-	stg.POST("/:id/photos", st.UploadPhoto, requireTablesCtor)
+	stg.POST("/:id/photos", operationBudget(st.UploadPhoto), requireTablesCtor)
 	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto, requireTablesCtor)
 	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto, requireTablesCtor)
 
@@ -863,7 +867,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.GET("/:id/snapshots/:sid", tsnap.Get, d.TableVersionsGate)
 	// Экспорт версии/текущего состояния (xlsx|pdf) файлом на скачивание;
 	// sid=current экспортирует текущее состояние таблицы.
-	stg.GET("/:id/snapshots/:sid/export", tsnap.Export, d.TableVersionsGate)
+	stg.GET("/:id/snapshots/:sid/export", operationBudget(tsnap.Export), d.TableVersionsGate)
 	stg.DELETE("/:id/snapshots", tsnap.Cleanup, requireAdmin)
 
 	// Суточный отчёт охранника по проходам: живое окно [посл. 21:30, now) и
@@ -932,14 +936,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Заявки
 	apg := protected.Group("/applications", echomw.BodyLimit(applicationsBodyLimit))
 	apg.GET("", app.GetApplications)
-	apg.POST("", app.CreateApplication)
-	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
+	apg.POST("", operationBudget(app.CreateApplication))
+	apg.POST("/submit-complete-application", operationBudget(app.SubmitCompleteApplication))
+	apg.POST("/operations/status", app.ApplicationOperationStatus, mw.SmallAuthBodyBudget)
 
 	// Файлы заявки (#1721). Черновики лежат до подачи, поэтому загрузка и удаление
 	// висят на группе заявок без :id. Отдельного права нет: файлы видны тем же,
 	// кому видна заявка, проверка доступа - внутри обработчиков.
 	if d.ApplicationFiles != nil {
-		apg.POST("/files", d.ApplicationFiles.UploadDraft)
+		apg.POST("/files", operationBudget(d.ApplicationFiles.UploadDraft))
 		apg.GET("/files/drafts", d.ApplicationFiles.ListDrafts)
 		apg.DELETE("/files/:id", d.ApplicationFiles.DeleteDraft)
 		apg.GET("/:id/files", d.ApplicationFiles.List)
@@ -954,7 +959,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// «Экспорт заявок». Роут объявлен до /:id, иначе номер заявки перехватил бы слово
 	// export. Обращения пишутся в журнал 152-ФЗ (pdPaths): один файл уносит
 	// персональные данные пачкой.
-	apg.GET("/export", app.ExportApplications,
+	apg.GET("/export", operationBudget(app.ExportApplications),
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionExportApplications))
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК
@@ -968,51 +973,51 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/:id/participants", app.GetApplicationParticipants) // все участники заявки с ролями и контактами
 	apg.GET("/:id/details", app.GetApplicationDetails)
 	apg.GET("/:id/attachments", app.GetApplicationAttachments)
-	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx
+	apg.GET("/:id/blank", operationBudget(attachmentBlanks.Download)) // #183 - скачать заполненный .xlsx
 	if archiveDownload != nil {
 		// ZIP сохранённых бланков заявки из файлового архива (#1615, B3). Гейт тот же,
 		// что у скачивания одного бланка (canDownloadBlank) - не выше и не ниже.
-		apg.GET("/:id/archive", archiveDownload.Archive)
+		apg.GET("/:id/archive", operationBudget(archiveDownload.Archive))
 	}
-	apg.POST("/:id/forward", app.ForwardApplication)
+	apg.POST("/:id/forward", operationBudget(app.ForwardApplication))
 	apg.GET("/:id/forward-messages", app.GetForwardMessages) // #967 - ветка заявки (пересылки)
-	apg.POST("/:id/approve", app.ApproveApplicationByUser)
+	apg.POST("/:id/approve", operationBudget(app.ApproveApplicationByUser))
 	apg.POST("/:id/blacklist-overrides", app.OverrideBlacklistFlag)     // #481 - "всё равно пропустить"
 	apg.DELETE("/:id/blacklist-overrides", app.DeleteBlacklistOverride) // #481 - отмена подтверждения (срез C)
 	apg.GET("/:id/check-approval-status", app.CheckApprovalStatus)
-	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
+	apg.POST("/:id/take-to-work", operationBudget(app.TakeApplicationToWork))
 	// Заметка бюро по заявке. Права нет, проверяет сервис: вести её вправе только
 	// принимающий, а принимающий - роль из справочника, а не разрешение.
 	apg.PUT("/:id/bureau-note", app.SetBureauNote)
 	// #1393 - принимающий доназначает посты и места элементам заявки
-	apg.PUT("/:id/elements/tables", app.AssignElementTables)
+	apg.PUT("/:id/elements/tables", operationBudget(app.AssignElementTables))
 	// Принимающий убирает человека или машину из поданной заявки: решение для случая,
 	// когда пропустить помеченный элемент нельзя, а заявку провести надо.
-	apg.DELETE("/:id/elements", app.RemoveApplicationElements)
-	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
+	apg.DELETE("/:id/elements", operationBudget(app.RemoveApplicationElements))
+	apg.PUT("/:id/elements/unload-places", operationBudget(app.AssignCarUnloadPlaces))
 	// Принимающий сдвигает срок заявки, пока она не принята и не согласована (#2575).
-	apg.PUT("/:id/dates", app.ChangeApplicationDates)
-	apg.POST("/:id/attachment-period/preview", d.AttachmentPeriod.Preview, mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationPeriodChange))
-	apg.PUT("/:id/attachment-period", d.AttachmentPeriod.Change, mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationPeriodChange))
-	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
-	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
-	apg.POST("/:id/withdraw", app.WithdrawApplication)
+	apg.PUT("/:id/dates", operationBudget(app.ChangeApplicationDates))
+	apg.POST("/:id/attachment-period/preview", operationBudget(d.AttachmentPeriod.Preview), mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationPeriodChange))
+	apg.PUT("/:id/attachment-period", operationBudget(d.AttachmentPeriod.Change), mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationPeriodChange))
+	apg.POST("/:id/revoke-from-work", operationBudget(app.RevokeApplicationFromWork))
+	apg.POST("/:id/restore-to-work", operationBudget(app.RestoreApplicationToWork))
+	apg.POST("/:id/withdraw", operationBudget(app.WithdrawApplication))
 	// Дополнение поданной заявки (#1685). Право - продолжение подачи; владение заявкой
 	// право не покрывает, его проверяет сервис. Чтение раундов открыто всем, кому видна
 	// заявка (CanAccessApplication в handler) - согласующему раунд нужен так же, как автору.
-	apg.POST("/:id/supplements", app.CreateSupplement,
+	apg.POST("/:id/supplements", operationBudget(app.CreateSupplement),
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionSupplementApplication))
 	apg.GET("/:id/supplements", app.GetApplicationSupplements)
 	// Голосование по раунду дополнения. Право не требуется, как и у согласования заявки:
 	// голосовать вправе только состав раунда, и это проверяет сервис.
-	apg.POST("/:id/supplements/:sid/approve", app.ApproveSupplement)
-	apg.POST("/:id/supplements/:sid/revoke-approval", app.RevokeSupplementApproval)
+	apg.POST("/:id/supplements/:sid/approve", operationBudget(app.ApproveSupplement))
+	apg.POST("/:id/supplements/:sid/revoke-approval", operationBudget(app.RevokeSupplementApproval))
 	// Решение по раунду. Права тоже нет: принять/отклонить вправе только принимающий,
 	// снять - только автор заявки, и обе роли проверяет сервис.
-	apg.POST("/:id/supplements/:sid/take-to-work", app.DecideSupplement)
-	apg.POST("/:id/supplements/:sid/cancel", app.CancelSupplement)
+	apg.POST("/:id/supplements/:sid/take-to-work", operationBudget(app.DecideSupplement))
+	apg.POST("/:id/supplements/:sid/cancel", operationBudget(app.CancelSupplement))
 	apg.GET("/:id/history", app.GetApplicationHistory)
-	apg.POST("/:id/revoke-approval", app.RevokeApproval)
+	apg.POST("/:id/revoke-approval", operationBudget(app.RevokeApproval))
 	apg.GET("/:id/viewers", app.GetApplicationViewers)
 	apg.POST("/:id/read", app.MarkAsRead)
 	apg.GET("/:id/reads", app.GetReads)
@@ -1113,7 +1118,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	pdSubject.GET("/candidates", d.PDSubject.Find)
 	pdSubject.GET("/report", d.PDSubject.Report)
 	pdSubject.GET("/disclosures", d.PDSubject.Disclosures)
-	pdSubject.POST("/export", d.PDSubject.Export, pdSubjectExport)
+	pdSubject.POST("/export", operationBudget(d.PDSubject.Export), pdSubjectExport)
 
 	// Журнал отказов в доступе (#230).
 	denialsGroup := protected.Group("/access-denials")
@@ -1231,7 +1236,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	rlg.GET("/realtime", requestLogs.GetRealtime)
 	rlg.GET("/timeline", requestLogs.GetTimeline)
 	rlg.GET("/history", requestLogs.GetHistory)
-	rlg.GET("/export", requestLogs.Export)
+	rlg.GET("/export", operationBudget(requestLogs.Export))
 
 	// Bug-report - юзер отправляет со страницы Error500 (POST /api/bug-report)
 	protected.POST("/bug-report", bugReport.Submit)
@@ -1259,10 +1264,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	if docs != nil {
 		docsGroup := protected.Group("/documents")
 		docsGroup.GET("", docs.List, requireDirectories)
-		docsGroup.POST("", docs.Upload, requireDirectories)
+		docsGroup.POST("", operationBudget(docs.Upload), requireDirectories)
 		docsGroup.PUT("/reorder", docs.Reorder, requireDirectories)
 		docsGroup.PUT("/:id", docs.UpdateMeta, requireDirectories)
-		docsGroup.PUT("/:id/file", docs.ReplaceFile, requireDirectories)
+		docsGroup.PUT("/:id/file", operationBudget(docs.ReplaceFile), requireDirectories)
 		docsGroup.DELETE("/:id", docs.Delete, requireDirectories)
 		docsGroup.GET("/:id/download", docs.Download)
 
@@ -1280,7 +1285,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		// Админ-управление (B1b): правка текста раздела + загрузка/удаление PDF. Гейт page.admin.
 		guideGroup.GET("/admin/sections", guide.AdminListSections, requireAdmin)
 		guideGroup.PUT("/admin/sections/:role", guide.UpdateSection, requireAdmin)
-		guideGroup.PUT("/admin/sections/:role/file", guide.UploadFile, requireAdmin)
+		guideGroup.PUT("/admin/sections/:role/file", operationBudget(guide.UploadFile), requireAdmin)
 		guideGroup.DELETE("/admin/sections/:role/file", guide.DeleteFile, requireAdmin)
 	}
 
@@ -1290,7 +1295,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		dpGroup := protected.Group("/settings/data-processing")
 		dpGroup.GET("/document/meta", settings.GetDataProcessingMeta)
 		dpGroup.GET("/document", settings.ServeDataProcessingDoc)
-		dpGroup.POST("/document", settings.UploadDataProcessingDoc, requireAdmin)
+		dpGroup.POST("/document", operationBudget(settings.UploadDataProcessingDoc), requireAdmin)
 		dpGroup.DELETE("/document", settings.DeleteDataProcessingDoc, requireAdmin)
 
 		// Текст согласия на обработку ПД для запроса при первом входе (#1567).
@@ -1321,10 +1326,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 		// хранилищем персональных данных тому, чья работа - пропуска. В разделе
 		// остаётся показ текущих значений (GET выше) и наблюдение.
 		// Пересоздание файлов заявки переписывает диск - право то же, что на настройки.
-		faGroup.POST("/applications/:id/reexport", blankArchive.Reexport, manageFileArchive)
+		faGroup.POST("/applications/:id/reexport", operationBudget(blankArchive.Reexport), manageFileArchive)
 		// Бэкфилл за период и пересборка типа после правки шаблона (#1615, B4) - тот же
 		// уровень доступа: ручка ставит в очередь запись поверх файлов на диске.
-		faGroup.POST("/backfill", blankArchive.Backfill, manageFileArchive)
+		faGroup.POST("/backfill", operationBudget(blankArchive.Backfill), manageFileArchive)
 		// Сводка места и квоты (#1615, срез B2) - тот же уровень доступа, что и
 		// просмотр настроек: занятое место видит любой, кому виден раздел.
 		if stats := d.BlankArchiveStats; stats != nil {
@@ -1337,9 +1342,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 		if archiveDownload != nil {
 			downloadFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionDownloadFileArchive)
 			faGroup.GET("/items", archiveDownload.ListItems)
-			faGroup.POST("/estimate", archiveDownload.EstimateDownload)
+			faGroup.POST("/estimate", operationBudget(archiveDownload.EstimateDownload))
 			faGroup.POST("/download-ticket", archiveDownload.IssueDownloadTicket, downloadFileArchive)
-			faGroup.GET("/files/:id", archiveDownload.DownloadFile, downloadFileArchive)
+			faGroup.GET("/files/:id", operationBudget(archiveDownload.DownloadFile), downloadFileArchive)
 		}
 	}
 
@@ -1359,7 +1364,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup.GET("/recent-passages", statistics.GetRecentPassages, requireStats)
 		statsGroup.GET("/metrics", statistics.GetMetrics, requireStats)
 		statsGroup.GET("/insights", statistics.GetInsights, requireStats)
-		statsGroup.POST("/report", statistics.RunReport, requireStats)
+		statsGroup.POST("/report", operationBudget(statistics.RunReport), requireStats)
 		statsGroup.GET("/report/period", statistics.ReportDataPeriod, requireStats)
 		statsGroup.GET("/templates", statistics.ListTemplates, requireStats)
 		statsGroup.POST("/templates", statistics.CreateTemplate, requireStats)
