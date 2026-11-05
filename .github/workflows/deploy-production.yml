@@ -16,6 +16,8 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
+  packages: read
 
 jobs:
   gate:
@@ -24,8 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check confirm input
+        env:
+          CONFIRM: ${{ github.event.inputs.confirm }}
+          RELEASE_REF: ${{ github.ref }}
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+          if [ "$CONFIRM" != "deploy" ] || [ "$RELEASE_REF" != refs/heads/prod ]; then
             echo "Подтверждение не получено (введите \"deploy\")."
             exit 1
           fi
@@ -36,38 +41,61 @@ jobs:
     needs: [gate]
     if: |
       always() &&
+      github.ref == 'refs/heads/prod' &&
       (github.event_name == 'push' || needs.gate.result == 'success')
     environment: production
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: prod
+          ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Require trusted host and exact-SHA release checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VPS_HOST_FINGERPRINT: ${{ secrets.VPS_HOST_FINGERPRINT }}
+        run: python3 .github/scripts/wait_release_checks.py --branch prod --workflow ci.yml --workflow security.yml
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           port: ${{ secrets.VPS_PORT }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
+          envs: GHCR_USER,GHCR_TOKEN
+          command_timeout: 15m
           script: |
             set -e
             export DOCKER_BUILDKIT=1
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
             git fetch origin prod
-            git reset --hard origin/prod
+            git reset --hard ${{ github.sha }}
+            test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+            test "$(git rev-parse origin/prod)" = "${{ github.sha }}"
             test -f .env || bash scripts/init-env.sh production ${{ secrets.PROD_DOMAIN }}
-            # Frontend пересобираем без кеша — buildkit удерживает старые
-            # слои COPY . . даже при изменении исходников. BuildKit cache
-            # mounts из Dockerfile переживают --no-cache и сохраняют npm
-            # tarballs + vite cache (~10x ускорение после первого прогрева).
-            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull --no-cache frontend
-            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull backend nginx
-            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d --force-recreate
-            # Уборки здесь не было вовсе, а фронт собирается на месте без кеша:
-            # каждый выпуск оставляет полный набор слоёв прошлой сборки. На стенде
+            # Поставляем именно просканированные в CI образы данной ревизии.
+            REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+            export FRONTEND_IMAGE="ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}"
+            export BACKEND_IMAGE="ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}"
+            export NGINX_IMAGE="ghcr.io/${REPO_LOWER}-nginx-prod:${{ github.sha }}"
+            export POSTGRES_IMAGE="ghcr.io/${REPO_LOWER}-postgres:${{ github.sha }}"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+            docker pull "$FRONTEND_IMAGE"
+            docker pull "$BACKEND_IMAGE"
+            docker pull "$NGINX_IMAGE"
+            docker pull "$POSTGRES_IMAGE"
+            # The local Compose fallback must refer to the delivered DB runtime.
+            docker tag "$POSTGRES_IMAGE" systemburo-postgres:production
+            docker logout ghcr.io
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d --force-recreate --no-build
+            # Прежняя сборка фронта на сервере без кеша оставляла слои каждого
+            # выпуска. С готовыми образами сохраняем ограниченную уборку. На стенде
             # такое накопление за четыре месяца заняло больше четырёх гигабайт и
             # довело диск до 83 процентов; на рабочем сервере цена выше.
             #

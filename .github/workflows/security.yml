@@ -70,29 +70,101 @@ jobs:
         working-directory: frontend
         run: npm audit --audit-level=high || true
 
-  trivy-scan:
-    name: Trivy Image Scan
+  runtime-image-scan:
+    name: Trivy Runtime Scan (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: .
+            file: ./Dockerfile
+            target: production
+            runtime: production
+            image: systemburo:scan
+            cache: systemburo-backend
+          - name: frontend
+            context: ./frontend
+            file: ./frontend/Dockerfile
+            target: production
+            runtime: production
+            image: systemburo-frontend:scan
+            cache: systemburo-frontend
+          - name: staging-edge
+            context: ./nginx
+            file: ./nginx/Dockerfile.staging
+            target: staging
+            runtime: production,staging
+            image: systemburo-nginx:scan
+            cache: systemburo-staging-nginx
+          - name: production-edge
+            context: ./nginx
+            file: ./nginx/Dockerfile.staging
+            target: production
+            runtime: production
+            image: systemburo-nginx-prod:scan
+            cache: systemburo-production-nginx
+          - name: postgres
+            context: ./postgres
+            file: ./postgres/Dockerfile
+            target: production
+            runtime: production
+            image: systemburo-postgres:scan
+            cache: systemburo-postgres
+          - name: pgadmin
+            context: ./pgadmin
+            file: ./pgadmin/Dockerfile
+            target: production
+            runtime: production
+            image: systemburo-pgadmin:scan
+            cache: systemburo-pgadmin
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
-      - name: Build backend image (cached)
+        if: matrix.context != ''
+      - name: Build final runtime image
+        if: matrix.context != ''
         uses: docker/build-push-action@v7
         with:
-          context: .
-          target: production
-          tags: systemburo:scan
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          no-cache-filters: ${{ matrix.runtime }}
+          tags: ${{ matrix.image }}
           load: true
-          cache-from: type=gha,scope=systemburo-backend
+          cache-from: type=gha,scope=${{ matrix.cache }}
+      - name: Pull external runtime image
+        if: matrix.context == ''
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: docker pull "$IMAGE"
+      - name: Record scanned image identity
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: docker image inspect --format '{{.Id}} {{json .RepoDigests}}' "$IMAGE"
       - name: Run Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: 'systemburo:scan'
-          format: 'table'
+          version: 'v0.76.1'
+          image-ref: ${{ matrix.image }}
+          format: table
           exit-code: '1'
-          severity: 'CRITICAL,HIGH'
+          severity: CRITICAL,HIGH
           ignore-unfixed: true
-          vuln-type: 'os,library'
+          vuln-type: os,library
+
+  trivy-scan:
+    # Preserve the existing required-check name while requiring every image.
+    name: Trivy Image Scan
+    runs-on: ubuntu-latest
+    needs: runtime-image-scan
+    if: always()
+    steps:
+      - name: Require all runtime image scans
+        env:
+          SCAN_RESULT: ${{ needs.runtime-image-scan.result }}
+        run: test "$SCAN_RESULT" = success
 
 # dependency-review требует GitHub Advanced Security (платная фича).
 # На текущем плане не работает — вернём когда будет GHAS.
