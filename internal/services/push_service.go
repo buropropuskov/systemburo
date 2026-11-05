@@ -78,6 +78,7 @@ type PushPayload struct {
 	Type           string `json:"type"`
 	NotificationID int    `json:"notification_id"`
 	ApplicationID  *int   `json:"application_id,omitempty"`
+	URL            string `json:"url,omitempty"`
 }
 
 // PushSender -- то, что нужно от push-рассылки notificationService (#974). Узкий
@@ -314,7 +315,19 @@ func (s *pushService) Send(ctx context.Context, userID int, payload PushPayload)
 	if !s.Configured() {
 		return
 	}
-	body, valid := preparePushMessage(payload)
+	// Keep the existing admission checks before normalization. A generic preview
+	// must not turn an invalid caller payload into accepted queue work. Caller
+	// URLs are never a delivery input; only the fixed destination below is used.
+	payload.URL = ""
+	_, valid := preparePushMessage(payload)
+	if !valid {
+		s.delivery.counters.invalid.Add(1)
+		s.delivery.reportLoss()
+		return
+	}
+	// Push can remain queued outside a session and after a consent change. Never
+	// admit a personal preview (including direct PushSender callers) to the queue.
+	body, valid := preparePushMessage(genericPushPayload(payload.NotificationID))
 	if !valid {
 		s.delivery.counters.invalid.Add(1)
 		s.delivery.reportLoss()

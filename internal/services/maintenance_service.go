@@ -257,7 +257,7 @@ func (s *maintenanceService) notifyMaintenanceScheduled(ctx context.Context, adm
 		if uid == adminUserID {
 			continue
 		}
-		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeMaintenanceScheduled, title, body, nil); err != nil {
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeMaintenanceScheduled, ActorID: adminUserID, Facts: notificationEventFacts{At: start, Until: end}}), uid, NotificationTypeMaintenanceScheduled, title, body, nil); err != nil {
 			slog.Warn("не удалось уведомить о плановых технических работах", "user_id", uid, "error", err)
 		}
 	}

@@ -105,7 +105,7 @@ func (s *newsService) notifyNewsPublished(ctx context.Context, newsID int, autho
 		if uid == authorID {
 			continue
 		}
-		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeNewsPublished, notifTitle, title, &payloadStr); err != nil {
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeNewsPublished, NewsID: newsID, ActorID: authorID}), uid, NotificationTypeNewsPublished, notifTitle, title, &payloadStr); err != nil {
 			slog.Warn("не удалось уведомить о публикации новости", "news_id", newsID, "user_id", uid, "error", err)
 		}
 	}

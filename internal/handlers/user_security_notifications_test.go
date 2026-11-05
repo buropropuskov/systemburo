@@ -1,11 +1,13 @@
 package handlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +15,7 @@ import (
 )
 
 // TestUserBan_Notification_WithReason проверяет, что блокировка учётки создаёт
-// персистентное уведомление user_banned с причиной в тексте и в data (#1748 S3).
+// уведомление user_banned; свободная причина не попадает в хранение или выдачу.
 func TestUserBan_Notification_WithReason(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -33,12 +35,22 @@ func TestUserBan_Notification_WithReason(t *testing.T) {
 	require.Len(t, notifs, 1, "ожидается одно уведомление user_banned")
 
 	n := notifs[0]
+	assert.Equal(t, "Есть обновление", *n.Title)
+	assert.Equal(t, "Есть обновление", *n.Message)
+	assert.Nil(t, n.Data)
+	require.NotNil(t, n.ProjectionRef)
+	assert.NotContains(t, *n.ProjectionRef, reason)
+	projected, err := services.NewNotificationService(db).GetByUserID(context.Background(), targetID)
+	require.NoError(t, err)
+	require.Len(t, projected, 1)
+	n = projected[0]
 	require.NotNil(t, n.Title)
 	assert.Equal(t, "Учётная запись заблокирована", *n.Title)
 	require.NotNil(t, n.Message)
-	assert.Contains(t, *n.Message, reason)
-	require.NotNil(t, n.Data)
-	assert.Contains(t, *n.Data, reason)
+	assert.Equal(t, "Ваша учётная запись заблокирована.", *n.Message)
+	assert.NotContains(t, *n.Message, reason)
+	assert.Nil(t, n.Data)
+	assert.Nil(t, n.ProjectionRef)
 }
 
 // TestUserBan_Notification_WithoutReason проверяет, что блокировка без причины
@@ -61,7 +73,13 @@ func TestUserBan_Notification_WithoutReason(t *testing.T) {
 	require.Len(t, notifs, 1)
 
 	n := notifs[0]
+	assert.Equal(t, "Есть обновление", *n.Message)
+	projected, err := services.NewNotificationService(db).GetByUserID(context.Background(), targetID)
+	require.NoError(t, err)
+	require.Len(t, projected, 1)
+	n = projected[0]
 	require.NotNil(t, n.Message)
+	assert.Equal(t, "Ваша учётная запись заблокирована.", *n.Message)
 	assert.NotContains(t, *n.Message, "Причина", "без причины формулировка не упоминает пустую причину")
 	assert.NotContains(t, *n.Message, `""`, "без причины не должно быть пустых кавычек")
 }
@@ -90,10 +108,23 @@ func TestUserUnban_Notification(t *testing.T) {
 	require.Len(t, notifs, 1, "ожидается одно уведомление user_unbanned")
 
 	n := notifs[0]
+	assert.Equal(t, "Есть обновление", *n.Title)
+	assert.Equal(t, "Есть обновление", *n.Message)
+	assert.Nil(t, n.Data)
+	require.NotNil(t, n.ProjectionRef)
+	projected, err := services.NewNotificationService(db).GetByUserID(context.Background(), targetID)
+	require.NoError(t, err)
+	for _, notification := range projected {
+		if notification.ID == n.ID {
+			n = notification
+			break
+		}
+	}
 	require.NotNil(t, n.Title)
 	assert.Equal(t, "Учётная запись разблокирована", *n.Title)
 	require.NotNil(t, n.Message)
 	assert.Contains(t, *n.Message, "восстановлен")
+	assert.Nil(t, n.ProjectionRef)
 }
 
 // TestLoginBlocked_Notification_OnlyOnTransition проверяет, что уведомление
@@ -127,6 +158,14 @@ func TestLoginBlocked_Notification_OnlyOnTransition(t *testing.T) {
 	require.Len(t, notifs, 1, "ожидается ровно одно уведомление login_blocked")
 
 	n := notifs[0]
+	assert.Equal(t, "Есть обновление", *n.Title)
+	assert.Equal(t, "Есть обновление", *n.Message)
+	assert.Nil(t, n.Data)
+	require.NotNil(t, n.ProjectionRef)
+	projected, err := services.NewNotificationService(db).GetByUserID(context.Background(), targetID)
+	require.NoError(t, err)
+	require.Len(t, projected, 1)
+	n = projected[0]
 	require.NotNil(t, n.Title)
 	assert.Equal(t, "Вход временно заблокирован", *n.Title)
 	require.NotNil(t, n.Message)
@@ -134,6 +173,7 @@ func TestLoginBlocked_Notification_OnlyOnTransition(t *testing.T) {
 	require.NotNil(t, n.Data)
 	assert.Contains(t, *n.Data, "attempts")
 	assert.Contains(t, *n.Data, "locked_until")
+	assert.Nil(t, n.ProjectionRef)
 }
 
 // TestLoginBlocked_Notification_UnknownLogin_NoNotification проверяет, что для

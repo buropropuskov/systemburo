@@ -267,12 +267,40 @@ func loadPackageTables(dir string, files []TableFile, dec Decryptor) ([]packageT
 			if err != nil {
 				return nil, fmt.Errorf("таблица %s: строка %d: %w", f.Table, i+1, err)
 			}
+			if err := restrictImportedNotificationTrust(f.Table, row); err != nil {
+				return nil, fmt.Errorf("таблица %s: строка %d: %w", f.Table, i+1, err)
+			}
 			t.rows = append(t.rows, row)
 			t.ids = append(t.ids, id)
 		}
 		out = append(out, t)
 	}
 	return out, nil
+}
+
+// An archive proves integrity of a backup, not provenance of a live server event.
+// Historical snapshots remain intact, but cannot import trusted references or
+// cause the intent worker to reconstruct personal previews from archived actors.
+// Keep pending work/retry/dedup keys, and make repeat exports/imports idempotent.
+func restrictImportedNotificationTrust(table string, row map[string]any) error {
+	switch table {
+	case "notifications":
+		row["projection_ref"] = nil
+	case "notification_intents":
+		kind, ok := row["kind"].(string)
+		if !ok {
+			return errors.New("неверный тип события уведомления")
+		}
+		switch kind {
+		case "application_submitted", "imported.application_submitted":
+			row["kind"] = "imported.application_submitted"
+		case "supplement_created", "imported.supplement_created":
+			row["kind"] = "imported.supplement_created"
+		default:
+			return errors.New("неподдерживаемый тип события уведомления")
+		}
+	}
+	return nil
 }
 
 // rowID достаёт значение колонки id из уже разобранной строки. Все таблицы графа

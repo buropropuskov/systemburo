@@ -194,7 +194,7 @@ func (s *PasswordRotationService) Run(ctx context.Context, startedBy int) (*Rota
 		// Громко, а не молча: администратор должен узнать, что прогон не состоялся,
 		// иначе он будет считать, что пароли сменились.
 		s.notifyAdmins(ctx, "Обновление паролей не выполнено",
-			"Почта не настроена, поэтому прогон не начинался. Пароли не менялись.")
+			"Почта не настроена, поэтому прогон не начинался. Пароли не менялись.", notificationReference{Type: NotificationTypePasswordRotationReport, Variant: "no_mail"})
 		return nil, ErrRotationMailNotConfigured
 	}
 
@@ -490,7 +490,7 @@ func (s *PasswordRotationService) notifyRotated(ctx context.Context, u models.Us
 		return
 	}
 	data := string(payload)
-	if err := s.notifications.CreateForUser(ctx, u.ID, NotificationTypePasswordRotated,
+	if err := s.notifications.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypePasswordRotated}), u.ID, NotificationTypePasswordRotated,
 		"Пароль изменён",
 		"Система сменила ваш пароль по правилам безопасности и отправила новый на вашу почту.",
 		&data); err != nil {
@@ -506,7 +506,7 @@ func (s *PasswordRotationService) reportMarkedToAdmins(ctx context.Context, r *R
 	if r.Failed > 0 {
 		message += fmt.Sprintf(" Не удалось пометить: %d.", r.Failed)
 	}
-	s.notifyAdmins(ctx, "Плановая проверка сроков паролей выполнена", message)
+	s.notifyAdmins(ctx, "Плановая проверка сроков паролей выполнена", message, notificationReference{Type: NotificationTypePasswordRotationReport, Variant: "marked", Facts: notificationEventFacts{Marked: r.Marked, Failed: r.Failed}})
 
 	if s.mail == nil || !s.mail.Enabled() {
 		return
@@ -551,7 +551,7 @@ func (s *PasswordRotationService) reportToAdmins(ctx context.Context, r *Rotatio
 	if r.Failed > 0 {
 		message += fmt.Sprintf(" Не удалось сменить: %d.", r.Failed)
 	}
-	s.notifyAdmins(ctx, title, message)
+	s.notifyAdmins(ctx, title, message, notificationReference{Type: NotificationTypePasswordRotationReport, Variant: "rotated", Facts: notificationEventFacts{Changed: r.Changed, Failed: r.Failed, SkippedNoMail: r.SkippedNoMail}})
 
 	// Письмо администраторам - со списком тех, кому нужно проставить адрес.
 	for _, admin := range s.adminUsers(ctx) {
@@ -600,12 +600,16 @@ func (s *PasswordRotationService) reportLetterBody(r *RotationResult) string {
 
 // notifyAdmins шлёт уведомление тем, у кого есть право на настройки системы:
 // плановую смену настраивают там же, и разбираться с её итогом им.
-func (s *PasswordRotationService) notifyAdmins(ctx context.Context, title, message string) {
+func (s *PasswordRotationService) notifyAdmins(ctx context.Context, title, message string, references ...notificationReference) {
 	if s.notifications == nil {
 		return
 	}
+	ref := notificationReference{Type: NotificationTypePasswordRotationReport}
+	if len(references) == 1 {
+		ref = references[0]
+	}
 	for _, admin := range s.adminUsers(ctx) {
-		if err := s.notifications.CreateForUser(ctx, admin.ID,
+		if err := s.notifications.CreateForUser(withNotificationReference(ctx, ref), admin.ID,
 			NotificationTypePasswordRotationReport, title, message, nil); err != nil {
 			slog.Warn("плановая смена: уведомление администратору не создано",
 				"user_id", admin.ID, "error", err)
@@ -710,7 +714,7 @@ func (s *PasswordRotationService) NotifyExpiring(ctx context.Context) {
 		if s.notifications != nil {
 			msg := fmt.Sprintf("Срок действия пароля истекает %s. Смените его заранее, иначе при следующем входе система попросит сделать это сразу.",
 				expiresAt.Format("02.01.2006"))
-			if err := s.notifications.CreateForUser(ctx, u.ID, NotificationTypePasswordExpiring,
+			if err := s.notifications.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypePasswordExpiring, Facts: notificationEventFacts{Until: expiresAt}}), u.ID, NotificationTypePasswordExpiring,
 				"Пароль скоро истечёт", msg, nil); err != nil {
 				slog.Warn("предупреждение об истечении пароля: уведомление не создано", "user_id", u.ID, "error", err)
 			}

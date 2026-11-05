@@ -10,6 +10,11 @@ import (
 const pushPayloadMaxBytes = 3993
 const pushPayloadMaxTypeLen = 50 // Notification.Type's existing varchar(50)
 
+func genericPushPayload(notificationID int) PushPayload {
+	return PushPayload{Title: "Бюро пропусков", Message: genericNotificationText,
+		NotificationID: notificationID, URL: "/personal-cabinet"}
+}
+
 func preparePushMessage(payload PushPayload) ([]byte, bool) {
 	// Stop counting as soon as the bound is exceeded, even for huge input.
 	count := 0

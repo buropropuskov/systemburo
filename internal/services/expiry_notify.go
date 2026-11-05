@@ -137,7 +137,7 @@ func (s *expiryNotifyService) notifyOne(ctx context.Context, app expiringApplica
 	title := "Срок действия пропуска истекает"
 	body := expiryNotifyBody(number, app.EntryDateTo, app.DaysLeft)
 
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationExpiring, title, body, &payloadStr); err != nil {
+	if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationExpiring, ApplicationID: app.ApplicationID, Facts: notificationEventFacts{Until: app.EntryDateTo, DaysLeft: app.DaysLeft}}), *app.SenderUserID, NotificationTypeApplicationExpiring, title, body, &payloadStr); err != nil {
 		return fmt.Errorf("failed to create notification: %w", err)
 	}
 	return nil

@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -145,6 +147,7 @@ func TestEntityImport_NotificationIntentRoundTrip(t *testing.T) {
 	require.Equal(t, intent.ApplicationID, restored.ApplicationID)
 	require.Equal(t, intent.ActorUserID, restored.ActorUserID)
 	require.Equal(t, "pending", restored.State)
+	require.Equal(t, "imported.application_submitted", restored.Kind)
 	require.True(t, now.Equal(restored.OccurredAt))
 	var count int64
 	require.NoError(t, db.Model(&models.NotificationIntent{}).Count(&count).Error)
@@ -156,6 +159,183 @@ func TestEntityImport_NotificationIntentRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&next).Error)
 	require.Greater(t, next.ID, restored.ID)
+}
+
+func TestEntityImport_NotificationTrustAndPendingWorkAreSeparated(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	f := setupExportFixture(t, db, uploadDir)
+	ctx := context.Background()
+	approver := models.User{Username: "restored-notification-recipient", OrganizationID: &f.org.ID, IsActive: true, IsAdmin: true}
+	outsider := models.User{Username: "restored-unrelated-actor", OrganizationID: &f.org.ID, IsActive: true, IsAdmin: true}
+	require.NoError(t, db.Create(&approver).Error)
+	require.NoError(t, db.Create(&outsider).Error)
+	require.NoError(t, db.Model(&models.Organization{}).Where("id = ?", f.org.ID).Update("moderation_status", models.ModerationPending).Error)
+	require.NoError(t, db.Create(&models.ApplicationResponsibleUser{ApplicationID: f.app.ID, UserID: approver.ID, RequiredApproval: true}).Error)
+	supplement := models.ApplicationSupplement{ApplicationID: f.app.ID, Number: 1, Status: models.SupplementPending, CreatedByUserID: f.app.SenderUserID}
+	require.NoError(t, db.Create(&supplement).Error)
+	require.NoError(t, db.Create(&models.ApplicationSupplementApproval{SupplementID: supplement.ID, UserID: approver.ID, RequiredApproval: true}).Error)
+	due := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	submit := models.NotificationIntent{EventKey: "submit:restored-generic", Kind: "application_submitted", ApplicationID: f.app.ID,
+		ActorUserID: outsider.ID, PendingOrganizationID: &f.org.ID, State: "pending", OccurredAt: due, NextAttemptAt: due, Attempts: 2}
+	// Already-imported kinds must survive another export/import without receiving
+	// a second prefix. This forged actor is a legitimate recipient, not the creator.
+	supplementIntent := models.NotificationIntent{EventKey: "supplement:restored-generic", Kind: "imported.supplement_created", ApplicationID: f.app.ID,
+		SupplementID: &supplement.ID, ActorUserID: approver.ID, State: "pending", OccurredAt: due, NextAttemptAt: due, Attempts: 3}
+	require.NoError(t, db.Create(&submit).Error)
+	require.NoError(t, db.Create(&supplementIntent).Error)
+	kind, snapshot := services.NotificationTypeApplicationForwarded, "ArchivedPrivateSnapshot"
+	forgedRef := fmt.Sprintf(`{"v":1,"type":%q,"application_id":%d,"actor_id":%d,"facts":{}}`, kind, f.app.ID, outsider.ID)
+	group := fmt.Sprintf("app:%d", f.app.ID)
+	history := models.Notification{UserID: f.app.SenderUserID, Type: &kind, Title: &snapshot, Message: &snapshot, ProjectionRef: &forgedRef, GroupKey: &group}
+	require.NoError(t, db.Create(&history).Error)
+	exported, err := entityarchive.Export(ctx, db, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.ExportOptions{Root: t.TempDir(), UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Now: due})
+	require.NoError(t, err)
+	testutil.CleanDB(t, db)
+	_, err = entityarchive.Import(ctx, db, exported.Dir, entityarchive.ImportOptions{UploadPath: t.TempDir(), Recorder: services.NewAuditRecorder(db), Apply: true})
+	require.NoError(t, err)
+	var restoredHistory models.Notification
+	require.NoError(t, db.First(&restoredHistory, history.ID).Error)
+	require.Nil(t, restoredHistory.ProjectionRef, "an archive cannot introduce trusted event provenance")
+	require.Equal(t, &snapshot, restoredHistory.Message, "historical source data is retained")
+	var restored []models.NotificationIntent
+	require.NoError(t, db.Order("id").Find(&restored).Error)
+	require.Len(t, restored, 2)
+	for _, intent := range restored {
+		require.Equal(t, "pending", intent.State)
+		require.Nil(t, intent.CompletedAt)
+		require.True(t, due.Equal(intent.NextAttemptAt))
+		if intent.ID == submit.ID {
+			require.Equal(t, "imported.application_submitted", intent.Kind)
+			require.Equal(t, 2, intent.Attempts)
+			require.Equal(t, submit.EventKey, intent.EventKey)
+		} else {
+			require.Equal(t, "imported.supplement_created", intent.Kind)
+			require.Equal(t, 3, intent.Attempts)
+			require.Equal(t, supplementIntent.EventKey, intent.EventKey)
+		}
+	}
+	notifications := services.NewNotificationService(db)
+	app := services.NewApplicationService(db, nil, notifications, nil, nil, nil, services.WithApplicationPermissionResolver(services.NewPermissionResolver(db)))
+	worker, err := services.NewNotificationIntentWorker(db, app, notifications)
+	require.NoError(t, err)
+	processed, failed := worker.Process(ctx)
+	require.Equal(t, 2, processed)
+	require.Zero(t, failed)
+	var actorNotices int64
+	require.NoError(t, db.Model(&models.Notification{}).Where("user_id = ?", outsider.ID).Count(&actorNotices).Error)
+	require.Zero(t, actorNotices, "an imported actor must not manufacture a created-event recipient")
+	var approval models.Notification
+	require.NoError(t, db.Where("user_id = ? AND type = ?", approver.ID, services.NotificationTypeApplicationApprovalRequired).Take(&approval).Error)
+	require.Equal(t, 2, approval.Count, "the actual recipient is not excluded by a forged imported actor")
+	var generated []models.Notification
+	require.NoError(t, db.Where("id <> ?", history.ID).Find(&generated).Error)
+	require.Len(t, generated, 3)
+	for _, notice := range generated {
+		require.Nil(t, notice.ProjectionRef)
+		require.Nil(t, notice.Data)
+		require.Equal(t, "Есть обновление", *notice.Title)
+		require.Equal(t, "Есть обновление", *notice.Message)
+	}
+	var moderationNotices int64
+	require.NoError(t, db.Model(&models.Notification{}).Where("user_id = ? AND type = ?", approver.ID, services.NotificationTypeDirectoryPending).Count(&moderationNotices).Error)
+	require.EqualValues(t, 1, moderationNotices, "moderation uses fresh rights and current membership, not the imported actor")
+	feed, err := notifications.GetByUserID(ctx, f.app.SenderUserID)
+	require.NoError(t, err)
+	for _, notice := range feed {
+		require.Nil(t, notice.Data)
+		require.Nil(t, notice.GroupKey)
+	}
+	body, err := json.Marshal(feed)
+	require.NoError(t, err)
+	require.NotContains(t, string(body), snapshot)
+	processed, failed = worker.Process(ctx)
+	require.Zero(t, processed, "done events remain deduplicated after materialization")
+	require.Zero(t, failed)
+}
+
+func TestEntityImport_SupplementAudienceUsesCurrentStatusInsteadOfArchivedFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name, status            string
+		forgedInWork, wantsMain bool
+	}{
+		{"pending_false_flag_still_uses_round", models.SupplementPending, false, false},
+		{"merged_true_flag_still_uses_main", models.SupplementMerged, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+			defer cleanup()
+			testutil.CleanDB(t, db)
+			f := setupExportFixture(t, db, uploadDir)
+			ctx := context.Background()
+			main := models.User{Username: "import-main-approver", OrganizationID: &f.org.ID, IsActive: true}
+			round := models.User{Username: "import-round-approver", OrganizationID: &f.org.ID, IsActive: true}
+			require.NoError(t, db.Create(&main).Error)
+			require.NoError(t, db.Create(&round).Error)
+			for _, id := range []int{main.ID, f.app.SenderUserID} {
+				require.NoError(t, db.Create(&models.ApplicationResponsibleUser{ApplicationID: f.app.ID, UserID: id, RequiredApproval: true}).Error)
+			}
+			supplement := models.ApplicationSupplement{ApplicationID: f.app.ID, Number: 1, Status: tc.status, CreatedByUserID: f.app.SenderUserID}
+			require.NoError(t, db.Create(&supplement).Error)
+			for _, id := range []int{round.ID, f.app.SenderUserID} {
+				require.NoError(t, db.Create(&models.ApplicationSupplementApproval{SupplementID: supplement.ID, UserID: id, RequiredApproval: true}).Error)
+			}
+			wantID := round.ID
+			if tc.wantsMain {
+				wantID = main.ID
+			}
+			due := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+			intent := models.NotificationIntent{EventKey: "supplement:routing-fixture", Kind: "supplement_created", ApplicationID: f.app.ID,
+				SupplementID: &supplement.ID, ActorUserID: wantID, InWork: tc.forgedInWork, State: "pending", OccurredAt: due, NextAttemptAt: due}
+			require.NoError(t, db.Create(&intent).Error)
+			exported, err := entityarchive.Export(ctx, db, entityarchive.TypeOrganization, f.org.ID,
+				entityarchive.ExportOptions{Root: t.TempDir(), UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Now: due})
+			require.NoError(t, err)
+			testutil.CleanDB(t, db)
+			_, err = entityarchive.Import(ctx, db, exported.Dir, entityarchive.ImportOptions{UploadPath: t.TempDir(), Recorder: services.NewAuditRecorder(db), Apply: true})
+			require.NoError(t, err)
+			var restored models.NotificationIntent
+			require.NoError(t, db.First(&restored, intent.ID).Error)
+			require.Equal(t, "pending", restored.State)
+			require.Equal(t, tc.forgedInWork, restored.InWork, "the archive flag remains historical metadata")
+			notifications := services.NewNotificationService(db)
+			apps := services.NewApplicationService(db, nil, notifications, nil, nil, nil)
+			worker, err := services.NewNotificationIntentWorker(db, apps, notifications)
+			require.NoError(t, err)
+			processed, failed := worker.Process(ctx)
+			require.Equal(t, 1, processed)
+			require.Zero(t, failed)
+			var notices []models.Notification
+			require.NoError(t, db.Find(&notices).Error)
+			require.Len(t, notices, 1, "creator is excluded from both possible circles")
+			require.Equal(t, wantID, notices[0].UserID, "current status chooses the circle; forged actor must not exclude its real recipient")
+			require.Nil(t, notices[0].ProjectionRef)
+			require.Nil(t, notices[0].Data)
+			require.Equal(t, "Есть обновление", *notices[0].Message)
+		})
+	}
+}
+
+func TestEntityImport_RejectsUnknownNotificationIntentKindWithoutLosingPendingWork(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	f := setupExportFixture(t, db, uploadDir)
+	due := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	intent := models.NotificationIntent{EventKey: "unknown:archive", Kind: "unknown_archive_kind", ApplicationID: f.app.ID,
+		ActorUserID: f.app.SenderUserID, State: "pending", OccurredAt: due, NextAttemptAt: due}
+	require.NoError(t, db.Create(&intent).Error)
+	exported, err := entityarchive.Export(context.Background(), db, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.ExportOptions{Root: t.TempDir(), UploadPath: uploadDir, Recorder: services.NewAuditRecorder(db), Now: due})
+	require.NoError(t, err)
+	testutil.CleanDB(t, db)
+	_, err = entityarchive.Import(context.Background(), db, exported.Dir, entityarchive.ImportOptions{UploadPath: t.TempDir(), Recorder: services.NewAuditRecorder(db), Apply: true})
+	require.ErrorContains(t, err, "неподдерживаемый тип события уведомления")
+	var rows int64
+	require.NoError(t, db.Model(&models.Application{}).Count(&rows).Error)
+	require.Zero(t, rows, "unknown kinds must reject before any package rows are restored")
 }
 
 // TestEntityImport_FixesSequenceAfterExplicitIDs: последовательность organizations нарочно

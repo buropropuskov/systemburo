@@ -29,6 +29,8 @@ import (
 // «Организация» либо «Компания»: оба слова женского рода, поэтому текст уведомления
 // собирается из label без отдельных форм склонения.
 type pendingDirectoryNotice struct {
+	id    int
+	table string
 	label string
 	name  string
 }
@@ -63,7 +65,7 @@ func (s *applicationService) notifyDirectoryPending(ctx context.Context, appID i
 		title := "Новая " + strings.ToLower(notice.label) + " на проверке"
 		body := fmt.Sprintf("В заявке %s указана «%s». Проверьте наименование и разберите запись.", appNumber, notice.name)
 		for _, userID := range audience {
-			if err := s.notificationService.CreateForUser(ctx, userID, NotificationTypeDirectoryPending, title, body, &payloadStr); err != nil {
+			if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeDirectoryPending, ApplicationID: appID, ActorID: senderID, DirectoryID: notice.id, DirectoryKind: notice.table}), userID, NotificationTypeDirectoryPending, title, body, &payloadStr); err != nil {
 				slog.Warn("не удалось уведомить о записи справочника на проверке",
 					"user_id", userID, "application_id", appID, "error", err)
 			}
@@ -101,11 +103,15 @@ func (s *applicationService) directoryModerators(ctx context.Context, appID, sen
 // authorID - created_by_user_id разобранной записи: у записей, заведённых админом руками,
 // его нет, и сообщать некому. Себе уведомление не шлём: принимающий, разобравший
 // собственную подачу, и так знает результат.
-func notifyDirectoryResolved(ctx context.Context, notifier NotificationService, table string, authorID *int, actorID int, title, body string) {
+func notifyDirectoryResolved(ctx context.Context, notifier NotificationService, table string, authorID *int, actorID int, title, body string, directoryIDs ...int) {
 	if notifier == nil || authorID == nil || *authorID == actorID {
 		return
 	}
-	if err := notifier.CreateForUser(ctx, *authorID, NotificationTypeDirectoryResolved, title, body, nil); err != nil {
+	directoryID := 0
+	if len(directoryIDs) == 1 {
+		directoryID = directoryIDs[0]
+	}
+	if err := notifier.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeDirectoryResolved, ActorID: actorID, DirectoryID: directoryID, DirectoryKind: table}), *authorID, NotificationTypeDirectoryResolved, title, body, nil); err != nil {
 		slog.Warn("не удалось уведомить инициатора о разборе записи справочника",
 			"table", table, "user_id", *authorID, "error", err)
 	}

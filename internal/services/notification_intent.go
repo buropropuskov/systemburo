@@ -14,8 +14,17 @@ import (
 const (
 	notificationIntentSubmit     = "application_submitted"
 	notificationIntentSupplement = "supplement_created"
-	notificationIntentBatch      = 25
+	// Archive restoration preserves pending work but does not authenticate its
+	// original actor. These kinds materialize generic drafts without references.
+	// Keep in sync with entityarchive.restrictImportedNotificationTrust.
+	notificationIntentImportedSubmit     = "imported.application_submitted"
+	notificationIntentImportedSupplement = "imported.supplement_created"
+	notificationIntentBatch              = 25
 )
+
+func importedNotificationIntent(kind string) bool {
+	return kind == notificationIntentImportedSubmit || kind == notificationIntentImportedSupplement
+}
 
 // NotificationPendingDirectoryIDs includes only entries newly created by this
 // submission (directoryResolution.PendingName != ""). Existing pending entries

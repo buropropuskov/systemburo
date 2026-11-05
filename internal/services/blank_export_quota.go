@@ -579,7 +579,7 @@ func (q *BlankExportQuotaService) notifyAdmins(ctx context.Context, usage disksp
 	var delivered int
 	var lastErr error
 	for _, userID := range audience {
-		if err := q.notifier.CreateForUser(ctx, userID, NotificationTypeArchiveQuotaWarning, title, body, nil); err != nil {
+		if err := q.notifier.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeArchiveQuotaWarning, Facts: notificationEventFacts{UsedPercent: usage.UsedPercent(), WarnPercent: settings.WarnPercent, FreeBytes: usage.FreeBytes}}), userID, NotificationTypeArchiveQuotaWarning, title, body, nil); err != nil {
 			slog.Warn("archive quota: не удалось уведомить о заполнении архива", "user_id", userID, "error", err)
 			lastErr = err
 			continue

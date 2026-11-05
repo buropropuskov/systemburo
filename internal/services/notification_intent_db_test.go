@@ -234,12 +234,17 @@ func TestNotificationIntentSupplementUsesSnapshotAndSkipsDisabledAccount(t *test
 	var row models.Notification
 	require.NoError(t, f.db.Take(&row).Error)
 	require.Equal(t, f.approver.ID, row.UserID)
-	require.Contains(t, *row.Message, "дополнение №1")
-	require.NotNil(t, row.Data)
+	require.Equal(t, "Есть обновление", *row.Message)
+	require.NotNil(t, row.ProjectionRef)
+	projected, err := f.notifications.GetByUserID(ctx, f.approver.ID)
+	require.NoError(t, err)
+	require.Len(t, projected, 1)
+	require.Contains(t, *projected[0].Message, "дополнение №1")
+	require.NotNil(t, projected[0].Data)
 	var payload struct {
 		SupplementNumber int `json:"supplement_number"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(*row.Data), &payload))
+	require.NoError(t, json.Unmarshal([]byte(*projected[0].Data), &payload))
 	require.Equal(t, 1, payload.SupplementNumber)
 	require.NoError(t, f.db.Exec("DELETE FROM notifications").Error)
 	require.NoError(t, f.db.Model(&f.approver).Update("is_banned", true).Error)
@@ -371,11 +376,17 @@ func TestNotificationIntentRevokedConsentSkipsRawAuthorNameQuery(t *testing.T) {
 	require.Len(t, rows, 2)
 	for _, row := range rows {
 		require.NotNil(t, row.Data)
-		require.Contains(t, *row.Data, "@"+f.author.Username)
 		require.NotContains(t, *row.Data, privateName)
+		require.NotContains(t, *row.Data, f.author.Username)
+		require.NotNil(t, row.ProjectionRef)
 		if row.Message != nil {
 			require.NotContains(t, *row.Message, privateName)
 		}
+		visible, err := f.notifications.GetByUserID(ctx, row.UserID)
+		require.NoError(t, err)
+		require.Len(t, visible, 1)
+		require.Contains(t, projectionJSON(t, visible), "INTENT-1")
+		require.NotContains(t, projectionJSON(t, visible), privateName)
 	}
 	f.probe.mu.Lock()
 	defer f.probe.mu.Unlock()

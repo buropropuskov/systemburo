@@ -40,8 +40,14 @@ func notificationIntentAudience(ctx context.Context, db *gorm.DB, applicationID,
 	return ids, nil
 }
 
-func notificationDraft(userID int, kind, title, message string, data *string) NotificationDraft {
-	return NotificationDraft{UserID: userID, Type: kind, Title: title, Message: message, Data: data, GroupKey: autoNotificationGroupKey(kind, data)}
+func notificationDraft(intent models.NotificationIntent, userID int, kind, title, message string, data *string) NotificationDraft {
+	ref := &notificationReference{Version: 1, Type: kind, EventKey: intent.EventKey, ActorID: intent.ActorUserID, ApplicationID: intent.ApplicationID}
+	if intent.SupplementID != nil {
+		ref.SupplementID = *intent.SupplementID
+		ref.Variant = "supplement"
+		ref.Facts.InWork = intent.InWork
+	}
+	return NotificationDraft{UserID: userID, Type: kind, Title: title, Message: message, Data: data, GroupKey: autoNotificationGroupKey(kind, data), reference: ref}
 }
 
 func (w *NotificationIntentWorker) buildIntentDrafts(ctx context.Context, tx *gorm.DB, intent models.NotificationIntent, app notificationIntentApplication, rights map[int]bool) ([]NotificationDraft, error) {
@@ -50,9 +56,126 @@ func (w *NotificationIntentWorker) buildIntentDrafts(ctx context.Context, tx *go
 		return w.buildSubmitNotificationDrafts(ctx, tx, intent, app, rights)
 	case notificationIntentSupplement:
 		return buildSupplementNotificationDrafts(ctx, tx, intent, app)
+	case notificationIntentImportedSubmit:
+		return buildImportedSubmitNotificationDrafts(ctx, tx, intent, app, rights)
+	case notificationIntentImportedSupplement:
+		return buildImportedSupplementNotificationDrafts(ctx, tx, intent, app)
 	default:
 		return nil, fmt.Errorf("unsupported notification intent kind")
 	}
+}
+
+func importedNotificationDraft(userID int, kind string, applicationID int) NotificationDraft {
+	group := ""
+	if meta, known := NotificationTypeMeta(kind); known && meta.Aggregatable {
+		group = fmt.Sprintf("app:%d", applicationID)
+	}
+	return NotificationDraft{UserID: userID, Type: kind, Title: genericNotificationText, Message: genericNotificationText, GroupKey: group}
+}
+
+// Imported event metadata can retain an arbitrary original actor. It is not a
+// recipient or a display source. Use current domain ownership/relations only,
+// and never call notificationDraft (which creates trusted provenance).
+func buildImportedSubmitNotificationDrafts(ctx context.Context, tx *gorm.DB, intent models.NotificationIntent, app notificationIntentApplication, rights map[int]bool) ([]NotificationDraft, error) {
+	senderID := safeDerefInt(app.SenderUserID)
+	var drafts []NotificationDraft
+	if senderID > 0 {
+		drafts = append(drafts, importedNotificationDraft(senderID, NotificationTypeApplicationCreated, app.ID))
+	}
+	var responsible []int
+	if err := tx.WithContext(ctx).Table("application_responsible_users").Where("application_id = ? AND required_approval = true", app.ID).Order("user_id").Pluck("user_id", &responsible).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range responsible {
+		if id != senderID {
+			drafts = append(drafts, importedNotificationDraft(id, NotificationTypeApplicationApprovalRequired, app.ID))
+		}
+	}
+	var approvers []int
+	if err := tx.WithContext(ctx).Table("application_approvers").Where("user_id <> ?", senderID).Order("user_id").Pluck("user_id", &approvers).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range approvers {
+		drafts = append(drafts, importedNotificationDraft(id, NotificationTypeApplicationPendingAcceptance, app.ID))
+	}
+	// Do not read directory names. A generic moderation notice still uses the
+	// current matching object, pending state, object audience and fresh rights.
+	pendingCount := 0
+	for _, item := range []struct {
+		table            string
+		pending, current *int
+	}{
+		{"organizations", intent.PendingOrganizationID, app.OrganizationID},
+		{"companies", intent.PendingCompanyID, app.CompanyID},
+	} {
+		if item.pending == nil || item.current == nil || *item.pending != *item.current {
+			continue
+		}
+		var count int64
+		if err := tx.WithContext(ctx).Table(item.table).Where("id = ? AND moderation_status = ?", *item.current, models.ModerationPending).Count(&count).Error; err != nil {
+			return nil, err
+		}
+		if count > 0 {
+			pendingCount++
+		}
+	}
+	if pendingCount == 0 {
+		return drafts, nil
+	}
+	audience, err := notificationIntentAudience(ctx, tx, app.ID, senderID)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range audience {
+		if id == senderID {
+			continue
+		}
+		allowed, known := rights[id]
+		if !known {
+			return nil, fmt.Errorf("notification moderation audience changed")
+		}
+		if allowed {
+			for i := 0; i < pendingCount; i++ {
+				drafts = append(drafts, importedNotificationDraft(id, NotificationTypeDirectoryPending, app.ID))
+			}
+		}
+	}
+	return drafts, nil
+}
+
+func buildImportedSupplementNotificationDrafts(ctx context.Context, tx *gorm.DB, intent models.NotificationIntent, app notificationIntentApplication) ([]NotificationDraft, error) {
+	if intent.SupplementID == nil {
+		return nil, fmt.Errorf("notification supplement identity is required")
+	}
+	var supplement struct {
+		ID, CreatedByUserID int
+		Status              string
+	}
+	err := tx.WithContext(ctx).Table("application_supplements").Select("id,created_by_user_id,status").Where("id = ? AND application_id = ?", *intent.SupplementID, app.ID).Take(&supplement).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The archived InWork flag is not authoritative for routing restored work.
+	// A merged round belongs to the main approval circle; other current rounds
+	// retain their own approval relations, independent of the imported actor/flag.
+	table, key, id := "application_supplement_approvals", "supplement_id", supplement.ID
+	if supplement.Status == models.SupplementMerged {
+		table, key, id = "application_responsible_users", "application_id", app.ID
+	}
+	var recipients []int
+	if err := tx.WithContext(ctx).Table(table).Where(key+" = ? AND required_approval = true", id).Order("user_id").Pluck("user_id", &recipients).Error; err != nil {
+		return nil, err
+	}
+	var drafts []NotificationDraft
+	for _, recipientID := range recipients {
+		if recipientID != supplement.CreatedByUserID {
+			drafts = append(drafts, importedNotificationDraft(recipientID, NotificationTypeApplicationApprovalRequired, app.ID))
+		}
+	}
+	return drafts, nil
 }
 
 // Every DB read here uses the materialization transaction. No request payload or
@@ -100,14 +223,14 @@ func (w *NotificationIntentWorker) buildSubmitNotificationDrafts(ctx context.Con
 		return nil, err
 	}
 	data := string(encoded)
-	drafts := []NotificationDraft{notificationDraft(intent.ActorUserID, NotificationTypeApplicationCreated, "Заявка отправлена", fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", number), &data)}
+	drafts := []NotificationDraft{notificationDraft(intent, intent.ActorUserID, NotificationTypeApplicationCreated, "Заявка отправлена", fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", number), &data)}
 	var responsible []int
 	if err := tx.WithContext(ctx).Table("application_responsible_users").Where("application_id = ? AND required_approval = true", app.ID).Order("user_id").Pluck("user_id", &responsible).Error; err != nil {
 		return nil, err
 	}
 	for _, id := range responsible {
 		if id != intent.ActorUserID {
-			drafts = append(drafts, notificationDraft(id, NotificationTypeApplicationApprovalRequired, "Требуется согласование", fmt.Sprintf("Поступила новая заявка %s на согласование.", number), &data))
+			drafts = append(drafts, notificationDraft(intent, id, NotificationTypeApplicationApprovalRequired, "Требуется согласование", fmt.Sprintf("Поступила новая заявка %s на согласование.", number), &data))
 		}
 	}
 	var approvers []int
@@ -120,7 +243,7 @@ func (w *NotificationIntentWorker) buildSubmitNotificationDrafts(ctx context.Con
 	}
 	note := pendingAcceptanceNote{number: number, organization: organization, sender: sender, messageText: optionalString(app.Message), fileNames: fileNames}
 	for _, id := range approvers {
-		drafts = append(drafts, notificationDraft(id, NotificationTypeApplicationPendingAcceptance, "Новая заявка", note.message(), &data))
+		drafts = append(drafts, notificationDraft(intent, id, NotificationTypeApplicationPendingAcceptance, "Новая заявка", note.message(), &data))
 	}
 	notices, err := notificationPendingDirectories(ctx, tx, intent, app)
 	if err != nil {
@@ -152,7 +275,9 @@ func (w *NotificationIntentWorker) buildSubmitNotificationDrafts(ctx context.Con
 		for _, notice := range notices {
 			title := "Новая " + strings.ToLower(notice.label) + " на проверке"
 			message := fmt.Sprintf("В заявке %s указана «%s». Проверьте наименование и разберите запись.", number, notice.name)
-			drafts = append(drafts, notificationDraft(id, NotificationTypeDirectoryPending, title, message, &directoryData))
+			draft := notificationDraft(intent, id, NotificationTypeDirectoryPending, title, message, &directoryData)
+			draft.reference.DirectoryID, draft.reference.DirectoryKind = notice.id, notice.table
+			drafts = append(drafts, draft)
 		}
 	}
 	return drafts, nil
@@ -194,7 +319,7 @@ func notificationPendingDirectories(ctx context.Context, tx *gorm.DB, intent mod
 			return nil, err
 		}
 		if row.ModerationStatus == models.ModerationPending {
-			notices = append(notices, pendingDirectoryNotice{label: item.label, name: row.Name})
+			notices = append(notices, pendingDirectoryNotice{label: item.label, name: row.Name, table: item.table, id: *item.pending})
 		}
 	}
 	return notices, nil
@@ -233,7 +358,7 @@ func buildSupplementNotificationDrafts(ctx context.Context, tx *gorm.DB, intent 
 	var drafts []NotificationDraft
 	for _, id := range recipients {
 		if id != intent.ActorUserID {
-			drafts = append(drafts, notificationDraft(id, NotificationTypeApplicationApprovalRequired, "Требуется согласование", message, &data))
+			drafts = append(drafts, notificationDraft(intent, id, NotificationTypeApplicationApprovalRequired, "Требуется согласование", message, &data))
 		}
 	}
 	return drafts, nil

@@ -442,7 +442,7 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 
 	notifyDirectoryResolved(ctx, notifier, def.table, entry.CreatedByUserID, actorID,
 		def.label+" уточнена",
-		fmt.Sprintf("Указанное вами наименование «%s» исправлено на «%s».", entry.Name, name))
+		fmt.Sprintf("Указанное вами наименование «%s» исправлено на «%s».", entry.Name, name), id)
 	if name != entry.Name && enqueuer != nil {
 		enqueuer.EnqueueApplications(nil, BlankExportReasonUpdate)
 	}
@@ -541,7 +541,7 @@ func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, no
 
 	notifyDirectoryResolved(ctx, notifier, def.table, source.CreatedByUserID, actorID,
 		def.label+" привязана к справочнику",
-		fmt.Sprintf("Указанное вами наименование «%s» привязано к записи справочника «%s».", source.Name, target.Name))
+		fmt.Sprintf("Указанное вами наименование «%s» привязано к записи справочника «%s».", source.Name, target.Name), targetID)
 	if enqueuer != nil {
 		enqueuer.EnqueueApplications(nil, BlankExportReasonUpdate)
 	}

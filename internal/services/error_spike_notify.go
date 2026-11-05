@@ -115,7 +115,7 @@ func (s *errorSpikeNotifyService) CheckAndNotify(ctx context.Context) error {
 
 	for _, userID := range audience {
 		// best-effort: сбой доставки одному не должен отменять остальных.
-		if err := s.notificationService.CreateForUser(ctx, userID,
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeErrorSpike, Facts: notificationEventFacts{WindowMinutes: int(errorSpikeWindow.Minutes()), Errors: int64(counts.Errors), Requests: int64(counts.Total)}}), userID,
 			NotificationTypeErrorSpike, title, message, &payloadStr); err != nil {
 			slog.Error("уведомление о всплеске ошибок не создано", "user_id", userID, "error", err)
 		}

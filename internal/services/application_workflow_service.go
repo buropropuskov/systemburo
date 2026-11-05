@@ -328,7 +328,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 	}
 
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
-	s.notifyWithdrawn(ctx, applicationID, formatFullName(user.LastName, user.FirstName, user.MiddleName), pendingApproverIDs)
+	s.notifyWithdrawn(ctx, applicationID, formatFullName(user.LastName, user.FirstName, user.MiddleName), pendingApproverIDs, user.ID)
 	return nil
 }
 

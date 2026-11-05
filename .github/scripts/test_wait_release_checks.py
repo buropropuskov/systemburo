@@ -108,6 +108,18 @@ class ReleaseGateTest(unittest.TestCase):
 
 
 class WorkflowDependencyTests(unittest.TestCase):
+    def test_staging_verifies_key_access_without_password_fallback(self):
+        workflow = (Path(__file__).resolve().parents[1] / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        deploy = workflow.split("\n  deploy-staging:", 1)[1].split("\n  ci-summary:", 1)[0]
+        proof = deploy.index("- name: Verify deployment key access")
+        delivery = deploy.index("- name: Deploy via SSH")
+        self.assertLess(proof, delivery)
+        self.assertNotIn("secrets.VPS_PASSWORD", deploy)
+        for step in (deploy[proof:delivery], deploy[delivery:]):
+            self.assertIn("key: ${{ secrets.VPS_SSH_KEY }}", step)
+            self.assertIn("fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}", step)
+            self.assertNotRegex(step, r"(?m)^\s+password:")
+
     def test_image_publication_observes_failed_validation_jobs(self):
         workflow = (Path(__file__).resolve().parents[1] / "workflows" / "ci.yml").read_text(encoding="utf-8")
         build = workflow.split("\n  docker-build:", 1)[1].split("\n  deploy-staging:", 1)[0]

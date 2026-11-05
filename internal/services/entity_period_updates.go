@@ -52,7 +52,7 @@ func ConfigureEntityPeriodUpdates(commands *EntityPeriodCommandService, applicat
 			if userID == actorID {
 				continue
 			}
-			if err := app.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationDatesChanged, "Изменён индивидуальный срок", message, &data); err != nil {
+			if err := app.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationDatesChanged, ApplicationID: applicationID, ActorID: actorID, Variant: "entity", EntityID: next.EntityID, EntityKind: string(kind)}), userID, NotificationTypeApplicationDatesChanged, "Изменён индивидуальный срок", message, &data); err != nil {
 				slog.Warn("period notification", "application_id", applicationID, "user_id", userID, "err", err)
 			}
 		}
@@ -96,7 +96,7 @@ func ConfigureAttachmentPeriodUpdates(commands *AttachmentPeriodCommandService, 
 			if userID == actorID {
 				continue
 			}
-			if err := app.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationDatesChanged, "Изменён срок вложений", message, &data); err != nil {
+			if err := app.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationDatesChanged, ApplicationID: result.ApplicationID, ActorID: actorID, Variant: "attachments"}), userID, NotificationTypeApplicationDatesChanged, "Изменён срок вложений", message, &data); err != nil {
 				slog.Warn("attachment period notification", "application_id", result.ApplicationID, "user_id", userID, "err", err)
 			}
 		}

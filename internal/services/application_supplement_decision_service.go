@@ -359,7 +359,7 @@ func (s *applicationService) notifySupplementDecided(ctx context.Context, applic
 		"status":             status,
 	})
 	payloadStr := string(payload)
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationSupplementDecided,
+	if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApplicationSupplementDecided, ApplicationID: applicationID, SupplementID: round.ID, ActorID: safeDerefInt(actorID), Facts: notificationEventFacts{Outcome: status}}), *app.SenderUserID, NotificationTypeApplicationSupplementDecided,
 		title, message, &payloadStr); err != nil {
 		slog.Warn("дополнение: уведомление автору не создано", "user_id", *app.SenderUserID,
 			"application_id", applicationID, "err", err)

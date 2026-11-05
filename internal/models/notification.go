@@ -13,7 +13,9 @@ type Notification struct {
 	GroupKey *string `gorm:"size:120;index:idx_notification_group,priority:3" json:"group_key,omitempty"`
 	Message  *string `gorm:"type:text" json:"message"`
 	Data     *string `gorm:"type:jsonb" json:"data"`
-	IsRead   bool    `gorm:"default:false;index;index:idx_notification_group,priority:4" json:"is_read"`
+	// Nullable server-owned provenance; AutoMigrate adds no historical backfill.
+	ProjectionRef *string `gorm:"type:jsonb" json:"-"`
+	IsRead        bool    `gorm:"default:false;index;index:idx_notification_group,priority:4" json:"is_read"`
 	// Count -- сколько событий схлопнуто в эту запись. 1 для обычного, не схлопнутого
 	// уведомления.
 	Count int `gorm:"default:1" json:"count"`

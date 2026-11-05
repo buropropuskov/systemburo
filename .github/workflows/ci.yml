@@ -425,6 +425,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VPS_HOST_FINGERPRINT: ${{ secrets.VPS_HOST_FINGERPRINT }}
         run: python3 .github/scripts/wait_release_checks.py --branch dev --workflow security.yml
+      - name: Verify deployment key access
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
+          command_timeout: 30s
+          script: |
+            set -eu
+            id -u >/dev/null
+            docker info >/dev/null
+            printf '%s\n' 'Deployment key access verified'
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         env:
@@ -434,7 +448,6 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           port: ${{ secrets.VPS_PORT }}
           username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
           fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
           # Передаём GITHUB_TOKEN на VPS чтобы docker login в ghcr.io

@@ -14,7 +14,7 @@ import (
 
 // TestCreateForUser_CollapsesRepeatedEventIntoSameGroup защищает схлопывание повторов
 // (#1748): второе событие того же типа и группы в пределах окна обновляет существующую
-// непрочитанную запись вместо новой строки ленты, message берётся от последнего события.
+// непрочитанную запись вместо новой строки ленты; недоверенные тексты остаются generic.
 func TestCreateForUser_CollapsesRepeatedEventIntoSameGroup(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -42,10 +42,23 @@ func TestCreateForUser_CollapsesRepeatedEventIntoSameGroup(t *testing.T) {
 	require.Len(t, notifications, 1, "два события одной группы должны схлопнуться в одну запись")
 	assert.Equal(t, 2, notifications[0].Count)
 	require.NotNil(t, notifications[0].Message)
-	assert.Equal(t, "Второе сообщение", *notifications[0].Message)
+	assert.Equal(t, "Есть обновление", *notifications[0].Message)
+	assert.Equal(t, "Есть обновление", *notifications[0].Title)
+	assert.Nil(t, notifications[0].Data)
+	assert.Nil(t, notifications[0].ProjectionRef)
 	require.NotNil(t, notifications[0].GroupKey)
 	assert.Equal(t, "app:501", *notifications[0].GroupKey)
 	assert.NotNil(t, notifications[0].LastEventAt)
+	feed, err := svc.GetByUserID(ctx, userID)
+	require.NoError(t, err)
+	require.Len(t, feed, 1)
+	assert.Equal(t, notifications[0].ID, feed[0].ID)
+	assert.Equal(t, 2, feed[0].Count)
+	assert.Equal(t, notifications[0].LastEventAt, feed[0].LastEventAt)
+	assert.Equal(t, "Есть обновление", *feed[0].Message)
+	assert.Nil(t, feed[0].Data)
+	assert.Nil(t, feed[0].GroupKey, "untrusted payload cannot disclose its application ID through grouping")
+	assert.Nil(t, feed[0].ProjectionRef)
 }
 
 // TestCreateForUser_ReadNotificationNotCollapsed: если единственная запись группы уже

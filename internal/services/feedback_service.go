@@ -151,7 +151,7 @@ func (s *feedbackService) notifyFeedbackCreated(ctx context.Context, feedbackID,
 	title := "Новое обращение обратной связи"
 	body := truncateForNotification(message, feedbackPreviewLimit)
 	for _, uid := range audience {
-		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeFeedbackCreated, title, body, nil); err != nil {
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeFeedbackCreated, FeedbackID: feedbackID, ActorID: authorID}), uid, NotificationTypeFeedbackCreated, title, body, nil); err != nil {
 			slog.Warn("не удалось уведомить о новом обращении", "feedback_id", feedbackID, "user_id", uid, "error", err)
 		}
 	}
@@ -167,7 +167,7 @@ func (s *feedbackService) notifyFeedbackAnswered(ctx context.Context, feedbackID
 	}
 	title := "Ответ по обращению"
 	body := truncateForNotification(comment, feedbackPreviewLimit)
-	if err := s.notificationService.CreateForUser(ctx, authorID, NotificationTypeFeedbackAnswered, title, body, nil); err != nil {
+	if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeFeedbackAnswered, FeedbackID: feedbackID, ActorID: actorID}), authorID, NotificationTypeFeedbackAnswered, title, body, nil); err != nil {
 		slog.Warn("не удалось уведомить автора обращения об ответе", "feedback_id", feedbackID, "user_id", authorID, "error", err)
 	}
 }

@@ -926,7 +926,7 @@ func (s *authService) notifyLoginBlocked(ctx context.Context, user *models.User,
 	dataStr := string(dataBytes)
 
 	if err := s.notificationService.CreateForUser(
-		ctx, user.ID,
+		withNotificationReference(ctx, notificationReference{Type: NotificationTypeLoginBlocked, Facts: notificationEventFacts{Attempts: attempts, Until: lockedUntil}}), user.ID,
 		NotificationTypeLoginBlocked,
 		"Вход временно заблокирован",
 		message,

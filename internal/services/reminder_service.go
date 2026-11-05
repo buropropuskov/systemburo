@@ -201,7 +201,7 @@ func (s *reminderService) remind(ctx context.Context, c reminderCandidate) error
 	payloadStr := string(payload)
 
 	message := fmt.Sprintf("Заявка %s ждёт вашего решения уже %d дн. Пожалуйста, рассмотрите её.", appNumber, waitingDays)
-	if err := s.notificationService.CreateForUser(ctx, c.UserID, NotificationTypeApprovalReminder,
+	if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeApprovalReminder, ApplicationID: c.ApplicationID, Facts: notificationEventFacts{WaitingDays: waitingDays}}), c.UserID, NotificationTypeApprovalReminder,
 		"Напоминание о согласовании", message, &payloadStr); err != nil {
 		return fmt.Errorf("failed to create reminder notification: %w", err)
 	}

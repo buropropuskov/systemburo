@@ -78,7 +78,7 @@ func (s *documentService) notifyDocumentPublished(ctx context.Context, docID int
 		if uid == authorID {
 			continue
 		}
-		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeDocumentPublished, notifTitle, title, &payloadStr); err != nil {
+		if err := s.notificationService.CreateForUser(withNotificationReference(ctx, notificationReference{Type: NotificationTypeDocumentPublished, DocumentID: docID, ActorID: authorID}), uid, NotificationTypeDocumentPublished, notifTitle, title, &payloadStr); err != nil {
 			slog.Warn("не удалось уведомить о публикации документа", "document_id", docID, "user_id", uid, "error", err)
 		}
 	}
