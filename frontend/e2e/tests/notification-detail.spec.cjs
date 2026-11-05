@@ -3,6 +3,7 @@ const { loginAsSuperAdminUI } = require('../helpers/auth.cjs');
 const { loginAsSuperAdmin, apiGet, apiPost, apiDelete } = require('../helpers/permissions.cjs');
 const { NotificationsDropdown } = require('../pages/NotificationsDropdown.cjs');
 const { NotificationDetailModal } = require('../pages/NotificationDetailModal.cjs');
+const { ApplicationDetailModal } = require('../pages/ApplicationDetailModal.cjs');
 
 // Клик по карточке уведомления больше не ведёт сразу в заявку - он раскрывает
 // подробности в NotificationDetailModal (#1748 S6), переход к заявке делает кнопка
@@ -194,9 +195,18 @@ test.describe('Модалка подробностей уведомления', 
     await modal.waitForOpen();
 
     await expect(modal.actionButton).toBeVisible();
+    const detailsLoaded = page.waitForResponse(response => response.request().method() === 'GET'
+      && new URL(response.url()).pathname.endsWith(`/applications/${applicationId}/details`));
     await modal.actionButton.click();
 
-    await expect(page).toHaveURL(new RegExp(`/center\\?open=${applicationId}$`));
+    expect((await detailsLoaded).ok()).toBe(true);
+    const applicationModal = new ApplicationDetailModal(page);
+    await expect(applicationModal.root).toBeVisible();
+    await expect(applicationModal.title).toContainText(application.application_number);
+    await expect(modal.overlay).toBeHidden();
+    // Center consumes the exact-ID deep link after locating the application;
+    // ?open is transient and must not reopen the card on a later page refresh.
+    await expect(page).toHaveURL(/\/center$/);
   });
 
   test('manual data не создаёт ссылку на заявку или подробные поля', async ({ page, request }) => {
