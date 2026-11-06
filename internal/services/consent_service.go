@@ -9,6 +9,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ConsentTypePDProcessing -- согласие на обработку персональных данных, которое
@@ -41,7 +42,15 @@ func NewConsentService(db *gorm.DB) ConsentService {
 // Grant выдаёт согласие на обработку персональных данных указанного типа. Учебный генератор передаёт серверный
 // снимок напрямую; запросы пользователей на обработку идут через AcceptProcessing.
 func (s *consentService) Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string, version int, hash string) (*models.PDConsent, error) {
-	consent, err := insertConsent(s.db.WithContext(ctx), userID, req.ConsentType, ip, ua, version, hash)
+	var consent *models.PDConsent
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockConsentSubject(tx, userID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent").SetInternal(err)
+		}
+		var err error
+		consent, err = insertConsent(tx, userID, req.ConsentType, ip, ua, version, hash)
+		return err
+	})
 	if err == nil {
 		s.logGrant(ctx, consent)
 	}
@@ -68,6 +77,9 @@ func (s *consentService) AcceptProcessing(ctx context.Context, userID int, shown
 		if !hasVisibleText(req.Text) || shown.Version != req.Version || shown.Hash != req.Hash {
 			return echo.NewHTTPError(http.StatusConflict, "Обновите страницу и прочитайте актуальную редакцию согласия.")
 		}
+		if err := lockConsentSubject(tx, userID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent").SetInternal(err)
+		}
 		consent, err = insertConsent(tx, userID, ConsentTypePDProcessing, ip, ua, req.Version, req.Hash)
 		return err
 	})
@@ -78,6 +90,15 @@ func (s *consentService) AcceptProcessing(ctx context.Context, userID int, shown
 		s.logGrant(ctx, consent)
 	}
 	return req, consent, nil
+}
+
+// lockConsentSubject serializes consent writes with administrative updates, which
+// already hold the same users row through lockAdminTarget. It reads only the ID.
+// The document lock, when needed, is acquired first; publishers never lock users.
+func lockConsentSubject(tx *gorm.DB, userID int) error {
+	var subject struct{ ID int }
+	return tx.Table("users").Select("id").Where("id = ?", userID).
+		Clauses(clause.Locking{Strength: "UPDATE"}).Take(&subject).Error
 }
 
 func insertConsent(db *gorm.DB, userID int, consentType, ip, ua string, version int, hash string) (*models.PDConsent, error) {
@@ -113,16 +134,23 @@ func (s *consentService) logGrant(ctx context.Context, consent *models.PDConsent
 // кто отзывает: сам работник или администратор по его обращению; в историю
 // учётной записи попадает именно он.
 func (s *consentService) Revoke(ctx context.Context, userID int, consentType string, actorID int) error {
-	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).
-		Model(&models.PDConsent{}).
-		Where("user_id = ? AND consent_type = ? AND revoked_at IS NULL", userID, consentType).
-		Updates(map[string]interface{}{"granted": false, "revoked_at": now})
-	if result.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent")
-	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Active consent not found")
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockConsentSubject(tx, userID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent").SetInternal(err)
+		}
+		result := tx.Model(&models.PDConsent{}).
+			Where("user_id = ? AND consent_type = ? AND revoked_at IS NULL", userID, consentType).
+			Updates(map[string]interface{}{"granted": false, "revoked_at": time.Now().UTC()})
+		if result.Error != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent").SetInternal(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, "Active consent not found")
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	details := map[string]any{"consent_type": consentType}
 	if actorID != userID {
