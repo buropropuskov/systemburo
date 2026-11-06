@@ -3,14 +3,17 @@ package database
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
 	"systemburo/internal/httpx"
+	"systemburo/internal/logmask"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
@@ -29,10 +32,47 @@ func TestSafeLoggerNeverEmitsSQLOrDatabaseDetails(t *testing.T) {
 	if strings.Contains(out.String(), "PRIVATE-") {
 		t.Fatal("database details appeared in logs")
 	}
-	for _, safe := range []string{"database operation", "duration", "*pgconn.PgError/other"} {
+	for _, safe := range []string{"database operation", "duration", "*pgconn.PgError", "23505"} {
 		if !strings.Contains(out.String(), safe) {
 			t.Fatalf("safe diagnostic %q missing", safe)
 		}
+	}
+}
+
+func TestSafeLoggerRealHandlerRetainsOnlySafeDiagnostics(t *testing.T) {
+	for _, format := range []string{"json", "text"} {
+		t.Run(format, func(t *testing.T) {
+			var out bytes.Buffer
+			opts := &slog.HandlerOptions{ReplaceAttr: logmask.ReplaceAttr}
+			var handler slog.Handler = slog.NewJSONHandler(&out, opts)
+			if format == "text" {
+				handler = slog.NewTextHandler(&out, opts)
+			}
+			log := NewSafeLogger(slog.New(handler), logger.Info)
+			for _, err := range []error{
+				fmt.Errorf("PRIVATE-WRAPPER: %w", gorm.ErrRecordNotFound),
+				context.Canceled,
+				&pgconn.PgError{Code: "42703", Message: "PRIVATE-MESSAGE", Detail: "PRIVATE-DETAIL", TableName: "PRIVATE-TABLE"},
+				&pgconn.PgError{Code: "BAD-PRIVATE-CODE"},
+				(*pgconn.PgError)(nil),
+			} {
+				log.Trace(context.Background(), time.Now(), func() (string, int64) {
+					t.Fatal("SQL callback must not run")
+					return "PRIVATE-SQL", 0
+				}, err)
+			}
+			text := out.String()
+			for _, safe := range []string{"not_found", "canceled", "*pgconn.PgError", "42703", "error_type", "error_class", "error_code", "db_caller"} {
+				if !strings.Contains(text, safe) {
+					t.Errorf("safe diagnostic %q missing", safe)
+				}
+			}
+			for _, private := range []string{"PRIVATE", "record not found", "safe_logger_test.go", "/app/", "C:"} {
+				if strings.Contains(text, private) {
+					t.Errorf("private text or local path %q leaked", private)
+				}
+			}
+		})
 	}
 }
 

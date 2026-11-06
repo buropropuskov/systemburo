@@ -14,7 +14,7 @@ import (
 // values under unrelated keys still need a safe logging contract at their source.
 func ReplaceAttr(groups []string, attr slog.Attr) slog.Attr {
 	if err, ok := attr.Value.Any().(error); ok {
-		attr.Value = slog.StringValue(fmt.Sprintf("%T/%s", err, diagnosticErrorClass(err)))
+		attr.Value = slog.StringValue(fmt.Sprintf("%T/%s", err, ErrorClass(err)))
 		return attr
 	}
 	if attr.Value.Kind() == slog.KindGroup {
@@ -68,7 +68,8 @@ func sensitiveDiagnosticKey(key string) bool {
 	return false
 }
 
-func diagnosticErrorClass(err error) string {
+// ErrorClass returns a fixed diagnostic category without reading error text.
+func ErrorClass(err error) string {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return "canceled"
