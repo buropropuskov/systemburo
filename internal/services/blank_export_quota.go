@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -531,7 +530,8 @@ func (q *BlankExportQuotaService) crossEdge(ctx context.Context, state *threshol
 
 func (q *BlankExportQuotaService) loadFlag(ctx context.Context, key string) bool {
 	var setting models.SystemSetting
-	if err := q.db.WithContext(ctx).Where("key = ?", key).First(&setting).Error; err != nil {
+	// Missing transition markers are the normal initial state, not a query error.
+	if err := q.db.WithContext(ctx).Where("key = ?", key).Limit(1).Find(&setting).Error; err != nil {
 		return false
 	}
 	return setting.Value == "true"
@@ -540,15 +540,15 @@ func (q *BlankExportQuotaService) loadFlag(ctx context.Context, key string) bool
 func (q *BlankExportQuotaService) saveFlag(ctx context.Context, key string, active bool) error {
 	value := strconv.FormatBool(active)
 	var existing models.SystemSetting
-	err := q.db.WithContext(ctx).Where("key = ?", key).First(&existing).Error
+	result := q.db.WithContext(ctx).Where("key = ?", key).Limit(1).Find(&existing)
 	switch {
-	case err == nil:
+	case result.Error != nil:
+		return fmt.Errorf("failed to load threshold flag %s: %w", key, result.Error)
+	case result.RowsAffected > 0:
 		existing.Value = value
 		return q.db.WithContext(ctx).Save(&existing).Error
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		return q.db.WithContext(ctx).Create(&models.SystemSetting{Key: key, Value: value, Type: "bool"}).Error
 	default:
-		return fmt.Errorf("failed to load threshold flag %s: %w", key, err)
+		return q.db.WithContext(ctx).Create(&models.SystemSetting{Key: key, Value: value, Type: "bool"}).Error
 	}
 }
 
