@@ -18,15 +18,15 @@ import (
 // выбрать нужного согласующего, и работа встала бы. Интерфейс уже умеет этот случай -
 // когда ФИО в учётной записи не заполнено, он и так печатает логин.
 //
-// Признак - «никогда не давал согласия», а НЕ «не подтвердил текущую редакцию».
+// Признак - отсутствие действующего согласия, а НЕ неподтверждённая новая редакция.
 // Второе связало бы видимость имён с повышением редакции: администратор правит
 // запятую в тексте, и вся система разом теряет имена до тех пор, пока каждый
 // работник не перезайдёт.
 //
-// Маскировка работает, только когда запрос согласия реально работает - тем же
+// Для никогда не соглашавшихся маскировка работает, когда запрос работает - тем же
 // условием, что и гейт (тумблер включён И текст непустой). На установке, где
 // согласия не спрашивают вовсе, ни у кого его нет, и без этого условия имена
-// сменились бы логинами у всех сразу.
+// сменились бы логинами у всех сразу. Уже записанный отзыв от этого режима не зависит.
 
 // nameMaskUnavailable не позволяет спутать сбой проверки с отсутствием масок.
 func nameMaskUnavailable(err error) error {
@@ -66,10 +66,8 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) (bool, error) {
 // согласия на обработку персональных данных. nil означает «маскировать некого» -
 // вызывающая сторона тогда работает как раньше, без накладных расходов.
 //
-// В выборку идут только те, кого запрос согласия реально касается (gatedUsersWhere):
-// супер-администратор проходит гейт всегда, а архивных и заблокированных отбивают
-// раньше. Считай мы иначе, скрытыми оказались бы имена тех, у кого система согласия
-// и не спрашивает.
+// Для ещё не соглашавшихся сохраняется область входного запроса согласия.
+// Записанный отзыв действует независимо от статуса учётки и режима запроса.
 func loadConsentMasks(ctx context.Context, db *gorm.DB) (map[int]string, error) {
 	masks, _, err := consentMasksWithState(ctx, db)
 	return masks, err
@@ -83,28 +81,31 @@ func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bo
 	if err != nil {
 		return nil, false, err
 	}
-	if !active {
-		return nil, false, nil
-	}
 	type row struct {
 		ID       int
 		Username string
 	}
 	var rows []row
-	err = db.WithContext(ctx).
+	query := db.WithContext(ctx).
 		Table("users").
 		Select("users.id, users.username").
-		Where(gatedUsersWhere).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM pd_consents c
 			WHERE c.user_id = users.id
 			  AND c.consent_type = ?
 			  AND c.granted = true
 			  AND c.revoked_at IS NULL
-		)`, ConsentTypePDProcessing).
-		Scan(&rows).Error
+		)`, ConsentTypePDProcessing)
+	withdrawn := `EXISTS (SELECT 1 FROM pd_consents r WHERE r.user_id = users.id
+		AND r.consent_type = ? AND r.revoked_at IS NOT NULL)`
+	if active {
+		query = query.Where("(("+gatedUsersWhere+") OR "+withdrawn+")", ConsentTypePDProcessing)
+	} else {
+		query = query.Where(withdrawn, ConsentTypePDProcessing)
+	}
+	err = query.Scan(&rows).Error
 	if err != nil {
-		return nil, true, nameMaskUnavailable(err)
+		return nil, active, nameMaskUnavailable(err)
 	}
 	masks := make(map[int]string, len(rows))
 	for _, r := range rows {
@@ -112,7 +113,7 @@ func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bo
 		// вместо фамилии логин читается как фамилия.
 		masks[r.ID] = "@" + r.Username
 	}
-	return masks, true, nil
+	return masks, active, nil
 }
 
 // loadNameMasks собирает обе маски отображаемого имени: заданную администратором
