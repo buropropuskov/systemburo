@@ -123,7 +123,7 @@
                 data-testid="pdc-accept"
                 @click="submit"
               >
-                {{ busy ? 'Подтверждаем...' : 'Подтверждаю согласие' }}
+                {{ store.needsReload ? 'Обновить документ' : busy ? 'Подтверждаем...' : 'Подтверждаю согласие' }}
               </button>
               <button
                 v-if="hasDocument"
@@ -220,7 +220,7 @@ const safeHtml = computed(() => sanitizeHtml(store.html));
 
 const progressPercent = computed(() => Math.round(progress.value * 100));
 const canAgree = computed(() => hasText.value && atEnd.value);
-const canAccept = computed(() => canAgree.value && agreed.value && !busy.value);
+const canAccept = computed(() => !busy.value && (store.needsReload || (canAgree.value && agreed.value)));
 
 const hint = computed(() => {
   if (!hasText.value) return 'Текст согласия не загружен';
@@ -249,6 +249,7 @@ function updateProgress() {
 function observe() {
   const end = sentinel.value;
   if (!end) return;
+  unobserve();
 
   if (typeof IntersectionObserver === 'undefined') {
     // Наблюдателя нет (старый браузер) - не запираем пользователя в окне без
@@ -258,13 +259,14 @@ function observe() {
     // root: null - пересечение считаем с вьюпортом, а не арифметикой
     // scrollTop + clientHeight: скроллер разный на десктопе и мобилке, а
     // корневой zoom (utils/viewportScale.js) разводит единицы rect и innerHeight.
-    io = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) atEnd.value = true;
+        if (io === observer && entries.some((e) => e.isIntersecting)) atEnd.value = true;
       },
       { root: null, threshold: 0.01 },
     );
-    io.observe(end);
+    io = observer;
+    observer.observe(end);
   }
 
   // Картинки и подгружаемые шрифты меняют высоту документа уже после первого
@@ -308,14 +310,19 @@ watch(
 // Смена редакции при открытом окне (текст подняли в другой вкладке) - читать
 // заново: прежний доскролл относился к другому документу.
 watch(
-  () => store.version,
+  [() => store.version, () => store.hash],
   () => {
     if (!props.active) return;
     atEnd.value = false;
     agreed.value = false;
     progress.value = 0;
     unobserve();
-    nextTick(observe);
+    nextTick(() => {
+      if (!props.active) return;
+      if (columns.value) columns.value.scrollTop = 0;
+      if (scroller.value) scroller.value.scrollTop = 0;
+      observe();
+    });
   },
 );
 

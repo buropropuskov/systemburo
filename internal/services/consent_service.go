@@ -16,6 +16,7 @@ import (
 const ConsentTypePDProcessing = "pd_processing"
 
 type ConsentService interface {
+	AcceptProcessing(ctx context.Context, userID int, shown models.PDConsentRevision, ip, ua string, onlyIfRequired bool) (PDConsentRequirement, *models.PDConsent, error)
 	Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string, version int, hash string) (*models.PDConsent, error)
 	Revoke(ctx context.Context, userID int, consentType string, actorID int) error
 	List(ctx context.Context, userID int) ([]models.PDConsent, error)
@@ -37,15 +38,55 @@ func NewConsentService(db *gorm.DB) ConsentService {
 	return &consentService{db: db, recorder: NewAuditRecorder(db)}
 }
 
-// Grant выдаёт согласие на обработку персональных данных указанного типа. Редакцию
-// и хэш текста передаёт вызывающий, взяв их из настроек: клиент на них не влияет.
+// Grant выдаёт согласие на обработку персональных данных указанного типа. Учебный генератор передаёт серверный
+// снимок напрямую; запросы пользователей на обработку идут через AcceptProcessing.
 func (s *consentService) Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string, version int, hash string) (*models.PDConsent, error) {
+	consent, err := insertConsent(s.db.WithContext(ctx), userID, req.ConsentType, ip, ua, version, hash)
+	if err == nil {
+		s.logGrant(ctx, consent)
+	}
+	return consent, err
+}
+
+// AcceptProcessing сравнивает предъявленный текст и записывает согласие до того,
+// как издатель сможет изменить документ, в том числе на другой реплике.
+func (s *consentService) AcceptProcessing(ctx context.Context, userID int, shown models.PDConsentRevision, ip, ua string, onlyIfRequired bool) (PDConsentRequirement, *models.PDConsent, error) {
+	var req PDConsentRequirement
+	var consent *models.PDConsent
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock_shared(?)", pdConsentRevisionLock).Error; err != nil {
+			return err
+		}
+		settings, err := readConsentSettings(tx)
+		if err != nil {
+			return err
+		}
+		req = consentRequirement(settings)
+		if onlyIfRequired && !req.Enabled {
+			return nil
+		}
+		if !hasVisibleText(req.Text) || shown.Version != req.Version || shown.Hash != req.Hash {
+			return echo.NewHTTPError(http.StatusConflict, "Обновите страницу и прочитайте актуальную редакцию согласия.")
+		}
+		consent, err = insertConsent(tx, userID, ConsentTypePDProcessing, ip, ua, req.Version, req.Hash)
+		return err
+	})
+	if err != nil {
+		return PDConsentRequirement{}, nil, err
+	}
+	if consent != nil {
+		s.logGrant(ctx, consent)
+	}
+	return req, consent, nil
+}
+
+func insertConsent(db *gorm.DB, userID int, consentType, ip, ua string, version int, hash string) (*models.PDConsent, error) {
 	if version < 1 {
 		version = 1
 	}
 	consent := models.PDConsent{
 		UserID:          userID,
-		ConsentType:     req.ConsentType,
+		ConsentType:     consentType,
 		Granted:         true,
 		IPAddress:       ip,
 		UserAgent:       ua,
@@ -53,15 +94,19 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 		DocumentVersion: version,
 		DocumentHash:    hash,
 	}
-	if err := s.db.WithContext(ctx).Create(&consent).Error; err != nil {
+	if err := db.Create(&consent).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent")
 	}
+	return &consent, nil
+}
+
+func (s *consentService) logGrant(ctx context.Context, consent *models.PDConsent) {
+	userID := consent.UserID
 	// Актор - сам работник: согласие даёт он, а не администратор.
 	s.recorder.Log(ctx, nil, models.AuditEntityUser, &userID, models.UserActionConsentGranted, &userID, map[string]any{
-		"consent_type": req.ConsentType,
+		"consent_type": consent.ConsentType,
 		"version":      consent.DocumentVersion,
 	})
-	return &consent, nil
 }
 
 // Revoke отзывает активное согласие на обработку персональных данных. actorID -

@@ -7,7 +7,7 @@ import { apiRequest } from './client';
  * пользователя.
  * @typedef {{text: string, version: number, required: boolean}} PDConsentSettings
  * @typedef {{stored_name: string, file_name: string, mime_type: string, ext: string, uploaded_at: string}} PDConsentDocument
- * @typedef {{required: boolean, version: number, text: string, document: PDConsentDocument|null}} PDConsentGateState
+ * @typedef {{required: boolean, version: number, hash: string, text: string, document: PDConsentDocument|null}} PDConsentGateState
  */
 
 const BASE = '/settings/pd-consent';
@@ -23,7 +23,11 @@ const CONSENTS = '/consents';
  */
 async function unwrap(res, fallback) {
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.message || fallback);
+  if (!res.ok) {
+    const error = new Error(body?.message || fallback);
+    error.status = res.status;
+    throw error;
+  }
   return body;
 }
 
@@ -127,14 +131,14 @@ export async function getConsentGate() {
 }
 
 /**
- * Записывает согласие текущего пользователя на текущую редакцию текста.
- * Редакцию и хэш штампует сервер, поэтому осмысленного тела у запроса нет.
+ * Подтверждает редакцию и текст, показанные пользователю.
+ * @param {{version: number, hash: string}} revision
  * @returns {Promise<PDConsentGateState>}
  */
-export async function acceptConsent() {
+export async function acceptConsent({ version, hash }) {
   const res = await apiRequest(`${CONSENTS}/accept`, {
     method: 'POST',
-    body: '{}',
+    body: JSON.stringify({ version, hash }),
   });
   return unwrap(res, 'Не удалось подтвердить согласие');
 }

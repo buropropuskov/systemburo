@@ -141,7 +141,7 @@ func TestRecipientCandidates_MaskedKeepsOrganization(t *testing.T) {
 	testutil.RegisterUser(t, e, "rc5_silent", "pass123", 1, td.OrgID, td.CompanyID)
 	setUserName(t, db, "rc5_silent", "Молчанов", "Пётр", "Петрович")
 	// Запрашивающий согласие дал: без него гейт не пустит его дальше формы согласия.
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(tenantToken)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, tenantToken), testutil.AuthHeader(tenantToken)).Code)
 
 	rec := testutil.GET(t, e, "/users/recipient-candidates", testutil.AuthHeader(tenantToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

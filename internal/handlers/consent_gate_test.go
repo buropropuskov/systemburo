@@ -1,12 +1,18 @@
 package handlers_test
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
+	"systemburo/internal/config"
+	"systemburo/internal/handlers"
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -18,6 +24,55 @@ const (
 	gatePath   = "/consents/gate"
 	acceptPath = "/consents/accept"
 )
+
+func TestConsentGate_ConflictReloadsPublishedTextWithWarmMiddlewareCache(t *testing.T) {
+	app, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	const username = "gate_revision_reader"
+	testutil.RegisterAndLogin(t, app, username, testPassword, 1, td.OrgID, td.CompanyID)
+	ctx := context.Background()
+	reader := services.NewSettingsService(db, &config.Config{})
+	publisher := services.NewSettingsService(db, &config.Config{})
+	require.NoError(t, publisher.SetPDConsentText(ctx, "<p>Первый текст</p>", false))
+	require.NoError(t, publisher.SetPDConsentRequired(ctx, true))
+
+	records := services.NewConsentService(db)
+	gate := services.NewPDConsentGateService(records, reader, time.Hour)
+	cached, err := gate.Requirement(ctx)
+	require.NoError(t, err)
+	handler := handlers.NewConsentHandler(records, gate, reader, db)
+	replica := echo.New()
+	replica.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("username", username)
+			return next(c)
+		}
+	})
+	replica.GET("/api"+gatePath, handler.GetGate)
+	replica.POST("/api"+acceptPath, handler.Accept)
+	old := displayedConsentBody(t, replica, "")
+	const updated = "<p>Опубликованный текст</p>"
+	require.NoError(t, publisher.SetPDConsentText(ctx, updated, true))
+	stale := testutil.POST(t, replica, acceptPath, old, nil)
+	require.Equal(t, http.StatusConflict, stale.Code, stale.Body.String())
+
+	// Сам конфликт не должен глобально сбрасывать кеш middleware. Пользователь
+	// получает новое содержимое из GET даже при старом кеше на этой реплике.
+	stillCached, err := gate.Requirement(ctx)
+	require.NoError(t, err)
+	require.Equal(t, cached, stillCached)
+	fresh := gateState(t, replica, "")
+	require.True(t, fresh.Required)
+	require.Equal(t, updated, fresh.Text)
+	require.Equal(t, cached.Version+1, fresh.Version)
+	sum := sha256.Sum256([]byte(updated))
+	require.Equal(t, hex.EncodeToString(sum[:]), fresh.Hash)
+	var count int64
+	require.NoError(t, db.Model(&models.PDConsent{}).Where("user_id = ?", userIDByName(t, db, username)).Count(&count).Error)
+	require.Zero(t, count)
+}
 
 // enableConsent задаёт текст согласия и включает его запрос от имени администратора.
 func enableConsent(t *testing.T, e *echo.Echo, admin, html string) {
@@ -32,6 +87,15 @@ func gateState(t *testing.T, e *echo.Echo, token string) *models.PDConsentGateSt
 	rec := testutil.GET(t, e, gatePath, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	return testutil.ParseResponse[*models.PDConsentGateState](t, rec)
+}
+
+// Оба маршрута подтверждают документ после чтения его серверной редакции.
+func displayedConsentBody(t *testing.T, e *echo.Echo, token string) string {
+	t.Helper()
+	shown := gateState(t, e, token)
+	body, err := json.Marshal(models.GrantConsentRequest{ConsentType: "pd_processing", PDConsentRevision: models.PDConsentRevision{Version: shown.Version, Hash: shown.Hash}})
+	require.NoError(t, err)
+	return string(body)
 }
 
 func TestConsentGate_NotRequiredWhenDisabled(t *testing.T) {
@@ -102,7 +166,7 @@ func TestConsentGate_AcceptStampsVersionAndHash(t *testing.T) {
 	enableConsent(t, e, admin, html)
 	user := testutil.RegisterAndLogin(t, e, "gate_accept", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	rec := testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
+	rec := testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.False(t, testutil.ParseResponse[*models.PDConsentGateState](t, rec).Required,
 		"после подтверждения доступ открывается сразу, а не по истечении TTL кэша")
@@ -117,24 +181,26 @@ func TestConsentGate_AcceptStampsVersionAndHash(t *testing.T) {
 	assert.False(t, gateState(t, e, user).Required)
 }
 
-// Редакцию штампует сервер: присланное в теле число игнорируется, иначе клиент
-// освободился бы от всех будущих переподтверждений.
-func TestConsentGate_AcceptIgnoresClientVersion(t *testing.T) {
+func TestConsentGate_RejectsStaleAndMissingRevision(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	enableConsent(t, e, admin, "<p>Согласие</p>")
+	enableConsent(t, e, admin, "<p>Первая редакция</p>")
 	user := testutil.RegisterAndLogin(t, e, "gate_forge", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-
-	rec := testutil.POST(t, e, acceptPath, `{"document_version":999,"consent_type":"pd_transfer"}`, testutil.AuthHeader(user))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	var consent models.PDConsent
-	require.NoError(t, db.Order("id DESC").First(&consent).Error)
-	assert.Equal(t, 1, consent.DocumentVersion, "версия из настроек, не из тела запроса")
-	assert.Equal(t, "pd_processing", consent.ConsentType, "тип тоже не из тела")
+	before := displayedConsentBody(t, e, user)
+	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "<p>Другой текст того же номера</p>").Code)
+	for _, route := range []string{acceptPath, "/consents"} {
+		for _, body := range []string{`{"consent_type":"pd_processing"}`, `{"consent_type":"pd_processing","version":999,"hash":"forged"}`, before} {
+			rec := testutil.POST(t, e, route, body, testutil.AuthHeader(user))
+			require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+		}
+	}
+	var count int64
+	require.NoError(t, db.Model(&models.PDConsent{}).Count(&count).Error)
+	assert.Zero(t, count)
+	require.True(t, gateState(t, e, user).Required)
 }
 
 func TestConsentGate_VersionBumpRequiresConsentAgain(t *testing.T) {
@@ -145,7 +211,7 @@ func TestConsentGate_VersionBumpRequiresConsentAgain(t *testing.T) {
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	enableConsent(t, e, admin, "<p>Первая редакция</p>")
 	user := testutil.RegisterAndLogin(t, e, "gate_bump", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.False(t, gateState(t, e, user).Required)
 
 	bump := testutil.POST(t, e, pdConsentPath+"/require-again", "{}", testutil.AuthHeader(admin))
@@ -155,7 +221,7 @@ func TestConsentGate_VersionBumpRequiresConsentAgain(t *testing.T) {
 	assert.True(t, state.Required, "прежнее согласие больше не устраивает")
 	assert.Equal(t, 2, state.Version)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	assert.False(t, gateState(t, e, user).Required)
 
 	var consent models.PDConsent
@@ -173,7 +239,7 @@ func TestConsentGate_TextEditKeepsConsent(t *testing.T) {
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	enableConsent(t, e, admin, "<p>Согласие с опечаткай</p>")
 	user := testutil.RegisterAndLogin(t, e, "gate_typo", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 
 	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "<p>Согласие с опечаткой</p>").Code)
 
@@ -190,7 +256,7 @@ func TestConsentGate_RevokeRequiresConsentAgain(t *testing.T) {
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	enableConsent(t, e, admin, "<p>Согласие</p>")
 	user := testutil.RegisterAndLogin(t, e, "gate_revoke", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.False(t, gateState(t, e, user).Required)
 
 	require.Equal(t, http.StatusOK,
@@ -261,7 +327,7 @@ func TestConsentGate_TextChangeWithRequireAgain_AsksAnew(t *testing.T) {
 	enableConsent(t, e, admin, "<p>Редакция 1</p>")
 
 	user := testutil.RegisterAndLogin(t, e, "gate_reconsent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.False(t, gateState(t, e, user).Required, "после подтверждения окно не показывается")
 
 	require.Equal(t, http.StatusOK, savePDConsentTextRequiringAgain(t, e, admin, "<p>Редакция 2</p>").Code)
@@ -282,7 +348,7 @@ func TestConsentGate_TextChangeWithoutRequireAgain_KeepsConsent(t *testing.T) {
 	enableConsent(t, e, admin, "<p>Редакция 1</p>")
 
 	user := testutil.RegisterAndLogin(t, e, "gate_keepconsent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 
 	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "<p>Редакция 1 с опечаткой</p>").Code)
 

@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const CLOCK = '2030-05-15T09:00:00Z';
 const templates = [
   { id: 9901, title: 'Автомобили', name: 'Автозаявка', display_name: 'Автозаявка', attachment_type: 'cars' },
@@ -23,7 +24,10 @@ async function tabletFixtures(page, options = {}) {
     if (path === '/refresh-token') return send({ token });
     if (path === '/users/me') return send({ id: 1, username: 'layout-fixture', type_code: 'admin', is_super_admin: !options.consent, created_at: '2020-01-01T00:00:00Z' });
     if (path === '/permissions/my') return send({ mode: options.consent ? 'admin' : 'super', permissions: [], denied: [] });
-    if (path === '/consents/gate') return send({ required: !!options.consent, version: 1, version_at: CLOCK, text: options.consent ? '<h3>Учебный документ</h3>' + '<p>Учебный текст для проверки прокрутки и кнопок на телефоне.</p>'.repeat(40) : '', document: null });
+    if (path === '/consents/gate') {
+      const text = options.consent ? '<h3>Учебный документ</h3>' + '<p>Учебный текст для проверки прокрутки и кнопок на телефоне.</p>'.repeat(40) : '';
+      return send({ required: !!options.consent, version: 1, hash: createHash('sha256').update(text).digest('hex'), version_at: CLOCK, text, document: null });
+    }
     if (path === '/user-data' && options.password) return route.fulfill({ status: 403, headers: { 'X-Password-Change-Required': '1' }, json: { success: false, code: 'PASSWORD_CHANGE_REQUIRED', error: 'Учебное требование смены пароля' } });
     if (path === '/onboarding') return send({ completed: { user: 999, guard: 999, approve: 999, accept: 999, admin: 999 }, finished: ['user', 'guard', 'approve', 'accept', 'admin'] });
     if (path === '/user-data') return send({ id: 1, last_name: 'Учебный', first_name: 'Заявитель', organization: 'Учебная организация', organization_id: 1, phone: '79990000000' });

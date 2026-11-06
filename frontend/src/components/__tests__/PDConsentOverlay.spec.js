@@ -60,6 +60,7 @@ function primeStore({ text = '<p>Текст согласия</p>', document: doc
   store.resolved = true;
   store.required = true;
   store.version = version;
+  store.hash = 'a'.repeat(64);
   store.versionAt = versionAt;
   store.html = text;
   store.docMeta = doc;
@@ -245,7 +246,7 @@ describe('PDConsentOverlay (#1567)', () => {
     expect(wrapper.get('[data-testid="pdc-accept"]').attributes('disabled')).toBeDefined();
   });
 
-  it('смена редакции при открытом окне требует прочитать текст заново', async () => {
+  it.each(['version', 'hash'])('смена %s при открытом окне требует прочитать текст заново', async (field) => {
     const store = primeStore();
     const wrapper = mountOverlay();
     await flushPromises();
@@ -255,8 +256,12 @@ describe('PDConsentOverlay (#1567)', () => {
     await flushPromises();
     expect(wrapper.get('[data-testid="pdc-accept"]').attributes('disabled')).toBeUndefined();
 
-    store.version = 3;
+    const obsoleteObserver = ioCallbacks.at(-1);
+    if (field === 'version') store.version = 3;
+    else store.hash = 'b'.repeat(64);
     store.html = '<p>Новая редакция</p>';
+    await flushPromises();
+    obsoleteObserver([{ isIntersecting: true }]);
     await flushPromises();
 
     expect(wrapper.get('[data-testid="pdc-agree"]').attributes('disabled')).toBeDefined();

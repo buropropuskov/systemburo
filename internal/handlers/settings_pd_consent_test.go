@@ -1,19 +1,23 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"systemburo/internal/config"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const pdConsentPath = "/settings/pd-consent"
@@ -241,4 +245,83 @@ func TestPDConsent_SaveText_RequireAgain_TooLargeKeepsVersion(t *testing.T) {
 		testutil.GET(t, e, pdConsentPath, testutil.AuthHeader(admin)))
 	assert.Equal(t, 1, state.Version, "отвергнутое сохранение редакцию не двигает")
 	assert.Equal(t, "<p>Редакция 1</p>", state.Text)
+}
+
+func TestPDConsent_RevisionWritesAreAtomicAcrossInstances(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	ctx := context.Background()
+	first := services.NewSettingsService(db, &config.Config{})
+	second := services.NewSettingsService(db, &config.Config{})
+	require.NoError(t, first.SetPDConsentText(ctx, "<p>Первая редакция</p>", true))
+	before, err := first.GetPDConsentSettings(ctx)
+	require.NoError(t, err)
+	// PostgreSQL отклоняет NUL в text. На ошибке должны откатиться и номер, и дата.
+	require.Error(t, first.SetPDConsentText(ctx, "Недопустимый\x00текст", true))
+	after, err := second.GetPDConsentSettings(ctx)
+	require.NoError(t, err)
+	require.Equal(t, before, after)
+	type result struct {
+		version int
+		err     error
+	}
+	start := make(chan struct{})
+	done := make(chan result, 2)
+	for _, svc := range []services.SettingsService{first, second} {
+		go func(svc services.SettingsService) {
+			<-start
+			version, err := svc.BumpPDConsentVersion(ctx)
+			done <- result{version, err}
+		}(svc)
+	}
+	close(start)
+	one, two := <-done, <-done
+	require.NoError(t, one.err)
+	require.NoError(t, two.err)
+	require.ElementsMatch(t, []int{before.Version + 1, before.Version + 2}, []int{one.version, two.version})
+	after, err = first.GetPDConsentSettings(ctx)
+	require.NoError(t, err)
+	require.Equal(t, before.Text, after.Text)
+	require.Equal(t, before.Version+2, after.Version)
+}
+
+func TestPDConsent_AcceptWaitsForPublication(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Сначала показанный текст</p>")
+	user := testutil.RegisterAndLogin(t, e, "gate_wait_for_revision", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	shown := gateState(t, e, user)
+	userID := userIDByName(t, db, "gate_wait_for_revision")
+	ctx := context.Background()
+	// Внешняя транзакция удерживает реальную блокировку издателя, даже когда
+	// вложенная операция настроек уже вернулась. Читатель использует другое соединение.
+	publisher := db.Begin()
+	require.NoError(t, publisher.Error)
+	defer publisher.Rollback()
+	settings := services.NewSettingsService(publisher, &config.Config{})
+	require.NoError(t, settings.SetPDConsentText(ctx, "<p>Новый текст</p>", true))
+	var unavailable *pgconn.PgError
+	err := db.Transaction(func(reader *gorm.DB) error {
+		if err := reader.Exec("SET LOCAL lock_timeout = '250ms'").Error; err != nil {
+			return err
+		}
+		_, _, err := services.NewConsentService(reader).AcceptProcessing(ctx, userID, models.PDConsentRevision{Version: shown.Version, Hash: shown.Hash}, "", "", true)
+		return err
+	})
+	require.ErrorAs(t, err, &unavailable)
+	require.Equal(t, "55P03", unavailable.Code)
+	require.NoError(t, publisher.Commit().Error)
+	body, err := json.Marshal(models.PDConsentRevision{Version: shown.Version, Hash: shown.Hash})
+	require.NoError(t, err)
+	stale := testutil.POST(t, e, acceptPath, string(body), testutil.AuthHeader(user))
+	require.Equal(t, http.StatusConflict, stale.Code, stale.Body.String())
+	var count int64
+	require.NoError(t, db.Model(&models.PDConsent{}).Where("user_id = ?", userID).Count(&count).Error)
+	require.Zero(t, count)
+	fresh := testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user))
+	require.Equal(t, http.StatusOK, fresh.Code, fresh.Body.String())
 }

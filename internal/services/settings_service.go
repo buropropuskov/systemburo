@@ -17,6 +17,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // dataProcessingDocKey -- ключ настройки с метаданными документа согласия на обработку данных.
@@ -78,10 +79,11 @@ var knownKeys = map[string]string{
 }
 
 type settingsService struct {
-	db       *gorm.DB
-	mu       sync.RWMutex
-	cache    map[string]models.SystemSetting
-	defaults map[string]models.SystemSetting
+	db             *gorm.DB
+	mu             sync.RWMutex
+	consentWriteMu sync.Mutex // сохраняет порядок commit и обновления локального кеша
+	cache          map[string]models.SystemSetting
+	defaults       map[string]models.SystemSetting
 }
 
 // NewSettingsService создаёт сервис для управления системными настройками.
@@ -308,9 +310,13 @@ func (s *settingsService) ClearDataProcessingDoc(ctx context.Context) error {
 // процесса, и при нескольких репликах подъём версии на одной остался бы не виден
 // остальным. Отсутствующие ключи дают версию 1 и выключенный запрос согласия.
 func (s *settingsService) GetPDConsentSettings(ctx context.Context) (*models.PDConsentSettings, error) {
+	return readConsentSettings(s.db.WithContext(ctx))
+}
+
+func readConsentSettings(db *gorm.DB) (*models.PDConsentSettings, error) {
 	var settings []models.SystemSetting
 	keys := []string{pdConsentTextKey, pdConsentVersionKey, pdConsentRequiredKey, pdConsentVersionAtKey}
-	if err := s.db.WithContext(ctx).Where("key IN ?", keys).Find(&settings).Error; err != nil {
+	if err := db.Where("key IN ?", keys).Find(&settings).Error; err != nil {
 		return nil, fmt.Errorf("failed to load pd consent settings: %w", err)
 	}
 	result := &models.PDConsentSettings{Version: 1}
@@ -335,64 +341,78 @@ func (s *settingsService) GetPDConsentSettings(ctx context.Context) (*models.PDC
 // текста; запрос согласия при этом перестаёт работать, и администратор видит
 // предупреждение в интерфейсе.
 //
-// requireAgain поднимает редакцию тем же действием: изменённый текст -- новая
-// редакция, подтверждать её надо заново. Редакцию двигаем ДО записи текста: если
-// запись сорвётся, люди переподтвердят прежний текст (шум, но не обман), а обратный
-// порядок оставил бы новый текст со старой редакцией -- то есть согласие, данное не
-// тому тексту, который человеку теперь показывают.
+// Изменение текста с повторным подтверждением публикует текст, номер и дату вместе.
 func (s *settingsService) SetPDConsentText(ctx context.Context, text string, requireAgain bool) error {
 	if len(text) > PDConsentTextMaxBytes {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf(
-			"Текст согласия больше %d КБ. Уберите вставленные картинки или сократите текст.",
-			PDConsentTextMaxBytes/1024))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Текст согласия больше %d КБ. Уберите вставленные картинки или сократите текст.", PDConsentTextMaxBytes/1024))
 	}
-	if requireAgain {
-		if _, err := s.BumpPDConsentVersion(ctx); err != nil {
-			return err
+	return s.updateConsentSettings(ctx, func(current *models.PDConsentSettings) ([]models.SystemSetting, error) {
+		rows := []models.SystemSetting{{Key: pdConsentTextKey, Value: text, Type: "html"}}
+		if requireAgain {
+			rows = append(rows, nextConsentRevision(current.Version)...)
 		}
-	}
-	return s.upsertRaw(ctx, pdConsentTextKey, text, "html")
+		return rows, nil
+	})
 }
 
-// SetPDConsentRequired включает или выключает запрос согласия при входе. Включить с
-// пустым текстом нельзя: настройка выглядела бы рабочей, а показать пользователю было
-// бы нечего.
 func (s *settingsService) SetPDConsentRequired(ctx context.Context, required bool) error {
-	if required {
-		current, err := s.GetPDConsentSettings(ctx)
-		if err != nil {
-			return err
+	return s.updateConsentSettings(ctx, func(current *models.PDConsentSettings) ([]models.SystemSetting, error) {
+		if required && !hasVisibleText(current.Text) {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Сначала задайте текст согласия")
 		}
-		if !hasVisibleText(current.Text) {
-			return echo.NewHTTPError(http.StatusBadRequest, "Сначала задайте текст согласия")
-		}
-	}
-	return s.upsertRaw(ctx, pdConsentRequiredKey, strconv.FormatBool(required), "bool")
+		return []models.SystemSetting{{Key: pdConsentRequiredKey, Value: strconv.FormatBool(required), Type: "bool"}}, nil
+	})
 }
 
-// BumpPDConsentVersion поднимает требуемую версию согласия: после этого система
-// запросит согласие заново у всех, кто соглашался с прежней редакцией текста.
-//
-// Чтение и запись не в одной транзакции, поэтому одновременный подъём двумя
-// администраторами может потерять один инкремент (оба прочитают N, оба запишут
-// N+1). На семантику это не влияет: версия всё равно уходит вперёд, и согласия с
-// прежней редакцией становятся недостаточными -- ровно то, чего хотел каждый из
-// администраторов.
+func nextConsentRevision(version int) []models.SystemSetting {
+	return []models.SystemSetting{
+		{Key: pdConsentVersionKey, Value: strconv.Itoa(version + 1), Type: "int"},
+		{Key: pdConsentVersionAtKey, Value: time.Now().UTC().Format(time.RFC3339), Type: "string"},
+	}
+}
+
 func (s *settingsService) BumpPDConsentVersion(ctx context.Context) (int, error) {
-	current, err := s.GetPDConsentSettings(ctx)
+	var next int
+	err := s.updateConsentSettings(ctx, func(current *models.PDConsentSettings) ([]models.SystemSetting, error) {
+		next = current.Version + 1
+		return nextConsentRevision(current.Version), nil
+	})
 	if err != nil {
 		return 0, err
 	}
-	next := current.Version + 1
-	if err := s.upsertRaw(ctx, pdConsentVersionKey, strconv.Itoa(next), "int"); err != nil {
-		return 0, err
-	}
-	// Дату пишем тем же действием: редакция без даты ничего не говорит человеку,
-	// а восстановить её задним числом уже неоткуда.
-	if err := s.upsertRaw(ctx, pdConsentVersionAtKey, time.Now().UTC().Format(time.RFC3339), "string"); err != nil {
-		return 0, err
-	}
 	return next, nil
+}
+
+// Один ключ для транзакций публикации и подтверждения, включая первую публикацию.
+const pdConsentRevisionLock int64 = 2860
+
+func (s *settingsService) updateConsentSettings(ctx context.Context, change func(*models.PDConsentSettings) ([]models.SystemSetting, error)) error {
+	s.consentWriteMu.Lock()
+	defer s.consentWriteMu.Unlock()
+	var rows []models.SystemSetting
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", pdConsentRevisionLock).Error; err != nil {
+			return err
+		}
+		current, err := readConsentSettings(tx)
+		if err != nil {
+			return err
+		}
+		rows, err = change(current)
+		if err != nil {
+			return err
+		}
+		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "key"}}, DoUpdates: clause.AssignmentColumns([]string{"value", "type"})}, clause.Returning{}).Create(&rows).Error
+	})
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, row := range rows {
+		s.cache[row.Key] = row
+	}
+	return nil
 }
 
 // hasVisibleText сообщает, есть ли в HTML видимое содержимое. Редактор на пустом

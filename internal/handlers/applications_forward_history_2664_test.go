@@ -212,7 +212,7 @@ func TestForwardHistory2664_ConsentAndApproverMasksOnBothSurfaces(t *testing.T) 
 	makeApprover(t, db, usernames[1])
 	require.NoError(t, db.Table("application_approvers").Where("user_id = ?", ids[1]).Update("display_name", "Duty operator").Error)
 	enableConsent(t, e, admin, "<p>Synthetic consent text</p>")
-	rec = testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(tokens[2]))
+	rec = testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, tokens[2]), testutil.AuthHeader(tokens[2]))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	for _, metadata := range forward2664Surfaces(t, e, admin, appID) {
 		details := forward2664Details(t, metadata)
@@ -237,7 +237,7 @@ func TestForwardHistory2664_ConsentAndApproverMasksOnBothSurfaces(t *testing.T) 
 	}
 	// Once consent is granted, an ordinary viewer sees the alias while an
 	// administrative viewer can identify the actual account behind it.
-	rec = testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(tokens[1]))
+	rec = testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, tokens[1]), testutil.AuthHeader(tokens[1]))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	for _, metadata := range forward2664Surfaces(t, e, tokens[2], appID) {
 		assert.Equal(t, "Duty operator", forward2664Details(t, metadata)[ids[1]]["display_name"])
