@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -50,10 +51,16 @@ func TestPDConsentCache_InvalidationDuringRead(t *testing.T) {
 			}}, time.Hour)
 			go func() {
 				if kind == "requirement" {
-					_, err := gate.Requirement(context.Background())
+					value, err := gate.Requirement(context.Background())
+					if err == nil && !value.Enabled {
+						err = errors.New("invalidated in-flight requirement returned stale state")
+					}
 					finished <- err
 				} else {
-					_, err := gate.AcceptedVersion(context.Background(), 42)
+					value, err := gate.AcceptedVersion(context.Background(), 42)
+					if err == nil && value != 0 {
+						err = errors.New("invalidated in-flight consent returned stale version")
+					}
 					finished <- err
 				}
 			}()
@@ -85,6 +92,80 @@ func TestPDConsentCache_InvalidationDuringRead(t *testing.T) {
 				require.NoError(t, err)
 				require.Zero(t, value, "старое чтение восстановило отозванное согласие")
 			}
+		})
+	}
+}
+
+func TestPDConsentCache_BoundedRetry(t *testing.T) {
+	for _, kind := range []string{"accepted", "requirement"} {
+		t.Run(kind, func(t *testing.T) {
+			var gate *PDConsentGateService
+			reads := 0
+			gate = NewPDConsentGateService(cacheRaceConsents{read: func() (int, error) {
+				reads++
+				gate.Invalidate(42)
+				return 7, nil
+			}}, cacheRaceSettings{read: func() (*models.PDConsentSettings, error) {
+				reads++
+				gate.InvalidateAll()
+				return &models.PDConsentSettings{Required: false}, nil
+			}}, time.Hour)
+			var err error
+			if kind == "accepted" {
+				_, err = gate.AcceptedVersion(context.Background(), 42)
+			} else {
+				_, err = gate.Requirement(context.Background())
+			}
+			require.ErrorIs(t, err, errConsentStateChanged)
+			require.Equal(t, consentReadAttempts, reads)
+			require.Empty(t, gate.acceptedReads)
+			_, cached := gate.accepted.Load(42)
+			require.False(t, cached)
+			require.True(t, gate.requirementAt.IsZero())
+		})
+	}
+}
+
+func TestPDConsentCache_OtherSubjectDoesNotInvalidateRead(t *testing.T) {
+	var gate *PDConsentGateService
+	reads := 0
+	gate = NewPDConsentGateService(cacheRaceConsents{read: func() (int, error) {
+		reads++
+		gate.Invalidate(99)
+		return 7, nil
+	}}, nil, time.Hour)
+	value, err := gate.AcceptedVersion(context.Background(), 42)
+	require.NoError(t, err)
+	require.Equal(t, 7, value)
+	_, err = gate.AcceptedVersion(context.Background(), 42)
+	require.NoError(t, err)
+	require.Equal(t, 1, reads, "unrelated changes must not force extra database reads")
+	require.Empty(t, gate.acceptedReads)
+}
+
+func TestPDConsentCache_CanceledReadDoesNotPopulateCache(t *testing.T) {
+	for _, kind := range []string{"accepted", "requirement"} {
+		t.Run(kind, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			gate := NewPDConsentGateService(cacheRaceConsents{read: func() (int, error) {
+				cancel()
+				return 7, nil
+			}}, cacheRaceSettings{read: func() (*models.PDConsentSettings, error) {
+				cancel()
+				return &models.PDConsentSettings{Required: true, Text: "<p>Consent</p>"}, nil
+			}}, time.Hour)
+			var err error
+			if kind == "accepted" {
+				_, err = gate.AcceptedVersion(ctx, 42)
+			} else {
+				_, err = gate.Requirement(ctx)
+			}
+			require.ErrorIs(t, err, context.Canceled)
+			require.Empty(t, gate.acceptedReads)
+			_, cached := gate.accepted.Load(42)
+			require.False(t, cached)
+			require.True(t, gate.requirementAt.IsZero())
 		})
 	}
 }
