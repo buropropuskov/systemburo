@@ -95,7 +95,7 @@ func TestPDConsentMask_AfterAccept_ShowsName(t *testing.T) {
 	setUserName(t, db, "mask_agreed", "Согласнов", "Семён", "Семёнович")
 	require.Equal(t, "", orgUserNames(t, e, admin, td.OrgID)["mask_agreed"])
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 
 	assert.Equal(t, "Согласнов", orgUserNames(t, e, admin, td.OrgID)["mask_agreed"],
 		"после подтверждения ФИО снова видно")
@@ -113,7 +113,7 @@ func TestPDConsentMask_VersionBump_KeepsNamesOfPastConsent(t *testing.T) {
 
 	user := testutil.RegisterAndLogin(t, e, "mask_v1", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	setUserName(t, db, "mask_v1", "Староверов", "Игорь", "Игоревич")
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 
 	require.Equal(t, http.StatusOK, savePDConsentTextRequiringAgain(t, e, admin, "<p>Редакция 2</p>").Code)
 
@@ -231,7 +231,7 @@ func TestPDConsentMask_UsersList_MarksHiddenNames(t *testing.T) {
 	require.True(t, userPDHidden(t, e, admin, "mask_flag"), "скрытое ФИО помечено")
 	require.False(t, userPDHidden(t, e, admin, "testadmin"), "у супер-администратора ничего не скрыто")
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	assert.False(t, userPDHidden(t, e, admin, "mask_flag"), "после согласия пометка снимается")
 }
 
@@ -366,7 +366,7 @@ func TestPDConsentMask_UsersList_ShowsConsentState(t *testing.T) {
 	assert.True(t, during.ConsentRequired, "запрос включён и этого работника касается")
 	assert.False(t, during.ConsentGranted)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	after := userConsentRow(t, e, admin, "consent_state")
 	assert.True(t, after.ConsentGranted, "после подтверждения согласие видно")
 	require.NotNil(t, after.ConsentAt, "дата согласия проставлена")
@@ -427,7 +427,7 @@ func TestPDConsent_Accept_WritesUserHistory(t *testing.T) {
 	enableConsent(t, e, admin, "<p>Согласие</p>")
 
 	user := testutil.RegisterAndLogin(t, e, "hist_consent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 
 	rec := testutil.GET(t, e, "/users/hist_consent/history", testutil.AuthHeader(admin))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -454,7 +454,7 @@ func TestPDConsent_AdminRevokesForUser(t *testing.T) {
 	enableConsent(t, e, admin, "<p>Согласие</p>")
 
 	user := testutil.RegisterAndLogin(t, e, "revoke_target", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.False(t, gateState(t, e, user).Required, "после подтверждения окно снято")
 
 	rec := testutil.DELETE(t, e, "/users/revoke_target/consent", testutil.AuthHeader(admin))
@@ -533,7 +533,7 @@ func TestPDConsentMask_HidesContacts(t *testing.T) {
 	assert.Equal(t, "k@example.com", email, "почта в базе осталась")
 
 	// После подтверждения контакты возвращаются.
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	after := userContactsRow(t, e, admin, "mask_contacts")
 	assert.Equal(t, "k@example.com", after.Email)
 	assert.Equal(t, "+7 999 111 22-33", after.Phone)

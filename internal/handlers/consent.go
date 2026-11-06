@@ -44,18 +44,12 @@ func (h *ConsentHandler) Grant(c echo.Context) error {
 	}
 	ctx := c.Request().Context()
 
-	// Редакцию и хэш ставим из настроек, а не из запроса. Для согласия на передачу
-	// данных редакция текста обработки не имеет смысла - остаётся 1 без хэша.
-	version, hash := 1, ""
+	var consent *models.PDConsent
 	if req.ConsentType == services.ConsentTypePDProcessing {
-		gateReq, gateErr := h.gate.Requirement(ctx)
-		if gateErr != nil {
-			return gateErr
-		}
-		version, hash = gateReq.Version, gateReq.Hash
+		_, consent, err = h.service.AcceptProcessing(ctx, userID, req.PDConsentRevision, c.RealIP(), c.Request().UserAgent(), false)
+	} else {
+		consent, err = h.service.Grant(ctx, userID, req, c.RealIP(), c.Request().UserAgent(), 1, "")
 	}
-
-	consent, err := h.service.Grant(ctx, userID, req, c.RealIP(), c.Request().UserAgent(), version, hash)
 	if err != nil {
 		return err
 	}

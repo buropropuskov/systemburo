@@ -77,7 +77,7 @@ func TestPDConsentCollection_CountsOnlyGatedUsers(t *testing.T) {
 	require.Len(t, got.PendingUsers, 1)
 	assert.Equal(t, "coll_user", got.PendingUsers[0].Username)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 
 	got = collection(t, e, admin)
 	assert.Equal(t, 1, got.Accepted)
@@ -95,7 +95,7 @@ func TestPDConsentCollection_VersionBumpReturnsUserToPending(t *testing.T) {
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	enableConsent(t, e, admin, "<p>Согласие</p>")
 	user := testutil.RegisterAndLogin(t, e, "coll_bump", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.Equal(t, 1, collection(t, e, admin).Accepted)
 
 	require.Equal(t, http.StatusOK,
@@ -141,7 +141,7 @@ func TestPDConsentCollection_RevokedConsentCountsAsPending(t *testing.T) {
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	enableConsent(t, e, admin, "<p>Согласие</p>")
 	user := testutil.RegisterAndLogin(t, e, "coll_revoke", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.Equal(t, 1, collection(t, e, admin).Accepted)
 
 	require.Equal(t, http.StatusOK,

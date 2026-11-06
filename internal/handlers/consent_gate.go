@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"systemburo/internal/models"
-	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -18,12 +17,12 @@ import (
 // битой настройкой, систему всё равно можно чинить через интерфейс.
 func (h *ConsentHandler) GetGate(c echo.Context) error {
 	ctx := c.Request().Context()
-	req, err := h.gate.Requirement(ctx)
+	req, err := h.gate.CurrentRequirement(ctx)
 	if err != nil {
 		return err
 	}
 
-	state := models.PDConsentGateState{Version: req.Version, VersionAt: req.VersionAt, Text: req.Text}
+	state := models.PDConsentGateState{Version: req.Version, Hash: req.Hash, VersionAt: req.VersionAt, Text: req.Text}
 	// Документ - скачиваемая копия рядом с текстом, и провалить из-за неё весь ответ
 	// нельзя: без ответа пользователь не увидит окна и не сможет согласиться вовсе.
 	// Поэтому ошибку логируем, но состояние отдаём.
@@ -34,56 +33,37 @@ func (h *ConsentHandler) GetGate(c echo.Context) error {
 		state.Document = doc
 	}
 
-	if IsSuperAdmin(c) {
+	if IsSuperAdmin(c) || !req.Enabled {
 		return RespondSuccess(c, state)
 	}
 	userID, err := h.resolveUserID(c)
 	if err != nil {
 		return err
 	}
-	needs, err := h.gate.NeedsConsent(ctx, userID)
+	accepted, err := h.gate.AcceptedVersion(ctx, userID)
 	if err != nil {
 		return err
 	}
-	state.Required = needs
+	state.Required = accepted < req.Version
 	return RespondSuccess(c, state)
 }
 
-// Accept записывает согласие текущего пользователя на текущую редакцию текста.
-// Редакцию и хэш штампует сервер: поля запроса тут нет намеренно, иначе клиент
-// прислал бы заведомо большое число и освободился от всех будущих переподтверждений.
+// Accept подтверждает редакцию, которую пользователь видел до отправки формы.
 func (h *ConsentHandler) Accept(c echo.Context) error {
-	ctx := c.Request().Context()
-	req, err := h.gate.Requirement(ctx)
-	if err != nil {
+	var shown models.PDConsentRevision
+	if err := BindAndValidate(c, &shown); err != nil {
 		return err
-	}
-	// Запрос согласия могли выключить, пока пользователь читал текст. Отвечать
-	// ошибкой на такой клик неправильно: подтверждать уже нечего, окно просто
-	// закрывается. Записи при этом не делаем - она была бы про пустое требование.
-	if !req.Enabled {
-		return RespondSuccess(c, models.PDConsentGateState{Version: req.Version, VersionAt: req.VersionAt, Text: req.Text})
 	}
 	userID, err := h.resolveUserID(c)
 	if err != nil {
 		return err
 	}
-	grant := models.GrantConsentRequest{ConsentType: services.ConsentTypePDProcessing}
-	if _, err := h.service.Grant(ctx, userID, grant, c.RealIP(), c.Request().UserAgent(), req.Version, req.Hash); err != nil {
-		return err
-	}
-	// Без сброса кэша доступ открылся бы только по истечении TTL: фронт уже снял
-	// окно, а API продолжал бы отказывать.
-	h.gate.Invalidate(userID)
-
-	needs, err := h.gate.NeedsConsent(ctx, userID)
+	req, consent, err := h.service.AcceptProcessing(c.Request().Context(), userID, shown, c.RealIP(), c.Request().UserAgent(), true)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, models.PDConsentGateState{
-		Required:  needs,
-		Version:   req.Version,
-		VersionAt: req.VersionAt,
-		Text:      req.Text,
-	})
+	if consent != nil {
+		h.gate.Invalidate(userID)
+	}
+	return RespondSuccess(c, models.PDConsentGateState{Version: req.Version, Hash: req.Hash, VersionAt: req.VersionAt, Text: req.Text})
 }

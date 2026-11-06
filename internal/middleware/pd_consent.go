@@ -75,10 +75,8 @@ func PDConsentGate(svc *services.PDConsentGateService) echo.MiddlewareFunc {
 
 			req, err := svc.Requirement(c.Request().Context())
 			if err != nil {
-				// Сбой чтения настроек на горячем пути не должен класть весь API:
-				// пропускаем и пишем в журнал (как BanCheck).
-				slog.Warn("pd_consent: не удалось прочитать настройки, пропускаем", "user_id", userID, "error", err)
-				return next(c)
+				slog.Warn("pd_consent: не удалось прочитать настройки", "user_id", userID, "error", err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось проверить согласие. Повторите запрос позже.")
 			}
 			if !req.Enabled {
 				if req.Requested && !misconfigured.Swap(true) {
@@ -90,8 +88,8 @@ func PDConsentGate(svc *services.PDConsentGateService) echo.MiddlewareFunc {
 
 			accepted, err := svc.AcceptedVersion(c.Request().Context(), userID)
 			if err != nil {
-				slog.Warn("pd_consent: не удалось прочитать согласие, пропускаем", "user_id", userID, "error", err)
-				return next(c)
+				slog.Warn("pd_consent: не удалось прочитать согласие", "user_id", userID, "error", err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось проверить согласие. Повторите запрос позже.")
 			}
 			if accepted >= req.Version {
 				return next(c)

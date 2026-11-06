@@ -80,7 +80,7 @@ func TestPDConsentGate_BlocksUntilAccepted(t *testing.T) {
 
 	// Доступ обязан открыться сразу после записи согласия, а не по истечении TTL
 	// кэша: иначе фронт уже снял окно, а API продолжает отказывать.
-	rec := testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
+	rec := testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, http.StatusOK, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)).Code)
 }
@@ -114,7 +114,7 @@ func TestPDConsentGate_VersionBumpClosesAccessAgain(t *testing.T) {
 	e, _, admin, user, cleanup := setupGate(t, "<p>Первая редакция</p>")
 	defer cleanup()
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, user), testutil.AuthHeader(user)).Code)
 	require.Equal(t, http.StatusOK, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)).Code)
 
 	rec := testutil.POST(t, e, consentSettingsPath+"/require-again", `{}`, testutil.AuthHeader(admin))
@@ -126,16 +126,11 @@ func TestPDConsentGate_VersionBumpClosesAccessAgain(t *testing.T) {
 // Редакцию штампует сервер: иначе клиент прислал бы заведомо большое число и
 // освободился от всех будущих переподтверждений.
 func TestPDConsentGate_ClientCannotForgeVersion(t *testing.T) {
-	e, _, admin, user, cleanup := setupGate(t, "<p>Согласие</p>")
+	e, _, _, user, cleanup := setupGate(t, "<p>Согласие</p>")
 	defer cleanup()
 
 	rec := testutil.POST(t, e, acceptPath, `{"document_version":999,"version":999}`, testutil.AuthHeader(user))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	require.Equal(t, http.StatusOK, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)).Code)
-
-	// Подъём редакции обязан снова закрыть доступ - значит записана серверная 1, а не 999.
-	require.Equal(t, http.StatusOK,
-		testutil.POST(t, e, consentSettingsPath+"/require-again", `{}`, testutil.AuthHeader(admin)).Code)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assertConsentBlocked(t, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)))
 }
 

@@ -52,18 +52,23 @@ describe('api/pdConsent - гейт согласия (#1567)', () => {
   })
 
   describe('acceptConsent', () => {
-    it('POST /consents/accept без осмысленного тела - редакцию штампует сервер', async () => {
+    it('POST /consents/accept передаёт версию и хеш показанного текста', async () => {
       apiRequest.mockResolvedValue(okJson({ required: false, version: 3, text: '<p>x</p>' }))
 
-      const data = await acceptConsent()
+      const revision = { version: 3, hash: 'a'.repeat(64) }
+      const data = await acceptConsent(revision)
 
-      expect(apiRequest).toHaveBeenCalledWith('/consents/accept', { method: 'POST', body: '{}' })
+      expect(apiRequest).toHaveBeenCalledWith('/consents/accept', { method: 'POST', body: JSON.stringify(revision) })
       expect(data.required).toBe(false)
     })
 
     it('бросает с сообщением сервера', async () => {
       apiRequest.mockResolvedValue(errJson('Пользователь не найден', 401))
-      await expect(acceptConsent()).rejects.toThrow('Пользователь не найден')
+      await expect(acceptConsent({version: 1, hash: 'x'})).rejects.toThrow('Пользователь не найден')
+    })
+    it('сохраняет статус конфликта редакции', async () => {
+      apiRequest.mockResolvedValue(errJson('Документ изменился', 409))
+      await expect(acceptConsent({ version: 1, hash: 'a'.repeat(64) })).rejects.toMatchObject({status: 409})
     })
   })
 })

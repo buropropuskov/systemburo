@@ -45,16 +45,13 @@ test.describe('Misc API endpoints', () => {
     expect(res.ok()).toBeTruthy();
   });
 
-  test('POST /consents выдаёт согласие, DELETE отзывает', async ({ request }) => {
+  test('POST /consents отклоняет подтверждение без показанной редакции', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const grantRes = await request.post(`${API_BASE}/consents`, {
       headers: headers(token),
       data: { consent_type: 'pd_processing' },
     });
-    expect(grantRes.ok() || grantRes.status() === 201).toBeTruthy();
-
-    const revokeRes = await request.delete(`${API_BASE}/consents/pd_processing`, { headers: headers(token) });
-    expect(revokeRes.ok() || revokeRes.status() === 204).toBeTruthy();
+    expect(grantRes.status(), await grantRes.text()).toBe(409);
   });
 
   test('GET /unload-places возвращает массив', async ({ request }) => {

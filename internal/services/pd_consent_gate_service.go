@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"sync"
 	"time"
+
+	"systemburo/internal/models"
 )
 
 // PDConsentGateService отвечает на вопрос "нужно ли у этого пользователя спросить
@@ -70,18 +72,9 @@ func (s *PDConsentGateService) Requirement(ctx context.Context) (PDConsentRequir
 	generation := s.cacheGeneration
 	s.mu.RUnlock()
 
-	settings, err := s.settings.GetPDConsentSettings(ctx)
+	req, err := s.CurrentRequirement(ctx)
 	if err != nil {
 		return PDConsentRequirement{}, err
-	}
-	sum := sha256.Sum256([]byte(settings.Text))
-	req := PDConsentRequirement{
-		Enabled:   settings.Required && hasVisibleText(settings.Text),
-		Requested: settings.Required,
-		Version:   settings.Version,
-		VersionAt: settings.VersionAt,
-		Text:      settings.Text,
-		Hash:      hex.EncodeToString(sum[:]),
 	}
 
 	s.mu.Lock()
@@ -91,6 +84,27 @@ func (s *PDConsentGateService) Requirement(ctx context.Context) (PDConsentRequir
 	}
 	s.mu.Unlock()
 	return req, nil
+}
+
+func consentRequirement(settings *models.PDConsentSettings) PDConsentRequirement {
+	sum := sha256.Sum256([]byte(settings.Text))
+	return PDConsentRequirement{
+		Enabled:   settings.Required && hasVisibleText(settings.Text),
+		Requested: settings.Required,
+		Version:   settings.Version,
+		VersionAt: settings.VersionAt,
+		Text:      settings.Text,
+		Hash:      hex.EncodeToString(sum[:]),
+	}
+}
+
+// CurrentRequirement читает снимок для предъявления пользователю в обход кеша middleware.
+func (s *PDConsentGateService) CurrentRequirement(ctx context.Context) (PDConsentRequirement, error) {
+	settings, err := s.settings.GetPDConsentSettings(ctx)
+	if err != nil {
+		return PDConsentRequirement{}, err
+	}
+	return consentRequirement(settings), nil
 }
 
 // AcceptedVersion возвращает максимальную редакцию действующего согласия

@@ -150,14 +150,30 @@ test.describe.serial('Гейт согласия на обработку ПД (#1
     expect(await blocked.json()).toMatchObject({ consent_required: true });
 
     // Без этих ручек окно согласия - тупик.
-    expect((await request.get(`${API_BASE}/consents/gate`, { headers: auth })).status()).toBe(200);
+    const gate = await request.get(`${API_BASE}/consents/gate`, { headers: auth });
+    expect(gate.status()).toBe(200);
+    const { version, hash } = unwrap(await gate.json());
     expect((await request.get(`${API_BASE}/permissions/my`, { headers: auth })).status()).toBe(200);
 
-    const accepted = await request.post(`${API_BASE}/consents/accept`, { headers: auth, data: {} });
+    const outdated = await request.post(`${API_BASE}/consents/accept`, { headers: auth, data: {} });
+    expect(outdated.status()).toBe(409);
+    expect((await request.get(`${API_BASE}/user-data`, { headers: auth })).status()).toBe(403);
+    const accepted = await request.post(`${API_BASE}/consents/accept`, { headers: auth, data: { version, hash } });
     expect(accepted.ok(), await accepted.text()).toBeTruthy();
 
     // Доступ обязан открыться сразу, а не по истечении TTL кэша.
     expect((await request.get(`${API_BASE}/user-data`, { headers: auth })).status()).toBe(200);
+    // Общая ручка доступна обычному пользователю, пока гейт открыт.
+    const granted = await request.post(`${API_BASE}/consents`, {
+      headers: auth,
+      data: { consent_type: 'pd_processing', version, hash },
+    });
+    expect(granted.ok(), await granted.text()).toBeTruthy();
+    const revoked = await request.delete(`${API_BASE}/consents/pd_processing`, { headers: auth });
+    expect(revoked.ok(), await revoked.text()).toBeTruthy();
+    expect((await request.get(`${API_BASE}/user-data`, { headers: auth })).status()).toBe(403);
+    const confirmedAgain = await request.post(`${API_BASE}/consents/accept`, { headers: auth, data: { version, hash } });
+    expect(confirmedAgain.ok(), await confirmedAgain.text()).toBeTruthy();
   });
 
   test('супер-администратор при включённом гейте работает как обычно', async ({ request }) => {

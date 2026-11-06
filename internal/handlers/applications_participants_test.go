@@ -247,7 +247,7 @@ func TestApplicationParticipants_PDConsentHidesNameAndContacts(t *testing.T) {
 	assert.Equal(t, []string{services.ParticipantRoleApprover}, hidden.Roles, "роль скрытие не трогает")
 	assert.Equal(t, "Test Organization", deref(hidden.OrganizationName), "организация - не персональные данные")
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(approverToken)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, approverToken), testutil.AuthHeader(approverToken)).Code)
 
 	shown := participantsByID(t, e, senderToken, appID)[approverID]
 	assert.Equal(t, "Молчанов", deref(shown.LastName), "после подтверждения согласия ФИО снова видно")

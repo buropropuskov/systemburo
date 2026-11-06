@@ -4,11 +4,18 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func seedOptionalConsentDocument(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	require.NoError(t, db.Create(&models.SystemSetting{Key: "legal.pd_consent_text", Value: "<p>Согласие</p>", Type: "html"}).Error)
+}
 
 func TestConsentEndpoints_Unauthorized(t *testing.T) {
 	e, _, cleanup := testutil.SetupTestApp(t)
@@ -23,10 +30,11 @@ func TestGrantConsent_Success(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "consent_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	rec := testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	resp := testutil.ParseMap(t, rec)
@@ -39,10 +47,11 @@ func TestRevokeConsent_Success(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "revoke_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 
 	rec := testutil.DELETE(t, e, "/consents/pd_processing", testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -53,10 +62,11 @@ func TestCheckConsent_Active(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "check_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 
 	rec := testutil.GET(t, e, "/consents/check/pd_processing", testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -70,10 +80,11 @@ func TestListConsents_Success(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "list_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 
 	rec := testutil.GET(t, e, "/consents", testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -84,13 +95,14 @@ func TestDoubleGrant_CreatesTwoConsents(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "double_grant_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	rec1 := testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	rec1 := testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec1.Code)
 
-	rec2 := testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	rec2 := testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec2.Code)
 
 	recList := testutil.GET(t, e, "/consents", testutil.AuthHeader(token))
@@ -109,10 +121,11 @@ func TestHasActive_FalseAfterRevoke(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "revoke_check_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
-	rec := testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	recCheckBefore := testutil.GET(t, e, "/consents/check/pd_processing", testutil.AuthHeader(token))
@@ -176,11 +189,12 @@ func TestGrantRevokeRegrant_Lifecycle(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+	seedOptionalConsentDocument(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "lifecycle_user", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
 	// Grant
-	rec := testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Revoke
@@ -193,7 +207,7 @@ func TestGrantRevokeRegrant_Lifecycle(t *testing.T) {
 	assert.Equal(t, false, testutil.ParseMap(t, rec)["active"])
 
 	// Re-grant
-	rec = testutil.POST(t, e, "/consents", `{"consent_type":"pd_processing"}`, testutil.AuthHeader(token))
+	rec = testutil.POST(t, e, "/consents", displayedConsentBody(t, e, token), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Check → true

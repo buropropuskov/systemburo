@@ -15,9 +15,7 @@ type PDConsent struct {
 	CreatedAt   time.Time  `json:"created_at"`
 
 	// DocumentVersion -- редакция текста согласия, с которой согласился человек
-	// (#1567). Ставит СЕРВЕР из настроек; в запросе такого поля нет намеренно, иначе
-	// клиент прислал бы заведомо большое число и освободился от всех будущих
-	// переподтверждений. Существующие записи получают 1 через default колонки.
+	// (#1567). Сервер сверяет показанную редакцию перед записью. Существующие записи получают 1 через default колонки.
 	DocumentVersion int `gorm:"not null;default:1;index" json:"document_version"`
 
 	// DocumentHash -- sha256 принятого HTML. Версия отвечает на вопрос "какая
@@ -28,7 +26,13 @@ type PDConsent struct {
 
 func (PDConsent) TableName() string { return "pd_consents" }
 
+type PDConsentRevision struct {
+	Version int    `json:"version"`
+	Hash    string `json:"hash"`
+}
+
 type GrantConsentRequest struct {
+	PDConsentRevision
 	ConsentType string `json:"consent_type" validate:"required,oneof=pd_processing pd_transfer"`
 }
 
@@ -36,8 +40,9 @@ type GrantConsentRequest struct {
 // учитывает исключения (супер-админ) и то, задан ли текст, поэтому фронту не нужно
 // повторять эти правила у себя.
 type PDConsentGateState struct {
-	Required bool `json:"required"`
-	Version  int  `json:"version"`
+	Required bool   `json:"required"`
+	Version  int    `json:"version"`
+	Hash     string `json:"hash"`
 	// VersionAt -- с какого числа действует показываемая редакция. Номер редакции
 	// человеку ничего не говорит, дата говорит.
 	VersionAt string                  `json:"version_at"`

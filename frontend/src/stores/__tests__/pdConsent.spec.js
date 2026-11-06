@@ -12,6 +12,7 @@ import { usePDConsentStore } from '../pdConsent';
 const GATE_REQUIRED = {
   required: true,
   version: 2,
+  hash: 'a'.repeat(64),
   text: '<p>Текст согласия</p>',
   document: { stored_name: 'doc.pdf', file_name: 'Согласие.pdf' },
 };
@@ -140,6 +141,7 @@ describe('stores/pdConsent (#1567)', () => {
 
     await store.accept();
 
+    expect(acceptConsent).toHaveBeenCalledWith({ version: 2, hash: GATE_REQUIRED.hash });
     expect(store.required).toBe(false);
     expect(store.resolved).toBe(true);
   });
@@ -149,6 +151,76 @@ describe('stores/pdConsent (#1567)', () => {
     const store = usePDConsentStore();
 
     await expect(store.accept()).rejects.toThrow('Пользователь не найден');
+  });
+
+  it('конфликт перечитывает текст той же версии без повторного подтверждения', async () => {
+    getConsentGate.mockResolvedValueOnce(GATE_REQUIRED)
+      .mockResolvedValueOnce({ ...GATE_REQUIRED, hash: 'b'.repeat(64), text: '<p>Новый текст</p>' });
+    acceptConsent.mockRejectedValueOnce(Object.assign(new Error('Документ изменился'), { status: 409 }));
+    const store = usePDConsentStore();
+    await store.refresh();
+    await expect(store.accept()).rejects.toThrow('Документ изменился');
+    expect(store.required).toBe(true);
+    expect(store.hash).toBe('b'.repeat(64));
+    expect(store.html).toBe('<p>Новый текст</p>');
+    expect(acceptConsent).toHaveBeenCalledTimes(1);
+  });
+
+  it('ошибка перечтения после конфликта блокирует старый текст; повтор только загружает документ', async () => {
+    getConsentGate.mockResolvedValueOnce(GATE_REQUIRED).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ ...GATE_REQUIRED, hash: 'b'.repeat(64) });
+    acceptConsent.mockRejectedValueOnce(Object.assign(new Error('Документ изменился'), { status: 409 }));
+    const store = usePDConsentStore();
+    await store.refresh();
+    await expect(store.accept()).rejects.toThrow('Не удалось загрузить');
+    expect(store.required).toBe(true);
+    expect(store.needsReload).toBe(true);
+    expect(store.hash).toBe('');
+    expect(store.html).toBe('');
+    await store.accept();
+    expect(store.needsReload).toBe(false);
+    expect(store.required).toBe(true);
+    expect(acceptConsent).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])('поздний ответ подтверждения прежней сессии игнорируется, конфликт=%s', async (conflict) => {
+    let finish;
+    getConsentGate.mockResolvedValueOnce(GATE_REQUIRED).mockResolvedValueOnce({ ...GATE_REQUIRED, version: 9 });
+    acceptConsent.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      finish = () => conflict ? reject(Object.assign(new Error('conflict'), { status: 409 })) : resolve({ required: false });
+    }));
+    const store = usePDConsentStore();
+    await store.refresh();
+    const previous = store.accept();
+    store.reset();
+    await store.refresh(true);
+    finish();
+    await previous;
+    expect(store.version).toBe(9);
+    expect(store.required).toBe(true);
+    expect(getConsentGate).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])('после фонового 403 и успешного POST сверяет итог по GET, required=%s', async (required) => {
+    let completePost;
+    let completeOldRead;
+    getConsentGate.mockResolvedValueOnce(GATE_REQUIRED)
+      .mockImplementationOnce(() => new Promise((resolve) => { completeOldRead = resolve; }))
+      .mockResolvedValueOnce({ ...GATE_REQUIRED, required });
+    acceptConsent.mockImplementationOnce(() => new Promise((resolve) => { completePost = resolve; }));
+    const store = usePDConsentStore();
+    await store.refresh();
+    const accepting = store.accept();
+    store.markRequiredFromResponse();
+    completeOldRead(GATE_REQUIRED);
+    await store.refresh();
+    expect(store.required).toBe(true);
+    completePost({ ...GATE_REQUIRED, required: false });
+    await accepting;
+    expect(store.required).toBe(required);
+    expect(store.needsReload).toBe(false);
+    expect(getConsentGate).toHaveBeenCalledTimes(3);
+    expect(acceptConsent).toHaveBeenCalledTimes(1);
   });
 
   it('markRequiredFromResponse поднимает флаг сразу и перечитывает редакцию', async () => {

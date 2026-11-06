@@ -57,7 +57,7 @@ func TestGates_NewUserPassesConsentThenPassword(t *testing.T) {
 		testutil.GET(t, g.e, gatePath, testutil.AuthHeader(g.token)).Code,
 		"текст согласия обязан читаться: без него окну нечего показать")
 
-	rec := testutil.POST(t, g.e, acceptPath, `{}`, testutil.AuthHeader(g.token))
+	rec := testutil.POST(t, g.e, acceptPath, displayedConsentBody(t, g.e, g.token), testutil.AuthHeader(g.token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// Шаг второй: свой пароль. Согласие уже дано, гейт согласия пропускает.
