@@ -291,9 +291,8 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 
-// Окно открывается ПОВЕРХ детали заявки (10002) - см. лестницу z-index в
-// .claude/ui-etalon. Дочерние слои (поиск существующих, меню дропдауна) обязаны
-// лечь выше него, иначе уедут за собственного родителя.
+// Окно открывается поверх карточки заявки (z-index 10002). Поиск существующих
+// записей и выпадающие меню должны открываться поверх этого окна.
 // Дополнять можно только вложения тех типов, под которые есть форма ввода.
 const SUPPORTED_ATTACHMENT_TYPES = ['cars', 'people', 'items'];
 
