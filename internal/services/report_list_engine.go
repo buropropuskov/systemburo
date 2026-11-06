@@ -172,28 +172,7 @@ type listPlan struct {
 // БД) — тестируется напрямую. Порядок и подписи столбцов берутся из каталога B1,
 // SQL-выражения — из listExecRegistry. Неизвестная сущность/фильтр или столбец
 // каталога без выражения -> ErrInvalidReportRequest.
-// responsibleMaskedExpr - колонка «принимающий», когда персональные данные скрыты
-// до согласия: вместо ФИО и телефона показывается логин. Условие повторяет
-// consentMasksWithState, но в SQL: строку собирает база, и подменить её после
-// выборки нечем - идентификатора работника в выдаче отчёта нет.
-//
-// Скрываем только тех, кого запрос согласия реально касается (та же мерка, что у
-// гейта и у gatedUsersWhere): супер-администратор проходит гейт всегда, архивных и
-// заблокированных отбивают раньше, и согласия у них нет не потому, что они его не
-// дали. Без этой оговорки отчёт обезличивал бы тех, кто во всей остальной системе
-// показывается открыто.
-const responsibleMaskedExpr = `CASE
-	WHEN ru.id IS NULL THEN ''
-	WHEN ru.is_super_admin OR NOT ru.is_active OR ru.is_banned OR EXISTS (
-		SELECT 1 FROM pd_consents c
-		WHERE c.user_id = ru.id AND c.consent_type = 'pd_processing'
-		  AND c.granted = true AND c.revoked_at IS NULL
-	) THEN COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ru.last_name, ru.first_name, ru.middle_name)), ''), '')
-		|| CASE WHEN COALESCE(ru.phone, '') <> '' THEN ', ' || ru.phone ELSE '' END
-	ELSE '@' || COALESCE(ru.username, '')
-END`
-
-func buildListPlan(req models.ReportRequest, maskPD bool) (*listPlan, error) {
+func buildListPlan(req models.ReportRequest) (*listPlan, error) {
 	exec, ok := listExecRegistry[req.Entity]
 	if !ok {
 		return nil, errInvalidReport("entity")
@@ -238,9 +217,6 @@ func buildListPlan(req models.ReportRequest, maskPD bool) (*listPlan, error) {
 			return nil, errInvalidReport("column")
 		}
 		expr := def.expr
-		if maskPD && c.key == "responsible" {
-			expr = responsibleMaskedExpr
-		}
 		selects = append(selects, expr+" AS "+c.key)
 		plan.selectArgs = append(plan.selectArgs, def.args...)
 		cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label, Type: c.format})
@@ -273,6 +249,14 @@ func buildListPlan(req models.ReportRequest, maskPD bool) (*listPlan, error) {
 	plan.orderStr = exec.defaultOrder
 	plan.limit = clampLimit(req.Limit)
 	return plan, nil
+}
+
+// The runner binds the common name snapshot as actor_masks. Keep the raw
+// name/phone only as the fallback for a subject that snapshot does not mask.
+func (p *listPlan) maskResponsible(schema listExecSchema) {
+	raw := schema.colExpr["responsible"].expr
+	p.selectStr = strings.ReplaceAll(p.selectStr, raw,
+		"COALESCE(actor_masks.names ->> ru.id::text, "+raw+")")
 }
 
 // resolveListFilter превращает поле фильтра в WHERE-фрагмент. Возвращает nil без

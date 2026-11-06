@@ -69,13 +69,20 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approvers")
 	}
-	masks, maskErr := loadNameMasks(ctx, s.db)
+	consentMasks, maskErr := loadConsentMasks(ctx, s.db)
+	if maskErr != nil {
+		return nil, maskErr
+	}
+	masks, maskErr := mergeDisplayNameMasks(ctx, s.db, consentMasks)
 	if maskErr != nil {
 		return nil, maskErr
 	}
 	if len(masks) > 0 {
 		for i := range result {
 			maskUserParts(masks, result[i].UserID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+			if label, hidden := consentMasks[result[i].UserID]; hidden {
+				result[i].DisplayName = &label
+			}
 		}
 	}
 	return result, nil

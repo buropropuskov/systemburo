@@ -913,13 +913,7 @@ func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan
 // подставляется только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest
 // (400 в handler). Строки сканируются в []map по алиасам столбцов плана.
 func (s *statisticsService) RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error) {
-	// Персональные данные не давших согласия скрыты и в отчётах: колонка принимающего
-	// собирает ФИО с телефоном одной строкой, и подменить её после выборки нечем.
-	consentActive, err := pdConsentMaskingActive(ctx, s.db)
-	if err != nil {
-		return nil, err
-	}
-	plan, err := buildListPlan(req, consentActive)
+	plan, err := buildListPlan(req)
 	if err != nil {
 		return nil, err
 	}
@@ -932,13 +926,7 @@ func (s *statisticsService) RunReportList(ctx context.Context, req models.Report
 		if err != nil {
 			return nil, err
 		}
-		raw := listExecRegistry[req.Entity].colExpr["responsible"].expr
-		original := raw
-		if consentActive {
-			original = responsibleMaskedExpr
-		}
-		plan.selectStr = strings.ReplaceAll(plan.selectStr, original,
-			"COALESCE(actor_masks.names ->> ru.id::text, "+raw+")")
+		plan.maskResponsible(listExecRegistry[req.Entity])
 		reportMask = &policy
 		break
 	}

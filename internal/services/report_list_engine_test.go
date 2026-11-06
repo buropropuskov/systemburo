@@ -14,7 +14,7 @@ import (
 func TestListEngine_CoversCatalogEntities(t *testing.T) {
 	for _, entity := range reportListEntityOrder {
 		req := models.ReportRequest{Mode: "list", Entity: entity}
-		plan, err := buildListPlan(req, false)
+		plan, err := buildListPlan(req)
 		if err != nil {
 			t.Errorf("сущность %q: движок не собрал план: %v", entity, err)
 			continue
@@ -79,7 +79,7 @@ func TestListEngine_ExecMatchesCatalog(t *testing.T) {
 
 func TestListPlan_WorkApplicationsBaseFilter(t *testing.T) {
 	req := models.ReportRequest{Mode: "list", Entity: "work_applications"}
-	plan, err := buildListPlan(req, false)
+	plan, err := buildListPlan(req)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestListPlan_FiltersAndDateRange(t *testing.T) {
 			{Key: "organization", Values: []string{"  "}}, // только пустое -> пропустить
 		},
 	}
-	plan, err := buildListPlan(req, false)
+	plan, err := buildListPlan(req)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestListPlan_RejectsInvalid(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := buildListPlan(tc.req, false)
+			_, err := buildListPlan(tc.req)
 			if err == nil {
 				t.Fatalf("ожидалась ошибка валидации")
 			}
@@ -176,7 +176,7 @@ func TestListPlan_RejectsInvalid(t *testing.T) {
 
 func TestListPlan_LimitClamped(t *testing.T) {
 	req := models.ReportRequest{Mode: "list", Entity: "people", Limit: maxReportLimit + 500}
-	plan, err := buildListPlan(req, false)
+	plan, err := buildListPlan(req)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestListPlan_LimitClamped(t *testing.T) {
 func TestBuildListPlan_MaskedResponsibleColumn(t *testing.T) {
 	req := models.ReportRequest{Mode: "list", Entity: "work_applications"}
 
-	open, err := buildListPlan(req, false)
+	open, err := buildListPlan(req)
 	if err != nil {
 		t.Fatalf("план без маскировки не собрался: %v", err)
 	}
@@ -199,27 +199,19 @@ func TestBuildListPlan_MaskedResponsibleColumn(t *testing.T) {
 		t.Error("без маскировки телефон принимающего в колонке остаётся")
 	}
 
-	masked, err := buildListPlan(req, true)
+	masked, err := buildListPlan(req)
 	if err != nil {
 		t.Fatalf("план с маскировкой не собрался: %v", err)
 	}
-	if !strings.Contains(masked.selectStr, "pd_consents") {
-		t.Error("выдача колонки должна сверяться с наличием согласия")
+	masked.maskResponsible(listExecRegistry[req.Entity])
+	if !strings.Contains(masked.selectStr, "COALESCE(actor_masks.names ->> ru.id::text,") {
+		t.Error("отчёт должен применять общий снимок имён перед исходным ФИО/телефоном")
 	}
-	if !strings.Contains(masked.selectStr, "ru.username") {
-		t.Error("вместо ФИО и телефона ожидается логин")
+	if strings.Contains(masked.selectStr, "pd_consents") {
+		t.Error("план не должен повторно определять состояние согласия")
 	}
-	// Мерка обязана совпасть с gatedUsersWhere: кого запрос согласия не касается,
-	// того и в отчёте не обезличиваем, иначе супер-администратор и архивные
-	// работники в отчёте выглядят иначе, чем во всей остальной системе.
-	for _, guard := range []string{"ru.is_super_admin", "NOT ru.is_active", "ru.is_banned"} {
-		if !strings.Contains(masked.selectStr, guard) {
-			t.Errorf("в условии маскировки нет оговорки %q", guard)
-		}
-	}
-	// Телефон остаётся только в ветке «согласие есть»; у остальных - логин.
-	if !strings.Contains(masked.selectStr, "ELSE '@'") {
-		t.Error("у работника без согласия ожидается логин вместо ФИО и телефона")
+	if len(masked.columns) != len(open.columns) || masked.orderStr != open.orderStr || masked.limit != open.limit {
+		t.Error("маска не меняет столбцы, порядок и ограничение строк")
 	}
 }
 
@@ -227,13 +219,13 @@ func TestBuildListPlan_MaskedResponsibleColumn(t *testing.T) {
 // уже в Excel. Порядок держим каталожный - иначе колонки переставлялись бы от
 // запроса к запросу, а вслед за ними и столбцы выгрузки.
 func TestListPlan_ColumnsSubset(t *testing.T) {
-	full, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars"}, false)
+	full, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars"})
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
 
 	req := models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{"mark", "car_number"}}
-	plan, err := buildListPlan(req, false)
+	plan, err := buildListPlan(req)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -267,17 +259,17 @@ func TestListPlan_ColumnsSubset(t *testing.T) {
 
 func TestListPlan_UnknownColumnRejected(t *testing.T) {
 	req := models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{"car_number", "нет-такого"}}
-	if _, err := buildListPlan(req, false); err == nil {
+	if _, err := buildListPlan(req); err == nil {
 		t.Fatal("ожидалась ошибка на неизвестный столбец")
 	}
 }
 
 func TestListPlan_EmptyColumnsKeepsAll(t *testing.T) {
-	full, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars"}, false)
+	full, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars"})
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
-	empty, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{}}, false)
+	empty, err := buildListPlan(models.ReportRequest{Mode: "list", Entity: "cars", Columns: []string{}})
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
