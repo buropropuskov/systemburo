@@ -35,7 +35,7 @@ func readAppOrgRefs(t *testing.T, db *gorm.DB, appID int) appOrgRefs {
 
 // submitWithRefs подаёт заявку с произвольным набором полей организации и компании:
 // refsJSON - фрагмент тела вида `"organization_id":7` или `"organization":"ООО ..."`.
-func submitWithRefs(t *testing.T, e *echo.Echo, token string, uaID int, plate, refsJSON string) *httptest.ResponseRecorder {
+func submitWithRefs(t *testing.T, db *gorm.DB, e *echo.Echo, token string, uaID int, plate, refsJSON string) *httptest.ResponseRecorder {
 	t.Helper()
 	body := fmt.Sprintf(`{
 		"message": "org resolve test",
@@ -55,7 +55,7 @@ func submitWithRefs(t *testing.T, e *echo.Echo, token string, uaID int, plate, r
 			"data": {"vehicles": [{"car_number": "%s", "car_brand": "Toyota"}]}
 		}]
 	}`, refsJSON, uaID, plate)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 func submittedAppID(t *testing.T, rec *httptest.ResponseRecorder) int {
@@ -106,7 +106,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 	// Ровно тот баг из issue: «ооо петрушка» точному сравнению по name не отвечало,
 	// заявка уходила без организации и переставала быть видимой коллегам.
 	t.Run("другое написание берёт существующую организацию", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A001AA777", `"organization":"ооо петрушка"`))
+		appID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A001AA777", `"organization":"ооо петрушка"`))
 
 		refs := readAppOrgRefs(t, db, appID)
 		require.NotNil(t, refs.OrganizationID, "организация заявки не должна быть NULL")
@@ -115,7 +115,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 	})
 
 	t.Run("незнакомое наименование заводит запись на проверке", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A002AA777", `"organization_name":"ООО \"Ромашка-Строй\""`))
+		appID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A002AA777", `"organization_name":"ООО \"Ромашка-Строй\""`))
 
 		refs := readAppOrgRefs(t, db, appID)
 		require.NotNil(t, refs.OrganizationID)
@@ -135,7 +135,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 	// Черновая запись участвует в дедупликации так же, как проверенная: иначе каждая
 	// следующая заявка на того же подрядчика плодила бы ещё один pending.
 	t.Run("повторная подача того же наименования не плодит запись", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A003AA777", `"organization_name":"ооо ромашка - строй"`))
+		appID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A003AA777", `"organization_name":"ооо ромашка - строй"`))
 
 		refs := readAppOrgRefs(t, db, appID)
 		require.NotNil(t, refs.OrganizationID)
@@ -143,7 +143,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 	})
 
 	t.Run("organization_id из запроса используется, наименование не смотрится", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A004AA777",
+		appID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A004AA777",
 			fmt.Sprintf(`"organization_id":%d,"organization":"ООО \"Мусор\""`, existing.ID)))
 
 		refs := readAppOrgRefs(t, db, appID)
@@ -163,17 +163,17 @@ func TestApplicationOrgResolve(t *testing.T) {
 		require.NoError(t, db.First(&check, archived.ID).Error)
 		require.False(t, check.IsActive, "фикстура должна быть архивной")
 
-		rec := submitWithRefs(t, e, token, uaID, "A005AA777", fmt.Sprintf(`"organization_id":%d`, archived.ID))
+		rec := submitWithRefs(t, db, e, token, uaID, "A005AA777", fmt.Sprintf(`"organization_id":%d`, archived.ID))
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "архивная организация: %s", rec.Body.String())
 
-		rec = submitWithRefs(t, e, token, uaID, "A006AA777", `"organization_id":999999`)
+		rec = submitWithRefs(t, db, e, token, uaID, "A006AA777", `"organization_id":999999`)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "несуществующая организация: %s", rec.Body.String())
 	})
 
 	// От вырожденного наименования не остаётся ключа дедупликации, поэтому запись из него
 	// не заводим: справочник получил бы мусор от опечатки, который ни с чем не схлопнётся.
 	t.Run("вырожденное наименование отклоняется и не заводит запись", func(t *testing.T) {
-		rec := submitWithRefs(t, e, token, uaID, "A007AA777", `"organization_name":"\"\""`)
+		rec := submitWithRefs(t, db, e, token, uaID, "A007AA777", `"organization_name":"\"\""`)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "вырожденное наименование: %s", rec.Body.String())
 
 		var n int64
@@ -183,7 +183,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 		// Дефисы и прочая пунктуация ключ имеют (нормализация их не выбрасывает), но
 		// содержания в таком наименовании столько же: запись из него тоже не заводим.
 		for _, junk := range []string{"---", "...", "- - -", "!!!"} {
-			rec = submitWithRefs(t, e, token, uaID, "A00"+junk[:1]+"AA111", `"organization_name":"`+junk+`"`)
+			rec = submitWithRefs(t, db, e, token, uaID, "A00"+junk[:1]+"AA111", `"organization_name":"`+junk+`"`)
 			assert.Equal(t, http.StatusBadRequest, rec.Code, "наименование без букв и цифр %q: %s", junk, rec.Body.String())
 		}
 		require.NoError(t, db.Model(&models.Organization{}).Where("name_normalized IN ?", []string{"---", "- - -", "!!!"}).Count(&n).Error)
@@ -192,7 +192,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 
 	// Компании ведёт тот же код, и расхождение между зеркальными сущностями тихое.
 	t.Run("компания резолвится так же", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A008AA777",
+		appID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A008AA777",
 			`"organization":"","company_name":"ЗАО \"Новая\""`))
 
 		refs := readAppOrgRefs(t, db, appID)
@@ -214,7 +214,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 		plainToken := testutil.RegisterAndLogin(t, e, "orgresolveplain", "pass123", 1, td.OrgID, td.CompanyID)
 
 		t.Run("своя организация по id проходит", func(t *testing.T) {
-			appID := submittedAppID(t, submitWithRefs(t, e, plainToken, uaID, "A101AA777",
+			appID := submittedAppID(t, submitWithRefs(t, db, e, plainToken, uaID, "A101AA777",
 				fmt.Sprintf(`"organization_id":%d`, td.OrgID)))
 
 			refs := readAppOrgRefs(t, db, appID)
@@ -225,7 +225,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 		// Ключ дедупликации из среза 2 продолжает работать и без права: своя организация,
 		// набранная иначе, остаётся своей, иначе фикс «заявки-сироты» упёрся бы в гейт.
 		t.Run("своё наименование в другом написании проходит", func(t *testing.T) {
-			appID := submittedAppID(t, submitWithRefs(t, e, plainToken, uaID, "A102AA777",
+			appID := submittedAppID(t, submitWithRefs(t, db, e, plainToken, uaID, "A102AA777",
 				`"organization_name":"test   organization"`))
 
 			refs := readAppOrgRefs(t, db, appID)
@@ -234,19 +234,19 @@ func TestApplicationOrgResolve(t *testing.T) {
 		})
 
 		t.Run("чужая организация по id отклоняется", func(t *testing.T) {
-			rec := submitWithRefs(t, e, plainToken, uaID, "A103AA777", fmt.Sprintf(`"organization_id":%d`, existing.ID))
+			rec := submitWithRefs(t, db, e, plainToken, uaID, "A103AA777", fmt.Sprintf(`"organization_id":%d`, existing.ID))
 			assert.Equal(t, http.StatusForbidden, rec.Code, "чужая организация: %s", rec.Body.String())
 		})
 
 		t.Run("чужое наименование не заводит запись", func(t *testing.T) {
-			rec := submitWithRefs(t, e, plainToken, uaID, "A104AA777", `"organization_name":"ООО \"Без Права\""`)
+			rec := submitWithRefs(t, db, e, plainToken, uaID, "A104AA777", `"organization_name":"ООО \"Без Права\""`)
 			assert.Equal(t, http.StatusForbidden, rec.Code, "новое наименование: %s", rec.Body.String())
 			assert.Equal(t, int64(0), countOrganizations(t, db, "ооо без права"),
 				"отказ не должен оставлять черновик в справочнике")
 		})
 
 		t.Run("чужая компания отклоняется", func(t *testing.T) {
-			rec := submitWithRefs(t, e, plainToken, uaID, "A105AA777",
+			rec := submitWithRefs(t, db, e, plainToken, uaID, "A105AA777",
 				`"organization":"","company_name":"ЗАО \"Чужая\""`)
 			assert.Equal(t, http.StatusForbidden, rec.Code, "чужая компания: %s", rec.Body.String())
 		})
@@ -256,7 +256,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 		t.Run("без организации в профиле заявка идёт по своей компании", func(t *testing.T) {
 			noOrgToken := testutil.RegisterAndLogin(t, e, "orgresolvenoorg", "pass123", 1, 0, td.CompanyID)
 
-			appID := submittedAppID(t, submitWithRefs(t, e, noOrgToken, uaID, "A107AA777",
+			appID := submittedAppID(t, submitWithRefs(t, db, e, noOrgToken, uaID, "A107AA777",
 				fmt.Sprintf(`"organization":"","company_id":%d`, td.CompanyID)))
 
 			refs := readAppOrgRefs(t, db, appID)
@@ -264,7 +264,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 			require.NotNil(t, refs.CompanyID)
 			assert.Equal(t, td.CompanyID, *refs.CompanyID)
 
-			rec := submitWithRefs(t, e, noOrgToken, uaID, "A108AA777", fmt.Sprintf(`"organization_id":%d`, td.OrgID))
+			rec := submitWithRefs(t, db, e, noOrgToken, uaID, "A108AA777", fmt.Sprintf(`"organization_id":%d`, td.OrgID))
 			assert.Equal(t, http.StatusForbidden, rec.Code,
 				"без организации в профиле любая организация чужая: %s", rec.Body.String())
 		})
@@ -272,7 +272,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 
 	// Администратор получает право через allowAll резолвера, отдельный грант ему не нужен.
 	t.Run("администратор подаёт от чужой организации", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, adminToken, uaID, "A106AA777",
+		appID := submittedAppID(t, submitWithRefs(t, db, e, adminToken, uaID, "A106AA777",
 			fmt.Sprintf(`"organization_id":%d`, existing.ID)))
 
 		refs := readAppOrgRefs(t, db, appID)
@@ -372,7 +372,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 			Value:         "allow",
 		}).Error)
 
-		rec := submitWithRefs(t, e, token, uaID, "A109AA777", `"organization_name":"ООО \"Заря-Новая\""`)
+		rec := submitWithRefs(t, db, e, token, uaID, "A109AA777", `"organization_name":"ООО \"Заря-Новая\""`)
 		appID := submittedAppID(t, rec)
 
 		notes := notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending)
@@ -399,11 +399,11 @@ func TestApplicationOrgResolve(t *testing.T) {
 
 		// Повторная подача того же наименования ложится на уже заведённую запись -
 		// второй раз звать разбирать её незачем.
-		submittedAppID(t, submitWithRefs(t, e, token, uaID, "A110AA777", `"organization_name":"ооо заря-новая"`))
+		submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A110AA777", `"organization_name":"ооо заря-новая"`))
 		assert.Len(t, notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending), 1)
 
 		// Компания идёт тем же кодом, но зеркальность должна держаться тестом, а не верой.
-		companyAppID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A111AA777", `"company_name":"ООО \"Заря-Компания\""`))
+		companyAppID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A111AA777", `"company_name":"ООО \"Заря-Компания\""`))
 		notes = notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending)
 		require.Len(t, notes, 2)
 		require.NotNil(t, notes[1].Title)
@@ -416,7 +416,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 	// Ровно тот ввод, с которого правило и потребовали: строчная ОПФ, строчное название,
 	// незакрытая кавычка. В справочник обязана уехать аккуратная строка, а не набранная.
 	t.Run("оформление наименования из заявки канонизируется", func(t *testing.T) {
-		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A113AA777", `"organization_name":"ооо \"братишк"`))
+		appID := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A113AA777", `"organization_name":"ооо \"братишк"`))
 
 		refs := readAppOrgRefs(t, db, appID)
 		require.NotNil(t, refs.OrganizationID)
@@ -428,7 +428,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 
 		// Тот же ключ в другом написании ложится на уже заведённую запись: канонизация
 		// оформления не должна плодить второй вариант той же организации.
-		second := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A114AA777", `"organization_name":"ООО Братишк"`))
+		second := submittedAppID(t, submitWithRefs(t, db, e, token, uaID, "A114AA777", `"organization_name":"ООО Братишк"`))
 		secondRefs := readAppOrgRefs(t, db, second)
 		require.NotNil(t, secondRefs.OrganizationID)
 		assert.Equal(t, created.ID, *secondRefs.OrganizationID)
@@ -456,7 +456,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 		// подача должна именно в ключ дедупликации.
 		done := make(chan *httptest.ResponseRecorder, 1)
 		go func() {
-			done <- submitWithRefs(t, e, token, uaID, "A112AA777", `"organization_name":"ООО Гонка"`)
+			done <- submitWithRefs(t, db, e, token, uaID, "A112AA777", `"organization_name":"ООО Гонка"`)
 		}()
 
 		waitForIndexLock(t, db)

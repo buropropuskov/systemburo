@@ -34,7 +34,7 @@ func TestFakeUsers_RunCreatesUsersAndAssignsRoles(t *testing.T) {
 
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-users"), 9090, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9090}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9090}))
 
 	// --- пользователи реально созданы через сервисный слой и зарегистрированы в партии ---
 
@@ -142,7 +142,7 @@ func TestFakeUsers_RunCreatesUsersAndAssignsRoles(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-users-2"), 9191, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9191}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9191}))
 	require.Equal(t, profile.Users, batch2.Counts()[models.AuditEntityUser])
 
 	orgsAfter, err := orgSvc.GetAll(ctx)
@@ -180,7 +180,7 @@ func TestFakeUsers_FailsWhenNoOrganizationsOrCompanies(t *testing.T) {
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-users-empty"), 1234, profile.Name)
 	require.NoError(t, err)
 
-	err = fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1234})
+	err = runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1234})
 
 	require.Error(t, err, "наливка пользователей без организаций и компаний обязана сообщить об отказе")
 	require.Contains(t, err.Error(), "проверенной организации")
@@ -226,7 +226,7 @@ func TestFakeUsers_KeepsArchivedApproverRow(t *testing.T) {
  profile.Applications = 0
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-archived"), 424, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 424}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 424}))
 
 	require.Equal(t, rowsBefore+1, countOrgUserRows(t, db, org.ID),
 		"наливка должна была добавить согласующего, не удалив архивного")
@@ -265,7 +265,7 @@ func TestFakeUsers_DoesNotTouchExistingPassword(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-pass"), 909, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 909}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 909}))
 
 	var after string
 	require.NoError(t, db.Raw(`SELECT password FROM users WHERE id = ?`, admin.ID).Scan(&after).Error)

@@ -28,6 +28,8 @@ import (
 
 // CreateSupplementRequest - тело запроса на дополнение поданной заявки.
 type CreateSupplementRequest struct {
+	ApplicationConfirmationInput
+	DataApproval          bool   `json:"data_approval,omitempty"`
 	RequestIdempotencyKey string `json:"request_idempotency_key,omitempty"`
 	// Comment - зачем понадобилась добавка; виден согласующим в карточке раунда.
 	Comment   *string              `json:"comment"`
@@ -222,6 +224,10 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		if err := ValidateSupplementComposition(req); err != nil {
 			return err
 		}
+		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
+			return err
+		}
 
 		var targets []supplementTarget
 		targets, counts, err = s.resolveSupplementTargets(ctx, applicationID, req.Additions)
@@ -302,6 +308,14 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 			}
 			pendingVehicleFlags = append(pendingVehicleFlags, vFlags...)
 			pendingEmployeeFlags = append(pendingEmployeeFlags, eFlags...)
+		}
+
+		rows, err := applicationConfirmedRows(tx, applicationID, &supplement.ID)
+		if err != nil {
+			return err
+		}
+		if err := saveApplicationConfirmation(tx, document, applicationID, &supplement.ID, user.ID, now, rows); err != nil {
+			return err
 		}
 
 		if inWork {

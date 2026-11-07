@@ -88,7 +88,8 @@ func TestArchiveAtomicApplication_CreateAndReadIntent(t *testing.T) {
 		before := remainingTransactionSnapshot(t, db)
 		calls := applicationSQLIntegrityFault(t, db, false, "insert into archive_export_jobs", 1, errors.New("create intent unavailable"))
 		response, err := svc.CreateApplication(context.Background(), sender, services.ApplicationCreateRequest{
-			OrganizationID: &td.OrgID, CompanyID: &td.CompanyID, DataApproval: true,
+			ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+			OrganizationID:               &td.OrgID, CompanyID: &td.CompanyID, DataApproval: true,
 		}, false)
 		require.Error(t, err)
 		require.Nil(t, response)

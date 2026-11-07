@@ -75,7 +75,7 @@ func TestS5Action_ForwardAndAssignment(t *testing.T) {
 	sender := testutil.RegisterAndLogin(t, e, "s5_sender", "pass123", 1, td.OrgID, td.CompanyID)
 	testutil.RegisterUser(t, e, "s5_target", "pass123", 1, td.OrgID, td.CompanyID)
 	senderID, targetID := getUserID(t, db, "s5_sender"), getUserID(t, db, "s5_target")
-	appID := createSimpleApplication(t, e, sender, td.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, td.OrgID)
 	url := fmt.Sprintf("/applications/%d/forward", appID)
 	deny := models.UserPermissionOverride{UserID: senderID, PermissionKey: services.KeyActionForwardApplication, Value: "deny"}
 	require.NoError(t, db.Create(&deny).Error)
@@ -108,7 +108,7 @@ func TestS5Action_VoteUsesCurrentPermission(t *testing.T) {
 	sender := testutil.RegisterAndLogin(t, e, "s5_vote_sender", "pass123", 1, td.OrgID, td.CompanyID)
 	voter := testutil.RegisterAndLogin(t, e, "s5_voter", "pass123", 1, td.OrgID, td.CompanyID)
 	id := getUserID(t, db, "s5_voter")
-	appID := createSimpleApplication(t, e, sender, td.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, td.OrgID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), forwardBody(id, true, false), testutil.AuthHeader(sender))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.NoError(t, db.Create(&models.UserPermissionOverride{UserID: id, PermissionKey: services.KeyActionApproveApplication, Value: "deny"}).Error)
@@ -138,7 +138,7 @@ func TestS5Action_AutomaticAssignments(t *testing.T) {
 	require.NoError(t, db.Create(&models.UserPermissionOverride{UserID: id, PermissionKey: services.KeyActionApproveApplication, Value: "deny"}).Error)
 	membership := models.OrganizationUser{OrganizationID: td.OrgID, UserID: id, IsPrimary: true, RequiredApproval: false}
 	require.NoError(t, db.Create(&membership).Error)
-	appID := createSimpleApplication(t, e, sender, td.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, td.OrgID)
 	var count int64
 	require.NoError(t, db.Table("application_responsible_users").Where("application_id = ? AND user_id = ?", appID, id).Count(&count).Error)
 	require.Zero(t, count)
@@ -148,7 +148,7 @@ func TestS5Action_AutomaticAssignments(t *testing.T) {
 	var before, after int64
 	require.NoError(t, db.Table("applications").Count(&before).Error)
 	body := fmt.Sprintf(`{"organization_id":%d,"data_approval":true,"message":"synthetic"}`, td.OrgID)
-	rec := testutil.POST(t, e, "/applications", body, testutil.AuthHeader(sender))
+	rec := testutil.POST(t, e, "/applications", withApplicationConfirmation(t, db, body), testutil.AuthHeader(sender))
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	require.NotContains(t, rec.Body.String(), "настройк")
 	require.NoError(t, db.Table("applications").Count(&after).Error)
@@ -164,7 +164,7 @@ func TestS5Action_ForwardBatchRollsBack(t *testing.T) {
 	testutil.RegisterUser(t, e, "s5_batch_one", "pass123", 1, td.OrgID, td.CompanyID)
 	testutil.RegisterUser(t, e, "s5_batch_two", "pass123", 1, td.OrgID, td.CompanyID)
 	one, two := getUserID(t, db, "s5_batch_one"), getUserID(t, db, "s5_batch_two")
-	appID := createSimpleApplication(t, e, sender, td.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, td.OrgID)
 	require.NoError(t, db.Create(&models.UserPermissionOverride{UserID: two, PermissionKey: services.KeyActionApproveApplication, Value: "deny"}).Error)
 	body := fmt.Sprintf(`{"users":[{"user_id":%d,"can_view":false,"required_approval":true},{"user_id":%d,"can_view":false,"required_approval":true}]}`, one, two)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(sender))
@@ -191,7 +191,7 @@ func TestS5Action_DuplicateMandatoryAssignment(t *testing.T) {
 			body := map[string]any{"organization_id": td.OrgID, "organization": "Test Organization", "company_id": td.CompanyID, "data_approval": true, "message": "synthetic", "responsible_person": "Synthetic", "contact_phone": "+79000000000", "attachments": []any{map[string]any{"attachment_type": "cars", "attachment_name": "cars_template", "attachment_display_name": "Synthetic", "unique_attachment_id": uaID, "entry_date_from": now.AddDate(0, 0, -7).Format("2006-01-02"), "entry_date_to": now.AddDate(0, 0, 7).Format("2006-01-02"), "entry_time_from": "00:00", "entry_time_to": "23:59", "data": map[string]any{"vehicles": []any{map[string]any{"car_number": "A123AA777", "car_brand": "Synthetic"}}}}}}
 			data, err := json.Marshal(body)
 			require.NoError(t, err)
-			rec := testutil.POST(t, e, path, string(data), testutil.AuthHeader(sender))
+			rec := testutil.POST(t, e, path, withApplicationConfirmation(t, db, string(data)), testutil.AuthHeader(sender))
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			var assignments int64
 			require.NoError(t, db.Table("application_responsible_users").Where("user_id = ? AND required_approval = true", id).Count(&assignments).Error)
@@ -199,7 +199,7 @@ func TestS5Action_DuplicateMandatoryAssignment(t *testing.T) {
 			require.NoError(t, db.Create(&models.UserPermissionOverride{UserID: id, PermissionKey: services.KeyActionApproveApplication, Value: "deny"}).Error)
 			var before, after int64
 			require.NoError(t, db.Table("applications").Count(&before).Error)
-			rec = testutil.POST(t, e, path, string(data), testutil.AuthHeader(sender))
+			rec = testutil.POST(t, e, path, withApplicationConfirmation(t, db, string(data)), testutil.AuthHeader(sender))
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 			require.Contains(t, rec.Body.String(), "не может согласовать")
 			require.NoError(t, db.Table("applications").Count(&after).Error)
@@ -216,7 +216,7 @@ func TestS5Action_DisplayCacheAndFreshGuard(t *testing.T) {
 	sender := testutil.RegisterAndLogin(t, e, "s5_cache_sender", "pass123", 1, td.OrgID, td.CompanyID)
 	voter := testutil.RegisterAndLogin(t, e, "s5_cache_voter", "pass123", 1, td.OrgID, td.CompanyID)
 	id := getUserID(t, db, "s5_cache_voter")
-	appID := createSimpleApplication(t, e, sender, td.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, td.OrgID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), forwardBody(id, true, false), testutil.AuthHeader(sender))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	counter := &sessionQueryCounter{Interface: logger.Discard}
@@ -250,7 +250,7 @@ func TestS5Action_PermissionSourceFailure(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 	sender := testutil.RegisterAndLogin(t, e, "s5_error_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, sender, td.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, td.OrgID)
 	name := "s5_synthetic_permission_error"
 	require.NoError(t, db.Callback().Query().Before("gorm:query").Register(name, func(tx *gorm.DB) {
 		if tx.Statement.Table == "user_permission_overrides" {

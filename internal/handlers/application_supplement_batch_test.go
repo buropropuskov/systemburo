@@ -58,7 +58,7 @@ func TestSupplementBatch_BoundariesBranchesAndRollback(t *testing.T) {
 		for i := range rows {
 			rows[i].PDConsent = true
 		}
-		return appID, attID, oldID, services.CreateSupplementRequest{Additions: []services.SupplementAddition{{AttachmentID: attID, Employees: rows}}}
+		return appID, attID, oldID, services.CreateSupplementRequest{ApplicationConfirmationInput: seedApplicationConfirmation(t, db), DataApproval: true, Additions: []services.SupplementAddition{{AttachmentID: attID, Employees: rows}}}
 	}
 	for _, tc := range []struct {
 		status    string

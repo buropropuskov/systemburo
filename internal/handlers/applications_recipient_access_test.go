@@ -26,7 +26,7 @@ func TestCanAccess_RecipientOpensAnyApplication(t *testing.T) {
 
 	// Отправитель и его заявка.
 	senderToken := testutil.RegisterAndLogin(t, e, "ra_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Принимающий: отдельный юзер в application_approvers, НЕ участник заявки.
 	recipientToken := testutil.RegisterAndLogin(t, e, "ra_recipient", "pass123", 1, td.OrgID, td.CompanyID)

@@ -44,7 +44,7 @@ func TestFakeBlacklists_RunFillsBlacklistsWithSimilarPairs(t *testing.T) {
 
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-bl"), 5150, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 5150}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 5150}))
 
 	auditRecorder := services.NewAuditRecorder(db)
 	vehicleSvc := services.NewVehicleBlacklistService(db, auditRecorder)
@@ -146,7 +146,7 @@ func TestFakeBlacklists_RunFillsBlacklistsWithSimilarPairs(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-bl-2"), 6060, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 6060}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 6060}))
 	require.Equal(t, profile.Blacklists, batch2.Counts()[models.AuditEntityVehicleBlacklist])
 	require.Equal(t, profile.Blacklists, batch2.Counts()[models.AuditEntityPersonBlacklist])
 }
@@ -169,7 +169,7 @@ func TestFakeBlacklists_FailsWhenRegistriesEmpty(t *testing.T) {
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-bl-empty"), 7070, profile.Name)
 	require.NoError(t, err)
 
-	err = fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 7070})
+	err = runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 7070})
 
 	require.Error(t, err, "наливка без записей реестра обязана сообщить об отказе, а не пропустить чёрные списки молча")
 	require.Contains(t, err.Error(), "реестр машин пуст")

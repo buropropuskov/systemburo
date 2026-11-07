@@ -113,7 +113,7 @@ func TestPDConsent_SubmitStoresMarkOnEmployeeRow(t *testing.T) {
 		{"last_name": "Безотметки", "first_name": "Семён", "citizenship_id": %d, "position": "Слесарь", "passport_series_number": "4510 777888", "target_tables": [%d]}
 	]}`, citizenshipID, tableID, citizenshipID, tableID)
 
-	rec := submitFC(t, e, token, "Test Organization", "people", uaID, data)
+	rec := submitFC(t, db, e, token, "Test Organization", "people", uaID, data)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var withMark models.Employee
@@ -146,7 +146,7 @@ func TestPDConsent_ConfiguredRequiredRejectsSubmitWithoutMark(t *testing.T) {
 	seedFieldConfig(t, db, uaID, services.PDConsentFieldKey, true, true)
 
 	data := fmt.Sprintf(`{"employees": [{"last_name": "Отказной", "first_name": "Илья", "citizenship_id": %d, "position": "Монтажник", "passport_series_number": "4510 999000", "target_tables": [%d]}]}`, citizenshipID, tableID)
-	rec := submitFC(t, e, token, "Test Organization", "people", uaID, data)
+	rec := submitFC(t, db, e, token, "Test Organization", "people", uaID, data)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "настроенное обязательным поле требует отметки")
 
 	var count int64
@@ -155,7 +155,7 @@ func TestPDConsent_ConfiguredRequiredRejectsSubmitWithoutMark(t *testing.T) {
 
 	// Контроль: та же подача с отметкой проходит.
 	dataOK := fmt.Sprintf(`{"employees": [{"pd_consent": true, "last_name": "Проходной", "first_name": "Илья", "citizenship_id": %d, "position": "Монтажник", "passport_series_number": "4510 999111", "target_tables": [%d]}]}`, citizenshipID, tableID)
-	rec = submitFC(t, e, token, "Test Organization", "people", uaID, dataOK)
+	rec = submitFC(t, db, e, token, "Test Organization", "people", uaID, dataOK)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 

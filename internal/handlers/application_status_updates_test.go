@@ -82,7 +82,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 	}
 
 	// --- Сквозной сценарий на одной заявке: accept -> details -> revoke -> deep-link -> withdraw ---
-	appA := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appA := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	t.Run("take_to_work загорается у читавших и отправителя, не у актора", func(t *testing.T) {
 		require.Nil(t, statusUpdatedAt(t, appA), "у свежей заявки флага нет")
@@ -147,7 +147,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 
 	// --- Отдельная заявка: confirmation-флоу ---
 	t.Run("confirmation: no-op пересчёт не бампает, реальная смена бампает", func(t *testing.T) {
-		appB := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appB := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 		respToken := testutil.RegisterAndLogin(t, e, "su_resp", "pass123", 1, td.OrgID, td.CompanyID)
 		respID := getUserID(t, db, "su_resp")
@@ -175,7 +175,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 	// --- reject-ветка take-to-work: симметрична accept, но отдельно покрыта (баги проекта
 	// часто во "второй" ветке симметричного if/else) ---
 	t.Run("reject уведомляет инициатора об отказе", func(t *testing.T) {
-		appR := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appR := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 		before := statusNotifCount(senderID)
 		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appR),
 			fmt.Sprintf(`{"user_id":%d,"action":"reject"}`, actorID), testutil.AuthHeader(actorToken))
@@ -185,7 +185,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 
 	// --- Отдельная заявка: legacy-переход при первом открытии ---
 	t.Run("legacy Непрочитано->В обработке флага не ставит", func(t *testing.T) {
-		appC := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appC := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 		rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appC), testutil.AuthHeader(observerToken))
 		require.Equal(t, http.StatusOK, rec.Code)
 
@@ -204,7 +204,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 			services.NewVehicleBlacklistService(db, blRecorder), services.NewPersonBlacklistService(db, blRecorder), blRecorder)
 
 		uaID := seedUniqueAttachment(t, db, "cars", "su_exp_cars", "SU Exp Cars")
-		appD := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+		appD := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 		// Принимаем в работу (крон завершает только заявки с активными вложениями) и
 		// просрочиваем. Флаг от принятия гасим: проверяется флаг именно от крона.
@@ -231,7 +231,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 
 	// --- s2: серверный фильтр status_updated и счётчики (#1349) ---
 	t.Run("фильтр status_updated: Центр по прочтению, ЛК без; счётчики", func(t *testing.T) {
-		appE := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appE := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 		// obs2 - принимающий, который НЕ читает appE: проверка requireRead-гейта Центра.
 		testutil.RegisterUser(t, e, "su_obs2", "pass123", 6, td.OrgID, td.CompanyID)
@@ -271,7 +271,7 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 		// Заявка уходит в архив, когда завершилась больше месяца назад. Центр её
 		// прячет (там есть переключатель Активные/Архив), кабинет - нет: у владельца
 		// из 26 своих заявок было видно 5, остальные молча выпадали из списка.
-		appOld := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appOld := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 		require.NoError(t, db.Exec(
 			"UPDATE applications SET status = ?, withdrawn_at = NOW() - INTERVAL '2 months' WHERE id = ?",
 			models.StatusWithdrawn, appOld).Error)
@@ -292,8 +292,8 @@ func TestApplicationStatusUpdateFlags(t *testing.T) {
 		testutil.RegisterUser(t, e, "su_colleague", "pass123", 6, td.OrgID, td.CompanyID)
 		colleagueToken, _ := testutil.LoginUser(t, e, "su_colleague", "pass123")
 
-		appMine := createSimpleApplication(t, e, senderToken, td.OrgID)
-		appColleague := createSimpleApplication(t, e, colleagueToken, td.OrgID)
+		appMine := createSimpleApplication(t, db, e, senderToken, td.OrgID)
+		appColleague := createSimpleApplication(t, db, e, colleagueToken, td.OrgID)
 
 		// Приём заявки актором зажигает флаг обновления всем, кроме самого актора.
 		for _, id := range []int{appMine, appColleague} {

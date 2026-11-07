@@ -68,7 +68,7 @@ func TestWritePath_ItemsUnloadPlacesWritten(t *testing.T) {
 		}]
 	}`, uaID, place1.ID, place2.ID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit items: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
@@ -128,7 +128,7 @@ func TestWritePath_CarsUnloadPlacesDeduped(t *testing.T) {
 		}]
 	}`, uaID, place1.ID, place2.ID, place2.ID, place3.ID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit cars: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
@@ -185,7 +185,7 @@ func TestWritePath_CarsNoPlacesNoAttachmentRows(t *testing.T) {
 		}]
 	}`, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit cars no places: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)

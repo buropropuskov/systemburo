@@ -294,7 +294,7 @@ func TestImpersonate_AuditTrail(t *testing.T) {
 	makeApprover(t, db, "impaudittgt")
 
 	senderToken := testutil.RegisterAndLogin(t, e, "impauditsnd", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	token, rec := impersonate(t, e, adminToken, targetID)
 	require.Equal(t, http.StatusOK, rec.Code, "вход в режим: %s", rec.Body.String())

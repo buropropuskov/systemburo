@@ -29,7 +29,8 @@ func operationSubmitRequest(t *testing.T, db *gorm.DB, key string, fileIDs []int
 	template := seedUniqueAttachment(t, db, "cars", "operation_cars", "Operation cars")
 	vehicles := []services.VehicleInput{{CarNumber: "O700OO777", CarBrand: "Fixture"}}
 	return services.CompleteApplicationRequest{
-		RequestIdempotencyKey: key, Organization: "Test Organization", DataApproval: true,
+		ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+		RequestIdempotencyKey:        key, Organization: "Test Organization", DataApproval: true,
 		ResponsiblePerson: "Fixture", ContactPhone: "+79000000000", FileIDs: fileIDs,
 		Attachments: []services.AttachmentData{{AttachmentType: "cars", AttachmentName: "operation_cars", AttachmentDisplayName: "Operation cars", UniqueAttachmentID: template,
 			EntryDateFrom: testutil.Ptr("2026-01-01"), EntryDateTo: testutil.Ptr("2099-12-31"), EntryTimeFrom: testutil.Ptr("08:00"), EntryTimeTo: testutil.Ptr("18:00"), Data: services.AttachmentContentData{Vehicles: &vehicles}}},
@@ -45,11 +46,11 @@ func TestApplicationOperation_SubmitReplayWithFilesAndCurrentAccess(t *testing.T
 	file := uploadDraftFile(t, e, token, "operation.png", realPNG(t))
 	req := operationSubmitRequest(t, db, operationTestKey(time.Now().UTC(), "a"), []int{file.ID})
 	body := transactionIntegrityJSON(t, req)
-	first := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	first := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
 	result := testutil.ParseResponse[services.CompleteApplicationResponse](t, first)
 	before := transactionIntegritySnapshot(t, db)
-	repeat := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	repeat := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, repeat.Code, repeat.Body.String())
 	require.Equal(t, result, testutil.ParseResponse[services.CompleteApplicationResponse](t, repeat))
 	require.Equal(t, before, transactionIntegritySnapshot(t, db), "replay must not duplicate business rows, history or notifications")
@@ -68,7 +69,7 @@ func TestApplicationOperation_SubmitReplayWithFilesAndCurrentAccess(t *testing.T
 	require.Equal(t, http.StatusOK, separate.Code, separate.Body.String())
 	require.NotEqual(t, result.ApplicationID, testutil.ParseResponse[services.CompleteApplicationResponse](t, separate).ApplicationID)
 	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "operation_sender").Update("is_active", false).Error)
-	denied := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	denied := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.NotEqual(t, http.StatusOK, denied.Code)
 }
 
@@ -194,7 +195,11 @@ func TestApplicationOperation_SupplementReplayPrecedesMutationStateAndDuplicateC
 	author, token := suppAuthor(t, e, db, "operation_supplement", td.OrgID, td.CompanyID)
 	app := suppApp(t, db, td.OrgID, author, "OP-SUPP", models.ConfirmationApproved, models.StatusInWork)
 	att := suppAttachment(t, db, app, "cars", "2099-12-31")
-	req := services.CreateSupplementRequest{RequestIdempotencyKey: operationTestKey(time.Now().UTC(), "d"), Additions: []services.SupplementAddition{{AttachmentID: att, Vehicles: []services.VehicleInput{{CarNumber: "S700SS777", CarBrand: "Fixture"}}}}}
+	req := services.CreateSupplementRequest{
+		ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+		DataApproval:                 true, RequestIdempotencyKey: operationTestKey(time.Now().UTC(), "d"),
+		Additions: []services.SupplementAddition{{AttachmentID: att, Vehicles: []services.VehicleInput{{CarNumber: "S700SS777", CarBrand: "Fixture"}}}},
+	}
 	route := fmt.Sprintf("/applications/%d/supplements", app)
 	body := transactionIntegrityJSON(t, req)
 	first := testutil.POST(t, e, route, body, testutil.AuthHeader(token))

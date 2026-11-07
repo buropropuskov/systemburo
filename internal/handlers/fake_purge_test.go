@@ -42,7 +42,7 @@ func TestFakePurge_RemovesEverythingBatchCreated(t *testing.T) {
 	label := uniq("fake-purge")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 4242, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 4242}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 4242}))
 
 	require.Greater(t, countTableRows(t, db, "applications"), before["applications"],
 		"наливка должна была создать заявки, иначе удалять нечего")
@@ -78,7 +78,7 @@ func TestFakePurge_PreviewKeepsData(t *testing.T) {
 	label := uniq("fake-preview")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 77, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 77}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 77}))
 
 	appsBefore := countTableRows(t, db, "applications")
 
@@ -110,7 +110,7 @@ func TestFakePurge_KeepsManualData(t *testing.T) {
 	label := uniq("fake-manual")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 5, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 5}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 5}))
 
 	_, err = fakedata.PurgeBatch(ctx, db, label, true)
 	require.NoError(t, err)
@@ -137,12 +137,12 @@ func TestFakePurge_KeepsSharedRecordsUsedByOtherBatch(t *testing.T) {
 	firstLabel := uniq("fake-shared-1")
 	first, err := fakedata.OpenBatch(ctx, db, firstLabel, 1, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 1}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 1}))
 
 	secondLabel := uniq("fake-shared-2")
 	second, err := fakedata.OpenBatch(ctx, db, secondLabel, 2, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 2}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 2}))
 
 	secondApps := countTableRows(t, db, "applications")
 
@@ -188,7 +188,7 @@ func TestFakePurge_RemovesPostsWithColumnsAndTargetLinks(t *testing.T) {
 	label := uniq("fake-purge-posts")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 6161, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 6161}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 6161}))
 
 	require.Greater(t, countTableRows(t, db, "car_target_tables"), before["car_target_tables"],
 		"наливка обязана была привязать машины к постам -- иначе проверять нечего")
@@ -322,7 +322,7 @@ func TestFakePurge_RemovesPostPermissionsWithGrants(t *testing.T) {
 	label := uniq("fake-purge-perms")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 1950, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1950}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1950}))
 
 	postIDs := batchPostIDs(t, db, batch.ID())
 	require.NotEmpty(t, postIDs, "наливка обязана была завести посты -- иначе проверять нечего")
@@ -377,7 +377,7 @@ func TestFakePurge_PreviewKeepsPostPermissions(t *testing.T) {
 	label := uniq("fake-preview-perms")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 1951, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1951}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1951}))
 
 	postIDs := batchPostIDs(t, db, batch.ID())
 	require.NotEmpty(t, postIDs)
@@ -427,7 +427,7 @@ func TestFakePurge_RemovesBlacklistFlagsOfDeletedApplications(t *testing.T) {
 	label := uniq("fake-purge-flags")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 1952, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1952}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1952}))
 
 	require.Positive(t, countTableRows(t, db, "application_blacklist_flags"),
 		"наливка обязана была пометить похожие на чёрный список элементы -- иначе проверять нечего")
@@ -461,12 +461,12 @@ func TestFakePurge_RemovesTargetLinksOfOtherBatchToDeletedPosts(t *testing.T) {
 	firstLabel := uniq("fake-posts-owner")
 	first, err := fakedata.OpenBatch(ctx, db, firstLabel, 1953, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 1953}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 1953}))
 
 	secondLabel := uniq("fake-posts-guest")
 	second, err := fakedata.OpenBatch(ctx, db, secondLabel, 1954, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 1954}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 1954}))
 
 	require.Empty(t, batchPostIDs(t, db, second.ID()),
 		"посты завела первая партия, вторая должна была найти их готовыми")

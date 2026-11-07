@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -14,15 +15,16 @@ import (
 
 // submitCarAppForCenter создаёт простую заявку с машиной и возвращает её id.
 // Вынесено, чтобы оба теста Центра ниже не дублировали тело CompleteApplicationRequest.
-func submitCarAppForCenter(t *testing.T, svc services.ApplicationService, username string, uaID int) int {
+func submitCarAppForCenter(t *testing.T, db *gorm.DB, svc services.ApplicationService, username string, uaID int) int {
 	t.Helper()
 	from := "2026-04-01"
 	to := "2099-12-31"
 	req := services.CompleteApplicationRequest{
-		Organization:      "Test Organization",
-		ResponsiblePerson: "Test Person",
-		ContactPhone:      "+79001234567",
-		DataApproval:      true,
+		ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+		Organization:                 "Test Organization",
+		ResponsiblePerson:            "Test Person",
+		ContactPhone:                 "+79001234567",
+		DataApproval:                 true,
 		Attachments: []services.AttachmentData{{
 			AttachmentType:        "cars",
 			AttachmentName:        "cars_template",
@@ -70,7 +72,7 @@ func TestApplicationsRefresh_OnMutation(t *testing.T) {
 		services.WithRealtimePublisher(fake),
 	)
 
-	appID := submitCarAppForCenter(t, svc, "actrsender", uaID)
+	appID := submitCarAppForCenter(t, db, svc, "actrsender", uaID)
 
 	fake.reset() // отбрасываем applications.refresh от самого submit
 
@@ -120,7 +122,7 @@ func TestUnreadCount_MutationPreservesReads(t *testing.T) {
 		recorder,
 	)
 
-	appID := submitCarAppForCenter(t, svc, "urmsender", uaID)
+	appID := submitCarAppForCenter(t, db, svc, "urmsender", uaID)
 
 	// approver прочитал заявку -> непрочитанных 0.
 	require.NoError(t, svc.MarkAsRead(context.Background(), appID, "urmapprover"))

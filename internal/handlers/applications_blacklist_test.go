@@ -38,7 +38,7 @@ func submitCarApp(t *testing.T, e *echo.Echo, db *gorm.DB, token, orgName, tag, 
 			"data": {"vehicles": [{"car_number": "%s", "car_brand": "Kamaz", "mark_id": %d}]}
 		}]
 	}`, orgName, uaID, carNumber, markID)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 // submitCarAppNoMark подаёт заявку с машиной БЕЗ mark_id (как при выборе из существующих
@@ -64,7 +64,7 @@ func submitCarAppNoMark(t *testing.T, e *echo.Echo, db *gorm.DB, token, orgName,
 			"data": {"vehicles": [{"car_number": "%s", "car_brand": "%s"}]}
 		}]
 	}`, orgName, uaID, carNumber, carBrand)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 // submitPersonApp подаёт полную заявку с одним человеком (ФИО) и возвращает recorder.
@@ -89,7 +89,7 @@ func submitPersonApp(t *testing.T, e *echo.Echo, db *gorm.DB, token, orgName, ta
 			"data": {"employees": [{"last_name": "%s", "first_name": "%s", "middle_name": "%s", "citizenship_id": %d, "position": "Worker", "passport_series_number": "1234 567890", "target_tables": [%d]}]}
 		}]
 	}`, orgName, uaID, last, first, middle, citizenshipID, tableID)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 // TestSubmitCompleteApplication_BlacklistGuard проверяет серверный гард ЧС (#443):

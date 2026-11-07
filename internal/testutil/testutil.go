@@ -110,6 +110,7 @@ var tables = []string{
 	"unique_employees", "unique_cars", "unique_attachments",
 	"application_answers", "application_question_attachments", "application_question_views", "application_question_reads", "application_questions",
 	"application_status_views", "application_reads", "application_viewers", "application_approvers", "application_responsible_users",
+	"application_confirmations", "application_confirmation_documents",
 	"application_supplement_approvals", "application_supplements",
 	// application_files чистится явно, а не каскадом от applications: черновики
 	// лежат с application_id NULL и каскад их не достаёт.

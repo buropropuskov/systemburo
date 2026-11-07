@@ -192,7 +192,7 @@ func TestSubmitCompleteApplication_DropsForeignReader(t *testing.T) {
 		}]
 	}`, colleagueID, bossID, strangerID, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, "чужой читатель отбрасывается молча, подача проходит: %s", rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 

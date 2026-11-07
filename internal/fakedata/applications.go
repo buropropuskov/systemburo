@@ -191,6 +191,10 @@ func (applicationsStep) Run(ctx context.Context, env *Env) error {
 		// сигналы адресованы (см. задание -- "минимальный набор без real-time публикаторов").
 	)
 
+	document, err := services.CurrentApplicationConfirmationRevision(ctx, env.DB)
+	if err != nil {
+		return fmt.Errorf("прочитать редакцию документа для учебных заявок: %w", err)
+	}
 	streams := newApplicationStreams(env.Seed)
 	now := time.Now().UTC()
 	created := make([]shiftedApplication, 0, env.Profile.Applications)
@@ -198,6 +202,7 @@ func (applicationsStep) Run(ctx context.Context, env *Env) error {
 	for i := 0; i < env.Profile.Applications; i++ {
 		applicant := Pick(streams.applicant, applicants)
 		req, sentAt := buildApplication(env.Profile, applicant, templates, vehiclePool, employeePool, tables, placeIDs, streams, now, i)
+		req.DocumentRevision = document
 
 		// canOverrideOrganization=false: заявка всегда идёт от организации/компании самого
 		// заявителя (drawAffiliation уже гарантировал ему хотя бы одну) -- так подаёт

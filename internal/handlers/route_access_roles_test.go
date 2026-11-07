@@ -177,6 +177,9 @@ func TestRouteAccess_ApplicationRoles(t *testing.T) {
 			if a.body != nil {
 				body = a.body(w, f, w.ids[actor])
 			}
+			if a.route == "POST /api/applications/:id/supplements" {
+				body = withSupplementConfirmation(t, w.db, body)
+			}
 			before := w.trace(t, f, w.ids[actor])
 			got := probeRoute(t, w.e, method, a.url(f), body, w.tokens[actor])
 			if slices.Contains(a.allowed, actor) {

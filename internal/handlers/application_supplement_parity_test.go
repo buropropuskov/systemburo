@@ -103,10 +103,11 @@ func TestSupplementParity_SameColumnsFilledAsSubmit(t *testing.T) {
 	require.NoError(t, db.Create(&submitEmp).Error)
 
 	// Те же данные, но через дополнение - реальным запросом, а не прямой вставкой.
-	body := fmt.Sprintf(`{"comment":"паритет","additions":[
+	revision := seedApplicationConfirmation(t, db).DocumentRevision
+	body := fmt.Sprintf(`{"data_approval":true,"document_revision":{"version":%d,"hash":%q},"comment":"паритет","additions":[
 		{"attachment_id":%d,"vehicles":[{"car_number":"Б222ББ777","car_brand":"ГАЗель","unload_place":"Ворота 1","unload_places":[],"passage_tables":[]}]},
 		{"attachment_id":%d,"employees":[{"last_name":"Дополненный","first_name":"Иван","position":"Монтажник","passport_series_number":"2222 222222","citizenship_id":%d,"target_tables":[]}]}
-	]}`, carAttID, peopleAttID, citizenship.ID)
+	]}`, revision.Version, revision.Hash, carAttID, peopleAttID, citizenship.ID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(authorToken))
 	require.Equal(t, http.StatusOK, rec.Code, "подача дополнения: %s", rec.Body.String())
 

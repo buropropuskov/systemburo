@@ -103,10 +103,10 @@ func getUserID(t *testing.T, db *gorm.DB, username string) int {
 }
 
 // createSimpleApplication creates a simple application via API and returns its ID.
-func createSimpleApplication(t *testing.T, e *echo.Echo, token string, orgID int) int {
+func createSimpleApplication(t *testing.T, db *gorm.DB, e *echo.Echo, token string, orgID int) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"organization_id":%d,"data_approval":true,"message":"test message"}`, orgID)
-	rec := testutil.POST(t, e, "/applications", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "create app: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.ApplicationCreateResponse](t, rec)
@@ -114,7 +114,7 @@ func createSimpleApplication(t *testing.T, e *echo.Echo, token string, orgID int
 }
 
 // submitCompleteApplication creates a full application with a cars attachment and returns app ID.
-func submitCompleteApplication(t *testing.T, e *echo.Echo, token string, orgName string, uaID int) int {
+func submitCompleteApplication(t *testing.T, db *gorm.DB, e *echo.Echo, token string, orgName string, uaID int) int {
 	t.Helper()
 	body := fmt.Sprintf(`{
 		"message": "complete app test",
@@ -140,7 +140,7 @@ func submitCompleteApplication(t *testing.T, e *echo.Echo, token string, orgName
 		}]
 	}`, orgName, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit complete app: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
@@ -180,7 +180,7 @@ func TestSubmitCompleteApplication_AddsReaders(t *testing.T) {
 		}]
 	}`, readerID, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 
@@ -241,7 +241,7 @@ func TestSubmitCompleteApplication_RequiredApprovalFromOrgPersists(t *testing.T)
 		}]
 	}`, td.OrgID, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 
@@ -290,7 +290,7 @@ func TestSubmitCompleteApplication_RequiredApprovalNotDowngradableByClient(t *te
 		}]
 	}`, td.OrgID, approverID, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 
@@ -341,7 +341,7 @@ func TestSubmitCompleteApplication_RequiredUsersRejectsForeignID(t *testing.T) {
 		}]
 	}`, td.OrgID, outsiderID, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "чужой id в required_users должен отклонять подачу: %s", rec.Body.String())
 
 	var appCount int64
@@ -385,7 +385,7 @@ func TestSubmitCompleteApplication_RequiredUsersAcceptsOrgMember(t *testing.T) {
 		}]
 	}`, td.OrgID, approverID, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 
@@ -439,7 +439,7 @@ func TestSubmitCompleteApplication_RequiredUsersEmptyWhenLinkBroken(t *testing.T
 		}]
 	}`, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, "подача без organization_id и без required_users не должна отклоняться: %s", rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 
@@ -544,7 +544,7 @@ func TestGetApplications_SearchFindsItemWork(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "itemsearch", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	var attID int
 	require.NoError(t, db.Raw(
@@ -580,7 +580,7 @@ func TestGetApplications_SearchFindsCarBrand(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "carbrandsearch", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	var attID int
 	require.NoError(t, db.Raw(
@@ -617,7 +617,7 @@ func TestGetApplications_SearchFindsAttachmentName(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "attnamesearch", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	require.NoError(t, db.Exec(
 		`INSERT INTO attachments (application_id, attachment_type, attachment_display_name, created_at, updated_at)
@@ -647,7 +647,7 @@ func TestGetUserApplications_ReturnsOwnApplications(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "sender1", "pass123", 1, td.OrgID, td.CompanyID)
-	createSimpleApplication(t, e, token, td.OrgID)
+	createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, "/applications/user", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -673,8 +673,8 @@ func TestGetUserApplications_AccessScoped(t *testing.T) {
 	ownToken := testutil.RegisterAndLogin(t, e, "scoped_owner", "pass123", 1, td.OrgID, td.CompanyID)
 	otherToken := testutil.RegisterAndLogin(t, e, "scoped_stranger", "pass123", 1, otherOrg.ID, td.CompanyID)
 
-	ownAppID := createSimpleApplication(t, e, ownToken, td.OrgID)
-	strangerAppID := createSimpleApplication(t, e, otherToken, otherOrg.ID)
+	ownAppID := createSimpleApplication(t, db, e, ownToken, td.OrgID)
+	strangerAppID := createSimpleApplication(t, db, e, otherToken, otherOrg.ID)
 
 	containsID := func(apps []map[string]interface{}, id int) bool {
 		for _, a := range apps {
@@ -714,7 +714,7 @@ func TestGetUserApplicationsPaginated_MetaTotal(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "userpage1", "pass123", 1, td.OrgID, td.CompanyID)
 	for i := 0; i < 3; i++ {
-		createSimpleApplication(t, e, token, td.OrgID)
+		createSimpleApplication(t, db, e, token, td.OrgID)
 	}
 
 	rec := testutil.GET(t, e, "/applications/user?per_page=2&page=1", testutil.AuthHeader(token))
@@ -743,7 +743,7 @@ func TestGetUserApplicationsPaginated_SearchWorks(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "userpagesearch", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 	require.NoError(t, db.Exec(
 		`UPDATE applications SET message = ? WHERE id = ?`, "Уникальное сообщение zzqxsearch", appID).Error)
 
@@ -781,8 +781,8 @@ func TestGetUserApplicationsPaginated_SenderFilter(t *testing.T) {
 	colleagueToken := testutil.RegisterAndLogin(t, e, "sender_colleague", "pass123", 1, td.OrgID, td.CompanyID)
 
 	ownUserID := getUserID(t, db, "sender_own")
-	ownAppID := createSimpleApplication(t, e, ownToken, td.OrgID)
-	colleagueAppID := createSimpleApplication(t, e, colleagueToken, td.OrgID)
+	ownAppID := createSimpleApplication(t, db, e, ownToken, td.OrgID)
+	colleagueAppID := createSimpleApplication(t, db, e, colleagueToken, td.OrgID)
 
 	rec := testutil.GET(t, e,
 		fmt.Sprintf("/applications/user?sender_user_id=%d&per_page=50&page=1", ownUserID),
@@ -821,7 +821,7 @@ func TestCreateApplication_Success(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "creator1", "pass123", 1, td.OrgID, td.CompanyID)
 
 	body := fmt.Sprintf(`{"organization_id":%d,"data_approval":true,"message":"test msg"}`, td.OrgID)
-	rec := testutil.POST(t, e, "/applications", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	resp := testutil.ParseResponse[services.ApplicationCreateResponse](t, rec)
@@ -838,7 +838,7 @@ func TestCreateApplication_DataApprovalRequired(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "creator2", "pass123", 1, td.OrgID, td.CompanyID)
 
 	body := fmt.Sprintf(`{"organization_id":%d,"data_approval":false}`, td.OrgID)
-	rec := testutil.POST(t, e, "/applications", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
@@ -853,7 +853,7 @@ func TestSubmitCompleteApplication_Success(t *testing.T) {
 	uaID := seedUniqueAttachment(t, db, "cars", "test_cars", "Test Cars")
 	token := testutil.RegisterAndLogin(t, e, "complete1", "pass123", 1, td.OrgID, td.CompanyID)
 
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 	assert.NotZero(t, appID)
 }
 
@@ -873,7 +873,7 @@ func TestSubmitCompleteApplication_NoAttachments(t *testing.T) {
 		"data_approval": true,
 		"attachments": []
 	}`
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
@@ -893,7 +893,7 @@ func TestSubmitCompleteApplication_DataApprovalRequired(t *testing.T) {
 		"data_approval": false,
 		"attachments": [{"attachment_type":"cars","attachment_name":"x","attachment_display_name":"X","unique_attachment_id":1,"data":{"vehicles":[{"car_number":"A000AA777","car_brand":"BMW"}]}}]
 	}`
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
@@ -927,7 +927,7 @@ func TestSubmitCompleteApplication_CompanyOnly(t *testing.T) {
 		}]
 	}`, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "company-only submit: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
@@ -967,7 +967,7 @@ func TestSubmitCompleteApplication_NoOrgNoCompany(t *testing.T) {
 		}]
 	}`, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "no org/company should be 400: %s", rec.Body.String())
 }
 
@@ -1000,7 +1000,7 @@ func TestGetApplicationByID_Success(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "getter1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1042,7 +1042,7 @@ func TestGetApplicationDetails_Success(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "details1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/details", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1060,7 +1060,7 @@ func TestGetResponsibleUsers_Empty(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "resp1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/responsible-users", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1080,7 +1080,7 @@ func TestGetResponsibleUsers_ExposesReminderFields(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "resp2", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	approverID := newReminderUser(t, db, "approver")
 	past := time.Now().Add(-2 * 24 * time.Hour)
@@ -1123,7 +1123,7 @@ func TestGetApplicationAttachments_WithCompleteApp(t *testing.T) {
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl", "Cars Template")
 	token := testutil.RegisterAndLogin(t, e, "att1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1143,7 +1143,7 @@ func TestGetAttachmentCars_WithCompleteApp(t *testing.T) {
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl2", "Cars Template 2")
 	token := testutil.RegisterAndLogin(t, e, "attcar1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	// Get attachment ID from the application
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
@@ -1173,7 +1173,7 @@ func TestGetAttachmentEmployees_Empty(t *testing.T) {
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl3", "Cars Template 3")
 	token := testutil.RegisterAndLogin(t, e, "attemp1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -1200,7 +1200,7 @@ func TestGetAttachmentItems_Empty(t *testing.T) {
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl4", "Cars Template 4")
 	token := testutil.RegisterAndLogin(t, e, "attitem1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -1226,7 +1226,7 @@ func TestGetApplicationHistory_Success(t *testing.T) {
 
 	uaID := seedUniqueAttachment(t, db, "cars", "hist_cars", "Hist Cars")
 	token := testutil.RegisterAndLogin(t, e, "hist1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1245,7 +1245,7 @@ func TestGetApplicationViewers_Empty(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "viewer1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/viewers", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1263,7 +1263,7 @@ func TestCheckApprovalStatus_Success(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "appstat1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/check-approval-status", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1292,7 +1292,7 @@ func TestForwardApplication_Success(t *testing.T) {
 	// Make sender an approver so they can forward
 	db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", senderID)
 
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Register viewer user
 	testutil.RegisterUser(t, e, "fwdviewer", "pass123", 1, td.OrgID, td.CompanyID)
@@ -1335,7 +1335,7 @@ func TestApproveApplication_Success(t *testing.T) {
 
 	// Sender creates application (responsible will be auto-assigned from org)
 	senderToken := testutil.RegisterAndLogin(t, e, "approvsender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Login as responsible
 	respToken, _ := testutil.LoginUser(t, e, "approveresp", "pass123")
@@ -1364,7 +1364,7 @@ func TestTakeApplicationToWork_Success(t *testing.T) {
 
 	// Sender creates application
 	senderToken := testutil.RegisterAndLogin(t, e, "ttwsender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	body := fmt.Sprintf(`{"user_id": %d, "action": "accept"}`, approverID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), body, testutil.AuthHeader(approverToken))
@@ -1386,7 +1386,7 @@ func TestTakeApplicationToWork_Reject(t *testing.T) {
 	rejToken, _ := testutil.LoginUser(t, e, "ttwrej", "pass123")
 
 	senderToken := testutil.RegisterAndLogin(t, e, "ttwsenderrej", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	body := fmt.Sprintf(`{"user_id": %d, "action": "reject", "comment": "not suitable"}`, rejID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), body, testutil.AuthHeader(rejToken))
@@ -1412,7 +1412,7 @@ func TestRevokeFromWork_Success(t *testing.T) {
 
 	// Create application and take to work first
 	senderToken := testutil.RegisterAndLogin(t, e, "revokesender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	takeBody := fmt.Sprintf(`{"user_id": %d, "action": "accept"}`, approverID)
 	testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), takeBody, testutil.AuthHeader(approverToken))
@@ -1439,7 +1439,7 @@ func TestRestoreToWork_Success(t *testing.T) {
 	approverToken, _ := testutil.LoginUser(t, e, "restoreappr", "pass123")
 
 	senderToken := testutil.RegisterAndLogin(t, e, "restoresender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Take to work, then reject, then restore
 	takeBody := fmt.Sprintf(`{"user_id": %d, "action": "reject", "comment": "rejected"}`, approverID)
@@ -1467,7 +1467,7 @@ func TestRevokeApproval_Success(t *testing.T) {
 	assignOrgUser(t, db, td.OrgID, respID, false)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "revokeapprsend", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// First approve
 	respToken, _ := testutil.LoginUser(t, e, "revokeapprvl", "pass123")
@@ -1510,7 +1510,7 @@ func TestApplicationLifecycle_CreateSubmitForwardApproveTakeToWork(t *testing.T)
 	approverToken, _ := testutil.LoginUser(t, e, "lcapprover", "pass123")
 
 	// 4. Submit complete application
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 	require.NotZero(t, appID)
 
 	// 5. Verify application appears in user list
@@ -1628,7 +1628,7 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 		]
 	}`, uaIDPeople, citizenshipID, tableID, uaIDItems)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)

@@ -49,7 +49,7 @@ func TestApplications_HistoryGolden_ManualEntryRoundTrip(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "goldman1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 	userID := getUserID(t, db, "goldman1")
 
 	details := map[string]interface{}{
@@ -99,7 +99,7 @@ func TestApplications_HistoryGolden_FlowShape(t *testing.T) {
 	assignOrgUser(t, db, td.OrgID, respID, true)
 	respToken, _ := testutil.LoginUser(t, e, "goldresp", "pass123")
 
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 	require.NotZero(t, appID)
 
 	approveBody := fmt.Sprintf(`{"user_id": %d, "status": "approved", "comment": "ok"}`, respID)
@@ -165,7 +165,7 @@ func TestApplications_WriteFlip_ReadAndWorkflowToAuditLog(t *testing.T) {
 
 	// --- appAccept: read -> take_to_work(accept) -> revoke_from_work ---
 
-	appAccept := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appAccept := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// read: принимающий открывает заявку со статусом "Непрочитано" -> action='read'.
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appAccept), testutil.AuthHeader(approverToken))
@@ -203,7 +203,7 @@ func TestApplications_WriteFlip_ReadAndWorkflowToAuditLog(t *testing.T) {
 
 	// --- appReject: take_to_work(reject) -> restore_to_work ---
 
-	appReject := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appReject := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// take_to_work(reject): принимающий отказывает в принятии заявки.
 	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appReject),
@@ -256,7 +256,7 @@ func TestApplications_WriteFlip_ForwardAndApprovalToAuditLog(t *testing.T) {
 	// --- Sub-test A: forward(resp+viewer) -> approve(approved) -> revoke_approval ---
 
 	t.Run("ForwardApproveRevoke", func(t *testing.T) {
-		appFwd := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appFwd := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 		// Пересылка: sender -> wf2resp(required_approval) + wf2view(viewer).
 		fwdBody := fmt.Sprintf(`{"users":[
@@ -334,7 +334,7 @@ func TestApplications_WriteFlip_ForwardAndApprovalToAuditLog(t *testing.T) {
 		rejID := getUserID(t, db, "wf2rej")
 		rejToken, _ := testutil.LoginUser(t, e, "wf2rej", "pass123")
 
-		appRej := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appRej := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 		// Пересылка: sender -> wf2rej(required_approval).
 		fwdBody := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, rejID)
@@ -372,7 +372,7 @@ func TestApplications_History_TiebreakerByID(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "tieapp1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 	userID := getUserID(t, db, "tieapp1")
 
 	ts := time.Now().UTC()

@@ -40,7 +40,7 @@ func setupBureauNoteScene(t *testing.T, e *echo.Echo, db *gorm.DB, prefix string
 	td := testutil.SeedTestData(t, db)
 
 	senderToken := testutil.RegisterAndLogin(t, e, prefix+"sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	approverToken := testutil.RegisterAndLogin(t, e, prefix+"approver", "pass123", 1, td.OrgID, td.CompanyID)
 	makeApprover(t, db, prefix+"approver")

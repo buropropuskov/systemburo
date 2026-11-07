@@ -69,11 +69,12 @@ func TestSubmitCompleteApplication_CenterAudienceIncludesReader(t *testing.T) {
 	to := "2099-12-31"
 	readers := []int{readerID}
 	req := services.CompleteApplicationRequest{
-		Organization:      "Test Organization",
-		ResponsiblePerson: "Test Person",
-		ContactPhone:      "+79001234567",
-		DataApproval:      true,
-		Readers:           &readers,
+		ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+		Organization:                 "Test Organization",
+		ResponsiblePerson:            "Test Person",
+		ContactPhone:                 "+79001234567",
+		DataApproval:                 true,
+		Readers:                      &readers,
 		Attachments: []services.AttachmentData{{
 			AttachmentType:        "cars",
 			AttachmentName:        "cars_template",

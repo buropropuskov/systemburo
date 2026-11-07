@@ -35,7 +35,7 @@ func TestFakeDictionaries_RunFillsRealDirectories(t *testing.T) {
 
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-dict"), 555, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 555}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 555}))
 
 	// --- справочники реально наполнены ---
 
@@ -99,7 +99,7 @@ func TestFakeDictionaries_RunFillsRealDirectories(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-dict-2"), 777, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 777}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 777}))
 }
 
 func hasName[T any](items []T, name func(T) string, want string) bool {
@@ -150,7 +150,7 @@ func TestFakeDictionaries_HistoryBelongsToAdmin(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-actor"), 777, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 777}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 777}))
 
 	var orphaned int64
 	require.NoError(t, db.Model(&models.AuditLog{}).

@@ -24,7 +24,7 @@ func TestWithdrawApplication_BySender(t *testing.T) {
 	senderToken := testutil.RegisterAndLogin(t, e, "wdsender", "pass123", 1, td.OrgID, td.CompanyID)
 	senderID := getUserID(t, db, "wdsender")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_wd", "Cars WD")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/withdraw", appID), "", testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -75,7 +75,7 @@ func TestWithdrawApplication_OnlySender(t *testing.T) {
 	senderToken := testutil.RegisterAndLogin(t, e, "wdowner", "pass123", 1, td.OrgID, td.CompanyID)
 	otherToken := testutil.RegisterAndLogin(t, e, "wdother", "pass123", 1, td.OrgID, td.CompanyID)
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_wd2", "Cars WD2")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/withdraw", appID), "", testutil.AuthHeader(otherToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code, "не-отправитель не может отозвать: %s", rec.Body.String())
@@ -94,7 +94,7 @@ func TestWithdrawApplication_BlocksReverseActions(t *testing.T) {
 	makeApprover(t, db, "wdapprover3")
 	approverID := getUserID(t, db, "wdapprover3")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_wd3", "Cars WD3")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	recW := testutil.POST(t, e, fmt.Sprintf("/applications/%d/withdraw", appID), "", testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, recW.Code, recW.Body.String())
@@ -114,7 +114,7 @@ func TestWithdrawApplication_DoubleWithdraw(t *testing.T) {
 
 	senderToken := testutil.RegisterAndLogin(t, e, "wdsender4", "pass123", 1, td.OrgID, td.CompanyID)
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_wd4", "Cars WD4")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	rec1 := testutil.POST(t, e, fmt.Sprintf("/applications/%d/withdraw", appID), "", testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec1.Code, rec1.Body.String())

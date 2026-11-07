@@ -31,7 +31,7 @@ func TestMarkAsRead_Success(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/read", appID), "", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -47,7 +47,7 @@ func TestMarkAsRead_Idempotent(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	// First call
 	rec1 := testutil.POST(t, e, fmt.Sprintf("/applications/%d/read", appID), "", testutil.AuthHeader(token))
@@ -82,7 +82,7 @@ func TestGetReads_Success(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, adminToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, adminToken, td.OrgID)
 
 	// Mark as read
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/read", appID), "", testutil.AuthHeader(adminToken))
@@ -104,7 +104,7 @@ func TestGetReads_Empty(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/reads", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -122,8 +122,8 @@ func TestGetUnreadCount_Success(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
 	// Create two applications
-	appID1 := createSimpleApplication(t, e, token, td.OrgID)
-	_ = createSimpleApplication(t, e, token, td.OrgID)
+	appID1 := createSimpleApplication(t, db, e, token, td.OrgID)
+	_ = createSimpleApplication(t, db, e, token, td.OrgID)
 
 	// Check unread count before reading
 	rec := testutil.GET(t, e, "/applications/unread-count", testutil.AuthHeader(token))
@@ -156,14 +156,14 @@ func TestGetApplications_ArchiveDefault_ExcludesArchived(t *testing.T) {
 
 	// Create an application that will be archived
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl", "Cars")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	// Make it archived: set status to Завершено and entry_date_to to > 1 month ago
 	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
 	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
 
 	// Create a normal active application
-	_ = createSimpleApplication(t, e, token, td.OrgID)
+	_ = createSimpleApplication(t, db, e, token, td.OrgID)
 
 	// Default (no archive param) should exclude archived
 	rec := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
@@ -188,12 +188,12 @@ func TestGetApplications_ArchiveTrue_ShowsOnlyArchived(t *testing.T) {
 
 	// Create an archived application
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl2", "Cars2")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
 	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
 
 	// Create a normal active application
-	_ = createSimpleApplication(t, e, token, td.OrgID)
+	_ = createSimpleApplication(t, db, e, token, td.OrgID)
 
 	// archive=true should show only archived
 	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
@@ -219,7 +219,7 @@ func TestGetApplications_Archive_IncludesRefused_ExcludesInWork(t *testing.T) {
 
 	archive := func(name string, status string) int {
 		uaID := seedUniqueAttachment(t, db, "cars", "tmpl_"+name, "Disp_"+name)
-		appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+		appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 		db.Model(&models.Application{}).Where("id = ?", appID).Update("status", status)
 		db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
 		return appID
@@ -272,7 +272,7 @@ func TestGetApplications_ArchiveRules(t *testing.T) {
 	// Заявка с одним вложением (по умолчанию действует до 2099) в заданном статусе.
 	closedApp := func(name, status string) int {
 		uaID := seedUniqueAttachment(t, db, "cars", "tmpl_"+name, "Disp_"+name)
-		appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+		appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
 			Update("status", status).Error)
 		return appID
@@ -383,7 +383,7 @@ func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
 
 	// Заявка, активная сегодня: период действия вложения охватывает текущую дату.
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_today", "CarsToday")
-	todayAppID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	todayAppID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 	db.Model(&models.Attachment{}).Where("application_id = ?", todayAppID).Updates(map[string]interface{}{
 		"entry_date_from": "2025-01-01",
 		"entry_date_to":   "2099-12-31",
@@ -391,7 +391,7 @@ func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
 
 	// Заявка с прошедшим периодом — попадает в общий список, но не в active_today.
 	uaID2 := seedUniqueAttachment(t, db, "cars", "cars_past", "CarsPast")
-	pastAppID := submitCompleteApplication(t, e, token, "Test Organization", uaID2)
+	pastAppID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID2)
 	db.Model(&models.Attachment{}).Where("application_id = ?", pastAppID).Updates(map[string]interface{}{
 		"entry_date_from": "2025-01-01",
 		"entry_date_to":   "2025-01-02",
@@ -421,7 +421,7 @@ func TestApproveApplication_ArchivedReturns403(t *testing.T) {
 
 	// Create and archive an application
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl4", "Cars4")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
 	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
 
@@ -442,7 +442,7 @@ func TestTakeToWork_ArchivedReturns403(t *testing.T) {
 
 	// Create and archive an application
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl5", "Cars5")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
 	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
 
@@ -481,7 +481,7 @@ func TestForwardAttachmentsRead(t *testing.T) {
 				 "data":{"vehicles":[{"car_number":"C001CC777","car_brand":"Mazda"}]}}
 			]
 		}`, uaID1, uaID2)
-		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 		require.Equal(t, http.StatusOK, rec.Code, "create: %s", rec.Body.String())
 		resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 

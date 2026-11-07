@@ -52,7 +52,7 @@ func TestSubmitCompleteApplication_BlankPassportStoredAsNull(t *testing.T) {
 		}]
 	}`, orgName, uaID, citizenshipID, tableID, citizenshipID, tableID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	var withHMAC int64

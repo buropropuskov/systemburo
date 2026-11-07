@@ -44,7 +44,7 @@ func TestPDAudit_ParticipantsViewLogged(t *testing.T) {
 
 	senderToken, _ := registerParticipant(t, e, db, "pda_sender",
 		"Отправителев", "Олег", "Олегович", "pda_sender@example.com", "+7 900 000 10 01", td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	path := fmt.Sprintf("/applications/%d/participants", appID)
 	rec := testutil.GET(t, e, path, testutil.AuthHeader(senderToken))
@@ -68,7 +68,7 @@ func TestPDAudit_ParticipantsDeniedLogged(t *testing.T) {
 
 	senderToken, _ := registerParticipant(t, e, db, "pda_owner",
 		"Владелев", "Владимир", "Владимирович", "pda_owner@example.com", "+7 900 000 10 02", td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	outsiderToken := testutil.RegisterAndLogin(t, e, "pda_outsider", participantPassword, 1, td.OrgID, td.CompanyID)
 

@@ -90,7 +90,7 @@ func TestFakePassages_RunMarksEntryAndExit(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-passages"), 9191, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9191}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9191}))
 
 	now := time.Now().UTC()
 
@@ -254,7 +254,7 @@ func TestFakePassages_RunMarksEntryAndExit(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-passages-2"), 9292, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9292}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9292}))
 	cars2 := readBatchCarPassages(t, db, batch2.ID())
 	require.NotEmpty(t, cars2, "повторный прогон тоже должен отметить проходы")
 }
@@ -274,7 +274,7 @@ func TestFakePassages_NoOpWhenNoApplications(t *testing.T) {
 
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-passages-empty"), 8181, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 8181}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 8181}))
 
 	require.Empty(t, readBatchCarPassages(t, db, batch.ID()))
 	require.Empty(t, readBatchEmployeePassages(t, db, batch.ID()))
@@ -294,7 +294,7 @@ func TestFakePassages_StayWithinPermitWindow(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-window"), 2211, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2211}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2211}))
 
 	var outsideWindow int64
 	require.NoError(t, db.Raw(`
@@ -331,7 +331,7 @@ func TestFakePassages_ReportedAsMarksNotRecords(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-passage-marks"), 9292, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9292}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9292}))
 
 	marks := batch.Marks()
 	require.Positive(t, marks[models.AuditEntityCar], "отмеченные машины должны попасть в отчёт")

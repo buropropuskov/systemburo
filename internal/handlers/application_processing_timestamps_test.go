@@ -83,7 +83,7 @@ func TestApplicationAcceptedAt_FirstTakeWins(t *testing.T) {
 	makeApprover(t, db, "apaapprover1")
 	approverID := getUserID(t, db, "apaapprover1")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_apa1", "Cars APA1")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	accepted, _, _ := readApplicationTimestamps(t, db, appID)
 	require.Nil(t, accepted, "до принятия в работу accepted_at пуст")
@@ -137,7 +137,7 @@ func TestApplicationCompletedAt_ExpiryWritesSystemAudit(t *testing.T) {
 	makeApprover(t, db, "apaapprover2")
 	approverID := getUserID(t, db, "apaapprover2")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_apa2", "Cars APA2")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 	takeToWork(t, e, approverToken, appID, approverID)
 
 	require.NoError(t, db.Exec("UPDATE attachments SET entry_date_to = '2020-01-01' WHERE application_id = ?", appID).Error)
@@ -191,7 +191,7 @@ func TestApplicationCompletedAt_RefusedApplicationNotCompleted(t *testing.T) {
 	makeApprover(t, db, "apaapprover4")
 	approverID := getUserID(t, db, "apaapprover4")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_apa4", "Cars APA4")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	rejectBody := fmt.Sprintf(`{"user_id": %d, "action": "reject", "comment": "не пропускаем"}`, approverID)
 	recReject := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), rejectBody, testutil.AuthHeader(approverToken))
@@ -228,9 +228,9 @@ func TestBackfillApplicationAcceptedAt_FromAuditLog(t *testing.T) {
 	approverID := getUserID(t, db, "apaapprover3")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_apa3", "Cars APA3")
 
-	acceptedApp := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	acceptedApp := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 	takeToWork(t, e, approverToken, acceptedApp, approverID)
-	untouchedApp := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	untouchedApp := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	// Состояние до-колоночной эры: событие в аудите есть, колонка пуста.
 	require.NoError(t, db.Exec("UPDATE applications SET accepted_at = NULL WHERE id = ?", acceptedApp).Error)

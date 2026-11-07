@@ -94,10 +94,11 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	from := "2026-04-01"
 	to := "2099-12-31"
 	req := services.CompleteApplicationRequest{
-		Organization:      "Test Organization",
-		ResponsiblePerson: "Test Person",
-		ContactPhone:      "+79001234567",
-		DataApproval:      true,
+		ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+		Organization:                 "Test Organization",
+		ResponsiblePerson:            "Test Person",
+		ContactPhone:                 "+79001234567",
+		DataApproval:                 true,
 		Attachments: []services.AttachmentData{{
 			AttachmentType:        "cars",
 			AttachmentName:        "cars_template",

@@ -1654,7 +1654,7 @@ func TestSubmitApplication_StoresInitiatorAndPhone(t *testing.T) {
 			"data": {"vehicles": [{"car_number": "Т777ТТ777", "car_brand": "Toyota"}]}
 		}]
 	}`, td.OrgID, uaID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 

@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"fmt"
+	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,26 +36,26 @@ func TestPDObjection_SubmitRejectsObjectedPerson(t *testing.T) {
 
 	// До отметки заявка с этим человеком проходит: убеждаемся, что дальше отклонит
 	// именно возражение, а не что-то другое в составе заявки.
-	before := submitPeopleApplication(t, e, h, uaID, "Возразивший", passport)
+	before := submitPeopleApplication(t, db, e, h, uaID, "Возразивший", passport)
 	require.NotEqual(t, http.StatusConflict, before.Code,
 		"без возражения заявка по этой причине не отклоняется: "+before.Body.String())
 
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees/"+itoa(id)+"/objection",
 		`{"source":"заявление в бюро"}`, h).Code)
 
-	after := submitPeopleApplication(t, e, h, uaID, "Возразивший", passport)
+	after := submitPeopleApplication(t, db, e, h, uaID, "Возразивший", passport)
 	assert.Equal(t, http.StatusConflict, after.Code, "после возражения заявка отклоняется")
 	assert.Contains(t, after.Body.String(), "возразил", "причина названа словами")
 
 	// Однофамилец с другим документом проходит: ищем по документу, а не по имени,
 	// иначе чужое возражение закрыло бы дорогу постороннему человеку.
-	other := submitPeopleApplication(t, e, h, uaID, "Возразивший", "4502 111000")
+	other := submitPeopleApplication(t, db, e, h, uaID, "Возразивший", "4502 111000")
 	assert.NotEqual(t, http.StatusConflict, other.Code,
 		"однофамилец с другим паспортом под чужое возражение не попадает: "+other.Body.String())
 }
 
 // submitPeopleApplication подаёт заявку с одним работником.
-func submitPeopleApplication(t *testing.T, e *echo.Echo, h http.Header, uaID int, lastName, passport string) *httptest.ResponseRecorder {
+func submitPeopleApplication(t *testing.T, db *gorm.DB, e *echo.Echo, h http.Header, uaID int, lastName, passport string) *httptest.ResponseRecorder {
 	t.Helper()
 	body := fmt.Sprintf(`{
 		"message": "проверка возражения",
@@ -77,5 +78,5 @@ func submitPeopleApplication(t *testing.T, e *echo.Echo, h http.Header, uaID int
 			}
 		}]
 	}`, uaID, lastName, passport)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, h)
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), h)
 }

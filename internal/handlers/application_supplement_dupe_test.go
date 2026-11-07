@@ -59,7 +59,7 @@ func TestSupplementDupe_RejectsRowAlreadyInAttachment(t *testing.T) {
 	}).Error)
 
 	post := func(body string) *httptest.ResponseRecorder {
-		return testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(token))
+		return testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	}
 
 	rec := post(fmt.Sprintf(`{"additions":[{"attachment_id":%d,"employees":[

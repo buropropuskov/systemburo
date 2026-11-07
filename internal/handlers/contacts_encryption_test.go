@@ -108,7 +108,7 @@ func TestApplicationContacts_PhoneEncryptedNameNot(t *testing.T) {
 				"citizenship_id": ` + itoa(citizenship.ID) + `, "pd_consent": true}]}
 		}]
 	}`
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/applications/submit-complete-application", body, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), h).Code)
 
 	var rawPhone, rawName string
 	require.NoError(t, db.Raw(`SELECT COALESCE(contact_phone,''), COALESCE(initiator_name,'')
@@ -140,7 +140,7 @@ func TestContacts_ParticipantsShowPlainContacts(t *testing.T) {
 	senderToken := testutil.RegisterAndLogin(t, e, "contact_sender", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/users/contact_sender/info",
 		`{"email":"sender.box@example.com","phone":"+7 (900) 765-43-21"}`, h).Code)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	list := participantsList(t, e, senderToken, appID)
 	require.Len(t, list, 1)

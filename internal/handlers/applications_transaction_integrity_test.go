@@ -83,7 +83,7 @@ func transactionIntegrityRequest(t *testing.T, db *gorm.DB, kind string, n, citi
 		}
 		att.Data.Vehicles = &rows
 	}
-	return services.CompleteApplicationRequest{Organization: "Test Organization", DataApproval: true,
+	return services.CompleteApplicationRequest{ApplicationConfirmationInput: seedApplicationConfirmation(t, db), Organization: "Test Organization", DataApproval: true,
 		ResponsiblePerson: "Fixture", ContactPhone: "+79000000000", Attachments: []services.AttachmentData{att}}
 }
 

@@ -45,7 +45,7 @@ func forward2666Setup(t *testing.T, withdrawn bool) forward2666Fixture {
 	testutil.RegisterUser(t, e, "forward2666_target", "pass123", 1, td.OrgID, td.CompanyID)
 	f.targetID = getUserID(t, db, "forward2666_target")
 	uniqueID := seedUniqueAttachment(t, db, "cars", "forward2666_material", "Test material")
-	f.appID = submitCompleteApplication(t, e, f.sender, "Test Organization", uniqueID)
+	f.appID = submitCompleteApplication(t, db, e, f.sender, "Test Organization", uniqueID)
 	for _, role := range []string{"responsible", "viewer"} {
 		id := getUserID(t, db, "forward2666_"+role)
 		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", f.appID), forwardBody(id, false, role == "viewer"), testutil.AuthHeader(f.sender))

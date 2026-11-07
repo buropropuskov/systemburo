@@ -55,7 +55,7 @@ func TestSupplementEntitiesBatch_BoundariesMappingAndRollback(t *testing.T) {
 		require.NoError(t, db.Create(&oldItem).Error)
 		require.NoError(t, db.Create(&models.ApplicationResponsibleUser{ApplicationID: appID, UserID: voterID, RequiredApproval: true,
 			ApprovalStatus: testutil.Ptr("approved"), ApprovalComment: testutil.Ptr("Existing approval"), ApprovalDatetime: &now, CreatedAt: now}).Error)
-		req := services.CreateSupplementRequest{}
+		req := services.CreateSupplementRequest{ApplicationConfirmationInput: seedApplicationConfirmation(t, db), DataApproval: true}
 		if cars > 0 {
 			rows := make([]services.VehicleInput, cars)
 			for i := range rows {

@@ -87,10 +87,12 @@ test.describe('Модалка подробностей уведомления', 
     from.setUTCDate(from.getUTCDate() + 1);
     const to = new Date(from);
     to.setUTCDate(to.getUTCDate() + 1);
+    const { version, hash } = await apiGet(request, token, '/consents/gate');
     const application = await apiPost(request, token, '/applications/submit-complete-application', {
       organization_id: organization.id, organization: organization.name,
       responsible_person: 'E2E notification applicant', contact_phone: '+79001234567',
       data_approval: true,
+      document_revision: { version, hash },
       message: 'Private application comment must not become a notification preview',
       attachments: [{
         attachment_type: 'cars', attachment_name: template.name,

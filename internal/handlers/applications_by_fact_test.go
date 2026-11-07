@@ -63,10 +63,10 @@ func TestSubmitByFact_SecondApplicationRejected(t *testing.T) {
 	uaID := seedUniqueAttachment(t, db, "cars", "fact_tmpl_"+t.Name(), "Fact Template")
 
 	today := todayMSK()
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", byFactBody(uaID, today, today), testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, byFactBody(uaID, today, today)), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "первая заявка «По факту» должна проходить: %s", rec.Body.String())
 
-	rec = testutil.POST(t, e, "/applications/submit-complete-application", byFactBody(uaID, today, today), testutil.AuthHeader(token))
+	rec = testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, byFactBody(uaID, today, today)), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code,
 		"вторая заявка «По факту» при живой первой должна отклоняться: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "действующая заявка",
@@ -83,7 +83,7 @@ func TestSubmitByFact_AllowedAfterFirstExpired(t *testing.T) {
 	uaID := seedUniqueAttachment(t, db, "cars", "fact_tmpl_"+t.Name(), "Fact Template")
 
 	today := todayMSK()
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", byFactBody(uaID, today, today), testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, byFactBody(uaID, today, today)), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// Срок первой закончился минуту назад по Москве - место освободилось.
@@ -93,7 +93,7 @@ func TestSubmitByFact_AllowedAfterFirstExpired(t *testing.T) {
 		msk.Format("2006-01-02"), msk.Format("15:04:05"),
 	).Error)
 
-	rec = testutil.POST(t, e, "/applications/submit-complete-application", byFactBody(uaID, today, today), testutil.AuthHeader(token))
+	rec = testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, byFactBody(uaID, today, today)), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code,
 		"после истечения срока первой заявки вторую подать можно: %s", rec.Body.String())
 }
@@ -108,13 +108,13 @@ func TestSubmitByFact_ClosedApplicationDoesNotBlock(t *testing.T) {
 	uaID := seedUniqueAttachment(t, db, "cars", "fact_tmpl_"+t.Name(), "Fact Template")
 
 	today := todayMSK()
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", byFactBody(uaID, today, today), testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, byFactBody(uaID, today, today)), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// Отозванная заявка место не занимает: срок у неё ещё «живой», но сама она закрыта.
 	require.NoError(t, db.Exec(`UPDATE applications SET status = ?`, models.StatusWithdrawn).Error)
 
-	rec = testutil.POST(t, e, "/applications/submit-complete-application", byFactBody(uaID, today, today), testutil.AuthHeader(token))
+	rec = testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, byFactBody(uaID, today, today)), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code,
 		"закрытая заявка не должна блокировать новую: %s", rec.Body.String())
 }
@@ -156,7 +156,7 @@ func TestSubmitByFact_TomorrowAllowed(t *testing.T) {
 	tomorrow := msk.AddDate(0, 0, 1).Format("2006-01-02")
 
 	rec := testutil.POST(t, e, "/applications/submit-complete-application",
-		byFactBody(uaID, today, tomorrow), testutil.AuthHeader(token))
+		withApplicationConfirmation(t, db, byFactBody(uaID, today, tomorrow)), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code,
 		"срок до конца завтрашнего дня укладывается в сутки с запасом: %s", rec.Body.String())
 }
@@ -175,7 +175,7 @@ func TestSubmitByFact_MultiDayPeriodRejected(t *testing.T) {
 	afterTomorrow := msk.AddDate(0, 0, 2).Format("2006-01-02")
 
 	rec := testutil.POST(t, e, "/applications/submit-complete-application",
-		byFactBody(uaID, today, afterTomorrow), testutil.AuthHeader(token))
+		withApplicationConfirmation(t, db, byFactBody(uaID, today, afterTomorrow)), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code,
 		"срок «По факту» дальше суток с запасом не пускаем: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "не позже",
@@ -214,7 +214,7 @@ func TestSubmitByFact_SecondVehicleInSameApplicationRejected(t *testing.T) {
 		}]
 	}`, uaID, today, today)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code,
 		"две машины «По факту» в одной заявке обходили бы ограничение: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "только одна машина")
@@ -254,7 +254,7 @@ func TestSupplementByFact_SecondVehicleRejected(t *testing.T) {
 		}]
 	}`, attID, placeID, tableID)
 
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusBadRequest, rec.Code,
 		"вторая машина «По факту» через дополнение обходила бы ограничение: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "только одна машина")
@@ -289,7 +289,7 @@ func TestSupplementByFact_NamedVehicleAllowed(t *testing.T) {
 		}]
 	}`, attID, placeID, tableID)
 
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code,
 		"машина с номером дополнением добавляется как раньше: %s", rec.Body.String())
 }
@@ -324,7 +324,7 @@ func TestSubmitByFact_NamedVehiclesUnaffected(t *testing.T) {
 	}`, uaID)
 
 	for i := 0; i < 2; i++ {
-		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 		require.Equal(t, http.StatusOK, rec.Code,
 			"ограничение не должно задевать заявки с номерами: %s", rec.Body.String())
 	}

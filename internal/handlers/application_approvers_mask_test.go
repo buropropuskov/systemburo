@@ -90,7 +90,7 @@ func TestApprovers_Mask_AppliedToResponsibleAndHistory(t *testing.T) {
 	// Сендер создаёт заявку; принимающий читает и берёт в работу -> responsible = принимающий.
 	senderToken := testutil.RegisterAndLogin(t, e, "masksndr", "pass123", 1, td.OrgID, td.CompanyID)
 	senderH := testutil.AuthHeader(senderToken)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(approverToken))
 	require.Equal(t, http.StatusOK, rec.Code, "approver read: %s", rec.Body.String())

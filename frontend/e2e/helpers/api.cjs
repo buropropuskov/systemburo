@@ -64,9 +64,12 @@ async function createUniqueAttachment(token, data) {
 }
 
 async function submitCompleteApplication(token, data) {
+  const gate = await apiAuth('/api/consents/gate', token);
+  if (!gate.ok) throw new Error(`Consent document: HTTP ${gate.status}`);
+  const { version, hash } = unwrap(await gate.json());
   const res = await apiAuth('/applications/submit-complete-application', token, {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, document_revision: { version, hash } }),
   });
   return unwrap(await res.json());
 }

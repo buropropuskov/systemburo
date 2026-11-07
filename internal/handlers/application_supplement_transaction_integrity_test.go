@@ -41,7 +41,7 @@ func TestSupplementTransactionIntegrity_BothBranchesRollbackAndRecover(t *testin
 			// Compare database representations on both sides: pgx may decode
 			// UTC timestamps using time.Local even when the instant is identical.
 			require.NoError(t, db.First(&vote, vote.ID).Error)
-			req := services.CreateSupplementRequest{Additions: []services.SupplementAddition{{
+			req := services.CreateSupplementRequest{ApplicationConfirmationInput: seedApplicationConfirmation(t, db), DataApproval: true, Additions: []services.SupplementAddition{{
 				AttachmentID: attID, Employees: transactionIntegrityEmployees(2, citizenship, []int{tableID}),
 			}}}
 			originalApp := suppReadApplication(t, db, appID)

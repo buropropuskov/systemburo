@@ -162,7 +162,7 @@ func TestTakeToWork_WritesAddedToTableHistory(t *testing.T) {
 					"target_tables": [%d]}]}}
 		]
 	}`, carUA, carsTable, pplUA, citizenshipID, peopleTable)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 	require.NotZero(t, appID)
@@ -230,7 +230,7 @@ func TestTakeToWork_NoDuplicateAddedToTableOnReAccept(t *testing.T) {
 			"unique_attachment_id": %d, "entry_date_from": "2026-04-01", "entry_date_to": "2099-12-31",
 			"data": {"vehicles": [{"car_number": "R555RR177", "car_brand": "Kia", "passage_tables": [%d]}]}}]
 	}`, carUA, carsTable)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
 

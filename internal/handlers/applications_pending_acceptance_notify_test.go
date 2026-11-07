@@ -59,7 +59,7 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
 			"data":{"vehicles":[{"car_number":"K222KK177","car_brand":"Lada"}]}}]
 	}`, uaID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(authorToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(authorToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var forApprover []models.Notification
@@ -165,7 +165,7 @@ func TestSubmit_ApproverWhoSubmittedIsNotCalledToOwnApplication(t *testing.T) {
 			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
 			"data":{"vehicles":[{"car_number":"M333MM177","car_brand":"Lada"}]}}]
 	}`, uaID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var count int64

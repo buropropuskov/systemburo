@@ -129,7 +129,7 @@ func TestSupplementCreate_NotInWork_MergesIntoCurrentRound(t *testing.T) {
 			"vehicles": [{"car_number":"X001XX777","car_brand":"КамАЗ","unload_places":[%d],"passage_tables":[%d]}]
 		}]
 	}`, attID, placeID, tableID)
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "создание дополнения: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CreateSupplementResponse](t, rec)
@@ -217,7 +217,7 @@ func TestSupplementCreate_InWork_KeepsApplicationVerdictIntact(t *testing.T) {
 			"employees": [{"last_name":"Иванов","first_name":"Пётр","citizenship_id":%d,"position":"монтажник","passport_series_number":"1234 567890","target_tables":[%d]}]
 		}]
 	}`, attID, citizenship.ID, tableID)
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "создание дополнения: %s", rec.Body.String())
 
 	resp := testutil.ParseResponse[services.CreateSupplementResponse](t, rec)
@@ -283,7 +283,7 @@ func TestSupplementCreate_Guards(t *testing.T) {
 		return fmt.Sprintf(`{"additions":[{"attachment_id":%d,"vehicles":[{"car_number":"%s","car_brand":"КамАЗ"}]}]}`, attachmentID, number)
 	}
 	post := func(token string, targetApp int, body string) *httptest.ResponseRecorder {
-		return testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", targetApp), body, testutil.AuthHeader(token))
+		return testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", targetApp), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	}
 
 	t.Run("пустой additions - 400", func(t *testing.T) {
@@ -369,7 +369,7 @@ func TestSupplementList_VisibleToParticipantsOnly(t *testing.T) {
 	attID := suppAttachment(t, db, appID, "items", "2099-12-31")
 
 	body := fmt.Sprintf(`{"comment":"добавили инструмент","additions":[{"attachment_id":%d,"items":[{"name":"Перфоратор","count":2,"order_index":1}]}]}`, attID)
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements", appID), withSupplementConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "создание дополнения: %s", rec.Body.String())
 
 	// ТМЦ помечены раундом: у них нет status, и провенанс - единственное, чем их отличают.

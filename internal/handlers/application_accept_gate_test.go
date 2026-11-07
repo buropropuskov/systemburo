@@ -24,7 +24,7 @@ func TestTakeToWork_RequiresApproval(t *testing.T) {
 		td := testutil.SeedTestData(t, db)
 
 		senderToken := testutil.RegisterAndLogin(t, e, "agsender", "pass123", 1, td.OrgID, td.CompanyID)
-		appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 		// принимающий (isApprover)
 		approverToken := testutil.RegisterAndLogin(t, e, "agapprover", "pass123", 1, td.OrgID, td.CompanyID)
@@ -59,7 +59,7 @@ func TestTakeToWork_RequiresApproval(t *testing.T) {
 		td := testutil.SeedTestData(t, db)
 
 		senderToken := testutil.RegisterAndLogin(t, e, "agsender2", "pass123", 1, td.OrgID, td.CompanyID)
-		appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+		appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 		approverToken := testutil.RegisterAndLogin(t, e, "agapprover2", "pass123", 1, td.OrgID, td.CompanyID)
 		makeApprover(t, db, "agapprover2")
