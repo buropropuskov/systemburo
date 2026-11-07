@@ -30,6 +30,7 @@ func setupFakeDataDB(t *testing.T) *gorm.DB {
 // записи шаг честно падает. На живом стенде администратор есть всегда (make staging-seed).
 func seedFakeAdmin(t *testing.T, db *gorm.DB) models.User {
 	t.Helper()
+	seedApplicationConfirmation(t, db)
 	admin := models.User{
 		Username:     uniq("fake_admin"),
 		Password:     "x",

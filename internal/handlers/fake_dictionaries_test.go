@@ -136,6 +136,7 @@ func TestFakeDictionaries_HistoryBelongsToAdmin(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	ctx := context.Background()
 	testutil.CleanDB(t, db)
+	seedApplicationConfirmation(t, db)
 
 	admin := models.User{
 		Username:     uniq("fake_admin"),

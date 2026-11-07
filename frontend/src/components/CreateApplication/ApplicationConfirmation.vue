@@ -25,7 +25,7 @@
       width="720px"
       @close="expanded = false"
     >
-      <article v-html="safeText" />
+      <article class="confirmation-document" v-html="safeText" />
     </BaseModal>
     <div v-if="failed">
       Не удалось загрузить документ.
@@ -101,7 +101,8 @@ input {
   flex-shrink: 0;
 }
 
-article {
+.confirmation-document {
+  padding: 16px 20px;
   overflow-wrap: anywhere;
 }
 </style>

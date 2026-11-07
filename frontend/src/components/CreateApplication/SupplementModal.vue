@@ -288,6 +288,7 @@ import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
 import ApplicationConfirmation from './ApplicationConfirmation.vue';
+import { applicationConfirmationState } from './applicationConfirmationState';
 import { prepareApplicationCommand, finishApplicationCommand, rememberApplicationCommandDraft, restoreApplicationCommandDraft, recoverApplicationCommand } from '@/services/applicationCommand';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
@@ -363,6 +364,7 @@ function humanDate(value) {
 
 export default {
     name: 'SupplementModal',
+    mixins: [applicationConfirmationState('rowsByAttachment')],
     components: {
         ApplicationConfirmation,
         SchedulePlaceWarningPanel,
@@ -434,8 +436,6 @@ export default {
             // Строки копим ПО ВЛОЖЕНИЯМ: смена вложения в дропдауне не должна терять
             // уже набранное, а контракт additions[] и так принимает несколько целей.
             rowsByAttachment: {},
-            consentGiven: null,
-            confirmationRefresh: 0,
             rowIdCounter: 1,
             comment: '',
             submitting: false,
@@ -553,12 +553,6 @@ export default {
         },
     },
     watch: {
-        rowsByAttachment: {
-            deep: true,
-            handler() {
-                this.consentGiven = null;
-            },
-        },
         show(open) {
             setModalOpen(this, open, 10010);
             setBodyScrollLock(this, open);
@@ -748,8 +742,7 @@ export default {
             } catch (e) {
                 finishApplicationCommand(command, e.status);
                 if (e.documentRevisionChanged) {
-                    this.consentGiven = null;
-                    this.confirmationRefresh++;
+                    this.refreshConfirmation();
                 }
                 deletions.notify({
                     bold: e.status === 409

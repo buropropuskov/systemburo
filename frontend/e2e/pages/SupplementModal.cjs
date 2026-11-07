@@ -15,6 +15,7 @@ class SupplementModal {
     this.period = this.root.getByTestId('supplement-period');
     this.attachmentDropdown = this.root.getByTestId('supplement-attachment');
     this.comment = this.root.getByTestId('supplement-comment');
+    this.confirmation = this.root.getByTestId('supplement-consent-checkbox');
     this.submitButton = this.root.getByTestId('supplement-submit');
     this.closeButton = this.root.getByTestId('supplement-button-close');
     this.employeeForm = new EmployeeFormSection(this.root);
@@ -37,6 +38,8 @@ class SupplementModal {
 
   async submit(comment) {
     await this.comment.fill(comment);
+    await expect(this.submitButton).toBeDisabled();
+    await this.confirmation.check();
     await expect(this.submitButton).toBeEnabled();
     await this.submitButton.click();
     await expect(this.root).toBeHidden();

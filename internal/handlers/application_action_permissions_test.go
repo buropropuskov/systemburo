@@ -191,7 +191,7 @@ func TestS5Action_DuplicateMandatoryAssignment(t *testing.T) {
 			body := map[string]any{"organization_id": td.OrgID, "organization": "Test Organization", "company_id": td.CompanyID, "data_approval": true, "message": "synthetic", "responsible_person": "Synthetic", "contact_phone": "+79000000000", "attachments": []any{map[string]any{"attachment_type": "cars", "attachment_name": "cars_template", "attachment_display_name": "Synthetic", "unique_attachment_id": uaID, "entry_date_from": now.AddDate(0, 0, -7).Format("2006-01-02"), "entry_date_to": now.AddDate(0, 0, 7).Format("2006-01-02"), "entry_time_from": "00:00", "entry_time_to": "23:59", "data": map[string]any{"vehicles": []any{map[string]any{"car_number": "A123AA777", "car_brand": "Synthetic"}}}}}}
 			data, err := json.Marshal(body)
 			require.NoError(t, err)
-			rec := testutil.POST(t, e, path, string(data), testutil.AuthHeader(sender))
+			rec := testutil.POST(t, e, path, withApplicationConfirmation(t, db, string(data)), testutil.AuthHeader(sender))
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			var assignments int64
 			require.NoError(t, db.Table("application_responsible_users").Where("user_id = ? AND required_approval = true", id).Count(&assignments).Error)
@@ -199,7 +199,7 @@ func TestS5Action_DuplicateMandatoryAssignment(t *testing.T) {
 			require.NoError(t, db.Create(&models.UserPermissionOverride{UserID: id, PermissionKey: services.KeyActionApproveApplication, Value: "deny"}).Error)
 			var before, after int64
 			require.NoError(t, db.Table("applications").Count(&before).Error)
-			rec = testutil.POST(t, e, path, string(data), testutil.AuthHeader(sender))
+			rec = testutil.POST(t, e, path, withApplicationConfirmation(t, db, string(data)), testutil.AuthHeader(sender))
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 			require.Contains(t, rec.Body.String(), "не может согласовать")
 			require.NoError(t, db.Table("applications").Count(&after).Error)

@@ -29,6 +29,7 @@ func TestFakeBlacklists_RunFillsBlacklistsWithSimilarPairs(t *testing.T) {
 	// проверка "есть похожая пара" читала бы чужие данные вместо только что созданных
 	// этим прогоном.
 	testutil.CleanDB(t, db)
+	seedApplicationConfirmation(t, db)
 
 	admin := models.User{
 		Username:     uniq("fake_bl_admin"),

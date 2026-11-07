@@ -204,10 +204,6 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		if reserveErr != nil || replayed {
 			return reserveErr
 		}
-		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
-		if err != nil {
-			return err
-		}
 		// Перечитываем заявку под блокировкой строки: между гардом выше и вставкой её могли
 		// отозвать, закрыть или принять в работу - а от статуса зависит сама ветка поведения.
 		var locked struct {
@@ -226,6 +222,10 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 			return echo.NewHTTPError(http.StatusBadRequest, "Дополнение без добавленных строк")
 		}
 		if err := ValidateSupplementComposition(req); err != nil {
+			return err
+		}
+		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
 			return err
 		}
 

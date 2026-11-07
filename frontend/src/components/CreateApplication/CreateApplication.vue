@@ -442,6 +442,7 @@ import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import ApplicationConfirmation from './ApplicationConfirmation.vue';
+import { applicationConfirmationState } from './applicationConfirmationState';
 import BlankImportPanel from './BlankImportPanel.vue';
 import {
     findFirstDuplicate,
@@ -490,7 +491,7 @@ function isQuotaExceededError(error) {
 }
 
 export default {
-    mixins: [applicationCommandRecovery],
+    mixins: [applicationCommandRecovery, applicationConfirmationState('attachments', 'vehiclesByAttachment', 'employeesByAttachment', 'itemsByAttachment')],
     name: 'CreateApplication',
     components: {
         ApplicationFilesUpload,
@@ -530,8 +531,6 @@ export default {
             company: '',
             responsiblePerson: '',
             phoneNumber: '',
-            consentGiven: null,
-            confirmationRefresh: 0,
             // На телефоне ссылка "согласие" открывает эту модалку вместо новой вкладки
             // с /data-processing (там <embed> PDF на мобилке не рендерится).
             applicationNumber: 1,
@@ -1056,16 +1055,7 @@ export default {
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
         if (this._blankObserver) this._blankObserver.disconnect();
     },
-    watch: {
-        attachments: { deep: true, handler: 'resetConfirmation' },
-        vehiclesByAttachment: { deep: true, handler: 'resetConfirmation' },
-        employeesByAttachment: { deep: true, handler: 'resetConfirmation' },
-        itemsByAttachment: { deep: true, handler: 'resetConfirmation' },
-    },
     methods: {
-        resetConfirmation() {
-            this.consentGiven = null;
-        },
         /**
          * Заголовок вложения «прилипает» под шапкой при скролле формы. Sentinel
          * перед ним уходит за верхнюю линию (шапка 55px) - значит заголовок
@@ -2851,8 +2841,7 @@ export default {
                 } else {
                     finishApplicationCommand(command, response.status);
                     if (response.headers.get('X-Document-Revision-Changed') === 'true') {
-                        this.consentGiven = null;
-                        this.confirmationRefresh++;
+                        this.refreshConfirmation();
                     }
                     notifyApiError('Ошибка отправки заявки: ', await response.text(), undefined, response.status);
                 }

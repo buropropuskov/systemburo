@@ -2341,10 +2341,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		if reserveErr != nil || replayed {
 			return reserveErr
 		}
-		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
-		if err != nil {
-			return err
-		}
 		if len(req.Attachments) == 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
 		}
@@ -2356,6 +2352,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 
 		if err := ValidateSubmitComposition(req); err != nil {
+			return err
+		}
+		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
 			return err
 		}
 

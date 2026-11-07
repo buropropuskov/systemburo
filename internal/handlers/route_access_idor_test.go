@@ -226,7 +226,11 @@ func TestRouteAccess_IDOR(t *testing.T) {
 			if p.body == nil {
 				return ""
 			}
-			return p.body(fx, uid)
+			payload := p.body(fx, uid)
+			if key == "POST /api/applications/:id/supplements" {
+				return withSupplementConfirmation(t, w.db, payload)
+			}
+			return payload
 		}
 
 		before := w.trace(t, fx.app, stranger)

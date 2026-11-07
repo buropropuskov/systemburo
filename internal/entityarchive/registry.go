@@ -106,6 +106,7 @@ func organizationNodes() []Node {
 		// Событие принадлежит заявке. При обратном импорте заявка и её
 		// раунды дополнений должны существовать раньше события.
 		{"notification_intents", "application_id IN (" + orgApps + ")"},
+		{"application_confirmations", "application_id IN (" + orgApps + ")"},
 		{"application_supplements", "application_id IN (" + orgApps + ")"},
 		{"application_files", "application_id IN (" + orgApps + ")"},
 		{"application_status_views", "application_id IN (" + orgApps + ")"},
