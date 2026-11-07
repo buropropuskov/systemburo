@@ -19,6 +19,7 @@ umask 077
 ENVIRONMENT="${1:-local}"
 DB_ARCHIVE="${2:-}"
 cd "$(dirname "$0")/.."
+. ./scripts/backup-snapshot.sh
 
 case "$ENVIRONMENT" in
   local)      COMPOSE=(docker compose) ;;
@@ -38,7 +39,6 @@ set -a; . ./.env; set +a
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/systemburo}"
 DB_USER="${DB_USER:-postgres}"
-CHECK_DB="restore_check_$(date +%s)"
 AGE_IDENTITY="${AGE_IDENTITY:-}"
 LOG_FILE="${BACKUP_DIR}/backup.log"
 
@@ -61,13 +61,18 @@ if [ -z "$DB_ARCHIVE" ] || [ ! -f "$DB_ARCHIVE" ]; then
 fi
 log "проверяю $(basename "$DB_ARCHIVE")"
 
-WORK_DIR="$(mktemp -d)"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/restore-check.XXXXXXXXXXXX")"
+CHECK_SUFFIX="${WORK_DIR##*.}"
+CHECK_DB="restore_check_${CHECK_SUFFIX,,}"
+CHECK_CREATED=false
 cleanup() {
   rm -rf "$WORK_DIR"
   # Временную базу убираем при любом исходе, иначе неудачная проверка оставит
   # мусор, который со временем займёт место молча.
-  "${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres \
-    -c "DROP DATABASE IF EXISTS ${CHECK_DB};" >/dev/null 2>&1 || true
+  if [ "$CHECK_CREATED" = true ]; then
+    "${COMPOSE[@]}" exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres \
+      -c "DROP DATABASE ${CHECK_DB};" >/dev/null || log "ОШИБКА: не удалось удалить временную базу ${CHECK_DB}"
+  fi
 }
 trap cleanup EXIT
 
@@ -87,17 +92,38 @@ case "$DB_ARCHIVE" in
   *) cp "$DB_ARCHIVE" "${WORK_DIR}/db.dump" ;;
 esac
 
-"${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres -c "CREATE DATABASE ${CHECK_DB};" >/dev/null
-"${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "${CHECK_DB}" --no-owner \
+EXPECTED_COUNTS=""
+case "$DB_ARCHIVE" in
+  *.dump.v1|*.dump.v1.age)
+    MANIFEST="$(dirname -- "$DB_ARCHIVE")/$(backup_manifest_name "$DB_ARCHIVE")"
+    if [ ! -f "$MANIFEST" ]; then
+      log "ОШИБКА: контрольный файл новой копии отсутствует"
+      exit 1
+    fi
+    mapfile -t fields < "$MANIFEST"
+    if [[ ${#fields[@]} != 3 || ${fields[0]} != v1 || ! ${fields[1]} =~ ^[0-9a-f]{64}$ || ! ${fields[2]} =~ $BACKUP_COUNTS_PATTERN ]]; then
+      log "ОШИБКА: неверный формат контрольного файла"
+      exit 1
+    fi
+    digest="$(sha256sum < "${WORK_DIR}/db.dump")"
+    if [ "${digest%% *}" != "${fields[1]}" ]; then
+      log "ОШИБКА: архив не соответствует контрольной сумме"
+      exit 1
+    fi
+    EXPECTED_COUNTS="${fields[2]}"
+    ;;
+esac
+
+"${COMPOSE[@]}" exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres -c "CREATE DATABASE ${CHECK_DB};" >/dev/null
+CHECK_CREATED=true
+"${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "${CHECK_DB}" --no-owner --exit-on-error \
   < "${WORK_DIR}/db.dump" >/dev/null
 
 # Успешное восстановление ещё не значит пригодную копию: пустые таблицы
 # восстанавливаются без единой ошибки. Поэтому смотрим на наполнение.
-COUNTS="$("${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "${CHECK_DB}" -At -F' ' -c \
-  "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM applications), (SELECT count(*) FROM system_tables);")"
-USERS="$(echo "$COUNTS" | awk '{print $1}')"
-APPS="$(echo "$COUNTS" | awk '{print $2}')"
-TABLES="$(echo "$COUNTS" | awk '{print $3}')"
+COUNTS="$("${COMPOSE[@]}" exec -T db psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "${CHECK_DB}" -qAt -F '|' -c "$BACKUP_COUNTS_SQL")"
+[[ "$COUNTS" =~ $BACKUP_COUNTS_PATTERN ]]
+IFS='|' read -r USERS APPS TABLES <<< "$COUNTS"
 
 log "во временной копии: учётных записей $USERS, заявок $APPS, таблиц постов $TABLES"
 
@@ -106,4 +132,11 @@ if [ "${USERS:-0}" -lt 1 ]; then
   exit 1
 fi
 
-log "копия пригодна для восстановления"
+if [ -z "$EXPECTED_COUNTS" ]; then
+  log "старая копия восстановлена; сверка с исходными числами недоступна"
+elif [ "$COUNTS" != "$EXPECTED_COUNTS" ]; then
+  log "ОШИБКА: количество записей не совпало с контрольными данными"
+  exit 1
+else
+  log "копия восстановлена; контрольные числа совпали"
+fi
