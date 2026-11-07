@@ -485,20 +485,6 @@ export default {
   gap: 12px;
 }
 
-.loader {
-  width: 30px;
-  height: 30px;
-  border: 3px solid var(--surface-2);
-  border-top: 3px solid var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 /* Фон не задаём: это страница, её фон - --bg от body. Своя заливка в --surface делала
    «Обзор и новости» единственным экраном с карточным цветом во всю площадь. */
 .news {
