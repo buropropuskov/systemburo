@@ -253,7 +253,7 @@ func TestWithdrawApplication_NotifiesOnlyPendingApprovers(t *testing.T) {
 
 	senderToken := testutil.RegisterAndLogin(t, e, "wdnsender", "pass123", 1, td.OrgID, td.CompanyID)
 	senderID := getUserID(t, db, "wdnsender")
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Обязательный согласующий, ещё не проголосовавший - его решения ждут.
 	testutil.RegisterUser(t, e, "wdnpending", "pass123", 1, td.OrgID, td.CompanyID)
@@ -302,7 +302,7 @@ func TestTakeApplicationToWork_Accept_SetsResponsibleToActor(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "acsender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	approverToken := testutil.RegisterAndLogin(t, e, "acapprover", "pass123", 1, td.OrgID, td.CompanyID)
 	makeApprover(t, db, "acapprover")

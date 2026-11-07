@@ -234,6 +234,12 @@
                 data-testid="supplement-comment"
               />
             </div>
+            <ApplicationConfirmation
+              :key="confirmationRefresh"
+              v-model="consentGiven"
+              label="Подтверждаю, что добавляемые лица уведомлены об обработке персональных данных и сведения переданы правомерно"
+              test-id="supplement-consent-checkbox"
+            />
             <div class="supp-modal__actions">
               <button
                 type="button"
@@ -281,6 +287,7 @@ import EmployeesList from '@/components/CreateApplication/EmployeesList.vue';
 import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
+import ApplicationConfirmation from './ApplicationConfirmation.vue';
 import { prepareApplicationCommand, finishApplicationCommand, rememberApplicationCommandDraft, restoreApplicationCommandDraft, recoverApplicationCommand } from '@/services/applicationCommand';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
@@ -357,6 +364,7 @@ function humanDate(value) {
 export default {
     name: 'SupplementModal',
     components: {
+        ApplicationConfirmation,
         SchedulePlaceWarningPanel,
         BaseDropdown,
         VehicleForm,
@@ -426,6 +434,8 @@ export default {
             // Строки копим ПО ВЛОЖЕНИЯМ: смена вложения в дропдауне не должна терять
             // уже набранное, а контракт additions[] и так принимает несколько целей.
             rowsByAttachment: {},
+            consentGiven: null,
+            confirmationRefresh: 0,
             rowIdCounter: 1,
             comment: '',
             submitting: false,
@@ -531,17 +541,24 @@ export default {
             return this.activeAttachments.flatMap(a => a.attachment_type === 'people' ? employeeDocumentErrors(this.rowsByAttachment[a.id], this.fieldConfigByAttachment[a.unique_attachment_id]) : []);
         },
         canSubmit() {
-            return !this.submitting && this.totalRows > 0 && this.documentErrors.length === 0;
+            return !this.submitting && this.totalRows > 0 && this.documentErrors.length === 0 && Boolean(this.consentGiven);
         },
         submitHint() {
             if (this.canSubmit || this.submitting) return '';
             if (!this.attachmentOptions.length) return 'У заявки нет действующих вложений';
             if (!this.selectedAttachmentId) return 'Выберите вложение заявки';
             if (this.documentErrors.length) return this.documentErrors.join('. ');
-            return 'Добавьте хотя бы одну строку';
+            if (!this.totalRows) return 'Добавьте хотя бы одну строку';
+            return 'Подтвердите правомерность передачи данных';
         },
     },
     watch: {
+        rowsByAttachment: {
+            deep: true,
+            handler() {
+                this.consentGiven = null;
+            },
+        },
         show(open) {
             setModalOpen(this, open, 10010);
             setBodyScrollLock(this, open);
@@ -715,7 +732,10 @@ export default {
             let command;
             try {
                 const trimmed = this.comment.trim();
-                const payload = { comment: trimmed || null, additions };
+                const payload = {
+                    comment: trimmed || null, additions,
+                    data_approval: true, document_revision: this.consentGiven,
+                };
                 command = await prepareApplicationCommand(`application.supplement:${this.application.id}`, payload);
                 if (!command.result) rememberApplicationCommandDraft(command, {
                     rowsByAttachment: this.rowsByAttachment, rowIdCounter: this.rowIdCounter,
@@ -727,6 +747,10 @@ export default {
                 this.acceptSubmittedResult(result);
             } catch (e) {
                 finishApplicationCommand(command, e.status);
+                if (e.documentRevisionChanged) {
+                    this.consentGiven = null;
+                    this.confirmationRefresh++;
+                }
                 deletions.notify({
                     bold: e.status === 409
                         // 409 приходит и на «уже есть незакрытый раунд», и на закрытый статус

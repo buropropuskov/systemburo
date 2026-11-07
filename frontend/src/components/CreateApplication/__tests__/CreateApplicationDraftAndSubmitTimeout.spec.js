@@ -47,7 +47,7 @@ async function mountApp() {
 // Строка формы, готовая пройти submitValidation без обращения к справочникам:
 // isExisting:true исключает её из "новых для привязки" - подача идёт прямиком
 // в sendCompleteApplication, минуя модалку UniversalBindingModal.
-function fillSubmittableState(w) {
+async function fillSubmittableState(w) {
     w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
     w.vm.employeesByAttachment = {
         p1: [{ id: 1, lastName: 'Иванов', firstName: 'Иван', middleName: '', isExisting: true }],
@@ -60,7 +60,8 @@ function fillSubmittableState(w) {
     w.vm.organization = 'ООО Ромашка';
     w.vm.responsiblePerson = 'Иванов И.И.';
     w.vm.phoneNumber = '+7 999 123-45-67';
-    w.vm.consentGiven = true;
+    await w.vm.$nextTick();
+    w.vm.consentGiven = { version: 1, hash: 'fixture' };
 }
 
 describe('CreateApplication - черновик при массовом добавлении (E2)', () => {
@@ -157,7 +158,7 @@ describe('CreateApplication - подача большого списка не р
 
     it('повторное нажатие "Отправить заявку" во время подачи не шлёт второй запрос', async () => {
         const w = await mountApp();
-        fillSubmittableState(w);
+        await fillSubmittableState(w);
 
         let resolveSubmit;
         apiRequestMock.mockImplementation((path) => {
@@ -193,7 +194,7 @@ describe('CreateApplication - подача большого списка не р
 
     it('кнопка подачи блокируется и меняет текст, пока идёт отправка', async () => {
         const w = await mountApp();
-        fillSubmittableState(w);
+        await fillSubmittableState(w);
 
         let resolveSubmit;
         apiRequestMock.mockImplementation((path) => {

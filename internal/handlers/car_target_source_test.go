@@ -40,7 +40,7 @@ func TestCarTargetSource_SubmitWritesApplicationSource(t *testing.T) {
 			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
 			"data":{"vehicles":[{"car_number":"E111EE177","car_brand":"Lada","passage_tables":[%d]}]}}]
 	}`, uaID, tbl.ID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var source string

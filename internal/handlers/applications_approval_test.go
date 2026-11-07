@@ -28,7 +28,7 @@ func TestApprovalWorkflow(t *testing.T) {
 				td := testutil.SeedTestData(t, db)
 
 				senderToken := testutil.RegisterAndLogin(t, e, "ar_sender1", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+				appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 				// Two required responsible users
 				testutil.RegisterUser(t, e, "ar_resp1a", "pass123", 1, td.OrgID, td.CompanyID)
@@ -85,7 +85,7 @@ func TestApprovalWorkflow(t *testing.T) {
 				td := testutil.SeedTestData(t, db)
 
 				senderToken := testutil.RegisterAndLogin(t, e, "ar_sender2", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+				appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 				testutil.RegisterUser(t, e, "ar_resp2a", "pass123", 1, td.OrgID, td.CompanyID)
 				resp1ID := getUserID(t, db, "ar_resp2a")
@@ -126,7 +126,7 @@ func TestApprovalWorkflow(t *testing.T) {
 				td := testutil.SeedTestData(t, db)
 
 				senderToken := testutil.RegisterAndLogin(t, e, "ar_sender3", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+				appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 				testutil.RegisterUser(t, e, "ar_resp3a", "pass123", 1, td.OrgID, td.CompanyID)
 				respID := getUserID(t, db, "ar_resp3a")
@@ -157,7 +157,7 @@ func TestApprovalWorkflow(t *testing.T) {
 				td := testutil.SeedTestData(t, db)
 
 				senderToken := testutil.RegisterAndLogin(t, e, "ar_sender4", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+				appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 				testutil.RegisterUser(t, e, "ar_resp4a", "pass123", 1, td.OrgID, td.CompanyID)
 				respID := getUserID(t, db, "ar_resp4a")
@@ -187,7 +187,7 @@ func TestApprovalWorkflow(t *testing.T) {
 				td := testutil.SeedTestData(t, db)
 
 				senderToken := testutil.RegisterAndLogin(t, e, "ar_sender5", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+				appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 				testutil.RegisterUser(t, e, "ar_resp5a", "pass123", 1, td.OrgID, td.CompanyID)
 				respID := getUserID(t, db, "ar_resp5a")
@@ -230,7 +230,7 @@ func TestApprovalWorkflow(t *testing.T) {
 				td := testutil.SeedTestData(t, db)
 
 				senderToken := testutil.RegisterAndLogin(t, e, "ar_sender6", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+				appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 				testutil.RegisterUser(t, e, "ar_req6", "pass123", 1, td.OrgID, td.CompanyID)
 				reqID := getUserID(t, db, "ar_req6")
@@ -306,7 +306,7 @@ func TestForwardAttachments(t *testing.T) {
 				 "data":{"vehicles":[{"car_number":"C001CC777","car_brand":"Mazda"}]}}
 			]
 		}`, uaID1, uaID2)
-		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 		require.Equal(t, http.StatusOK, rec.Code, "create: %s", rec.Body.String())
 		resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 		appID = resp.ApplicationID

@@ -389,6 +389,7 @@ type ApplicationFilter struct {
 
 // ApplicationCreateRequest тело запроса на создание простой заявки.
 type ApplicationCreateRequest struct {
+	ApplicationConfirmationInput
 	OrganizationID *int    `json:"organization_id"`
 	CompanyID      *int    `json:"company_id"`
 	Message        *string `json:"message"`
@@ -397,6 +398,7 @@ type ApplicationCreateRequest struct {
 
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
+	ApplicationConfirmationInput
 	RequestIdempotencyKey string  `json:"request_idempotency_key,omitempty"`
 	Message               *string `json:"message"`
 	// Organization и Company - наименования организации и компании в прежнем контракте
@@ -1655,6 +1657,10 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 
 	var app models.Application
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
+			return err
+		}
 		app = models.Application{
 			ApplicationNumber: &applicationNumber,
 			OrganizationID:    safeDerefInt(req.OrganizationID),
@@ -1670,6 +1676,10 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 		if err := tx.Create(&app).Error; err != nil {
 			slog.Error("Ошибка создания заявки", "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
+		}
+
+		if err := saveApplicationConfirmation(tx, document, app.ID, nil, user.ID, now, []models.ApplicationConfirmedRow{}); err != nil {
+			return err
 		}
 
 		// Собираем ответственных из организации и компании
@@ -2331,8 +2341,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		if reserveErr != nil || replayed {
 			return reserveErr
 		}
-		if !req.DataApproval {
-			return echo.NewHTTPError(http.StatusBadRequest, "Data approval is required")
+		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
+			return err
 		}
 		if len(req.Attachments) == 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
@@ -2803,6 +2814,13 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			}
 		}
 
+		rows, err := applicationConfirmedRows(tx, appID, nil)
+		if err != nil {
+			return err
+		}
+		if err := saveApplicationConfirmation(tx, document, appID, nil, user.ID, baseTime, rows); err != nil {
+			return err
+		}
 		pendingDirectories := NotificationPendingDirectoryIDs{}
 		if orgRef.PendingName != "" {
 			pendingDirectories.OrganizationID = orgRef.ID

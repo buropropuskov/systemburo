@@ -22,7 +22,7 @@ func TestApplications_ParticipantCannotForgeStatusOrHistory(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "forger1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
+	appID := createSimpleApplication(t, db, e, token, td.OrgID)
 
 	var before models.Application
 	require.NoError(t, db.First(&before, appID).Error)

@@ -55,7 +55,7 @@ func seedEmployeeViaCompleteApp(t *testing.T, e *echo.Echo, db *gorm.DB, token s
 		}]
 	}`, orgName, uaID, citizenshipID, tableID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit complete app: %s", rec.Body.String())
 
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)

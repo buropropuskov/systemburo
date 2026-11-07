@@ -198,7 +198,7 @@ func TestRemainingTransactionIntegrity_EightCallbacksAndHTTPRecovery(t *testing.
 			svc := services.NewApplicationService(db, permissionSpy, services.NewNotificationService(db),
 				services.NewVehicleBlacklistService(db, recorder), services.NewPersonBlacklistService(db, recorder), recorder,
 				services.WithRealtimePublisher(pub))
-			createReq := services.ApplicationCreateRequest{OrganizationID: &td.OrgID, DataApproval: true}
+			createReq := services.ApplicationCreateRequest{ApplicationConfirmationInput: seedApplicationConfirmation(t, db), OrganizationID: &td.OrgID, DataApproval: true}
 			forwardReq := services.ForwardApplicationRequest{Users: []services.ForwardUser{{UserID: ids[recipient], RequiredApproval: true}, {UserID: ids[viewer], CanView: true}}, AttachmentIDs: []int{attID}}
 			invoke := func() error {
 				switch tc.operation {

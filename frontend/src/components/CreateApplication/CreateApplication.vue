@@ -75,26 +75,13 @@
               class="consent-section"
               data-testid="ob-app-consent"
             >
-              <div class="consent-checkbox">
-                <input
-                  id="consent"
-                  v-model="consentGiven"
-                  type="checkbox"
-                  data-testid="create-app-consent-checkbox"
-                  required
-                >
-                <label for="consent">
-                  Подтверждаю, что указанные в заявке лица уведомлены об <a
-                    href="/data-processing"
-                    target="_blank"
-                    rel="noopener"
-                    class="blue consent-link"
-                    data-testid="create-app-consent-link"
-                    @click.stop="onConsentClick"
-                  >обработке персональных данных</a> и сведения переданы
-                  правомерно
-                </label>
-              </div>
+              <ApplicationConfirmation
+                :key="confirmationRefresh"
+                v-model="consentGiven"
+                class="consent-checkbox"
+                label="Подтверждаю, что указанные в заявке лица уведомлены об обработке персональных данных и сведения переданы правомерно"
+                test-id="create-app-consent-checkbox"
+              />
               <div
                 class="submit-button-container"
                 :data-testid="'create-app-submit-wrapper'"
@@ -420,11 +407,6 @@
     <!-- #1183: единая плавающая панель предупреждений выбранных мест (режим/текст/окна). -->
     <SchedulePlaceWarningPanel :groups="warningGroups" />
 
-    <!-- #1380: на телефоне согласие открывается модалкой с содержимым, не новой вкладкой. -->
-    <DataProcessingModal
-      :show="showConsentModal"
-      @close="showConsentModal = false"
-    />
   </div>
 </template>
 
@@ -459,7 +441,7 @@ import TextConstructor from '@/components/text-constructor/TextConstructorLazy';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
-import DataProcessingModal from '@/components/DataProcessingModal.vue';
+import ApplicationConfirmation from './ApplicationConfirmation.vue';
 import BlankImportPanel from './BlankImportPanel.vue';
 import {
     findFirstDuplicate,
@@ -528,7 +510,7 @@ export default {
         TextConstructor,
         ApplicationRecipientsRow,
         DuplicateConflictModal,
-        DataProcessingModal,
+        ApplicationConfirmation,
         BlankImportPanel
     },
     data() {
@@ -548,10 +530,10 @@ export default {
             company: '',
             responsiblePerson: '',
             phoneNumber: '',
-            consentGiven: false,
+            consentGiven: null,
+            confirmationRefresh: 0,
             // На телефоне ссылка "согласие" открывает эту модалку вместо новой вкладки
             // с /data-processing (там <embed> PDF на мобилке не рендерится).
-            showConsentModal: false,
             applicationNumber: 1,
             allUnloadingPlaces: [],
 
@@ -1074,7 +1056,16 @@ export default {
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
         if (this._blankObserver) this._blankObserver.disconnect();
     },
+    watch: {
+        attachments: { deep: true, handler: 'resetConfirmation' },
+        vehiclesByAttachment: { deep: true, handler: 'resetConfirmation' },
+        employeesByAttachment: { deep: true, handler: 'resetConfirmation' },
+        itemsByAttachment: { deep: true, handler: 'resetConfirmation' },
+    },
     methods: {
+        resetConfirmation() {
+            this.consentGiven = null;
+        },
         /**
          * Заголовок вложения «прилипает» под шапкой при скролле формы. Sentinel
          * перед ним уходит за верхнюю линию (шапка 55px) - значит заголовок
@@ -1089,17 +1080,6 @@ export default {
                 { rootMargin: '-56px 0px 0px 0px', threshold: 0 },
             );
             this._blankObserver.observe(sentinel);
-        },
-
-        // На телефоне открываем согласие модалкой (в ней PDF рендерит pdf.js), на десктопе -
-        // отдаём нативной ссылке href="/data-processing" (там <embed> работает). Порог 768px
-        // совпадает с sheet-брейкпоинтом BaseModal, чтобы модалка выезжала снизу листом.
-        onConsentClick(e) {
-            if (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-                && window.matchMedia('(max-width: 767.98px)').matches) {
-                e.preventDefault();
-                this.showConsentModal = true;
-            }
         },
 
         async loadPassageTables() {
@@ -2746,7 +2726,8 @@ export default {
                 company_name: this.companyId ? null : (this.company || null),
                 responsible_person: this.responsiblePerson,
                 contact_phone: this.phoneNumber.replace(/\D/g, ''),
-                data_approval: this.consentGiven,
+                data_approval: Boolean(this.consentGiven),
+                document_revision: this.consentGiven,
                 // Читатели-получатели (#884): только просмотр заявки после подачи.
                 readers: this.readers.map(r => r.user_id),
                 attachments: []
@@ -2869,6 +2850,10 @@ export default {
                     this.acceptSubmittedApplication(result);
                 } else {
                     finishApplicationCommand(command, response.status);
+                    if (response.headers.get('X-Document-Revision-Changed') === 'true') {
+                        this.consentGiven = null;
+                        this.confirmationRefresh++;
+                    }
                     notifyApiError('Ошибка отправки заявки: ', await response.text(), undefined, response.status);
                 }
             } catch (error) {
@@ -3046,7 +3031,6 @@ export default {
                     companyId: this.companyId,
                     responsiblePerson: this.responsiblePerson,
                     phoneNumber: this.phoneNumber,
-                    consentGiven: this.consentGiven,
                     readers: this.readers,
                     applicationFileIds: [...this.applicationFileIds],
 
@@ -3112,7 +3096,7 @@ export default {
                     if ('companyId' in parsedData) this.companyId = parsedData.companyId || null;
                     if (parsedData.responsiblePerson) this.responsiblePerson = parsedData.responsiblePerson;
                     if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
-                    this.consentGiven = parsedData.consentGiven || false;
+                    this.consentGiven = null;
                     this.readers = parsedData.readers || [];
                     this.applicationFileIds = (parsedData.applicationFileIds || []).filter(id => Number.isInteger(id) && id > 0);
 
@@ -3504,8 +3488,7 @@ export default {
     }
 
     .consent-checkbox {
-        display: flex;
-        gap: 10px;
+        min-width: 0;
     }
 
     .consent-checkbox input[type="checkbox"] {

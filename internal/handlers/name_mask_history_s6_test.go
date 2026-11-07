@@ -32,7 +32,7 @@ func TestS6History_ApplicationHTTPMasksAllActorParts(t *testing.T) {
 	actor := setUserName(t, db, "s6_history_operator", "PrivateLastS6", "PrivateFirstS6", "PrivateMiddleS6")
 	label := "Оператор бюро"
 	require.NoError(t, db.Create(&models.ApplicationApprover{UserID: actor, DisplayName: &label}).Error)
-	appID := createSimpleApplication(t, e, sender, seed.OrgID)
+	appID := createSimpleApplication(t, db, e, sender, seed.OrgID)
 	// Administrative identity disclosure does not grant access to an unrelated
 	// application. Give this viewer the existing explicit viewing relationship.
 	require.NoError(t, db.Create(&models.ApplicationViewer{ApplicationID: appID, UserID: getUserID(t, db, "s6_history_admin")}).Error)

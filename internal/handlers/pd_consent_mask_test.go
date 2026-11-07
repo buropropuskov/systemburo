@@ -147,7 +147,7 @@ func TestPDConsentMask_ApplicationSender_MaskedByLogin(t *testing.T) {
 	makeApprover(t, db, "testadmin")
 	sender := testutil.RegisterAndLogin(t, e, "mask_sender", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	setUserName(t, db, "mask_sender", "Заявкин", "Афанасий", "Афанасьевич")
-	createSimpleApplication(t, e, sender, td.OrgID)
+	createSimpleApplication(t, db, e, sender, td.OrgID)
 
 	before := applicationSenderNames(t, e, admin)
 	require.Contains(t, before, "Заявкин", "до включения запроса согласия ФИО на месте")

@@ -49,7 +49,7 @@ func seedCarViaCompleteApp(t *testing.T, e *echo.Echo, db *gorm.DB, token string
 		}]
 	}`, orgName, uaID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit complete app: %s", rec.Body.String())
 
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
@@ -193,7 +193,7 @@ func TestSubmitCar_PassageTablesWrittenAndScoped(t *testing.T) {
 			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
 			"data":{"vehicles":[{"car_number":"C777CC177","car_brand":"Kia","passage_tables":[%d]}]}}]
 	}`, uaID, tblA.ID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Связь «Проезд» записана подачей.
@@ -244,7 +244,7 @@ func TestGetAttachmentCars_IncludesTargetTables(t *testing.T) {
 			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
 			"data":{"vehicles":[{"car_number":"D555DD177","car_brand":"Volvo","passage_tables":[%d]}]}}]
 	}`, uaID, tbl.ID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 
@@ -747,7 +747,7 @@ func TestCarWithUnloadPlaces(t *testing.T) {
 		}]
 	}`, uaID, up.ID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)

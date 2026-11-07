@@ -53,7 +53,7 @@ async function mountApp() {
 // Сотрудник не существующий и не "по факту" - collectNewDataForBinding() (по дефолту
 // /unique-employees отдаёт пустой список) сочтёт его новым, и подача пойдёт через
 // UniversalBindingModal, а не прямиком в sendCompleteApplication.
-function fillStateWithNewEmployee(w) {
+async function fillStateWithNewEmployee(w) {
     w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
     w.vm.employeesByAttachment = {
         p1: [{
@@ -77,7 +77,8 @@ function fillStateWithNewEmployee(w) {
     w.vm.organization = 'ООО Ромашка';
     w.vm.responsiblePerson = 'Иванов И.И.';
     w.vm.phoneNumber = '+7 999 123-45-67';
-    w.vm.consentGiven = true;
+    await w.vm.$nextTick();
+    w.vm.consentGiven = { version: 1, hash: 'fixture' };
 }
 
 // Подменяет apiRequest так, что submit-complete-application зависает, пока тест
@@ -135,7 +136,7 @@ const bindingDataWithEmployeeBinding = {
 describe('CreateApplication - гард isSubmitting держит путь через модалку привязки', () => {
     it('новые сущности открывают модалку привязки вместо прямой подачи, isSubmitting остаётся true', async () => {
         const w = await mountApp();
-        fillStateWithNewEmployee(w);
+        await fillStateWithNewEmployee(w);
 
         await w.vm.submitApplication();
 
@@ -146,7 +147,7 @@ describe('CreateApplication - гард isSubmitting держит путь чер
 
     it('confirmBinding: повторный клик по кнопке подачи во время висящего POST не шлёт второй запрос', async () => {
         const w = await mountApp();
-        fillStateWithNewEmployee(w);
+        await fillStateWithNewEmployee(w);
         const submit = hangSubmitCompleteApplication();
 
         await w.vm.submitApplication();
@@ -181,7 +182,7 @@ describe('CreateApplication - гард isSubmitting держит путь чер
 
     it('skipBinding: повторный клик во время висящего POST после пропуска привязки не шлёт второй запрос', async () => {
         const w = await mountApp();
-        fillStateWithNewEmployee(w);
+        await fillStateWithNewEmployee(w);
         const submit = hangSubmitCompleteApplication();
 
         await w.vm.submitApplication();
@@ -208,7 +209,7 @@ describe('CreateApplication - гард isSubmitting держит путь чер
 
     it('закрытие модалки крестиком/оверлеем без подтверждения снимает isSubmitting', async () => {
         const w = await mountApp();
-        fillStateWithNewEmployee(w);
+        await fillStateWithNewEmployee(w);
 
         await w.vm.submitApplication();
         expect(w.vm.showBindingModal).toBe(true);
@@ -223,7 +224,7 @@ describe('CreateApplication - гард isSubmitting держит путь чер
 
     it('cancelBindingModal посреди работающей привязки (mapWithConcurrency ещё летит) не отменяет фоновый confirmBinding и не открывает второй submit', async () => {
         const w = await mountApp();
-        fillStateWithNewEmployee(w);
+        await fillStateWithNewEmployee(w);
         const bind = hangUniqueEmployeesBindPost();
 
         await w.vm.submitApplication();
@@ -261,7 +262,7 @@ describe('CreateApplication - гард isSubmitting держит путь чер
 
     it('повторный вызов confirmBinding (двойной клик по "Привязать и отправить") не даёт второй набор привязок и второй submit', async () => {
         const w = await mountApp();
-        fillStateWithNewEmployee(w);
+        await fillStateWithNewEmployee(w);
         const bind = hangUniqueEmployeesBindPost();
 
         await w.vm.submitApplication();

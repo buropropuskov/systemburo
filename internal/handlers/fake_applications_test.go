@@ -59,7 +59,8 @@ func TestFakeApplications_RunCreatesApplicationsWithAttachments(t *testing.T) {
 
 	foreignOrgID := foreignOrg.ID
 	foreignResp, err := appSvc.CreateApplication(ctx, foreignUsername, services.ApplicationCreateRequest{
-		OrganizationID: &foreignOrgID, DataApproval: true,
+		ApplicationConfirmationInput: seedApplicationConfirmation(t, db),
+		OrganizationID:               &foreignOrgID, DataApproval: true,
 	}, false)
 	require.NoError(t, err)
 

@@ -67,7 +67,7 @@ func TestApplicationParticipants_RolesContactsAndOrganizations(t *testing.T) {
 
 	senderToken, senderID := registerParticipant(t, e, db, "pt_sender",
 		"Отправителев", "Олег", "Олегович", "sender@example.com", "+7 900 000 00 01", td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	_, acceptorID := registerParticipant(t, e, db, "pt_acceptor",
 		"Принимаев", "Пётр", "Петрович", "acceptor@example.com", "+7 900 000 00 02", td.OrgID, td.CompanyID)
@@ -156,7 +156,7 @@ func TestApplicationParticipants_OutsiderForbidden(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "pt_own_sender", participantPassword, 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	outsider := testutil.RegisterAndLogin(t, e, "pt_outsider", participantPassword, 1, td.OrgID, td.CompanyID)
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/participants", appID), testutil.AuthHeader(outsider))
@@ -180,7 +180,7 @@ func TestApplicationParticipants_SamePersonInSeveralRoles(t *testing.T) {
 
 	senderToken, senderID := registerParticipant(t, e, db, "pt_multi",
 		"Многоролев", "Михаил", "Михайлович", "multi@example.com", "+7 900 000 00 06", td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Тот же человек: сам подал, сам взял в работу, сам же согласующий.
 	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
@@ -220,7 +220,7 @@ func TestApplicationParticipants_PDConsentHidesNameAndContacts(t *testing.T) {
 	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "pt_pd_sender", participantPassword, 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	approverToken, approverID := registerParticipant(t, e, db, "pt_pd_approver",
 		"Молчанов", "Максим", "Максимович", "silent@example.com", "+7 900 000 00 07", td.OrgID, td.CompanyID)
@@ -265,7 +265,7 @@ func TestApplicationParticipants_AcceptorDisplayNameMaskHoldsContacts(t *testing
 	td := testutil.SeedTestData(t, db)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "pt_mask_sender", participantPassword, 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	_, acceptorID := registerParticipant(t, e, db, "pt_mask_acceptor",
 		"Тайнов", "Тимофей", "Тимофеевич", "secret@example.com", "+7 900 000 00 08", td.OrgID, td.CompanyID)

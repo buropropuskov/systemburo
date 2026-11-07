@@ -57,7 +57,7 @@ func TestQuestions_RoundTrip(t *testing.T) {
 	outsiderToken, _ := testutil.LoginUser(t, e, "q_outsider", "pass123")
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_q", "Cars Q")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	// Делаем q_resp согласующим этой заявки.
 	require.NoError(t, db.Exec(`INSERT INTO application_responsible_users
@@ -164,7 +164,7 @@ func TestQuestions_AnswerAndNotify(t *testing.T) {
 	respID := getUserID(t, db, "qa_resp")
 	respToken, _ := testutil.LoginUser(t, e, "qa_resp", "pass123")
 
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 	require.NoError(t, db.Exec(`INSERT INTO application_responsible_users
 		(application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
 		VALUES (?, ?, false, 'pending', NOW(), ?, false)`, appID, respID, senderID).Error)
@@ -218,7 +218,7 @@ func TestQuestions_Marker(t *testing.T) {
 	viewerID := getUserID(t, db, "qm_viewer")
 	viewerToken, _ := testutil.LoginUser(t, e, "qm_viewer", "pass123")
 
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 	require.NoError(t, db.Exec(`INSERT INTO application_responsible_users
 		(application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
 		VALUES (?, ?, false, 'pending', NOW(), ?, false)`, appID, respID, senderID).Error)
@@ -261,7 +261,7 @@ func TestQuestions_IsNewPerTopic(t *testing.T) {
 	respID := getUserID(t, db, "qn_resp")
 	respToken, _ := testutil.LoginUser(t, e, "qn_resp", "pass123")
 
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 	require.NoError(t, db.Exec(`INSERT INTO application_responsible_users
 		(application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
 		VALUES (?, ?, false, 'pending', NOW(), ?, false)`, appID, respID, senderID).Error)
@@ -330,7 +330,7 @@ func TestQuestions_AttachmentForwardRestriction(t *testing.T) {
 	viewerToken, _ := testutil.LoginUser(t, e, "qfr_viewer", "pass123")
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_qfr", "UA")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	var att1 int
 	require.NoError(t, db.Raw("SELECT id FROM attachments WHERE application_id = ? LIMIT 1", appID).Scan(&att1).Error)
@@ -383,8 +383,8 @@ func TestQuestions_AnswerWrongApplication(t *testing.T) {
 	respID := getUserID(t, db, "qw_resp")
 	respToken, _ := testutil.LoginUser(t, e, "qw_resp", "pass123")
 
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
-	otherAppID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
+	otherAppID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 	require.NoError(t, db.Exec(`INSERT INTO application_responsible_users
 		(application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
 		VALUES (?, ?, false, 'pending', NOW(), ?, false)`, appID, respID, senderID).Error)

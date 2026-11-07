@@ -14,6 +14,7 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // hashPassword хеширует пароль тем же кодом, что и рабочий сервис (#1907).
@@ -156,6 +157,13 @@ func main() {
 	// В production-деплое не вызывается (см. Makefile deploy-seed / staging-seed).
 	if os.Getenv("SEED_E2E_USERS") == "true" {
 		seedE2EUsers(db, orgID, compID, typeID)
+		document := models.SystemSetting{
+			Key: "legal.pd_consent_text", Type: "html",
+			Value: "<p>Учебный документ для проверки отправки заявки.</p>",
+		}
+		if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&document).Error; err != nil {
+			log.Fatalf("seed: не удалось подготовить учебный документ: %v", err)
+		}
 	}
 
 	// Демо-данные для UI-сценариев (объявления, новости, заявки с вложениями, cars_history).

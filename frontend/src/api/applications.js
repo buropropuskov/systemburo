@@ -198,6 +198,7 @@ async function unwrapSupplement(res, fallback) {
   const body = await res.json();
   if (!res.ok) {
     const error = new Error(body?.message || fallback);
+    error.documentRevisionChanged = res.headers.get('X-Document-Revision-Changed') === 'true';
     error.status = res.status;
     throw error;
   }

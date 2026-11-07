@@ -103,7 +103,7 @@ func TestSubmitCompleteApplication_EmployeesCapBoundary(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "people", "cap_over_tmpl", "People Template")
 		body := submitEmployeesBody(orgName, uaID, handlers.MaxSubmitRowsPerList+1, citizenshipID, tableID)
 
-		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Слишком много")
 		assert.Contains(t, rec.Body.String(), fmt.Sprintf("%d", handlers.MaxSubmitRowsPerList))
@@ -123,7 +123,7 @@ func TestSubmitCompleteApplication_EmployeesCapBoundary(t *testing.T) {
 		half := handlers.MaxSubmitRowsPerList/2 + 1
 		body := submitTwoAttachmentsBody(orgName, uaOne, uaTwo, half, citizenshipID, tableID)
 
-		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Слишком много")
 
@@ -138,7 +138,7 @@ func TestSubmitCompleteApplication_EmployeesCapBoundary(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "people", "cap_under_tmpl", "People Template")
 		body := submitEmployeesBody(orgName, uaID, handlers.MaxSubmitRowsPerList-1, citizenshipID, tableID)
 
-		rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+		rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 		var count int64
@@ -203,7 +203,7 @@ func TestSubmitCompleteApplication_BatchEmployeesEncryptedAndBound(t *testing.T)
 		}]
 	}`, orgName, uaID, sb.String())
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	// Дальше проверяется область СВОЕЙ заявки, а не таблица целиком. Пакеты идут с
@@ -327,7 +327,7 @@ func TestSubmitCompleteApplication_AuditHasSummaryAndPerEmployeeRecords(t *testi
 	token := testutil.RegisterAndLogin(t, e, "audit_batch_user", "pass123", 1, td.OrgID, td.CompanyID)
 
 	body := submitEmployeesBody(orgName, uaID, n, citizenshipID, tableID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	var appID int
@@ -377,7 +377,7 @@ func TestSubmitCompleteApplication_BatchEmployeesPreserveOrder(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "order_emp_user", "pass123", 1, td.OrgID, td.CompanyID)
 
 	body := submitEmployeesBody(orgName, uaID, n, citizenshipID, tableID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	type empRow struct {
@@ -444,7 +444,7 @@ func TestSubmitCompleteApplication_BatchVehiclesPreserveOrder(t *testing.T) {
 		}]
 	}`, orgName, uaID, sb.String())
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	type carRow struct {

@@ -80,6 +80,8 @@ func AllModels() []interface{} {
 		// Supplements (depends on Application, then on each other)
 		&models.ApplicationSupplement{},
 		&models.ApplicationSupplementApproval{},
+		&models.ApplicationConfirmationDocument{},
+		&models.ApplicationConfirmation{},
 
 		// Unique records
 		&models.UniqueAttachment{},

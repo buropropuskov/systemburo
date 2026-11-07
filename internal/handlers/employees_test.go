@@ -104,7 +104,7 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 		}]
 	}`, uaID, citizenshipID, tableID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	appResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)

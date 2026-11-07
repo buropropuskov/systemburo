@@ -26,7 +26,7 @@ func seedFieldConfig(t *testing.T, db *gorm.DB, uaID int, key string, visible, r
 }
 
 // submitFC подаёт заявку с одним вложением заданного типа и data-объектом (сырой JSON).
-func submitFC(t *testing.T, e *echo.Echo, token, org, attType string, uaID int, dataJSON string) *httptest.ResponseRecorder {
+func submitFC(t *testing.T, db *gorm.DB, e *echo.Echo, token, org, attType string, uaID int, dataJSON string) *httptest.ResponseRecorder {
 	t.Helper()
 	body := fmt.Sprintf(`{
 		"message": "h9",
@@ -46,12 +46,12 @@ func submitFC(t *testing.T, e *echo.Echo, token, org, attType string, uaID int, 
 			"data": %s
 		}]
 	}`, org, attType, uaID, dataJSON)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 // submitByFactOneDay - подача с машиной «По факту»: срок такой заявки ограничен
 // одним днём (#2320), поэтому общий хелпер с периодом до 2099 года ей не подходит.
-func submitByFactOneDay(t *testing.T, e *echo.Echo, token, org string, uaID int, dataJSON string) *httptest.ResponseRecorder {
+func submitByFactOneDay(t *testing.T, db *gorm.DB, e *echo.Echo, token, org string, uaID int, dataJSON string) *httptest.ResponseRecorder {
 	t.Helper()
 	day := time.Now().In(time.FixedZone("MSK", 3*60*60)).Format("2006-01-02")
 	body := fmt.Sprintf(`{
@@ -72,7 +72,7 @@ func submitByFactOneDay(t *testing.T, e *echo.Echo, token, org string, uaID int,
 			"data": %s
 		}]
 	}`, org, uaID, day, day, dataJSON)
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 // TestSubmitCompleteApplication_FieldConfigValidation проверяет config-only валидацию
@@ -93,7 +93,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "people", "h9_mn_req", "tmpl")
 		seedFieldConfig(t, db, uaID, "middle_name", true, true)
 		data := fmt.Sprintf(`{"employees": [{"last_name": "Иванов", "first_name": "Иван", "citizenship_id": %d, "position": "Рабочий", "passport_series_number": "1234 567890", "target_tables": [%d]}]}`, citizenshipID, tableID)
-		rec := submitFC(t, e, token, orgName, "people", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "people", uaID, data)
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Отчество")
 	})
@@ -102,7 +102,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "people", "h9_mn_ok", "tmpl")
 		seedFieldConfig(t, db, uaID, "middle_name", true, true)
 		data := fmt.Sprintf(`{"employees": [{"last_name": "Иванов", "first_name": "Иван", "middle_name": "Иванович", "citizenship_id": %d, "position": "Рабочий", "passport_series_number": "1234 567890", "target_tables": [%d]}]}`, citizenshipID, tableID)
-		rec := submitFC(t, e, token, orgName, "people", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "people", uaID, data)
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 
@@ -110,7 +110,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "people", "h9_hidden", "tmpl")
 		seedFieldConfig(t, db, uaID, "passport", false, true) // скрыто -> не требуем
 		data := fmt.Sprintf(`{"employees": [{"last_name": "Петров", "first_name": "Пётр", "citizenship_id": %d, "position": "Рабочий", "target_tables": [%d]}]}`, citizenshipID, tableID)
-		rec := submitFC(t, e, token, orgName, "people", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "people", uaID, data)
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 
@@ -118,7 +118,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "cars", "h9_unload_req", "tmpl")
 		seedFieldConfig(t, db, uaID, "unloading_places", true, true)
 		data := `{"vehicles": [{"car_number": "A123AA77", "car_brand": "Kamaz", "mark_id": null}]}`
-		rec := submitFC(t, e, token, orgName, "cars", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "cars", uaID, data)
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Места разгрузки")
 	})
@@ -127,7 +127,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "cars", "h9_passage_req", "tmpl")
 		seedFieldConfig(t, db, uaID, "passage_tables", true, true)
 		data := `{"vehicles": [{"car_number": "A123AA77", "car_brand": "Kamaz", "mark_id": null}]}`
-		rec := submitFC(t, e, token, orgName, "cars", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "cars", uaID, data)
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Проезд")
 	})
@@ -139,7 +139,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		data := `{"vehicles": [{"car_number": "По факту", "car_brand": "По факту", "mark_id": null}]}`
 		// Общий срок хелпера («по 2099 год») заявке «По факту» больше не разрешён
 		// (#2320), а проверяется здесь не он, а обязательность номера и марки.
-		rec := submitByFactOneDay(t, e, token, orgName, uaID, data)
+		rec := submitByFactOneDay(t, db, e, token, orgName, uaID, data)
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 
@@ -147,7 +147,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "items", "h9_qty_req", "tmpl")
 		seedFieldConfig(t, db, uaID, "quantity", true, true)
 		data := `{"items": [{"name": "Ящик", "count": 0}]}`
-		rec := submitFC(t, e, token, orgName, "items", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "items", uaID, data)
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Количество")
 	})
@@ -156,7 +156,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "items", "h9_qty_ok", "tmpl")
 		seedFieldConfig(t, db, uaID, "quantity", true, true)
 		data := `{"items": [{"name": "Ящик", "count": 3}]}`
-		rec := submitFC(t, e, token, orgName, "items", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "items", uaID, data)
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 
@@ -164,7 +164,7 @@ func TestSubmitCompleteApplication_FieldConfigValidation(t *testing.T) {
 		uaID := seedUniqueAttachment(t, db, "cars", "h9_no_override", "tmpl")
 		// Нет ни одной строки конфига -> бэкенд не требует unload_places, как и раньше.
 		data := `{"vehicles": [{"car_number": "B456BB77", "car_brand": "Kamaz", "mark_id": null}]}`
-		rec := submitFC(t, e, token, orgName, "cars", uaID, data)
+		rec := submitFC(t, db, e, token, orgName, "cars", uaID, data)
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 }
@@ -194,7 +194,7 @@ func TestSubmitCompleteApplication_BlacklistHiddenFIO(t *testing.T) {
 	seedFieldConfig(t, db, uaID, "last_name", false, false)
 	seedFieldConfig(t, db, uaID, "first_name", false, false)
 	data := fmt.Sprintf(`{"employees": [{"last_name": "", "first_name": "", "citizenship_id": %d, "position": "Рабочий", "passport_series_number": "1234 567890", "target_tables": [%d]}]}`, citizenshipID, tableID)
-	rec := submitFC(t, e, token, orgName, "people", uaID, data)
+	rec := submitFC(t, db, e, token, orgName, "people", uaID, data)
 	require.Equal(t, http.StatusOK, rec.Code, "пустое ФИО должно пропускать ЧС, а не падать/блокировать; body: %s", rec.Body.String())
 }
 
@@ -232,7 +232,7 @@ func TestSubmitCompleteApplication_RoofParkingPersisted(t *testing.T) {
 			"data": {"employees": [{"last_name": "Иванов", "first_name": "Иван", "citizenship_id": %d, "position": "Рабочий", "passport_series_number": "1234 567890", "target_tables": [%d]}]}
 		}]
 	}`, orgName, uaID, citizenshipID, tableID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	var saved struct {

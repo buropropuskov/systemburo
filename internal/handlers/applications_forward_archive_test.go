@@ -26,7 +26,7 @@ func TestForwardApplication_Archived_Allowed(t *testing.T) {
 	makeApprover(t, db, "testadmin")
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_fwd_arch", "Cars")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 	// Делаем заявку архивной: статус Завершено + окно въезда закрылось >1 мес назад.
 	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted).Error)

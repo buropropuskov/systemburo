@@ -79,7 +79,7 @@ func TestApplicationsExport_Admin_GetsRegistryWithHeaders(t *testing.T) {
 	makeApprover(t, db, "testadmin")
 
 	sender := testutil.RegisterAndLogin(t, e, "exp_sender", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	createSimpleApplication(t, e, sender, td.OrgID)
+	createSimpleApplication(t, db, e, sender, td.OrgID)
 
 	body := exportRegistry(t, e, admin, "")
 	assert.Contains(t, body, "Реестр заявок", "заголовок документа")
@@ -100,7 +100,7 @@ func TestApplicationsExport_MasksSenderWithoutConsent(t *testing.T) {
 
 	sender := testutil.RegisterAndLogin(t, e, "exp_masked", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	setUserName(t, db, "exp_masked", "Заявкин", "Афанасий", "Афанасьевич")
-	createSimpleApplication(t, e, sender, td.OrgID)
+	createSimpleApplication(t, db, e, sender, td.OrgID)
 
 	before := exportRegistry(t, e, admin, "")
 	require.Contains(t, before, "Заявкин", "до включения запроса согласия ФИО в файле есть")
@@ -124,8 +124,8 @@ func TestApplicationsExport_ScopedToOwnApplications(t *testing.T) {
 	other := testutil.RegisterAndLogin(t, e, "exp_other", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	grantExport(t, db, "exp_mine")
 
-	myApp := createSimpleApplication(t, e, mine, td.OrgID)
-	otherApp := createSimpleApplication(t, e, other, td.OrgID)
+	myApp := createSimpleApplication(t, db, e, mine, td.OrgID)
+	otherApp := createSimpleApplication(t, db, e, other, td.OrgID)
 	require.NotEqual(t, myApp, otherApp)
 
 	body := exportRegistry(t, e, mine, "")
@@ -144,7 +144,7 @@ func TestApplicationsExport_RespectsDateFilter(t *testing.T) {
 	makeApprover(t, db, "testadmin")
 
 	sender := testutil.RegisterAndLogin(t, e, "exp_filtered", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
-	createSimpleApplication(t, e, sender, td.OrgID)
+	createSimpleApplication(t, db, e, sender, td.OrgID)
 
 	all := exportRegistry(t, e, admin, "")
 	require.Contains(t, all, "заявок: 1")

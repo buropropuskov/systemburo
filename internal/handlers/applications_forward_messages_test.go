@@ -44,7 +44,7 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 	testutil.RegisterUser(t, e, "fwdmsg_outsider", "pass123", 1, td.OrgID, td.CompanyID)
 	outsiderToken, _ := testutil.LoginUser(t, e, "fwdmsg_outsider", "pass123")
 
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Пересылка с сопроводительным сообщением.
 	const wantMessage = "Прошу дополнительно согласовать заявку с вами"
@@ -116,7 +116,7 @@ func TestForwardMessages_AttachmentSubset(t *testing.T) {
 	viewerID := getUserID(t, db, "fwdatt_viewer")
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_fwdatt", "Cars Template")
-	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+	appID := submitCompleteApplication(t, db, e, senderToken, "Test Organization", uaID)
 
 	var attID int
 	require.NoError(t, db.Raw("SELECT id FROM attachments WHERE application_id = ? LIMIT 1", appID).Scan(&attID).Error)

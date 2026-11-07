@@ -146,7 +146,7 @@ func TestAPIContract_ApplicationsList(t *testing.T) {
 			}
 		}]
 	}`, uaID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(userToken))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(userToken))
 	require.Equal(t, http.StatusOK, rec.Code, "seed app: %s", rec.Body.String())
 
 	// Admin is an approver and sees all applications
@@ -188,7 +188,7 @@ func TestAPIContract_ApplicationDetail(t *testing.T) {
 			}
 		}]
 	}`, uaID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "seed app: %s", rec.Body.String())
 
 	// Extract application ID
@@ -236,7 +236,7 @@ func TestAPIContract_ApplicationDetails(t *testing.T) {
 			}
 		}]
 	}`, uaID)
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "seed app: %s", rec.Body.String())
 
 	var env map[string]interface{}

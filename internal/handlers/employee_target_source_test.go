@@ -61,7 +61,7 @@ func TestEmployeeTargetTables_SubmitApplication_SourceIsApplication(t *testing.T
 		]
 	}`, uniq("emp_src_app_tmpl"), uaID, lastName, citizenshipID, tableID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 
@@ -209,7 +209,7 @@ func TestAttachmentEmployees_TargetTablesCarrySource(t *testing.T) {
 		]
 	}`, uniq("emp_src_view_tmpl"), uaID, lastName, citizenshipID, tableID)
 
-	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
 	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 

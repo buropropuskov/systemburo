@@ -39,7 +39,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 
 				uaID := seedUniqueAttachment(t, db, "cars", "exp_cars1", "Exp Cars 1")
 				token := testutil.RegisterAndLogin(t, e, "exp_sender1", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+				appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 				// Get attachment ID
 				rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
@@ -91,7 +91,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 
 				uaID := seedUniqueAttachment(t, db, "cars", "exp_cars2", "Exp Cars 2")
 				token := testutil.RegisterAndLogin(t, e, "exp_sender2", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+				appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 				// CheckExpiredAttachments гасит только активные элементы
 				acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)
@@ -156,7 +156,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 						}
 					]
 				}`, uaID1, uaID2)
-				rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+				rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 				require.Equal(t, http.StatusOK, rec.Code, "create: %s", rec.Body.String())
 				resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
 				appID := resp.ApplicationID
@@ -210,7 +210,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 
 				uaID := seedUniqueAttachment(t, db, "cars", "exp_cars4", "Exp Cars 4")
 				token := testutil.RegisterAndLogin(t, e, "exp_sender4", "pass123", 1, td.OrgID, td.CompanyID)
-				appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+				appID := submitCompleteApplication(t, db, e, token, "Test Organization", uaID)
 
 				// CheckExpiredAttachments гасит только активные элементы
 				acceptIntoWork(t, e, db, appID, td.OrgID, td.CompanyID)

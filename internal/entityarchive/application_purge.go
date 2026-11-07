@@ -59,6 +59,7 @@ var applicationPurgeNodes = []applicationPurgeNode{
 	{Table: "application_responsible_users", Cascade: true},
 	{Table: "application_viewers", Cascade: true},
 	{Table: "application_supplements", Cascade: true},
+	{Table: "application_confirmations", Cascade: true},
 	{Table: "notification_intents", Cascade: true},
 	{Table: "application_files", Cascade: true},
 	// Ниже - таблицы без внешнего ключа (философия audit_log и blank_exports: каскад

@@ -10,6 +10,7 @@ vi.mock('@/api/attachment-templates', () => ({ getFieldConfig: (...a) => getFiel
 
 import { useDeletionsStore } from '@/stores/deletions';
 import SupplementModal from '../SupplementModal.vue';
+import ApplicationConfirmation from '../ApplicationConfirmation.vue';
 import { restoreApplicationCommandDraft, recoverApplicationCommand, rememberApplicationCommandDraft } from '@/services/applicationCommand';
 
 const APPLICATION = {
@@ -98,6 +99,11 @@ async function emitRow(wrapper, componentName, event, row) {
   await wrapper.vm.$nextTick();
 }
 
+async function confirmRows(wrapper) {
+  wrapper.getComponent(ApplicationConfirmation).vm.$emit('update:modelValue', { version: 1, hash: 'current' });
+  await wrapper.vm.$nextTick();
+}
+
 describe('SupplementModal - сборка дополнения (#1685)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -115,6 +121,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
     await emitRow(wrapper, 'VehicleForm', 'vehicle-added', VEHICLE_ROW);
     wrapper.vm.comment = 'Подрядчик прислал ещё одну машину';
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     expect(createSupplement).toHaveBeenCalledTimes(1);
@@ -146,6 +153,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
     const wrapper = await mountModal([PEOPLE_ATTACHMENT]);
     await emitRow(wrapper, 'EmployeeForm', 'employee-added', EMPLOYEE_ROW);
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     const [, payload] = createSupplement.mock.calls[0];
@@ -172,6 +180,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
     const wrapper = await mountModal([ITEMS_ATTACHMENT]);
     await emitRow(wrapper, 'ItemsForm', 'items-added', [ITEM_ROW, { itemName: 'Стремянка', quantity: 1 }]);
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     const [, payload] = createSupplement.mock.calls[0];
@@ -195,6 +204,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
     await wrapper.vm.$nextTick();
     await emitRow(wrapper, 'EmployeeForm', 'employee-added', EMPLOYEE_ROW);
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     const [, payload] = createSupplement.mock.calls[0];
@@ -208,6 +218,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
     await emitRow(wrapper, 'VehicleForm', 'vehicle-added', VEHICLE_ROW);
     wrapper.vm.comment = '   ';
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     expect(createSupplement.mock.calls[0][1].comment).toBeNull();
@@ -216,6 +227,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
   it('без добавленных строк отправка заблокирована и запроса нет', async () => {
     const wrapper = await mountModal();
     expect(wrapper.vm.canSubmit).toBe(false);
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
     expect(createSupplement).not.toHaveBeenCalled();
   });
@@ -256,6 +268,7 @@ describe('SupplementModal - результат отправки (#1685)', () => 
     const wrapper = await readyModal();
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
@@ -272,6 +285,7 @@ describe('SupplementModal - результат отправки (#1685)', () => 
     const wrapper = await readyModal();
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
@@ -287,6 +301,7 @@ describe('SupplementModal - результат отправки (#1685)', () => 
     const wrapper = await readyModal();
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     expect(notify).toHaveBeenCalledWith({
@@ -305,6 +320,7 @@ describe('SupplementModal - результат отправки (#1685)', () => 
     const wrapper = await readyModal();
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
 
     expect(notify).toHaveBeenCalledWith({ bold: 'Вложение не принадлежит этой заявке', type: 'error' });
@@ -321,15 +337,18 @@ describe('SupplementModal - результат отправки (#1685)', () => 
     expect(wrapper.vm.canSubmit).toBe(false);
     expect(wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0]).toMatchObject({ isExisting: true, existingEmployeeId: 7 });
     expect(wrapper.vm.submitHint).toContain('паспортные данные для новой заявки');
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
     expect(createSupplement).not.toHaveBeenCalled();
     const row = wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0];
     await emitRow(wrapper, 'EmployeeForm', 'employee-updated', {
       ...row, documents_hidden: false, passportSeriesNumber: 'new application passport',
     });
+    await confirmRows(wrapper);
     expect(wrapper.vm.canSubmit).toBe(true);
     expect(wrapper.vm.submitHint).toBe('');
     expect(wrapper.vm.rowsByAttachment[PEOPLE_ATTACHMENT.id][0].passportSeriesNumber).toBe('new application passport');
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
     const person = createSupplement.mock.calls[0][1].additions[0].employees[0];
     expect(person.passport_series_number).toBe('new application passport');
@@ -363,6 +382,7 @@ describe('SupplementModal unknown command recovery', () => {
     await emitRow(wrapper, 'VehicleForm', 'vehicle-added', VEHICLE_ROW);
     wrapper.vm.comment = 'original command';
     createSupplement.mockRejectedValueOnce(new Error('network lost'));
+    await confirmRows(wrapper);
     await wrapper.vm.submit();
     const draft = rememberApplicationCommandDraft.mock.calls[0][1];
     restoreApplicationCommandDraft.mockResolvedValueOnce(JSON.parse(JSON.stringify(draft)));

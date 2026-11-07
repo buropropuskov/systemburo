@@ -26,7 +26,7 @@ func TestGetApplicationByID_StrangerLeavesNoTrace(t *testing.T) {
 	senderToken := testutil.RegisterAndLogin(t, e, "readacc_sender", "pass123", 1, td.OrgID, td.CompanyID)
 	strangerToken := testutil.RegisterAndLogin(t, e, "readacc_stranger", "pass123", 1, td.OrgID, td.CompanyID)
 	strangerID := getUserID(t, db, "readacc_stranger")
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(strangerToken))
 	require.Equal(t, http.StatusForbidden, rec.Code, "посторонний не открывает заявку: %s", rec.Body.String())

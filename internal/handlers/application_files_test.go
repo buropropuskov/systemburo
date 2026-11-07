@@ -104,7 +104,7 @@ func submitWithFiles(t *testing.T, e *echo.Echo, db *gorm.DB, token, suffix stri
 		}]
 	}`, ids, uaID)
 
-	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	return testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(token))
 }
 
 // TestApplicationFiles_AttachedAtSubmitAndServed: файл загружен до подачи, привязан

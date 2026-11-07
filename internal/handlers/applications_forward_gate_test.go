@@ -58,7 +58,7 @@ func TestForwardGate_SuperAdminForwardsForeignApplication(t *testing.T) {
 	foreignOrgID, foreignCompanyID := seedOrgAndCompany(t, db, "FwdSuperForeign")
 
 	senderToken := testutil.RegisterAndLogin(t, e, "fwdgate_super_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	// Супер-админ: заявку не подавал, ответственным не назначен, принимающим не является.
 	superToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
@@ -87,7 +87,7 @@ func TestForwardGate_ApproverForwardsOutsideOwnCircle(t *testing.T) {
 	foreignOrgID, foreignCompanyID := seedOrgAndCompany(t, db, "FwdApproverForeign")
 
 	senderToken := testutil.RegisterAndLogin(t, e, "fwdgate_appr_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	approverToken := testutil.RegisterAndLogin(t, e, "fwdgate_appr", "pass123", 1, td.OrgID, td.CompanyID)
 	makeApprover(t, db, "fwdgate_appr")
@@ -112,7 +112,7 @@ func TestForwardGate_ReaderForwardsToReader(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "fwdgate_r_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	readerToken := testutil.RegisterAndLogin(t, e, "fwdgate_reader", "pass123", 1, td.OrgID, td.CompanyID)
 	readerID := getUserID(t, db, "fwdgate_reader")
@@ -142,7 +142,7 @@ func TestForwardGate_ReaderCannotAssignResponsible(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	senderToken := testutil.RegisterAndLogin(t, e, "fwdgate_ra_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	readerToken := testutil.RegisterAndLogin(t, e, "fwdgate_ra_reader", "pass123", 1, td.OrgID, td.CompanyID)
 	readerID := getUserID(t, db, "fwdgate_ra_reader")
@@ -188,7 +188,7 @@ func TestForwardGate_DropsForeignRecipient(t *testing.T) {
 	foreignOrgID, foreignCompanyID := seedOrgAndCompany(t, db, "FwdForeign")
 
 	senderToken := testutil.RegisterAndLogin(t, e, "fwdgate_df_sender", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	appID := createSimpleApplication(t, db, e, senderToken, td.OrgID)
 
 	testutil.RegisterUser(t, e, "fwdgate_df_colleague", "pass123", 1, td.OrgID, td.CompanyID)
 	colleagueID := getUserID(t, db, "fwdgate_df_colleague")

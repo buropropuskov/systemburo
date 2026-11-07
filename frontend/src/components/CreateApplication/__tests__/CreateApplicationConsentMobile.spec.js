@@ -1,10 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CreateApplication from '../CreateApplication.vue';
-
-// #1380: на телефоне ссылка "согласие" открывает модалку с содержимым документа
-// (нативный <embed> PDF на мобилке пуст), на десктопе - нативный переход на /data-processing.
+import ApplicationConfirmation from '../ApplicationConfirmation.vue';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
@@ -12,17 +10,11 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),
 }));
-// DataProcessingModal -> PdfDocumentViewer статически тянет ?worker-конструктор воркера pdf.js;
-// мок делает спек герметичным (children тут и так застаблены shallowMount).
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?worker', () => ({ default: class {} }));
 
 beforeEach(() => {
   setActivePinia(createPinia());
   localStorage.clear();
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
 });
 
 async function mountApp() {
@@ -31,26 +23,13 @@ async function mountApp() {
   return w;
 }
 
-describe('CreateApplication - согласие на мобилке (#1380)', () => {
-  it('на телефоне: клик гасит нативный переход и открывает модалку', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
+describe('CreateApplication - редакция документа при подаче', () => {
+  it('использует общий компонент и сбрасывает отметку после изменения состава', async () => {
     const w = await mountApp();
-    const e = { preventDefault: vi.fn() };
-
-    w.vm.onConsentClick(e);
-
-    expect(e.preventDefault).toHaveBeenCalledTimes(1);
-    expect(w.vm.showConsentModal).toBe(true);
-  });
-
-  it('на десктопе: клик не подавляется (переход по href), модалка не открывается', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
-    const w = await mountApp();
-    const e = { preventDefault: vi.fn() };
-
-    w.vm.onConsentClick(e);
-
-    expect(e.preventDefault).not.toHaveBeenCalled();
-    expect(w.vm.showConsentModal).toBe(false);
+    await w.setData({ selectedAttachment: { id: 1, attachment_type: 'people' } });
+    w.getComponent(ApplicationConfirmation).vm.$emit('update:modelValue', { version: 2, hash: 'current' });
+    expect(w.vm.consentGiven).toEqual({ version: 2, hash: 'current' });
+    await w.setData({ employeesByAttachment: { 1: [{ firstName: 'Иван' }] } });
+    expect(w.vm.consentGiven).toBeNull();
   });
 });
