@@ -31,6 +31,7 @@ ENVIRONMENT="${1:-local}"
 # перед конкретной работой, можно лишь по памяти.
 LABEL="${2:-}"
 cd "$(dirname "$0")/.."
+. ./scripts/backup-snapshot.sh
 
 case "$ENVIRONMENT" in
   local)      COMPOSE=(docker compose) ;;
@@ -235,9 +236,11 @@ if [ "$ENCRYPTED" = false ]; then
 fi
 
 # --- база данных ---
-DB_RAW="${WORK_DIR}/buro-db-${STAMP}.dump"
+DB_RAW="${WORK_DIR}/buro-db-${STAMP}.dump.v1"
 FAIL_REASON="не удалось выгрузить базу $DB_NAME"
-"${COMPOSE[@]}" exec -T db pg_dump -U "$DB_USER" -Fc "$DB_NAME" > "$DB_RAW"
+DB_FILE="${DB_RAW}$(suffix)"
+MANIFEST="${WORK_DIR}/$(backup_manifest_name "$DB_FILE")"
+backup_dump_snapshot "$DB_RAW" > "$MANIFEST"
 
 # Повреждённую выгрузку ловим здесь, а не в момент восстановления, когда она
 # оказывается единственной надеждой.
@@ -251,7 +254,6 @@ DB_SIZE="$(stat -c %s "$DB_RAW")"
 log "база выгружена: $(numfmt --to=iec "$DB_SIZE" 2>/dev/null || echo "$DB_SIZE Б")"
 
 FAIL_REASON="не удалось зашифровать выгрузку базы"
-DB_FILE="${WORK_DIR}/buro-db-${STAMP}.dump$(suffix)"
 encrypt_file "$DB_RAW" "$DB_FILE"
 
 # --- загруженные файлы ---
@@ -321,7 +323,7 @@ place() {
 }
 
 FAIL_REASON="не удалось разложить копию по каталогам"
-for f in "$DB_FILE" ${UPLOADS_FILE:+"$UPLOADS_FILE"} ${ARCHIVE_FILE:+"$ARCHIVE_FILE"}; do
+for f in "$MANIFEST" "$DB_FILE" ${UPLOADS_FILE:+"$UPLOADS_FILE"} ${ARCHIVE_FILE:+"$ARCHIVE_FILE"}; do
   place "$f" daily
   # Именно if, а не «условие && действие»: при ложном условии такая строка
   # возвращает единицу, и set -e обрывает скрипт в обычный будний день.
@@ -343,6 +345,9 @@ rotate() {
       | sort -r | tail -n +"$((keep + 1))" \
       | while read -r name; do
           rm -f "${BACKUP_DIR}/${dir}/${name}"
+          if [ "$prefix" = buro-db ]; then
+            rm -f "${BACKUP_DIR}/${dir}/$(backup_manifest_name "$name")"
+          fi
           log "удалена по сроку хранения: ${name}"
         done
   done
