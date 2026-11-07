@@ -63,38 +63,38 @@
 | `@napi-rs/canvas` | 1.0.10 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
 | `@noble/ciphers` | 1.3.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com); Copyright (c) 2016 Thomas Pornin <pornin@bolet.org> |
 | `@noble/hashes` | 1.8.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com) |
-| `@oxc-project/types` | 0.153.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
+| `@oxc-project/types` | 0.156.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
 | `@rolldown/pluginutils` | 1.0.1 | MIT | Copyright (c) 2026-present, rolldown/plugins repository contributors |
 | `@swc/helpers` | 0.5.23 | Apache-2.0 | Copyright 2024 SWC contributors |
-| `@tiptap/core` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-blockquote` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bold` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bubble-menu` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bullet-list` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code-block` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-document` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-dropcursor` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-floating-menu` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-gapcursor` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-hard-break` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-heading` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-horizontal-rule` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-image` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-italic` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-link` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-item` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-keymap` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-ordered-list` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-paragraph` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-strike` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-text` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-underline` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extensions` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/pm` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/starter-kit` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/vue-3` | 3.32.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/core` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-blockquote` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bold` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bubble-menu` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bullet-list` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code-block` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-document` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-dropcursor` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-floating-menu` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-gapcursor` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-hard-break` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-heading` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-horizontal-rule` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-image` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-italic` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-link` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-item` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-keymap` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-ordered-list` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-paragraph` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-strike` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-text` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-underline` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extensions` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/pm` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/starter-kit` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/vue-3` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
 | `@types/estree` | 1.0.8 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/node` | 14.18.63 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/trusted-types` | 2.0.7 | MIT | Copyright (c) Microsoft Corporation |
@@ -133,7 +133,7 @@
 | `brotli` | 1.3.3 | MIT | Devon Govett |
 | `buffer` | 6.0.3 | MIT | Copyright (c) Feross Aboukhadijeh, and other contributors |
 | `buffer-crc32` | 1.0.0 | MIT | Copyright (c) 2013-2024 Brian J. Brennan |
-| `chart.js` | 4.5.1 | MIT | Copyright (c) 2014-2024 Chart.js Contributors |
+| `chart.js` | 4.6.1 | MIT | Copyright (c) 2014-2024 Chart.js Contributors |
 | `chokidar` | 5.0.0 | MIT | Copyright (c) 2012 Paul Miller (https://paulmillr.com), Elan Shanker |
 | `clone` | 2.1.2 | MIT | Copyright © 2011-2015 Paul Vorbach <paul@vorba.ch> |
 | `compress-commons` | 7.0.1 | MIT | Copyright (c) 2014 Chris Talkington, contributors |
@@ -148,7 +148,7 @@
 | `detect-libc` | 2.1.2 | Apache-2.0 | Copyright {yyyy} {name of copyright owner} |
 | `dfa` | 1.2.0 | MIT | Devon Govett |
 | `dompurify` | 3.4.17 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
-| `driver.js` | 1.10.1 | MIT | Copyright (c) Kamran Ahmed |
+| `driver.js` | 1.10.2 | MIT | Copyright (c) Kamran Ahmed |
 | `duplexer2` | 0.1.4 | BSD-3-Clause | Copyright (c) 2013, Deoxxa Development |
 | `entities` | 7.0.1 | BSD-2-Clause | Copyright (c) Felix Böhm |
 | `estree-walker` | 2.0.2 | MIT | Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors) |
@@ -178,7 +178,7 @@
 | `lie` | 3.3.0 | MIT | Copyright (c) 2014-2018 Calvin Metcalf, Jordan Harband |
 | `lightningcss` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 | `linebreak` | 1.1.0 | MIT | Copyright (c) 2014-present Devon Govett |
-| `linkifyjs` | 4.3.3 | MIT | Copyright (c) 2024 Nick Frasser |
+| `linkifyjs` | 4.4.0 | MIT | Copyright (c) 2024 Nick Frasser |
 | `local-pkg` | 1.2.1 | MIT | Copyright (c) 2021 Anthony Fu <https://github.com/antfu> |
 | `lodash.escaperegexp` | 4.1.2 | MIT | Copyright jQuery Foundation and other contributors <https://jquery.org/>; Copyright and related rights for sample code are waived via CC0. Sample |
 | `lodash.groupby` | 4.6.0 | MIT | Copyright jQuery Foundation and other contributors <https://jquery.org/>; Copyright and related rights for sample code are waived via CC0. Sample |
@@ -205,7 +205,7 @@
 | `pathe` | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors; Copyright (c) 2023-present Fabio Spampinato |
 | `pdfjs-dist` | 6.4.299 | Apache-2.0 | не указан в поставке пакета |
 | `pdfkit` | 0.20.2 | MIT | Copyright (c) 2014 Devon Govett |
-| `pdfmake` | 0.3.12 | MIT | Copyright (c) 2014-2015 bpampuch |
+| `pdfmake` | 0.3.13 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `picocolors` | 1.1.1 | ISC | Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov |
 | `picomatch` | 4.0.7 | MIT | Copyright (c) 2017-present, Jon Schlinkert |
@@ -213,7 +213,7 @@
 | `pkg-types` | 1.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `pkg-types` | 2.3.1 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors |
 | `png-js` | 2.0.0 | MIT | Copyright (c) 2017 Devon Govett |
-| `postcss` | 8.5.29 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
+| `postcss` | 8.5.32 | MIT | Copyright 2013 Andrey Sitnik <andrey@sitnik.es> |
 | `process` | 0.11.10 | MIT | Copyright (c) 2013 Roman Shtylman <shtylman@gmail.com> |
 | `process-nextick-args` | 2.0.1 | MIT | Copyright (c) 2015 Calvin Metcalf |
 | `prosemirror-changeset` | 2.4.4 | MIT | Copyright (C) 2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
@@ -236,7 +236,7 @@
 | `readdir-glob` | 3.0.0 | Apache-2.0 | Copyright 2020 Yann Armelin |
 | `readdirp` | 5.0.0 | MIT | Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com) |
 | `restructure` | 3.0.2 | MIT | Copyright (c) 2015-present Devon Govett |
-| `rolldown` | 1.2.13 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors |
+| `rolldown` | 1.2.16 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors |
 | `rope-sequence` | 1.3.4 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> |
 | `safe-buffer` | 5.1.2 | MIT | Copyright (c) Feross Aboukhadijeh |
 | `safe-buffer` | 5.2.1 | MIT | Copyright (c) Feross Aboukhadijeh |
@@ -264,7 +264,7 @@
 | `unzipper` | 0.12.5 | MIT | Copyright (c) 2012 - 2013 Near Infinity Corporation |
 | `util-deprecate` | 1.0.2 | MIT | Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net> |
 | `uuid` | 11.1.1 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
-| `vite` | 8.3.4 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
+| `vite` | 8.3.5 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
 | `vue` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `vue-router` | 5.4.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `vue-select` | 4.0.0-beta.6 | MIT | Copyright (c) 2016 Jeff Sagal & vue-select contributors |
@@ -291,21 +291,21 @@
 | `@napi-rs/canvas-linux-x64-musl` | 1.0.10 | MIT | не указан в поставке пакета |
 | `@napi-rs/canvas-win32-arm64-msvc` | 1.0.10 | MIT | не указан в поставке пакета |
 | `@napi-rs/canvas-win32-x64-msvc` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-android-arm-eabi` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-android-arm64` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-darwin-arm64` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-darwin-x64` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-freebsd-x64` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-arm64-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-arm64-musl` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-ppc64-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-s390x-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-x64-gnu` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-linux-x64-musl` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-openharmony-arm64` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-win32-arm64-msvc` | 1.2.13 | MIT | не указан в поставке пакета |
-| `@rolldown/binding-win32-x64-msvc` | 1.2.13 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-android-arm-eabi` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-android-arm64` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-darwin-arm64` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-darwin-x64` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-freebsd-x64` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm64-gnu` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-arm64-musl` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-ppc64-gnu` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-s390x-gnu` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-x64-gnu` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-linux-x64-musl` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-openharmony-arm64` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-win32-arm64-msvc` | 1.2.16 | MIT | не указан в поставке пакета |
+| `@rolldown/binding-win32-x64-msvc` | 1.2.16 | MIT | не указан в поставке пакета |
 | `fsevents` | 2.3.3 | не указана | не указан в поставке пакета |
 | `lightningcss-android-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
 | `lightningcss-darwin-arm64` | 1.33.0 | MPL-2.0 | не указан в поставке пакета |
@@ -345,7 +345,7 @@
 | `github.com/jinzhu/now` | v1.1.5 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
 | `github.com/josharian/intern` | v1.0.0 | MIT | Copyright (c) 2019 Josh Bleecher Snyder |
 | `github.com/KyleBanks/depth` | v1.2.1 | MIT | Copyright (c) 2017 Kyle Banks |
-| `github.com/labstack/echo/v4` | v4.16.1 | MIT | Copyright (c) 2021 LabStack |
+| `github.com/labstack/echo/v4` | v4.16.2 | MIT | Copyright (c) 2021 LabStack |
 | `github.com/labstack/gommon` | v0.5.0 | MIT | Copyright (c) 2018 labstack |
 | `github.com/leodido/go-urn` | v1.5.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
 | `github.com/mailru/easyjson` | v0.7.7 | MIT | Copyright (c) 2016 Mail.Ru Group |
@@ -397,7 +397,7 @@
 
 ### 7.1. MIT
 
-Компоненты: `@tiptap/core` 3.32.0, `@tiptap/extension-blockquote` 3.32.0, `@tiptap/extension-bold` 3.32.0, `@tiptap/extension-bubble-menu` 3.32.0, `@tiptap/extension-bullet-list` 3.32.0, `@tiptap/extension-code` 3.32.0, `@tiptap/extension-code-block` 3.32.0, `@tiptap/extension-document` 3.32.0, `@tiptap/extension-dropcursor` 3.32.0, `@tiptap/extension-floating-menu` 3.32.0, `@tiptap/extension-gapcursor` 3.32.0, `@tiptap/extension-hard-break` 3.32.0, `@tiptap/extension-heading` 3.32.0, `@tiptap/extension-horizontal-rule` 3.32.0, `@tiptap/extension-image` 3.32.0, `@tiptap/extension-italic` 3.32.0, `@tiptap/extension-link` 3.32.0, `@tiptap/extension-list` 3.32.0, `@tiptap/extension-list-item` 3.32.0, `@tiptap/extension-list-keymap` 3.32.0, `@tiptap/extension-ordered-list` 3.32.0, `@tiptap/extension-paragraph` 3.32.0, `@tiptap/extension-strike` 3.32.0, `@tiptap/extension-text` 3.32.0, `@tiptap/extension-underline` 3.32.0, `@tiptap/extensions` 3.32.0, `@tiptap/pm` 3.32.0, `@tiptap/starter-kit` 3.32.0, `@tiptap/vue-3` 3.32.0
+Компоненты: `@tiptap/core` 3.32.1, `@tiptap/extension-blockquote` 3.32.1, `@tiptap/extension-bold` 3.32.1, `@tiptap/extension-bubble-menu` 3.32.1, `@tiptap/extension-bullet-list` 3.32.1, `@tiptap/extension-code` 3.32.1, `@tiptap/extension-code-block` 3.32.1, `@tiptap/extension-document` 3.32.1, `@tiptap/extension-dropcursor` 3.32.1, `@tiptap/extension-floating-menu` 3.32.1, `@tiptap/extension-gapcursor` 3.32.1, `@tiptap/extension-hard-break` 3.32.1, `@tiptap/extension-heading` 3.32.1, `@tiptap/extension-horizontal-rule` 3.32.1, `@tiptap/extension-image` 3.32.1, `@tiptap/extension-italic` 3.32.1, `@tiptap/extension-link` 3.32.1, `@tiptap/extension-list` 3.32.1, `@tiptap/extension-list-item` 3.32.1, `@tiptap/extension-list-keymap` 3.32.1, `@tiptap/extension-ordered-list` 3.32.1, `@tiptap/extension-paragraph` 3.32.1, `@tiptap/extension-strike` 3.32.1, `@tiptap/extension-text` 3.32.1, `@tiptap/extension-underline` 3.32.1, `@tiptap/extensions` 3.32.1, `@tiptap/pm` 3.32.1, `@tiptap/starter-kit` 3.32.1, `@tiptap/vue-3` 3.32.1
 
 ```text
 MIT License
@@ -1693,7 +1693,7 @@ THE SOFTWARE.
 
 ### 7.39. MIT
 
-Компоненты: `@oxc-project/types` 0.153.0
+Компоненты: `@oxc-project/types` 0.156.0
 
 ```text
 MIT License
@@ -2323,7 +2323,7 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEAL
 
 ### 7.55. MIT
 
-Компоненты: `chart.js` 4.5.1
+Компоненты: `chart.js` 4.6.1
 
 ```text
 The MIT License (MIT)
@@ -3597,7 +3597,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ### 7.65. MIT
 
-Компоненты: `driver.js` 1.10.1
+Компоненты: `driver.js` 1.10.2
 
 ```text
 The MIT License
@@ -4687,7 +4687,7 @@ SOFTWARE.
 
 ### 7.91. MIT
 
-Компоненты: `github.com/labstack/echo/v4` v4.16.1
+Компоненты: `github.com/labstack/echo/v4` v4.16.2
 
 ```text
 The MIT License (MIT)
@@ -6808,7 +6808,7 @@ SOFTWARE.
 
 ### 7.125. MIT
 
-Компоненты: `linkifyjs` 4.3.3
+Компоненты: `linkifyjs` 4.4.0
 
 ```text
 Copyright (c) 2024 Nick Frasser
@@ -7421,7 +7421,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.139. MIT
 
-Компоненты: `pdfmake` 0.3.12
+Компоненты: `pdfmake` 0.3.13
 
 ```text
 The MIT License (MIT)
@@ -7527,7 +7527,7 @@ SOFTWARE.
 
 ### 7.143. MIT
 
-Компоненты: `postcss` 8.5.29
+Компоненты: `postcss` 8.5.32
 
 ```text
 The MIT License (MIT)
@@ -7925,7 +7925,7 @@ SOFTWARE.
 
 ### 7.151. MIT
 
-Компоненты: `rolldown` 1.2.13
+Компоненты: `rolldown` 1.2.16
 
 ```text
 MIT License
@@ -8478,7 +8478,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.168. MIT
 
-Компоненты: `vite` 8.3.4
+Компоненты: `vite` 8.3.5
 
 ```text
 # Vite core license
@@ -8508,7 +8508,7 @@ SOFTWARE.
 
 # Licenses of bundled dependencies
 The published Vite artifact additionally contains code with the following licenses:
-Apache-2.0, BSD-2-Clause, CC0-1.0, ISC, MIT
+BSD-2-Clause, CC0-1.0, ISC, MIT
 
 # Bundled dependencies:
 ## @jridgewell/gen-mapping, @jridgewell/remapping, @jridgewell/sourcemap-codec, @jridgewell/trace-mapping
@@ -8612,215 +8612,6 @@ Repository: https://github.com/rollup/plugins
 > LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 > THE SOFTWARE.
-
----------------------------------------
-
-## @vercel/detect-agent
-License: Apache-2.0
-By: Vercel
-Repository: https://github.com/vercel/vercel
-
-> Apache License
->                            Version 2.0, January 2004
->                         http://www.apache.org/licenses/
-> 
->    TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-> 
->    1. Definitions.
-> 
->       "License" shall mean the terms and conditions for use, reproduction,
->       and distribution as defined by Sections 1 through 9 of this document.
-> 
->       "Licensor" shall mean the copyright owner or entity authorized by
->       the copyright owner that is granting the License.
-> 
->       "Legal Entity" shall mean the union of the acting entity and all
->       other entities that control, are controlled by, or are under common
->       control with that entity. For the purposes of this definition,
->       "control" means (i) the power, direct or indirect, to cause the
->       direction or management of such entity, whether by contract or
->       otherwise, or (ii) ownership of fifty percent (50%) or more of the
->       outstanding shares, or (iii) beneficial ownership of such entity.
-> 
->       "You" (or "Your") shall mean an individual or Legal Entity
->       exercising permissions granted by this License.
-> 
->       "Source" form shall mean the preferred form for making modifications,
->       including but not limited to software source code, documentation
->       source, and configuration files.
-> 
->       "Object" form shall mean any form resulting from mechanical
->       transformation or translation of a Source form, including but
->       not limited to compiled object code, generated documentation,
->       and conversions to other media types.
-> 
->       "Work" shall mean the work of authorship, whether in Source or
->       Object form, made available under the License, as indicated by a
->       copyright notice that is included in or attached to the work
->       (an example is provided in the Appendix below).
-> 
->       "Derivative Works" shall mean any work, whether in Source or Object
->       form, that is based on (or derived from) the Work and for which the
->       editorial revisions, annotations, elaborations, or other modifications
->       represent, as a whole, an original work of authorship. For the purposes
->       of this License, Derivative Works shall not include works that remain
->       separable from, or merely link (or bind by name) to the interfaces of,
->       the Work and Derivative Works thereof.
-> 
->       "Contribution" shall mean any work of authorship, including
->       the original version of the Work and any modifications or additions
->       to that Work or Derivative Works thereof, that is intentionally
->       submitted to Licensor for inclusion in the Work by the copyright owner
->       or by an individual or Legal Entity authorized to submit on behalf of
->       the copyright owner. For the purposes of this definition, "submitted"
->       means any form of electronic, verbal, or written communication sent
->       to the Licensor or its representatives, including but not limited to
->       communication on electronic mailing lists, source code control systems,
->       and issue tracking systems that are managed by, or on behalf of, the
->       Licensor for the purpose of discussing and improving the Work, but
->       excluding communication that is conspicuously marked or otherwise
->       designated in writing by the copyright owner as "Not a Contribution."
-> 
->       "Contributor" shall mean Licensor and any individual or Legal Entity
->       on behalf of whom a Contribution has been received by Licensor and
->       subsequently incorporated within the Work.
-> 
->    2. Grant of Copyright License. Subject to the terms and conditions of
->       this License, each Contributor hereby grants to You a perpetual,
->       worldwide, non-exclusive, no-charge, royalty-free, irrevocable
->       copyright license to reproduce, prepare Derivative Works of,
->       publicly display, publicly perform, sublicense, and distribute the
->       Work and such Derivative Works in Source or Object form.
-> 
->    3. Grant of Patent License. Subject to the terms and conditions of
->       this License, each Contributor hereby grants to You a perpetual,
->       worldwide, non-exclusive, no-charge, royalty-free, irrevocable
->       (except as stated in this section) patent license to make, have made,
->       use, offer to sell, sell, import, and otherwise transfer the Work,
->       where such license applies only to those patent claims licensable
->       by such Contributor that are necessarily infringed by their
->       Contribution(s) alone or by combination of their Contribution(s)
->       with the Work to which such Contribution(s) was submitted. If You
->       institute patent litigation against any entity (including a
->       cross-claim or counterclaim in a lawsuit) alleging that the Work
->       or a Contribution incorporated within the Work constitutes direct
->       or contributory patent infringement, then any patent licenses
->       granted to You under this License for that Work shall terminate
->       as of the date such litigation is filed.
-> 
->    4. Redistribution. You may reproduce and distribute copies of the
->       Work or Derivative Works thereof in any medium, with or without
->       modifications, and in Source or Object form, provided that You
->       meet the following conditions:
-> 
->       (a) You must give any other recipients of the Work or
->           Derivative Works a copy of this License; and
-> 
->       (b) You must cause any modified files to carry prominent notices
->           stating that You changed the files; and
-> 
->       (c) You must retain, in the Source form of any Derivative Works
->           that You distribute, all copyright, patent, trademark, and
->           attribution notices from the Source form of the Work,
->           excluding those notices that do not pertain to any part of
->           the Derivative Works; and
-> 
->       (d) If the Work includes a "NOTICE" text file as part of its
->           distribution, then any Derivative Works that You distribute must
->           include a readable copy of the attribution notices contained
->           within such NOTICE file, excluding those notices that do not
->           pertain to any part of the Derivative Works, in at least one
->           of the following places: within a NOTICE text file distributed
->           as part of the Derivative Works; within the Source form or
->           documentation, if provided along with the Derivative Works; or,
->           within a display generated by the Derivative Works, if and
->           wherever such third-party notices normally appear. The contents
->           of the NOTICE file are for informational purposes only and
->           do not modify the License. You may add Your own attribution
->           notices within Derivative Works that You distribute, alongside
->           or as an addendum to the NOTICE text from the Work, provided
->           that such additional attribution notices cannot be construed
->           as modifying the License.
-> 
->       You may add Your own copyright statement to Your modifications and
->       may provide additional or different license terms and conditions
->       for use, reproduction, or distribution of Your modifications, or
->       for any such Derivative Works as a whole, provided Your use,
->       reproduction, and distribution of the Work otherwise complies with
->       the conditions stated in this License.
-> 
->    5. Submission of Contributions. Unless You explicitly state otherwise,
->       any Contribution intentionally submitted for inclusion in the Work
->       by You to the Licensor shall be under the terms and conditions of
->       this License, without any additional terms or conditions.
->       Notwithstanding the above, nothing herein shall supersede or modify
->       the terms of any separate license agreement you may have executed
->       with Licensor regarding such Contributions.
-> 
->    6. Trademarks. This License does not grant permission to use the trade
->       names, trademarks, service marks, or product names of the Licensor,
->       except as required for reasonable and customary use in describing the
->       origin of the Work and reproducing the content of the NOTICE file.
-> 
->    7. Disclaimer of Warranty. Unless required by applicable law or
->       agreed to in writing, Licensor provides the Work (and each
->       Contributor provides its Contributions) on an "AS IS" BASIS,
->       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
->       implied, including, without limitation, any warranties or conditions
->       of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
->       PARTICULAR PURPOSE. You are solely responsible for determining the
->       appropriateness of using or redistributing the Work and assume any
->       risks associated with Your exercise of permissions under this License.
-> 
->    8. Limitation of Liability. In no event and under no legal theory,
->       whether in tort (including negligence), contract, or otherwise,
->       unless required by applicable law (such as deliberate and grossly
->       negligent acts) or agreed to in writing, shall any Contributor be
->       liable to You for damages, including any direct, indirect, special,
->       incidental, or consequential damages of any character arising as a
->       result of this License or out of the use or inability to use the
->       Work (including but not limited to damages for loss of goodwill,
->       work stoppage, computer failure or malfunction, or any and all
->       other commercial damages or losses), even if such Contributor
->       has been advised of the possibility of such damages.
-> 
->    9. Accepting Warranty or Additional Liability. While redistributing
->       the Work or Derivative Works thereof, You may choose to offer,
->       and charge a fee for, acceptance of support, warranty, indemnity,
->       or other liability obligations and/or rights consistent with this
->       License. However, in accepting such obligations, You may act only
->       on Your own behalf and on Your sole responsibility, not on behalf
->       of any other Contributor, and only if You agree to indemnify,
->       defend, and hold each Contributor harmless for any liability
->       incurred by, or claims asserted against, such Contributor by reason
->       of your accepting any such warranty or additional liability.
-> 
->    END OF TERMS AND CONDITIONS
-> 
->    APPENDIX: How to apply the Apache License to your work.
-> 
->       To apply the Apache License to your work, attach the following
->       boilerplate notice, with the fields enclosed by brackets "[]"
->       replaced with your own identifying information. (Don't include
->       the brackets!)  The text should be enclosed in the appropriate
->       comment syntax for the file format. We also recommend that a
->       file or class name and description of purpose be included on the
->       same "printed page" as the copyright notice for easier
->       identification within third-party archives.
-> 
->    Copyright 2017 Vercel, Inc.
-> 
->    Licensed under the Apache License, Version 2.0 (the "License");
->    you may not use this file except in compliance with the License.
->    You may obtain a copy of the License at
-> 
->        http://www.apache.org/licenses/LICENSE-2.0
-> 
->    Unless required by applicable law or agreed to in writing, software
->    distributed under the License is distributed on an "AS IS" BASIS,
->    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
->    See the License for the specific language governing permissions and
->    limitations under the License.
 
 ---------------------------------------
 
@@ -9007,7 +8798,7 @@ Repositories: https://github.com/sindresorhus/bundle-name, https://github.com/si
 
 ## cac
 License: MIT
-By: egoist
+By: egoist, Kevin Deng <sxzz@sxzz.moe>
 Repository: https://github.com/cacjs/cac
 
 > The MIT License (MIT)
@@ -10294,7 +10085,7 @@ Repository: https://github.com/css-modules/postcss-modules-values
 
 ## postcss-selector-parser
 License: MIT
-By: Ben Briggs, Chris Eppstein
+By: Maxime Thirouin, Ben Briggs, Chris Eppstein
 Repository: https://github.com/postcss/postcss-selector-parser
 
 > Copyright (c) Ben Briggs <beneb.info@gmail.com> (http://beneb.info)
@@ -10476,6 +10267,34 @@ Repository: https://github.com/jshttp/statuses
 > LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 > THE SOFTWARE.
+
+---------------------------------------
+
+## std-env
+License: MIT
+Repository: https://github.com/unjs/std-env
+
+> MIT License
+> 
+> Copyright (c) Pooya Parsa <pooya@pi0.io>
+> 
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+> 
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+> 
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
 
 ---------------------------------------
 
