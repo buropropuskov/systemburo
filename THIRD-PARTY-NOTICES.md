@@ -370,7 +370,7 @@
 | `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/image` | v0.47.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/mod` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/net` | v0.60.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/net` | v0.62.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sync` | v0.24.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sys` | v0.49.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/text` | v0.43.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
@@ -687,7 +687,7 @@ THE SOFTWARE.
 
 ### 7.5. BSD-3-Clause
 
-Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.58.0, `golang.org/x/image` v0.47.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.60.0, `golang.org/x/sync` v0.24.0, `golang.org/x/sys` v0.49.0, `golang.org/x/text` v0.43.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.51.0
+Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.58.0, `golang.org/x/image` v0.47.0, `golang.org/x/mod` v0.41.0, `golang.org/x/net` v0.62.0, `golang.org/x/sync` v0.24.0, `golang.org/x/sys` v0.49.0, `golang.org/x/text` v0.43.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.51.0
 
 ```text
 Copyright 2009 The Go Authors.
