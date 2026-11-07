@@ -58,7 +58,7 @@ func TestFakeUsers_GrantsPDConsentToEveryCreatedUser(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-consent"), 515, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{
 		DB: db, Batch: batch, Profile: profile, Seed: 515, Consent: stamp,
 	}))
 
@@ -102,7 +102,7 @@ func TestFakeUsers_PurgeRemovesConsents(t *testing.T) {
 	label := uniq("fake-consent-purge")
 	batch, err := fakedata.OpenBatch(ctx, db, label, 516, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{
 		DB: db, Batch: batch, Profile: profile, Seed: 516, Consent: stamp,
 	}))
 

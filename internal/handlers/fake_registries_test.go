@@ -43,7 +43,7 @@ func TestFakeRegistries_RunFillsEmployeesAndCars(t *testing.T) {
 
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-reg"), 4242, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 4242}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 4242}))
 
 	// --- реестры реально наполнены и ссылаются на реальные справочники ---
 
@@ -111,7 +111,7 @@ func TestFakeRegistries_RunFillsEmployeesAndCars(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-reg-2"), 9999, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9999}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9999}))
 	require.Equal(t, profile.Employees, batch2.Counts()[models.AuditEntityUniqueEmployee])
 	require.Equal(t, profile.Cars, batch2.Counts()[models.AuditEntityUniqueCar])
 }
@@ -129,7 +129,7 @@ func TestFakeRegistries_FailsWithoutAdmin(t *testing.T) {
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-noadmin"), 31337, profile.Name)
 	require.NoError(t, err)
 
-	err = fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 31337})
+	err = runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 31337})
 
 	require.Error(t, err, "наливка без администратора обязана сообщить об отказе")
 	require.Contains(t, err.Error(), "администратор")
@@ -152,7 +152,7 @@ func TestFakeRegistries_PassportGoesThroughModelHook(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-hmac"), 2024, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2024}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2024}))
 
 	var withPassport, withHMAC int64
 	require.NoError(t, db.Model(&models.UniqueEmployee{}).

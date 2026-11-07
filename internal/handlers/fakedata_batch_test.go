@@ -14,6 +14,12 @@ import (
 
 const fakeDataTestDSN = "postgres://postgres:postgres@db:5432/auto_registry_test?sslmode=disable"
 
+func runFakeDataWithDocument(t *testing.T, ctx context.Context, env *fakedata.Env) error {
+	t.Helper()
+	seedApplicationConfirmation(t, env.DB)
+	return fakedata.Run(ctx, env)
+}
+
 // setupFakeDataDB поднимает тестовое приложение и чистит базу: партии и отметка экземпляра
 // живут без внешних ключей, поэтому состояние соседнего теста иначе приезжает в
 // следующий.
@@ -30,7 +36,6 @@ func setupFakeDataDB(t *testing.T) *gorm.DB {
 // записи шаг честно падает. На живом стенде администратор есть всегда (make staging-seed).
 func seedFakeAdmin(t *testing.T, db *gorm.DB) models.User {
 	t.Helper()
-	seedApplicationConfirmation(t, db)
 	admin := models.User{
 		Username:     uniq("fake_admin"),
 		Password:     "x",
@@ -194,7 +199,7 @@ func TestRun_CreatesDictionariesAndClosesBatch(t *testing.T) {
 	batch, err := fakedata.OpenBatch(ctx, db, "test-dictionaries-run", 7, profile.Name)
 	require.NoError(t, err)
 
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{
 		DB: db, Batch: batch, Profile: profile, Seed: 7,
 	}))
 
@@ -227,11 +232,11 @@ func TestRun_RepeatedRunDoesNotFailOnUniqueIndexes(t *testing.T) {
 
 	firstBatch, err := fakedata.OpenBatch(ctx, db, "test-repeat-run-1", 101, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: firstBatch, Profile: profile, Seed: 101}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: firstBatch, Profile: profile, Seed: 101}))
 
 	secondBatch, err := fakedata.OpenBatch(ctx, db, "test-repeat-run-2", 202, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: secondBatch, Profile: profile, Seed: 202}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: secondBatch, Profile: profile, Seed: 202}))
 
 	stored, err := fakedata.FindBatch(ctx, db, "test-repeat-run-2")
 	require.NoError(t, err)

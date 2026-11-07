@@ -56,7 +56,7 @@ func TestFakeStages_RunCoversAllApplicationStates(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-stages"), 4242, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 4242}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 4242}))
 
 	// Стадии не заводят новых сущностей -- партия не приросла ничем сверх того, что уже
 	// посчитал applicationsStep (заявки + шаблоны вложений).
@@ -216,7 +216,7 @@ func TestFakeStages_RunCoversAllApplicationStates(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-stages-2"), 5252, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 5252}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 5252}))
 	require.Equal(t, profile.Applications, batch2.Counts()[models.AuditEntityApplication])
 }
 
@@ -235,6 +235,6 @@ func TestFakeStages_NoOpWhenNoApplications(t *testing.T) {
 
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-stages-empty"), 7777, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 7777}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 7777}))
 	require.Zero(t, batch.Counts()[models.AuditEntityApplication])
 }

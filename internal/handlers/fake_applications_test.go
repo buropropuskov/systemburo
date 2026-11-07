@@ -72,7 +72,7 @@ func TestFakeApplications_RunCreatesApplicationsWithAttachments(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-apps"), 8181, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 8181}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 8181}))
 
 	// --- всё созданное зарегистрировано в партии ---
 
@@ -183,7 +183,7 @@ func TestFakeApplications_RunCreatesApplicationsWithAttachments(t *testing.T) {
 
 	batch2, err := fakedata.OpenBatch(ctx, db, uniq("fake-apps-2"), 9292, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9292}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch2, Profile: profile, Seed: 9292}))
 	require.Equal(t, profile.Applications, batch2.Counts()[models.AuditEntityApplication])
 }
 
@@ -204,7 +204,7 @@ func TestFakeApplications_FailsWhenRegistriesEmpty(t *testing.T) {
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-apps-empty-reg"), 1111, profile.Name)
 	require.NoError(t, err)
 
-	err = fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1111})
+	err = runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 1111})
 	require.Error(t, err, "заявки без реестра машин обязаны сообщить об отказе, а не подать заявки без вложений")
 	require.Contains(t, err.Error(), "реестр машин пуст")
 }
@@ -225,7 +225,7 @@ func TestFakeApplications_FailsWhenNoApplicants(t *testing.T) {
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-apps-empty-users"), 2222, profile.Name)
 	require.NoError(t, err)
 
-	err = fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2222})
+	err = runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2222})
 	require.Error(t, err, "заявки без активных пользователей партии обязаны сообщить об отказе")
 	require.Contains(t, err.Error(), "не налила ни одного активного пользователя")
 }
@@ -283,7 +283,7 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-shift"), 606, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 606}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 606}))
 
 	type row struct {
 		Label string
@@ -367,11 +367,11 @@ func TestFakeApplications_RepeatedRunKeepsNumbersUnique(t *testing.T) {
 
 	first, err := fakedata.OpenBatch(ctx, db, uniq("fake-num-1"), 11, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 11}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 11}))
 
 	second, err := fakedata.OpenBatch(ctx, db, uniq("fake-num-2"), 22, profile.Name)
 	require.NoError(t, err)
-	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 22}))
+	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 22}))
 
 	var duplicates int64
 	require.NoError(t, db.Raw(`
