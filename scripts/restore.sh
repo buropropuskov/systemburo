@@ -15,6 +15,7 @@
 # передаётся в AGE_IDENTITY. На сервере этот ключ не хранится - его приносит
 # оператор на время восстановления.
 set -euo pipefail
+umask 077
 
 ENVIRONMENT="${1:-}"
 DB_ARCHIVE="${2:-}"
@@ -29,6 +30,8 @@ usage() {
 Переменные окружения:
   CONFIRM=yes       пропустить запрос подтверждения (для неинтерактивного запуска)
   AGE_IDENTITY=путь закрытый ключ age, если копия зашифрована
+  RESTORE_STATE_DIR=путь отдельный закрытый каталог состояния этого контура
+  RESTORE_SOURCE=current подтверждён доступ к исходной БД или к журналу текущего повтора
 EOF
 }
 
@@ -53,6 +56,20 @@ set -a; . ./.env; set +a
 DB_NAME="${DB_NAME:-auto_registry}"
 DB_USER="${DB_USER:-postgres}"
 AGE_IDENTITY="${AGE_IDENTITY:-}"
+if [[ "${RESTORE_SOURCE:-}" != current ]]; then
+  echo 'Подтвердите доступность исходной базы или журнала этой операции: RESTORE_SOURCE=current.' >&2
+  echo 'При утрате исходной базы и журнала автоматический запуск после восстановления недоступен.' >&2
+  exit 1
+fi
+if [[ "${RESTORE_STATE_DIR:-}" != /* || ! -d "$RESTORE_STATE_DIR" || -L "$RESTORE_STATE_DIR" ||
+      ! -O "$RESTORE_STATE_DIR" || "$(stat -c %a -- "$RESTORE_STATE_DIR")" != 700 ]]; then
+  echo 'RESTORE_STATE_DIR должен быть отдельным абсолютным каталогом текущего оператора с правами 700.' >&2
+  exit 1
+fi
+exec 9>"$RESTORE_STATE_DIR/restore.lock"
+flock -n 9 || { echo 'В этом контуре уже выполняется восстановление.' >&2; exit 1; }
+JOURNAL_DIR="$RESTORE_STATE_DIR/pending"
+JOURNAL_FILE="$JOURNAL_DIR/destruction-log.csv"
 
 echo "Контур:        $ENVIRONMENT"
 echo "База данных:   $DB_NAME"
@@ -89,7 +106,14 @@ step() {
 }
 
 WORK_DIR="$(mktemp -d)"
-cleanup() { rm -rf "$WORK_DIR"; }
+JOURNAL_STAGING=""
+cleanup() {
+  rm -rf "$WORK_DIR"
+  if [ -n "$JOURNAL_STAGING" ]; then rm -rf "$JOURNAL_STAGING"; fi
+  if [ -f "$JOURNAL_FILE" ]; then
+    printf 'Сохранённый журнал уничтожения: %s\n' "$JOURNAL_FILE" >&2
+  fi
+}
 trap cleanup EXIT
 
 # Прерваться посреди восстановления - худший исход: службы остановлены, режим
@@ -98,10 +122,9 @@ trap cleanup EXIT
 # печатаем точные команды.
 on_failure() {
   echo >&2
-  echo "ВОССТАНОВЛЕНИЕ ПРЕРВАНО. Система сейчас остановлена." >&2
-  echo "Проверьте состояние базы, затем поднимите систему:" >&2
-  echo "  ${COMPOSE[*]} start backend frontend nginx" >&2
-  echo "  bash scripts/maintenance-off.sh ${ENVIRONMENT}" >&2
+  echo "ВОССТАНОВЛЕНИЕ ПРЕРВАНО." >&2
+  echo "До проверки восстановленной базы и журнала не запускайте службы вручную." >&2
+  echo "Устраните причину и повторите восстановление с тем же дампом и каталогом состояния." >&2
 }
 trap on_failure ERR
 
@@ -155,6 +178,31 @@ decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
 "${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres -v ON_ERROR_STOP=1 \
   -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
       WHERE datname = '${DB_NAME}' AND pid <> pg_backend_pid();" >/dev/null
+
+# Журнал из дампа старше уничтожений, совершённых после снятия копии.
+# Экспорт выполняется после остановки приложения и до удаления текущей базы.
+JOURNAL_COLUMNS='id, entity_type, entity_id, action, basis, application_number, subject_anchors, rows, files, actor_id, actor_note, created_at, replays, replayed_at'
+archive_hash="$(sha256sum < "${WORK_DIR}/db.dump")"
+restore_id="$(printf '%s\n' "$(pwd -P)" "$ENVIRONMENT" "$DB_NAME" "$archive_hash")"
+if [ -e "$JOURNAL_DIR" ]; then
+  if [[ ! -f "$JOURNAL_FILE" || ! -f "$JOURNAL_DIR/restore-id" ||
+        "$(cat "$JOURNAL_DIR/restore-id")" != "$restore_id" ]]; then
+    echo 'Сохранённый журнал относится к другой операции или повреждён.' >&2
+    exit 1
+  fi
+  (cd "$JOURNAL_DIR" && sha256sum -c --status journal.sha256)
+  echo '== Использую журнал, сохранённый до первой замены базы'
+else
+  echo "== Сохраняю актуальный журнал уничтожения"
+  JOURNAL_STAGING="$(mktemp -d "$RESTORE_STATE_DIR/.capture.XXXXXXXX")"
+  "${COMPOSE[@]}" exec -T db psql -X -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 \
+    -c "COPY (SELECT ${JOURNAL_COLUMNS} FROM public.destruction_log ORDER BY id) TO STDOUT WITH (FORMAT csv)" \
+    > "$JOURNAL_STAGING/destruction-log.csv"
+  printf '%s\n' "$restore_id" > "$JOURNAL_STAGING/restore-id"
+  (cd "$JOURNAL_STAGING" && sha256sum destruction-log.csv > journal.sha256)
+  mv -T -- "$JOURNAL_STAGING" "$JOURNAL_DIR"
+  JOURNAL_STAGING=""
+fi
 "${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres -v ON_ERROR_STOP=1 \
   -c "DROP DATABASE IF EXISTS ${DB_NAME};" -c "CREATE DATABASE ${DB_NAME};" >/dev/null
 # pv рисует полосу по объёму выгрузки. Его отсутствие не повод ставить пакет на
@@ -195,6 +243,31 @@ echo "   Заявки:          $(echo "$COUNTS" | awk '{print $2}')"
 echo "   Таблицы постов:  $(echo "$COUNTS" | awk '{print $3}')"
 
 step "Применяю уничтожения заново по журналу"
+echo "== Объединяю восстановленный и актуальный журналы"
+"${COMPOSE[@]}" exec -T db psql -X -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 \
+  -c 'BEGIN' \
+  -c 'CREATE TEMP TABLE current_destruction_log (LIKE public.destruction_log) ON COMMIT DROP' \
+  -c "\\copy current_destruction_log (${JOURNAL_COLUMNS}) FROM STDIN WITH (FORMAT csv)" \
+  -c "DO \$journal\$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM current_destruction_log live
+          JOIN public.destruction_log saved USING (id)
+          WHERE (to_jsonb(live) - 'replays' - 'replayed_at')
+                IS DISTINCT FROM (to_jsonb(saved) - 'replays' - 'replayed_at')
+        ) THEN
+          RAISE EXCEPTION 'Идентификаторы записей журнала совпали, но содержимое различается';
+        END IF;
+      END \$journal\$" \
+  -c "INSERT INTO public.destruction_log (${JOURNAL_COLUMNS})
+      SELECT ${JOURNAL_COLUMNS} FROM current_destruction_log
+      ON CONFLICT (id) DO UPDATE SET
+        replays = GREATEST(destruction_log.replays, EXCLUDED.replays),
+        replayed_at = GREATEST(destruction_log.replayed_at, EXCLUDED.replayed_at)" \
+  -c "SELECT setval(pg_get_serial_sequence('public.destruction_log', 'id'),
+      GREATEST((SELECT max(id) FROM public.destruction_log),
+               nextval(pg_get_serial_sequence('public.destruction_log', 'id'))))" \
+  -c 'COMMIT' < "$JOURNAL_FILE" >/dev/null
 # Копия, снятая до уничтожения, возвращает и то, что оператор обязан был уничтожить.
 # Закон допускает держать копии ограниченный срок при условии, что после
 # восстановления удаления применяются заново, - здесь это условие и исполняется.
@@ -251,6 +324,8 @@ step "Запускаю систему"
 
 step "Снимаю режим технических работ"
 bash scripts/maintenance-off.sh "$ENVIRONMENT" >/dev/null
+rm -- "$JOURNAL_FILE" "$JOURNAL_DIR/restore-id" "$JOURNAL_DIR/journal.sha256"
+rmdir -- "$JOURNAL_DIR"
 
 echo "      готово за $(( $(date +%s) - STEP_STARTED )) с"
 echo
