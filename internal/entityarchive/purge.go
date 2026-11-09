@@ -216,6 +216,10 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 
 	var deleted []PurgeTableCount
 	var detachedTemplates int64
+	intent := destruction.destructionRecord(entityType, &id, DestructionPurged)
+	var journal *destructionJournalWrite
+	defer func() { journal.close() }()
+
 	txErr := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Повторная сверка покрытия ВНУТРИ транзакции: закрывает окно между проверкой выше
 		// и самим удалением - на практике verify и purge -apply запускает один оператор
@@ -235,6 +239,10 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		}
 		if diff := comparePackageCoverage(v.Manifest.Tables, curGraph.Tables); diff != "" {
 			return coverageMismatchError(diff)
+		}
+		journal, err = beginDestructionJournal(ctx, destruction, intent)
+		if err != nil {
+			return err
 		}
 
 		// Инвариант 8: отвязка общих шаблонов ДО удаления узлов графа - иначе deleteNode
@@ -270,7 +278,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		rec := destruction.destructionRecord(entityType, &entityID, DestructionPurged)
 		rec.Rows = int(sumRows(deleted))
 		rec.Files = len(files)
-		return writeDestruction(ctx, tx, destruction, rec)
+		return journal.record(ctx, tx, destruction, &rec)
 	})
 	if txErr != nil {
 		return res, fmt.Errorf("снос %s #%d: %w", entityType, id, txErr)
@@ -286,7 +294,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		return res, fmt.Errorf("строки удалены и зафиксированы в audit_log, но не все файлы заявок "+
 			"снесены с диска - уберите вручную: %w", err)
 	}
-	return res, nil
+	return res, journal.complete(ctx)
 }
 
 // deleteNode физически удаляет строки одного узла графа и возвращает число удалённых строк.

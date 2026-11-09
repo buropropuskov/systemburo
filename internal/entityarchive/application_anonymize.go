@@ -83,7 +83,7 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 			}
 			res.Tables[i].Rows = len(ids)
 		}
-		files, err := purgeApplicationFiles(ctx, db, opt.Files, id, false)
+		files, err := purgeApplicationFiles(ctx, db, opt.Files, id, false, false)
 		if err != nil {
 			return AnonymizeResult{}, err
 		}
@@ -99,19 +99,24 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 	defer release()
 	// Существование проверяется до уничтожения файлов: ошибиться идентификатором
 	// заявки можно, а вернуть снятый с диска скан паспорта - нет.
-	exists, err := applicationExists(ctx, db, id)
+	number, err := applicationNumber(ctx, db, id)
 	if err != nil {
 		return AnonymizeResult{}, err
 	}
-	if !exists {
-		return AnonymizeResult{}, errApplicationNotFound
+
+	res := AnonymizeResult{Type: TypeApplication, ID: id, Tables: applicationAnonymizeTargets()}
+	intent := opt.destructionRecord(models.AuditEntityApplication, &id, DestructionAnonymized)
+	intent.ApplicationNumber = number
+	journal, journalErr := beginDestructionJournal(ctx, opt, intent)
+	if journalErr != nil {
+		return AnonymizeResult{}, journalErr
 	}
+	defer journal.close()
 
 	if err := services.NewArchiveExportOutbox(db).Suppress(ctx, id); err != nil {
 		return AnonymizeResult{}, fmt.Errorf("запрет повторной выгрузки заявки #%d: %w", id, err)
 	}
-	res := AnonymizeResult{Type: TypeApplication, ID: id, Tables: applicationAnonymizeTargets()}
-	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true)
+	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true, journal != nil)
 	if err != nil {
 		return AnonymizeResult{}, err
 	}
@@ -164,7 +169,7 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 		rec.ApplicationNumber = number
 		rec.Rows = res.Total()
 		rec.Files = res.Files.Total()
-		return writeDestruction(ctx, tx, opt, rec)
+		return journal.record(ctx, tx, opt, &rec)
 	})
 	switch {
 	case errors.Is(err, errApplicationNotFound):
@@ -172,7 +177,7 @@ func AnonymizeApplication(ctx context.Context, db *gorm.DB, recorder services.Au
 	case err != nil:
 		return AnonymizeResult{}, fmt.Errorf("обезличивание заявки #%d: %w", id, err)
 	}
-	return res, nil
+	return res, journal.complete(ctx)
 }
 
 // applicationExists - есть ли такая заявка.

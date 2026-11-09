@@ -87,6 +87,20 @@ func runDestruction(args []string) int {
 		return destructionShow(args[1:])
 	case "replay":
 		return destructionReplay(args[1:])
+	case "backup-checkpoint":
+		checkpoint, err := entityarchive.BackupJournalCheckpoint(context.Background(), args[1:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		fmt.Println(checkpoint)
+		return 0
+	case "restore-journal-export":
+		if err := entityarchive.ExportIndependentRestoreJournal(context.Background(), args[1:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
 	case "act":
 		return destructionAct(args[1:])
 	default:

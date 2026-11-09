@@ -236,6 +236,22 @@ if [ "$ENCRYPTED" = false ]; then
 fi
 
 # --- база данных ---
+journal_checkpoint() {
+  local -a server=(backend ./server)
+  if [ "$ENVIRONMENT" = local ]; then server=(go-backend go run ./cmd/server); fi
+  "${COMPOSE[@]}" exec -T "${server[@]}" destruction backup-checkpoint "$@"
+}
+
+JOURNAL_POSITION=""
+CHECKPOINT_FILE=""
+if [ -n "${DESTRUCTION_JOURNAL_WRITER_DSN:-}${DESTRUCTION_JOURNAL_INSTALLATION:-}${DESTRUCTION_JOURNAL_KEY:-}" ] &&
+   { [ "$BACKUP_UPLOADS_MODE" = daily ] || [ "$TODAY_DOW" = 7 ] || [ "$TODAY_DOM" = 01 ]; }; then
+  if ! JOURNAL_POSITION="$(journal_checkpoint)"; then
+    JOURNAL_POSITION=""
+    log "Независимое восстановление недоступно для этой копии: журнал не подтвердил начальную позицию"
+  fi
+fi
+
 DB_RAW="${WORK_DIR}/buro-db-${STAMP}.dump.v1"
 FAIL_REASON="не удалось выгрузить базу $DB_NAME"
 DB_FILE="${DB_RAW}$(suffix)"
@@ -314,6 +330,19 @@ else
   log "файлы пропущены: режим $BACKUP_UPLOADS_MODE, сегодня не день архивации"
 fi
 
+if [ -n "$JOURNAL_POSITION" ] && [ -n "$UPLOADS_FILE" ] && [ -n "$ARCHIVE_FILE" ]; then
+  CHECKPOINT_FILE="${WORK_DIR}/checkpoint-${DB_FILE##*/}"
+  db_digest="$(sha256sum < "$DB_FILE")"
+  uploads_digest="$(sha256sum < "$UPLOADS_FILE")"
+  archive_digest="$(sha256sum < "$ARCHIVE_FILE")"
+  if ! journal_checkpoint "$JOURNAL_POSITION" "${db_digest%% *}" "${uploads_digest%% *}" \
+    "${archive_digest%% *}" > "$CHECKPOINT_FILE"; then
+    rm -f -- "$CHECKPOINT_FILE"
+    CHECKPOINT_FILE=""
+    log "Независимое восстановление недоступно для этой копии: журнал не подтвердил комплект"
+  fi
+fi
+
 # --- раскладка по срокам хранения ---
 # Одна и та же копия попадает в несколько каталогов жёсткой ссылкой: место
 # занимается один раз, а сроки хранения у каталогов разные.
@@ -323,7 +352,7 @@ place() {
 }
 
 FAIL_REASON="не удалось разложить копию по каталогам"
-for f in "$MANIFEST" "$DB_FILE" ${UPLOADS_FILE:+"$UPLOADS_FILE"} ${ARCHIVE_FILE:+"$ARCHIVE_FILE"}; do
+for f in "$MANIFEST" "$DB_FILE" ${UPLOADS_FILE:+"$UPLOADS_FILE"} ${ARCHIVE_FILE:+"$ARCHIVE_FILE"} ${CHECKPOINT_FILE:+"$CHECKPOINT_FILE"}; do
   place "$f" daily
   # Именно if, а не «условие && действие»: при ложном условии такая строка
   # возвращает единицу, и set -e обрывает скрипт в обычный будний день.
@@ -347,6 +376,7 @@ rotate() {
           rm -f "${BACKUP_DIR}/${dir}/${name}"
           if [ "$prefix" = buro-db ]; then
             rm -f "${BACKUP_DIR}/${dir}/$(backup_manifest_name "$name")"
+            rm -f "${BACKUP_DIR}/${dir}/checkpoint-${name}"
           fi
           log "удалена по сроку хранения: ${name}"
         done

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Восстановление системы из резервной копии.
 #
-#   ./scripts/restore.sh [local|staging|production] <файл выгрузки базы> [архив файлов]
+#   ./scripts/restore.sh [local|staging|production] <файл выгрузки базы> [архив вложений] [архив бланков]
 #
 # Операция необратима: текущее содержимое базы заменяется содержимым копии.
 # Поэтому она требует явного подтверждения и выполняется при остановленном
@@ -20,18 +20,20 @@ umask 077
 ENVIRONMENT="${1:-}"
 DB_ARCHIVE="${2:-}"
 UPLOADS_ARCHIVE="${3:-}"
+BLANKS_ARCHIVE="${4:-}"
 cd "$(dirname "$0")/.."
 
 usage() {
   cat >&2 <<'EOF'
 Использование:
-  ./scripts/restore.sh [local|staging|production] <файл выгрузки базы> [архив файлов]
+  ./scripts/restore.sh [local|staging|production] <файл выгрузки базы> [архив вложений] [архив бланков]
 
 Переменные окружения:
   CONFIRM=yes       пропустить запрос подтверждения (для неинтерактивного запуска)
   AGE_IDENTITY=путь закрытый ключ age, если копия зашифрована
   RESTORE_STATE_DIR=путь отдельный закрытый каталог состояния этого контура
   RESTORE_SOURCE=current подтверждён доступ к исходной БД или к журналу текущего повтора
+  RESTORE_SOURCE=independent полный комплект с отметкой и отдельный журнал
 EOF
 }
 
@@ -41,6 +43,12 @@ case "$ENVIRONMENT" in
   production) COMPOSE=(docker compose -f docker-compose.base.yml -f docker-compose.prod.yml) ;;
   *) usage; exit 1 ;;
 esac
+SERVICES=(backend frontend nginx)
+SERVER=(backend ./server)
+if [ "$ENVIRONMENT" = local ]; then
+  SERVICES=(go-backend frontend)
+  SERVER=(go-backend go run ./cmd/server)
+fi
 
 if [ -z "$DB_ARCHIVE" ] || [ ! -f "$DB_ARCHIVE" ]; then
   echo "Файл выгрузки базы не найден: ${DB_ARCHIVE:-не указан}" >&2
@@ -56,9 +64,8 @@ set -a; . ./.env; set +a
 DB_NAME="${DB_NAME:-auto_registry}"
 DB_USER="${DB_USER:-postgres}"
 AGE_IDENTITY="${AGE_IDENTITY:-}"
-if [[ "${RESTORE_SOURCE:-}" != current ]]; then
-  echo 'Подтвердите доступность исходной базы или журнала этой операции: RESTORE_SOURCE=current.' >&2
-  echo 'При утрате исходной базы и журнала автоматический запуск после восстановления недоступен.' >&2
+if [[ "${RESTORE_SOURCE:-}" != current && "${RESTORE_SOURCE:-}" != independent ]]; then
+  echo 'Укажите источник журнала: RESTORE_SOURCE=current или RESTORE_SOURCE=independent.' >&2
   exit 1
 fi
 if [[ "${RESTORE_STATE_DIR:-}" != /* || ! -d "$RESTORE_STATE_DIR" || -L "$RESTORE_STATE_DIR" ||
@@ -75,6 +82,7 @@ echo "Контур:        $ENVIRONMENT"
 echo "База данных:   $DB_NAME"
 echo "Выгрузка базы: $DB_ARCHIVE"
 echo "Архив файлов:  ${UPLOADS_ARCHIVE:-не указан, файлы останутся текущими}"
+echo "Архив бланков: ${BLANKS_ARCHIVE:-не указан}"
 echo
 echo "Текущее содержимое базы будет заменено. Отменить это нельзя."
 
@@ -94,6 +102,7 @@ STEP_NO=0
 # выполняется, только если архив передан вторым аргументом.
 STEP_TOTAL=7
 [ -n "$UPLOADS_ARCHIVE" ] && STEP_TOTAL=8
+[ -z "$BLANKS_ARCHIVE" ] || STEP_TOTAL=$((STEP_TOTAL + 1))
 STEP_STARTED=0
 step() {
   if [ "$STEP_STARTED" -ne 0 ]; then
@@ -110,7 +119,7 @@ JOURNAL_STAGING=""
 cleanup() {
   rm -rf "$WORK_DIR"
   if [ -n "$JOURNAL_STAGING" ]; then rm -rf "$JOURNAL_STAGING"; fi
-  if [ -f "$JOURNAL_FILE" ]; then
+  if [[ "$RESTORE_SOURCE" == current && -f "$JOURNAL_FILE" ]]; then
     printf 'Сохранённый журнал уничтожения: %s\n' "$JOURNAL_FILE" >&2
   fi
 }
@@ -149,6 +158,62 @@ decrypt_if_needed() {
   esac
 }
 
+if [[ "$RESTORE_SOURCE" == independent ]]; then
+  CHECKPOINT="${DB_ARCHIVE%/*}/checkpoint-${DB_ARCHIVE##*/}"
+  if [[ "$DB_ARCHIVE" != */* ]]; then CHECKPOINT="checkpoint-$DB_ARCHIVE"; fi
+  if [[ ! -s "$CHECKPOINT" || ! -f "$UPLOADS_ARCHIVE" || ! -f "$BLANKS_ARCHIVE" ]]; then
+    echo 'Для независимого восстановления нужны база, вложения, бланки и отметка комплекта.' >&2
+    exit 1
+  fi
+  for component in DB_ARCHIVE UPLOADS_ARCHIVE BLANKS_ARCHIVE; do
+    original="${!component}"
+    staged="$WORK_DIR/$component-${original##*/}"
+    cp -- "$original" "$staged"
+    printf -v "$component" '%s' "$staged"
+  done
+fi
+
+decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
+if [ -n "$UPLOADS_ARCHIVE" ]; then
+  decrypt_if_needed "$UPLOADS_ARCHIVE" "${WORK_DIR}/uploads.tar.gz"
+  tar -tzf "${WORK_DIR}/uploads.tar.gz" >/dev/null
+  if [ "$ENVIRONMENT" = local ]; then
+    UPLOADS_TARGET="${UPLOAD_HOST_PATH:-./uploads}"
+    if [ ! -d "$UPLOADS_TARGET" ] || [ ! -w "$UPLOADS_TARGET" ]; then
+      echo "Каталог вложений недоступен для записи: $UPLOADS_TARGET" >&2
+      exit 1
+    fi
+  else
+    backend_id="$("${COMPOSE[@]}" ps --all --quiet backend)"
+    UPLOADS_VOL="$(docker inspect --format '{{range .Mounts}}{{if and (eq .Destination "/app/uploads") (eq .Type "volume")}}{{.Name}}{{end}}{{end}}' "$backend_id")"
+    if [ -z "$UPLOADS_VOL" ]; then
+      echo 'Не найден том вложений выбранного контура.' >&2
+      exit 1
+    fi
+  fi
+fi
+
+if [ -n "$BLANKS_ARCHIVE" ]; then
+  decrypt_if_needed "$BLANKS_ARCHIVE" "${WORK_DIR}/blanks.tar.gz"
+  tar -tzf "${WORK_DIR}/blanks.tar.gz" >/dev/null
+  BLANKS_TARGET="${ARCHIVE_HOST_PATH:-./archive}"
+  if [ ! -d "$BLANKS_TARGET" ] || [ ! -w "$BLANKS_TARGET" ]; then
+    echo "Каталог архива бланков недоступен для записи: $BLANKS_TARGET" >&2
+    exit 1
+  fi
+fi
+
+if [[ "$RESTORE_SOURCE" == independent ]]; then
+  db_digest="$(sha256sum < "$DB_ARCHIVE")"
+  uploads_digest="$(sha256sum < "$UPLOADS_ARCHIVE")"
+  blanks_digest="$(sha256sum < "$BLANKS_ARCHIVE")"
+  "${COMPOSE[@]}" run --rm --no-deps -T \
+    -e DESTRUCTION_JOURNAL_RECOVERY_DSN -e DESTRUCTION_JOURNAL_INSTALLATION -e DESTRUCTION_JOURNAL_KEY \
+    "${SERVER[@]}" destruction restore-journal-export "$(cat "$CHECKPOINT")" \
+    "${db_digest%% *}" "${uploads_digest%% *}" "${blanks_digest%% *}" > "$WORK_DIR/independent-journal.csv"
+  JOURNAL_FILE="$WORK_DIR/independent-journal.csv"
+fi
+
 step "Включаю режим технических работ"
 # Пользователи должны видеть объяснение, а не ошибки подключения. Ключи те же,
 # что использует служба режима работ; снимается он scripts/maintenance-off.sh.
@@ -165,10 +230,9 @@ then
 fi
 
 step "Останавливаю прикладной сервер"
-"${COMPOSE[@]}" stop backend frontend nginx
+"${COMPOSE[@]}" stop "${SERVICES[@]}"
 
 step "Восстанавливаю базу данных"
-decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
 
 # База пересоздаётся целиком, а не чистится ключом --clean. Причина: журналы
 # запросов и обращений к персональным данным разбиты на разделы по датам, а снять
@@ -184,7 +248,9 @@ decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
 JOURNAL_COLUMNS='id, entity_type, entity_id, action, basis, application_number, subject_anchors, rows, files, actor_id, actor_note, created_at, replays, replayed_at'
 archive_hash="$(sha256sum < "${WORK_DIR}/db.dump")"
 restore_id="$(printf '%s\n' "$(pwd -P)" "$ENVIRONMENT" "$DB_NAME" "$archive_hash")"
-if [ -e "$JOURNAL_DIR" ]; then
+if [[ "$RESTORE_SOURCE" == independent ]]; then
+  echo '== Использую подтверждённые записи независимого журнала'
+elif [ -e "$JOURNAL_DIR" ]; then
   if [[ ! -f "$JOURNAL_FILE" || ! -f "$JOURNAL_DIR/restore-id" ||
         "$(cat "$JOURNAL_DIR/restore-id")" != "$restore_id" ]]; then
     echo 'Сохранённый журнал относится к другой операции или повреждён.' >&2
@@ -217,19 +283,17 @@ else
 fi
 
 if [ -n "$UPLOADS_ARCHIVE" ]; then
-  if [ ! -f "$UPLOADS_ARCHIVE" ]; then
-    echo "Архив файлов не найден: $UPLOADS_ARCHIVE" >&2
-    exit 1
+  step "Восстанавливаю загруженные файлы"
+  if [ "$ENVIRONMENT" = local ]; then
+    tar -xzf "${WORK_DIR}/uploads.tar.gz" -C "$UPLOADS_TARGET" --no-same-owner
+  else
+    docker run --rm -v "$UPLOADS_VOL":/data -v "$WORK_DIR":/in:ro alpine:3.20 \
+      tar xzf /in/uploads.tar.gz -C /data
   fi
-  echo "== Восстанавливаю загруженные файлы"
-  decrypt_if_needed "$UPLOADS_ARCHIVE" "${WORK_DIR}/uploads.tar.gz"
-  UPLOADS_VOL="$(docker volume ls --format '{{.Name}}' | grep '_uploads$' | head -1)"
-  if [ -z "$UPLOADS_VOL" ]; then
-    echo "Не найден том с загруженными файлами" >&2
-    exit 1
-  fi
-  docker run --rm -v "$UPLOADS_VOL":/data -v "$WORK_DIR":/in alpine:3.20 \
-    tar xzf /in/uploads.tar.gz -C /data
+fi
+if [ -n "$BLANKS_ARCHIVE" ]; then
+  step "Восстанавливаю архив бланков"
+  tar -xzf "${WORK_DIR}/blanks.tar.gz" -C "$BLANKS_TARGET" --no-same-owner
 fi
 
 step "Проверяю восстановленное до запуска приложения"
@@ -281,7 +345,7 @@ echo "== Объединяю восстановленный и актуальны
 # каждый требует своего. Сбой ниже поднимается обратно общему обработчику, так что
 # || здесь ничего не проглатывает.
 REPLAY_CODE=0
-"${COMPOSE[@]}" run --rm -T backend ./server destruction replay -apply || REPLAY_CODE=$?
+"${COMPOSE[@]}" run --rm -T "${SERVER[@]}" destruction replay -apply || REPLAY_CODE=$?
 
 if [ "$REPLAY_CODE" -ne 0 ] && [ "$REPLAY_CODE" -ne 3 ]; then
   echo >&2
@@ -320,12 +384,14 @@ fi
 step "Запускаю систему"
 # start, а не up: up обращается к реестру образов, где нужна авторизация, и
 # восстановление падало бы на последнем шаге, оставив систему выключенной.
-"${COMPOSE[@]}" start backend frontend nginx
+"${COMPOSE[@]}" start "${SERVICES[@]}"
 
 step "Снимаю режим технических работ"
 bash scripts/maintenance-off.sh "$ENVIRONMENT" >/dev/null
-rm -- "$JOURNAL_FILE" "$JOURNAL_DIR/restore-id" "$JOURNAL_DIR/journal.sha256"
-rmdir -- "$JOURNAL_DIR"
+if [[ "$RESTORE_SOURCE" == current ]]; then
+  rm -- "$JOURNAL_FILE" "$JOURNAL_DIR/restore-id" "$JOURNAL_DIR/journal.sha256"
+  rmdir -- "$JOURNAL_DIR"
+fi
 
 echo "      готово за $(( $(date +%s) - STEP_STARTED )) с"
 echo

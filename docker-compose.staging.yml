@@ -17,6 +17,9 @@ services:
     image: ${BACKEND_IMAGE:-ghcr.io/buropropuskov/systemburo-backend:dev}
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
+      DESTRUCTION_JOURNAL_WRITER_DSN: ${DESTRUCTION_JOURNAL_WRITER_DSN:-}
+      DESTRUCTION_JOURNAL_INSTALLATION: ${DESTRUCTION_JOURNAL_INSTALLATION:-}
+      DESTRUCTION_JOURNAL_KEY: ${DESTRUCTION_JOURNAL_KEY:-}
 
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/buropropuskov/systemburo-frontend:dev}
