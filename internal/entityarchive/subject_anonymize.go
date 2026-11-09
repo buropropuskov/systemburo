@@ -88,6 +88,8 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 	}
 
 	res := SubjectAnonymizeResult{Origin: target.Origin, Tables: subjectAnonymizeTargets()}
+	var journal *destructionJournalWrite
+	defer func() { journal.close() }()
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Предупреждения считаются ДО затирания: после него строк по свёртке уже нет,
 		// и число проходов, оставшихся с именем в журнале, посчитать будет нечем.
@@ -99,7 +101,7 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 
 		var anchorID int
 		var anchors []subjectAnchor
-		total := 0
+		rowIDs := make([][]int, len(res.Tables))
 		for i := range res.Tables {
 			table := res.Tables[i].Table
 			ids, err := subjectRowIDs(ctx, tx, table, target)
@@ -114,7 +116,24 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 			for _, id := range ids {
 				anchors = append(anchors, subjectAnchor{Table: table, ID: id})
 			}
-			n, err := anonymizeRows(ctx, tx, table, ids)
+			rowIDs[i] = ids
+		}
+		if len(anchors) == 0 {
+			return errSubjectNotFound
+		}
+		var entityID *int
+		if anchorID > 0 {
+			entityID = &anchorID
+		}
+		rec := opt.destructionRecord(models.AuditEntityUniqueEmployee, entityID, DestructionAnonymized)
+		rec.SubjectAnchors = formatSubjectAnchors(anchors)
+		journal, err = beginDestructionJournal(ctx, opt, rec)
+		if err != nil {
+			return err
+		}
+		total := 0
+		for i, ids := range rowIDs {
+			n, err := anonymizeRows(ctx, tx, res.Tables[i].Table, ids)
 			if err != nil {
 				return err
 			}
@@ -133,10 +152,6 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		// появится и метка «сделано». Привязываем к записи реестра, если она была:
 		// у человека своего идентификатора нет, а запись без сущности не найти потом
 		// в истории.
-		var entityID *int
-		if anchorID > 0 {
-			entityID = &anchorID
-		}
 		if err := recorder.Record(ctx, tx, models.AuditEntityUniqueEmployee, entityID,
 			models.OrganizationActionAnonymized, opt.ActorID,
 			anonymizeDetails{Tables: details}); err != nil {
@@ -148,10 +163,8 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		// вовсе, - поэтому запоминаются все затёртые строки. Ни документа, ни его
 		// свёртки в журнал не идёт: ключ поиска берут из самой вернувшейся строки,
 		// см. SubjectAnchors у модели.
-		rec := opt.destructionRecord(models.AuditEntityUniqueEmployee, entityID, DestructionAnonymized)
-		rec.SubjectAnchors = formatSubjectAnchors(anchors)
 		rec.Rows = total
-		return writeDestruction(ctx, tx, opt, rec)
+		return journal.record(ctx, tx, opt, &rec)
 	})
 	switch {
 	case errors.Is(err, errSubjectNotFound):
@@ -159,7 +172,7 @@ func AnonymizeSubject(ctx context.Context, db *gorm.DB, recorder services.AuditR
 	case err != nil:
 		return SubjectAnonymizeResult{}, fmt.Errorf("обезличивание человека: %w", err)
 	}
-	return res, nil
+	return res, journal.complete(ctx)
 }
 
 // subjectRowIDs - идентификаторы строк таблицы, принадлежащих человеку.

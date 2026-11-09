@@ -250,6 +250,10 @@ func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder
 	}
 
 	res := AnonymizeResult{Type: entityType, ID: id, Tables: anonymizeTargets()}
+	intent := opt.destructionRecord(models.AuditEntityOrganization, &id, DestructionAnonymized)
+	var journal *destructionJournalWrite
+	defer func() { journal.close() }()
+
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Проверка существования - внутри ЭТОЙ ЖЕ транзакции, тем же приёмом, что и
 		// Retire: снаружи организация могла бы исчезнуть между проверкой и записью.
@@ -259,6 +263,10 @@ func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder
 		}
 		if !exists {
 			return errOrgNotFound
+		}
+		journal, err = beginDestructionJournal(ctx, opt, intent)
+		if err != nil {
+			return err
 		}
 
 		for i := range res.Tables {
@@ -306,7 +314,7 @@ func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder
 		// Свидетельство для повторного применения после восстановления (#2357).
 		rec := opt.destructionRecord(models.AuditEntityOrganization, &id, DestructionAnonymized)
 		rec.Rows = res.Total()
-		return writeDestruction(ctx, tx, opt, rec)
+		return journal.record(ctx, tx, opt, &rec)
 	})
 	switch {
 	case errors.Is(err, errOrgNotFound):
@@ -314,7 +322,7 @@ func Anonymize(ctx context.Context, db *gorm.DB, recorder services.AuditRecorder
 	case err != nil:
 		return AnonymizeResult{}, fmt.Errorf("anonymize %s #%d: %w", entityType, id, err)
 	}
-	return res, nil
+	return res, journal.complete(ctx)
 }
 
 // Имена таблиц, для которых Anonymize не может обойтись голым предикатом графа

@@ -171,12 +171,12 @@ func (o DestructionOptions) destructionRecord(entityType string, entityID *int, 
 // Вызывается ВНУТРИ той же транзакции, что и само уничтожение, тем же приёмом, что и
 // запись в audit_log: не выполнилось действие - не появилось и свидетельство, а
 // свидетельства без действия не бывает вовсе.
-func writeDestruction(ctx context.Context, tx *gorm.DB, opt DestructionOptions, rec models.DestructionRecord) error {
+func writeDestruction(ctx context.Context, tx *gorm.DB, opt DestructionOptions, rec *models.DestructionRecord) error {
 	if opt.ReplayOf != nil {
 		return markReplayed(ctx, tx, *opt.ReplayOf)
 	}
 	rec.CreatedAt = time.Now().UTC()
-	if err := tx.WithContext(ctx).Create(&rec).Error; err != nil {
+	if err := tx.WithContext(ctx).Create(rec).Error; err != nil {
 		return fmt.Errorf("запись в журнал уничтожения: %w", err)
 	}
 	return nil

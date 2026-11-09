@@ -66,7 +66,7 @@ type archiveFileRow struct {
 
 // purgeApplicationFiles уничтожает файлы заявки за пределами базы.
 // apply=false - только подсчёт, ни диск, ни база не меняются.
-func purgeApplicationFiles(ctx context.Context, db *gorm.DB, paths FilePaths, id int, apply bool) (FilePurgeResult, error) {
+func purgeApplicationFiles(ctx context.Context, db *gorm.DB, paths FilePaths, id int, apply, requireAllPaths bool) (FilePurgeResult, error) {
 	var res FilePurgeResult
 
 	attached, err := applicationAttachedFiles(ctx, db, id)
@@ -100,6 +100,9 @@ func purgeApplicationFiles(ctx context.Context, db *gorm.DB, paths FilePaths, id
 	}
 	if !apply {
 		return res, nil
+	}
+	if requireAllPaths && len(res.Skipped) > 0 {
+		return res, fmt.Errorf("не заданы пути для уничтожения всех файлов заявки #%d", id)
 	}
 
 	if res.Attached > 0 && strings.TrimSpace(paths.UploadPath) != "" {

@@ -150,7 +150,7 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 	res.Warnings = applicationPurgeWarnings(passages)
 
 	if !opt.Apply {
-		files, err := purgeApplicationFiles(ctx, db, opt.Files, id, false)
+		files, err := purgeApplicationFiles(ctx, db, opt.Files, id, false, false)
 		if err != nil {
 			return ApplicationPurgeResult{}, err
 		}
@@ -171,12 +171,20 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 	if !exists {
 		return ApplicationPurgeResult{}, errApplicationNotFound
 	}
+	// Диск первым, по тому же доводу, что и у обезличивания: удаление файла откатить
+	// нечем, и сбой посередине чинится повторным прогоном.
+	intent := opt.destructionRecord(models.AuditEntityApplication, &id, DestructionPurged)
+	intent.ApplicationNumber = res.Number
+	journal, journalErr := beginDestructionJournal(ctx, opt, intent)
+	if journalErr != nil {
+		return ApplicationPurgeResult{}, journalErr
+	}
+	defer journal.close()
+
 	if err := services.NewArchiveExportOutbox(db).Suppress(ctx, id); err != nil {
 		return ApplicationPurgeResult{}, fmt.Errorf("запрет повторной выгрузки заявки #%d: %w", id, err)
 	}
-	// Диск первым, по тому же доводу, что и у обезличивания: удаление файла откатить
-	// нечем, и сбой посередине чинится повторным прогоном.
-	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true)
+	res.Files, err = purgeApplicationFiles(ctx, db, opt.Files, id, true, journal != nil)
 	if err != nil {
 		return ApplicationPurgeResult{}, err
 	}
@@ -230,7 +238,7 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 		rec.ApplicationNumber = res.Number
 		rec.Rows = int(res.TotalRows())
 		rec.Files = res.Files.Total()
-		return writeDestruction(ctx, tx, opt, rec)
+		return journal.record(ctx, tx, opt, &rec)
 	})
 	switch {
 	case errors.Is(err, errApplicationNotFound):
@@ -238,7 +246,7 @@ func PurgeApplication(ctx context.Context, db *gorm.DB, recorder services.AuditR
 	case err != nil:
 		return ApplicationPurgeResult{}, fmt.Errorf("уничтожение заявки #%d: %w", id, err)
 	}
-	return res, nil
+	return res, journal.complete(ctx)
 }
 
 // applicationPurgeDetails - содержимое записи журнала. Ни ФИО, ни документов: запись
