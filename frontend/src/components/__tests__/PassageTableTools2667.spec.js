@@ -90,7 +90,8 @@ describe('shared passage table controls #2667', () => {
   it('renders compact frozen validity facts without timers or API', async () => {
     const w = mount(PassageValidityCell, { props: { item: { entry_date_to: '2035-01-01', admission: { reason: 'expired' }, passage_state: { open: true, entry_time_known: true } } } }); wrappers.push(w);
     expect(w.classes()).toContain('date-col'); expect(w.text()).toContain('01.01.2035');
-    await w.find('button').trigger('click'); expect(w.find('[role="status"]').text()).toContain('Срок истёк');
+    await w.find('button').trigger('click');
+    expect(document.body.querySelector('[role="tooltip"]')?.textContent).toContain('Срок истёк');
     expect(vi.getTimerCount()).toBe(0); expect(listOpenPassages).not.toHaveBeenCalled();
   });
 });
