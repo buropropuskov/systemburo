@@ -325,27 +325,27 @@
 |---|---|---|---|
 | `filippo.io/age` | v1.3.2 | BSD-3-Clause | Copyright 2019 The age Authors; Copyright 2019 Google LLC; Copyright 2022 Filippo Valsorda |
 | `filippo.io/hpke` | v0.4.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `github.com/caarlos0/env/v11` | v11.4.1 | MIT | Copyright (c) 2015-2024 Carlos Alexandro Becker |
-| `github.com/gabriel-vasile/mimetype` | v1.4.15 | MIT | Copyright (c) 2018 Gabriel Vasile |
+| `github.com/caarlos0/env/v11` | v11.4.2 | MIT | Copyright (c) 2015-2026 Carlos Alexandro Becker |
+| `github.com/gabriel-vasile/mimetype` | v1.4.16 | MIT | Copyright (c) 2018 Gabriel Vasile |
 | `github.com/go-openapi/jsonpointer` | v0.19.6 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/go-openapi/jsonreference` | v0.20.2 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/go-openapi/spec` | v0.20.9 | Apache-2.0 | Copyright 2015 go-swagger maintainers |
 | `github.com/go-openapi/swag` | v0.22.3 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/go-pdf/fpdf` | v0.9.0 | MIT | Copyright (c) 2021 The Go-PDF authors; Copyright (c) 2020 David Barnes; Copyright (c) 2017 Kurt Jung and contributors acknowledged in the documentation |
-| `github.com/go-playground/locales` | v0.14.1 | MIT | Copyright (c) 2016 Go Playground |
-| `github.com/go-playground/universal-translator` | v0.18.1 | MIT | Copyright (c) 2016 Go Playground |
-| `github.com/go-playground/validator/v10` | v10.30.5 | MIT | Copyright (c) 2015 Dean Karn |
+| `github.com/go-playground/locales` | v0.14.2 | MIT | Copyright (c) 2016 Go Playground |
+| `github.com/go-playground/universal-translator` | v0.18.2 | MIT | Copyright (c) 2016 Go Playground |
+| `github.com/go-playground/validator/v10` | v10.30.6 | MIT | Copyright (c) 2015 Dean Karn |
 | `github.com/golang-jwt/jwt/v5` | v5.3.1 | MIT | Copyright (c) 2012 Dave Grijalva; Copyright (c) 2021 golang-jwt maintainers |
 | `github.com/google/uuid` | v1.6.0 | BSD-3-Clause | Copyright (c) 2009,2014 Google Inc. All rights reserved |
 | `github.com/jackc/pgpassfile` | v1.0.0 | MIT | Copyright (c) 2019 Jack Christensen |
 | `github.com/jackc/pgservicefile` | v0.0.0-20240606120523-5a60cdf6a761 | MIT | Copyright (c) 2020 Jack Christensen |
-| `github.com/jackc/pgx/v5` | v5.11.0 | MIT | Copyright (c) 2013-2021 Jack Christensen |
-| `github.com/jackc/puddle/v2` | v2.2.2 | MIT | Copyright (c) 2018 Jack Christensen |
+| `github.com/jackc/pgx/v5` | v5.12.0 | MIT | Copyright (c) 2013-2021 Jack Christensen |
+| `github.com/jackc/puddle/v2` | v2.2.3 | MIT | Copyright (c) 2018 Jack Christensen |
 | `github.com/jinzhu/inflection` | v1.0.0 | MIT | Copyright (c) 2015 - Jinzhu |
 | `github.com/jinzhu/now` | v1.1.5 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
 | `github.com/josharian/intern` | v1.0.0 | MIT | Copyright (c) 2019 Josh Bleecher Snyder |
 | `github.com/KyleBanks/depth` | v1.2.1 | MIT | Copyright (c) 2017 Kyle Banks |
-| `github.com/labstack/echo/v4` | v4.16.2 | MIT | Copyright (c) 2021 LabStack |
+| `github.com/labstack/echo/v4` | v4.16.3 | MIT | Copyright (c) 2021 LabStack |
 | `github.com/labstack/gommon` | v0.5.0 | MIT | Copyright (c) 2018 labstack |
 | `github.com/leodido/go-urn` | v1.5.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
 | `github.com/mailru/easyjson` | v0.7.7 | MIT | Copyright (c) 2016 Mail.Ru Group |
@@ -1210,7 +1210,7 @@ THE SOFTWARE.
 
 ### 7.22. MIT
 
-Компоненты: `github.com/go-playground/locales` v0.14.1, `github.com/go-playground/universal-translator` v0.18.1
+Компоненты: `github.com/go-playground/locales` v0.14.2, `github.com/go-playground/universal-translator` v0.18.2
 
 ```text
 The MIT License (MIT)
@@ -4007,12 +4007,12 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 
 ### 7.77. MIT
 
-Компоненты: `github.com/caarlos0/env/v11` v11.4.1
+Компоненты: `github.com/caarlos0/env/v11` v11.4.2
 
 ```text
 The MIT License (MIT)
 
-Copyright (c) 2015-2024 Carlos Alexandro Becker
+Copyright (c) 2015-2026 Carlos Alexandro Becker
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -4035,7 +4035,7 @@ SOFTWARE.
 
 ### 7.78. MIT
 
-Компоненты: `github.com/gabriel-vasile/mimetype` v1.4.15
+Компоненты: `github.com/gabriel-vasile/mimetype` v1.4.16
 
 ```text
 MIT License
@@ -4410,7 +4410,7 @@ SOFTWARE.
 
 ### 7.81. MIT
 
-Компоненты: `github.com/go-playground/validator/v10` v10.30.5
+Компоненты: `github.com/go-playground/validator/v10` v10.30.6
 
 ```text
 The MIT License (MIT)
@@ -4545,7 +4545,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### 7.86. MIT
 
-Компоненты: `github.com/jackc/pgx/v5` v5.11.0
+Компоненты: `github.com/jackc/pgx/v5` v5.12.0
 
 ```text
 Copyright (c) 2013-2021 Jack Christensen
@@ -4574,7 +4574,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### 7.87. MIT
 
-Компоненты: `github.com/jackc/puddle/v2` v2.2.2
+Компоненты: `github.com/jackc/puddle/v2` v2.2.3
 
 ```text
 Copyright (c) 2018 Jack Christensen
@@ -4687,7 +4687,7 @@ SOFTWARE.
 
 ### 7.91. MIT
 
-Компоненты: `github.com/labstack/echo/v4` v4.16.2
+Компоненты: `github.com/labstack/echo/v4` v4.16.3
 
 ```text
 The MIT License (MIT)

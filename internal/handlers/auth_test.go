@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -614,6 +615,15 @@ func TestLogin_BlocksAfter5FailedAttempts(t *testing.T) {
 	assert.Equal(t, 0, user.FailedLoginCount, "после блокировки счётчик обнулён")
 }
 
+func postLoginFrom(app http.Handler, ip, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(body))
+	req.RemoteAddr = net.JoinHostPort(ip, "12345")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+	return rec
+}
+
 // TestLogin_LockoutLadderEscalates - каждый следующий круг из 5 неудач держит
 // учётку дольше предыдущего: 1 -> 5 -> 15 -> 30 -> 60 минут, дальше не растёт.
 func TestLogin_LockoutLadderEscalates(t *testing.T) {
@@ -635,11 +645,10 @@ func TestLogin_LockoutLadderEscalates(t *testing.T) {
 		// Каждый круг - со своего адреса: per-IP гвард живёт в памяти и отдал бы
 		// свою плоскую минуту, не доходя до учётки (в жизни его минута к этому
 		// моменту уже истекла, здесь ждать её нечем).
-		round := http.Header{}
-		round.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", step+1))
+		ip := fmt.Sprintf("203.0.113.%d", step+1)
 
 		for i := 1; i <= 5; i++ {
-			rec := testutil.POST(t, e, "/login", `{"username":"ladder","password":"wrong"}`, round)
+			rec := postLoginFrom(e, ip, `{"username":"ladder","password":"wrong"}`)
 			// Пятая неудача круга даёт таймер, остальные - обычный отказ.
 			if i == 5 {
 				require.Equal(t, http.StatusTooManyRequests, rec.Code, "круг %d, попытка %d", step+1, i)
@@ -867,17 +876,16 @@ func TestLogin_BlockedIPStillShowsLongerAccountTimer(t *testing.T) {
 
 	testutil.RegisterUser(t, e, "bothlocked", "correctpass", 1, td.OrgID, td.CompanyID)
 
-	from := http.Header{}
-	from.Set("X-Forwarded-For", "192.0.2.55")
+	ip := "192.0.2.55"
 	// Пять неудач запирают адрес на минуту и учётку на первую ступень.
 	for i := 1; i <= 5; i++ {
-		testutil.POST(t, e, "/login", `{"username":"bothlocked","password":"wrong"}`, from)
+		postLoginFrom(e, ip, `{"username":"bothlocked","password":"wrong"}`)
 	}
 	// Учётку удлиняем до получаса - как если бы это был не первый её круг.
 	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "bothlocked").
 		Update("locked_until", time.Now().Add(30*time.Minute)).Error)
 
-	rec := testutil.POST(t, e, "/login", `{"username":"bothlocked","password":"correctpass"}`, from)
+	rec := postLoginFrom(e, ip, `{"username":"bothlocked","password":"correctpass"}`)
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 	retryAfter, err := strconv.Atoi(rec.Header().Get("Retry-After"))
 	require.NoError(t, err)
@@ -895,12 +903,9 @@ func TestLogin_LockoutMessageSameForUnknownUser(t *testing.T) {
 	testutil.RegisterUser(t, e, "real", "correctpass", 1, td.OrgID, td.CompanyID)
 
 	lockedBody := func(username, ip string) string {
-		h := http.Header{}
-		h.Set("X-Forwarded-For", ip)
 		var rec *httptest.ResponseRecorder
 		for i := 1; i <= 5; i++ {
-			rec = testutil.POST(t, e, "/login",
-				fmt.Sprintf(`{"username":%q,"password":"wrong"}`, username), h)
+			rec = postLoginFrom(e, ip, fmt.Sprintf(`{"username":%q,"password":"wrong"}`, username))
 		}
 		require.Equal(t, http.StatusTooManyRequests, rec.Code, "логин %s", username)
 		return rec.Body.String()
@@ -962,19 +967,18 @@ func TestResetLockout_ClearsIPGuard(t *testing.T) {
 	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	testutil.RegisterUser(t, e, "typist", "correctpass", 1, td.OrgID, td.CompanyID)
 
-	from := http.Header{}
-	from.Set("X-Forwarded-For", "198.51.100.7")
+	ip := "198.51.100.7"
 	for i := 1; i <= 5; i++ {
-		testutil.POST(t, e, "/login", `{"username":"typist","password":"wrong"}`, from)
+		postLoginFrom(e, ip, `{"username":"typist","password":"wrong"}`)
 	}
 	// Адрес заперт: верный пароль не проходит.
-	rec := testutil.POST(t, e, "/login", `{"username":"typist","password":"correctpass"}`, from)
+	rec := postLoginFrom(e, ip, `{"username":"typist","password":"correctpass"}`)
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 
 	rec = testutil.POST(t, e, "/users/typist/reset-lockout", "", testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = testutil.POST(t, e, "/login", `{"username":"typist","password":"correctpass"}`, from)
+	rec = postLoginFrom(e, ip, `{"username":"typist","password":"correctpass"}`)
 	assert.Equal(t, http.StatusOK, rec.Code, "с того же адреса вход открылся: %s", rec.Body.String())
 }
 
