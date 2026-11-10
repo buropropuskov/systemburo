@@ -10,7 +10,7 @@ import {
   updateGuideSection,
   uploadGuideFile,
   deleteGuideFile,
-} from '../guide'
+} from '../guideAdmin'
 
 // apiRequest разворачивает envelope: на успехе json() = data, на ошибке = { message }.
 function okJson(payload) {
