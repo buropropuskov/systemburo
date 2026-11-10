@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, createExtendedTimeoutSignal } from './client';
 
 /**
  * API-клиент модалки «Руководство» (B2).
@@ -59,7 +59,7 @@ async function unwrapGuide(res, fallback) {
  */
 export async function listAllGuideSections() {
   const res = await apiRequest('/guide/admin/sections');
-  return unwrapGuide(res, 'Не удалось загрузить разделы руководства');
+  return unwrapGuide(res, 'Не удалось загрузить руководства');
 }
 
 /**
@@ -89,6 +89,7 @@ export async function uploadGuideFile(role, file) {
   const res = await apiRequest(`/guide/admin/sections/${role}/file`, {
     method: 'PUT',
     body: form,
+    signal: createExtendedTimeoutSignal(120000),
   });
   return unwrapGuide(res, 'Не удалось загрузить файл');
 }

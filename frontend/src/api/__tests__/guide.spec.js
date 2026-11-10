@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(),
+  createExtendedTimeoutSignal: vi.fn(ms => AbortSignal.timeout(ms)),
 }))
-import { apiRequest } from '@/api/client'
+import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import {
   listAllGuideSections,
   updateGuideSection,
@@ -60,6 +61,8 @@ describe('api/guide — админ-методы', () => {
       expect(opts.method).toBe('PUT')
       expect(opts.body).toBeInstanceOf(FormData)
       expect(opts.body.get('file')).toBe(file)
+      expect(createExtendedTimeoutSignal).toHaveBeenCalledWith(120000)
+      expect(opts.signal).toBe(createExtendedTimeoutSignal.mock.results[0].value)
       expect(data).toEqual({ role: 'user', file: { name: 'g.pdf' } })
     })
   })
