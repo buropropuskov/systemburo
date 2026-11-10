@@ -1149,19 +1149,13 @@ export default {
   
   .custom-select,
   .search-input,
-  .date-input,
   .sort-btn {
     width: 100%;
   }
   
   .date-input {
+    flex: 1;
     min-width: 0;
-    box-sizing: border-box;
-  }
-
-  .date-filter {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
   }
 }
 
