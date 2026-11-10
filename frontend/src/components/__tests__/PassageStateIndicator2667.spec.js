@@ -6,11 +6,14 @@ describe('compact passage indicator #2667', () => {
   it('provides an explicit keyboard/click explanation rather than hover-only text', async () => {
     const wrapper = mount(PassageStateIndicator, { props: { expired: true, passageState: { open: true, entry_time_known: true } } });
     expect(wrapper.find('button').attributes('aria-label')).toContain('новый вход запрещён');
-    expect(wrapper.find('[role="status"]').exists()).toBe(false);
+    expect(document.body.querySelector('[role="tooltip"]')).toBeNull();
     await wrapper.find('button').trigger('click');
-    expect(wrapper.find('[role="status"]').text()).toContain('Срок истёк');
+    const hint = document.body.querySelector('[role="tooltip"]');
+    expect(hint.parentElement).toBe(document.body);
+    expect(hint.textContent).toContain('Срок истёк');
+    expect(wrapper.find('button').attributes('aria-expanded')).toBe('true');
     await wrapper.find('button').trigger('keydown', { key: 'Escape' });
-    expect(wrapper.find('[role="status"]').exists()).toBe(false);
+    expect(document.body.querySelector('[role="tooltip"]')).toBeNull();
     wrapper.unmount();
   });
   it('distinguishes an unknown legacy entry from a confirmed 48-hour duration', () => {
