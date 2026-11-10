@@ -1,17 +1,22 @@
 <template>
-  <span
+  <component
+    :is="clickable ? 'button' : 'span'"
     ref="anchorEl"
     v-bind="$attrs"
     class="hint-tooltip"
     :class="{ 'hint-tooltip--icon': !hasAnchorSlot }"
-    tabindex="0"
-    role="note"
+    :type="clickable ? 'button' : undefined"
+    :tabindex="clickable ? undefined : 0"
+    :role="clickable ? undefined : 'note'"
     :aria-label="text"
-    @mouseenter="open"
-    @mouseleave="close"
-    @focus="open"
+    :aria-expanded="clickable ? visible : undefined"
+    @mouseenter="openOnHover"
+    @mouseleave="closeOnHover"
+    @focus="openOnHover"
     @blur="close"
-  ><slot>i</slot></span>
+    @click="toggleOnClick"
+    @keydown.esc="closeOnEscape"
+  ><slot>i</slot></component>
   <Teleport to="body">
     <div
       v-if="visible"
@@ -50,6 +55,7 @@ const props = defineProps({
   width: { type: Number, default: 260 },
   compact: { type: Boolean, default: false },
   zIndex: { type: Number, default: 15000 },
+  clickable: { type: Boolean, default: false },
 });
 
 /*
@@ -128,6 +134,7 @@ async function open() {
   };
   visible.value = true;
   await nextTick();
+  if (!visible.value) return;
   updatePosition();
   window.addEventListener('scroll', updatePosition, true);
   window.addEventListener('resize', updatePosition);
@@ -137,6 +144,27 @@ function close() {
   visible.value = false;
   window.removeEventListener('scroll', updatePosition, true);
   window.removeEventListener('resize', updatePosition);
+}
+
+function openOnHover() {
+  if (!props.clickable) open();
+}
+
+function closeOnHover() {
+  if (!props.clickable) close();
+}
+
+function toggleOnClick(event) {
+  if (!props.clickable) return;
+  event.stopPropagation();
+  if (visible.value) close();
+  else open();
+}
+
+function closeOnEscape(event) {
+  if (!props.clickable || !visible.value) return;
+  event.stopPropagation();
+  close();
 }
 
 onBeforeUnmount(close);
