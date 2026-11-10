@@ -60,6 +60,7 @@
           <template v-else>
             <div
               class="guide__roles"
+              :class="{ 'guide__roles--extended': sections.length > 3 }"
               role="tablist"
               aria-label="Разделы руководства"
             >
@@ -205,6 +206,8 @@ const ROLE_LABELS = {
   user: 'Пользователь',
   guard: 'Охранник',
   admin: 'Администратор',
+  acceptor: 'Принимающий',
+  reviewer: 'Согласующий',
 };
 
 export default {
@@ -403,6 +406,14 @@ export default {
   display: flex;
   gap: 8px;
   padding: 0 26px 4px;
+}
+
+.guide__roles--extended {
+  flex-wrap: wrap;
+}
+
+.guide__roles--extended .role-pill {
+  flex-basis: auto;
 }
 
 .role-pill {

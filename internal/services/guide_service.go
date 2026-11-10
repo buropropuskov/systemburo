@@ -14,8 +14,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// GuideRoles -- порядок ролей в раскладке «Вкладки».
+// GuideRoles lists the sections controlled by guide.<role> permissions.
 var GuideRoles = []string{"user", "guard", "admin"}
+
+const (
+	guideAcceptor = "acceptor"
+	guideReviewer = "reviewer"
+)
 
 // GuideKeyForRole возвращает permission-ключ раздела для роли. Все три ключа
 // (guide.user, guide.guard, guide.admin) описаны в каталоге прав
@@ -27,6 +32,9 @@ func GuideKeyForRole(role string) string {
 
 // IsGuideRole сообщает, известна ли роль руководства.
 func IsGuideRole(role string) bool {
+	if role == guideAcceptor || role == guideReviewer {
+		return true
+	}
 	for _, r := range GuideRoles {
 		if r == role {
 			return true
@@ -50,7 +58,7 @@ type GuideFileMeta struct {
 // GuideService отдаёт разделы руководства с учётом прав пользователя и админ-управление
 // (правка текста + PDF-файл по разделу; авторизация page.admin -- на роут-middleware).
 type GuideService interface {
-	// ListForUser возвращает разделы, на которые у пользователя есть право guide.<role>.
+	// ListForUser возвращает разделы, доступные по правам или назначенным функциям.
 	ListForUser(ctx context.Context, userID int) ([]models.GuideSectionResponse, error)
 	// GetSectionForUser возвращает раздел роли. allowed=false -- нет права на раздел;
 	// section=nil при allowed=true -- раздел ещё не заведён.
@@ -91,7 +99,11 @@ func (s *guideService) ListForUser(ctx context.Context, userID int) ([]models.Gu
 	result := make([]models.GuideSectionResponse, 0, len(sections))
 	for i := range sections {
 		sec := sections[i]
-		if !set.Has(GuideKeyForRole(sec.Role)) {
+		allowed, err := s.canReadSection(ctx, set, userID, sec.Role)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
 			continue
 		}
 		resp, err := toGuideResponse(sec)
@@ -104,9 +116,13 @@ func (s *guideService) ListForUser(ctx context.Context, userID int) ([]models.Gu
 }
 
 func (s *guideService) GetSectionForUser(ctx context.Context, userID int, role string) (*models.GuideSection, bool, error) {
-	allowed, err := s.resolver.HasPermission(ctx, userID, GuideKeyForRole(role))
+	set, err := s.resolver.ResolveFresh(ctx, userID)
 	if err != nil {
 		return nil, false, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна", err)
+	}
+	allowed, err := s.canReadSection(ctx, set, userID, role)
+	if err != nil {
+		return nil, false, err
 	}
 	if !allowed {
 		return nil, false, nil
@@ -120,6 +136,27 @@ func (s *guideService) GetSectionForUser(ctx context.Context, userID int, role s
 		return nil, true, fmt.Errorf("failed to load guide section: %w", err)
 	}
 	return &sec, true, nil
+}
+
+func (s *guideService) canReadSection(ctx context.Context, set PermissionSet, userID int, role string) (bool, error) {
+	if role != guideAcceptor && role != guideReviewer {
+		return set.Has(GuideKeyForRole(role)), nil
+	}
+	if set.IsBanned() || set.IsInactive() {
+		return false, nil
+	}
+	var user models.User
+	if err := s.db.WithContext(ctx).Select("username").First(&user, userID).Error; err != nil {
+		return false, apperr.New(http.StatusServiceUnavailable, "Проверка доступа временно недоступна", err)
+	}
+	roles := NewApproverService(s.db)
+	if role == guideAcceptor {
+		return roles.IsApprover(ctx, user.Username)
+	}
+	if !applicationActionAllowed(set, KeyActionApproveApplication) {
+		return false, nil
+	}
+	return roles.IsReviewer(ctx, user.Username)
 }
 
 func (s *guideService) ListAll(ctx context.Context) ([]models.GuideSectionResponse, error) {

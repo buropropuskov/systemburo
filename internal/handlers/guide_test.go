@@ -41,9 +41,9 @@ func uploadGuideFile(t *testing.T, e *echo.Echo, token, role, filename string, c
 	return rec
 }
 
-// Супер-админ видит все засеянные разделы руководства, items развёрнуты в массив,
+// Супер-админ без назначенных функций видит три базовых раздела, items развёрнуты в массив,
 // file == nil пока PDF не загружен.
-func TestGuideSections_SuperAdminSeesAll(t *testing.T) {
+func TestGuideSections_SuperAdminWithoutAssignmentsSeesBaseGuides(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -115,7 +115,7 @@ func TestGuideSections_GatedByPermission(t *testing.T) {
 // minimalGuidePDF -- корректная PDF magic-сигнатура (%PDF) для тестов загрузки.
 var minimalGuidePDF = []byte("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n")
 
-// Админ (page.admin) видит все 3 раздела через admin-листинг без фильтра по правам.
+// Админ (page.admin) управляет всеми разделами независимо от своих функций.
 func TestGuide_AdminList_AllSections(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -126,11 +126,68 @@ func TestGuide_AdminList_AllSections(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	sections := testutil.ParseResponse[[]models.GuideSectionResponse](t, rec)
-	require.Len(t, sections, 3)
+	require.Len(t, sections, 5)
 	assert.Equal(t, "user", sections[0].Role)
 	assert.Equal(t, "guard", sections[1].Role)
 	assert.Equal(t, "admin", sections[2].Role)
+	assert.Equal(t, "acceptor", sections[3].Role)
+	assert.Equal(t, "reviewer", sections[4].Role)
 	assert.Nil(t, sections[0].File, "file == nil пока PDF не загружен")
+}
+
+func TestGuideSections_FollowApplicationAssignments(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	admin := testutil.RegisterAdmin(t, e, 0, 0)
+	for _, role := range []string{"acceptor", "reviewer"} {
+		rec := uploadGuideFile(t, e, admin, role, role+".pdf", minimalGuidePDF)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+	const username, password = "guideassignments", "Password123!"
+	testutil.RegisterUser(t, e, username, password, 1, 0, 0)
+	var user models.User
+	require.NoError(t, db.Where("username = ?", username).First(&user).Error)
+	token, _ := testutil.LoginUser(t, e, username, password)
+	headers := testutil.AuthHeader(token)
+
+	check := func(acceptor, reviewer bool) {
+		t.Helper()
+		rec := testutil.GET(t, e, "/guide/sections", headers)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		sections := testutil.ParseResponse[[]models.GuideSectionResponse](t, rec)
+		visible := make(map[string]bool, len(sections))
+		for _, section := range sections {
+			visible[section.Role] = true
+		}
+		for role, expected := range map[string]bool{"acceptor": acceptor, "reviewer": reviewer} {
+			assert.Equal(t, expected, visible[role], role)
+			rec := testutil.GET(t, e, "/guide/sections/"+role+"/download", headers)
+			if expected {
+				assert.Equal(t, http.StatusOK, rec.Code, role)
+				assert.Equal(t, minimalGuidePDF, rec.Body.Bytes(), role)
+			} else {
+				assert.Equal(t, http.StatusForbidden, rec.Code, role)
+			}
+		}
+	}
+
+	check(false, false)
+	acceptor := models.ApplicationApprover{UserID: user.ID}
+	require.NoError(t, db.Create(&acceptor).Error)
+	check(true, false)
+	org := models.Organization{Name: "Организация для проверки руководств", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	reviewer := models.OrganizationUser{OrganizationID: org.ID, UserID: user.ID, RequiredApproval: true}
+	require.NoError(t, db.Create(&reviewer).Error)
+	check(true, true)
+	require.NoError(t, db.Delete(&acceptor).Error)
+	check(false, true)
+	require.NoError(t, db.Create(&models.UserPermissionOverride{
+		UserID: user.ID, PermissionKey: services.KeyActionApproveApplication, Value: "deny",
+	}).Error)
+	check(false, false)
 }
 
 // Правка lead+items раздела сохраняется и видна в последующем ответе; пустые элементы
@@ -155,7 +212,7 @@ func TestGuide_AdminUpdateContent(t *testing.T) {
 	// Повторное чтение из admin-листинга отражает правку.
 	list := testutil.ParseResponse[[]models.GuideSectionResponse](t,
 		testutil.GET(t, e, "/guide/admin/sections", h))
-	require.Len(t, list, 3)
+	require.Len(t, list, 5)
 	assert.Equal(t, "Новый лид охранника", list[1].Lead)
 }
 

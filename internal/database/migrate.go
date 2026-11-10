@@ -1364,6 +1364,22 @@ func Seed(db *gorm.DB) error {
 		}
 	}
 
+	roleGuides := []models.GuideSection{
+		{
+			Role: "acceptor", SortOrder: 4, Title: "Руководство принимающего",
+			Lead:  "Для сотрудников бюро, которые принимают заявки в работу.",
+			Items: json.RawMessage(`["Центр заявок и карточка заявки","Приём в работу, отказ и обработка дополнений","Назначение постов и мест разгрузки, печать бланков"]`),
+		},
+		{
+			Role: "reviewer", SortOrder: 5, Title: "Руководство согласующего",
+			Lead:  "Для сотрудников, назначенных ответственными за согласование.",
+			Items: json.RawMessage(`["Заявки, ожидающие вашего решения","Согласование, отказ и комментарии","Проверка статуса согласования"]`),
+		},
+	}
+	if err := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "role"}}, DoNothing: true}).Create(&roleGuides).Error; err != nil {
+		return fmt.Errorf("failed to seed approval role guides: %w", err)
+	}
+
 	// Organizations: глобальный uniqueIndex по name заменяем на partial unique
 	// (только среди активных), чтобы архивная организация не блокировала создание
 	// новой активной с тем же именем (#412). Идемпотентно. Ошибку возвращаем (не
