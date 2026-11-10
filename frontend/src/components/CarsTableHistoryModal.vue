@@ -1149,13 +1149,13 @@ export default {
   
   .custom-select,
   .search-input,
-  .date-input,
   .sort-btn {
     width: 100%;
   }
   
   .date-input {
-    width: calc(50% - 20px);
+    flex: 1;
+    min-width: 0;
   }
 }
 
