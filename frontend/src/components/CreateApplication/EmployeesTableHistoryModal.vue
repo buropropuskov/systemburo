@@ -1194,7 +1194,13 @@ export default {
   }
   
   .date-input {
-    width: calc(50% - 20px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .date-filter {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
   }
 }
 </style>
