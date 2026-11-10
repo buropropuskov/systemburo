@@ -205,6 +205,8 @@ const ROLE_LABELS = {
   user: 'Пользователь',
   guard: 'Охранник',
   admin: 'Администратор',
+  acceptor: 'Принимающий',
+  reviewer: 'Согласующий',
 };
 
 export default {
@@ -401,6 +403,7 @@ export default {
 
 .guide__roles {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0 26px 4px;
 }
@@ -666,7 +669,6 @@ export default {
     padding: 24px 16px;
   }
   .guide__roles {
-    flex-wrap: wrap;
     padding: 0 16px 4px;
   }
   .role-pill {

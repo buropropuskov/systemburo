@@ -72,6 +72,21 @@ describe('UserGuideModal — раскладка «Вкладки»', () => {
     expect(wrapper.findAll('.descr__list li')).toHaveLength(2);
   });
 
+  it('показывает обе функции, если сервер вернул оба руководства', async () => {
+    const sections = [['acceptor', 'Принимающий', 'принимающего'], ['reviewer', 'Согласующий', 'согласующего']]
+      .map(([role, title, name]) => ({
+        ...SECTIONS[0],
+        role,
+        title,
+        file: { ...SECTIONS[0].file, name: `Руководство ${name}.pdf`, download_url: `/api/guide/sections/${role}/download` },
+      }));
+    const wrapper = mountModal({ sections });
+    expect(wrapper.findAll('.role-pill').map(pill => pill.text())).toEqual(['Принимающий', 'Согласующий']);
+    await wrapper.findAll('.role-pill')[1].trigger('click');
+    expect(wrapper.find('.file-card__name').text()).toBe('Руководство согласующего.pdf');
+    wrapper.unmount();
+  });
+
   it('переключение на раздел без файла показывает заглушку без кнопки скачивания', async () => {
     const wrapper = mountModal();
     await wrapper.findAll('.role-pill')[1].trigger('click');
