@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   downloadGuideFile: vi.fn(),
 }))
 vi.mock('@/api/guide', () => api)
+vi.mock('@/api/guideAdmin', () => api)
 
 vi.mock('@/utils/dirtyTracker', () => ({
   registerDirtyTracker: vi.fn(() => () => {}),

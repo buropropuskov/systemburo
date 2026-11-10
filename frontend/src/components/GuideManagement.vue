@@ -284,8 +284,8 @@ import {
   updateGuideSection,
   uploadGuideFile,
   deleteGuideFile,
-  downloadGuideFile,
-} from '@/api/guide';
+} from '@/api/guideAdmin';
+import { downloadGuideFile } from '@/api/guide';
 import { formatMomentDate } from '@/utils/datetime';
 
 const sections = ref([]);
