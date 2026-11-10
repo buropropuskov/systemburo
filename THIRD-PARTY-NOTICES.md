@@ -352,7 +352,7 @@
 | `github.com/mattn/go-colorable` | v0.1.15 | MIT | Copyright (c) 2016 Yasuhiro Matsumoto |
 | `github.com/mattn/go-isatty` | v0.0.22 | MIT | Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com> |
 | `github.com/pkg/errors` | v0.9.1 | BSD-2-Clause | Copyright (c) 2015, Dave Cheney <dave@cheney.net> |
-| `github.com/richardlehane/mscfb` | v1.0.8 | Apache-2.0 | не указан в поставке пакета |
+| `github.com/richardlehane/mscfb` | v1.0.9 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/richardlehane/msoleps` | v1.0.6 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/SherClockHolmes/webpush-go` | v1.4.0 | MIT | Copyright (c) 2016 Ethan Holmes |
 | `github.com/sv-tools/openapi` | v0.2.1 | MIT | Copyright (c) 2021 Tools |
@@ -364,8 +364,8 @@
 | `github.com/valyala/bytebufferpool` | v1.0.0 | MIT | Copyright (c) 2016 Aliaksandr Valialkin, VertaMedia |
 | `github.com/valyala/fasttemplate` | v1.2.2 | MIT | Copyright (c) 2015 Aliaksandr Valialkin |
 | `github.com/wneessen/go-mail` | v0.8.1 | MIT | Copyright (c) 2022-2025 The go-mail Authors |
-| `github.com/xuri/efp` | v0.0.2 | BSD-3-Clause | Copyright (c) 2017 - 2026 Ri Xu All rights reserved |
-| `github.com/xuri/excelize/v2` | v2.11.1-0.20261003002531-6258dcebc4e2 | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
+| `github.com/xuri/efp` | v0.0.3-0.20260924042702-217b81952dec | BSD-3-Clause | Copyright (c) 2017 - 2026 Ri Xu All rights reserved |
+| `github.com/xuri/excelize/v2` | v2.11.1 | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
 | `github.com/xuri/nfp` | v0.0.2-0.20250530014748-2ddeb826f9a9 | BSD-3-Clause | Copyright (c) 2022-2025 Ri Xu All rights reserved |
 | `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/image` | v0.47.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
@@ -425,7 +425,7 @@ SOFTWARE.
 
 ### 7.2. Apache-2.0
 
-Компоненты: `b4a` 1.8.1, `bare-events` 2.9.1, `bare-fs` 4.7.4, `bare-path` 3.1.1, `bare-stream` 2.13.3, `bare-url` 2.4.6, `events-universal` 1.0.1, `text-decoder` 1.2.7, `github.com/go-openapi/jsonpointer` v0.19.6, `github.com/go-openapi/jsonreference` v0.20.2, `github.com/go-openapi/swag` v0.22.3, `github.com/richardlehane/mscfb` v1.0.8, `github.com/richardlehane/msoleps` v1.0.6
+Компоненты: `b4a` 1.8.1, `bare-events` 2.9.1, `bare-fs` 4.7.4, `bare-path` 3.1.1, `bare-stream` 2.13.3, `bare-url` 2.4.6, `events-universal` 1.0.1, `text-decoder` 1.2.7, `github.com/go-openapi/jsonpointer` v0.19.6, `github.com/go-openapi/jsonreference` v0.20.2, `github.com/go-openapi/swag` v0.22.3, `github.com/richardlehane/mscfb` v1.0.9, `github.com/richardlehane/msoleps` v1.0.6
 
 ```text
 Apache License
@@ -5083,7 +5083,7 @@ SOFTWARE.
 
 ### 7.106. BSD-3-Clause
 
-Компоненты: `github.com/xuri/efp` v0.0.2
+Компоненты: `github.com/xuri/efp` v0.0.3-0.20260924042702-217b81952dec
 
 ```text
 BSD 3-Clause License
@@ -5118,7 +5118,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### 7.107. BSD-3-Clause
 
-Компоненты: `github.com/xuri/excelize/v2` v2.11.1-0.20261003002531-6258dcebc4e2
+Компоненты: `github.com/xuri/excelize/v2` v2.11.1
 
 ```text
 BSD 3-Clause License
