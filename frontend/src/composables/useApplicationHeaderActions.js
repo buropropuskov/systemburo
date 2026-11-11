@@ -9,11 +9,20 @@ const INLINE_MIN_WIDTH = 1100;
 export function useApplicationHeaderActions({ ui = useUiStore(), getTour = useOnboardingStore } = {}) {
   const headerRef = ref(null), headerActionsMenu = ref(null), headerActionsInline = ref(true);
   let observer, tourWatch, owned = false;
+  let resizeFrame = null;
   const restore = () => { if (owned) headerActionsMenu.value?.close(); owned = false; };
   const releaseHeaderMenu = () => { owned = false; };
   const measure = () => {
     const width = headerRef.value?.clientWidth;
     if (width > 0) headerActionsInline.value = width >= INLINE_MIN_WIDTH;
+  };
+  const scheduleMeasure = () => {
+    if (resizeFrame !== null) return;
+    // Changing the action layout can resize the observed header again.
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = null;
+      measure();
+    });
   };
   const stopActive = watch(() => ui.tourActive, active => {
     tourWatch?.(); tourWatch = null;
@@ -39,12 +48,13 @@ export function useApplicationHeaderActions({ ui = useUiStore(), getTour = useOn
   onMounted(() => {
     measure();
     if (typeof ResizeObserver === 'function') {
-      observer = new ResizeObserver(measure);
+      observer = new ResizeObserver(scheduleMeasure);
       if (headerRef.value) observer.observe(headerRef.value);
     } else window.addEventListener('resize', measure);
   });
   onBeforeUnmount(() => {
     stopActive(); tourWatch?.(); restore(); observer?.disconnect();
+    if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
     window.removeEventListener('resize', measure);
   });
   return { headerRef, headerActionsMenu, headerActionsInline, releaseHeaderMenu, onHeaderActionClick };

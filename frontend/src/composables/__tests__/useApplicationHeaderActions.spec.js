@@ -5,6 +5,7 @@ import { useApplicationHeaderActions } from '../useApplicationHeaderActions';
 
 let wrapper;
 afterEach(() => { wrapper?.unmount(); wrapper = null; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+const nextFrame = () => new Promise(resolve => window.requestAnimationFrame(resolve));
 
 async function fixture({ manual = false } = {}) {
   let resize;
@@ -29,8 +30,13 @@ async function fixture({ manual = false } = {}) {
     return () => h('header', { ref: actions.headerRef });
   } }));
   await nextTick();
-  return { ui, tour, menu, getTour, actions,
-    async resize(value) { width = value; resize(); await nextTick(); } };
+  function notifyResize(value) { width = value; resize(); }
+  return { ui, tour, menu, getTour, actions, notifyResize,
+    async resize(value) {
+      notifyResize(value);
+      await nextFrame();
+      await nextTick();
+    } };
 }
 
 describe('application header action ownership', () => {
@@ -39,6 +45,15 @@ describe('application header action ownership', () => {
     expect(f.getTour).not.toHaveBeenCalled();
     expect(f.actions.headerActionsInline.value).toBe(false);
     await f.resize(1600);
+    expect(f.actions.headerActionsInline.value).toBe(true);
+  });
+
+  it('measures the latest width in the next frame after resize notifications', async () => {
+    const f = await fixture();
+    f.notifyResize(1200);
+    f.notifyResize(1600);
+    expect(f.actions.headerActionsInline.value).toBe(false);
+    await nextFrame();
     expect(f.actions.headerActionsInline.value).toBe(true);
   });
 

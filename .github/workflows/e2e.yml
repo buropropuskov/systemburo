@@ -25,6 +25,14 @@ jobs:
     name: Playwright E2E (shard ${{ matrix.shard }}/${{ matrix.totalShards }})
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # The browser and OS dependencies come from the official image. Keep the
+    # image version in sync with @playwright/test in frontend/package-lock.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d
+      options: --user 1001 --ipc=host
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -38,15 +46,13 @@ jobs:
           POSTGRES_DB: auto_registry
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: testpass
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U postgres"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
     env:
-      DATABASE_URL: postgres://postgres:testpass@localhost:5432/auto_registry
+      DATABASE_URL: postgres://postgres:testpass@postgres:5432/auto_registry
       JWT_SECRET: ci-test-jwt-secret-that-is-at-least-32-chars!!
       JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
       BIND_HOST: "0.0.0.0"
@@ -66,9 +72,6 @@ jobs:
 
       - uses: ./.github/actions/setup-go
       - uses: ./.github/actions/setup-frontend
-      - uses: ./.github/actions/playwright-cache
-        with:
-          browser: chromium
 
       # Шифрование персональных данных обязательно по умолчанию (#2464): без ключа
       # сервер не стартует, а выключать шифрование для прогона нельзя - в сценариях
