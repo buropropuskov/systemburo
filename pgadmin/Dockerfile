@@ -1,5 +1,6 @@
 FROM dpage/pgadmin4:9.19@sha256:3591b3d02910dcd817dec6fcaa681c278ba6966945283dd0ea0042731c330c83 AS production
 USER root
+RUN apk add --no-cache --upgrade 'krb5-libs>=1.22.3-r0'
 COPY security-requirements.txt /tmp/security-requirements.txt
 RUN /venv/bin/python3 -m pip install --no-cache-dir --only-binary=:all: --no-deps --require-hashes -r /tmp/security-requirements.txt \
     && /venv/bin/python3 -m pip check \
