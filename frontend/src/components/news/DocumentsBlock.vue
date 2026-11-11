@@ -124,6 +124,7 @@
   </div>
 
     <DocumentPreviewModal
+      v-if="previewDoc"
       :show="previewOpen"
       :doc="previewDoc"
       :downloading="downloading"
@@ -133,8 +134,8 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import FileTypeIcon from '@/components/ui/FileTypeIcon.vue';
-import DocumentPreviewModal from './DocumentPreviewModal.vue';
 import { listPublicDocuments, downloadDocument } from '@/api/documents';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatMomentDate } from '@/utils/datetime';
@@ -142,6 +143,7 @@ import { formatMomentDate } from '@/utils/datetime';
 // Фиксированный порядок групп из backend (sort_order), хвост — в «Ещё».
 // Сколько влезает в строку: 2 группы + «Все» фиксировано, остальное в дропдаун.
 const VISIBLE_GROUPS_COUNT = 2;
+const DocumentPreviewModal = defineAsyncComponent(() => import('./DocumentPreviewModal.vue'));
 
 export default {
   name: 'DocumentsBlock',

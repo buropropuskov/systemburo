@@ -41,13 +41,13 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `@babel/helper-string-parser` | 7.29.7 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
+| `@babel/helper-string-parser` | 7.29.13 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/helper-string-parser` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/helper-validator-identifier` | 7.29.7 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/helper-validator-identifier` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
-| `@babel/parser` | 7.29.9 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
+| `@babel/parser` | 7.29.13 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
 | `@babel/parser` | 8.0.7 | MIT | Copyright (C) 2012-2014 by various contributors (see AUTHORS) |
-| `@babel/types` | 7.29.8 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
+| `@babel/types` | 7.29.11 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@babel/types` | 8.0.6 | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors |
 | `@fast-csv/format` | 4.3.5 | MIT | Copyright (c) 2011-2019 C2FO |
 | `@fast-csv/parse` | 4.3.6 | MIT | Copyright (c) 2011-2019 C2FO |
@@ -60,57 +60,57 @@
 | `@jridgewell/sourcemap-codec` | 1.6.0 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@jridgewell/trace-mapping` | 0.3.31 | MIT | Copyright 2024 Justin Ridgewell <justin@ridgewell.name> |
 | `@kurkle/color` | 0.3.4 | MIT | Copyright (c) 2018-2024 Jukka Kurkela |
-| `@napi-rs/canvas` | 1.0.10 | MIT | Copyright (c) 2020 lynweklm@gmail.com |
+| `@napi-rs/canvas` | 1.1.0 | MIT | Copyright (c) 2020 lynweklm@gmail.com; Copyright 2015 The Chromium Authors |
 | `@noble/ciphers` | 1.3.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com); Copyright (c) 2016 Thomas Pornin <pornin@bolet.org> |
 | `@noble/hashes` | 1.8.0 | MIT | Copyright (c) 2022 Paul Miller (https://paulmillr.com) |
 | `@oxc-project/types` | 0.156.0 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors; Copyright (c) 2023 Boshen |
 | `@rolldown/pluginutils` | 1.0.1 | MIT | Copyright (c) 2026-present, rolldown/plugins repository contributors |
 | `@swc/helpers` | 0.5.23 | Apache-2.0 | Copyright 2024 SWC contributors |
-| `@tiptap/core` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-blockquote` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bold` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bubble-menu` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-bullet-list` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-code-block` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-document` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-dropcursor` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-floating-menu` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-gapcursor` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-hard-break` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-heading` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-horizontal-rule` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-image` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-italic` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-link` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-item` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-list-keymap` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-ordered-list` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-paragraph` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-strike` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-text` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extension-underline` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/extensions` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/pm` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/starter-kit` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
-| `@tiptap/vue-3` | 3.32.1 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/core` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-blockquote` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bold` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bubble-menu` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-bullet-list` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-code-block` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-document` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-dropcursor` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-floating-menu` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-gapcursor` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-hard-break` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-heading` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-horizontal-rule` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-image` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-italic` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-link` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-item` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-list-keymap` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-ordered-list` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-paragraph` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-strike` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-text` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extension-underline` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/extensions` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/pm` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/starter-kit` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
+| `@tiptap/vue-3` | 3.33.0 | MIT | Copyright (c) 2025, Tiptap GmbH |
 | `@types/estree` | 1.0.8 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/node` | 14.18.63 | MIT | Copyright (c) Microsoft Corporation |
 | `@types/trusted-types` | 2.0.7 | MIT | Copyright (c) Microsoft Corporation |
 | `@vue-macros/common` | 3.1.4 | MIT | Copyright (c) 2022-PRESENT Kevin Deng |
-| `@vue/compiler-core` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/compiler-dom` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/compiler-sfc` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/compiler-ssr` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-core` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-dom` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-sfc` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/compiler-ssr` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `@vue/devtools-api` | 8.2.1 | MIT | Copyright (c) 2023 webfansplz |
 | `@vue/devtools-kit` | 8.2.1 | MIT | Copyright (c) 2023 webfansplz |
 | `@vue/devtools-shared` | 8.2.1 | MIT | Copyright (c) 2023 webfansplz |
-| `@vue/reactivity` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/runtime-core` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/runtime-dom` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/server-renderer` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
-| `@vue/shared` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/reactivity` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/runtime-core` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/runtime-dom` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/server-renderer` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `@vue/shared` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `abort-controller` | 3.0.0 | MIT | Copyright (c) 2017 Toru Nagashima |
 | `acorn` | 8.16.0 | MIT | Copyright (C) 2012-2022 by various contributors (see AUTHORS) |
 | `archiver` | 8.0.0 | MIT | Copyright (c) 2012-2014 Chris Talkington, contributors |
@@ -203,7 +203,7 @@
 | `pako` | 0.2.9 | MIT | Copyright (C) 2014-2016 by Vitaly Puzrin |
 | `pako` | 1.0.11 | (MIT AND Zlib) | Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn |
 | `pathe` | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors; Copyright (c) 2023-present Fabio Spampinato |
-| `pdfjs-dist` | 6.4.299 | Apache-2.0 | не указан в поставке пакета |
+| `pdfjs-dist` | 6.5.438 | Apache-2.0 | не указан в поставке пакета |
 | `pdfkit` | 0.20.2 | MIT | Copyright (c) 2014 Devon Govett |
 | `pdfmake` | 0.3.13 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
@@ -264,8 +264,8 @@
 | `unzipper` | 0.12.5 | MIT | Copyright (c) 2012 - 2013 Near Infinity Corporation |
 | `util-deprecate` | 1.0.2 | MIT | Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net> |
 | `uuid` | 11.1.1 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
-| `vite` | 8.3.5 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
-| `vue` | 3.5.44 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
+| `vite` | 8.3.6 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
+| `vue` | 3.5.45 | MIT | Copyright (c) 2018-present, Yuxi (Evan) You |
 | `vue-router` | 5.4.0 | MIT | Copyright (c) 2019-present Eduardo San Martin Morote |
 | `vue-select` | 4.0.0-beta.6 | MIT | Copyright (c) 2016 Jeff Sagal & vue-select contributors |
 | `w3c-keyname` | 2.2.8 | MIT | Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others |
@@ -280,17 +280,17 @@
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
-| `@napi-rs/canvas-android-arm64` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-darwin-arm64` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-darwin-x64` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm-gnueabihf` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm64-gnu` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-arm64-musl` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-riscv64-gnu` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-x64-gnu` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-linux-x64-musl` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-win32-arm64-msvc` | 1.0.10 | MIT | не указан в поставке пакета |
-| `@napi-rs/canvas-win32-x64-msvc` | 1.0.10 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-android-arm64` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-darwin-arm64` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-darwin-x64` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm-gnueabihf` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm64-gnu` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-arm64-musl` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-riscv64-gnu` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-x64-gnu` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-linux-x64-musl` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-win32-arm64-msvc` | 1.1.0 | MIT | не указан в поставке пакета |
+| `@napi-rs/canvas-win32-x64-msvc` | 1.1.0 | MIT | не указан в поставке пакета |
 | `@rolldown/binding-android-arm-eabi` | 1.2.16 | MIT | не указан в поставке пакета |
 | `@rolldown/binding-android-arm64` | 1.2.16 | MIT | не указан в поставке пакета |
 | `@rolldown/binding-darwin-arm64` | 1.2.16 | MIT | не указан в поставке пакета |
@@ -397,7 +397,7 @@
 
 ### 7.1. MIT
 
-Компоненты: `@tiptap/core` 3.32.1, `@tiptap/extension-blockquote` 3.32.1, `@tiptap/extension-bold` 3.32.1, `@tiptap/extension-bubble-menu` 3.32.1, `@tiptap/extension-bullet-list` 3.32.1, `@tiptap/extension-code` 3.32.1, `@tiptap/extension-code-block` 3.32.1, `@tiptap/extension-document` 3.32.1, `@tiptap/extension-dropcursor` 3.32.1, `@tiptap/extension-floating-menu` 3.32.1, `@tiptap/extension-gapcursor` 3.32.1, `@tiptap/extension-hard-break` 3.32.1, `@tiptap/extension-heading` 3.32.1, `@tiptap/extension-horizontal-rule` 3.32.1, `@tiptap/extension-image` 3.32.1, `@tiptap/extension-italic` 3.32.1, `@tiptap/extension-link` 3.32.1, `@tiptap/extension-list` 3.32.1, `@tiptap/extension-list-item` 3.32.1, `@tiptap/extension-list-keymap` 3.32.1, `@tiptap/extension-ordered-list` 3.32.1, `@tiptap/extension-paragraph` 3.32.1, `@tiptap/extension-strike` 3.32.1, `@tiptap/extension-text` 3.32.1, `@tiptap/extension-underline` 3.32.1, `@tiptap/extensions` 3.32.1, `@tiptap/pm` 3.32.1, `@tiptap/starter-kit` 3.32.1, `@tiptap/vue-3` 3.32.1
+Компоненты: `@tiptap/core` 3.33.0, `@tiptap/extension-blockquote` 3.33.0, `@tiptap/extension-bold` 3.33.0, `@tiptap/extension-bubble-menu` 3.33.0, `@tiptap/extension-bullet-list` 3.33.0, `@tiptap/extension-code` 3.33.0, `@tiptap/extension-code-block` 3.33.0, `@tiptap/extension-document` 3.33.0, `@tiptap/extension-dropcursor` 3.33.0, `@tiptap/extension-floating-menu` 3.33.0, `@tiptap/extension-gapcursor` 3.33.0, `@tiptap/extension-hard-break` 3.33.0, `@tiptap/extension-heading` 3.33.0, `@tiptap/extension-horizontal-rule` 3.33.0, `@tiptap/extension-image` 3.33.0, `@tiptap/extension-italic` 3.33.0, `@tiptap/extension-link` 3.33.0, `@tiptap/extension-list` 3.33.0, `@tiptap/extension-list-item` 3.33.0, `@tiptap/extension-list-keymap` 3.33.0, `@tiptap/extension-ordered-list` 3.33.0, `@tiptap/extension-paragraph` 3.33.0, `@tiptap/extension-strike` 3.33.0, `@tiptap/extension-text` 3.33.0, `@tiptap/extension-underline` 3.33.0, `@tiptap/extensions` 3.33.0, `@tiptap/pm` 3.33.0, `@tiptap/starter-kit` 3.33.0, `@tiptap/vue-3` 3.33.0
 
 ```text
 MIT License
@@ -659,7 +659,7 @@ THE SOFTWARE.
 
 ### 7.4. MIT
 
-Компоненты: `@vue/compiler-core` 3.5.44, `@vue/compiler-dom` 3.5.44, `@vue/compiler-sfc` 3.5.44, `@vue/compiler-ssr` 3.5.44, `@vue/reactivity` 3.5.44, `@vue/runtime-core` 3.5.44, `@vue/runtime-dom` 3.5.44, `@vue/server-renderer` 3.5.44, `@vue/shared` 3.5.44, `vue` 3.5.44
+Компоненты: `@vue/compiler-core` 3.5.45, `@vue/compiler-dom` 3.5.45, `@vue/compiler-sfc` 3.5.45, `@vue/compiler-ssr` 3.5.45, `@vue/reactivity` 3.5.45, `@vue/runtime-core` 3.5.45, `@vue/runtime-dom` 3.5.45, `@vue/server-renderer` 3.5.45, `@vue/shared` 3.5.45, `vue` 3.5.45
 
 ```text
 The MIT License (MIT)
@@ -721,7 +721,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### 7.6. MIT
 
-Компоненты: `@babel/helper-string-parser` 7.29.7, `@babel/helper-string-parser` 8.0.6, `@babel/helper-validator-identifier` 7.29.7, `@babel/helper-validator-identifier` 8.0.6, `@babel/types` 7.29.8, `@babel/types` 8.0.6
+Компоненты: `@babel/helper-string-parser` 7.29.13, `@babel/helper-string-parser` 8.0.6, `@babel/helper-validator-identifier` 7.29.7, `@babel/helper-validator-identifier` 8.0.6, `@babel/types` 7.29.11, `@babel/types` 8.0.6
 
 ```text
 MIT License
@@ -1080,7 +1080,7 @@ terms above.
 
 ### 7.17. MIT
 
-Компоненты: `@babel/parser` 7.29.9, `@babel/parser` 8.0.7
+Компоненты: `@babel/parser` 7.29.13, `@babel/parser` 8.0.7
 
 ```text
 Copyright (C) 2012-2014 by various contributors (see AUTHORS)
@@ -1608,7 +1608,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.36. MIT
 
-Компоненты: `@napi-rs/canvas` 1.0.10
+Компоненты: `@napi-rs/canvas` 1.1.0
 
 ```text
 MIT License
@@ -1632,6 +1632,40 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+src/svg_doc/broken_image.png is Chromium's broken-image icon
+(third_party/blink/public/default_100_percent/blink/broken_image.png),
+used under the Chromium license:
+
+Copyright 2015 The Chromium Authors
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google LLC nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ### 7.37. MIT
@@ -7223,7 +7257,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### 7.137. Apache-2.0
 
-Компоненты: `pdfjs-dist` 6.4.299
+Компоненты: `pdfjs-dist` 6.5.438
 
 ```text
 Apache License
@@ -8478,7 +8512,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.168. MIT
 
-Компоненты: `vite` 8.3.5
+Компоненты: `vite` 8.3.6
 
 ```text
 # Vite core license
