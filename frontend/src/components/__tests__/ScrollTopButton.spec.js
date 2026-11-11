@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import ScrollTopButton from '../ScrollTopButton.vue';
 
 // Ω.1 (#1097 волна 3): Яндекс-браузер (мобильный) сам рисует стрелку-вверх при
@@ -11,6 +11,7 @@ function setUA(ua) {
 }
 
 const REAL_UA = window.navigator.userAgent;
+enableAutoUnmount(afterEach);
 
 describe('ScrollTopButton — гейт Яндекс-браузера (#1097)', () => {
   afterEach(() => {
@@ -22,7 +23,7 @@ describe('ScrollTopButton — гейт Яндекс-браузера (#1097)', (
     setUA('Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 YaBrowser/24.7.1 Mobile Safari/537.36');
     const addSpy = vi.spyOn(window, 'addEventListener');
 
-    const wrapper = mount(ScrollTopButton);
+    const wrapper = mount(ScrollTopButton, { attachTo: document.body });
 
     expect(wrapper.vm.isMobileYandex).toBe(true);
     expect(addSpy.mock.calls.some((c) => c[0] === 'scroll')).toBe(false);
@@ -34,7 +35,7 @@ describe('ScrollTopButton — гейт Яндекс-браузера (#1097)', (
     const addSpy = vi.spyOn(window, 'addEventListener');
     vi.spyOn(window, 'scrollY', 'get').mockReturnValue(200);
 
-    const wrapper = mount(ScrollTopButton);
+    const wrapper = mount(ScrollTopButton, { attachTo: document.body });
 
     expect(wrapper.vm.isMobileYandex).toBe(false);
     expect(addSpy.mock.calls.some((c) => c[0] === 'scroll')).toBe(true);
@@ -47,7 +48,7 @@ describe('ScrollTopButton — гейт Яндекс-браузера (#1097)', (
     const addSpy = vi.spyOn(window, 'addEventListener');
     vi.spyOn(window, 'scrollY', 'get').mockReturnValue(200);
 
-    const wrapper = mount(ScrollTopButton);
+    const wrapper = mount(ScrollTopButton, { attachTo: document.body });
 
     expect(wrapper.vm.isMobileYandex).toBe(false);
     expect(addSpy.mock.calls.some((c) => c[0] === 'scroll')).toBe(true);

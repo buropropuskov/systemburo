@@ -55,8 +55,15 @@ function application(over = {}) {
 let wrapper;
 
 describe('ApplicationsCenter — тег «Дополнение» (#1685)', () => {
-  beforeEach(() => setActivePinia(createPinia()));
-  afterEach(() => wrapper?.unmount());
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    // Keep badge widths independent of the native canvas and installed fonts.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
+  afterEach(() => {
+    wrapper?.unmount();
+    vi.restoreAllMocks();
+  });
 
   it('заявка с открытым раундом получает тег', async () => {
     wrapper = mountCenter();

@@ -19,7 +19,7 @@ function mountTabs(props = {}) {
 
 describe('FilterTabs', () => {
   it('preserves fractional pill widths instead of rounding a fitting row into two lines', () => {
-    const wrapper=mountTabs({tabs:[{key:'active',label:'Активные'},{key:'archive',label:'Архив'}]});
+    const wrapper = mount(FilterTabs, { attachTo: document.body, props: { modelValue: 'all', tabs: [{ key: 'active', label: 'Активные' }, { key: 'archive', label: 'Архив' }] } });
     const row=wrapper.vm.$refs.row;row.style.columnGap='10px';
     Object.defineProperty(row,'clientWidth',{value:190,configurable:true});
     [...row.children].forEach((el,i)=>{

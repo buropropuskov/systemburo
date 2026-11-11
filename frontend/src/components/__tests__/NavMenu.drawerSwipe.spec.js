@@ -95,7 +95,10 @@ describe('NavMenu: открытие drawer свайпом (W4.1)', () => {
     expect(nav.classes()).toContain('nav-menu--dragging');
     // min(0px, ...) - страховка узкого экрана: там панель шириной 85vw доезжает до
     // края раньше, чем палец пройдёт номинальные 280px.
-    expect(nav.attributes('style')).toContain('translateX(min(0px, calc(-100% + 70px)))');
+    const expected = document.createElement('div');
+    expected.style.transform = 'translateX(min(0px, calc(-100% + 70px)))';
+    expect(expected.style.transform).not.toBe('');
+    expect(nav.element.style.transform).toBe(expected.style.transform);
     expect(nav.classes()).not.toContain('nav-menu--mobile-open');
     // Затемнение густеет вместе с вытянутой панелью.
     expect(wrapper.find('.nav-menu__backdrop').exists()).toBe(true);
