@@ -1,10 +1,10 @@
 {
   "document": "deploy",
-  "version": "1.79",
-  "pages": 201,
-  "code_revision": "67a779991a9cdecd3038bb082ac92835076c43ba",
-  "source_sha256": "ef4a0e54be0c6d76fa2faf8810a9d4cda69373f00b69b7e474f68f4d7269c402",
-  "builder_sha256": "669b141bdf61e6324f23bfa5a4b9039e769a69e2ea971496f7514915934101d7",
-  "docx_sha256": "2fc004d7bc9fa90e80997618f473e54accee7de390a80cfb8c6f0bde58ec66f5",
-  "pdf_sha256": "1fb7664d2b0a854c923e537a9791b20901f2b8892e15df40d536e5082cc2a4fe"
+  "version": "1.80",
+  "pages": 202,
+  "code_revision": "359b2f9fae9a40a3ada2a14c75fdf09a6d8b9e3e",
+  "source_sha256": "51d32fdc1531501cf564a1c2a75426863a7d62c0849afc0ec7686defcea2232e",
+  "builder_sha256": "df07a6c38a90b2b2fb5733c38997e2a15fb2485a735cccad05cb2d74c26abbfc",
+  "docx_sha256": "4d7431312b5e7f8111ff8d90b639efae226e9a18054c666552af03a2ce08149b",
+  "pdf_sha256": "4fc36b6930f1c65af9dcab219c5bde1b6b64fc73c4e05d228866937f6fca4029"
 }
