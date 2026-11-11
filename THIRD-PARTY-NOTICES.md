@@ -205,7 +205,7 @@
 | `pathe` | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev>; Copyright Joyent, Inc. and other Node contributors; Copyright (c) 2023-present Fabio Spampinato |
 | `pdfjs-dist` | 6.5.438 | Apache-2.0 | не указан в поставке пакета |
 | `pdfkit` | 0.20.2 | MIT | Copyright (c) 2014 Devon Govett |
-| `pdfmake` | 0.3.13 | MIT | Copyright (c) 2014-2015 bpampuch |
+| `pdfmake` | 0.3.14 | MIT | Copyright (c) 2014-2015 bpampuch |
 | `perfect-debounce` | 2.1.0 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> |
 | `picocolors` | 1.1.1 | ISC | Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov |
 | `picomatch` | 4.0.7 | MIT | Copyright (c) 2017-present, Jon Schlinkert |
@@ -7455,7 +7455,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.139. MIT
 
-Компоненты: `pdfmake` 0.3.13
+Компоненты: `pdfmake` 0.3.14
 
 ```text
 The MIT License (MIT)
