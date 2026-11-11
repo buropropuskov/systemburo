@@ -21,6 +21,7 @@ const TESTID = '[data-testid="nav-link-accessible-attachments"]';
 
 function mountNav() {
   return mount(NavMenu, {
+    attachTo: document.body,
     global: {
       mocks: {
         $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },

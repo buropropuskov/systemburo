@@ -52,8 +52,13 @@ describe('ApplicationsCenter — маркер обсуждения (#973)', () =
   beforeEach(() => {
     setActivePinia(createPinia());
     seedPerms();
+    // Keep badge widths independent of the native canvas and installed fonts.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   });
-  afterEach(() => wrapper?.unmount());
+  afterEach(() => {
+    wrapper?.unmount();
+    vi.restoreAllMocks();
+  });
 
   it('openApplication НЕ гасит маркер обсуждения при открытии (#973: гасит прочтение тем)', async () => {
     wrapper = mountCenter();

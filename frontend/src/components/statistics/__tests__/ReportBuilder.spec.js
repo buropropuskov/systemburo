@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 // Границы дат «Весь период» мастер спрашивает у бэкенда (#2341).
 const { getReportDataPeriod } = vi.hoisted(() => ({ getReportDataPeriod: vi.fn(() => Promise.resolve({ from: '', to: '' })) }));
@@ -46,8 +46,10 @@ const CATALOG = {
 
 const PERIOD = { from: '2026-06-01', to: '2026-06-07' };
 
+enableAutoUnmount(afterEach);
+
 function mountBuilder() {
-  return mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD } });
+  return mount(ReportBuilder, { attachTo: document.body, props: { catalog: CATALOG, period: PERIOD } });
 }
 
 function clickBuild(wrapper) {

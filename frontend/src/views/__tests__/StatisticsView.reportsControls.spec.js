@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { reactive } from 'vue';
 
 // У отчётов свой адрес (#2297): вкладка читается из маршрута и пишется в него,
@@ -24,6 +24,8 @@ import StatisticsView from '../StatisticsView.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 
+enableAutoUnmount(afterEach);
+
 beforeEach(() => {
   route.path = '/analytics';
   route.query = {};
@@ -32,6 +34,7 @@ beforeEach(() => {
 
 function mountView() {
   return mount(StatisticsView, {
+    attachTo: document.body,
     global: {
       stubs: {
         AdminPageShell: { template: '<div><slot /></div>' },
