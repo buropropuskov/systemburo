@@ -4,6 +4,7 @@
     :title="doc?.title || 'Документ'"
     width="520px"
     radius="30px"
+    appear
     @close="$emit('close')"
   >
     <div
