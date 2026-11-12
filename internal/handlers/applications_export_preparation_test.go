@@ -25,7 +25,7 @@ func (s *registryPreparationService) GetApplications(ctx context.Context, _ stri
 	return []services.ApplicationWithDetails{{ID: 1}}, nil
 }
 
-func (s *registryPreparationService) GetRegistryExtras(ctx context.Context, _ []int) (map[int]services.ApplicationRegistryExtras, error) {
+func (s *registryPreparationService) GetRegistryExtras(ctx context.Context, _ int, _ []int) (map[int]services.ApplicationRegistryExtras, error) {
 	s.queries = append(s.queries, ctx)
 	return map[int]services.ApplicationRegistryExtras{}, s.err
 }
@@ -58,6 +58,7 @@ func TestApplicationsExportPreparationDoesNotExpireWorkbookDelivery(t *testing.T
 			request := httptest.NewRequest(http.MethodGet, "/api/applications/export", nil).WithContext(parent)
 			c := e.NewContext(request, writer)
 			c.Set("username", "synthetic-export-viewer")
+			c.Set("user_id", 1)
 			err := NewApplicationHandler(service, nil).ExportApplications(c)
 			if fail {
 				require.ErrorIs(t, err, service.err)

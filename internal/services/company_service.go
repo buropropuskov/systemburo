@@ -835,6 +835,10 @@ func (s *companyService) UpdateUnloadPlaces(ctx context.Context, callerUserID, c
 		slog.Error("не удалось начать транзакцию", "error", tx.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
+	if err := validateDirectoryLinkTargets(tx, &models.Company{}, companyID, &models.UnloadPlace{}, req.UnloadPlaceIDs); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Удаляем старые связи
 	if err := tx.Where("company_id = ?", companyID).Delete(&models.CompaniesUnloadPlace{}).Error; err != nil {
@@ -917,6 +921,10 @@ func (s *companyService) UpdateTables(ctx context.Context, callerUserID, company
 	if tx.Error != nil {
 		slog.Error("не удалось начать транзакцию", "error", tx.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	if err := validateDirectoryLinkTargets(tx, &models.Company{}, companyID, &models.SystemTable{}, req.TableIDs); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// Удаляем старые связи

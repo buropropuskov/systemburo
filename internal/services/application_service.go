@@ -32,6 +32,15 @@ const forwardAttachmentVisible = `(
 		OR EXISTS (SELECT 1 FROM forward_attachments fav WHERE fav.application_id = a.id AND fav.recipient_user_id = ? AND fav.attachment_id = att.id)
 	)`
 
+// attachmentVisibility applies the same scope as the list tags. attachmentID is
+// a fixed SQL column supplied by the query, never a request parameter.
+func attachmentVisibility(viewerID int, attachmentID string) clause.Expr {
+	if viewerID == 0 {
+		return gorm.Expr("TRUE")
+	}
+	return gorm.Expr(strings.Replace(forwardAttachmentVisible, "att.id", attachmentID, 1), viewerID, viewerID, viewerID)
+}
+
 // ownApplicationsListSelect исключает служебные и чужие поля из read-only списка.
 const ownApplicationsListSelect = "a.id, a.application_number, a.confirmation, a.sending_datetime, a.organization_id, a.company_id, a.sender_user_id, a.message, a.status, a.data_approval" + ", " + hasStatusUpdatePredicate + " as has_status_update"
 
@@ -52,7 +61,7 @@ var applicationsListSelect = `
 		u.is_important as sender_is_important,
 		format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 		format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-		EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
+		EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id AND ` + forwardAttachmentVisible + `) as has_blank_template,
 		EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true AND ` + forwardAttachmentVisible + `) as has_roof_access,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true AND ` + forwardAttachmentVisible + `) as has_free_parking,
@@ -80,11 +89,12 @@ var applicationsListSelect = `
 	`
 
 // applicationsListSelectArgs связывает плейсхолдеры applicationsListSelect: is_read (1)
-// всегда по реальному id просматривающего; теги видимости (по три на каждый из двух) -
+// всегда по реальному id просматривающего; признаки видимых вложений -
 // по forwardViewerID, который равен 0 для супер-админа (bypass фильтра пересыла, видит
 // все теги - симметрично resolveForwardFilter в detail-пути).
 func applicationsListSelectArgs(readUserID, forwardViewerID int) []interface{} {
 	return []interface{}{
+		forwardViewerID, forwardViewerID, forwardViewerID, // has_blank_template
 		readUserID,
 		forwardViewerID, forwardViewerID, forwardViewerID,
 		forwardViewerID, forwardViewerID, forwardViewerID,
@@ -118,7 +128,7 @@ type ApplicationService interface {
 	// нужно в выгруженном реестре (#1832): сколько людей и машин в заявке и границы
 	// срока действия её вложений. Одним запросом на всю выборку - в списке заявок
 	// сотни строк, и подзапрос на каждую превратил бы выгрузку в N+1.
-	GetRegistryExtras(ctx context.Context, applicationIDs []int) (map[int]ApplicationRegistryExtras, error)
+	GetRegistryExtras(ctx context.Context, viewerID int, applicationIDs []int) (map[int]ApplicationRegistryExtras, error)
 
 	// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 	GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
@@ -969,7 +979,7 @@ func (s *applicationService) maskApplicationNames(ctx context.Context, rows []Ap
 // GetRegistryExtras добирает состав и сроки по списку заявок одним запросом.
 // Отдельным методом, а не полем ApplicationWithDetails: строке Центра эти числа не
 // нужны, а лишний GROUP BY на каждом открытии списка платили бы все.
-func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationIDs []int) (map[int]ApplicationRegistryExtras, error) {
+func (s *applicationService) GetRegistryExtras(ctx context.Context, viewerID int, applicationIDs []int) (map[int]ApplicationRegistryExtras, error) {
 	out := make(map[int]ApplicationRegistryExtras, len(applicationIDs))
 	if len(applicationIDs) == 0 {
 		return out, nil
@@ -986,6 +996,7 @@ func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationI
 	// машинами размножает строки друг друга (декартово произведение внутри группы).
 	err := s.db.WithContext(ctx).
 		Table("attachments AS at").
+		Joins("JOIN applications a ON a.id = at.application_id").
 		Select(`at.application_id AS application_id,
 			COUNT(DISTINCT e.id) AS people_count,
 			COUNT(DISTINCT c.id) AS cars_count,
@@ -997,10 +1008,12 @@ func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationI
 			SELECT rp.application_id,
 				CASE WHEN BOOL_OR(NOT rp.valid_mode) THEN '' ELSE COALESCE(MIN(rp.date_from), '') END AS entry_date_from,
 				CASE WHEN BOOL_OR(NOT rp.valid_mode OR rp.unbounded) THEN '' ELSE COALESCE(MAX(rp.date_to), '') END AS entry_date_to
-			FROM (`+applicationPeriodRowsSQL()+`) rp WHERE rp.application_id IN ?
+			FROM (`+applicationPeriodRowsSQL()+`) rp
+			JOIN applications a ON a.id = rp.application_id
+			WHERE rp.application_id IN ? AND ?
 			GROUP BY rp.application_id
-		) periods ON periods.application_id = at.application_id`, applicationIDs).
-		Where("at.application_id IN ?", applicationIDs).
+		) periods ON periods.application_id = at.application_id`, applicationIDs, attachmentVisibility(viewerID, "rp.attachment_id")).
+		Where("at.application_id IN ? AND ?", applicationIDs, attachmentVisibility(viewerID, "at.id")).
 		Group("at.application_id").
 		Scan(&rows).Error
 	if err != nil {
@@ -1040,7 +1053,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 
 	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
-	query = applyApplicationFilters(query, filter, true, user.ID)
+	query = applyApplicationFilters(query, filter, true, user.ID, forwardViewerID(user))
 	query = applyArchiveScope(query, filter)
 	query = applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, true)
 	query = query.Order("a.sending_datetime DESC, a.id DESC")
@@ -1087,7 +1100,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
 
 	// Намеренно БЕЗ applyApplicationAccessFilter - привязка это admin-операция.
-	query = applyApplicationFilters(query, filter, true, user.ID)
+	query = applyApplicationFilters(query, filter, true, user.ID, forwardViewerID(user))
 	query = applyArchiveScope(query, filter)
 	query = query.Order("a.sending_datetime DESC, a.id DESC")
 
@@ -1104,7 +1117,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 }
 
 // buildApplicationsBaseQuery строит базовый запрос с джойнами и фильтрами без Select и Order.
-func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, userID int, isApprover bool, filter ApplicationFilter) *gorm.DB {
+func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, userID, viewerID int, isApprover bool, filter ApplicationFilter) *gorm.DB {
 	query := s.db.WithContext(ctx).Table("applications a").
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -1113,7 +1126,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 
 	query = applyApplicationAccessFilter(query, userID, isApprover)
 
-	query = applyApplicationFilters(query, filter, true, userID)
+	query = applyApplicationFilters(query, filter, true, userID, viewerID)
 	query = applyArchiveScope(query, filter)
 	// Центр: чип "Обновления" показывает только прочитанные заявки (requireRead=true).
 	return applyStatusUpdatedFilter(query, userID, filter.StatusUpdated, true)
@@ -1141,13 +1154,13 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 	}
 
 	var total int64
-	countQuery := s.buildApplicationsBaseQuery(ctx, user.ID, isApprover, filter)
+	countQuery := s.buildApplicationsBaseQuery(ctx, user.ID, forwardViewerID(user), isApprover, filter)
 	if err := countQuery.Count(&total).Error; err != nil {
 		slog.Error("Ошибка подсчёта заявок", "error", err)
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	dataQuery := s.buildApplicationsBaseQuery(ctx, user.ID, isApprover, filter)
+	dataQuery := s.buildApplicationsBaseQuery(ctx, user.ID, forwardViewerID(user), isApprover, filter)
 	dataQuery = dataQuery.
 		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
 		Order("a.sending_datetime DESC, a.id DESC").
@@ -1201,7 +1214,7 @@ func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context,
 	if user.IsBanned {
 		query = applyOwnApplicationFilters(query, filter, user.ID)
 	} else {
-		query = applyApplicationFilters(query, filter, true, user.ID)
+		query = applyApplicationFilters(query, filter, true, user.ID, forwardViewerID(user))
 	}
 	// ЛК: у отправителя нет строк application_reads, гейт прочтения не нужен (requireRead=false).
 	return applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, false)

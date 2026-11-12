@@ -572,6 +572,14 @@ func TestCompanies_UpdateTables(t *testing.T) {
 	tables := testutil.ParseSlice(t, getRec)
 	assert.Len(t, tables, 1)
 	assert.Equal(t, "comp-table", tables[0]["name"])
+
+	missingCompany := testutil.PUT(t, e, "/companies/2147483000/tables", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusNotFound, missingCompany.Code, missingCompany.Body.String())
+	invalidTarget := testutil.PUT(t, e, fmt.Sprintf("/companies/%d/tables", td.CompanyID), `{"table_ids":[2147483000]}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusUnprocessableEntity, invalidTarget.Code, invalidTarget.Body.String())
+	getRec = testutil.GET(t, e, fmt.Sprintf("/companies/%d/tables", td.CompanyID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, getRec.Code)
+	require.Equal(t, tables, testutil.ParseSlice(t, getRec))
 }
 
 func TestCompanies_UpdateTables_Forbidden(t *testing.T) {

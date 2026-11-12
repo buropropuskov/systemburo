@@ -894,6 +894,9 @@ func (s *organizationService) UpdateOrganizationTables(ctx context.Context, call
 	oldTables := s.attachedTableNames(ctx, orgID)
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateDirectoryLinkTargets(tx, &models.Organization{}, orgID, &models.SystemTable{}, req.TableIDs); err != nil {
+			return err
+		}
 		// Удаляем старые связи
 		if err := tx.Where("organization_id = ?", orgID).Delete(&models.OrganizationTable{}).Error; err != nil {
 			slog.Error("Не удалось удалить старые таблицы организации", "error", err)
@@ -970,6 +973,9 @@ func (s *organizationService) UpdateOrganizationUnloadPlaces(ctx context.Context
 	oldPlaces := s.attachedPlaceNames(ctx, orgID)
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateDirectoryLinkTargets(tx, &models.Organization{}, orgID, &models.UnloadPlace{}, req.UnloadPlaceIDs); err != nil {
+			return err
+		}
 		// Удаляем старые связи
 		if err := tx.Where("organization_id = ?", orgID).Delete(&models.OrganizationUnloadPlace{}).Error; err != nil {
 			slog.Error("Не удалось удалить старые места разгрузки организации", "error", err)

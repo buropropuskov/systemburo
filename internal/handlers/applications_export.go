@@ -8,6 +8,7 @@ import (
 	"systemburo/internal/download"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/export"
 	"systemburo/internal/services"
 
@@ -72,7 +73,10 @@ var registryHeaders = []string{
 // @Router       /applications/export [get]
 func (h *ApplicationHandler) ExportApplications(c echo.Context) error {
 	download.NoStore(c)
-	username := c.Get("username").(string)
+	username := GetUsername(c)
+	if username == "" || GetUserID(c) <= 0 {
+		return apperr.Unauthorized("Необходима авторизация")
+	}
 
 	filter, err := bindApplicationListFilter(c)
 	if err != nil {
@@ -92,7 +96,7 @@ func (h *ApplicationHandler) ExportApplications(c echo.Context) error {
 	for i := range apps {
 		ids = append(ids, apps[i].ID)
 	}
-	extras, err := h.service.GetRegistryExtras(prepCtx, ids)
+	extras, err := h.service.GetRegistryExtras(prepCtx, viewerUserID(c), ids)
 	if err != nil {
 		return err
 	}

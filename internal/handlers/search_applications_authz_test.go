@@ -6,16 +6,64 @@ package handlers_test
 // повторять applyApplicationAccessFilter целиком, а не его половину.
 
 import (
+	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestSearchAndExport_RespectForwardedAttachmentScope(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	for _, name := range []string{"scope_owner", "scope_viewer"} {
+		testutil.RegisterUser(t, e, name, "password123", 1, td.OrgID, td.CompanyID)
+		assignBaseRole(t, db, name)
+	}
+	grantExport(t, db, "scope_viewer")
+	ownerID := userIDByName(t, db, "scope_owner")
+	viewerID := userIDByName(t, db, "scope_viewer")
+	const number = "20260731/555"
+	appID := seedSearchApplication(t, db, number, ownerID, td.OrgID)
+	require.NoError(t, db.Create(&models.ApplicationViewer{ApplicationID: appID, UserID: viewerID}).Error)
+	visible := models.Attachment{ApplicationID: &appID, AttachmentType: "cars", EntryDateFrom: searchStrPtr("2099-01-01"), EntryDateTo: searchStrPtr("2099-02-01")}
+	hidden := models.Attachment{ApplicationID: &appID, AttachmentType: "cars", EntryDateFrom: searchStrPtr("2098-01-01"), EntryDateTo: searchStrPtr("2099-12-31")}
+	require.NoError(t, db.Create(&visible).Error)
+	require.NoError(t, db.Create(&hidden).Error)
+	require.NoError(t, db.Create(&models.ForwardAttachment{ApplicationID: appID, AttachmentID: visible.ID, RecipientUserID: viewerID, CreatedBy: &ownerID}).Error)
+	require.NoError(t, db.Create(&models.Car{AttachmentID: visible.ID, CarBrand: searchStrPtr("Velociraptor")}).Error)
+	require.NoError(t, db.Create(&models.Car{AttachmentID: hidden.ID, CarBrand: searchStrPtr("Hippopotamus")}).Error)
+	viewer, _ := testutil.LoginUser(t, e, "scope_viewer", "password123")
+	owner, _ := testutil.LoginUser(t, e, "scope_owner", "password123")
+
+	for _, endpoint := range []string{"/search?types=applications&q=", "/applications?search_query=", "/applications?per_page=10&search_query="} {
+		for _, tc := range []struct {
+			token, term string
+			found       bool
+		}{{viewer, "Velociraptor", true}, {viewer, "Hippopotamus", false}, {owner, "Hippopotamus", true}} {
+			rec := testutil.GET(t, e, endpoint+tc.term, testutil.AuthHeader(tc.token))
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.Equal(t, tc.found, strings.Contains(rec.Body.String(), number), endpoint+tc.term)
+		}
+	}
+	assert.Contains(t, exportRegistry(t, e, viewer, "search_query=Velociraptor"), number)
+	assert.NotContains(t, exportRegistry(t, e, viewer, "search_query=Hippopotamus"), number)
+	apps := services.NewApplicationService(db, nil, nil, nil, nil, services.NewAuditRecorder(db))
+	extras, err := apps.GetRegistryExtras(context.Background(), viewerID, []int{appID})
+	require.NoError(t, err)
+	require.Equal(t, 1, extras[appID].CarsCount)
+	assert.Equal(t, "2099-01-01", extras[appID].EntryDateFrom)
+	assert.Equal(t, "2099-02-01", extras[appID].EntryDateTo)
+}
 
 // seedSearchApplication кладёт заявку напрямую: провести её через API значило бы
 // собрать вложения, машины и согласования, а проверяем мы видимость.
