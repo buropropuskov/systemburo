@@ -707,7 +707,7 @@ func applyOwnApplicationFilters(query *gorm.DB, filter ApplicationFilter, userID
 	filter.PassageTableIDs = nil
 	filter.ActiveToday = nil
 	filter.Unread = nil
-	query = applyApplicationFilters(query, filter, false, userID)
+	query = applyApplicationFilters(query, filter, false, userID, userID)
 	if search != nil && *search != "" {
 		cond, args := ilikePatternsArgs([]string{"a.application_number", "a.message", "a.status", "a.confirmation"}, buildSearchVariants(*search))
 		query = query.Where("("+cond+")", args...)
@@ -715,7 +715,7 @@ func applyOwnApplicationFilters(query *gorm.DB, filter ApplicationFilter, userID
 	return query
 }
 
-func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool, userID int) *gorm.DB {
+func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool, userID, viewerID int) *gorm.DB {
 	if filter.SearchQuery != nil && *filter.SearchQuery != "" {
 		raw := *filter.SearchQuery
 		variants := buildSearchVariants(raw)
@@ -759,7 +759,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		carSubquery := `EXISTS(
 			SELECT 1 FROM attachments att2
 			JOIN cars c2 ON c2.attachment_id = att2.id
-			WHERE att2.application_id = a.id AND (` + carNumCond + `)
+			WHERE att2.application_id = a.id AND ? AND (` + carNumCond + `)
 		)`
 
 		// --- вложения: сотрудники ---
@@ -779,7 +779,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		empSubquery := `EXISTS(
 			SELECT 1 FROM attachments att3
 			JOIN employees e ON e.attachment_id = att3.id
-			WHERE att3.application_id = a.id AND (
+			WHERE att3.application_id = a.id AND ? AND (
 				` + empIlikeCond + `
 				OR strict_word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3
 			)
@@ -794,7 +794,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			JOIN cars c4 ON c4.attachment_id = att4.id
 			JOIN car_unload_places cup ON cup.car_id = c4.id
 			JOIN unload_places up ON up.id = cup.unload_place_id
-			WHERE att4.application_id = a.id AND (` + upCond + `)
+			WHERE att4.application_id = a.id AND ? AND (` + upCond + `)
 		)`
 
 		// --- согласующие: ФИО + комментарий согласующего ---
@@ -819,7 +819,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		itemSubquery := `EXISTS(
 			SELECT 1 FROM attachments att5
 			JOIN items it ON it.attachment_id = att5.id
-			WHERE att5.application_id = a.id AND (` + itemCond + `)
+			WHERE att5.application_id = a.id AND ? AND (` + itemCond + `)
 		)`
 
 		// --- вложения: наименование вложения ---
@@ -828,24 +828,28 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		attNameCond, attNameArgs := ilikePatternsArgs([]string{"att6.attachment_display_name", "att6.attachment_name"}, variants)
 		attNameSubquery := `EXISTS(
 			SELECT 1 FROM attachments att6
-			WHERE att6.application_id = a.id AND (` + attNameCond + `)
+			WHERE att6.application_id = a.id AND ? AND (` + attNameCond + `)
 		)`
 
 		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery +
 			" OR " + upSubquery + " OR " + apprSubquery + " OR " + itemSubquery +
 			" OR " + attNameSubquery
 
-		allArgs := baseArgs
+		allArgs := append(baseArgs, attachmentVisibility(viewerID, "att2.id"))
 		allArgs = append(allArgs, carNumArgs...)
 		if platePattern != "" {
 			allArgs = append(allArgs, platePattern)
 		}
+		allArgs = append(allArgs, attachmentVisibility(viewerID, "att3.id"))
 		allArgs = append(allArgs, empIlikeArgs...)
 		allArgs = append(allArgs, raw) // для word_similarity сотрудников
+		allArgs = append(allArgs, attachmentVisibility(viewerID, "att4.id"))
 		allArgs = append(allArgs, upArgs...)
 		allArgs = append(allArgs, apprIlikeArgs...)
 		allArgs = append(allArgs, raw) // для word_similarity согласующих
+		allArgs = append(allArgs, attachmentVisibility(viewerID, "att5.id"))
 		allArgs = append(allArgs, itemArgs...)
+		allArgs = append(allArgs, attachmentVisibility(viewerID, "att6.id"))
 		allArgs = append(allArgs, attNameArgs...)
 
 		query = query.Where(fullCond, allArgs...)
@@ -870,9 +874,9 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			EXISTS(
 				SELECT 1 FROM attachments att_up
 				JOIN attachment_unload_places aup ON aup.attachment_id = att_up.id
-				WHERE att_up.application_id = a.id AND aup.unload_place_id IN ?
+				WHERE att_up.application_id = a.id AND ? AND aup.unload_place_id IN ?
 			)
-		`, ids)
+		`, attachmentVisibility(viewerID, "att_up.id"), ids)
 	}
 	// Таблицы проходной (#1398): машина через car_target_tables ИЛИ сотрудник через
 	// employee_target_tables - привязки живут на элементах вложения, не на заявке.
@@ -882,15 +886,15 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 				SELECT 1 FROM attachments att_ct
 				JOIN cars c_ct ON c_ct.attachment_id = att_ct.id
 				JOIN car_target_tables ctt ON ctt.car_id = c_ct.id
-				WHERE att_ct.application_id = a.id AND ctt.table_id IN ?
+				WHERE att_ct.application_id = a.id AND ? AND ctt.table_id IN ?
 			)
 			OR EXISTS(
 				SELECT 1 FROM attachments att_et
 				JOIN employees e_et ON e_et.attachment_id = att_et.id
 				JOIN employee_target_tables ett ON ett.employee_id = e_et.id
-				WHERE att_et.application_id = a.id AND ett.table_id IN ?
+				WHERE att_et.application_id = a.id AND ? AND ett.table_id IN ?
 			)
-		)`, ids, ids)
+		)`, attachmentVisibility(viewerID, "att_ct.id"), ids, attachmentVisibility(viewerID, "att_et.id"), ids)
 	}
 	if filter.SenderUserID != nil {
 		query = query.Where("a.sender_user_id = ?", *filter.SenderUserID)
@@ -933,14 +937,15 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	if filter.ActiveToday != nil && *filter.ActiveToday {
 		query = query.Where(`
 			EXISTS(
-				SELECT 1 FROM (` + applicationPeriodRowsSQL() + `) periods
+				SELECT 1 FROM (`+applicationPeriodRowsSQL()+`) periods
 				WHERE periods.application_id = a.id
+				AND ?
 				AND periods.valid_mode
 				AND periods.date_from IS NOT NULL
 				AND periods.date_to IS NOT NULL
-				AND ` + moscowTodaySQL + ` BETWEEN CAST(periods.date_from AS DATE) AND CAST(periods.date_to AS DATE)
+				AND `+moscowTodaySQL+` BETWEEN CAST(periods.date_from AS DATE) AND CAST(periods.date_to AS DATE)
 			)
-		`)
+		`, attachmentVisibility(viewerID, "periods.attachment_id"))
 	}
 
 	return query

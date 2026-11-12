@@ -41,6 +41,10 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 	cols := []string{"a.application_number", "a.message", "o.name", "c.name"}
 	fuzzyCols := []string{"a.application_number", "o.name", "c.name"}
 	cond, args := searchConditionFuzzyIn(cols, fuzzyCols, req.Raw)
+	viewerID := req.UserID
+	if req.Perms.allowAll {
+		viewerID = 0
+	}
 
 	// car_brand -- устаревшая колонка марки, но в данных заполнена именно она: снимок
 	// mark_name появился позже и есть у единиц записей. Ищем по обеим, иначе заявка не
@@ -50,7 +54,8 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att
 		JOIN cars cr ON cr.attachment_id = att.id
-		WHERE att.application_id = a.id AND (%s))`, carCond)
+		WHERE att.application_id = a.id AND ? AND (%s))`, carCond)
+	args = append(args, attachmentVisibility(viewerID, "att.id"))
 	args = append(args, carArgs...)
 
 	empCols := []string{"e.last_name", "e.first_name", "e.middle_name"}
@@ -58,7 +63,8 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att2
 		JOIN employees e ON e.attachment_id = att2.id
-		WHERE att2.application_id = a.id AND (%s))`, empCond)
+		WHERE att2.application_id = a.id AND ? AND (%s))`, empCond)
+	args = append(args, attachmentVisibility(viewerID, "att2.id"))
 	args = append(args, empArgs...)
 
 	rows := make([]searchRow, 0, req.Limit+1)

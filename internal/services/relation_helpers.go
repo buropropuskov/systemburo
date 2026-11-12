@@ -1,10 +1,35 @@
 package services
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
+
+	"systemburo/internal/apperr"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// validateDirectoryLinkTargets keeps the parent and referenced rows available
+// until the caller commits its replacement transaction.
+func validateDirectoryLinkTargets(tx *gorm.DB, parent any, parentID int, target any, ids []int) error {
+	err := tx.Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", parentID).Take(parent).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return apperr.NotFound("Запись справочника не найдена")
+	}
+	if err != nil || len(ids) == 0 {
+		return err
+	}
+	var found []int
+	if err := tx.Model(target).Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id IN ?", ids).Pluck("id", &found).Error; err != nil {
+		return err
+	}
+	if len(found) != len(ids) {
+		return apperr.New(http.StatusUnprocessableEntity, "Связанные записи не найдены или повторяются")
+	}
+	return nil
+}
 
 var allowedRelationTables = map[string]bool{
 	"organization_users":     true,

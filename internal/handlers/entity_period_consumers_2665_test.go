@@ -83,7 +83,7 @@ func TestEntityPeriod2665DBConsumerWindows(t *testing.T) {
 						require.NotEmpty(t, reason)
 					}
 					apps := services.NewApplicationService(db, nil, nil, nil, nil, services.NewAuditRecorder(db))
-					extras, err := apps.GetRegistryExtras(ctx, []int{w.application})
+					extras, err := apps.GetRegistryExtras(ctx, w.actor, []int{w.application})
 					require.NoError(t, err)
 					require.Len(t, extras, 1)
 					got, exists := extras[w.application]
@@ -142,7 +142,7 @@ func TestEntityPeriod2665DBRegistryExtrasMixedNeighbors(t *testing.T) {
 	farFrom, farTo := day(-50), day(50)
 	require.NoError(t, w.db.Create(&models.Attachment{ApplicationID: &other.ID, AttachmentType: "items", Status: &active, EntryDateFrom: &farFrom, EntryDateTo: &farTo}).Error)
 	apps := services.NewApplicationService(w.db, nil, nil, nil, nil, services.NewAuditRecorder(w.db))
-	extras, err := apps.GetRegistryExtras(ctx, []int{w.application})
+	extras, err := apps.GetRegistryExtras(ctx, w.actor, []int{w.application})
 	require.NoError(t, err)
 	require.Len(t, extras, 1)
 	got, exists := extras[w.application]
@@ -151,7 +151,7 @@ func TestEntityPeriod2665DBRegistryExtrasMixedNeighbors(t *testing.T) {
 	require.Equal(t, 2, got.CarsCount)
 	require.Equal(t, from, got.EntryDateFrom)
 	require.Equal(t, to, got.EntryDateTo)
-	empty, err := apps.GetRegistryExtras(ctx, nil)
+	empty, err := apps.GetRegistryExtras(ctx, w.actor, nil)
 	require.NoError(t, err)
 	require.Empty(t, empty)
 }
