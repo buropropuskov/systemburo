@@ -48,5 +48,5 @@ add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 CONF
 cat > /etc/nginx/staging-security-headers.conf <<'CONF'
 include /etc/nginx/staging-common-headers.conf;
-add_header Content-Security-Policy "default-src 'self'; form-action 'self'; base-uri 'none'; script-src 'self' 'nonce-$request_id'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self';" always;
+add_header Content-Security-Policy "default-src 'self'; form-action 'self'; base-uri 'none'; script-src 'self' 'nonce-$request_id'; style-src 'self' 'unsafe-inline';$staging_style_policy img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self';" always;
 CONF
