@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -323,6 +324,9 @@ func tablePermLabel(p models.Permission, byID map[int]string, bySlug map[string]
 
 // AutoGenerateForTable создаёт права для системной таблицы (по одному на глагол).
 func (s *permissionService) AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error {
+	if err := inputvalidator.DatabaseText(tableName); err != nil {
+		return err
+	}
 	displayName := tableName
 
 	permissions := make([]models.Permission, 0, len(tableVerbs))

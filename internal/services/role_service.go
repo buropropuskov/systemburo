@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -92,9 +95,16 @@ func (s *RoleService) List(ctx context.Context) ([]models.RoleResponse, error) {
 // Create создаёт новую роль со снимком grants базовой роли "Пользователь"
 // на момент создания (фундамент-наследование из ТЗ). Дальше роль живёт независимо.
 func (s *RoleService) Create(ctx context.Context, req models.CreateRoleRequest) (models.Role, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return models.Role{}, err
+	}
 	role := models.Role{Code: req.Code, Name: req.Name, Description: req.Description}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&role).Error; err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "idx_roles_code" {
+				return apperr.Conflict("Роль с таким кодом уже существует", err)
+			}
 			return fmt.Errorf("failed to create role: %w", err)
 		}
 		var base models.Role
@@ -133,6 +143,9 @@ func (s *RoleService) Create(ctx context.Context, req models.CreateRoleRequest) 
 
 // Update обновляет имя/описание роли. Code менять нельзя (это API-контракт).
 func (s *RoleService) Update(ctx context.Context, roleID int, req models.UpdateRoleRequest) error {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return err
+	}
 	if err := s.db.WithContext(ctx).Model(&models.Role{}).Where("id = ?", roleID).
 		Updates(map[string]any{"name": req.Name, "description": req.Description}).Error; err != nil {
 		return fmt.Errorf("failed to update role: %w", err)

@@ -8,6 +8,7 @@ import (
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -109,6 +110,9 @@ func escapeLikePattern(s string) string {
 // частный ввод одного заявителя, предлагать его остальным нельзя, пока принимающий его
 // не разобрал.
 func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) (DirectorySuggestAnswer, error) {
+	if err := inputvalidator.DatabaseText(rawQuery); err != nil {
+		return DirectorySuggestAnswer{}, err
+	}
 	answer := DirectorySuggestAnswer{
 		Items:     []DirectorySuggestion{},
 		Canonical: normalize.OrgNameDisplay(rawQuery),
@@ -181,6 +185,9 @@ func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) 
 // Условие повторяет резолв подачи (findActiveDirectoryEntry): статус разбора не смотрим -
 // заявка ложится и на черновик, новой записи от этого не появляется.
 func activeDirectoryKeyExists(ctx context.Context, db *gorm.DB, table, key string) (bool, error) {
+	if err := inputvalidator.DatabaseText(key); err != nil {
+		return false, err
+	}
 	var exists bool
 	q := "SELECT EXISTS (SELECT 1 FROM " + table + " WHERE is_active = true AND name_normalized = ?)"
 	if err := db.WithContext(ctx).Raw(q, key).Scan(&exists).Error; err != nil {

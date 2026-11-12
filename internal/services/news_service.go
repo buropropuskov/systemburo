@@ -9,6 +9,7 @@ import (
 
 	"systemburo/internal/models"
 	"systemburo/internal/realtime"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -189,6 +190,9 @@ func (s *newsService) GetAllNews(ctx context.Context) ([]models.NewsWithUser, er
 }
 
 func (s *newsService) CreateNews(ctx context.Context, userID int, req models.CreateNewsRequest) (*models.NewsWithUser, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	masks, maskErr := loadNameMasks(ctx, s.db)
 	if maskErr != nil {
 		return nil, maskErr
@@ -232,6 +236,9 @@ func (s *newsService) CreateNews(ctx context.Context, userID int, req models.Cre
 }
 
 func (s *newsService) UpdateNews(ctx context.Context, userID int, id int, req models.UpdateNewsRequest) (*models.NewsWithUser, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	masks, maskErr := loadNameMasks(ctx, s.db)
 	if maskErr != nil {
 		return nil, maskErr
@@ -339,6 +346,9 @@ func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.Announc
 }
 
 func (s *newsService) CreateAnnouncement(ctx context.Context, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	masks, maskErr := loadNameMasks(ctx, s.db)
 	if maskErr != nil {
 		return nil, maskErr
@@ -453,6 +463,9 @@ func (s *newsService) HideAnnouncement(ctx context.Context, id int) error {
 }
 
 func (s *newsService) UpdateAnnouncement(ctx context.Context, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	masks, maskErr := loadNameMasks(ctx, s.db)
 	if maskErr != nil {
 		return nil, maskErr

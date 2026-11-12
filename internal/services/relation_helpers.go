@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"systemburo/internal/apperr"
 
@@ -21,8 +22,25 @@ func validateDirectoryLinkTargets(tx *gorm.DB, parent any, parentID int, target 
 	if err != nil || len(ids) == 0 {
 		return err
 	}
+	ordered := slices.Clone(ids)
+	slices.Sort(ordered)
+	if len(slices.Compact(ordered)) != len(ids) {
+		return apperr.New(http.StatusUnprocessableEntity, "Связанные записи не найдены или повторяются")
+	}
+	return validateReferenceIDs(tx, target, ids)
+}
+
+// validateReferenceIDs locks a deterministic, deduplicated set until commit.
+// Archival state is deliberately not filtered: existence is not an access rule.
+func validateReferenceIDs(tx *gorm.DB, target any, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	ids = slices.Clone(ids)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
 	var found []int
-	if err := tx.Model(target).Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id IN ?", ids).Pluck("id", &found).Error; err != nil {
+	if err := tx.Model(target).Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id IN ?", ids).Order("id").Pluck("id", &found).Error; err != nil {
 		return err
 	}
 	if len(found) != len(ids) {

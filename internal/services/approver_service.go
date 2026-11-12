@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -207,6 +208,9 @@ func (s *approverService) Create(ctx context.Context, userID int, createdByUsern
 // Update задаёт или снимает маску отображаемого имени принимающего. Пустая строка/только
 // пробелы -> NULL (показывается реальное ФИО). Изменение фиксируется в аудите принимающих.
 func (s *approverService) Update(ctx context.Context, id int, displayName *string, actorUsername string) error {
+	if err := inputvalidator.DatabaseText(displayName); err != nil {
+		return err
+	}
 	var mask *string
 	if displayName != nil {
 		if trimmed := strings.TrimSpace(*displayName); trimmed != "" {

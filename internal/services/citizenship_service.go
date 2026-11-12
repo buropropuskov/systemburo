@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -54,6 +55,9 @@ func (s *citizenshipService) GetAll(ctx context.Context, includeArchived bool) (
 
 // Create создаёт новое гражданство с опциональной установкой по умолчанию.
 func (s *citizenshipService) Create(ctx context.Context, userID int, req models.CreateCitizenshipRequest) (int, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return 0, err
+	}
 	isDefault := req.IsDefault != nil && *req.IsDefault
 	patentRequired := req.PatentRequired != nil && *req.PatentRequired
 
@@ -94,6 +98,9 @@ func (s *citizenshipService) Create(ctx context.Context, userID int, req models.
 // Update обновляет гражданство по ID. is_active не трогает - архивацией/восстановлением
 // управляют Delete/Restore (отдельные действия в истории).
 func (s *citizenshipService) Update(ctx context.Context, userID, id int, req models.UpdateCitizenshipRequest) error {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return err
+	}
 	isDefault := req.IsDefault != nil && *req.IsDefault
 	patentRequired := req.PatentRequired != nil && *req.PatentRequired
 

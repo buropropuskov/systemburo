@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"systemburo/internal/apperr"
+	inputvalidator "systemburo/internal/validator"
 
 	"gorm.io/gorm"
 )
@@ -59,6 +60,9 @@ func NewSearchService(db *gorm.DB, resolver *PermissionResolver) (SearchService,
 }
 
 func (s *searchService) Search(ctx context.Context, userID int, q string, types []SearchEntityType, limit int) (*SearchResponse, error) {
+	if err := inputvalidator.DatabaseText(q); err != nil {
+		return nil, err
+	}
 	started := time.Now()
 
 	raw := strings.TrimSpace(q)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -234,6 +235,12 @@ func NewEmployeeService(db *gorm.DB, recorder AuditRecorder, opts ...EmployeeSer
 // привязку к целевым таблицам и записи аудита. Всё одной транзакцией: частичного
 // добавления быть не должно.
 func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualEmployeeRequest, userID int) (*ManualEmployeeResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
+	if err := models.ValidateOptionalEntryPeriod(models.EntryPeriod{EntryDateFrom: req.EntryDateFrom, EntryDateTo: req.EntryDateTo, EntryTimeFrom: req.EntryTimeFrom, EntryTimeTo: req.EntryTimeTo}); err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный период действия")
+	}
 	if req.OrganizationID <= 0 {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана организация")
 	}
@@ -253,6 +260,32 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 	employeeIDs := make([]int, 0, len(req.Employees))
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tables := []int{req.TableID}
+		citizenships := make([]int, 0, len(req.Employees))
+		for _, employee := range req.Employees {
+			for _, tableID := range employee.TargetTables {
+				if tableID > 0 {
+					tables = append(tables, tableID)
+				}
+			}
+			if employee.CitizenshipID > 0 {
+				citizenships = append(citizenships, employee.CitizenshipID)
+			}
+		}
+		if err := validateReferenceIDs(tx, &models.Organization{}, []int{req.OrganizationID}); err != nil {
+			return err
+		}
+		if req.CompanyID != nil {
+			if err := validateReferenceIDs(tx, &models.Company{}, []int{*req.CompanyID}); err != nil {
+				return err
+			}
+		}
+		if err := validateReferenceIDs(tx, &models.SystemTable{}, tables); err != nil {
+			return err
+		}
+		if err := validateReferenceIDs(tx, &models.Citizenship{}, citizenships); err != nil {
+			return err
+		}
 		statusOne := 1
 		att := models.Attachment{
 			ApplicationID:   nil,

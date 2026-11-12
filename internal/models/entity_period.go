@@ -88,6 +88,33 @@ func emptyEntryPeriod(p EntryPeriod) bool {
 		periodValue(p.EntryTimeFrom) == "" && periodValue(p.EntryTimeTo) == ""
 }
 
+// ValidateOptionalEntryPeriod checks new manual input without requiring dates or
+// clocks for an unbounded pass. Overnight clocks remain supported; only a date
+// range that actually runs backwards is rejected. Stored legacy rows are untouched.
+func ValidateOptionalEntryPeriod(p EntryPeriod) error {
+	for _, raw := range []*string{p.EntryDateFrom, p.EntryDateTo} {
+		if raw != nil && *raw != "" {
+			if parsed, err := time.Parse("2006-01-02", *raw); err != nil || parsed.Format("2006-01-02") != *raw {
+				return ErrInvalidIndividualPeriod
+			}
+		}
+	}
+	for _, raw := range []*string{p.EntryTimeFrom, p.EntryTimeTo} {
+		if raw == nil || *raw == "" {
+			continue
+		}
+		minute, minuteErr := time.Parse("15:04", *raw)
+		second, secondErr := time.Parse("15:04:05", *raw)
+		if (minuteErr != nil || minute.Format("15:04") != *raw) && (secondErr != nil || second.Format("15:04:05") != *raw) {
+			return ErrInvalidIndividualPeriod
+		}
+	}
+	if p.EntryDateFrom != nil && p.EntryDateTo != nil && *p.EntryDateFrom != "" && *p.EntryDateTo != "" && *p.EntryDateTo < *p.EntryDateFrom {
+		return ErrInvalidIndividualPeriod
+	}
+	return nil
+}
+
 func periodValue(value *string) string {
 	if value == nil {
 		return ""

@@ -10,6 +10,7 @@ import (
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -231,6 +232,9 @@ func (s *uniqueCarService) GetOwnerInfo(ctx context.Context, username string) (*
 // LookupByNumberMark ищет машину по номеру+марке без скоупинга по владельцу (вызывается
 // из админ-страницы ЧС). Берёт самую свежую при нескольких совпадениях. nil,nil если нет.
 func (s *uniqueCarService) LookupByNumberMark(ctx context.Context, number, mark string) (*UniqueCarWithRelations, error) {
+	if err := inputvalidator.DatabaseText(number, mark); err != nil {
+		return nil, err
+	}
 	rows := make([]UniqueCarWithRelations, 0, 1)
 	err := s.db.WithContext(ctx).
 		Table("unique_cars uc").
@@ -465,6 +469,9 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 
 // GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 2).
 func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueCarWithRelations, int64, error) {
+	if err := inputvalidator.DatabaseText(searchQuery); err != nil {
+		return nil, 0, err
+	}
 	params := models.PaginationParams{Page: page, PerPage: perPage}
 	params.Normalize()
 	page, perPage = params.Page, params.PerPage
@@ -531,6 +538,9 @@ func carToResponse(car *models.UniqueCar) *UniqueCarResponse {
 
 // Create создаёт уникальный автомобиль с проверкой уникальности.
 func (s *uniqueCarService) Create(ctx context.Context, username string, req NewUniqueCarRequest, canOverrideOrganization bool) (*UniqueCarResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
@@ -610,6 +620,9 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 
 // Update обновляет уникальный автомобиль по ID с проверкой прав и уникальности.
 func (s *uniqueCarService) Update(ctx context.Context, username string, id int, req NewUniqueCarRequest, canOverrideOrganization bool) (*UniqueCarResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err

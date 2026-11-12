@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"gorm.io/gorm"
 )
@@ -58,6 +61,9 @@ func (s *AccessDenialService) Log(p LogParams) {
 
 // List возвращает страницу журнала с фильтрами + общее количество.
 func (s *AccessDenialService) List(ctx context.Context, f models.AccessDenialFilter) (models.AccessDenialPageResponse, error) {
+	if err := inputvalidator.DatabaseText(f); err != nil {
+		return models.AccessDenialPageResponse{}, err
+	}
 	page, limit := normalizePage(f.Page, f.Limit)
 	offset, err := models.CheckedOffset(page, limit)
 	if err != nil {
@@ -91,6 +97,9 @@ func (s *AccessDenialService) List(ctx context.Context, f models.AccessDenialFil
 
 // ListArchive возвращает страницу архива с теми же фильтрами.
 func (s *AccessDenialService) ListArchive(ctx context.Context, f models.AccessDenialFilter) (models.AccessDenialPageResponse, error) {
+	if err := inputvalidator.DatabaseText(f); err != nil {
+		return models.AccessDenialPageResponse{}, err
+	}
 	page, limit := normalizePage(f.Page, f.Limit)
 	offset, err := models.CheckedOffset(page, limit)
 	if err != nil {
@@ -133,6 +142,13 @@ func (s *AccessDenialService) ListArchive(ctx context.Context, f models.AccessDe
 // DeleteByFilter удаляет записи активной таблицы по фильтрам.
 // Архив не трогает -- архив только append-only.
 func (s *AccessDenialService) DeleteByFilter(ctx context.Context, f models.AccessDenialFilter) (int64, error) {
+	if err := inputvalidator.DatabaseText(f); err != nil {
+		return 0, err
+	}
+	if f.UserID == nil && (f.Resource == nil || strings.TrimSpace(*f.Resource) == "") &&
+		(f.Reason == nil || strings.TrimSpace(*f.Reason) == "") && f.From == nil && f.To == nil {
+		return 0, apperr.Validation("Укажите фильтр для удаления записей")
+	}
 	q := s.applyFilters(s.db.WithContext(ctx).Model(&models.AccessDenial{}), f)
 	res := q.Delete(&models.AccessDenial{})
 	if res.Error != nil {

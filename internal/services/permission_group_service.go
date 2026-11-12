@@ -2,11 +2,15 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // PermissionGroupService управляет группами прав: CRUD + назначение юзерам + слияние.
@@ -66,7 +70,10 @@ func (s *PermissionGroupService) List(ctx context.Context) ([]models.PermissionG
 func (s *PermissionGroupService) Get(ctx context.Context, groupID int) (models.PermissionGroupResponse, error) {
 	var group models.PermissionGroup
 	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
-		return models.PermissionGroupResponse{}, fmt.Errorf("group not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.PermissionGroupResponse{}, apperr.NotFound("Группа прав не найдена")
+		}
+		return models.PermissionGroupResponse{}, fmt.Errorf("failed to load group: %w", err)
 	}
 	var grants []models.PermissionGroupGrant
 	if err := s.db.WithContext(ctx).Where("group_id = ?", groupID).Find(&grants).Error; err != nil {
@@ -88,6 +95,9 @@ func (s *PermissionGroupService) Get(ctx context.Context, groupID int) (models.P
 
 // Create создаёт группу с указанными ключами.
 func (s *PermissionGroupService) Create(ctx context.Context, req models.CreatePermissionGroupRequest) (models.PermissionGroupResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return models.PermissionGroupResponse{}, err
+	}
 	var resp models.PermissionGroupResponse
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		group := models.PermissionGroup{Name: req.Name, Description: req.Description}
@@ -116,6 +126,9 @@ func (s *PermissionGroupService) Create(ctx context.Context, req models.CreatePe
 
 // Update обновляет имя/описание/ключи группы (полная замена ключей).
 func (s *PermissionGroupService) Update(ctx context.Context, groupID int, req models.UpdatePermissionGroupRequest) error {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return err
+	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.PermissionGroup{}).Where("id = ?", groupID).
 			Updates(map[string]any{"name": req.Name, "description": req.Description}).Error; err != nil {
@@ -150,6 +163,9 @@ func (s *PermissionGroupService) Delete(ctx context.Context, groupID int) error 
 // Merge сливает несколько групп юзера в новую simple-группу.
 // Старые группы остаются в системе, у юзера в user_groups заменяются на новую.
 func (s *PermissionGroupService) Merge(ctx context.Context, req models.MergePermissionGroupsRequest, grantedBy int) (models.PermissionGroupResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return models.PermissionGroupResponse{}, err
+	}
 	var resp models.PermissionGroupResponse
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existingGrants []models.PermissionGroupGrant
@@ -195,11 +211,27 @@ func (s *PermissionGroupService) Merge(ctx context.Context, req models.MergePerm
 
 // AssignToUser добавляет группу юзеру (или ничего не делает, если уже назначена).
 func (s *PermissionGroupService) AssignToUser(ctx context.Context, userID, groupID int, grantedBy int) error {
-	ug := models.UserGroup{UserID: userID, GroupID: groupID, GrantedBy: &grantedBy}
-	if err := s.db.WithContext(ctx).
-		Where("user_id = ? AND group_id = ?", userID, groupID).
-		FirstOrCreate(&ug).Error; err != nil {
-		return fmt.Errorf("failed to assign group: %w", err)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, parent := range []struct {
+			model any
+			id    int
+		}{{&models.User{}, userID}, {&models.PermissionGroup{}, groupID}} {
+			err := tx.Select("id").Clauses(clause.Locking{Strength: "KEY SHARE"}).First(parent.model, parent.id).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return apperr.NotFound("Пользователь или группа прав не найдены")
+			}
+			if err != nil {
+				return fmt.Errorf("failed to load assignment target: %w", err)
+			}
+		}
+		ug := models.UserGroup{UserID: userID, GroupID: groupID, GrantedBy: &grantedBy}
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}, {Name: "group_id"}}, DoNothing: true}).Create(&ug).Error; err != nil {
+			return fmt.Errorf("failed to assign group: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	s.resolver.Invalidate(userID)
 	return nil
