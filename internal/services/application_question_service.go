@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -226,6 +227,9 @@ func topicHasUnseen(q *QuestionWithAnswers, read time.Time, readerUserID int) bo
 
 // CreateApplicationQuestion создаёт вопрос-топик (#973).
 func (s *applicationService) CreateApplicationQuestion(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req CreateQuestionRequest) (*QuestionWithAnswers, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -363,6 +367,9 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 // CreateApplicationAnswer добавляет ответ в тред (#973). Историю не пишет; уведомляет
 // участников обсуждения (автор вопроса + отвечавшие), кроме автора самого ответа.
 func (s *applicationService) CreateApplicationAnswer(ctx context.Context, username string, applicationID, questionID int, req CreateAnswerRequest) (*AnswerItem, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err

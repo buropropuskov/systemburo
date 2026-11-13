@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -111,6 +112,9 @@ func (s *documentService) List(ctx context.Context, groupID *int, includeHidden 
 }
 
 func (s *documentService) Upload(ctx context.Context, userID int, req models.UploadDocumentRequest, file *multipart.FileHeader) (*models.DocumentListItem, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	uploadSettings, err := s.settings.GetUploadSettings(ctx)
 	if err != nil {
 		return nil, err
@@ -181,6 +185,9 @@ func (s *documentService) Upload(ctx context.Context, userID int, req models.Upl
 }
 
 func (s *documentService) UpdateMeta(ctx context.Context, userID int, id int, req models.UpdateDocumentMetaRequest) (*models.DocumentListItem, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	var doc models.Document
 	if err := s.db.WithContext(ctx).First(&doc, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {

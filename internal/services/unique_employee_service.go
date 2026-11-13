@@ -12,6 +12,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/crypto"
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -308,6 +309,9 @@ func (s *uniqueEmployeeService) GetOwnerInfo(ctx context.Context, username strin
 // LookupByFIO ищет сотрудника по ФИО без скоупинга по владельцу (вызывается из админ-
 // страницы ЧС). Самый свежий при нескольких совпадениях. nil,nil если нет.
 func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, firstName, middleName string, viewerID int) (*UniqueEmployeeWithRelations, error) {
+	if err := inputvalidator.DatabaseText(lastName, firstName, middleName); err != nil {
+		return nil, err
+	}
 	policy, err := ResolveDocumentAccess(ctx, NewPermissionResolver(s.db), viewerID)
 	if err != nil {
 		return nil, err
@@ -554,6 +558,9 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 
 // GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 3).
 func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueEmployeeWithRelations, int64, error) {
+	if err := inputvalidator.DatabaseText(searchQuery); err != nil {
+		return nil, 0, err
+	}
 	params := models.PaginationParams{Page: page, PerPage: perPage}
 	params.Normalize()
 	page, perPage = params.Page, params.PerPage
@@ -660,6 +667,9 @@ func employeeToResponse(emp *models.UniqueEmployee) *UniqueEmployeeResponse {
 
 // Create создаёт уникального сотрудника с проверкой уникальности паспортных данных.
 func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
@@ -774,6 +784,9 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 
 // Update обновляет уникального сотрудника по ID с проверкой прав и уникальности.
 func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest, canOverrideOrganization bool) (*UniqueEmployeeResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err

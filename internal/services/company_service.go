@@ -10,6 +10,7 @@ import (
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -340,6 +341,9 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 
 // Create создаёт новую компанию (admin-only). Тип обязателен и должен быть валидным.
 func (s *companyService) Create(ctx context.Context, callerUserID int, req CreateCompanyRequest) (*models.Company, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	if req.Type == nil || !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
 	}
@@ -377,6 +381,9 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 // Update обновляет название и тип компании (admin-only). Тип опционален: nil
 // снимает его, непустое значение обязано быть валидным. Сохраняются вместе.
 func (s *companyService) Update(ctx context.Context, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	if req.Type != nil && !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
 	}

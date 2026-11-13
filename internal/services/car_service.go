@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -457,6 +458,12 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 // целевым таблицам и записи аудита. Всё одной транзакцией: частичного добавления быть
 // не должно.
 func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest, userID int) (*ManualCarResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
+	if err := models.ValidateOptionalEntryPeriod(models.EntryPeriod{EntryDateFrom: req.EntryDateFrom, EntryDateTo: req.EntryDateTo, EntryTimeFrom: req.EntryTimeFrom, EntryTimeTo: req.EntryTimeTo}); err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный период действия")
+	}
 	if req.OrganizationID <= 0 {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана организация")
 	}
@@ -594,6 +601,9 @@ func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest,
 // лишние три часа действия пропуска, а между 21:00 и 24:00 МСК UTC-дата отставала
 // на сутки, и вчерашняя заявка считалась активной (та же природа, что у #868).
 func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarRequest) (*CheckActiveCarResponse, error) {
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	period, err := EntityEffectivePeriodSQL("c", "a")
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking active car")

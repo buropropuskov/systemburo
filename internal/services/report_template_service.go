@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"systemburo/internal/models"
+	inputvalidator "systemburo/internal/validator"
 
 	"gorm.io/gorm"
 )
@@ -53,6 +54,9 @@ func (s *statisticsService) CreateReportTemplate(ctx context.Context, userID int
 	if !validTemplateConfig(req.Config) {
 		return nil, ErrTemplateInvalidConfig
 	}
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
+	}
 	tpl := models.ReportTemplate{
 		Name:        req.Name,
 		Description: req.Description,
@@ -71,6 +75,9 @@ func (s *statisticsService) CreateReportTemplate(ctx context.Context, userID int
 func (s *statisticsService) UpdateReportTemplate(ctx context.Context, userID, id int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error) {
 	if !validTemplateConfig(req.Config) {
 		return nil, ErrTemplateInvalidConfig
+	}
+	if err := inputvalidator.DatabaseText(req); err != nil {
+		return nil, err
 	}
 	tpl, err := s.loadOwnedTemplate(ctx, userID, id)
 	if err != nil {
