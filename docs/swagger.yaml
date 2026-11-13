@@ -1,4 +1,4 @@
-basePath: /
+basePath: /api
 definitions:
   handlers.AttachmentExecutionMarkResponse:
     properties:
@@ -6382,7 +6382,6 @@ definitions:
       user_id:
         type: integer
     type: object
-host: localhost:8090
 info:
   contact: {}
   description: API системы управления пропусками (Бюро пропусков)
@@ -6614,7 +6613,7 @@ paths:
       summary: Установка активного объявления
       tags:
       - announcements
-  /api/audit:
+  /audit:
     get:
       description: 'Единый журнал действий (#870). Фильтры: entity_type, entity_id,
         action, actor_user_id, from, to (YYYY-MM-DD). Пагинация page/per_page.'

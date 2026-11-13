@@ -36,7 +36,7 @@ func NewAuditHandler(reader services.AuditReader) *AuditHandler {
 // @Param        page          query  int     false  "Страница"
 // @Param        per_page      query  int     false  "Размер страницы (<=100)"
 // @Success      200  {object}  Response
-// @Router       /api/audit [get]
+// @Router       /audit [get]
 func (h *AuditHandler) GetAuditLog(c echo.Context) error {
 	q := services.AuditQuery{
 		EntityType: c.QueryParam("entity_type"),
