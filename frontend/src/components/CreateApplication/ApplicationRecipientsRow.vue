@@ -154,6 +154,7 @@ import { apiRequest } from '@/api/client'
 import { formatShortName } from '@/utils/formatName'
 import { getViewportZoom } from '@/utils/viewportScale'
 
+const BUREAU_RECIPIENT_NAME = 'Бюро пропусков'
 const MAX_VISIBLE = 4
 // На телефоне в строку помещается один получатель, остальные - под кнопкой «Ещё N».
 const MAX_VISIBLE_NARROW = 1
@@ -189,14 +190,14 @@ export default {
       const approverChips = this.approvers.map(a => ({
         key: `a-${a.user_id}`,
         userId: a.user_id,
-        name: a.name,
+        name: this.recipientLabel(a.name),
         isApprover: true,
         removable: false
       }))
       const readerChips = this.readers.map(r => ({
         key: `r-${r.user_id}`,
         userId: r.user_id,
-        name: r.name,
+        name: this.recipientLabel(r.name),
         isApprover: false,
         removable: true
       }))
@@ -286,7 +287,7 @@ export default {
         const users = await response.json()
         this.candidateUsers = (users || []).map(u => ({
           userId: u.id,
-          name: this.displayName(u),
+          name: this.recipientLabel(this.displayName(u)),
           username: u.username,
           position: u.position || '',
           pdHidden: !!u.pd_hidden
@@ -301,11 +302,15 @@ export default {
       return names.length ? names.join(' ') : u.username
     },
 
+    recipientLabel(name) {
+      return /^@?buropropuskov$/i.test(name || '') ? BUREAU_RECIPIENT_NAME : name
+    },
+
     // Полное ФИО-строку "Фамилия Имя Отчество" -> "Фамилия И.О." (общий формат, formatName).
     // Имена в чипах приходят строкой, поэтому разбираем на части перед сокращением.
     shortName(full) {
       const parts = String(full || '').trim().split(/\s+/)
-      if (parts.length < 2) return full || ''
+      if (full === BUREAU_RECIPIENT_NAME || parts.length < 2) return full || ''
       return formatShortName({
         last_name: parts[0],
         first_name: parts[1],

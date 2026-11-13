@@ -3,14 +3,14 @@
     <transition name="gpm-fade">
       <div
         v-if="show"
-        class="gpm-overlay"
+        class="gpm-overlay permission-window-overlay"
         @click.self="close"
       >
         <div
-          class="gpm-modal"
+          class="gpm-modal permission-window-dialog"
           data-testid="group-permissions-modal"
         >
-          <header class="gpm-head">
+          <header class="gpm-head permission-window-head">
             <div>
               <h3 class="gpm-title">
                 {{ title }}
@@ -40,28 +40,31 @@
             </button>
           </header>
 
-          <div class="gpm-search">
-            <input
-              v-model="search"
-              class="lk-input"
-              type="text"
-              placeholder="Поиск права..."
-              data-testid="group-permissions-search"
-            >
+          <div class="permission-window-content">
+            <div class="gpm-search">
+              <input
+                v-model="search"
+                class="lk-input"
+                type="text"
+                placeholder="Поиск права..."
+                data-testid="group-permissions-search"
+              >
+            </div>
+
+            <div class="gpm-body permission-window-body">
+              <EffectivePermissionsTree
+                :catalog="filteredCatalog"
+                :state-by-key="stateByKey"
+                :expand-all="searchActive"
+                @toggle="onToggle"
+              />
+            </div>
+
           </div>
 
-          <div class="gpm-body">
-            <EffectivePermissionsTree
-              :catalog="filteredCatalog"
-              :state-by-key="stateByKey"
-              :expand-all="searchActive"
-              @toggle="onToggle"
-            />
-          </div>
-
-          <footer class="gpm-foot">
+          <footer class="gpm-foot permission-window-foot">
             <span class="gpm-hint">Изменения вступят в силу в течение 30 секунд</span>
-            <div class="gpm-foot__actions">
+            <div class="gpm-foot__actions permission-window-actions">
               <button
                 class="lk-button lk-button--ghost"
                 data-testid="group-permissions-cancel"
@@ -289,3 +292,4 @@ export default {
   opacity: 0;
 }
 </style>
+<style scoped src="@/assets/permission-window-mobile.css"></style>
