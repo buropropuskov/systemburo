@@ -49,8 +49,8 @@ const shutdownGrace = 25 * time.Second
 // @title           Systemburo API
 // @version         1.0
 // @description     API системы управления пропусками (Бюро пропусков)
-// @host            localhost:8090
-// @BasePath        /
+// @BasePath        /api
+// Operation paths are relative to the API base path.
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
