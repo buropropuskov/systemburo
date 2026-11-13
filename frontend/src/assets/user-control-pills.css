@@ -1,0 +1,38 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pill-ghost {
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+}
+.pill-ghost:hover {
+  background: var(--accent-tint);
+}
+.pill-danger {
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+}
+.pill-danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.pill-restore {
+  background: var(--success);
+  color: var(--fill-text);
+}
+.pill-restore:hover {
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
+}

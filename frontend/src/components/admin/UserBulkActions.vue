@@ -177,3 +177,4 @@ function closeMenu(event) {
 
 }
 </style>
+<style scoped src="@/assets/user-control-pills.css"></style>
