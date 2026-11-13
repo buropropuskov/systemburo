@@ -151,6 +151,7 @@
               >
               <span
                 class="attachment-name"
+                :title="attachment.display_name"
                 @dblclick.stop="startRename(attachment)"
               >{{ attachment.display_name }}</span>
 
@@ -771,6 +772,7 @@ export default {
 }
 </script>
 
+<style scoped src="@/assets/blank-selector-attachment.css"></style>
 <style scoped>
 /* Панель несёт свой фон; стеклянная тема уточняет его через --glass-panel. */
 .selector {
@@ -927,23 +929,6 @@ export default {
     cursor: not-allowed;
 }
 
-.attachment {
-    max-width: 130px;
-    min-height: 25px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    flex-shrink: 0;
-}
 
 .attachment:hover {
     border-color: var(--accent);
@@ -963,6 +948,7 @@ export default {
 }
 
 .attachment-name {
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1322,3 +1308,4 @@ export default {
 </style>
 
 <style scoped src="@/assets/blank-selector-tablet.css"></style>
+<style scoped src="@/assets/blank-selector-attachment.css"></style>

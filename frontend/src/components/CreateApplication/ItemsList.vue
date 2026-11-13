@@ -58,7 +58,7 @@
           Действия
         </div>
       </div>
-      <div class="table-body">
+      <div class="table-body" :class="{ 'table-body--empty': items.length === 0 }">
         <transition-group
           name="fade"
           tag="div"
@@ -151,6 +151,7 @@ export default {
 </script>
 
 <style scoped>
+
 .data__list {
     padding: 12px;
     flex: 1;
@@ -520,3 +521,4 @@ h4 {
     }
 }
 </style>
+<style scoped src="@/assets/application-list-empty.css"></style>

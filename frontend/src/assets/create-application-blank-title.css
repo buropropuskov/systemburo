@@ -1,0 +1,31 @@
+.create__blank-title {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent-text);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    padding: 5px 20px;
+    width: fit-content;
+}
+
+.create__blank-title--header { flex: 0 0 auto; max-width: 45%; }
+@media (min-width: 768px) { .create__blank-title--inline { display: none; } }
+
+@media (max-width: 767.98px) {
+    .create__blank-title--inline {
+        display: block;
+        align-self: center;
+        margin: 0;
+        text-align: center;
+        font-size: 22px;
+        padding: 8px 24px;
+        /* Сама пилюля - плотный белый: при закреплении она выделяется на
+           полупрозрачной подложке обёртки, а не сливается/просвечивает. */
+        background: var(--surface);
+    }
+}

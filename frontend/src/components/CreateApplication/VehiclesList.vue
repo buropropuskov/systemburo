@@ -261,7 +261,7 @@
           Действия
         </div>
       </div>
-      <div class="table-body">
+      <div class="table-body" :class="{ 'table-body--empty': emptyMessage }">
         <div
           v-for="row in pagedVehicles"
           :key="row.item.id"
@@ -561,6 +561,10 @@ export default {
 </script>
 
 <style scoped>
+
+
+
+
 .data__list {
     padding: 12px;
     flex: 1;
@@ -1011,14 +1015,6 @@ export default {
 /* Пустое состояние живёт внутри таблицы: в колоночной раскладке - строкой на всю
    ширину под шапкой колонок (для этого .vehicles-cols переносит), в карточной - в теле
    вместо карточек. */
-.table-empty {
-    flex: 1 0 100%;
-    text-align: center;
-    padding: 16px;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-style: italic;
-}
 
 h4 {
     font-size: 16px;
@@ -1309,3 +1305,5 @@ h4 {
     }
 }
 </style>
+<style scoped src="@/assets/application-list-empty.css"></style>
+<style scoped src="@/assets/application-vehicles-empty.css"></style>

@@ -12,9 +12,13 @@
         class="recipient-chip"
         :class="{ 'is-approver': chip.isApprover, 'is-hinted': hintedChip === chip.key }"
         :data-hint="chip.name"
-        @click="revealName(chip)"
       >
-        <span class="recipient-chip__name">{{ shortName(chip.name) }}</span>
+        <button
+          type="button"
+          class="recipient-chip__name recipient-chip__name-trigger"
+          :aria-label="chip.name"
+          @click="revealName(chip)"
+        >{{ shortName(chip.name) }}</button>
         <button
           v-if="chip.removable"
           class="recipient-chip__remove"
@@ -479,6 +483,16 @@ export default {
   font-weight: 500;
 }
 
+.recipient-chip__name-trigger {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 /* Полное ФИО во всплывающей подсказке под чипом (системный стиль #333, как .tag-hint). */
 .recipient-chip[data-hint]::after {
   content: attr(data-hint);
@@ -520,6 +534,8 @@ export default {
 
 .recipient-chip[data-hint].is-hinted::after,
 .recipient-chip[data-hint].is-hinted::before,
+.recipient-chip[data-hint]:focus-within::after,
+.recipient-chip[data-hint]:focus-within::before,
 .recipient-chip[data-hint]:hover::after,
 .recipient-chip[data-hint]:hover::before {
   opacity: 1;
@@ -720,7 +736,6 @@ export default {
     flex: 0 1 auto;
     min-width: 72px;
     padding: 6px 10px;
-    overflow: hidden;
   }
 
   .recipient-chip__name {
@@ -769,6 +784,11 @@ export default {
     width: auto;
     min-width: 0;
     max-width: calc(100vw - 24px);
+  }
+
+  .recipients-popover--overflow .recipient-chip__name {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .recipients-add-item {

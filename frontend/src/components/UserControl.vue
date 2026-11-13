@@ -215,10 +215,10 @@
                 >
               </div>
               <div
-                class="user-col login-col"
+                class="user-col login-col table-col"
                 data-label="Логин"
               >
-                <span class="user-login">{{ formatLogin(user.username) }}</span>
+                <span class="user-login" :title="formatLogin(user.username)">{{ formatLogin(user.username) }}</span>
                 <span
                   v-if="user.is_active === false"
                   class="inactive-badge"
@@ -2762,14 +2762,6 @@ export default {
   font-size: 14px;
 }
 
-.user-login {
-  max-width: 100%;
-  color: var(--accent-text);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
-}
 
 .truncate-text {
   white-space: nowrap;
@@ -3274,6 +3266,8 @@ export default {
   .check-col {
     min-height: 44px;
   }
+
+
   /* rt-head-row прячет внутренний .header-row, но обёртка .users-header несёт
      свой border-bottom+padding и без этого осталась бы пустой полосой над
      карточками (у остальных справочников rt-head-row на самом заголовке, тут
@@ -3413,3 +3407,4 @@ export default {
   }
 }
 </style>
+<style scoped src="@/assets/user-control-mobile-login.css"></style>
