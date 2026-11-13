@@ -129,6 +129,7 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 			a.entry_time_to,
 			a.roof_access,
 			a.free_parking,
+			a.document_at_post_allowed,
 			a.created_at,
 			a.unique_attachment_id,
 			ua.title as unique_attachment_title,

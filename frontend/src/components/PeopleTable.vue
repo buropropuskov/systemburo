@@ -218,7 +218,6 @@
             :sort-direction="sortDirection"
             @sort="sortBy"
           />
-          <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке. -->
           <div
             v-if="hiddenInPortraitFields().length"
             class="col expand-col"
@@ -314,17 +313,18 @@
                 <div
                   v-if="isFieldInDom('last_name')"
                   class="col last-name-col"
-                  :class="fieldColClass('last_name')"
+                  :class="[fieldColClass('last_name'), { 'post-document-column': item.document_at_post }]"
                   :style="getColStyle('last_name')"
                   data-label="Фамилия"
                 >
-                  {{ item.last_name }}
+                  <PeopleTableDocumentCheck v-if="item.document_at_post" :employee="item" @open="openEmployeeDetails(item)" />
+                  <template v-else>{{ item.last_name }}</template>
                   <PassageStateIndicator v-if="!isFieldInDom('valid_until')" :passage-state="item.passage_state" :expired="passageExpired(item)" />
                 </div>
                 <div
                   v-if="isFieldInDom('first_name')"
                   class="col first-name-col"
-                  :class="fieldColClass('first_name')"
+                  :class="[fieldColClass('first_name'), { 'post-document-name-part': item.document_at_post }]"
                   :style="getColStyle('first_name')"
                   data-label="Имя"
                 >
@@ -333,7 +333,7 @@
                 <div
                   v-if="isFieldInDom('middle_name')"
                   class="col middle-name-col"
-                  :class="fieldColClass('middle_name')"
+                  :class="[fieldColClass('middle_name'), { 'post-document-name-part': item.document_at_post }]"
                   :style="getColStyle('middle_name')"
                   data-label="Отчество"
                 >
@@ -500,7 +500,6 @@
       </div>
     </div>
 
-    <!-- Модальное окно деталей сотрудника -->
     <EmployeeDetailsModal
       v-if="!preview"
       v-bind="entityDetailsProps"
@@ -578,14 +577,12 @@ import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import PeopleTableDocumentCheck from './PeopleTableDocumentCheck.vue';
 import { formatMoscowDateTime } from '@/utils/serverTime';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
 
-/**
- * Состав карточки на телефоне: что видно сразу, остальное - в «Подробнее».
- *
- * Набор назван владельцем дословно - ФИО одной строкой, организация, срок действия.
+/** В карточке сразу видны ФИО, организация, срок и статус. Остальное открывается в «Подробнее».
  * Статус в него добавлен потому, что живёт не строкой поля, а бейджем в подвале.
  * Должность, гражданство, компания, номер заявки и время прохода уходят под кнопку.
  *
@@ -619,6 +616,7 @@ export default {
     LoaderSpinner,
     AnimatedCounter,
     AppIcon,
+    PeopleTableDocumentCheck,
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -1082,6 +1080,7 @@ export default {
           const territoryStatus = emp.territory_status ?? prev?.territory_status ?? 0;
           return {
             id: emp.id,
+            document_at_post: emp.document_at_post === true,
             last_name: emp.last_name || '',
             first_name: emp.first_name || '',
             middle_name: emp.middle_name || '',
@@ -2836,3 +2835,5 @@ export default {
 </style>
 
 <style scoped src="@/assets/passage-tablet.css"></style>
+
+<style scoped src="./people-table-document-layout.css"></style>

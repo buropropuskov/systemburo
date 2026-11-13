@@ -40,7 +40,7 @@ export function employeeDocumentErrors(employees, config = {}) {
         const documents = employeeDocumentPayload(employee, { fromForm: true });
         const present = (key) => typeof documents[key] === 'string' && documents[key].trim() !== '';
         const missing = [];
-        if (required('passport') && !present('passport_series_number')) missing.push('паспортные данные');
+        if (required('passport') && !employee.documentAtPost && !present('passport_series_number')) missing.push('паспортные данные');
         if (visible('patent') && (config.patent?.required === true || employee.citizenshipPatentRequired === true) && !present('patent_number') && !present('other_permission')) missing.push('патент или иное разрешение');
         if (config.work_permission && required('work_permission') && !present('other_permission')) missing.push('иное разрешение');
         if (missing.length) errors.push(`${[employee.lastName, employee.firstName].filter(Boolean).join(' ') || 'Сотрудник'}: введите ${missing.join(', ')} для новой заявки через правку строки. Справочник не изменится`);

@@ -164,6 +164,7 @@
                 <EmployeeForm
                   ref="employeeForm"
                   :field-config="currentFieldConfig"
+                  :document-at-post-allowed="selectedAttachment?.document_at_post_allowed === true"
                   :user-organization="application.organization_name || ''"
                   :user-organization-id="application.organization_id || null"
                   :user-company="application.company_name || ''"

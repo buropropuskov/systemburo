@@ -1,0 +1,7 @@
+@media (max-width: 899.98px) {
+  .selected-table-card .rt-row > .last-name-col.post-document-column {
+    flex: 0 0 100% !important;
+    margin-right: 0;
+  }
+  .selected-table-card .rt-row > .post-document-name-part { display: none !important; }
+}

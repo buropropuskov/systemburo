@@ -301,13 +301,13 @@
             />
           </template>
 
-          <!-- Для людей/сотрудников -->
           <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'people'">
             <EmployeeForm
               v-if="!importMode || importPausedForEdit"
               :key="employeeFormKey"
               ref="employeeForm"
               :field-config="currentFieldConfig"
+              :document-at-post-allowed="documentAtPostAllowed"
               :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
@@ -431,6 +431,7 @@ import DateRangeSection from './DateRangeSection.vue';
 import VehicleForm from './VehicleForm.vue';
 import VehiclesList from './VehiclesList.vue';
 import EmployeeForm from './EmployeeForm.vue';
+import applicationDocumentRule from './applicationDocumentRule';
 import EmployeesList from './EmployeesList.vue';
 import ItemsForm from './ItemsForm.vue';
 import ItemsList from './ItemsList.vue';
@@ -491,7 +492,7 @@ function isQuotaExceededError(error) {
 }
 
 export default {
-    mixins: [applicationCommandRecovery, applicationConfirmationState('attachments', 'vehiclesByAttachment', 'employeesByAttachment', 'itemsByAttachment')],
+    mixins: [applicationCommandRecovery, applicationConfirmationState('attachments', 'vehiclesByAttachment', 'employeesByAttachment', 'itemsByAttachment'), applicationDocumentRule],
     name: 'CreateApplication',
     components: {
         ApplicationFilesUpload,
@@ -628,7 +629,6 @@ export default {
             customFieldsByAttachment: {},
             customFieldDefinitions: {},
             // Настройка полей по UniqueAttachment (#529): { [uaId]: { [fieldKey]: { visible, required, locked, requirable } } }.
-            // Источник - GET /attachments/{id}/field-config (base). Раздаётся секциям формы пропсом field-config.
             fieldConfigByAttachment: {},
             // Номер последнего запуска restoreFromLocalStorage (защита от позднего ответа).
             restoreSeq: 0,
@@ -2482,7 +2482,7 @@ export default {
             Object.keys(this.employeesByAttachment).forEach(attachmentId => {
                 const employees = this.canCreateRegistry('employees') ? submittedRows(this.employeesByAttachment[attachmentId]) : [];
                 employees.forEach(employee => {
-                    if (!employee.isExisting) {
+                    if (!employee.isExisting && !employee.documentAtPost) {
                         const isByFact = employee.passportSeriesNumber === 'По факту' || 
                                        employee.position === 'По факту';
                         

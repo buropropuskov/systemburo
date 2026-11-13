@@ -19,8 +19,9 @@ type Attachment struct {
 	UniqueAttachment      *UniqueAttachment `json:"-"`
 	Status                *int              `json:"status"`
 	// Общие булевы параметры заявки (#529): сохраняются на вложении, в просмотре - теги.
-	RoofAccess  bool `gorm:"default:false" json:"roof_access"`
-	FreeParking bool `gorm:"default:false" json:"free_parking"`
+	RoofAccess            bool `gorm:"default:false" json:"roof_access"`
+	DocumentAtPostAllowed bool `gorm:"not null;default:false" json:"document_at_post_allowed"`
+	FreeParking           bool `gorm:"default:false" json:"free_parking"`
 	// Ручное добавление в таблицы (#1049): вложение-сирота без заявки. При ручном
 	// добавлении application_id NULL + is_manual=true, а org/company хранятся прямо
 	// на вложении (у заявочных берутся из applications).
