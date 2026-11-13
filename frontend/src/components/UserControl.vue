@@ -19,7 +19,7 @@
         />
         <SearchComponent
           v-model="userSearch"
-          :title="'Поиск пользователей...'"
+          :title="isNarrow ? 'Поиск' : 'Поиск пользователей...'"
         />
         <button
           class="lk-button lk-button--primary rt-btn-compact"
@@ -40,75 +40,16 @@
       </div>
     </div>
 
-    <div
+    <UserBulkActions
       v-if="selectedUsernames.length"
-      class="bulk-bar"
-      data-testid="users-bulk-bar"
-    >
-      <span class="bulk-count">Выбрано: {{ selectedUsernames.length }}</span>
-      <div class="bulk-actions">
-        <template v-if="!showArchive">
-          <button
-            class="pill pill-ghost"
-            data-testid="users-bulk-type"
-            @click="startBulkOperation('type')"
-          >
-            Тип
-          </button>
-          <button
-            class="pill pill-ghost"
-            data-testid="users-bulk-organization"
-            @click="startBulkOperation('organization')"
-          >
-            Организация
-          </button>
-          <button
-            class="pill pill-ghost"
-            data-testid="users-bulk-company"
-            @click="startBulkOperation('company')"
-          >
-            Компания
-          </button>
-          <button
-            class="pill pill-danger"
-            data-testid="users-bulk-ban"
-            @click="openBulkBan"
-          >
-            Заблокировать
-          </button>
-          <button
-            class="pill pill-ghost"
-            data-testid="users-bulk-unban"
-            @click="openBulkUnban"
-          >
-            Разблокировать
-          </button>
-        </template>
-        <button
-          v-if="!showArchive"
-          class="pill pill-danger"
-          data-testid="users-bulk-archive"
-          @click="startBulkOperation('archive')"
-        >
-          В архив
-        </button>
-        <button
-          v-else
-          class="pill pill-restore"
-          data-testid="users-bulk-restore"
-          @click="startBulkOperation('restore')"
-        >
-          Восстановить
-        </button>
-        <button
-          class="pill pill-ghost bulk-clear"
-          data-testid="users-bulk-clear"
-          @click="clearSelection"
-        >
-          Снять выбор
-        </button>
-      </div>
-    </div>
+      :selected-count="selectedUsernames.length"
+      :show-archive="showArchive"
+      :compact-users="isNarrow"
+      @operation="startBulkOperation"
+      @ban="openBulkBan"
+      @unban="openBulkUnban"
+      @clear="clearSelection"
+    />
 
     <div
       class="users-container"
@@ -353,84 +294,115 @@
           class="modal-header-actions"
         >
           <button
+            v-if="isNarrow && selectedUser.is_active !== false && canManageAccess"
             class="lk-button lk-button--secondary lk-button--sm"
-            @click="openHistory(selectedUser)"
+            data-testid="user-access"
+            @click="openAccess(selectedUser)"
           >
-            История
+            Права доступа
           </button>
-          <template v-if="selectedUser.is_active !== false">
-            <button
-              v-if="isLockedOut(selectedUser)"
-              class="lk-button lk-button--primary lk-button--sm"
-              data-testid="user-reset-lockout"
-              :disabled="lockoutResetting"
-              :title="lockoutTitle(selectedUser)"
-              @click="resetLockout(selectedUser)"
-            >
-              {{ lockoutResetting ? 'Снимаем…' : 'Снять блокировку входа' }}
-            </button>
-            <!-- Туров теперь несколько, и сбрасывать их поштучно осмысленно:
-                 у человека может «протухнуть» только один сценарий. Список всех
-                 туров реестра, а не доступных админу - решаем за другого юзера. -->
-            <BaseDropdown
-              class="user-reset-onboarding"
-              :model-value="null"
-              :options="onboardingResetOptions"
-              label-key="title"
-              value-key="key"
-              teleport
-              :menu-z-index="1003"
-              @update:model-value="resetOnboarding(selectedUser, $event)"
-            >
-              <template #trigger="{ toggle }">
+          <BaseDropdown
+            ref="profileActionsMenu"
+            :options="[]"
+            placeholder="Ещё"
+            :inline="!isNarrow"
+            :menu-min-width="230"
+            teleport
+          >
+            <template #content>
+              <div
+                class="user-action-items"
+                @click="closeProfileActions"
+              >
                 <button
                   class="lk-button lk-button--secondary lk-button--sm"
-                  data-testid="user-reset-onboarding"
-                  @click="toggle"
+                  @click="openHistory(selectedUser)"
                 >
-                  Сбросить обучение
+                  История
                 </button>
-              </template>
-              <template #option="{ option }">
-                <span :data-testid="`user-reset-onboarding-${option.key || 'all'}`">{{ option.title }}</span>
-              </template>
-            </BaseDropdown>
-            <button
-              v-if="canManageAccess"
-              class="lk-button lk-button--secondary lk-button--sm"
-              data-testid="user-access"
-              @click="openAccess(selectedUser)"
-            >
-              Права доступа
-            </button>
-            <button
-              v-if="canImpersonate"
-              class="lk-button lk-button--secondary lk-button--sm"
-              data-testid="user-impersonate"
-              :disabled="impersonating"
-              title="Открыть систему глазами этого пользователя. Действие пишется в журнал."
-              @click="impersonateUser(selectedUser)"
-            >
-              {{ impersonating ? 'Входим…' : 'Войти как пользователь' }}
-            </button>
-            <button
-              v-if="selectedUserIsSecurity"
-              class="lk-button lk-button--secondary lk-button--sm"
-              data-testid="user-access-places"
-              @click="openAccessPlaces(selectedUser)"
-            >
-              Места доступа
-            </button>
-          </template>
-          <template v-else>
-            <span class="archive-badge">В архиве</span>
-            <button
-              class="lk-button lk-button--primary lk-button--sm"
-              @click="restoreUser(selectedUser)"
-            >
-              Восстановить
-            </button>
-          </template>
+                <template v-if="selectedUser.is_active !== false">
+                  <button
+                    v-if="isLockedOut(selectedUser)"
+                    class="lk-button lk-button--primary lk-button--sm"
+                    data-testid="user-reset-lockout"
+                    :disabled="lockoutResetting"
+                    :title="lockoutTitle(selectedUser)"
+                    @click="resetLockout(selectedUser)"
+                  >
+                    {{ lockoutResetting ? 'Снимаем…' : 'Снять блокировку входа' }}
+                  </button>
+                  <!-- Туров теперь несколько, и сбрасывать их поштучно осмысленно:
+                       у человека может «протухнуть» только один сценарий. Список всех
+                       туров реестра, а не доступных админу - решаем за другого юзера. -->
+                  <BaseDropdown
+                    class="user-reset-onboarding"
+                    :model-value="null"
+                    :options="onboardingResetOptions"
+                    label-key="title"
+                    value-key="key"
+                    :teleport="!isNarrow"
+                    :menu-z-index="1003"
+                    @update:model-value="resetOnboarding(selectedUser, $event)"
+                  >
+                    <template #trigger="{ toggle }">
+                      <button
+                        class="lk-button lk-button--secondary lk-button--sm"
+                        data-testid="user-reset-onboarding"
+                        @click="toggle"
+                      >
+                        Сбросить обучение
+                      </button>
+                    </template>
+                    <template #option="{ option }">
+                      <span :data-testid="`user-reset-onboarding-${option.key || 'all'}`">{{ option.title }}</span>
+                    </template>
+                  </BaseDropdown>
+                  <button
+                    v-if="!isNarrow && canManageAccess"
+                    class="lk-button lk-button--secondary lk-button--sm"
+                    data-testid="user-access"
+                    @click="openAccess(selectedUser)"
+                  >
+                    Права доступа
+                  </button>
+                  <button
+                    v-if="canImpersonate"
+                    class="lk-button lk-button--secondary lk-button--sm"
+                    data-testid="user-impersonate"
+                    :disabled="impersonating"
+                    title="Открыть систему глазами этого пользователя. Действие пишется в журнал."
+                    @click="impersonateUser(selectedUser)"
+                  >
+                    {{ impersonating ? 'Входим…' : 'Войти как пользователь' }}
+                  </button>
+                  <button
+                    v-if="selectedUserIsSecurity"
+                    class="lk-button lk-button--secondary lk-button--sm"
+                    data-testid="user-access-places"
+                    @click="openAccessPlaces(selectedUser)"
+                  >
+                    Места доступа
+                  </button>
+                </template>
+                <template v-else>
+                    <span
+                      v-if="!isNarrow"
+                      class="archive-badge"
+                    >В архиве</span>
+                  <button
+                    class="lk-button lk-button--primary lk-button--sm"
+                    @click="restoreUser(selectedUser)"
+                  >
+                    Восстановить
+                  </button>
+                </template>
+              </div>
+            </template>
+          </BaseDropdown>
+          <span
+            v-if="isNarrow && selectedUser.is_active === false"
+            class="archive-badge"
+          >В архиве</span>
         </div>
       </template>
 
@@ -1058,12 +1030,14 @@ import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { formatUserLabel, formatLogin } from '@/utils/formatName'
 import { revokeUserConsent } from '@/api/pdConsent'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import SearchComponent from './SearchComponent.vue';
+import UserBulkActions from './admin/UserBulkActions.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
 import { getPasswordPolicy } from '@/api/settings';
@@ -1084,7 +1058,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
 import { startImpersonation } from '@/api/impersonation';
 import { useUiStore } from '@/stores/ui';
-import { resetOnboardingForUser } from '@/api/onboarding';
+import { resetUserTour } from './admin/resetUserTour';
 import { TOURS } from '@/components/onboarding/tours';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { formatMomentDate } from '@/utils/datetime';
@@ -1099,6 +1073,7 @@ const PRESENCE_POLL_MS = 60_000;
 export default {
   components: { RegistrySortButton,
     SearchComponent,
+    UserBulkActions,
     RefreshButton,
     PasswordInput,
     ConfirmationModal,
@@ -1130,7 +1105,7 @@ export default {
       showEditModal.value = false;
     }
 
-    return { showCreateModal, showEditModal, closeEditModal };
+    return { showCreateModal, showEditModal, closeEditModal, ...useNarrowScreen(899.98) };
   },
   data() {
     return {
@@ -1489,6 +1464,12 @@ export default {
   },
 
   methods: {
+    closeProfileActions(event) {
+      const button = event.target.closest('button');
+      if (this.isNarrow && button && !button.closest('.user-reset-onboarding')) {
+        this.$refs.profileActionsMenu?.close();
+      }
+    },
     isOnline,
     formatSeenShort,
     seenTitle,
@@ -1769,34 +1750,9 @@ export default {
       }
     },
 
-    /**
-     * Сброс прохождения обучения пользователю. Пустой ключ = все туры сразу.
-     *
-     * @param {object} user
-     * @param {string} tourKey ключ тура из реестра либо '' для сброса всех
-     */
-    async resetOnboarding(user, tourKey) {
-      if (tourKey === null || tourKey === undefined) return;
-      const tourTitle = TOURS.find((t) => t.key === tourKey)?.title || '';
-      const scope = tourTitle ? `тур «${tourTitle}»` : 'все туры';
-      const ok = await useUiStore().confirm({
-        title: 'Сбросить обучение?',
-        message: `Пользователю «${user.username}» будет сброшен(ы) ${scope}: обучение запустится у него снова при следующем входе.`,
-        confirmText: 'Сбросить',
-        cancelText: 'Отмена',
-        danger: false,
-      });
-      if (!ok) return;
-      try {
-        await resetOnboardingForUser(user.username, tourKey || undefined);
-        useDeletionsStore().notify({
-          prefix: tourTitle ? `Тур «${tourTitle}» сброшен для ` : 'Все туры сброшены для ',
-          bold: user.username,
-          suffix: ' — обучение запустится снова при входе',
-        });
-      } catch (error) {
-        useDeletionsStore().notify({ prefix: 'Не удалось сбросить обучение: ', bold: error?.message || 'ошибка', type: 'error' });
-      }
+    resetOnboarding(user, tourKey) {
+      this.$refs.profileActionsMenu?.close();
+      return resetUserTour(user, tourKey);
     },
 
     // Блокировка входа. Срок сравниваем с presenceNow (тикает раз в секунду) -
@@ -2363,47 +2319,11 @@ export default {
 
 <style scoped>
 /* --- Групповой выбор: панель, чекбоксы, pill-кнопки (эталон OrganizationsManagement) --- */
-.bulk-bar {
-  /* Оверлей поверх .management-header (не reflow - список не прыгает при выборе,
-     урок #510). Высота = высоте шапки (50px), карточка - position:relative. */
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 6;
+.user-action-items {
   display: flex;
   align-items: center;
-  gap: 14px;
-  height: 50px;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--accent-tint-solid);
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-.bulk-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent-text);
-  white-space: nowrap;
-}
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  margin-left: auto;
-}
-.bulk-actions .pill {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.bulk-clear {
-  color: var(--text-muted);
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-}
-.bulk-clear:hover {
-  background: var(--surface-2);
+  flex-wrap: inherit;
+  gap: inherit;
 }
 .check-col {
   width: 6%;
@@ -2443,45 +2363,6 @@ export default {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
-.pill {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 14px;
-  border-radius: 50px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  font-family: inherit;
-  white-space: nowrap;
-  transition: background 0.2s, border-color 0.2s;
-}
-.pill-ghost {
-  background: var(--surface);
-  color: var(--accent-text);
-  border: 1px solid var(--accent);
-}
-.pill-ghost:hover {
-  background: var(--accent-tint);
-}
-.pill-danger {
-  background: var(--surface);
-  color: var(--danger-text);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
-}
-.pill-danger:hover {
-  background: var(--danger-bg);
-  border-color: var(--danger);
-}
-.pill-restore {
-  background: var(--success);
-  color: var(--fill-text);
-}
-.pill-restore:hover {
-  background: color-mix(in srgb, var(--success) 85%, var(--text));
-}
-
 .user-management {
   position: relative; /* контекст для оверлей-панели .bulk-bar (top:0 поверх шапки) */
   background-color: var(--surface);
@@ -3009,6 +2890,10 @@ export default {
   row-gap: 6px;
 }
 
+.modal-subtitle {
+  overflow-wrap: anywhere;
+}
+
 .modal-title-group {
   min-width: 0;
 }
@@ -3337,24 +3222,6 @@ export default {
     justify-content: flex-end;
   }
 
-  .management-header {
-    height: auto;
-    padding: 16px;
-  }
-
-  .search-container {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
-  .archive-dropdown {
-    min-width: 90px;
-  }
-
-  :deep(.search) {
-    width: 110px;
-  }
-
   .form-wrap {
     gap: 12px;
   }
@@ -3368,18 +3235,6 @@ export default {
 /* Радиус окон редактирования/создания задаётся пропом radius у BaseModal
    (content-class телепортится в body, scoped :deep до него не достаёт). */
 
-/* На телефоне ряд кнопок шапки не помещается рядом с заголовком и уезжал за
-   правый край окна целиком. Отдаём кнопкам всю ширину под заголовком и разрешаем
-   перенос - тогда он считается от края окна, а не от остатка строки. На широком
-   экране переноса нет намеренно: там ряд помещается, и wrap ломал бы его надвое. */
-@media (max-width: 767.98px) {
-  .modal-header-actions {
-    margin-left: 0;
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-}
 </style>
 
 <!-- Глобальный (не scoped): контент BaseModal телепортится в body, scoped-хэш до
@@ -3393,9 +3248,11 @@ export default {
 /* Шапка окна редактирования на телефоне: заголовок и крестик строкой, кнопки
    под ними. Крестик в разметке идёт последним, поэтому переносим порядком -
    иначе полоса кнопок во всю ширину сталкивает его на третью строку. */
-@media (max-width: 767.98px) {
+@media (max-width: 899.98px) {
   .base-modal.user-edit-modal .base-modal__header {
     flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
   }
 
   .base-modal.user-edit-modal .base-modal__close {
@@ -3408,3 +3265,4 @@ export default {
 }
 </style>
 <style scoped src="@/assets/user-control-mobile-login.css"></style>
+<style scoped src="@/assets/user-control-pills.css"></style>
