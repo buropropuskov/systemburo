@@ -15,15 +15,6 @@ func (h *AttachmentTemplateHandler) DocumentAtPost(resolver *services.Permission
 		if err != nil || templateID <= 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "Некорректный вид заявки")
 		}
-		orgID, err := optionalIntQuery(c, "organization_id")
-		if err != nil {
-			return err
-		}
-		companyID, err := optionalIntQuery(c, "company_id")
-		if err != nil {
-			return err
-		}
-
 		ctx := c.Request().Context()
 		userID := GetUserID(c)
 		set, err := resolver.ResolveFresh(ctx, userID)
@@ -33,7 +24,7 @@ func (h *AttachmentTemplateHandler) DocumentAtPost(resolver *services.Permission
 		if set.IsBanned() || set.IsInactive() {
 			return echo.NewHTTPError(http.StatusForbidden)
 		}
-		allowed, err := h.fieldConfig.DocumentAtPostAllowed(ctx, templateID, orgID, companyID, userID, set.Has(services.KeyApplicationOrganizationOverride))
+		allowed, err := h.fieldConfig.DocumentAtPostAllowed(ctx, templateID, userID)
 		if err != nil {
 			return err
 		}
@@ -51,8 +42,14 @@ func (h *AttachmentTemplateHandler) DocumentRule(resolver *services.PermissionRe
 		if set.IsBanned() || set.IsInactive() || (!set.IsAdmin() && !set.IsSuperAdmin()) {
 			return echo.NewHTTPError(http.StatusForbidden)
 		}
-		templateID, _ := strconv.Atoi(c.Param("id"))
-		id, _ := strconv.Atoi(c.QueryParam("directory_id"))
+		templateID, err := strconv.Atoi(c.Param("template_id"))
+		if err != nil || templateID <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Некорректный вид заявки")
+		}
+		id, err := ParseID(c, "id")
+		if err != nil {
+			return err
+		}
 		var request struct {
 			Enabled *bool `json:"enabled"`
 		}
@@ -61,7 +58,7 @@ func (h *AttachmentTemplateHandler) DocumentRule(resolver *services.PermissionRe
 				return echo.NewHTTPError(http.StatusBadRequest, "Укажите состояние правила")
 			}
 		}
-		enabled, err := h.fieldConfig.DocumentRule(ctx, templateID, c.QueryParam("directory"), id, request.Enabled)
+		enabled, err := h.fieldConfig.DocumentRule(ctx, templateID, id, request.Enabled)
 		if err != nil {
 			return err
 		}

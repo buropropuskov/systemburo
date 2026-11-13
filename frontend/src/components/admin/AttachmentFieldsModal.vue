@@ -39,7 +39,6 @@
                 Скрытые поля не показываются при подаче заявки.
               </p>
 
-              <AttachmentDocumentRule v-if="canConfigureDocumentRule" :template-id="uniqueAttachmentId" />
               <div class="groups">
                 <div
                   v-for="group in groups"
@@ -226,8 +225,6 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
-import AttachmentDocumentRule from './AttachmentDocumentRule.vue';
-import { usePermissionsStore } from '@/stores/permissions';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 // Подписи групп полей реестра. Порядок групп в ответе сохраняется (common впереди),
@@ -241,7 +238,7 @@ const GROUP_LABELS = {
 
 export default {
   name: 'AttachmentFieldsModal',
-  components: { ToggleSwitch, LoaderSpinner, AttachmentDocumentRule },
+  components: { ToggleSwitch, LoaderSpinner },
   props: {
     uniqueAttachmentId: { type: Number, required: true },
     attachmentName: { type: String, default: '' },
@@ -278,11 +275,6 @@ export default {
     };
   },
   computed: {
-    canConfigureDocumentRule() {
-      if (this.attachmentType !== 'people') return false;
-      const permissions = usePermissionsStore();
-      return ['admin', 'super'].includes(permissions.mode) && permissions.hasPermission('page.admin');
-    },
     groups() {
       const out = [];
       const byKey = new Map();

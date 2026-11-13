@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
@@ -104,12 +105,11 @@ var supplementAllowedStatuses = []string{models.StatusUnread, models.StatusProce
 
 // supplementAttachment - вложение-цель дополнения в том виде, в каком его проверяют гарды.
 type supplementAttachment struct {
-	DocumentAtPostAllowed bool
-	ID                    int
-	AttachmentType        string
-	UniqueAttachmentID    *int
-	Status                *int
-	ApplicationID         *int
+	ID                 int
+	AttachmentType     string
+	UniqueAttachmentID *int
+	Status             *int
+	ApplicationID      *int
 	// Expired - срок действия вложения истёк: принимать в мёртвое окно новые строки
 	// нельзя, они не доживут до проходной.
 	Expired bool
@@ -241,7 +241,7 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 			if t.attachment.UniqueAttachmentID != nil {
 				uniqueID = *t.attachment.UniqueAttachmentID
 			}
-			if err := validateDocumentAtPost(t.content(), t.attachment.DocumentAtPostAllowed); err != nil {
+			if err := validateSupplementDocumentAtPost(tx, t.content(), uniqueID, user.ID); err != nil {
 				return err
 			}
 			if err := validateAttachmentRequiredFields(tx, uniqueID, t.attachment.AttachmentType, t.content()); err != nil {
@@ -377,6 +377,22 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 
 // ensureSupplementAllowed - кто и когда вправе дополнять: автор заявки либо супер-админ,
 // и только пока заявка не закрыта. Зеркало гарда отзыва своей заявки (WithdrawApplication).
+func validateSupplementDocumentAtPost(tx *gorm.DB, content AttachmentContentData, templateID, userID int) error {
+	if content.Employees == nil {
+		return nil
+	}
+	for _, employee := range *content.Employees {
+		if employee.DocumentAtPost {
+			allowed, err := documentAtPostAllowed(tx, templateID, userID)
+			if err != nil {
+				return apperr.Internal("Не удалось проверить способ предъявления документа", err)
+			}
+			return validateDocumentAtPost(content, allowed)
+		}
+	}
+	return nil
+}
+
 func ensureSupplementAllowed(senderUserID int, status *string, userID int, isSuperAdmin bool) error {
 	if !isSuperAdmin && senderUserID != userID {
 		return echo.NewHTTPError(http.StatusForbidden, "Дополнить можно только собственную заявку")
@@ -423,7 +439,7 @@ func (s *applicationService) resolveSupplementTargets(ctx context.Context, appli
 				id,
 				attachment_type,
 				unique_attachment_id,
-				document_at_post_allowed,
+
 				status,
 				application_id,
 				COALESCE(NULLIF(entry_date_to::text, '')::date < `+moscowTodaySQL+`, false) AS expired

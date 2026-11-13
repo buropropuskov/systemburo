@@ -2414,7 +2414,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		for _, att := range req.Attachments {
 			allowed, cached := documentModes[att.UniqueAttachmentID]
 			if att.AttachmentType == "people" && !cached {
-				allowed, err = documentAtPostAllowed(tx, att.UniqueAttachmentID, organizationID, companyID)
+				allowed, err = documentAtPostAllowed(tx, att.UniqueAttachmentID, user.ID)
 				if err != nil {
 					return apperr.Internal("Не удалось проверить способ предъявления документа", err)
 				}

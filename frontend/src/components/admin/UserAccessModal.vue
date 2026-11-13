@@ -122,6 +122,8 @@
 
             <hr class="divider">
 
+            <AccountDocumentRule v-if="canManageDocumentRule" :key="user.id" :user-id="user.id" />
+
             <div class="ban-box">
               <div class="ban-box__title">
                 <svg
@@ -266,6 +268,7 @@ import {
   setUserAdmin,
   setUserRole,
 } from '@/api/permissions';
+import AccountDocumentRule from './AccountDocumentRule.vue';
 import { apiRequest } from '@/api/client';
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
@@ -284,7 +287,7 @@ const GRANT_ADMIN_KEY = 'action.grant.admin';
  */
 export default {
   name: 'UserAccessModal',
-  components: { EffectivePermissionsTree, LoaderSpinner, BaseDropdown },
+  components: { AccountDocumentRule, EffectivePermissionsTree, LoaderSpinner, BaseDropdown },
   props: {
     user: { type: Object, default: null },
   },
@@ -321,6 +324,11 @@ export default {
   computed: {
     roleOptions() {
       return [{ id: null, name: 'Без роли' }, ...this.roles];
+    },
+    canManageDocumentRule() {
+      const permissions = usePermissionsStore();
+      return this.user?.is_active !== false && !!this.user?.id &&
+        ['admin', 'super'].includes(permissions.mode) && permissions.hasPermission('permission.audit.manage');
     },
     isSuper() {
       return this.effective.mode === 'super' || !!this.user?.is_super_admin;

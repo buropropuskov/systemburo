@@ -20,12 +20,15 @@ func TestDocumentAtPostRuleAndSubmission(t *testing.T) {
 	require.NoError(t, db.Create(&org).Error)
 	testutil.RegisterUser(t, e, "documentcheck", "Password123", 1, org.ID, 0)
 	applicant, _ := testutil.LoginUser(t, e, "documentcheck", "Password123")
+	testutil.RegisterUser(t, e, "documentpeer", "Password123", 1, org.ID, 0)
+	peer, _ := testutil.LoginUser(t, e, "documentpeer", "Password123")
+	userID := getUserID(t, db, "documentcheck")
 	citizenship := models.Citizenship{Name: "Россия"}
 	require.NoError(t, db.Create(&citizenship).Error)
 	template := seedUniqueAttachment(t, db, "people", "doc_at_post", "Проведение работ")
 	other := seedUniqueAttachment(t, db, "people", "doc_at_post_other", "Другой вид")
-	rule := fmt.Sprintf("/attachments/%d/document-rule?directory=organization&directory_id=%d", template, org.ID)
-	read := fmt.Sprintf("/attachments/%d/document-at-post?organization_id=%d", template, org.ID)
+	rule := fmt.Sprintf("/users/%d/document-rule/%d", userID, template)
+	read := fmt.Sprintf("/attachments/%d/document-at-post", template)
 
 	for _, actor := range []struct {
 		token string
@@ -37,11 +40,11 @@ func TestDocumentAtPostRuleAndSubmission(t *testing.T) {
 	rec := testutil.GET(t, e, read, testutil.AuthHeader(applicant))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.True(t, testutil.ParseResponse[map[string]bool](t, rec)["allowed"])
-	foreignOrg := models.Organization{Name: "Другая учебная организация"}
-	require.NoError(t, db.Create(&foreignOrg).Error)
-	foreignRead := fmt.Sprintf("/attachments/%d/document-at-post?organization_id=%d", template, foreignOrg.ID)
-	rec = testutil.GET(t, e, foreignRead, testutil.AuthHeader(applicant))
-	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	legacy := models.AttachmentDocumentRule{UniqueAttachmentID: template, Directory: "organization", DirectoryID: org.ID}
+	require.NoError(t, db.Create(&legacy).Error)
+	rec = testutil.GET(t, e, read, testutil.AuthHeader(peer))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.False(t, testutil.ParseResponse[map[string]bool](t, rec)["allowed"])
 
 	config := fmt.Sprintf("/attachments/%d/field-config", template)
 	rec = testutil.PUT(t, e, config, `{"base":[{"key":"passport","visible":true,"required":true}]}`, testutil.AuthHeader(admin))
@@ -53,12 +56,14 @@ func TestDocumentAtPostRuleAndSubmission(t *testing.T) {
 		atPost   bool
 		passport string
 		code     int
+		token    string
 	}{
-		{"other-template", other, true, "", http.StatusBadRequest},
-		{"contradictory-payload", template, true, "учебный номер", http.StatusBadRequest},
-		{"required-passport", template, false, "", http.StatusBadRequest},
-		{"free-text", template, false, "-", http.StatusOK},
-		{"document-at-post", template, true, "", http.StatusOK},
+		{"other-template", other, true, "", http.StatusBadRequest, applicant},
+		{"contradictory-payload", template, true, "учебный номер", http.StatusBadRequest, applicant},
+		{"required-passport", template, false, "", http.StatusBadRequest, applicant},
+		{"free-text", template, false, "-", http.StatusOK, applicant},
+		{"document-at-post", template, true, "", http.StatusOK, applicant},
+		{"same-organization-other-account", template, true, "", http.StatusBadRequest, peer},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := fmt.Sprintf(`{
@@ -71,7 +76,7 @@ func TestDocumentAtPostRuleAndSubmission(t *testing.T) {
 				"data":{"employees":[{"last_name":"Учебный","first_name":"Сотрудник",
 				"citizenship_id":%d,"passport_series_number":%q,"document_at_post":%t}]}}]
 			}`, tc.name, org.ID, tc.template, citizenship.ID, tc.passport, tc.atPost)
-			rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(applicant))
+			rec := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(tc.token))
 			require.Equal(t, tc.code, rec.Code, rec.Body.String())
 			if tc.code != http.StatusOK {
 				return
@@ -93,4 +98,12 @@ func TestDocumentAtPostRuleAndSubmission(t *testing.T) {
 			}
 		})
 	}
+	rec = testutil.PUT(t, e, rule, `{"enabled":false}`, testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = testutil.GET(t, e, read, testutil.AuthHeader(applicant))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.False(t, testutil.ParseResponse[map[string]bool](t, rec)["allowed"])
+	var preserved int64
+	require.NoError(t, db.Model(&models.Employee{}).Where("document_at_post").Count(&preserved).Error)
+	require.EqualValues(t, 1, preserved)
 }
