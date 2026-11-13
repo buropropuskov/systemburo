@@ -1,0 +1,3 @@
+.basic-field :deep(.base-dropdown__button) {
+  min-height: calc(1.4 * 14px + 22px);
+}

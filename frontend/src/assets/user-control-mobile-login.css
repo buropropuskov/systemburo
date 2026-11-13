@@ -1,0 +1,16 @@
+.user-login {
+  max-width: 100%;
+  color: var(--accent-text);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+@media (max-width: 767.98px) {
+.user-login {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

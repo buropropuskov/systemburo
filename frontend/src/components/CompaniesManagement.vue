@@ -298,7 +298,7 @@
               >В архиве</span>
               <button
                 v-if="canViewHistory"
-                class="pill pill-ghost"
+                class="lk-button lk-button--ghost"
                 data-testid="companies-history"
                 @click="openHistory(selectedCompany)"
               >
@@ -306,7 +306,7 @@
               </button>
               <button
                 v-if="selectedCompany.is_active"
-                class="pill pill-danger"
+                class="lk-button lk-button--danger"
                 data-testid="companies-archive"
                 @click="onArchiveClick(selectedCompany)"
               >
@@ -314,7 +314,7 @@
               </button>
               <button
                 v-else
-                class="pill pill-restore"
+                class="lk-button lk-button--ghost"
                 data-testid="companies-restore"
                 @click="onRestore(selectedCompany)"
               >
@@ -1761,12 +1761,13 @@ export default {
   display: grid;
   grid-template-columns: 1fr 230px;
   gap: 14px;
-  align-items: end;
+  align-items: start;
 }
 
 .basic-field {
   min-width: 0;
 }
+
 
 .field-label {
   font-size: 0.78em;
@@ -1778,8 +1779,7 @@ export default {
   margin-bottom: 6px;
 }
 
-/* Объяснение к заблокированному наименованию. Лежит под сеткой полей, а не внутри
-   ячейки: у .basic align-items:end, и выросшая ячейка утащила бы дропдаун типа вниз. */
+/* Объяснение к заблокированному наименованию под сеткой полей. */
 .lock-note {
   margin: 10px 0 0;
   color: var(--text-muted);
@@ -2010,3 +2010,4 @@ export default {
   }
 }
 </style>
+<style scoped src="@/assets/directory-basic-fields.css"></style>

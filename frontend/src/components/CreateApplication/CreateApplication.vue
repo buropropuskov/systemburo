@@ -12,7 +12,7 @@
             @update:readers="readers = $event"
           />
         </div>
-        <h4 class="create__blank-title create__blank-title--header">
+        <h4 class="create__blank-title create__blank-title--header" :title="currentFormTitle">
           {{ currentFormTitle }}
         </h4>
       </div>
@@ -44,7 +44,7 @@
         class="create__blank-sticky"
         :class="{ 'create__blank-sticky--stuck': blankStuck }"
       >
-        <h4 class="create__blank-title create__blank-title--inline">
+        <h4 class="create__blank-title create__blank-title--inline" :title="currentFormTitle">
           {{ currentFormTitle }}
         </h4>
       </div>
@@ -3476,18 +3476,16 @@ export default {
         gap: 12px;
     }
 
-    .consent-checkbox {
-        min-width: 0;
-    }
+    .consent-checkbox { min-width: 0; font-size: 12px; }
 
-    .consent-checkbox input[type="checkbox"] {
+    .consent-checkbox :deep(input[type="checkbox"]) {
         width: 14px;
         height: 14px;
         cursor: pointer;
         flex-shrink: 0;
     }
 
-    .consent-checkbox label {
+    .consent-checkbox :deep(label) {
         font-size: 12px;
         color: var(--text);
         cursor: pointer;
@@ -3498,7 +3496,7 @@ export default {
         position: relative;
         display: block;
         width: 100%;
-        text-align: left;
+        text-align: center;
     }
 
     .submit-tooltip {
@@ -3655,9 +3653,7 @@ export default {
         z-index: 1;
     }
 
-    .create__blank-title--inline {
-        display: none;
-    }
+
 
     /* На десктопе inline-заголовок скрыт (он в шапке) - обёртка не должна занимать
        место; на мобилке @media переопределит на sticky-контейнер. */
@@ -3670,15 +3666,7 @@ export default {
         height: 0;
     }
 
-    h4 {
-        font-size: 22px;
-        font-weight: 800;
-        color: var(--accent-text);
-        border: 1px solid var(--border);
-        border-radius: 50px;
-        padding: 5px 20px;
-        width: fit-content;
-    }
+
 
     .form__data {
         display: flex;
@@ -3792,17 +3780,7 @@ export default {
             border-bottom-color: var(--border);
         }
 
-        .create__blank-title--inline {
-            display: block;
-            align-self: center;
-            margin: 0;
-            text-align: center;
-            font-size: 22px;
-            padding: 8px 24px;
-            /* Сама пилюля - плотный белый: при закреплении она выделяется на
-               полупрозрачной подложке обёртки, а не сливается/просвечивает. */
-            background: var(--surface);
-        }
+
 
         .create__container {
             flex-direction: column;
@@ -3910,19 +3888,20 @@ export default {
             width: 100%;
         }
 
-        .consent-checkbox input[type="checkbox"] {
+        .consent-checkbox :deep(input[type="checkbox"]) {
             width: 20px;
             height: 20px;
         }
 
-        .consent-checkbox label {
+        .consent-checkbox :deep(label) {
             font-size: 13px;
             line-height: 1.35;
         }
 
         .send-all-btn {
-            width: 100%;
+            max-width: 100%;
             min-height: 44px;
+            justify-content: center;
             font-size: 14px;
         }
 
@@ -3983,3 +3962,4 @@ export default {
 </style>
 
 <style scoped src="@/assets/create-tablet.css"></style>
+<style scoped src="@/assets/create-application-blank-title.css"></style>

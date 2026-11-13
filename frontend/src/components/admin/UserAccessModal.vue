@@ -198,6 +198,7 @@
                 class="lk-input"
                 type="text"
                 placeholder="Поиск права..."
+                autocomplete="off"
                 data-testid="user-permissions-search"
               >
             </div>
@@ -1084,6 +1085,42 @@ export default {
 @media (max-width: 720px) {
   .access-modal__body {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    overflow-y: auto;
+  }
+
+  .col-left,
+  .col-right {
+    overflow: visible;
+  }
+
+  .access-modal__foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 16px;
+  }
+
+  .perm-search {
+    scroll-margin-block: 12px;
+  }
+
+  .access-modal__foot-actions > button {
+    flex: 1;
+  }
+
+  .modal-overlay {
+    padding: 8px;
+  }
+
+  .access-modal {
+    max-height: min(calc(var(--app-vh, 1vh) * 92), calc(100dvh - 16px));
+  }
+
+  .access-modal__head,
+  .col-left,
+  .col-right {
+    padding: 12px 16px;
   }
 
   .col-left {
