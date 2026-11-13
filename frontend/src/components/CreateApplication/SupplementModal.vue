@@ -164,7 +164,7 @@
                 <EmployeeForm
                   ref="employeeForm"
                   :field-config="currentFieldConfig"
-                  :document-at-post-allowed="selectedAttachment?.document_at_post_allowed === true"
+                  :document-at-post-allowed="documentAtPostAllowed"
                   :user-organization="application.organization_name || ''"
                   :user-organization-id="application.organization_id || null"
                   :user-company="application.company_name || ''"
@@ -289,6 +289,7 @@ import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
 import ApplicationConfirmation from './ApplicationConfirmation.vue';
+import applicationDocumentRule from './applicationDocumentRule';
 import { applicationConfirmationState } from './applicationConfirmationState';
 import { prepareApplicationCommand, finishApplicationCommand, rememberApplicationCommandDraft, restoreApplicationCommandDraft, recoverApplicationCommand } from '@/services/applicationCommand';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
@@ -365,7 +366,7 @@ function humanDate(value) {
 
 export default {
     name: 'SupplementModal',
-    mixins: [applicationConfirmationState('rowsByAttachment')],
+    mixins: [applicationConfirmationState('rowsByAttachment'), applicationDocumentRule],
     components: {
         ApplicationConfirmation,
         SchedulePlaceWarningPanel,

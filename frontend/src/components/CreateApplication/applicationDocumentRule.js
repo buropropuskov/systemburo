@@ -11,7 +11,7 @@ export default {
         documentRuleKey() {
             const attachment = this.selectedAttachment;
             if (attachment?.attachment_type !== 'people') return '';
-            return JSON.stringify([attachment.template_id || attachment.id, this.organizationId, this.companyId]);
+            return attachment.template_id || attachment.unique_attachment_id || attachment.id;
         },
     },
     watch: {
@@ -25,13 +25,9 @@ export default {
             const sequence = ++this.documentRuleSequence;
             this.documentAtPostAllowed = false;
             if (!this.documentRuleKey) return;
-            const [templateId, organizationId, companyId] = JSON.parse(this.documentRuleKey);
-            if (!organizationId && !companyId) return;
-            const params = new URLSearchParams();
-            if (organizationId) params.set('organization_id', organizationId);
-            if (companyId) params.set('company_id', companyId);
+            const templateId = this.documentRuleKey;
             try {
-                const response = await apiRequest(`/attachments/${templateId}/document-at-post?${params}`, { silent403: true });
+                const response = await apiRequest(`/attachments/${templateId}/document-at-post`, { silent403: true });
                 const result = await response.json();
                 if (sequence === this.documentRuleSequence) this.documentAtPostAllowed = result.allowed === true;
             } catch (error) {

@@ -18,8 +18,8 @@ import (
 // Реестр полей - в коде (attachment_fields_registry.go), сервис мержит его с
 // оверрайдами из БД и принимает bulk-upsert оверрайдов.
 type AttachmentFieldConfigService interface {
-	DocumentAtPostAllowed(ctx context.Context, templateID int, organizationID, companyID *int, userID int, override bool) (bool, error)
-	DocumentRule(ctx context.Context, templateID int, directory string, id int, enabled *bool) (bool, error)
+	DocumentAtPostAllowed(ctx context.Context, templateID, userID int) (bool, error)
+	DocumentRule(ctx context.Context, templateID, userID int, enabled *bool) (bool, error)
 	// GetMerged возвращает базовые поля типа вложения, смерженные с оверрайдами.
 	GetMerged(ctx context.Context, uniqueAttachmentID int) ([]models.MergedField, error)
 	// Save делает bulk-upsert оверрайдов. Ключи не из реестра типа отклоняются.

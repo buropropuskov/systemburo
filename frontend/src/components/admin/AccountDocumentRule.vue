@@ -1,37 +1,34 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { apiRequest } from '@/api/client'
-import { getCompanies, getOrganizations } from '@/api/organizations'
 import { useDeletionsStore } from '@/stores/deletions'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 
-const props = defineProps({ templateId: { type: Number, required: true } })
-const directories = [{ id: 'organization', name: 'Организация / отдел' }, { id: 'company', name: 'Компания' }]
-const directory = ref('company')
-const directoryId = ref(null)
+const props = defineProps({ userId: { type: Number, required: true } })
+const templateId = ref(null)
 const options = ref([])
 const enabled = ref(false)
 const ready = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const notify = useDeletionsStore().notify
-const endpoint = computed(() => `/attachments/${props.templateId}/document-rule?${new URLSearchParams({ directory: directory.value, directory_id: directoryId.value })}`)
+const endpoint = computed(() => `/users/${props.userId}/document-rule/${templateId.value}`)
 
-watch(directory, async (value, _, onCleanup) => {
+watch(() => props.userId, async (_, __, onCleanup) => {
   let current = true
   onCleanup(() => { current = false })
-  directoryId.value = null
-  options.value = []
+  templateId.value = null
   try {
-    const rows = await (value === 'company' ? getCompanies() : getOrganizations())
-    if (current) options.value = rows.filter(row => row.is_active !== false)
+    const response = await apiRequest('/attachments')
+    const rows = await response.json()
+    if (current) options.value = rows.filter(row => row.attachment_type === 'people' && row.is_active !== false)
   } catch {
-    if (current) notify({ bold: 'Не удалось загрузить справочник', type: 'error' })
+    if (current) notify({ bold: 'Не удалось загрузить виды заявок', type: 'error' })
   }
 }, { immediate: true })
 
-watch([directory, directoryId], async ([, id], _, onCleanup) => {
+watch(templateId, async (id, _, onCleanup) => {
   let current = true
   onCleanup(() => { current = false })
   ready.value = false
@@ -56,7 +53,8 @@ async function save() {
   if (!ready.value || saving.value) return
   saving.value = true
   try {
-    await apiRequest(endpoint.value, { method: 'PUT', body: JSON.stringify({ enabled: enabled.value }) })
+    const response = await apiRequest(endpoint.value, { method: 'PUT', body: JSON.stringify({ enabled: enabled.value }) })
+    if (!response.ok) throw new Error('Не удалось сохранить правило')
     notify({ bold: 'Правило сохранено', type: 'success' })
   } catch {
     notify({ bold: 'Не удалось сохранить правило', type: 'error' })
@@ -72,10 +70,9 @@ async function save() {
       <h4>Проверка документа на посту</h4>
       <ToggleSwitch v-model="enabled" :disabled="!ready" aria-label="Проверка документа на посту" />
     </div>
-    <p>Заявитель сможет указать, что сотрудник предъявит оригинал документа на посту.</p>
+    <p>Разрешить этому аккаунту выбрать «Документ на посту» для указанного вида заявки.</p>
     <div class="rule-fields">
-      <div><span>Справочник</span><BaseDropdown v-model="directory" :options="directories" aria-label="Справочник" /></div>
-      <div><span>Организация или компания</span><BaseDropdown v-model="directoryId" :options="options" aria-label="Организация или компания" placeholder="Выбрать запись" searchable /></div>
+      <BaseDropdown v-model="templateId" :options="options" label-key="display_name" aria-label="Вид заявки" placeholder="Выбрать вид заявки" searchable />
     </div>
     <button type="button" class="lk-button" :disabled="loading || !ready || saving" @click="save">Сохранить правило</button>
   </section>
@@ -92,7 +89,5 @@ async function save() {
 .rule-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .rule-head h4 { margin: 0; font-size: 15px; }
 .document-rule p { margin: 10px 0 14px; font-size: 13px; line-height: 1.45; color: var(--text-muted); }
-.rule-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-.rule-fields span { display: block; margin-bottom: 4px; font-size: 12px; }
-@media (max-width: 550px) { .rule-fields { grid-template-columns: 1fr; } }
+.rule-fields { margin-bottom: 12px; }
 </style>

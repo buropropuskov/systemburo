@@ -563,8 +563,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// без гейта, иначе заявитель не соберёт вложение.
 	att.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 	att.GET("/:id/document-at-post", attachmentTemplates.DocumentAtPost(permResolver))
-	att.GET("/:id/document-rule", attachmentTemplates.DocumentRule(permResolver), requireAdmin)
-	att.PUT("/:id/document-rule", attachmentTemplates.DocumentRule(permResolver), requireAdmin)
 
 	// Организации. Изменяющие операции, история и состав - админ справочников
 	// (page.admin.directories, тем же правом фронт открывает /admin/organizations).
@@ -1094,6 +1092,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/users/:user_id/permission-groups", permGroups.ListForUser, auditManage)
 	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser, auditManage)
 	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser, auditManage)
+	protected.GET("/users/:id/document-rule/:template_id", attachmentTemplates.DocumentRule(permResolver), auditManage)
+	protected.PUT("/users/:id/document-rule/:template_id", attachmentTemplates.DocumentRule(permResolver), auditManage)
 	protected.PUT("/users/:id/role", permGroups.SetUserRole, auditManage)
 	protected.PUT("/users/:id/admin", permGroups.SetUserAdmin, grantAdmin)
 
