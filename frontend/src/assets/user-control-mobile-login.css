@@ -14,3 +14,179 @@
     text-overflow: ellipsis;
   }
 }
+
+@media (max-width: 899.98px) {
+  .users-list .users-body {
+    padding: 8px;
+  }
+
+  .users-list .user-item + .user-item {
+    margin-top: 8px;
+  }
+
+  .users-list .user-row.rt-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 3px 12px;
+    padding: 12px 14px !important;
+  }
+
+  .users-list .user-row > .user-col[data-label] {
+    display: block;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    overflow-wrap: break-word;
+  }
+
+  .users-list .user-row > .user-col[data-label]::before,
+  .users-list .user-row > .user-col--empty,
+  .users-list .user-row > .name-col--repeats-login {
+    display: none !important;
+  }
+
+  .user-row .name-col,
+  .user-row .login-col,
+  .user-row .position-col {
+    grid-column: 1 / -1;
+    padding-right: 44px !important;
+  }
+
+  .user-row .name-col {
+    grid-row: 1;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  .users-list .user-row > .login-col {
+    grid-row: 2;
+    display: flex;
+    gap: 3px 8px;
+    font-size: 12px;
+  }
+
+  .user-row .login-col:has(+ .name-col--repeats-login) {
+    grid-row: 1;
+    align-items: center;
+  }
+
+  .user-row .login-col:has(+ .name-col--repeats-login) .user-login {
+    font-size: 16px;
+  }
+
+  .user-row .user-login,
+  .user-row .truncate-text {
+    min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .user-row .position-col {
+    grid-row: 3;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .users-list .user-row > :is(.org-col, .company-col)[data-label] {
+    grid-row: 4;
+    align-self: stretch;
+    margin-top: 6px;
+    padding: 7px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .users-list .user-row > :is(.org-col, .company-col)[data-label]::before {
+    display: block !important;
+    font-size: 10px;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+
+  .user-row .org-col { grid-column: 1; }
+  .user-row .company-col { grid-column: 2; }
+  .user-row .type-col { grid-column: 1; grid-row: 5; margin-top: 5px; }
+  .users-list .user-row > .seen-col {
+    grid-column: 2;
+    grid-row: 5;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 5px;
+    text-align: right;
+    font-size: 12px;
+  }
+
+  .user-row .check-col {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .user-row .check-col .bulk-check {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    z-index: 1;
+  }
+
+  .user-row .check-col::before,
+  .user-row .check-col::after {
+    content: '';
+    pointer-events: none;
+  }
+
+  .user-row .check-col::before {
+    display: block;
+    position: absolute;
+    inset: 12px auto auto 4px;
+    width: 36px;
+    height: 20px;
+    border-radius: var(--radius-pill);
+    background: var(--border);
+    pointer-events: none;
+  }
+
+  .user-row .check-col::after {
+    position: absolute;
+    inset: 14px auto auto 6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface);
+    transition: transform 0.2s ease;
+  }
+
+  .check-col:has(.bulk-check:checked)::before {
+    background: var(--color-primary);
+  }
+
+  .check-col:has(.bulk-check:checked)::after {
+    transform: translateX(16px);
+  }
+
+  .check-col:has(.bulk-check:focus-visible)::before {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .user-row:has(.bulk-check:checked) {
+    border-color: var(--accent) !important;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .user-row .check-col::after {
+    transition: none;
+  }
+}

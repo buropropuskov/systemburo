@@ -191,7 +191,6 @@
           </div>
         </div>
         
-        <!-- Тело таблицы -->
         <div class="users-body">
           <div
             v-for="(user, index) in sortedUsers"
@@ -232,6 +231,7 @@
               </div>
               <div
                 class="user-col name-col"
+                :class="{ 'name-col--repeats-login': formatUserName(user) === formatLogin(user.username) && !(user.pd_hidden && user.consent_required && !user.consent_granted) }"
                 data-label="Фамилия И.О."
               >
                 <span
@@ -245,7 +245,7 @@
                 </template>
               </div>
               <div
-                class="user-col org-col"
+                class="user-col org-col" :class="{ 'user-col--empty': !user.organization }"
                 data-label="Организация / Отдел"
               >
                 <span
@@ -256,7 +256,7 @@
                 </span>
               </div>
               <div
-                class="user-col company-col"
+                class="user-col company-col" :class="{ 'user-col--empty': !user.company }"
                 data-label="Компания"
               >
                 <span
@@ -267,7 +267,7 @@
                 </span>
               </div>
               <div
-                class="user-col position-col"
+                class="user-col position-col" :class="{ 'user-col--empty': !user.position }"
                 data-label="Должность"
               >
                 <span
@@ -278,7 +278,7 @@
                 </span>
               </div>
               <div
-                class="user-col type-col"
+                class="user-col type-col" :class="{ 'user-col--empty': !user.user_type }"
                 data-label="Тип"
               >
                 <span
