@@ -50,6 +50,7 @@ export function toEmployeePayload(employees) {
         // ставит сервер, отсюда уходит только факт подтверждения. Сотрудник, выбранный
         // из реестра, приходит с pdConsent=true - согласие получено при заведении записи.
         pd_consent: employee.pdConsent === true,
+        ...(employee.documentAtPost === true ? { document_at_post: true } : {}),
     }));
 }
 

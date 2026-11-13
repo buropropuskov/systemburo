@@ -502,6 +502,7 @@ type VehicleInput struct {
 
 // EmployeeInput данные сотрудника при создании.
 type EmployeeInput struct {
+	DocumentAtPost       bool    `json:"document_at_post"`
 	LastName             string  `json:"last_name"`
 	FirstName            string  `json:"first_name"`
 	MiddleName           *string `json:"middle_name"`
@@ -712,6 +713,7 @@ type ViewerWithUser struct {
 
 // AttachmentInfo информация о вложении заявки.
 type AttachmentInfo struct {
+	DocumentAtPostAllowed       bool       `json:"document_at_post_allowed"`
 	ID                          int        `json:"id"`
 	Status                      *int       `json:"status"`
 	IsManual                    bool       `json:"is_manual"`
@@ -2083,24 +2085,12 @@ func consentBy(granted bool, userID int) *int {
 	return &v
 }
 
-// validateConfiguredRequiredFields проверяет, что поля, явно настроенные админом
-// обязательными (override visible+required), присутствуют в подаче. Скрытые и
-// ненастроенные поля не валидируются. Запускается до транзакции (#529 H-9).
-func (s *applicationService) validateConfiguredRequiredFields(ctx context.Context, req CompleteApplicationRequest) error {
-	for _, att := range req.Attachments {
-		if err := s.validateAttachmentRequiredFields(ctx, att.UniqueAttachmentID, att.AttachmentType, att.Data); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // validateAttachmentRequiredFields - та же проверка для содержимого ОДНОГО вложения.
 // Дополнение заявки (#1685) сыплет строки в существующее вложение, а настройка полей
 // живёт на его шаблоне: правила обязательности для добавленных строк те же, что при подаче.
-func (s *applicationService) validateAttachmentRequiredFields(ctx context.Context, uniqueAttachmentID int, attachmentType string, data AttachmentContentData) error {
+func validateAttachmentRequiredFields(tx *gorm.DB, uniqueAttachmentID int, attachmentType string, data AttachmentContentData) error {
 	var overrides []models.AttachmentFieldConfig
-	if err := s.db.WithContext(ctx).
+	if err := tx.
 		Where("unique_attachment_id = ?", uniqueAttachmentID).
 		Find(&overrides).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки настройки полей")
@@ -2122,6 +2112,9 @@ func (s *applicationService) validateAttachmentRequiredFields(ctx context.Contex
 	if data.Employees != nil {
 		for _, e := range *data.Employees {
 			for key := range required {
+				if key == "passport" && e.DocumentAtPost {
+					continue
+				}
 				if !employeeFieldPresent(e, key) {
 					return fail(key)
 				}
@@ -2372,12 +2365,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			return err
 		}
 
-		// Серверная валидация настроенных обязательных полей (#529 H-9): поля, помеченные
-		// админом required, должны присутствовать; скрытые/ненастроенные пропускаются.
-		if err := s.validateConfiguredRequiredFields(ctx, req); err != nil {
-			return err
-		}
-
 		// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком
 		// до старта транзакции - на случай обхода фронтовой проверки.
 		// Человек, возразивший против обработки, в новых заявках не заводится (#2361):
@@ -2423,6 +2410,23 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			return err
 		}
 		organizationID, companyID = orgRef.ID, companyRefResult.ID
+		documentModes := make(map[int]bool)
+		for _, att := range req.Attachments {
+			allowed, cached := documentModes[att.UniqueAttachmentID]
+			if att.AttachmentType == "people" && !cached {
+				allowed, err = documentAtPostAllowed(tx, att.UniqueAttachmentID, organizationID, companyID)
+				if err != nil {
+					return apperr.Internal("Не удалось проверить способ предъявления документа", err)
+				}
+				documentModes[att.UniqueAttachmentID] = allowed
+			}
+			if err := validateDocumentAtPost(att.Data, allowed); err != nil {
+				return err
+			}
+			if err := validateAttachmentRequiredFields(tx, att.UniqueAttachmentID, att.AttachmentType, att.Data); err != nil {
+				return err
+			}
+		}
 		// Backstop к гейту выше: при текущем резолве оба nil одновременно недостижимы, но
 		// заявка без организации И компании не должна создаваться ни при каком его изменении -
 		// именно такая сирота и была багом, который срез закрывает.
@@ -2621,11 +2625,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		for _, att := range req.Attachments {
 			var attID int
 			err := tx.Raw(`
-			INSERT INTO attachments (application_id, attachment_type, attachment_name, attachment_display_name, unique_attachment_id, entry_date_from, entry_date_to, entry_time_from, entry_time_to, roof_access, free_parking, status)
-			VALUES (?, ?, ?, ?, ?, ?::date, ?::date, ?::time, ?::time, ?, ?, 1)
+			INSERT INTO attachments (application_id, attachment_type, attachment_name, attachment_display_name, unique_attachment_id, entry_date_from, entry_date_to, entry_time_from, entry_time_to, roof_access, free_parking, document_at_post_allowed, status)
+			VALUES (?, ?, ?, ?, ?, ?::date, ?::date, ?::time, ?::time, ?, ?, ?, 1)
 			RETURNING id
 		`, appID, att.AttachmentType, att.AttachmentName, att.AttachmentDisplayName, att.UniqueAttachmentID,
-				att.EntryDateFrom, att.EntryDateTo, att.EntryTimeFrom, att.EntryTimeTo, att.RoofAccess, att.FreeParking).Scan(&attID).Error
+				att.EntryDateFrom, att.EntryDateTo, att.EntryTimeFrom, att.EntryTimeTo, att.RoofAccess, att.FreeParking, documentModes[att.UniqueAttachmentID]).Scan(&attID).Error
 			if err != nil {
 				slog.Error("Ошибка создания вложения", "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating attachment")
@@ -2717,6 +2721,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 							MiddleName:           e.MiddleName,
 							CitizenshipID:        &citizenshipID,
 							Position:             &position,
+							DocumentAtPost:       e.DocumentAtPost,
 							PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
 							PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 							OtherPermission:      e.OtherPermission,

@@ -141,6 +141,7 @@ type ManualEmployeeResponse struct {
 // CitizenshipName / Position / Company / PassPlaces добавлены для отображения
 // соответствующих колонок в PeopleTable.vue (#116 пункт 10).
 type TableEmployeeResponse struct {
+	DocumentAtPost    bool                   `json:"document_at_post"`
 	PassageState      PassageState           `json:"passage_state"`
 	EffectivePeriod   models.EffectivePeriod `json:"effective_period"`
 	ServerNow         time.Time              `json:"server_now"`
@@ -399,6 +400,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 }
 func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context, tableID int, now time.Time, historyID ...int) ([]TableEmployeeResponse, error) {
 	type employeeRow struct {
+		DocumentAtPost                            bool
 		EntryDateFrom, EntryTimeFrom, EntryTimeTo *string
 		PeriodSource                              string
 		Bounded                                   bool
@@ -463,11 +465,12 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 			application_id,
 			application_number,
 			territory_status,
-			target_tables_count,entry_date_from,entry_time_from,entry_time_to,period_source,bounded,retained
+			document_at_post, target_tables_count,entry_date_from,entry_time_from,entry_time_to,period_source,bounded,retained
 		FROM (
 			SELECT
 				e.id,
 				e.last_name,
+				e.document_at_post,
 				e.first_name,
 				e.middle_name,
 				COALESCE(o.name, co.name) AS organization,
@@ -550,6 +553,7 @@ func (s *employeeService) getActiveEmployeesForTableSnapshot(ctx context.Context
 			ID:           r.ID,
 			PassageState: states[r.ID], EffectivePeriod: models.EffectivePeriod{EntryPeriod: models.EntryPeriod{EntryDateFrom: r.EntryDateFrom, EntryDateTo: r.EntryDateTo, EntryTimeFrom: r.EntryTimeFrom, EntryTimeTo: r.EntryTimeTo}, Source: r.PeriodSource, Bounded: r.Bounded}, ServerNow: now,
 			LastName:          r.LastName,
+			DocumentAtPost:    r.DocumentAtPost,
 			FirstName:         r.FirstName,
 			MiddleName:        r.MiddleName,
 			Organization:      r.Organization,

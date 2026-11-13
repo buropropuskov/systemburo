@@ -52,7 +52,7 @@
               class="modal-body"
             >
               <HistoryCardNotice v-if="source === 'history'" :entity="employee" />
-              <!-- Секция статуса ЧС -->
+              <DocumentAtPostNotice v-if="source === 'peopletable' && employee?.document_at_post" />
               <div
                 v-if="isBlacklisted"
                 class="bl-section"
@@ -486,6 +486,7 @@
 </template>
 
 <script>
+import DocumentAtPostNotice from './DocumentAtPostNotice.vue';
 import employeeSidePanels from './employeeSidePanels';
 import passageDetailsIntegration from './passageDetailsIntegration';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
@@ -515,6 +516,7 @@ export default {
     name: 'EmployeeDetailsModal',
     mixins: [passageDetailsIntegration, employeeSidePanels],
     components: {
+        DocumentAtPostNotice,
         DetailHeaderActions,
         AppIcon,
         TableInfoModal,

@@ -123,6 +123,7 @@ func AllModels() []interface{} {
 
 		// Employees (depends on Attachment, Citizenship)
 		&models.Employee{},
+		&models.AttachmentDocumentRule{},
 		&models.ApplicationEmployee{},
 		&models.EmployeeFile{},
 		&models.EmployeeTargetTable{},

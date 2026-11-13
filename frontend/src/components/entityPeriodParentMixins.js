@@ -129,6 +129,7 @@ export const peopleTablePeriodDetails = {
       this.selectedEmployee = {
         ...passageFields(item),
         id: item.id,
+        document_at_post: item.document_at_post === true,
         last_name: item.last_name,
         first_name: item.first_name,
         middle_name: item.middle_name,

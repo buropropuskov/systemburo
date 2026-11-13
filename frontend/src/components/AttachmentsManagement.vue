@@ -349,7 +349,6 @@
       </div>
     </div>
 
-    <!-- Модалка создания -->
     <BaseModal
       :show="showAddModal"
       title="Новое вложение"
@@ -483,6 +482,7 @@
       v-if="fieldsForAttachment"
       :unique-attachment-id="fieldsForAttachment.id"
       :attachment-name="fieldsForAttachment.name"
+      :attachment-type="fieldsForAttachment.attachment_type"
       @close="fieldsForAttachment = null"
     />
   </div>
@@ -955,7 +955,7 @@ export default {
       this.historyForAttachment = { id: a.id, name: this.original.display_name || a.display_name };
     },
     openFieldsConfig(a) {
-      this.fieldsForAttachment = { id: a.id, name: this.original.display_name || a.display_name };
+      this.fieldsForAttachment = { id: a.id, name: this.original.display_name || a.display_name, attachment_type: a.attachment_type };
     },
     async fetchCurrentUser() {
       // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").

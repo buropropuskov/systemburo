@@ -27,6 +27,7 @@ type Employee struct {
 	CitizenshipID            *int         `gorm:"index" json:"citizenship_id"`
 	Citizenship              *Citizenship `json:"-"`
 	Position                 *string      `gorm:"size:100;column:position" json:"position"`
+	DocumentAtPost           bool         `gorm:"not null;default:false" json:"document_at_post"`
 	PassportSeriesNumber     *string      `gorm:"type:text" json:"passport_series_number"`
 	PatentNumber             *string      `gorm:"type:text" json:"patent_number"`
 	PassportSeriesNumberHMAC *string      `gorm:"size:64;index" json:"-"`

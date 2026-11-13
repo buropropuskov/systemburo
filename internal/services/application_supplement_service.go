@@ -104,11 +104,12 @@ var supplementAllowedStatuses = []string{models.StatusUnread, models.StatusProce
 
 // supplementAttachment - вложение-цель дополнения в том виде, в каком его проверяют гарды.
 type supplementAttachment struct {
-	ID                 int
-	AttachmentType     string
-	UniqueAttachmentID *int
-	Status             *int
-	ApplicationID      *int
+	DocumentAtPostAllowed bool
+	ID                    int
+	AttachmentType        string
+	UniqueAttachmentID    *int
+	Status                *int
+	ApplicationID         *int
 	// Expired - срок действия вложения истёк: принимать в мёртвое окно новые строки
 	// нельзя, они не доживут до проходной.
 	Expired bool
@@ -240,7 +241,10 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 			if t.attachment.UniqueAttachmentID != nil {
 				uniqueID = *t.attachment.UniqueAttachmentID
 			}
-			if err := s.validateAttachmentRequiredFields(ctx, uniqueID, t.attachment.AttachmentType, t.content()); err != nil {
+			if err := validateDocumentAtPost(t.content(), t.attachment.DocumentAtPostAllowed); err != nil {
+				return err
+			}
+			if err := validateAttachmentRequiredFields(tx, uniqueID, t.attachment.AttachmentType, t.content()); err != nil {
 				return err
 			}
 			if err := s.validateBlacklistEntries(ctx, t.addition.Vehicles, t.addition.Employees); err != nil {
@@ -419,6 +423,7 @@ func (s *applicationService) resolveSupplementTargets(ctx context.Context, appli
 				id,
 				attachment_type,
 				unique_attachment_id,
+				document_at_post_allowed,
 				status,
 				application_id,
 				COALESCE(NULLIF(entry_date_to::text, '')::date < `+moscowTodaySQL+`, false) AS expired
@@ -640,6 +645,7 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 			MiddleName:           e.MiddleName,
 			CitizenshipID:        &citizenshipID,
 			Position:             &position,
+			DocumentAtPost:       e.DocumentAtPost,
 			PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
 			PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 			OtherPermission:      e.OtherPermission,

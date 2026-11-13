@@ -225,25 +225,27 @@
         </div>
         <p v-if="sourceDocumentsHidden" class="existing-employees-info existing-employees-count" data-testid="employee-draft-documents-info">Документы справочника скрыты. Введённые здесь документы используются только в новой заявке; справочник не изменится.</p>
         <div
-          v-if="fieldVisible('passport') || fieldVisible('patent')"
+          v-if="fieldVisible('passport') || fieldVisible('patent') || documentAtPostAllowed"
           class="completion__name-row"
         >
           <div
-            v-if="fieldVisible('passport')"
+            v-if="fieldVisible('passport') || documentAtPostAllowed"
             class="completion__passport"
           >
             <div class="completion__passport-header">
               <label class="input__label">Паспортные данные <span
-                v-if="fieldRequired('passport')"
+                v-if="fieldRequired('passport') && !documentAtPost"
                 class="required"
               >*</span></label>
             </div>
             <input
+              v-if="fieldVisible('passport')"
               v-model="passportSeriesNumber"
               class="name__input"
-              placeholder="Введите паспортные данные"
-              :disabled="editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden"
+              :placeholder="documentAtPost ? 'Не требуется' : 'Введите паспортные данные'"
+              :disabled="documentAtPost || (editingEmployee && editingEmployee.isExisting && !sourceDocumentsHidden)"
             >
+            <DocumentAtPostCheckbox v-if="documentAtPostAllowed" v-model="documentAtPost" />
           </div>
           <div
             v-if="fieldVisible('patent')"
@@ -409,9 +411,6 @@
       </label>
     </div>
 
-    <!-- Предупреждения выбранных таблиц прохода (#1183): единая плавающая панель
-         рендерится в CreateApplication (@notices-change). -->
-
     <ExistingEmployeesModal
       :visible="showExistingEmployeesModal"
       :already-added-employees="existingEmployees"
@@ -436,6 +435,7 @@ import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { resetEmployeeFormState } from './entryFormReset'
+import DocumentAtPostCheckbox from './DocumentAtPostCheckbox.vue'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
@@ -448,10 +448,12 @@ export default {
     name: 'EmployeeForm',
     components: {
         AppIcon,
+        DocumentAtPostCheckbox,
         ExistingEmployeesModal,
         TargetTablesGrid
     },
     props: {
+        documentAtPostAllowed: { type: Boolean, default: false },
         userOrganization: {
             type: String,
             default: ''
@@ -472,33 +474,25 @@ export default {
             type: Array,
             default: () => []
         },
-        // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
-        // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей людей) - срез H-6.
         fieldConfig: {
             type: Object,
             default: () => ({})
         },
-        // Гейт п.36: форма недоступна, пока не заполнены обязательные поля вложения.
         disabled: {
             type: Boolean,
             default: false
         },
-        // Ручное добавление (#1049): DTO ManualEmployee не имеет existing_employee_id,
-        // поэтому выбор "существующего" сотрудника создал бы дубликат - прячем поиск
-        // в этом контексте (зеркало VehicleForm.allowExistingSearch).
+        // Ручное добавление не поддерживает привязку сотрудника из справочника.
         allowExistingSearch: {
             type: Boolean,
             default: true
         },
-        // Слой окна «Добавить существующего(-их)». Дефолт 1000 - подача заявки; форма,
-        // встроенная в окно поверх детали заявки, поднимает его (#1685).
+        // Во вложенной модалке поднимаем слой окна выбора сотрудников.
         existingModalZIndex: {
             type: Number,
             default: 1000
         },
-        // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
-        // time_to } в API-формате. Против него сверяется расписание (time_slots) таблиц
-        // прохода - предупреждаем, если проход закрыт на границе срока (зеркало VehicleForm).
+        // Срок вложения для сверки с расписанием мест прохода.
         entryPeriod: {
             type: Object,
             default: null
@@ -536,7 +530,7 @@ export default {
             if (fieldVisible('citizenship') && fieldRequired('citizenship')) {
                 rules.push({ check: !!vm.selectedCitizenship, message: 'гражданство' })
             }
-            if (fieldVisible('passport') && fieldRequired('passport')) {
+            if (fieldVisible('passport') && fieldRequired('passport') && !vm.documentAtPost) {
                 rules.push({ check: !!vm.passportSeriesNumber.trim(), message: 'паспортные данные' })
             }
             if (fieldVisible('patent')) {
@@ -558,8 +552,7 @@ export default {
             return rules
         })
 
-        // Причина блокировки кнопки живёт на hover - на телефоне его нет,
-        // поэтому там показываем её сразу под кнопкой.
+        // На телефоне причина блокировки показывается под кнопкой.
         const { isNarrow } = useNarrowScreen()
         return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired, isNarrow }
     },
@@ -568,12 +561,11 @@ export default {
             lastName: '',
             firstName: '',
             middleName: '',
-            // Отметка о согласии субъекта. Ставится на каждого человека отдельно и
-            // сбрасывается после добавления: подтверждают конкретного работника, а не
-            // «вообще всех», кого заведут дальше.
+            // Подтверждение относится к текущему сотруднику.
             pdConsent: false,
             position: '',
             passportSeriesNumber: '',
+            documentAtPost: false,
             patentNumber: '',
             
             availableCitizenships: [],
@@ -646,8 +638,7 @@ export default {
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
         },
-        // Стрелка показывает, куда поедет меню: закрытая - в сторону раскрытия,
-        // открытая - в сторону сворачивания. Отсюда исключающее ИЛИ.
+        // Направление стрелки зависит от положения и состояния списка.
         citizenshipArrowUp() {
             return this.citizenshipMenuUp !== this.isCitizenshipDropdownOpen;
         },
@@ -722,10 +713,13 @@ export default {
         }
     },
     watch: {
-        // Дропдаун гражданства закрывают из трёх мест (тоггл, выбор, клик вне),
-        // поэтому позиция живёт на одном вотчере, а не в каждом из них.
-        // Скролл и ресайз слушает onDropViewportChange - он работает и с закрытым
-        // меню, потому что стрелка на кнопке заранее показывает сторону раскрытия.
+        documentAtPost(selected) {
+            if (selected) this.passportSeriesNumber = '';
+        },
+        documentAtPostAllowed(allowed) {
+            if (!allowed) this.documentAtPost = false;
+        },
+        // Пересчитываем направление списка и в закрытом состоянии, чтобы стрелка показывала сторону раскрытия.
         isCitizenshipDropdownOpen(open) {
             this.citizenshipMenuStyle = open ? this.buildCitizenshipMenuStyle() : null;
         },
@@ -1064,6 +1058,7 @@ export default {
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
                 pdConsent: this.pdConsent,
+                documentAtPost: this.documentAtPostAllowed && this.documentAtPost,
                 isExisting: this.editingEmployee?.isExisting === true,
                 ...(this.editingEmployee?.existingEmployeeId != null ? { existingEmployeeId: this.editingEmployee.existingEmployeeId } : {}),
             };
@@ -1093,6 +1088,7 @@ export default {
         },
 
         clearEmployeeFormPartial() {
+            this.documentAtPost = false;
             this.pdConsent = false;
             this.lastName = '';
             this.firstName = '';
@@ -1104,6 +1100,7 @@ export default {
         },
         
         clearEmployeeForm() {
+            this.documentAtPost = false;
             this.pdConsent = false;
             this.lastName = '';
             this.firstName = '';
@@ -1206,7 +1203,8 @@ export default {
             this.firstName = employee.firstName;
             this.middleName = employee.middleName;
             this.position = employee.position;
-            this.passportSeriesNumber = employee.passportSeriesNumber || '';
+            this.documentAtPost = this.documentAtPostAllowed && employee.documentAtPost === true;
+            this.passportSeriesNumber = this.documentAtPost ? '' : (employee.passportSeriesNumber || '');
             this.patentNumber = employee.patentNumber || '';
             this.selectedPermission = employee.otherPermission || '';
             this.selectedPassageTables = employee.targetTables || [];
@@ -1222,6 +1220,7 @@ export default {
         cancelEdit() {
             this.$emit('edit-cancelled');
             resetEmployeeFormState(this);
+            this.documentAtPost = false;
         },
         
         toggleCitizenshipDropdown() {
