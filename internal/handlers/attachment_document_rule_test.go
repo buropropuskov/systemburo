@@ -37,6 +37,11 @@ func TestDocumentAtPostRuleAndSubmission(t *testing.T) {
 	rec := testutil.GET(t, e, read, testutil.AuthHeader(applicant))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.True(t, testutil.ParseResponse[map[string]bool](t, rec)["allowed"])
+	foreignOrg := models.Organization{Name: "Другая учебная организация"}
+	require.NoError(t, db.Create(&foreignOrg).Error)
+	foreignRead := fmt.Sprintf("/attachments/%d/document-at-post?organization_id=%d", template, foreignOrg.ID)
+	rec = testutil.GET(t, e, foreignRead, testutil.AuthHeader(applicant))
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	config := fmt.Sprintf("/attachments/%d/field-config", template)
 	rec = testutil.PUT(t, e, config, `{"base":[{"key":"passport","visible":true,"required":true}]}`, testutil.AuthHeader(admin))

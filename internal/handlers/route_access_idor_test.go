@@ -39,6 +39,7 @@ type idorSwap struct {
 // проверен отдельным тестом (имя теста сверяется с исходниками пакета), либо объект
 // не принадлежит организации.
 var idorCoveredElsewhere = map[string]string{
+	"GET /api/attachments/:id/document-at-post":   "TestDocumentAtPostRuleAndSubmission: своя организация 200, чужая 403",
 	"GET /api/employees/open-for-table/:table_id": "TestOpenPassages2667TableScope: таблица разрешённого поста 200, чужой пользователь и отсутствующая таблица 403",
 	"GET /api/cars/open-for-table/:table_id":      "TestOpenPassages2667TableScope: таблица разрешённого поста 200, чужой пользователь и отсутствующая таблица 403",
 	"GET /api/applications/:id/archive": "TestFileArchiveDownload_Application: посторонний и отправитель 403, super 200; " +
