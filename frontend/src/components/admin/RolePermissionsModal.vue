@@ -3,16 +3,16 @@
     <transition name="rpm-fade">
       <div
         v-if="show"
-        class="rpm-overlay"
+        class="rpm-overlay permission-window-overlay"
         data-testid="role-permissions-modal"
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
       >
         <div
-          class="rpm-modal"
+          class="rpm-modal permission-window-dialog"
           @mousedown.stop
         >
-          <header class="rpm-head">
+          <header class="rpm-head permission-window-head">
             <div>
               <h3 class="rpm-title">
                 Права роли{{ roleName ? ` «${roleName}»` : '' }}
@@ -43,61 +43,64 @@
             </button>
           </header>
 
-          <div class="rpm-groups">
-            <div class="rpm-groups__label">
-              Группы прав
-            </div>
-            <p class="rpm-groups__hint">
-              Права из выбранных групп добавляются к точечным. Снятие группы вернёт собственные права роли.
-            </p>
-            <div class="rpm-groups__list">
-              <label
-                v-for="g in groups"
-                :key="g.id"
-                class="rpm-group"
-              >
-                <input
-                  type="checkbox"
-                  class="checkbox"
-                  :checked="selectedGroupIds.has(g.id)"
-                  :data-group-id="g.id"
-                  data-testid="role-perms-group"
-                  @change="onToggleGroup(g.id)"
-                >
-                <span class="rpm-group__name">{{ g.name }}</span>
-                <span class="rpm-group__count">{{ (g.keys || []).length }} прав</span>
-              </label>
-              <p
-                v-if="!groups.length"
-                class="rpm-groups__empty"
-              >
-                Групп пока нет.
+          <div class="permission-window-content">
+            <div class="rpm-groups">
+              <div class="rpm-groups__label">
+                Группы прав
+              </div>
+              <p class="rpm-groups__hint">
+                Права из выбранных групп добавляются к точечным. Снятие группы вернёт собственные права роли.
               </p>
+              <div class="rpm-groups__list">
+                <label
+                  v-for="g in groups"
+                  :key="g.id"
+                  class="rpm-group"
+                >
+                  <input
+                    type="checkbox"
+                    class="checkbox"
+                    :checked="selectedGroupIds.has(g.id)"
+                    :data-group-id="g.id"
+                    data-testid="role-perms-group"
+                    @change="onToggleGroup(g.id)"
+                  >
+                  <span class="rpm-group__name">{{ g.name }}</span>
+                  <span class="rpm-group__count">{{ (g.keys || []).length }} прав</span>
+                </label>
+                <p
+                  v-if="!groups.length"
+                  class="rpm-groups__empty"
+                >
+                  Групп пока нет.
+                </p>
+              </div>
             </div>
+
+            <div class="rpm-search">
+              <input
+                v-model="search"
+                class="lk-input"
+                type="text"
+                placeholder="Поиск права..."
+                data-testid="role-permissions-search"
+              >
+            </div>
+
+            <div class="rpm-body permission-window-body">
+              <EffectivePermissionsTree
+                :catalog="filteredCatalog"
+                :state-by-key="stateByKey"
+                :expand-all="searchActive"
+                @toggle="onToggleKey"
+              />
+            </div>
+
           </div>
 
-          <div class="rpm-search">
-            <input
-              v-model="search"
-              class="lk-input"
-              type="text"
-              placeholder="Поиск права..."
-              data-testid="role-permissions-search"
-            >
-          </div>
-
-          <div class="rpm-body">
-            <EffectivePermissionsTree
-              :catalog="filteredCatalog"
-              :state-by-key="stateByKey"
-              :expand-all="searchActive"
-              @toggle="onToggleKey"
-            />
-          </div>
-
-          <footer class="rpm-foot">
+          <footer class="rpm-foot permission-window-foot">
             <span class="rpm-hint">Изменения вступят в силу в течение 30 секунд</span>
-            <div class="rpm-foot__actions">
+            <div class="rpm-foot__actions permission-window-actions">
               <button
                 class="lk-button lk-button--ghost"
                 data-testid="role-permissions-cancel"
@@ -452,3 +455,4 @@ export default {
   opacity: 0;
 }
 </style>
+<style scoped src="@/assets/permission-window-mobile.css"></style>
