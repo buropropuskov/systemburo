@@ -93,6 +93,7 @@
 <script>
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
+import { isEscapeHandled, isTopModal, markEscapeHandled, releaseModal, setModalOpen } from '@/utils/modalStack';
 
 /**
  * Редактор набора точечных прав группы на тумблер-дереве из каталога
@@ -145,6 +146,7 @@ export default {
     show: {
       immediate: true,
       handler(val) {
+        setModalOpen(this, val, 1100);
         if (val) {
           this.selected = new Set(this.initialKeys || []);
           this.search = '';
@@ -152,7 +154,19 @@ export default {
       },
     },
   },
+  mounted() {
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
+    releaseModal(this);
+  },
   methods: {
+    onKeydown(event) {
+      if (event.key !== 'Escape' || !this.show || isEscapeHandled(event) || !isTopModal(this)) return;
+      markEscapeHandled(event);
+      this.close();
+    },
     onToggle(key) {
       const next = new Set(this.selected);
       if (next.has(key)) next.delete(key);

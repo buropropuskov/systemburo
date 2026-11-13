@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import GroupPermissionsModal from '../GroupPermissionsModal.vue';
+import { releaseModal, setModalOpen } from '@/utils/modalStack';
 
 const catalog = [
   { key: 'page.cars', display_name: 'Автомобили', category: 'Навигация' },
@@ -20,6 +21,23 @@ function mountModal(props = {}) {
 const toggle = (w, key) => w.find(`[data-key="${key}"] .tgl`);
 
 describe('GroupPermissionsModal', () => {
+  it('Escape закрывает только верхнее окно, не сохраняя изменения', () => {
+    const w = mountModal();
+    const above = {};
+    try {
+      setModalOpen(above, true, 1200);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(w.emitted('close')).toBeUndefined();
+
+      releaseModal(above);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(w.emitted('close')).toHaveLength(1);
+      expect(w.emitted('save')).toBeUndefined();
+    } finally {
+      releaseModal(above);
+      w.unmount();
+    }
+  });
   it('тумблеры отражают initialKeys', () => {
     const w = mountModal();
     expect(toggle(w, 'page.cars').attributes('aria-pressed')).toBe('true');
