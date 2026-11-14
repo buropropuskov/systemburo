@@ -146,14 +146,14 @@ func TestBodyAdmissionHTTP2UnknownLengthAndRejectKeepsSession(t *testing.T) {
 func bodyTestErrorHandler(c *echo.Context, err error) {
 	status := http.StatusInternalServerError
 	var app *apperr.Error
-	var he *echo.HTTPError
+	var he interface{ StatusCode() int }
 	if errors.As(err, &app) {
 		status = app.Code
 		for k, v := range app.Headers {
 			c.Response().Header().Set(k, v)
 		}
 	} else if errors.As(err, &he) {
-		status = he.Code
+		status = he.StatusCode()
 	}
 	_ = c.NoContent(status)
 }

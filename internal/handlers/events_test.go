@@ -116,7 +116,7 @@ func TestEventsIssueTicket_RejectsAnonymous(t *testing.T) {
 	if err == nil {
 		t.Fatal("ожидали ошибку авторизации для анонима")
 	}
-	if he, ok := err.(*echo.HTTPError); !ok || he.Code != http.StatusUnauthorized {
+	if echo.StatusCode(err) != http.StatusUnauthorized {
 		t.Fatalf("ожидали 401, получили %v", err)
 	}
 }
