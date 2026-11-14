@@ -148,7 +148,7 @@
     </div>
     <div v-if="!isPhone" ref="measure" class="recipients-measure" aria-hidden="true" inert>
       <span v-for="chip in allChips.slice(0, desktopLimit)" :key="chip.key" class="recipient-chip">
-        <button type="button" class="recipient-chip__name recipient-chip__name-trigger">{{ shortName(chip.name) }}</button>
+        <button type="button" class="recipient-chip__name-trigger">{{ shortName(chip.name) }}</button>
         <button v-if="chip.removable" type="button" class="recipient-chip__remove">×</button>
       </span>
       <button v-if="allChips.length" type="button" class="recipients-extra__btn">+{{ allChips.length }}
