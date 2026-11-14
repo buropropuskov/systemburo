@@ -45,7 +45,7 @@
           type="button"
           @click="toggleOverflow"
         >
-          {{ isNarrow ? `Ещё ${overflowChips.length}` : `+${overflowChips.length}` }}
+          {{ isPhone ? `Ещё ${overflowChips.length}` : `+${overflowChips.length}` }}
           <svg
             class="recipients-chevron"
             :class="{ open: showOverflow }"
@@ -100,10 +100,10 @@
         <button
           class="recipients-add__btn"
           type="button"
-          :aria-label="isNarrow ? 'Добавить получателя' : null"
+          :aria-label="isPhone ? 'Добавить получателя' : null"
           @click="toggleAdd"
         >
-          {{ isNarrow ? '+' : '+ получатель' }}
+          {{ isPhone ? '+' : '+ получатель' }}
         </button>
         <transition name="rdrop">
           <div
@@ -146,6 +146,15 @@
         </transition>
       </div>
     </div>
+    <div v-if="!isPhone" ref="measure" class="recipients-measure" aria-hidden="true" inert>
+      <span v-for="chip in allChips.slice(0, desktopLimit)" :key="chip.key" class="recipient-chip">
+        <button type="button" class="recipient-chip__name-trigger">{{ shortName(chip.name) }}</button>
+        <button v-if="chip.removable" type="button" class="recipient-chip__remove">×</button>
+      </span>
+      <button v-if="allChips.length" type="button" class="recipients-extra__btn">+{{ allChips.length }}
+        <span class="recipients-chevron" />
+      </button>
+    </div>
   </div>
 </template>
 
@@ -181,8 +190,11 @@ export default {
       showAdd: false,
       showOverflow: false,
       isNarrow: false,
+      isPhone: false,
       popoverStyle: null,
-      hintedChip: null
+      hintedChip: null,
+      desktopLimit: MAX_VISIBLE,
+      fittedCount: MAX_VISIBLE
     }
   },
   computed: {
@@ -204,7 +216,7 @@ export default {
       return [...approverChips, ...readerChips]
     },
     maxVisible() {
-      return this.isNarrow ? MAX_VISIBLE_NARROW : MAX_VISIBLE
+      return this.isPhone ? MAX_VISIBLE_NARROW : this.fittedCount
     },
     visibleChips() {
       return this.allChips.slice(0, this.maxVisible)
@@ -232,6 +244,7 @@ export default {
     }
   },
   watch: {
+    allChips: { handler: 'scheduleFit', flush: 'post' },
     // Читателей можно удалять прямо из окна «Ещё N»: когда список опустел, обёртка
     // с ref размонтируется, и закрыть окно по клику вне уже некому - гасим сами.
     'overflowChips.length'(count) {
@@ -243,6 +256,7 @@ export default {
     // Последнего кандидата забрали в читатели - кнопка пропадает вместе с открытым
     // окном, и закрыть его по клику вне уже некому (ref размонтирован).
     canAddRecipients(can) {
+      this.$nextTick(this.scheduleFit)
       if (!can && this.showAdd) {
         this.showAdd = false
         this.syncPopover(false)
@@ -250,6 +264,7 @@ export default {
     },
     // Переход между мобильной и десктопной раскладкой с открытым окном оставил бы
     // либо мёртвые координаты, либо лишние слушатели.
+    isPhone: { handler: 'scheduleFit', flush: 'post' },
     isNarrow() {
       if (this.showAdd) this.syncPopover(true, this.$refs.addRef)
       else if (this.showOverflow) this.syncPopover(true, this.$refs.overflowRef)
@@ -260,8 +275,21 @@ export default {
     this.fetchCandidates()
     document.addEventListener('mousedown', this.handleOutside)
     this.initNarrowWatcher()
+    if (typeof ResizeObserver !== 'undefined') {
+      this.fitObserver = new ResizeObserver(this.scheduleFit)
+      this.fitObserver.observe(this.$refs.root)
+      this.fitObserver.observe(this.$refs.root.querySelector('.recipients-label'))
+    }
+    document.fonts?.ready.then(() => {
+      if (this.$refs.root) this.scheduleFit()
+    })
+    this.scheduleFit()
   },
   beforeUnmount() {
+    if (this.phoneMql?.removeEventListener) this.phoneMql.removeEventListener('change', this.onPhoneChange)
+    else this.phoneMql?.removeListener?.(this.onPhoneChange)
+    this.fitObserver?.disconnect()
+    if (this.fitFrame != null) cancelAnimationFrame(this.fitFrame)
     if (this.hintTimer) clearTimeout(this.hintTimer)
     document.removeEventListener('mousedown', this.handleOutside)
     this.stopReposition()
@@ -271,6 +299,40 @@ export default {
     }
   },
   methods: {
+    scheduleFit() {
+      if (this.fitFrame != null) return
+      this.fitFrame = requestAnimationFrame(() => {
+        this.fitFrame = null
+        this.fitRecipients()
+      })
+    },
+    fitRecipients() {
+      const row = this.$refs.root
+      const measure = this.$refs.measure
+      if (!row?.clientWidth || !measure) return
+
+      const label = row.querySelector('.recipients-label')
+      const rail = row.querySelector('.recipients-chips')
+      const add = this.$refs.addRef
+      const gap = parseFloat(getComputedStyle(rail).columnGap)
+      const rowGap = parseFloat(getComputedStyle(row).columnGap)
+      const width = el => el?.getBoundingClientRect().width ?? 0
+      // Измерительная строка сохраняет полные размеры даже у скрытых чипов.
+      const available = width(row) - width(label) - rowGap - width(add) - (add ? gap : 0)
+      const more = measure.querySelector('.recipients-extra__btn')
+      let chipWidth = 0
+      let count = 0
+      let fitted = 0
+      for (const chip of measure.querySelectorAll('.recipient-chip')) {
+        chipWidth += width(chip) + (count ? gap : 0)
+        const needsMenu = count + 1 < this.allChips.length
+        if (chipWidth + (needsMenu ? width(more) + gap : 0) <= available) {
+          fitted = count + 1
+        }
+        count++
+      }
+      this.fittedCount = fitted
+    },
     /**
      * Кандидаты в получатели: коллеги по организации и компании плюс руководители.
      * Кого пускать - решает бэк (#1921), тем же предикатом он потом проверяет readers
@@ -362,6 +424,11 @@ export default {
 
     initNarrowWatcher() {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+      this.phoneMql = window.matchMedia('(max-width: 767.98px)')
+      this.isPhone = this.phoneMql.matches
+      this.onPhoneChange = event => { this.isPhone = event.matches }
+      if (this.phoneMql.addEventListener) this.phoneMql.addEventListener('change', this.onPhoneChange)
+      else this.phoneMql.addListener?.(this.onPhoneChange)
       this.narrowMql = window.matchMedia('(max-width: 1366px)')
       this.isNarrow = this.narrowMql.matches
       this.onNarrowChange = (e) => { this.isNarrow = e.matches }
@@ -444,6 +511,22 @@ export default {
 </script>
 
 <style scoped>
+.recipients-measure {
+  position: absolute;
+  inset-inline-start: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .recipients-row,
+  .recipients-chips { flex-wrap: nowrap; }
+  .recipients-chips { min-width: 0; flex: 1 1 0; }
+  .recipients-chips > :is(.recipient-chip, .recipients-extra, .recipients-add) { flex: none; }
+}
 .recipients-row {
   display: flex;
   align-items: center;

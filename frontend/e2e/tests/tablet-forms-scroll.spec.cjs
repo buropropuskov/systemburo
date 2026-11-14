@@ -10,7 +10,14 @@ test('tablet application: four attachment categories, full-width fields and long
   await expect(page.locator('.category')).toHaveCount(4);
   await page.locator('.category').filter({ hasText: 'Сотрудники' }).getByRole('button', { name: 'Добавить', exact: true }).click();
   await expect(page.getByPlaceholder('Введите фамилию', { exact: true })).toBeVisible();
-  await expect(page.locator('.recipients-chips > .recipient-chip')).toHaveCount(1);
+  const visibleRecipients = page.locator('.recipients-chips > .recipient-chip');
+  const hiddenRecipients = page.locator('.recipients-popover--overflow .recipient-chip');
+  const overflowButton = page.locator('.recipients-chips .recipients-extra__btn');
+  await expect(overflowButton).toHaveText(/^\+[1-5]\s*$/);
+  await overflowButton.click();
+  await expect(hiddenRecipients.first()).toBeVisible();
+  await expect.poll(async () => await visibleRecipients.count() + await hiddenRecipients.count()).toBe(5);
+  await page.locator('.create__title').click();
   await page.locator('.attachment.selected').hover();
   await page.locator('.attachment.selected .edit-btn').click();
   const name = page.locator('.attachment-name-input');
@@ -28,6 +35,17 @@ test('tablet application: four attachment categories, full-width fields and long
     expect(Math.abs(boxes.selector - boxes.form)).toBeLessThan(2);
     expect(Math.abs(boxes.fields - boxes.form)).toBeLessThan(3);
     await expect(page.locator('.create__blank-title--header')).toHaveCSS('white-space', 'nowrap');
+    await expect.poll(() => page.locator('.create__header-top').evaluate(header => {
+      const bounds = selector => header.querySelector(selector).getBoundingClientRect();
+      const title = bounds('.create__title');
+      const recipients = bounds('.recipients-row');
+      const attachment = bounds('.create__blank-title--header');
+      const control = bounds('.recipients-chips .recipients-extra__btn');
+      const center = box => box.top + box.height / 2;
+      return title.right <= recipients.left && control.right <= attachment.left
+        && Math.abs(center(title) - center(recipients)) < 2
+        && Math.abs(center(recipients) - center(attachment)) < 2;
+    })).toBe(true);
   }
 });
 
