@@ -1,5 +1,5 @@
 /* Alternative theme paints existing surfaces without changing geometry. */
-:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(.nav-menu, .theheader, .header):not([data-theme="light"]):not([data-theme="light"] *) {
+:root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(.theheader, .header):not([data-theme="light"]):not([data-theme="light"] *) {
   background-color: var(--glass-chrome);
   box-shadow: inset 0 1px 0 var(--glass-edge);
 }
@@ -36,7 +36,13 @@
     backdrop-filter: none;
   }
 }
-/* Navigation must not reveal page content in any state. */
 :root:is([data-theme="glass-light"], [data-theme="glass-dark"]) .nav-menu:not([data-theme="light"]):not([data-theme="light"] *) {
   background-color: var(--surface);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+@media (max-width: 767.98px) {
+  :root:is([data-theme="glass-light"], [data-theme="glass-dark"]) :is(.theheader, .header):not([data-theme="light"]):not([data-theme="light"] *) {
+    background-color: var(--surface);
+  }
 }

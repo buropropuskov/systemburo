@@ -3774,9 +3774,7 @@ export default {
         .create__blank-sticky--stuck {
             /* Поверхность темы, а не белый литерал: в тёмной теме закреплённая
                плашка светилась белым поверх тёмной формы. */
-            background: color-mix(in srgb, var(--surface) 82%, transparent);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
+            background: var(--surface);
             border-bottom-color: var(--border);
         }
 
