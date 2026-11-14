@@ -9,7 +9,7 @@ import (
 
 	mw "systemburo/internal/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ import (
 func TestLoginRateLimit_AllowsUntilLimit(t *testing.T) {
 	e := echo.New()
 	limiter := mw.LoginRateLimit(3, time.Minute)
-	e.POST("/login", func(c echo.Context) error {
+	e.POST("/login", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	}, limiter)
 
@@ -32,7 +32,7 @@ func TestLoginRateLimit_AllowsUntilLimit(t *testing.T) {
 func TestLoginRateLimit_BlocksAfterLimit(t *testing.T) {
 	e := echo.New()
 	limiter := mw.LoginRateLimit(3, time.Minute)
-	e.POST("/login", func(c echo.Context) error {
+	e.POST("/login", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	}, limiter)
 
@@ -56,7 +56,7 @@ func TestLoginRateLimit_BlocksAfterLimit(t *testing.T) {
 func TestLoginRateLimit_PerIPIsolation(t *testing.T) {
 	e := echo.New()
 	limiter := mw.LoginRateLimit(2, time.Minute)
-	e.POST("/login", func(c echo.Context) error {
+	e.POST("/login", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	}, limiter)
 
@@ -88,7 +88,7 @@ func TestLoginRateLimit_PerIPIsolation(t *testing.T) {
 func TestRateLimit_UnverifiedTokensShareIPBudget(t *testing.T) {
 	e := echo.New()
 	e.Use(mw.RateLimit(2, 60))
-	e.GET("/x", func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
+	e.GET("/x", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") })
 
 	const jwtHeaderPrefix = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 	tokenA := jwtHeaderPrefix + ".payloadAAAAAAAAAAAA.signatureAAAA"
@@ -116,7 +116,7 @@ func TestRateLimit_UnverifiedTokensShareIPBudget(t *testing.T) {
 func TestRateLimit_SetsRetryAfterOn429(t *testing.T) {
 	e := echo.New()
 	e.Use(mw.RateLimit(1, 60))
-	e.GET("/x", func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
+	e.GET("/x", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") })
 
 	const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"
 	do := func() *httptest.ResponseRecorder {

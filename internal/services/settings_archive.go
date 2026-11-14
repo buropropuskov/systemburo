@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/blankpath"
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Ключи настроек файлового архива (#1615). Мимо knownKeys намеренно: универсальный

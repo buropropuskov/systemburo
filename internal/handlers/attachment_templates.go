@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AttachmentTemplateHandler - HTTP API настроек Excel-бланков (#183) и настройки
@@ -32,7 +32,7 @@ func NewAttachmentTemplateHandler(s services.AttachmentTemplateService, fc servi
 // @Param        id path int true "ID UniqueAttachment"
 // @Success      200 {object} models.AttachmentTemplate
 // @Router       /attachments/{id}/template [get]
-func (h *AttachmentTemplateHandler) Get(c echo.Context) error {
+func (h *AttachmentTemplateHandler) Get(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -44,7 +44,7 @@ func (h *AttachmentTemplateHandler) Get(c echo.Context) error {
 	return RespondSuccess(c, t)
 }
 
-func (h *AttachmentTemplateHandler) ListTemplates(c echo.Context) error {
+func (h *AttachmentTemplateHandler) ListTemplates(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -56,7 +56,7 @@ func (h *AttachmentTemplateHandler) ListTemplates(c echo.Context) error {
 	return RespondSuccess(c, templates)
 }
 
-func (h *AttachmentTemplateHandler) SetActive(c echo.Context) error {
+func (h *AttachmentTemplateHandler) SetActive(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -71,7 +71,7 @@ func (h *AttachmentTemplateHandler) SetActive(c echo.Context) error {
 	return RespondMessage(c, "Шаблон активирован")
 }
 
-func (h *AttachmentTemplateHandler) DeactivateAll(c echo.Context) error {
+func (h *AttachmentTemplateHandler) DeactivateAll(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -82,7 +82,7 @@ func (h *AttachmentTemplateHandler) DeactivateAll(c echo.Context) error {
 	return RespondMessage(c, "Шаблоны деактивированы")
 }
 
-func (h *AttachmentTemplateHandler) DeleteByID(c echo.Context) error {
+func (h *AttachmentTemplateHandler) DeleteByID(c *echo.Context) error {
 	tid, err := strconv.Atoi(c.Param("tid"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid template id")
@@ -93,7 +93,7 @@ func (h *AttachmentTemplateHandler) DeleteByID(c echo.Context) error {
 	return RespondMessage(c, "Шаблон удален")
 }
 
-func (h *AttachmentTemplateHandler) DownloadFileByID(c echo.Context) error {
+func (h *AttachmentTemplateHandler) DownloadFileByID(c *echo.Context) error {
 	tid, err := strconv.Atoi(c.Param("tid"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid template id")
@@ -121,7 +121,7 @@ func (h *AttachmentTemplateHandler) DownloadFileByID(c echo.Context) error {
 // @Param        max_list_rows formData int false "Макс. записей (авто = end-start+1)"
 // @Success      201 {object} models.AttachmentTemplate
 // @Router       /attachments/{id}/template [post]
-func (h *AttachmentTemplateHandler) Upload(c echo.Context) error {
+func (h *AttachmentTemplateHandler) Upload(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -165,7 +165,7 @@ func (h *AttachmentTemplateHandler) Upload(c echo.Context) error {
 // @Param        request body models.UpdateMappingsRequest true "Список маппингов"
 // @Success      200 {string} string "Маппинги обновлены"
 // @Router       /attachments/{id}/template/mappings [put]
-func (h *AttachmentTemplateHandler) UpdateMappings(c echo.Context) error {
+func (h *AttachmentTemplateHandler) UpdateMappings(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -187,7 +187,7 @@ func (h *AttachmentTemplateHandler) UpdateMappings(c echo.Context) error {
 // @Security     BearerAuth
 // @Success      200 {array} models.TemplateSource
 // @Router       /attachments/template-sources [get]
-func (h *AttachmentTemplateHandler) ListTemplateSources(c echo.Context) error {
+func (h *AttachmentTemplateHandler) ListTemplateSources(c *echo.Context) error {
 	sources, err := h.service.ListTemplateSources(c.Request().Context())
 	if err != nil {
 		return err
@@ -205,7 +205,7 @@ func (h *AttachmentTemplateHandler) ListTemplateSources(c echo.Context) error {
 // @Param        request body models.CopyMappingsRequest true "Шаблон-источник и режим переноса"
 // @Success      200 {object} models.CopyMappingsResult
 // @Router       /attachments/{id}/template/copy-mappings [post]
-func (h *AttachmentTemplateHandler) CopyMappings(c echo.Context) error {
+func (h *AttachmentTemplateHandler) CopyMappings(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -231,7 +231,7 @@ func (h *AttachmentTemplateHandler) CopyMappings(c echo.Context) error {
 // @Param        request body models.UpdateTemplateParamsRequest true "Границы строк списка"
 // @Success      200 {string} string "Параметры списка сохранены"
 // @Router       /attachments/{id}/template/params [put]
-func (h *AttachmentTemplateHandler) UpdateParams(c echo.Context) error {
+func (h *AttachmentTemplateHandler) UpdateParams(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -254,7 +254,7 @@ func (h *AttachmentTemplateHandler) UpdateParams(c echo.Context) error {
 // @Param        id path int true "ID UniqueAttachment"
 // @Success      200 {string} string "Шаблон удалён"
 // @Router       /attachments/{id}/template [delete]
-func (h *AttachmentTemplateHandler) Delete(c echo.Context) error {
+func (h *AttachmentTemplateHandler) Delete(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -273,7 +273,7 @@ func (h *AttachmentTemplateHandler) Delete(c echo.Context) error {
 // @Param        id path int true "ID UniqueAttachment"
 // @Success      200 {file} binary
 // @Router       /attachments/{id}/template/file [get]
-func (h *AttachmentTemplateHandler) DownloadFile(c echo.Context) error {
+func (h *AttachmentTemplateHandler) DownloadFile(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -296,7 +296,7 @@ func (h *AttachmentTemplateHandler) DownloadFile(c echo.Context) error {
 // @Param        id path int true "ID UniqueAttachment"
 // @Success      200 {array} services.TemplateFieldGroup
 // @Router       /attachments/{id}/template-fields [get]
-func (h *AttachmentTemplateHandler) GetFields(c echo.Context) error {
+func (h *AttachmentTemplateHandler) GetFields(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -328,7 +328,7 @@ func (h *AttachmentTemplateHandler) GetFields(c echo.Context) error {
 // @Param        id path int true "ID UniqueAttachment"
 // @Success      200 {array} models.AttachmentCustomField
 // @Router       /attachments/{id}/custom-fields [get]
-func (h *AttachmentTemplateHandler) ListCustomFields(c echo.Context) error {
+func (h *AttachmentTemplateHandler) ListCustomFields(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -350,7 +350,7 @@ func (h *AttachmentTemplateHandler) ListCustomFields(c echo.Context) error {
 // @Param        request body models.CreateCustomFieldRequest true "Данные поля"
 // @Success      201 {object} models.AttachmentCustomField
 // @Router       /attachments/{id}/custom-fields [post]
-func (h *AttachmentTemplateHandler) CreateCustomField(c echo.Context) error {
+func (h *AttachmentTemplateHandler) CreateCustomField(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -376,7 +376,7 @@ func (h *AttachmentTemplateHandler) CreateCustomField(c echo.Context) error {
 // @Param        request body models.CreateCustomFieldRequest true "Данные"
 // @Success      200 {string} string "Поле обновлено"
 // @Router       /attachments/custom-fields/{fid} [put]
-func (h *AttachmentTemplateHandler) UpdateCustomField(c echo.Context) error {
+func (h *AttachmentTemplateHandler) UpdateCustomField(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("fid"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -399,7 +399,7 @@ func (h *AttachmentTemplateHandler) UpdateCustomField(c echo.Context) error {
 // @Param        fid path int true "ID поля"
 // @Success      200 {string} string "Поле удалено"
 // @Router       /attachments/custom-fields/{fid} [delete]
-func (h *AttachmentTemplateHandler) DeleteCustomField(c echo.Context) error {
+func (h *AttachmentTemplateHandler) DeleteCustomField(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("fid"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -419,7 +419,7 @@ func (h *AttachmentTemplateHandler) DeleteCustomField(c echo.Context) error {
 // @Param        id path int true "ID UniqueAttachment"
 // @Success      200 {object} models.FieldConfigResponse
 // @Router       /attachments/{id}/field-config [get]
-func (h *AttachmentTemplateHandler) GetFieldConfig(c echo.Context) error {
+func (h *AttachmentTemplateHandler) GetFieldConfig(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -446,7 +446,7 @@ func (h *AttachmentTemplateHandler) GetFieldConfig(c echo.Context) error {
 // @Param        request body models.SaveFieldConfigRequest true "Оверрайды базовых полей"
 // @Success      200 {string} string "Настройка полей сохранена"
 // @Router       /attachments/{id}/field-config [put]
-func (h *AttachmentTemplateHandler) SaveFieldConfig(c echo.Context) error {
+func (h *AttachmentTemplateHandler) SaveFieldConfig(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")

@@ -11,7 +11,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -59,7 +59,7 @@ func (s *systemTableService) UploadPhotos(ctx context.Context, tableID int, user
 			name, size, mime := f.FileName, f.Size, f.DetectedMime
 			row := models.SystemTablePhoto{TableID: tableID, PhotoURL: f.URL, FileName: &name, FileSize: &size, MimeType: &mime, IsMain: count == 0 && i == 0, UploadedBy: &userID}
 			if err := tx.Create(&row).Error; err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Database error").SetInternal(err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Database error").Wrap(err)
 			}
 			ids = append(ids, row.ID)
 		}

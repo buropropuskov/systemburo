@@ -17,7 +17,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -73,9 +73,9 @@ func TestRequirePermissionV2_AllowsForSuperAdmin(t *testing.T) {
 	defer cleanup()
 
 	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+	e.GET("/test", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") },
 		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
+			return func(c *echo.Context) error {
 				c.Set("user_id", userID)
 				return next(c)
 			}
@@ -99,9 +99,9 @@ func TestRequirePermissionV2_DeniesAndLogsForRegularUser(t *testing.T) {
 	defer cleanup()
 
 	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+	e.GET("/test", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") },
 		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
+			return func(c *echo.Context) error {
 				c.Set("user_id", userID)
 				return next(c)
 			}
@@ -142,9 +142,9 @@ func TestRequirePermissionV2_LogsBannedReason(t *testing.T) {
 	defer cleanup()
 
 	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+	e.GET("/test", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") },
 		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
+			return func(c *echo.Context) error {
 				c.Set("user_id", userID)
 				return next(c)
 			}
@@ -251,9 +251,9 @@ func TestBanCheck_AllowsActiveUser(t *testing.T) {
 	defer cleanup()
 
 	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+	e.GET("/test", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") },
 		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
+			return func(c *echo.Context) error {
 				c.Set("user_id", userID)
 				return next(c)
 			}
@@ -272,12 +272,12 @@ func TestBanCheck_AllowsActiveUser(t *testing.T) {
 func banCheckHarness(userID int, svc *services.BanCheckService) *echo.Echo {
 	e := echo.New()
 	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set("user_id", userID)
 			return next(c)
 		}
 	}
-	ok := func(c echo.Context) error { return c.String(http.StatusOK, "ok") }
+	ok := func(c *echo.Context) error { return c.String(http.StatusOK, "ok") }
 	e.GET("/test", ok, inject, middleware.BanCheck(svc))
 	e.POST("/test", ok, inject, middleware.BanCheck(svc))
 	return e

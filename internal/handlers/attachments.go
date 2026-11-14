@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AttachmentHandler -- HTTP-обработчики для шаблонов вложений (unique_attachments).
@@ -31,7 +31,7 @@ func NewAttachmentHandler(service services.AttachmentService) *AttachmentHandler
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /attachments [get]
-func (h *AttachmentHandler) GetActive(c echo.Context) error {
+func (h *AttachmentHandler) GetActive(c *echo.Context) error {
 	attachments, err := h.service.GetActive(c.Request().Context())
 	if err != nil {
 		return err
@@ -50,7 +50,7 @@ func (h *AttachmentHandler) GetActive(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /attachments/all [get]
-func (h *AttachmentHandler) GetAll(c echo.Context) error {
+func (h *AttachmentHandler) GetAll(c *echo.Context) error {
 	attachments, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func (h *AttachmentHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /attachments/{id} [get]
-func (h *AttachmentHandler) GetByID(c echo.Context) error {
+func (h *AttachmentHandler) GetByID(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
@@ -95,7 +95,7 @@ func (h *AttachmentHandler) GetByID(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments [post]
-func (h *AttachmentHandler) Create(c echo.Context) error {
+func (h *AttachmentHandler) Create(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.CreateUniqueAttachmentRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -121,7 +121,7 @@ func (h *AttachmentHandler) Create(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments/{id} [put]
-func (h *AttachmentHandler) Update(c echo.Context) error {
+func (h *AttachmentHandler) Update(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -149,7 +149,7 @@ func (h *AttachmentHandler) Update(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments/{id} [delete]
-func (h *AttachmentHandler) Delete(c echo.Context) error {
+func (h *AttachmentHandler) Delete(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -173,7 +173,7 @@ func (h *AttachmentHandler) Delete(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments/{id}/restore [put]
-func (h *AttachmentHandler) Restore(c echo.Context) error {
+func (h *AttachmentHandler) Restore(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -197,7 +197,7 @@ func (h *AttachmentHandler) Restore(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /attachments/{id}/history [get]
-func (h *AttachmentHandler) GetHistory(c echo.Context) error {
+func (h *AttachmentHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/models"
@@ -37,8 +37,8 @@ func TestPDConsentGate_UnavailableOnDBError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := echo.New()
 			gate := services.NewPDConsentGateService(consentGateTestRecords{}, consentGateTestSettings{err: tt.settingsErr}, 0)
-			e.GET("/guarded", func(c echo.Context) error { t.Fatal("business handler ran after consent lookup failed"); return nil }, func(next echo.HandlerFunc) echo.HandlerFunc {
-				return func(c echo.Context) error { c.Set("user_id", 42); return next(c) }
+			e.GET("/guarded", func(c *echo.Context) error { t.Fatal("business handler ran after consent lookup failed"); return nil }, func(next echo.HandlerFunc) echo.HandlerFunc {
+				return func(c *echo.Context) error { c.Set("user_id", 42); return next(c) }
 			}, mw.PDConsentGate(gate))
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/guarded", nil))

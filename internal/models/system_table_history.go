@@ -7,11 +7,11 @@ import (
 
 // SystemTableActionType - константы action-типов истории системных таблиц.
 const (
-	SystemTableActionCreated         = "created"
-	SystemTableActionUpdated         = "updated"
-	SystemTableActionArchived        = "archived"
-	SystemTableActionRestored        = "restored"
-	SystemTableActionColumnsUpdated  = "columns_updated"
+	SystemTableActionCreated           = "created"
+	SystemTableActionUpdated           = "updated"
+	SystemTableActionArchived          = "archived"
+	SystemTableActionRestored          = "restored"
+	SystemTableActionColumnsUpdated    = "columns_updated"
 	SystemTableActionAppearanceUpdated = "appearance_updated"
 )
 

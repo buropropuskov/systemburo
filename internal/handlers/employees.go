@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -36,7 +36,7 @@ func NewEmployeeHandler(service services.EmployeeService, passageDB ...*gorm.DB)
 // @Failure 400 {object} models.HTTPError
 // @Failure 403 {object} models.HTTPError
 // @Router /employees/manual [post]
-func (h *EmployeeHandler) CreateManualEmployees(c echo.Context) error {
+func (h *EmployeeHandler) CreateManualEmployees(c *echo.Context) error {
 	var req services.ManualEmployeeRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -58,7 +58,7 @@ func (h *EmployeeHandler) CreateManualEmployees(c echo.Context) error {
 // @Param body body services.UpdateTerritoryStatusRequest true "Новый территориальный статус"
 // @Success 200 {object} map[string]interface{}
 // @Router /employees/{id}/territory-status [put]
-func (h *EmployeeHandler) UpdateEmployeeTerritoryStatus(c echo.Context) error {
+func (h *EmployeeHandler) UpdateEmployeeTerritoryStatus(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
@@ -84,7 +84,7 @@ func (h *EmployeeHandler) UpdateEmployeeTerritoryStatus(c echo.Context) error {
 // @Param body body services.RevertPassageRequest true "Направление отменяемой отметки, пост и причина"
 // @Success 200 {object} map[string]interface{}
 // @Router /employees/{id}/territory-status/revert [put]
-func (h *EmployeeHandler) RevertEmployeePassage(c echo.Context) error {
+func (h *EmployeeHandler) RevertEmployeePassage(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
@@ -110,7 +110,7 @@ func (h *EmployeeHandler) RevertEmployeePassage(c echo.Context) error {
 // @Param id path int true "ID таблицы"
 // @Success 200 {array} services.TableEmployeeResponse
 // @Router /employees/active-for-table/{id} [get]
-func (h *EmployeeHandler) GetActiveEmployeesForTable(c echo.Context) error {
+func (h *EmployeeHandler) GetActiveEmployeesForTable(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
@@ -136,7 +136,7 @@ func (h *EmployeeHandler) GetActiveEmployeesForTable(c echo.Context) error {
 // @Param body body services.DeactivateEmployeeRequest true "Данные деактивации"
 // @Success 200 {object} map[string]interface{}
 // @Router /employees/{id}/deactivate [put]
-func (h *EmployeeHandler) DeactivateEmployee(c echo.Context) error {
+func (h *EmployeeHandler) DeactivateEmployee(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
@@ -162,7 +162,7 @@ func (h *EmployeeHandler) DeactivateEmployee(c echo.Context) error {
 // @Param body body services.ActivateEmployeeRequest true "Данные активации"
 // @Success 200 {object} map[string]interface{}
 // @Router /employees/{id}/activate [put]
-func (h *EmployeeHandler) ActivateEmployee(c echo.Context) error {
+func (h *EmployeeHandler) ActivateEmployee(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
@@ -188,7 +188,7 @@ func (h *EmployeeHandler) ActivateEmployee(c echo.Context) error {
 // @Param body body services.RestoreEmployeeRequest true "Данные восстановления"
 // @Success 200 {object} map[string]interface{}
 // @Router /employees/{id}/restore [put]
-func (h *EmployeeHandler) RestoreEmployee(c echo.Context) error {
+func (h *EmployeeHandler) RestoreEmployee(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
@@ -218,7 +218,7 @@ func (h *EmployeeHandler) RestoreEmployee(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /employees/bulk/move-table [post]
-func (h *EmployeeHandler) BulkMoveTable(c echo.Context) error {
+func (h *EmployeeHandler) BulkMoveTable(c *echo.Context) error {
 	var req services.EmployeeBulkMoveTableRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -247,7 +247,7 @@ func (h *EmployeeHandler) BulkMoveTable(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /employees/bulk/add-table [post]
-func (h *EmployeeHandler) BulkAddTable(c echo.Context) error {
+func (h *EmployeeHandler) BulkAddTable(c *echo.Context) error {
 	var req services.EmployeeBulkAddTableRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -276,7 +276,7 @@ func (h *EmployeeHandler) BulkAddTable(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /employees/bulk/unbind-table [post]
-func (h *EmployeeHandler) BulkUnbindTable(c echo.Context) error {
+func (h *EmployeeHandler) BulkUnbindTable(c *echo.Context) error {
 	var req services.EmployeeBulkUnbindTableRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")

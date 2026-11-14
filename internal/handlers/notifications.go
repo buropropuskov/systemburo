@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // notificationsListMaxLimit -- потолок limit на GET /notifications: страница ленты не
@@ -39,7 +39,7 @@ func NewNotificationHandler(service services.NotificationService) *NotificationH
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications [get]
-func (h *NotificationHandler) GetNotifications(c echo.Context) error {
+func (h *NotificationHandler) GetNotifications(c *echo.Context) error {
 	userID := GetUserID(c)
 
 	// Legacy mode: без limit отдаём полный массив, как раньше - фронт колокольчика
@@ -101,7 +101,7 @@ func (h *NotificationHandler) GetNotifications(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /notifications/{id}/read [put]
-func (h *NotificationHandler) MarkRead(c echo.Context) error {
+func (h *NotificationHandler) MarkRead(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -126,7 +126,7 @@ func (h *NotificationHandler) MarkRead(c echo.Context) error {
 // @Success      200 {object} models.MarkAllReadResponse
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications/read-all [put]
-func (h *NotificationHandler) MarkAllRead(c echo.Context) error {
+func (h *NotificationHandler) MarkAllRead(c *echo.Context) error {
 	userID := GetUserID(c)
 	count, err := h.service.MarkAllRead(c.Request().Context(), userID)
 	if err != nil {
@@ -146,7 +146,7 @@ func (h *NotificationHandler) MarkAllRead(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /notifications/{id} [delete]
-func (h *NotificationHandler) Delete(c echo.Context) error {
+func (h *NotificationHandler) Delete(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -166,7 +166,7 @@ func (h *NotificationHandler) Delete(c echo.Context) error {
 // @Success      200 {string} string "Все уведомления удалены"
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications [delete]
-func (h *NotificationHandler) DeleteAll(c echo.Context) error {
+func (h *NotificationHandler) DeleteAll(c *echo.Context) error {
 	userID := GetUserID(c)
 	if err := h.service.DeleteAll(c.Request().Context(), userID); err != nil {
 		return err
@@ -186,7 +186,7 @@ func (h *NotificationHandler) DeleteAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /notifications [post]
-func (h *NotificationHandler) Create(c echo.Context) error {
+func (h *NotificationHandler) Create(c *echo.Context) error {
 	var req models.CreateNotificationRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -208,7 +208,7 @@ func (h *NotificationHandler) Create(c echo.Context) error {
 // @Success      200 {array} models.NotificationPreferenceCategory
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications/preferences [get]
-func (h *NotificationHandler) GetPreferences(c echo.Context) error {
+func (h *NotificationHandler) GetPreferences(c *echo.Context) error {
 	userID := GetUserID(c)
 	prefs, err := h.service.GetPreferences(c.Request().Context(), userID)
 	if err != nil {
@@ -228,7 +228,7 @@ func (h *NotificationHandler) GetPreferences(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications/preferences [put]
-func (h *NotificationHandler) UpdatePreferences(c echo.Context) error {
+func (h *NotificationHandler) UpdatePreferences(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.UpdateNotificationPreferencesRequest
 	if err := BindAndValidate(c, &req); err != nil {

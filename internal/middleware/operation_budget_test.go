@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/workbudget"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func TestOperationClassifyKnownRoutesAndExcludeOrdinaryRequests(t *testing.T) {
@@ -50,7 +50,7 @@ func TestOperationBudgetRejectsBeforeBodyAndReleasesOnHandlerError(t *testing.T)
 	c.SetPath("/api/applications")
 	called := false
 	handlerErr := errors.New("handler failed")
-	h := OperationBudgetWithGate(gate)(func(c echo.Context) error {
+	h := OperationBudgetWithGate(gate)(func(c *echo.Context) error {
 		called = true
 		_, nested, err := gate.Acquire(c.Request().Context())
 		if err != nil {
@@ -92,7 +92,7 @@ func TestOperationDeadlineDoesNotTruncateArchiveStream(t *testing.T) {
 			e := echo.New()
 			c := e.NewContext(httptest.NewRequest(tc.method, "/", nil), httptest.NewRecorder())
 			c.SetPath(tc.path)
-			err := OperationBudgetWithGate(workbudget.New(1, 0, 0))(func(c echo.Context) error {
+			err := OperationBudgetWithGate(workbudget.New(1, 0, 0))(func(c *echo.Context) error {
 				deadline, ok := c.Request().Context().Deadline()
 				if ok != tc.bounded {
 					t.Fatalf("deadline set=%t want %t", ok, tc.bounded)
@@ -127,7 +127,7 @@ func TestSmallAuthBodyExactAndChunkedBoundaries(t *testing.T) {
 		}
 		c := e.NewContext(req, httptest.NewRecorder())
 		var bytesRead int
-		err := SmallAuthBodyBudget(func(c echo.Context) error {
+		err := SmallAuthBodyBudget(func(c *echo.Context) error {
 			data, err := io.ReadAll(c.Request().Body)
 			bytesRead = len(data)
 			if err != nil {
@@ -154,7 +154,7 @@ func TestSmallAuthBodyDoesNotReadBeforeHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/events/ticket", strings.NewReader("still unread"))
 	req.ContentLength = -1
 	c := e.NewContext(req, httptest.NewRecorder())
-	if err := SmallAuthBodyBudget(func(echo.Context) error { return nil })(c); err != nil {
+	if err := SmallAuthBodyBudget(func(*echo.Context) error { return nil })(c); err != nil {
 		t.Fatal(err)
 	}
 	data, err := io.ReadAll(req.Body)

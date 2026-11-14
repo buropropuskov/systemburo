@@ -4,7 +4,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PermissionHandler -- HTTP-обработчики разрешений.
@@ -28,7 +28,7 @@ func NewPermissionHandler(service services.PermissionService, resolver *services
 //   - mode=banned -> прав нет.
 //
 // Источник данных -- PermissionResolver (роли + группы + grants + overrides).
-func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
+func (h *PermissionHandler) GetMyPermissions(c *echo.Context) error {
 	set, err := h.resolver.ResolveFresh(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
 // Формат идентичен GetMyPermissions, но считается для целевого юзера, чтобы в правом
 // столбце модалки прав показать бейдж источника каждого права и унаследованные от
 // роли/групп права (а не только личные override из /user/:id).
-func (h *PermissionHandler) GetUserEffectivePermissions(c echo.Context) error {
+func (h *PermissionHandler) GetUserEffectivePermissions(c *echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func buildPermissionsResponse(set services.PermissionSet) models.MyPermissionsRe
 
 // GetUserPermissions возвращает индивидуальные override указанного пользователя.
 // Доступ - permission.audit.manage (super + admin), гейтится route-middleware.
-func (h *PermissionHandler) GetUserPermissions(c echo.Context) error {
+func (h *PermissionHandler) GetUserPermissions(c *echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (h *PermissionHandler) GetUserPermissions(c echo.Context) error {
 // UpdateUserPermissions обновляет индивидуальные override указанного пользователя.
 // Доступ - permission.audit.manage (super + admin). Флаг isSuperAdmin прокидывается
 // в сервис: не-супер не может выдать override на super-only ключи.
-func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
+func (h *PermissionHandler) UpdateUserPermissions(c *echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 }
 
 // GetCatalog возвращает каталог прав (статика + динамические table.*) для UI настройки.
-func (h *PermissionHandler) GetCatalog(c echo.Context) error {
+func (h *PermissionHandler) GetCatalog(c *echo.Context) error {
 	catalog, err := h.service.GetCatalog(c.Request().Context())
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func (h *PermissionHandler) GetCatalog(c echo.Context) error {
 }
 
 // AutoGenerate создаёт разрешения для таблицы (только admin).
-func (h *PermissionHandler) AutoGenerate(c echo.Context) error {
+func (h *PermissionHandler) AutoGenerate(c *echo.Context) error {
 	var req models.AutoGenerateRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err

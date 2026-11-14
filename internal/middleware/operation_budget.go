@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"systemburo/internal/httpx"
+
 	"context"
 	"errors"
 	"io"
@@ -11,7 +13,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/workbudget"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type OperationClass uint8
@@ -86,7 +88,7 @@ func OperationBudget() echo.MiddlewareFunc {
 
 func OperationBudgetWithGate(gate *workbudget.Gate) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			class := ClassifyRoute(c.Request().Method, c.Path())
 			if class == OperationNone {
 				return next(c)
@@ -112,7 +114,7 @@ func OperationBudgetWithGate(gate *workbudget.Gate) echo.MiddlewareFunc {
 // reads the body before the authorized handler. MaxBytesReader also bounds
 // chunked requests, for which Content-Length provides no usable upper bound.
 func SmallAuthBodyBudget(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		req := c.Request()
 		tooLarge := func() error {
 			return apperr.New(http.StatusRequestEntityTooLarge, "Слишком большой запрос.")
@@ -126,7 +128,7 @@ func SmallAuthBodyBudget(next echo.HandlerFunc) echo.HandlerFunc {
 		body := &budgetBody{ReadCloser: http.MaxBytesReader(c.Response(), req.Body, SmallAuthBodyLimit)}
 		req.Body = body
 		err := next(c)
-		if body.exceeded && !c.Response().Committed {
+		if body.exceeded && !httpx.ResponseCommitted(c) {
 			return tooLarge()
 		}
 		return err

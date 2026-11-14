@@ -9,11 +9,11 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ParseID парсит числовой параметр из URL path и возвращает ошибку 400 если невалидный.
-func ParseID(c echo.Context, param string) (int, error) {
+func ParseID(c *echo.Context, param string) (int, error) {
 	id, err := strconv.Atoi(c.Param(param))
 	if err != nil || id <= 0 {
 		return 0, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid %s", param))
@@ -35,7 +35,7 @@ func ParseID(c echo.Context, param string) (int, error) {
 //     другого поля, напр. statistics.RunReport) - остаётся в хендлере/сервисе, но через явный 400.
 //
 // Подробнее - docs/BACKEND.md, раздел "Валидация входа (boundary)".
-func BindAndValidate(c echo.Context, dst interface{}) error {
+func BindAndValidate(c *echo.Context, dst interface{}) error {
 	if err := c.Bind(dst); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
@@ -64,13 +64,13 @@ func ValidateSliceCap(n, max int, label string) error {
 }
 
 // GetUsername безопасно извлекает username из контекста.
-func GetUsername(c echo.Context) string {
+func GetUsername(c *echo.Context) string {
 	username, _ := c.Get("username").(string)
 	return username
 }
 
 // GetUserID безопасно извлекает user_id из контекста.
-func GetUserID(c echo.Context) int {
+func GetUserID(c *echo.Context) int {
 	id, _ := c.Get("user_id").(int)
 	return id
 }
@@ -84,7 +84,7 @@ func GetUserID(c echo.Context) int {
 //
 // Пустой id (запрос без токена сюда не доходит) отдаётся как nil - в журнале это
 // «Система», а не пользователь с номером ноль.
-func actorUserID(c echo.Context) *int {
+func actorUserID(c *echo.Context) *int {
 	id, _ := c.Get("user_id").(int)
 	if id == 0 {
 		return nil
@@ -94,14 +94,14 @@ func actorUserID(c echo.Context) *int {
 
 // IsSuperAdmin безопасно извлекает is_super_admin из контекста (#231).
 // Используется вместо хардкода type_id == 6.
-func IsSuperAdmin(c echo.Context) bool {
+func IsSuperAdmin(c *echo.Context) bool {
 	v, _ := c.Get("is_super_admin").(bool)
 	return v
 }
 
 // viewerUserID возвращает id просматривающего для фильтра пер-вложенного пересыла (#680):
 // реальный user_id, либо 0 для супер-админа (без фильтра - видит все вложения).
-func viewerUserID(c echo.Context) int {
+func viewerUserID(c *echo.Context) int {
 	if IsSuperAdmin(c) {
 		return 0
 	}
@@ -113,7 +113,7 @@ func viewerUserID(c echo.Context) int {
 // пустая строка - это «фильтр не задан» (nil), а мусор вместо числа - ошибка 400:
 // молча проигнорировать его нельзя, иначе фильтр «по таблице 7» с опечаткой вернёт
 // весь журнал и человек решит, что записи размножились.
-func optionalIntQuery(c echo.Context, param string) (*int, error) {
+func optionalIntQuery(c *echo.Context, param string) (*int, error) {
 	raw := c.QueryParam(param)
 	if raw == "" {
 		return nil, nil
@@ -128,7 +128,7 @@ func optionalIntQuery(c echo.Context, param string) (*int, error) {
 // passageFilterTableID - пост, до которого сужаются фильтры журнала проходов: из пути
 // (/history/table/:id/filter-options, там его уже проверил гейт права на журнал поста)
 // или из query у сводного журнала администратора.
-func passageFilterTableID(c echo.Context) (*int, error) {
+func passageFilterTableID(c *echo.Context) (*int, error) {
 	if c.Param("id") == "" {
 		return optionalIntQuery(c, "table_id")
 	}
@@ -142,7 +142,7 @@ func passageFilterTableID(c echo.Context) (*int, error) {
 // bindPassageHistoryQuery разбирает параметры страницы журнала проходов и приводит
 // их к допустимым значениям. Дальше фильтры применяет сервис - разбирать даты здесь
 // незачем, у машин и людей они одни и те же.
-func bindPassageHistoryQuery(c echo.Context) (models.PassageHistoryQuery, error) {
+func bindPassageHistoryQuery(c *echo.Context) (models.PassageHistoryQuery, error) {
 	var q models.PassageHistoryQuery
 	if err := c.Bind(&q); err != nil {
 		return q, echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
@@ -157,7 +157,7 @@ func bindPassageHistoryQuery(c echo.Context) (models.PassageHistoryQuery, error)
 // requireElementVisible пускает дальше, только если машина или сотрудник заявки входит
 // в скоуп пользователя (services.ElementScope): иначе историю элемента по id читал бы
 // любой вошедший. Несуществующий id отвечает тем же 403, чтобы не выдавать, есть ли он.
-func requireElementVisible(c echo.Context, scopes *services.ElementScopeResolver, kind services.ElementKind, id int) error {
+func requireElementVisible(c *echo.Context, scopes *services.ElementScopeResolver, kind services.ElementKind, id int) error {
 	ctx := c.Request().Context()
 	scope, err := scopes.Resolve(ctx, GetUserID(c))
 	if err != nil {

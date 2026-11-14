@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/realtime"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type activeEventsUser struct{}
@@ -116,7 +116,7 @@ func TestEventsIssueTicket_RejectsAnonymous(t *testing.T) {
 	if err == nil {
 		t.Fatal("ожидали ошибку авторизации для анонима")
 	}
-	if he, ok := err.(*echo.HTTPError); !ok || he.Code != http.StatusUnauthorized {
+	if echo.StatusCode(err) != http.StatusUnauthorized {
 		t.Fatalf("ожидали 401, получили %v", err)
 	}
 }

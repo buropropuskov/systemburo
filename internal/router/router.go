@@ -7,8 +7,8 @@ import (
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
-	echomw "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echomw "github.com/labstack/echo/v5/middleware"
 )
 
 // applicationsBodyLimit - потолок тела запроса на группу /applications (blank-import,
@@ -16,7 +16,7 @@ import (
 // этом репозитории) - без него прямой запрос к go-backend в обход nginx (локальная
 // разработка, другой reverse-proxy) читал тело неограниченно. Значение зеркалит nginx,
 // а не ужесточает его: то, что проходило через nginx, продолжает проходить и здесь.
-const applicationsBodyLimit = "50M"
+const applicationsBodyLimit = int64(50 << 20)
 
 // Dependencies - все хендлеры/сервисы/middleware, нужные для регистрации маршрутов.
 // Использование именованных полей вместо длинного списка позиционных параметров
@@ -249,7 +249,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
 	// Health check — вне /api, для мониторинга и readiness-проб.
-	e.GET("/health", func(c echo.Context) error {
+	e.GET("/health", func(c *echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
 	})
 

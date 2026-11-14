@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // dataProcessingAllowedExt -- расширения, разрешённые для документа согласия на обработку данных.
@@ -19,7 +19,7 @@ import (
 var dataProcessingAllowedExt = map[string]bool{".pdf": true, ".doc": true, ".docx": true, ".xlsx": true}
 
 // GetDataProcessingMeta возвращает метаданные документа согласия (или null, если не загружен).
-func (h *SettingsHandler) GetDataProcessingMeta(c echo.Context) error {
+func (h *SettingsHandler) GetDataProcessingMeta(c *echo.Context) error {
 	meta, err := h.service.GetDataProcessingDoc(c.Request().Context())
 	if err != nil {
 		return err
@@ -29,7 +29,7 @@ func (h *SettingsHandler) GetDataProcessingMeta(c echo.Context) error {
 
 // ServeDataProcessingDoc отдаёт файл документа согласия: inline для просмотра в браузере,
 // attachment при ?download=1 для скачивания.
-func (h *SettingsHandler) ServeDataProcessingDoc(c echo.Context) error {
+func (h *SettingsHandler) ServeDataProcessingDoc(c *echo.Context) error {
 	meta, err := h.service.GetDataProcessingDoc(c.Request().Context())
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (h *SettingsHandler) ServeDataProcessingDoc(c echo.Context) error {
 }
 
 // UploadDataProcessingDoc сохраняет новый документ согласия, заменяя предыдущий.
-func (h *SettingsHandler) UploadDataProcessingDoc(c echo.Context) error {
+func (h *SettingsHandler) UploadDataProcessingDoc(c *echo.Context) error {
 	file, err := c.FormFile("file")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Файл не передан")
@@ -85,7 +85,7 @@ func (h *SettingsHandler) UploadDataProcessingDoc(c echo.Context) error {
 }
 
 // DeleteDataProcessingDoc удаляет документ согласия и его метаданные.
-func (h *SettingsHandler) DeleteDataProcessingDoc(c echo.Context) error {
+func (h *SettingsHandler) DeleteDataProcessingDoc(c *echo.Context) error {
 	ctx := c.Request().Context()
 	meta, err := h.service.GetDataProcessingDoc(ctx)
 	if err != nil {

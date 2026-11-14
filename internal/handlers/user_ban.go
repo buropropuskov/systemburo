@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // UserBanHandler -- HTTP-обработчики бана и разбана.
@@ -21,7 +21,7 @@ func NewUserBanHandler(s *services.UserBanService) *UserBanHandler {
 // Ban -- POST /users/:id/ban.
 // Проверка прав делается через middleware (action.ban.user).
 // Тело {reason} опционально -- причина блокировки для показа заблокированному в ЛК.
-func (h *UserBanHandler) Ban(c echo.Context) error {
+func (h *UserBanHandler) Ban(c *echo.Context) error {
 	targetID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -40,7 +40,7 @@ func (h *UserBanHandler) Ban(c echo.Context) error {
 }
 
 // Unban -- POST /users/:id/unban.
-func (h *UserBanHandler) Unban(c echo.Context) error {
+func (h *UserBanHandler) Unban(c *echo.Context) error {
 	targetID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (h *UserBanHandler) Unban(c echo.Context) error {
 //
 // BulkBan -- POST /users/bulk/ban. Групповая блокировка по списку username.
 // Тот же гейт action.ban.user, что у одиночного. Частичный успех -> 207.
-func (h *UserBanHandler) BulkBan(c echo.Context) error {
+func (h *UserBanHandler) BulkBan(c *echo.Context) error {
 	var req services.BulkUserBanRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -95,7 +95,7 @@ func (h *UserBanHandler) BulkBan(c echo.Context) error {
 // @Router       /users/bulk/unban [post]
 //
 // BulkUnban -- POST /users/bulk/unban. Групповая разблокировка по списку username.
-func (h *UserBanHandler) BulkUnban(c echo.Context) error {
+func (h *UserBanHandler) BulkUnban(c *echo.Context) error {
 	var req services.BulkUsernamesRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")

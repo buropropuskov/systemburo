@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ImpersonationHandler - режим «войти как пользователь» (#1912).
@@ -29,7 +29,7 @@ func NewImpersonationHandler(service services.ImpersonationService) *Impersonati
 // @Failure      403 {object} models.HTTPError "Нет права или у цели прав больше"
 // @Failure      404 {object} models.HTTPError "Пользователь не найден"
 // @Router       /users/{id}/impersonate [post]
-func (h *ImpersonationHandler) Start(c echo.Context) error {
+func (h *ImpersonationHandler) Start(c *echo.Context) error {
 	actorUserID, _ := c.Get("user_id").(int)
 	if actorUserID == 0 {
 		return apperr.Unauthorized("Требуется авторизация")
@@ -54,7 +54,7 @@ func (h *ImpersonationHandler) Start(c echo.Context) error {
 // @Success      200 {object} map[string]string "message"
 // @Failure      400 {object} models.HTTPError "Запрос идёт не в режиме работы от чужого имени"
 // @Router       /impersonation/stop [post]
-func (h *ImpersonationHandler) Stop(c echo.Context) error {
+func (h *ImpersonationHandler) Stop(c *echo.Context) error {
 	// Инициатор берётся из маркера доступа, а не из тела запроса: иначе выход можно
 	// было бы записать на чужое имя.
 	actorUserID, ok := services.ImpersonatorFromContext(c.Request().Context())

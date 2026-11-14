@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/httpx"
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -73,7 +73,7 @@ const auditWriteTimeout = 5 * time.Second
 
 func PDAudit(db *gorm.DB) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			err := next(c)
 
 			path := c.Request().URL.Path
@@ -117,7 +117,7 @@ func PDAudit(db *gorm.DB) echo.MiddlewareFunc {
 
 // IsPDPathForRouteCoverage экспортирует isPDPath ради гвард-теста
 // TestPDAudit_NoUntriagedGetRoute в internal/handlers: тот сверяет разбор пути с
-// реальным роутером (e.Routes()), а строить роутер здесь, в internal/middleware,
+// реальным роутером (e.Router().Routes()), а строить роутер здесь, в internal/middleware,
 // означало бы импортировать internal/testutil - тот и так зависит от middleware
 // (тот же приём, что у mw.PDConsentWhitelist в pd_consent.go).
 func IsPDPathForRouteCoverage(path string) bool {
@@ -326,13 +326,13 @@ func isAvailableAttachmentPath(path string) bool {
 // pdStatusCode возвращает код, который увидит клиент. Echo вызывает обработчик
 // ошибок уже после цепочки middleware, поэтому у неудачного запроса Response().Status
 // здесь ещё дефолтные 200 - и отказ в доступе попадал в журнал как успешный просмотр.
-func pdStatusCode(c echo.Context, err error) int {
+func pdStatusCode(c *echo.Context, err error) int {
 	return httpx.StatusCode(c, err)
 }
 
 // pdUserID достаёт идентификатор пользователя из контекста JWT: по одному имени
 // запись не привязать к учётке, если пользователя переименовали или архивировали.
-func pdUserID(c echo.Context) *int {
+func pdUserID(c *echo.Context) *int {
 	id, ok := c.Get("user_id").(int)
 	if !ok || id == 0 {
 		return nil

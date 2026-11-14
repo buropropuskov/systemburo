@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // FeedbackHandler -- HTTP-обработчики обратной связи.
@@ -31,7 +31,7 @@ func NewFeedbackHandler(service services.FeedbackService) *FeedbackHandler {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /feedback [post]
-func (h *FeedbackHandler) Create(c echo.Context) error {
+func (h *FeedbackHandler) Create(c *echo.Context) error {
 	username := c.Get("username").(string)
 	var req models.CreateFeedbackRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -56,7 +56,7 @@ func (h *FeedbackHandler) Create(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/all [get]
-func (h *FeedbackHandler) GetAll(c echo.Context) error {
+func (h *FeedbackHandler) GetAll(c *echo.Context) error {
 	username := c.Get("username").(string)
 	feedbacks, err := h.service.GetAll(c.Request().Context(), username)
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *FeedbackHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/stats [get]
-func (h *FeedbackHandler) GetStats(c echo.Context) error {
+func (h *FeedbackHandler) GetStats(c *echo.Context) error {
 	username := c.Get("username").(string)
 	stats, err := h.service.GetStats(c.Request().Context(), username)
 	if err != nil {
@@ -91,7 +91,7 @@ func (h *FeedbackHandler) GetStats(c echo.Context) error {
 // @Success      200 {array} models.MyFeedback
 // @Failure      401 {object} models.HTTPError
 // @Router       /feedback/my [get]
-func (h *FeedbackHandler) GetMy(c echo.Context) error {
+func (h *FeedbackHandler) GetMy(c *echo.Context) error {
 	username := c.Get("username").(string)
 	feedbacks, err := h.service.GetMy(c.Request().Context(), username)
 	if err != nil {
@@ -114,7 +114,7 @@ func (h *FeedbackHandler) GetMy(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /feedback/{id}/status [put]
-func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
+func (h *FeedbackHandler) UpdateStatus(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -142,7 +142,7 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /feedback/{id}/read [put]
-func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
+func (h *FeedbackHandler) MarkAsRead(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -169,7 +169,7 @@ func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /feedback/{id}/flag [put]
-func (h *FeedbackHandler) SetFlag(c echo.Context) error {
+func (h *FeedbackHandler) SetFlag(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")

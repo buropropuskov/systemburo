@@ -8,7 +8,7 @@ import (
 
 	mw "systemburo/internal/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,12 +32,12 @@ func TestPrivateAPICache_JSONAndErrors(t *testing.T) {
 			e := echo.New()
 			e.Use(mw.PrivateAPICache())
 			errorHandled := false
-			e.HTTPErrorHandler = func(err error, c echo.Context) {
+			e.HTTPErrorHandler = func(c *echo.Context, err error) {
 				errorHandled = true
 				assert.Equal(t, "no-store", c.Response().Header().Get(echo.HeaderCacheControl))
-				e.DefaultHTTPErrorHandler(err, c)
+				echo.DefaultHTTPErrorHandler(false)(c, err)
 			}
-			e.GET(tc.path, func(c echo.Context) error {
+			e.GET(tc.path, func(c *echo.Context) error {
 				assert.Equal(t, "no-store", c.Response().Header().Get(echo.HeaderCacheControl))
 				if tc.status != http.StatusOK {
 					return echo.NewHTTPError(tc.status, "request denied")
@@ -62,7 +62,7 @@ func TestPrivateAPICache_PrecedesJWTRejection(t *testing.T) {
 	e := echo.New()
 	e.Use(mw.PrivateAPICache())
 	called := false
-	e.GET("/api/users/me", func(c echo.Context) error {
+	e.GET("/api/users/me", func(c *echo.Context) error {
 		called = true
 		return c.NoContent(http.StatusOK)
 	}, mw.JWTAuth([]byte("unused-without-authorization"), nil))
@@ -95,7 +95,7 @@ func TestPrivateAPICache_LeavesNonAPIResponsesUnchanged(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			e := echo.New()
 			e.Use(mw.PrivateAPICache())
-			e.GET(tc.path, func(c echo.Context) error {
+			e.GET(tc.path, func(c *echo.Context) error {
 				assert.Equal(t, tc.policy, c.Response().Header().Get(echo.HeaderCacheControl))
 				return c.String(http.StatusOK, "unchanged")
 			})
@@ -114,7 +114,7 @@ func TestPrivateAPICache_LeavesNonAPIResponsesUnchanged(t *testing.T) {
 func TestPrivateAPICache_PreservesSSEPolicyAndFlush(t *testing.T) {
 	e := echo.New()
 	e.Use(mw.PrivateAPICache())
-	e.GET("/api/events", func(c echo.Context) error {
+	e.GET("/api/events", func(c *echo.Context) error {
 		h := c.Response().Header()
 		assert.Equal(t, "no-store", h.Get(echo.HeaderCacheControl))
 		h.Set(echo.HeaderCacheControl, "no-cache")
@@ -126,7 +126,7 @@ func TestPrivateAPICache_PreservesSSEPolicyAndFlush(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		c.Response().Flush()
+		_ = http.NewResponseController(c.Response()).Flush()
 		return nil
 	})
 	rec := httptest.NewRecorder()
@@ -144,7 +144,7 @@ func TestPrivateAPICache_PreservesFileStream(t *testing.T) {
 	e := echo.New()
 	e.Use(mw.PrivateAPICache())
 	payload := []byte{0, 1, 2, 255, 10}
-	e.GET("/api/files/1", func(c echo.Context) error {
+	e.GET("/api/files/1", func(c *echo.Context) error {
 		c.Response().Header().Set(echo.HeaderContentDisposition, `attachment; filename="document.bin"`)
 		return c.Stream(http.StatusOK, "application/octet-stream", bytes.NewReader(payload))
 	})

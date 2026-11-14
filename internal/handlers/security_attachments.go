@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AvailableAttachmentDetail - ответ детального эндпоинта вкладки "Доступные мне" (#706):
@@ -39,7 +39,7 @@ type AttachmentExecutionMarkResponse struct {
 // page.available ему выдано. Право открывает страницу (пункт меню и вход), но не снимает фильтр по
 // местам: пост не должен видеть чужие. Прочим - 403.
 // Набор совпадает с FE-гейтом canViewAccessibleAttachments; рассинхрон давал 403 при видимой вкладке.
-func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, error) {
+func (h *ApplicationHandler) requireSecurityOrAdmin(c *echo.Context) (int, bool, error) {
 	return securityScope(c, h.service, h.resolver)
 }
 
@@ -51,7 +51,7 @@ type securityUserChecker interface {
 // securityScope - тело requireSecurityOrAdmin, вынесенное для повторного использования
 // вне ApplicationHandler (скачивание бланка вложения). Возвращает 403 тем, кто не охрана
 // и не носитель page.available.
-func securityScope(c echo.Context, svc securityUserChecker, resolver *services.PermissionResolver) (int, bool, error) {
+func securityScope(c *echo.Context, svc securityUserChecker, resolver *services.PermissionResolver) (int, bool, error) {
 	userID := GetUserID(c)
 	if resolver == nil {
 		return 0, false, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна")
@@ -104,7 +104,7 @@ func securityScope(c echo.Context, svc securityUserChecker, resolver *services.P
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/available-attachments [get]
-func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
+func (h *ApplicationHandler) GetAvailableAttachments(c *echo.Context) error {
 	userID, unrestricted, err := h.requireSecurityOrAdmin(c)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/available-attachments/{id} [get]
-func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error {
+func (h *ApplicationHandler) GetAvailableAttachmentDetail(c *echo.Context) error {
 	userID, unrestricted, err := h.requireSecurityOrAdmin(c)
 	if err != nil {
 		return err
@@ -221,7 +221,7 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/available-attachments/{id}/mark-executed [post]
-func (h *ApplicationHandler) MarkAttachmentExecuted(c echo.Context) error {
+func (h *ApplicationHandler) MarkAttachmentExecuted(c *echo.Context) error {
 	userID, unrestricted, err := h.requireSecurityOrAdmin(c)
 	if err != nil {
 		return err

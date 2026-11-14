@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -30,7 +30,7 @@ import (
 
 // nameMaskUnavailable не позволяет спутать сбой проверки с отсутствием масок.
 func nameMaskUnavailable(err error) error {
-	return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка отображения данных временно недоступна").SetInternal(err)
+	return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка отображения данных временно недоступна").Wrap(err)
 }
 
 // pdConsentMaskingActive повторяет условие гейта: настройка И видимый текст.

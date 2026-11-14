@@ -16,7 +16,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/upload"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 )

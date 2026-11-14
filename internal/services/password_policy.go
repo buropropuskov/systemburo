@@ -7,7 +7,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // passwordSpecialChars — печатаемые ASCII-символы, не входящие в [A-Za-z0-9].

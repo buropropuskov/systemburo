@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"systemburo/internal/httpx"
+
 	"context"
 	"errors"
 	"io"
@@ -14,7 +16,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Match the existing edge API ceiling, without lowering route/file limits.
@@ -29,7 +31,7 @@ func BodyAdmission() echo.MiddlewareFunc {
 
 func bodyAdmissionWithGate(gate *admission.Gate) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			req := c.Request()
 			if !strings.HasPrefix(req.URL.Path, "/api/") || req.Body == nil || req.Body == http.NoBody {
 				return next(c)
@@ -46,7 +48,11 @@ func bodyAdmissionWithGate(gate *admission.Gate) echo.MiddlewareFunc {
 				// the server cannot detect an early body close through our wrapper;
 				// changing headers only in deferred Close is too late for early replies.
 				// Keep reading/closing under the lease in cleanup, not in this hook.
-				c.Response().Before(func() {
+				response, err := echo.UnwrapResponse(c.Response())
+				if err != nil {
+					return err
+				}
+				response.Before(func() {
 					if !body.complete.Load() {
 						req.Close = true
 						c.Response().Header().Set("Connection", "close")
@@ -89,7 +95,7 @@ func bodyAdmissionWithGate(gate *admission.Gate) echo.MiddlewareFunc {
 			err = next(c)
 			// Bind/FormFile and permission middleware sometimes replace a read error
 			// with 400. Preserve the actual transport ceiling in the public response.
-			if body.exceeded.Load() && !c.Response().Committed {
+			if body.exceeded.Load() && !httpx.ResponseCommitted(c) {
 				return bodyTooLarge()
 			}
 			return err
@@ -105,7 +111,7 @@ type admittedBody struct {
 	raw      io.ReadCloser
 	reader   io.Reader
 	req      *http.Request
-	response *echo.Response
+	response http.ResponseWriter
 	length   int64
 	read     int64 // guarded by readMu
 	readMu   sync.Mutex

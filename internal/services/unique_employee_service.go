@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/models"
 	inputvalidator "systemburo/internal/validator"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -285,7 +285,7 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 
 	set, err := NewPermissionResolver(s.db).ResolveFresh(ctx, result.UserID)
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 	}
 
 	return &EmployeeOwnerInfo{

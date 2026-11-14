@@ -61,7 +61,7 @@ func passCounts(m map[string]interface{}) (carE, carX, pplE, pplX int) {
 func TestPassReport_LiveScopeAndGate(t *testing.T) {
 	loc := services.AnalyticsLocation()
 	for _, tc := range []struct {
-		name string
+		name                                 string
 		hour, minute, eventHour, eventMinute int
 	}{
 		{"before_boundary", 21, 29, 20, 0},

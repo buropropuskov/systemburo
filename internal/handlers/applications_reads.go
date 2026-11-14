@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // GetApplicationResponsibleUsers godoc
@@ -20,7 +20,7 @@ import (
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/responsible-users [get]
-func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationResponsibleUsers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -58,7 +58,7 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/participants [get]
-func (h *ApplicationHandler) GetApplicationParticipants(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationParticipants(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -91,7 +91,7 @@ func (h *ApplicationHandler) GetApplicationParticipants(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/history [get]
-func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -124,7 +124,7 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/viewers [get]
-func (h *ApplicationHandler) GetApplicationViewers(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationViewers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -157,7 +157,7 @@ func (h *ApplicationHandler) GetApplicationViewers(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/attachments [get]
-func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationAttachments(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -190,7 +190,7 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /attachments/{id}/cars [get]
-func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
+func (h *ApplicationHandler) GetAttachmentCars(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
@@ -246,7 +246,7 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /attachments/{id}/employees [get]
-func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
+func (h *ApplicationHandler) GetAttachmentEmployees(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
@@ -298,7 +298,7 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /attachments/{id}/items [get]
-func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
+func (h *ApplicationHandler) GetAttachmentItems(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
@@ -351,7 +351,7 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/read [post]
-func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
+func (h *ApplicationHandler) MarkAsRead(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -383,7 +383,7 @@ func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/reads [get]
-func (h *ApplicationHandler) GetReads(c echo.Context) error {
+func (h *ApplicationHandler) GetReads(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")

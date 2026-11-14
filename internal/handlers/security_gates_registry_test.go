@@ -7,7 +7,7 @@ import (
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +27,7 @@ var securityGateEntrances = map[string]string{
 
 func securityProtectedRoutes(t *testing.T, e *echo.Echo) []string {
 	t.Helper()
-	actual := registeredRoutes(e.Routes())
+	actual := registeredRoutes(e.Router().Routes())
 	for key := range actual {
 		_, ok := routeAccessRegistry[key]
 		require.True(t, ok, "маршрут без классификации S1: %s", key)

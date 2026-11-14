@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/services"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,15 +91,14 @@ func serveFileAccess(t *testing.T, req *http.Request) int {
 func serveFileAccessWith(t *testing.T, req *http.Request, scans mw.ApplicationScanGuard) (int, string) {
 	t.Helper()
 	e := echo.New()
-	h := mw.FileAccess(fileAccessSecret, fileSessionStub{}, scans)(func(c echo.Context) error {
+	h := mw.FileAccess(fileAccessSecret, fileSessionStub{}, scans)(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "file")
 	})
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("*")
-	c.SetParamValues(strings.TrimPrefix(req.URL.EscapedPath(), "/api/uploads"))
+	c.SetPathValues(echo.PathValues{{Name: "*", Value: strings.TrimPrefix(req.URL.EscapedPath(), "/api/uploads")}})
 	if err := h(c); err != nil {
-		e.HTTPErrorHandler(err, c)
+		e.HTTPErrorHandler(c, err)
 	}
 	return rec.Code, rec.Body.String()
 }

@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/imaging"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // SavedFile -- метаданные одного сохранённого на диск файла.
@@ -55,7 +55,7 @@ type Options struct {
 // (непустота поля, размер, MIME по magic bytes), сохраняет на диск под
 // уникальным именем и возвращает метаданные. Это единая точка приёма файлов:
 // пустое поле или неверное имя поля дают 400, а не «успех без файла».
-func SaveMultipart(c echo.Context, field string, opts Options) ([]SavedFile, error) {
+func SaveMultipart(c *echo.Context, field string, opts Options) ([]SavedFile, error) {
 	form, err := c.MultipartForm()
 	if err != nil {
 		return nil, apperr.Validation("Не удалось прочитать форму загрузки")

@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -325,10 +325,7 @@ func isDuplicateEmployeeConflict(err error) bool {
 	if !errors.As(err, &httpErr) || httpErr.Code != http.StatusBadRequest {
 		return false
 	}
-	msg, ok := httpErr.Message.(string)
-	if !ok {
-		return false
-	}
+	msg := httpErr.Message
 	switch msg {
 	case "Сотрудник с такими паспортными данными уже привязан к вашему аккаунту",
 		"Сотрудник с такими паспортными данными уже существует в этой организации",
@@ -441,10 +438,7 @@ func isDuplicateCarConflict(err error) bool {
 	if !errors.As(err, &httpErr) || httpErr.Code != http.StatusBadRequest {
 		return false
 	}
-	msg, ok := httpErr.Message.(string)
-	if !ok {
-		return false
-	}
+	msg := httpErr.Message
 	switch msg {
 	case "Автомобиль уже привязан к вашему аккаунту",
 		"Автомобиль с этим номером и маркой уже существует в этой организации",

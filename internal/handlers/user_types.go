@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // UserTypesHandler — HTTP-обработчики управления типами пользователей (admin-only).
@@ -31,7 +31,7 @@ func NewUserTypesHandler(service services.UserTypeService) *UserTypesHandler {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /user-types-management [get]
-func (h *UserTypesHandler) GetAll(c echo.Context) error {
+func (h *UserTypesHandler) GetAll(c *echo.Context) error {
 	result, err := h.service.GetAllWithCount(c.Request().Context())
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (h *UserTypesHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management [post]
-func (h *UserTypesHandler) Create(c echo.Context) error {
+func (h *UserTypesHandler) Create(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	var req services.CreateUserTypeRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -82,7 +82,7 @@ func (h *UserTypesHandler) Create(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id} [put]
-func (h *UserTypesHandler) Update(c echo.Context) error {
+func (h *UserTypesHandler) Update(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -111,7 +111,7 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id} [delete]
-func (h *UserTypesHandler) Delete(c echo.Context) error {
+func (h *UserTypesHandler) Delete(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -133,7 +133,7 @@ func (h *UserTypesHandler) Delete(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id}/history [get]
-func (h *UserTypesHandler) GetHistory(c echo.Context) error {
+func (h *UserTypesHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
@@ -158,7 +158,7 @@ func (h *UserTypesHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id}/blocking-users [get]
-func (h *UserTypesHandler) GetBlockingUsers(c echo.Context) error {
+func (h *UserTypesHandler) GetBlockingUsers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
@@ -186,7 +186,7 @@ func (h *UserTypesHandler) GetBlockingUsers(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /user-types-management/{id}/reassign-users [post]
-func (h *UserTypesHandler) ReassignUsers(c echo.Context) error {
+func (h *UserTypesHandler) ReassignUsers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")

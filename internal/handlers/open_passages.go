@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"net/http"
 	"strconv"
 	"systemburo/internal/services"
@@ -24,32 +24,32 @@ func NewOpenPassagesHandler(reader OpenPassageReader, commands OpenPassageComman
 	return &OpenPassagesHandler{reader: reader, commands: commands}
 }
 
-func (h *OpenPassagesHandler) ListCars(c echo.Context) error {
+func (h *OpenPassagesHandler) ListCars(c *echo.Context) error {
 	return h.list(c, services.ElementCar, false)
 }
-func (h *OpenPassagesHandler) ListEmployees(c echo.Context) error {
+func (h *OpenPassagesHandler) ListEmployees(c *echo.Context) error {
 	return h.list(c, services.ElementEmployee, false)
 }
-func (h *OpenPassagesHandler) SummaryCars(c echo.Context) error {
+func (h *OpenPassagesHandler) SummaryCars(c *echo.Context) error {
 	return h.list(c, services.ElementCar, true)
 }
-func (h *OpenPassagesHandler) SummaryEmployees(c echo.Context) error {
+func (h *OpenPassagesHandler) SummaryEmployees(c *echo.Context) error {
 	return h.list(c, services.ElementEmployee, true)
 }
-func (h *OpenPassagesHandler) CloseCar(c echo.Context) error {
+func (h *OpenPassagesHandler) CloseCar(c *echo.Context) error {
 	return h.correct(c, services.ElementCar, false)
 }
-func (h *OpenPassagesHandler) CloseEmployee(c echo.Context) error {
+func (h *OpenPassagesHandler) CloseEmployee(c *echo.Context) error {
 	return h.correct(c, services.ElementEmployee, false)
 }
-func (h *OpenPassagesHandler) RevertCar(c echo.Context) error {
+func (h *OpenPassagesHandler) RevertCar(c *echo.Context) error {
 	return h.correct(c, services.ElementCar, true)
 }
-func (h *OpenPassagesHandler) RevertEmployee(c echo.Context) error {
+func (h *OpenPassagesHandler) RevertEmployee(c *echo.Context) error {
 	return h.correct(c, services.ElementEmployee, true)
 }
 
-func (h *OpenPassagesHandler) list(c echo.Context, kind services.ElementKind, summary bool) error {
+func (h *OpenPassagesHandler) list(c *echo.Context, kind services.ElementKind, summary bool) error {
 	actor := GetUserID(c)
 	if actor <= 0 {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
@@ -106,7 +106,7 @@ func (h *OpenPassagesHandler) list(c echo.Context, kind services.ElementKind, su
 	}
 	return RespondSuccess(c, result)
 }
-func (h *OpenPassagesHandler) correct(c echo.Context, kind services.ElementKind, revert bool) error {
+func (h *OpenPassagesHandler) correct(c *echo.Context, kind services.ElementKind, revert bool) error {
 	actor, id, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err

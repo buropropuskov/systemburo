@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ApplicationHandler HTTP-обработчики для работы с заявками.
@@ -27,7 +27,7 @@ func NewApplicationHandler(service services.ApplicationService, resolver *servic
 // Резолвер истинен для супер-админа (allowAll), администратора (adminAll, включая
 // руководителей: миграция перенесла тип manager на is_admin) и для явного гранта роли,
 // группы или личного override; бан и личные deny он учитывает.
-func canOverrideOrganization(c echo.Context, resolver *services.PermissionResolver) (bool, error) {
+func canOverrideOrganization(c *echo.Context, resolver *services.PermissionResolver) (bool, error) {
 	set, err := resolver.ResolveFresh(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return false, err
@@ -42,7 +42,7 @@ func canOverrideOrganization(c echo.Context, resolver *services.PermissionResolv
 //
 // archive и active_today разбираются руками: Bind не кладёт "true"/"false" в
 // *bool, а отсутствие параметра должно означать «фильтр не задан», а не false.
-func bindApplicationListFilter(c echo.Context) (services.ApplicationFilter, error) {
+func bindApplicationListFilter(c *echo.Context) (services.ApplicationFilter, error) {
 	var filter services.ApplicationFilter
 	if err := c.Bind(&filter); err != nil {
 		return filter, echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -80,7 +80,7 @@ func bindApplicationListFilter(c echo.Context) (services.ApplicationFilter, erro
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications [get]
-func (h *ApplicationHandler) GetApplications(c echo.Context) error {
+func (h *ApplicationHandler) GetApplications(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	filter, err := bindApplicationListFilter(c)
@@ -129,7 +129,7 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 // @Success      200 {array} services.ApplicationWithDetails
 // @Failure      403 {object} models.HTTPError
 // @Router       /applications/attachable [get]
-func (h *ApplicationHandler) GetAttachableApplications(c echo.Context) error {
+func (h *ApplicationHandler) GetAttachableApplications(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	var filter services.ApplicationFilter
@@ -167,7 +167,7 @@ func (h *ApplicationHandler) GetAttachableApplications(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/user [get]
-func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
+func (h *ApplicationHandler) GetUserApplications(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	var filter services.ApplicationFilter
@@ -220,7 +220,7 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id} [get]
-func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationByID(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -247,7 +247,7 @@ func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/details [get]
-func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationDetails(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -293,7 +293,7 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/bureau-note [put]
-func (h *ApplicationHandler) SetBureauNote(c echo.Context) error {
+func (h *ApplicationHandler) SetBureauNote(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -327,7 +327,7 @@ func (h *ApplicationHandler) SetBureauNote(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications [post]
-func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
+func (h *ApplicationHandler) CreateApplication(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req services.ApplicationCreateRequest
@@ -362,7 +362,7 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/submit-complete-application [post]
-func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
+func (h *ApplicationHandler) SubmitCompleteApplication(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req services.CompleteApplicationRequest
@@ -396,7 +396,7 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/unread-count [get]
-func (h *ApplicationHandler) GetUnreadCount(c echo.Context) error {
+func (h *ApplicationHandler) GetUnreadCount(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	resp, err := h.service.GetUnreadCount(c.Request().Context(), username)
@@ -421,7 +421,7 @@ func (h *ApplicationHandler) GetUnreadCount(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/user/status-updates-count [get]
-func (h *ApplicationHandler) GetUserStatusUpdatesCount(c echo.Context) error {
+func (h *ApplicationHandler) GetUserStatusUpdatesCount(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	var filter services.ApplicationFilter
@@ -437,7 +437,7 @@ func (h *ApplicationHandler) GetUserStatusUpdatesCount(c echo.Context) error {
 }
 
 // ApplicationOperationStatus reads a minimal committed result without replaying a write.
-func (h *ApplicationHandler) ApplicationOperationStatus(c echo.Context) error {
+func (h *ApplicationHandler) ApplicationOperationStatus(c *echo.Context) error {
 	var req services.ApplicationOperationStatusRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err

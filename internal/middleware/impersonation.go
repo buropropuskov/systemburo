@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // impersonationDeniedPaths - маршруты, закрытые в режиме «войти как пользователь»
@@ -79,7 +79,7 @@ var impersonationDeniedPrefixes = []string{
 // одном месте и читается как правило, а не собирается по строчке из router.go.
 func DenyUnderImpersonation() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if _, ok := services.ImpersonatorFromContext(c.Request().Context()); !ok {
 				return next(c)
 			}

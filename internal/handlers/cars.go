@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -37,7 +37,7 @@ func NewCarHandler(service services.CarService, scopes *services.ElementScopeRes
 // @Param id path int true "ID таблицы"
 // @Success 200 {array} services.TableCarResponse
 // @Router /cars/active-for-table/{id} [get]
-func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
+func (h *CarHandler) GetActiveCarsForTable(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
@@ -64,7 +64,7 @@ func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
 // @Failure 400 {object} models.HTTPError
 // @Failure 403 {object} models.HTTPError
 // @Router /cars/manual [post]
-func (h *CarHandler) CreateManualCars(c echo.Context) error {
+func (h *CarHandler) CreateManualCars(c *echo.Context) error {
 	var req services.ManualCarRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -84,7 +84,7 @@ func (h *CarHandler) CreateManualCars(c echo.Context) error {
 // @Param id path int true "ID таблицы"
 // @Success 200 {array} services.TableCarResponse
 // @Router /cars/fact-for-table/{id} [get]
-func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
+func (h *CarHandler) GetFactCarsForTable(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
@@ -107,7 +107,7 @@ func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
 // @Produce json
 // @Success 200 {array} services.CarUnloadPlaceInfo
 // @Router /cars/unload-places [get]
-func (h *CarHandler) GetCarUnloadPlaces(c echo.Context) error {
+func (h *CarHandler) GetCarUnloadPlaces(c *echo.Context) error {
 	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func (h *CarHandler) GetCarUnloadPlaces(c echo.Context) error {
 // @Produce json
 // @Success 200 {array} services.CarUnloadPlaceInfo
 // @Router /cars/fact-unload-places [get]
-func (h *CarHandler) GetFactCarUnloadPlaces(c echo.Context) error {
+func (h *CarHandler) GetFactCarUnloadPlaces(c *echo.Context) error {
 	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func (h *CarHandler) GetFactCarUnloadPlaces(c echo.Context) error {
 // @Param company_id query int false "ID компании"
 // @Success 200 {object} services.CheckActiveCarResponse
 // @Router /cars/check-active [get]
-func (h *CarHandler) CheckActiveCar(c echo.Context) error {
+func (h *CarHandler) CheckActiveCar(c *echo.Context) error {
 	var req services.CheckActiveCarRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -171,7 +171,7 @@ func (h *CarHandler) CheckActiveCar(c echo.Context) error {
 // application.organization.override; остальным незаданная организация подставляется
 // своя, а компания допускается своя или пустая. Пустую не подменяем своей: она ищет
 // заявки без компании, как и раньше, а их подают и сотрудники с компанией.
-func (h *CarHandler) limitCheckToOwnOrganization(c echo.Context, req *services.CheckActiveCarRequest) error {
+func (h *CarHandler) limitCheckToOwnOrganization(c *echo.Context, req *services.CheckActiveCarRequest) error {
 	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c), services.KeyApplicationOrganizationOverride)
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func sameOptionalID(a, b *int) bool {
 // @Param id path int true "ID автомобиля"
 // @Success 200 {array} services.CarHistoryItemResponse
 // @Router /cars/{id}/history [get]
-func (h *CarHandler) GetCarHistory(c echo.Context) error {
+func (h *CarHandler) GetCarHistory(c *echo.Context) error {
 	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
 	if err != nil {
 		return err
@@ -239,7 +239,7 @@ func (h *CarHandler) GetCarHistory(c echo.Context) error {
 // @Param body body services.AddCarHistoryRequest true "Данные записи истории"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/history [post]
-func (h *CarHandler) AddCarHistoryEntry(c echo.Context) error {
+func (h *CarHandler) AddCarHistoryEntry(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -270,7 +270,7 @@ func (h *CarHandler) AddCarHistoryEntry(c echo.Context) error {
 // @Param per_page  query int    false "Записей на странице (максимум 200)" default(50)
 // @Success 200 {object} Response
 // @Router /cars/history/all [get]
-func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
+func (h *CarHandler) GetAllCarsHistory(c *echo.Context) error {
 	q, err := bindPassageHistoryQuery(c)
 	if err != nil {
 		return err
@@ -290,7 +290,7 @@ func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
 // @Param table_id query int false "Сузить до таблицы проходной"
 // @Success 200 {object} Response
 // @Router /cars/history/filter-options [get]
-func (h *CarHandler) GetCarsHistoryFilterOptions(c echo.Context) error {
+func (h *CarHandler) GetCarsHistoryFilterOptions(c *echo.Context) error {
 	tableID, err := passageFilterTableID(c)
 	if err != nil {
 		return err
@@ -318,7 +318,7 @@ func (h *CarHandler) GetCarsHistoryFilterOptions(c echo.Context) error {
 // @Param per_page  query int    false "Записей на странице (максимум 200)" default(50)
 // @Success 200 {object} Response
 // @Router /cars/history/table/{id} [get]
-func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
+func (h *CarHandler) GetCarsHistoryByTable(c *echo.Context) error {
 	tableID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -341,7 +341,7 @@ func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
 // @Produce json
 // @Success 200 {array} services.CarCurrentStatus
 // @Router /cars/history/current-status [get]
-func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
+func (h *CarHandler) GetCarsCurrentStatus(c *echo.Context) error {
 	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
@@ -363,7 +363,7 @@ func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
 // @Param body body services.UpdateCarTerritoryStatusRequest true "Новый территориальный статус (+ опц. данные пропуска по факту)"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/territory-status [put]
-func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
+func (h *CarHandler) UpdateCarTerritoryStatus(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -389,7 +389,7 @@ func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
 // @Param body body services.RevertPassageRequest true "Направление отменяемой отметки, пост и причина"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/territory-status/revert [put]
-func (h *CarHandler) RevertCarPassage(c echo.Context) error {
+func (h *CarHandler) RevertCarPassage(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -416,7 +416,7 @@ func (h *CarHandler) RevertCarPassage(c echo.Context) error {
 // @Param body body services.DeactivateCarRequest true "Данные деактивации"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/deactivate [put]
-func (h *CarHandler) DeactivateCar(c echo.Context) error {
+func (h *CarHandler) DeactivateCar(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -442,7 +442,7 @@ func (h *CarHandler) DeactivateCar(c echo.Context) error {
 // @Param body body services.ActivateCarRequest true "Данные активации"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/activate [put]
-func (h *CarHandler) ActivateCar(c echo.Context) error {
+func (h *CarHandler) ActivateCar(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -468,7 +468,7 @@ func (h *CarHandler) ActivateCar(c echo.Context) error {
 // @Param body body services.RestoreCarRequest true "Данные восстановления"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/restore [put]
-func (h *CarHandler) RestoreCar(c echo.Context) error {
+func (h *CarHandler) RestoreCar(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
@@ -496,7 +496,7 @@ func (h *CarHandler) RestoreCar(c echo.Context) error {
 // @Failure 400 {object} models.HTTPError
 // @Failure 403 {object} models.HTTPError
 // @Router /cars/bulk/move-table [post]
-func (h *CarHandler) BulkMoveTable(c echo.Context) error {
+func (h *CarHandler) BulkMoveTable(c *echo.Context) error {
 	var req services.BulkMoveCarsTableRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -523,7 +523,7 @@ func (h *CarHandler) BulkMoveTable(c echo.Context) error {
 // @Failure 400 {object} models.HTTPError
 // @Failure 403 {object} models.HTTPError
 // @Router /cars/bulk/add-table [post]
-func (h *CarHandler) BulkAddTable(c echo.Context) error {
+func (h *CarHandler) BulkAddTable(c *echo.Context) error {
 	var req services.BulkAddCarsTableRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -550,7 +550,7 @@ func (h *CarHandler) BulkAddTable(c echo.Context) error {
 // @Failure 400 {object} models.HTTPError
 // @Failure 403 {object} models.HTTPError
 // @Router /cars/bulk/unbind-table [post]
-func (h *CarHandler) BulkUnbindTable(c echo.Context) error {
+func (h *CarHandler) BulkUnbindTable(c *echo.Context) error {
 	var req services.BulkUnbindCarsTableRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -576,7 +576,7 @@ func (h *CarHandler) BulkUnbindTable(c echo.Context) error {
 // @Param company_id query int false "ID компании"
 // @Success 200 {array} services.CarHistoryItemResponse
 // @Router /cars/history/unified [get]
-func (h *CarHandler) GetUnifiedCarHistory(c echo.Context) error {
+func (h *CarHandler) GetUnifiedCarHistory(c *echo.Context) error {
 	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
 	if err != nil {
 		return err

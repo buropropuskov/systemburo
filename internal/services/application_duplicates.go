@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // byFactPlateKey - номер «По факту»: конкретную машину он не опознаёт, поэтому таких

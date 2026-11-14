@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // VehicleBlacklistHandler - HTTP-обработчики чёрного списка автомобилей (#443).
@@ -28,7 +28,7 @@ func NewVehicleBlacklistHandler(service services.VehicleBlacklistService) *Vehic
 // @Param        include_archived query bool false "Включать снятые записи"
 // @Success      200 {array} models.VehicleBlacklist
 // @Router       /vehicle-blacklist [get]
-func (h *VehicleBlacklistHandler) GetAll(c echo.Context) error {
+func (h *VehicleBlacklistHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	items, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -46,7 +46,7 @@ func (h *VehicleBlacklistHandler) GetAll(c echo.Context) error {
 // @Param        request body models.CreateVehicleBlacklistRequest true "Данные записи"
 // @Success      201 {object} models.VehicleBlacklist
 // @Router       /vehicle-blacklist [post]
-func (h *VehicleBlacklistHandler) Create(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Create(c *echo.Context) error {
 	var req models.CreateVehicleBlacklistRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -69,7 +69,7 @@ func (h *VehicleBlacklistHandler) Create(c echo.Context) error {
 // @Param        request body models.UpdateVehicleBlacklistRequest true "Номер, марка, причина"
 // @Success      200 {object} models.VehicleBlacklist
 // @Router       /vehicle-blacklist/{id} [put]
-func (h *VehicleBlacklistHandler) Update(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -94,7 +94,7 @@ func (h *VehicleBlacklistHandler) Update(c echo.Context) error {
 // @Param        id path int true "ID записи"
 // @Success      200 {string} string "Машина снята с чёрного списка"
 // @Router       /vehicle-blacklist/{id} [delete]
-func (h *VehicleBlacklistHandler) Delete(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -114,7 +114,7 @@ func (h *VehicleBlacklistHandler) Delete(c echo.Context) error {
 // @Param        id path int true "ID записи"
 // @Success      200 {string} string "Машина возвращена в чёрный список"
 // @Router       /vehicle-blacklist/{id}/restore [post]
-func (h *VehicleBlacklistHandler) Restore(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Restore(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -135,7 +135,7 @@ func (h *VehicleBlacklistHandler) Restore(c echo.Context) error {
 // @Param        mark_id query int true "ID марки"
 // @Success      200 {object} models.VehicleBlacklistCheckResult
 // @Router       /vehicle-blacklist/check [get]
-func (h *VehicleBlacklistHandler) Check(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Check(c *echo.Context) error {
 	carNumber := c.QueryParam("car_number")
 	markID, err := strconv.Atoi(c.QueryParam("mark_id"))
 	if carNumber == "" || err != nil || markID <= 0 {
@@ -161,7 +161,7 @@ func (h *VehicleBlacklistHandler) Check(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /vehicle-blacklist/impact [get]
-func (h *VehicleBlacklistHandler) Impact(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Impact(c *echo.Context) error {
 	carNumber := c.QueryParam("car_number")
 	markID, err := strconv.Atoi(c.QueryParam("mark_id"))
 	if carNumber == "" || err != nil || markID <= 0 {
@@ -182,7 +182,7 @@ func (h *VehicleBlacklistHandler) Impact(c echo.Context) error {
 // @Param        id path int true "ID записи"
 // @Success      200 {array} models.VehicleBlacklistHistoryItem
 // @Router       /vehicle-blacklist/{id}/history [get]
-func (h *VehicleBlacklistHandler) GetHistory(c echo.Context) error {
+func (h *VehicleBlacklistHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -201,7 +201,7 @@ func (h *VehicleBlacklistHandler) GetHistory(c echo.Context) error {
 // @Security     BearerAuth
 // @Success      200 {array} models.VehicleBlacklistHistoryItem
 // @Router       /vehicle-blacklist/history [get]
-func (h *VehicleBlacklistHandler) GetAllHistory(c echo.Context) error {
+func (h *VehicleBlacklistHandler) GetAllHistory(c *echo.Context) error {
 	history, err := h.service.GetAllHistory(c.Request().Context())
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func (h *VehicleBlacklistHandler) GetAllHistory(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /vehicle-blacklist/bulk/archive [post]
-func (h *VehicleBlacklistHandler) BulkArchive(c echo.Context) error {
+func (h *VehicleBlacklistHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -247,7 +247,7 @@ func (h *VehicleBlacklistHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /vehicle-blacklist/bulk/restore [post]
-func (h *VehicleBlacklistHandler) BulkRestore(c echo.Context) error {
+func (h *VehicleBlacklistHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -271,7 +271,7 @@ func (h *VehicleBlacklistHandler) BulkRestore(c echo.Context) error {
 // @Param        id path int true "ID записи"
 // @Success      200 {string} string "Запись удалена навсегда"
 // @Router       /vehicle-blacklist/{id}/purge [delete]
-func (h *VehicleBlacklistHandler) Purge(c echo.Context) error {
+func (h *VehicleBlacklistHandler) Purge(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")

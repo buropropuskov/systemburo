@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ type PaginationParams struct {
 
 // ParsePagination извлекает page и limit из query-параметров запроса.
 // При отсутствии параметров используются значения по умолчанию (page=1, limit=defaultLimit).
-func ParsePagination(c echo.Context, defaultLimit int) PaginationParams {
+func ParsePagination(c *echo.Context, defaultLimit int) PaginationParams {
 	page := 1
 	limit := defaultLimit
 

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"systemburo/internal/services"
 )
 
@@ -16,14 +16,14 @@ type SingleManualAttachCommands interface {
 	Attach(context.Context, int, services.ElementKind, int, services.SingleManualAttachRequest) (*services.SingleManualAttachResult, error)
 }
 
-func (h *SingleManualAttachHandler) GetEmployeeAttachments(c echo.Context) error {
+func (h *SingleManualAttachHandler) GetEmployeeAttachments(c *echo.Context) error {
 	return h.attachments(c, services.ElementEmployee)
 }
-func (h *SingleManualAttachHandler) GetCarAttachments(c echo.Context) error {
+func (h *SingleManualAttachHandler) GetCarAttachments(c *echo.Context) error {
 	return h.attachments(c, services.ElementCar)
 }
 
-func (h *SingleManualAttachHandler) attachments(c echo.Context, kind services.ElementKind) error {
+func (h *SingleManualAttachHandler) attachments(c *echo.Context, kind services.ElementKind) error {
 	actor, id, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err
@@ -56,26 +56,26 @@ func NewSingleManualAttachHandler(commands SingleManualAttachCommands) *SingleMa
 	return &SingleManualAttachHandler{commands: commands}
 }
 
-func (h *SingleManualAttachHandler) GetEmployeeContext(c echo.Context) error {
+func (h *SingleManualAttachHandler) GetEmployeeContext(c *echo.Context) error {
 	return h.context(c, services.ElementEmployee)
 }
-func (h *SingleManualAttachHandler) GetCarContext(c echo.Context) error {
+func (h *SingleManualAttachHandler) GetCarContext(c *echo.Context) error {
 	return h.context(c, services.ElementCar)
 }
-func (h *SingleManualAttachHandler) PreviewEmployee(c echo.Context) error {
+func (h *SingleManualAttachHandler) PreviewEmployee(c *echo.Context) error {
 	return h.command(c, services.ElementEmployee, false)
 }
-func (h *SingleManualAttachHandler) PreviewCar(c echo.Context) error {
+func (h *SingleManualAttachHandler) PreviewCar(c *echo.Context) error {
 	return h.command(c, services.ElementCar, false)
 }
-func (h *SingleManualAttachHandler) AttachEmployee(c echo.Context) error {
+func (h *SingleManualAttachHandler) AttachEmployee(c *echo.Context) error {
 	return h.command(c, services.ElementEmployee, true)
 }
-func (h *SingleManualAttachHandler) AttachCar(c echo.Context) error {
+func (h *SingleManualAttachHandler) AttachCar(c *echo.Context) error {
 	return h.command(c, services.ElementCar, true)
 }
 
-func (h *SingleManualAttachHandler) context(c echo.Context, kind services.ElementKind) error {
+func (h *SingleManualAttachHandler) context(c *echo.Context, kind services.ElementKind) error {
 	actor, id, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (h *SingleManualAttachHandler) context(c echo.Context, kind services.Elemen
 	return RespondSuccess(c, result)
 }
 
-func (h *SingleManualAttachHandler) command(c echo.Context, kind services.ElementKind, execute bool) error {
+func (h *SingleManualAttachHandler) command(c *echo.Context, kind services.ElementKind, execute bool) error {
 	actor, id, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err

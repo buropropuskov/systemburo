@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // MaintenanceBlock - после JWTAuth блокирует 503-м любой protected-запрос
@@ -14,7 +14,7 @@ import (
 // Для производительности использует GetStatusCached (10-сек in-memory).
 func MaintenanceBlock(svc services.MaintenanceService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			isSuper, _ := c.Get("is_super_admin").(bool)
 			// Super-admin проходит всегда - иначе как включать/выключать
 			// maintenance и тестировать систему.

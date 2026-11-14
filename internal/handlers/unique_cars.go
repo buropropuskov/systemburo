@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // UniqueCarHandler -- HTTP-обработчики уникальных машин.
@@ -36,7 +36,7 @@ func NewUniqueCarHandler(service services.UniqueCarService, resolver *services.P
 // @Success      200 {array} services.UniqueCarWithRelations
 // @Failure      401 {object} models.HTTPError
 // @Router       /unique-cars [get]
-func (h *UniqueCarHandler) GetAll(c echo.Context) error {
+func (h *UniqueCarHandler) GetAll(c *echo.Context) error {
 	username := c.Get("username").(string)
 	filterType := c.QueryParam("filter_type")
 	if filterType == "" {
@@ -82,7 +82,7 @@ func (h *UniqueCarHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError "Чужая организация или компания без права"
 // @Router       /unique-cars [post]
-func (h *UniqueCarHandler) Create(c echo.Context) error {
+func (h *UniqueCarHandler) Create(c *echo.Context) error {
 	username := c.Get("username").(string)
 	var req services.NewUniqueCarRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -115,7 +115,7 @@ func (h *UniqueCarHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError "Нет прав"
 // @Failure      404 {object} models.HTTPError "Не найдена"
 // @Router       /unique-cars/{id} [put]
-func (h *UniqueCarHandler) Update(c echo.Context) error {
+func (h *UniqueCarHandler) Update(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -150,7 +150,7 @@ func (h *UniqueCarHandler) Update(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError "Нет прав"
 // @Failure      404 {object} models.HTTPError "Не найдена"
 // @Router       /unique-cars/{id} [delete]
-func (h *UniqueCarHandler) Delete(c echo.Context) error {
+func (h *UniqueCarHandler) Delete(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -175,7 +175,7 @@ func (h *UniqueCarHandler) Delete(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError "Нет прав"
 // @Failure      404 {object} models.HTTPError "Не найдена"
 // @Router       /unique-cars/{id}/history [get]
-func (h *UniqueCarHandler) GetHistory(c echo.Context) error {
+func (h *UniqueCarHandler) GetHistory(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -202,7 +202,7 @@ func (h *UniqueCarHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError "Не администратор"
 // @Router       /unique-cars/history [get]
-func (h *UniqueCarHandler) GetRegistryLog(c echo.Context) error {
+func (h *UniqueCarHandler) GetRegistryLog(c *echo.Context) error {
 	username := c.Get("username").(string)
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 
@@ -224,7 +224,7 @@ func (h *UniqueCarHandler) GetRegistryLog(c echo.Context) error {
 // @Success      200 {object} services.UniqueCarWithRelations
 // @Failure      404 {object} models.HTTPError
 // @Router       /unique-cars/lookup [get]
-func (h *UniqueCarHandler) Lookup(c echo.Context) error {
+func (h *UniqueCarHandler) Lookup(c *echo.Context) error {
 	number := c.QueryParam("number")
 	if number == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "number обязателен")
@@ -248,7 +248,7 @@ func (h *UniqueCarHandler) Lookup(c echo.Context) error {
 // @Success      200 {object} services.CarOwnerInfo
 // @Failure      401 {object} models.HTTPError
 // @Router       /unique-cars/ownership-info [get]
-func (h *UniqueCarHandler) GetOwnershipInfo(c echo.Context) error {
+func (h *UniqueCarHandler) GetOwnershipInfo(c *echo.Context) error {
 	username := c.Get("username").(string)
 	info, err := h.service.GetOwnerInfo(c.Request().Context(), username)
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ArchiveDownloadHandler - скачивание из файлового архива бланков (#1615, срез B3):
@@ -52,7 +52,7 @@ func archiveUnavailable() error {
 // Historical originals require the current superadmin role in addition to the
 // existing document and route checks. Authorship grants access to current own
 // documents, but does not grant historical originals.
-func requireBlankDocumentsExport(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) error {
+func requireBlankDocumentsExport(c *echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) error {
 	if err := requireArchiveOriginal(c, resolver); err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func archiveDownloadRangeError(err error) error {
 // @Param        request body models.ArchiveDownloadRequest true "Период"
 // @Success      200 {object} Response
 // @Router       /file-archive/estimate [post]
-func (h *ArchiveDownloadHandler) EstimateDownload(c echo.Context) error {
+func (h *ArchiveDownloadHandler) EstimateDownload(c *echo.Context) error {
 	if h.downloads == nil {
 		return archiveUnavailable()
 	}
@@ -110,7 +110,7 @@ func (h *ArchiveDownloadHandler) EstimateDownload(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      413 {object} models.HTTPError
 // @Router       /file-archive/download-ticket [post]
-func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
+func (h *ArchiveDownloadHandler) IssueDownloadTicket(c *echo.Context) error {
 	if h.downloads == nil {
 		return archiveUnavailable()
 	}
@@ -149,7 +149,7 @@ func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      503 {object} models.HTTPError
 // @Router       /file-archive/download [get]
-func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
+func (h *ArchiveDownloadHandler) Download(c *echo.Context) error {
 	if h.downloads == nil {
 		return archiveUnavailable()
 	}
@@ -200,7 +200,7 @@ func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/archive [get]
-func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
+func (h *ArchiveDownloadHandler) Archive(c *echo.Context) error {
 	if h.downloads == nil {
 		return archiveUnavailable()
 	}
@@ -241,7 +241,7 @@ func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /file-archive/files/{id} [get]
-func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
+func (h *ArchiveDownloadHandler) DownloadFile(c *echo.Context) error {
 	if h.downloads == nil {
 		return archiveUnavailable()
 	}
@@ -279,7 +279,7 @@ func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
 // @Param        per_page       query int    false "Размер страницы (<=100)"
 // @Success      200 {object} Response
 // @Router       /file-archive/items [get]
-func (h *ArchiveDownloadHandler) ListItems(c echo.Context) error {
+func (h *ArchiveDownloadHandler) ListItems(c *echo.Context) error {
 	if h.downloads == nil {
 		return archiveUnavailable()
 	}

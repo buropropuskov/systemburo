@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // CitizenshipHandler -- HTTP-обработчики гражданств.
@@ -32,7 +32,7 @@ func NewCitizenshipHandler(service services.CitizenshipService) *CitizenshipHand
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /citizenships [get]
-func (h *CitizenshipHandler) GetAll(c echo.Context) error {
+func (h *CitizenshipHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	citizenships, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -54,7 +54,7 @@ func (h *CitizenshipHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /citizenships [post]
-func (h *CitizenshipHandler) Create(c echo.Context) error {
+func (h *CitizenshipHandler) Create(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	var req models.CreateCitizenshipRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -84,7 +84,7 @@ func (h *CitizenshipHandler) Create(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /citizenships/{id} [put]
-func (h *CitizenshipHandler) Update(c echo.Context) error {
+func (h *CitizenshipHandler) Update(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -115,7 +115,7 @@ func (h *CitizenshipHandler) Update(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      409 {object} models.HTTPError
 // @Router       /citizenships/{id} [delete]
-func (h *CitizenshipHandler) Delete(c echo.Context) error {
+func (h *CitizenshipHandler) Delete(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -142,7 +142,7 @@ func (h *CitizenshipHandler) Delete(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /citizenships/{id}/restore [post]
-func (h *CitizenshipHandler) Restore(c echo.Context) error {
+func (h *CitizenshipHandler) Restore(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -165,7 +165,7 @@ func (h *CitizenshipHandler) Restore(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /citizenships/bulk/archive [post]
-func (h *CitizenshipHandler) BulkArchive(c echo.Context) error {
+func (h *CitizenshipHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -192,7 +192,7 @@ func (h *CitizenshipHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /citizenships/bulk/restore [post]
-func (h *CitizenshipHandler) BulkRestore(c echo.Context) error {
+func (h *CitizenshipHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -220,7 +220,7 @@ func (h *CitizenshipHandler) BulkRestore(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /citizenships/{id}/history [get]
-func (h *CitizenshipHandler) GetHistory(c echo.Context) error {
+func (h *CitizenshipHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -243,7 +243,7 @@ func (h *CitizenshipHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /citizenships/clear-default [post]
-func (h *CitizenshipHandler) ClearDefaults(c echo.Context) error {
+func (h *CitizenshipHandler) ClearDefaults(c *echo.Context) error {
 	if err := h.service.ClearDefaults(c.Request().Context()); err != nil {
 		return err
 	}

@@ -12,7 +12,7 @@ import (
 	"systemburo/internal/export"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Выгрузка реестра заявок за период (#1832).
@@ -71,7 +71,7 @@ var registryHeaders = []string{
 // @Failure      403 {object}  models.HTTPError
 // @Failure      500 {object}  models.HTTPError
 // @Router       /applications/export [get]
-func (h *ApplicationHandler) ExportApplications(c echo.Context) error {
+func (h *ApplicationHandler) ExportApplications(c *echo.Context) error {
 	download.NoStore(c)
 	username := GetUsername(c)
 	if username == "" || GetUserID(c) <= 0 {

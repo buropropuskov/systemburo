@@ -12,7 +12,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,7 +64,7 @@ func TestApplicationDraft_APIQuotaAndOwnList(t *testing.T) {
 	require.Zero(t, reservations)
 	require.Equal(t, 401, testutil.GET(t, e, "/applications/files/drafts", nil).Code)
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.SetRequest(c.Request().WithContext(services.WithImpersonator(c.Request().Context(), 1)))
 			return next(c)
 		}

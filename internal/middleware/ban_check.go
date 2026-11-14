@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // BannedReadWhitelist содержит только чтение кабинета. Заявки дополнительно
@@ -33,13 +33,13 @@ func isSafeMethod(method string) bool {
 	}
 }
 
-func isLogout(c echo.Context) bool {
+func isLogout(c *echo.Context) bool {
 	return c.Request().Method == http.MethodPost && (c.Path() == "/api/logout" || c.Path() == "/api/logout-all")
 }
 
 func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if isLogout(c) {
 				return next(c)
 			}

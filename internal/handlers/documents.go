@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // DocumentHandler -- HTTP-обработчики документов.
@@ -35,7 +35,7 @@ func NewDocumentHandler(service services.DocumentService, fileSvc services.Docum
 // @Success      200 {array} models.DocumentListItem
 // @Failure      401 {object} models.HTTPError
 // @Router       /documents [get]
-func (h *DocumentHandler) List(c echo.Context) error {
+func (h *DocumentHandler) List(c *echo.Context) error {
 	var groupID *int
 	if raw := c.QueryParam("group_id"); raw != "" {
 		id, err := strconv.Atoi(raw)
@@ -69,7 +69,7 @@ func (h *DocumentHandler) List(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /documents [post]
-func (h *DocumentHandler) Upload(c echo.Context) error {
+func (h *DocumentHandler) Upload(c *echo.Context) error {
 	userID := GetUserID(c)
 
 	file, err := c.FormFile("file")
@@ -102,7 +102,7 @@ func (h *DocumentHandler) Upload(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /documents/{id} [put]
-func (h *DocumentHandler) UpdateMeta(c echo.Context) error {
+func (h *DocumentHandler) UpdateMeta(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -132,7 +132,7 @@ func (h *DocumentHandler) UpdateMeta(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /documents/{id}/file [put]
-func (h *DocumentHandler) ReplaceFile(c echo.Context) error {
+func (h *DocumentHandler) ReplaceFile(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -159,7 +159,7 @@ func (h *DocumentHandler) ReplaceFile(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /documents/{id} [delete]
-func (h *DocumentHandler) Delete(c echo.Context) error {
+func (h *DocumentHandler) Delete(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func (h *DocumentHandler) Delete(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /documents/reorder [put]
-func (h *DocumentHandler) Reorder(c echo.Context) error {
+func (h *DocumentHandler) Reorder(c *echo.Context) error {
 	var req models.ReorderDocumentsRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -200,7 +200,7 @@ func (h *DocumentHandler) Reorder(c echo.Context) error {
 // @Success      200 {array} models.PublicDocumentGroup
 // @Failure      401 {object} models.HTTPError
 // @Router       /public/documents [get]
-func (h *DocumentHandler) GetPublic(c echo.Context) error {
+func (h *DocumentHandler) GetPublic(c *echo.Context) error {
 	groups, err := h.service.GetPublic(c.Request().Context())
 	if err != nil {
 		return err
@@ -218,7 +218,7 @@ func (h *DocumentHandler) GetPublic(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /documents/{id}/download [get]
-func (h *DocumentHandler) Download(c echo.Context) error {
+func (h *DocumentHandler) Download(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -239,7 +239,7 @@ func (h *DocumentHandler) Download(c echo.Context) error {
 }
 
 // canSeeHidden - есть ли у вызывающего право на раздел документов (page.admin.directories).
-func (h *DocumentHandler) canSeeHidden(c echo.Context) bool {
+func (h *DocumentHandler) canSeeHidden(c *echo.Context) bool {
 	allowed, err := h.resolver.HasPermission(c.Request().Context(), GetUserID(c), services.KeyPageAdminDirectories)
 	if err != nil {
 		slog.Error("Не удалось проверить право на скрытые документы", "error", err)
@@ -249,7 +249,7 @@ func (h *DocumentHandler) canSeeHidden(c echo.Context) bool {
 }
 
 // bindUploadRequest парсит поля multipart-формы для Upload.
-func bindUploadRequest(c echo.Context) (models.UploadDocumentRequest, error) {
+func bindUploadRequest(c *echo.Context) (models.UploadDocumentRequest, error) {
 	req := models.UploadDocumentRequest{}
 	req.Title = c.FormValue("title")
 
