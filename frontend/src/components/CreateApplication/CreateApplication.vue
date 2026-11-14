@@ -3516,6 +3516,7 @@ export default {
         pointer-events: auto;
         box-shadow: 0 2px 8px var(--shadow-drop);
         white-space: normal;
+        text-align: start;
     }
 
     .submit-tooltip::before {
@@ -3548,7 +3549,6 @@ export default {
     .tooltip-attachment-title {
         font-weight: 600;
         margin-bottom: 6px;
-        color: var(--border);
     }
 
     .attachment-clickable {
@@ -3924,7 +3924,7 @@ export default {
             top: 100%;
             left: 24px;
             border-color: transparent;
-            border-top-color: var(--text);
+            border-top-color: var(--hint-bg);
         }
 
         .form__textarea {
