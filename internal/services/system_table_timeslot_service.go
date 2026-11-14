@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // timeSlots -- общий стор временных слотов для системных таблиц. Слот можно

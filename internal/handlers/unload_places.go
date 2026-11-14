@@ -11,7 +11,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // allowedImageTypes -- допустимые MIME-типы для загрузки фотографий мест разгрузки.
@@ -49,7 +49,7 @@ func NewUnloadPlaceHandler(service services.UnloadPlaceService, maxFileSize int6
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places [get]
-func (h *UnloadPlaceHandler) GetAll(c echo.Context) error {
+func (h *UnloadPlaceHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	places, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -70,7 +70,7 @@ func (h *UnloadPlaceHandler) GetAll(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id} [get]
-func (h *UnloadPlaceHandler) GetByID(c echo.Context) error {
+func (h *UnloadPlaceHandler) GetByID(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -95,7 +95,7 @@ func (h *UnloadPlaceHandler) GetByID(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places [post]
-func (h *UnloadPlaceHandler) Create(c echo.Context) error {
+func (h *UnloadPlaceHandler) Create(c *echo.Context) error {
 	var req services.CreateUnloadPlaceRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -126,7 +126,7 @@ func (h *UnloadPlaceHandler) Create(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id} [put]
-func (h *UnloadPlaceHandler) Update(c echo.Context) error {
+func (h *UnloadPlaceHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -155,7 +155,7 @@ func (h *UnloadPlaceHandler) Update(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id} [delete]
-func (h *UnloadPlaceHandler) Delete(c echo.Context) error {
+func (h *UnloadPlaceHandler) Delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -178,7 +178,7 @@ func (h *UnloadPlaceHandler) Delete(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/restore [post]
-func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
+func (h *UnloadPlaceHandler) Restore(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -202,7 +202,7 @@ func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/usage [get]
-func (h *UnloadPlaceHandler) GetUsage(c echo.Context) error {
+func (h *UnloadPlaceHandler) GetUsage(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -227,7 +227,7 @@ func (h *UnloadPlaceHandler) GetUsage(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/detach-all [post]
-func (h *UnloadPlaceHandler) DetachAll(c echo.Context) error {
+func (h *UnloadPlaceHandler) DetachAll(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -254,7 +254,7 @@ func (h *UnloadPlaceHandler) DetachAll(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/organizations/{org_id} [delete]
-func (h *UnloadPlaceHandler) DetachOrganization(c echo.Context) error {
+func (h *UnloadPlaceHandler) DetachOrganization(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -268,7 +268,7 @@ func (h *UnloadPlaceHandler) DetachOrganization(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, echo.Map{"detached": detached})
+	return RespondSuccess(c, map[string]any{"detached": detached})
 }
 
 // DetachCompany снимает привязку места разгрузки к одной компании.
@@ -285,7 +285,7 @@ func (h *UnloadPlaceHandler) DetachOrganization(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/companies/{company_id} [delete]
-func (h *UnloadPlaceHandler) DetachCompany(c echo.Context) error {
+func (h *UnloadPlaceHandler) DetachCompany(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -299,7 +299,7 @@ func (h *UnloadPlaceHandler) DetachCompany(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, echo.Map{"detached": detached})
+	return RespondSuccess(c, map[string]any{"detached": detached})
 }
 
 // BulkArchive godoc
@@ -314,7 +314,7 @@ func (h *UnloadPlaceHandler) DetachCompany(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /unload-places/bulk/archive [post]
-func (h *UnloadPlaceHandler) BulkArchive(c echo.Context) error {
+func (h *UnloadPlaceHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -341,7 +341,7 @@ func (h *UnloadPlaceHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /unload-places/bulk/restore [post]
-func (h *UnloadPlaceHandler) BulkRestore(c echo.Context) error {
+func (h *UnloadPlaceHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -370,7 +370,7 @@ func (h *UnloadPlaceHandler) BulkRestore(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/history [get]
-func (h *UnloadPlaceHandler) GetHistory(c echo.Context) error {
+func (h *UnloadPlaceHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -395,7 +395,7 @@ func (h *UnloadPlaceHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/time-slots [get]
-func (h *UnloadPlaceHandler) GetTimeSlots(c echo.Context) error {
+func (h *UnloadPlaceHandler) GetTimeSlots(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -422,7 +422,7 @@ func (h *UnloadPlaceHandler) GetTimeSlots(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/time-slots [post]
-func (h *UnloadPlaceHandler) AddTimeSlot(c echo.Context) error {
+func (h *UnloadPlaceHandler) AddTimeSlot(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -457,7 +457,7 @@ func (h *UnloadPlaceHandler) AddTimeSlot(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{place_id}/time-slots/{slot_id} [put]
-func (h *UnloadPlaceHandler) UpdateTimeSlot(c echo.Context) error {
+func (h *UnloadPlaceHandler) UpdateTimeSlot(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("place_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
@@ -489,7 +489,7 @@ func (h *UnloadPlaceHandler) UpdateTimeSlot(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{place_id}/time-slots/{slot_id} [delete]
-func (h *UnloadPlaceHandler) DeleteTimeSlot(c echo.Context) error {
+func (h *UnloadPlaceHandler) DeleteTimeSlot(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("place_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
@@ -517,7 +517,7 @@ func (h *UnloadPlaceHandler) DeleteTimeSlot(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/warning-windows [get]
-func (h *UnloadPlaceHandler) GetWarningWindows(c echo.Context) error {
+func (h *UnloadPlaceHandler) GetWarningWindows(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -544,7 +544,7 @@ func (h *UnloadPlaceHandler) GetWarningWindows(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/warning-windows [post]
-func (h *UnloadPlaceHandler) AddWarningWindow(c echo.Context) error {
+func (h *UnloadPlaceHandler) AddWarningWindow(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -579,7 +579,7 @@ func (h *UnloadPlaceHandler) AddWarningWindow(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{place_id}/warning-windows/{window_id} [put]
-func (h *UnloadPlaceHandler) UpdateWarningWindow(c echo.Context) error {
+func (h *UnloadPlaceHandler) UpdateWarningWindow(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("place_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
@@ -611,7 +611,7 @@ func (h *UnloadPlaceHandler) UpdateWarningWindow(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{place_id}/warning-windows/{window_id} [delete]
-func (h *UnloadPlaceHandler) DeleteWarningWindow(c echo.Context) error {
+func (h *UnloadPlaceHandler) DeleteWarningWindow(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("place_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
@@ -643,7 +643,7 @@ func (h *UnloadPlaceHandler) DeleteWarningWindow(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{id}/photos [post]
-func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
+func (h *UnloadPlaceHandler) UploadPhoto(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -667,7 +667,7 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 	insertedIDs, err := h.service.UploadPhotos(c.Request().Context(), placeID, username, saved)
 	if err != nil {
 		if cleanupErr := upload.Cleanup(saved, h.uploadDir); cleanupErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось удалить новые файлы").SetInternal(errors.Join(err, cleanupErr))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось удалить новые файлы").Wrap(errors.Join(err, cleanupErr))
 		}
 		return err
 	}
@@ -691,7 +691,7 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{place_id}/photos/{photo_id} [delete]
-func (h *UnloadPlaceHandler) DeletePhoto(c echo.Context) error {
+func (h *UnloadPlaceHandler) DeletePhoto(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("place_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
@@ -728,7 +728,7 @@ func (h *UnloadPlaceHandler) DeletePhoto(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places/{place_id}/photos/{photo_id}/main [post]
-func (h *UnloadPlaceHandler) SetMainPhoto(c echo.Context) error {
+func (h *UnloadPlaceHandler) SetMainPhoto(c *echo.Context) error {
 	placeID, err := strconv.Atoi(c.Param("place_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")

@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/upload"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // allowedDocExtensions -- разрешённые расширения документов.
@@ -163,7 +163,7 @@ func (s *documentFileService) Save(ctx context.Context, file *multipart.FileHead
 		if written > maxSize && cleanupErr == nil {
 			code, message = http.StatusBadRequest, "Файл слишком большой"
 		}
-		return "", "", echo.NewHTTPError(code, message).SetInternal(errors.Join(err, cleanupErr))
+		return "", "", echo.NewHTTPError(code, message).Wrap(errors.Join(err, cleanupErr))
 	}
 
 	return storedName, ext, nil

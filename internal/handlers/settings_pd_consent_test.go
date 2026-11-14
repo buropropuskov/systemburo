@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/testutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"

@@ -11,7 +11,7 @@ import (
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
@@ -86,11 +86,11 @@ func TestMustChangePassword_FailsClosedOnDBError(t *testing.T) {
 	c.Set("user_id", 42)
 
 	called := false
-	handler := func(c echo.Context) error { called = true; return c.String(http.StatusOK, "ok") }
+	handler := func(c *echo.Context) error { called = true; return c.String(http.StatusOK, "ok") }
 	err = mw.MustChangePassword(gate)(handler)(c)
 
 	require.Error(t, err)
-	e.HTTPErrorHandler(err, c)
+	e.HTTPErrorHandler(c, err)
 	assert.False(t, called)
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	assert.Empty(t, rec.Header().Get("X-Password-Change-Required"))
@@ -106,7 +106,7 @@ func TestMustChangePassword_SkipsAnonymous(t *testing.T) {
 	c := e.NewContext(req, rec)
 	c.SetPath("/api/guarded")
 
-	handler := func(c echo.Context) error { return c.String(http.StatusOK, "ok") }
+	handler := func(c *echo.Context) error { return c.String(http.StatusOK, "ok") }
 	// nil-сервис: если middleware полезет за флагом, тест упадёт паникой - это и
 	// есть проверка, что до чтения дело не доходит.
 	require.NoError(t, mw.MustChangePassword(nil)(handler)(c))

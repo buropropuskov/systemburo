@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -335,7 +335,7 @@ func TestForwardHistory2664_MaskQueryFailuresDoNotExposeRecipients(t *testing.T)
 	enableConsent(t, e, admin, "<p>Synthetic fault test consent</p>")
 	_, before := forward2664StoredEvent(t, db, appID)
 	e.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if target := c.Request().Header.Get("X-Forward2664-Test-Fault"); target != "" {
 				ctx := context.WithValue(c.Request().Context(), forward2664FaultContextKey{}, target)
 				c.SetRequest(c.Request().WithContext(ctx))

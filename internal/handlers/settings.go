@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type SettingsHandler struct {
@@ -65,7 +65,7 @@ func NewSettingsHandler(
 
 // GetAll возвращает все системные настройки. Доступ - под page.admin.settings
 // (#7): гейтится роутером, а не хендлером.
-func (h *SettingsHandler) GetAll(c echo.Context) error {
+func (h *SettingsHandler) GetAll(c *echo.Context) error {
 	settings, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func (h *SettingsHandler) GetAll(c echo.Context) error {
 
 // Update обновляет значение конкретной настройки по ключу. Доступ - под
 // page.admin.settings (#7): гейтится роутером, а не хендлером.
-func (h *SettingsHandler) Update(c echo.Context) error {
+func (h *SettingsHandler) Update(c *echo.Context) error {
 	key := c.Param("key")
 	var req models.UpdateSettingRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -89,7 +89,7 @@ func (h *SettingsHandler) Update(c echo.Context) error {
 }
 
 // GetUploadSettings возвращает настройки загрузки файлов для фронтенда.
-func (h *SettingsHandler) GetUploadSettings(c echo.Context) error {
+func (h *SettingsHandler) GetUploadSettings(c *echo.Context) error {
 	result, err := h.service.GetUploadSettings(c.Request().Context())
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (h *SettingsHandler) GetUploadSettings(c echo.Context) error {
 }
 
 // GetNotificationSettings возвращает длительности уведомлений удаления/восстановления.
-func (h *SettingsHandler) GetNotificationSettings(c echo.Context) error {
+func (h *SettingsHandler) GetNotificationSettings(c *echo.Context) error {
 	result, err := h.service.GetNotificationSettings(c.Request().Context())
 	if err != nil {
 		return err
@@ -108,13 +108,13 @@ func (h *SettingsHandler) GetNotificationSettings(c echo.Context) error {
 
 // GetPasswordPolicy возвращает текущую политику требований к паролю для фронтенда
 // (живой чеклист в форме). Доступен любому авторизованному.
-func (h *SettingsHandler) GetPasswordPolicy(c echo.Context) error {
+func (h *SettingsHandler) GetPasswordPolicy(c *echo.Context) error {
 	return RespondSuccess(c, h.service.GetPasswordPolicy())
 }
 
 // GetPublicContacts возвращает контакты Бюро пропусков (телефон, почта). Публичный
 // (без JWT): нужен на странице логина и в плашке блокировки до/без авторизации.
-func (h *SettingsHandler) GetPublicContacts(c echo.Context) error {
+func (h *SettingsHandler) GetPublicContacts(c *echo.Context) error {
 	return RespondSuccess(c, h.service.GetPublicContacts(c.Request().Context()))
 }
 
@@ -131,14 +131,14 @@ func (h *SettingsHandler) GetPublicContacts(c echo.Context) error {
 // GetMailStatus сообщает, настроена ли отправка почты. Без него администратор
 // включал бы плановую рассылку вслепую и узнавал о ненастроенной почте из отчёта
 // о несостоявшемся прогоне.
-func (h *SettingsHandler) GetMailStatus(c echo.Context) error {
+func (h *SettingsHandler) GetMailStatus(c *echo.Context) error {
 	return RespondSuccess(c, map[string]bool{"configured": h.mail != nil && h.mail.Enabled()})
 }
 
 // SendTestMail отправляет проверочное письмо на указанный адрес и отвечает
 // синхронно. Настройка чужого почтового сервера без такой кнопки превращается в
 // переписку с поддержкой: администратор не видит ни кода отказа, ни причины.
-func (h *SettingsHandler) SendTestMail(c echo.Context) error {
+func (h *SettingsHandler) SendTestMail(c *echo.Context) error {
 	var req models.TestMailRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -184,7 +184,7 @@ const testMailBody = `Это проверочное письмо системы 
 // GetPasswordRotationStatus отдаёт состояние проверки сроков: у скольких работников
 // пароль уже истёк, скольким уйдёт предупреждение и настроена ли почта. Без этих
 // чисел администратор включал бы проверку вслепую.
-func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
+func (h *SettingsHandler) GetPasswordRotationStatus(c *echo.Context) error {
 	if h.rotationStatus == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "Состояние проверки сроков паролей недоступно")
 	}
@@ -210,7 +210,7 @@ func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
 // RunPasswordRotation запускает обновление паролей вручную. Ответ отдаётся сразу:
 // ждать в интерфейсе, пока разойдутся сотни писем, нельзя, а сама смена идёт
 // быстро - письма разбирает почтовый воркер по своему темпу.
-func (h *SettingsHandler) RunPasswordRotation(c echo.Context) error {
+func (h *SettingsHandler) RunPasswordRotation(c *echo.Context) error {
 	if h.rotation == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "Обновление паролей недоступно")
 	}
@@ -247,7 +247,7 @@ func (h *SettingsHandler) RunPasswordRotation(c echo.Context) error {
 // GetPasswordRotationLast отдаёт итог последнего прогона в этом процессе.
 // Перезапуск сервера его забывает - это осознанно: сведения справочные, ради них
 // заводить таблицу прогонов незачем, а факты смены и так лежат в журнале действий.
-func (h *SettingsHandler) GetPasswordRotationLast(c echo.Context) error {
+func (h *SettingsHandler) GetPasswordRotationLast(c *echo.Context) error {
 	if h.rotation == nil {
 		return RespondSuccess(c, map[string]any{"last": nil})
 	}

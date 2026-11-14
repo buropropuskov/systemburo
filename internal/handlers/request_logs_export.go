@@ -12,7 +12,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Выгрузка журнала обращений в .xlsx (#2125).
@@ -61,7 +61,7 @@ var requestLogsHeaders = []string{
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /request-logs/export [get]
-func (h *RequestLogsHandler) Export(c echo.Context) error {
+func (h *RequestLogsHandler) Export(c *echo.Context) error {
 	download.NoStore(c)
 	var q models.RequestLogsQuery
 	if err := c.Bind(&q); err != nil {
@@ -162,7 +162,7 @@ func requestLogsSubtitle(res models.RequestLogsExport) string {
 // вынести их из журнала во второе хранилище.
 //
 // Log, а не Record: сорвавшаяся запись аудита не должна отменять уже собранный файл.
-func (h *RequestLogsHandler) recordExport(c echo.Context, q models.RequestLogsQuery, res models.RequestLogsExport) {
+func (h *RequestLogsHandler) recordExport(c *echo.Context, q models.RequestLogsQuery, res models.RequestLogsExport) {
 	if h.recorder == nil {
 		return
 	}

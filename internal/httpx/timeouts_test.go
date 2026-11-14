@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,7 +68,7 @@ func TestAllowLongResponse_SurvivesWriteTimeout(t *testing.T) {
 	)
 
 	e := echo.New()
-	e.GET("/long", func(c echo.Context) error {
+	e.GET("/long", func(c *echo.Context) error {
 		require.NoError(t, AllowLongResponse(c))
 
 		res := c.Response()
@@ -77,7 +77,7 @@ func TestAllowLongResponse_SurvivesWriteTimeout(t *testing.T) {
 			if _, err := fmt.Fprintf(res, "chunk-%d\n", i); err != nil {
 				return err
 			}
-			res.Flush()
+			_ = http.NewResponseController(res).Flush()
 			time.Sleep(chunkPause)
 		}
 		return nil
@@ -115,13 +115,13 @@ func TestAllowLongResponse_WriteTimeoutCutsWithoutIt(t *testing.T) {
 	)
 
 	e := echo.New()
-	e.GET("/long", func(c echo.Context) error {
+	e.GET("/long", func(c *echo.Context) error {
 		res := c.Response()
 		res.WriteHeader(http.StatusOK)
 		for i := range chunks {
 			// Ошибку записи глотаем намеренно: проверяем, что увидит клиент.
 			fmt.Fprintf(res, "chunk-%d\n", i)
-			res.Flush()
+			_ = http.NewResponseController(res).Flush()
 			time.Sleep(chunkPause)
 		}
 		return nil
@@ -173,33 +173,27 @@ func TestApplyServerTimeouts_SurviveEchoStart(t *testing.T) {
 	const writeTimeout = 200 * time.Millisecond
 
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	// Долгий ответ без снятия срока: сервер обязан его оборвать.
-	e.GET("/slow", func(c echo.Context) error {
+	e.GET("/slow", func(c *echo.Context) error {
 		time.Sleep(2 * writeTimeout)
 		return c.String(http.StatusOK, "late")
 	})
 	// Тот же долгий ответ, но со снятием срока - обязан дойти целиком.
-	e.GET("/slow-allowed", func(c echo.Context) error {
+	e.GET("/slow-allowed", func(c *echo.Context) error {
 		require.NoError(t, AllowLongResponse(c))
 		time.Sleep(2 * writeTimeout)
 		return c.String(http.StatusOK, "late")
 	})
 
-	ApplyServerTimeouts(e.Server, ServerTimeouts{Write: writeTimeout})
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	server := &http.Server{Handler: e}
+	ApplyServerTimeouts(server, ServerTimeouts{Write: writeTimeout})
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() { _ = server.Close() })
 
-	go func() { _ = e.Start("127.0.0.1:0") }()
-	t.Cleanup(func() { _ = e.Close() })
-
-	var addr net.Addr
-	require.Eventually(t, func() bool {
-		addr = e.ListenerAddr()
-		return addr != nil
-	}, 5*time.Second, 10*time.Millisecond, "сервер не поднялся")
-
-	base := "http://" + addr.String()
+	base := "http://" + listener.Addr().String()
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	resp, err := client.Get(base + "/slow")

@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -36,7 +36,7 @@ func RequireTableElementVerb(db *gorm.DB, resolver *services.PermissionResolver,
 		binding.table, binding.column)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userID, ok := c.Get("user_id").(int)
 			if !ok || userID == 0 {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
@@ -53,7 +53,7 @@ func RequireTableElementVerb(db *gorm.DB, resolver *services.PermissionResolver,
 
 			var names []string
 			if err := db.WithContext(c.Request().Context()).Raw(query, elementID).Scan(&names).Error; err != nil {
-				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 			}
 
 			required := services.KeyPageAdmin

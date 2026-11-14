@@ -11,7 +11,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // SystemTableHandler -- HTTP-обработчики системных таблиц.
@@ -34,7 +34,7 @@ func NewSystemTableHandler(service services.SystemTableService, recorder service
 }
 
 // logAction пишет запись аудита. Безопасно вызывать с nil-recorder.
-func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tableID int, actionType string, details interface{}) {
+func (h *SystemTableHandler) logAction(ctx context.Context, c *echo.Context, tableID int, actionType string, details interface{}) {
 	if h.recorder == nil {
 		return
 	}
@@ -58,7 +58,7 @@ func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tabl
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables [get]
-func (h *SystemTableHandler) GetAll(c echo.Context) error {
+func (h *SystemTableHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	tables, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -79,7 +79,7 @@ func (h *SystemTableHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id} [get]
-func (h *SystemTableHandler) GetByID(c echo.Context) error {
+func (h *SystemTableHandler) GetByID(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -103,7 +103,7 @@ func (h *SystemTableHandler) GetByID(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/name/{name} [get]
-func (h *SystemTableHandler) GetByName(c echo.Context) error {
+func (h *SystemTableHandler) GetByName(c *echo.Context) error {
 	name := c.Param("name")
 	allowArchived := c.QueryParam("allow_archived") == "1" || c.QueryParam("allow_archived") == "true"
 	table, err := h.service.GetByName(c.Request().Context(), name, allowArchived)
@@ -126,7 +126,7 @@ func (h *SystemTableHandler) GetByName(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables [post]
-func (h *SystemTableHandler) Create(c echo.Context) error {
+func (h *SystemTableHandler) Create(c *echo.Context) error {
 	var req models.CreateSystemTableRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -160,7 +160,7 @@ func (h *SystemTableHandler) Create(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id} [put]
-func (h *SystemTableHandler) Update(c echo.Context) error {
+func (h *SystemTableHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -243,7 +243,7 @@ func buildUpdateDetails(req models.UpdateSystemTableRequest) map[string]interfac
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id} [delete]
-func (h *SystemTableHandler) Delete(c echo.Context) error {
+func (h *SystemTableHandler) Delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -267,7 +267,7 @@ func (h *SystemTableHandler) Delete(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/restore [post]
-func (h *SystemTableHandler) Restore(c echo.Context) error {
+func (h *SystemTableHandler) Restore(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -291,7 +291,7 @@ func (h *SystemTableHandler) Restore(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/usage [get]
-func (h *SystemTableHandler) GetUsage(c echo.Context) error {
+func (h *SystemTableHandler) GetUsage(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -316,7 +316,7 @@ func (h *SystemTableHandler) GetUsage(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/detach-all [post]
-func (h *SystemTableHandler) DetachAll(c echo.Context) error {
+func (h *SystemTableHandler) DetachAll(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -343,7 +343,7 @@ func (h *SystemTableHandler) DetachAll(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/organizations/{org_id} [delete]
-func (h *SystemTableHandler) DetachOrganization(c echo.Context) error {
+func (h *SystemTableHandler) DetachOrganization(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -357,7 +357,7 @@ func (h *SystemTableHandler) DetachOrganization(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, echo.Map{"detached": detached})
+	return RespondSuccess(c, map[string]any{"detached": detached})
 }
 
 // DetachCompany снимает привязку таблицы к одной компании.
@@ -374,7 +374,7 @@ func (h *SystemTableHandler) DetachOrganization(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/companies/{company_id} [delete]
-func (h *SystemTableHandler) DetachCompany(c echo.Context) error {
+func (h *SystemTableHandler) DetachCompany(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -388,7 +388,7 @@ func (h *SystemTableHandler) DetachCompany(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, echo.Map{"detached": detached})
+	return RespondSuccess(c, map[string]any{"detached": detached})
 }
 
 // logBulkResult пишет запись аудита для каждого id из запроса, для которого
@@ -396,7 +396,7 @@ func (h *SystemTableHandler) DetachCompany(c echo.Context) error {
 // системных таблиц живёт в handler-слое (см. logAction), а не в сервисе (как
 // у марок) - BulkOpResult сервиса не возвращает список успешных id, поэтому
 // дедуп запроса и вычитание провалившихся делаем здесь же.
-func (h *SystemTableHandler) logBulkResult(c echo.Context, ids []int, res *services.BulkOpResult, actionType string) {
+func (h *SystemTableHandler) logBulkResult(c *echo.Context, ids []int, res *services.BulkOpResult, actionType string) {
 	if h.recorder == nil {
 		return
 	}
@@ -428,7 +428,7 @@ func (h *SystemTableHandler) logBulkResult(c echo.Context, ids []int, res *servi
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /system-tables/bulk/archive [post]
-func (h *SystemTableHandler) BulkArchive(c echo.Context) error {
+func (h *SystemTableHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -455,7 +455,7 @@ func (h *SystemTableHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /system-tables/bulk/restore [post]
-func (h *SystemTableHandler) BulkRestore(c echo.Context) error {
+func (h *SystemTableHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -492,7 +492,7 @@ func (h *SystemTableHandler) BulkRestore(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/history [get]
-func (h *SystemTableHandler) GetHistory(c echo.Context) error {
+func (h *SystemTableHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -540,7 +540,7 @@ func (h *SystemTableHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/fields [put]
-func (h *SystemTableHandler) UpdateFields(c echo.Context) error {
+func (h *SystemTableHandler) UpdateFields(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -573,7 +573,7 @@ func (h *SystemTableHandler) UpdateFields(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/fact-fields [put]
-func (h *SystemTableHandler) UpdateFactFields(c echo.Context) error {
+func (h *SystemTableHandler) UpdateFactFields(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -606,7 +606,7 @@ func (h *SystemTableHandler) UpdateFactFields(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/time-slots [get]
-func (h *SystemTableHandler) GetTimeSlots(c echo.Context) error {
+func (h *SystemTableHandler) GetTimeSlots(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -632,7 +632,7 @@ func (h *SystemTableHandler) GetTimeSlots(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/time-slots [post]
-func (h *SystemTableHandler) AddTimeSlot(c echo.Context) error {
+func (h *SystemTableHandler) AddTimeSlot(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -666,7 +666,7 @@ func (h *SystemTableHandler) AddTimeSlot(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{table_id}/time-slots/{slot_id} [put]
-func (h *SystemTableHandler) UpdateTimeSlot(c echo.Context) error {
+func (h *SystemTableHandler) UpdateTimeSlot(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("table_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
@@ -698,7 +698,7 @@ func (h *SystemTableHandler) UpdateTimeSlot(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{table_id}/time-slots/{slot_id} [delete]
-func (h *SystemTableHandler) DeleteTimeSlot(c echo.Context) error {
+func (h *SystemTableHandler) DeleteTimeSlot(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("table_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
@@ -727,7 +727,7 @@ func (h *SystemTableHandler) DeleteTimeSlot(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables/{id}/warning-windows [get]
-func (h *SystemTableHandler) GetWarningWindows(c echo.Context) error {
+func (h *SystemTableHandler) GetWarningWindows(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -753,7 +753,7 @@ func (h *SystemTableHandler) GetWarningWindows(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/warning-windows [post]
-func (h *SystemTableHandler) AddWarningWindow(c echo.Context) error {
+func (h *SystemTableHandler) AddWarningWindow(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -787,7 +787,7 @@ func (h *SystemTableHandler) AddWarningWindow(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{table_id}/warning-windows/{window_id} [put]
-func (h *SystemTableHandler) UpdateWarningWindow(c echo.Context) error {
+func (h *SystemTableHandler) UpdateWarningWindow(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("table_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
@@ -819,7 +819,7 @@ func (h *SystemTableHandler) UpdateWarningWindow(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{table_id}/warning-windows/{window_id} [delete]
-func (h *SystemTableHandler) DeleteWarningWindow(c echo.Context) error {
+func (h *SystemTableHandler) DeleteWarningWindow(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("table_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
@@ -850,7 +850,7 @@ func (h *SystemTableHandler) DeleteWarningWindow(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/photos [post]
-func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
+func (h *SystemTableHandler) UploadPhoto(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -874,7 +874,7 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 	photoIDs, err := h.service.UploadPhotos(c.Request().Context(), tableID, username, saved)
 	if err != nil {
 		if cleanupErr := upload.Cleanup(saved, h.uploadDir); cleanupErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось удалить новые файлы").SetInternal(errors.Join(err, cleanupErr))
+			return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось удалить новые файлы").Wrap(errors.Join(err, cleanupErr))
 		}
 		return err
 	}
@@ -898,7 +898,7 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{table_id}/photos/{photo_id} [delete]
-func (h *SystemTableHandler) DeletePhoto(c echo.Context) error {
+func (h *SystemTableHandler) DeletePhoto(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("table_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
@@ -926,7 +926,7 @@ func (h *SystemTableHandler) DeletePhoto(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{table_id}/photos/{photo_id}/main [post]
-func (h *SystemTableHandler) SetMainPhoto(c echo.Context) error {
+func (h *SystemTableHandler) SetMainPhoto(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("table_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")

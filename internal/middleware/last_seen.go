@@ -8,7 +8,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -57,7 +57,7 @@ func (t *seenThrottle) shouldWrite(userID int, now time.Time) bool {
 func LastSeen(db *gorm.DB) echo.MiddlewareFunc {
 	throttle := newSeenThrottle(lastSeenThrottleWindow)
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userID, _ := c.Get("user_id").(int)
 			if userID == 0 {
 				return next(c)

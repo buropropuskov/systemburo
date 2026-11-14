@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"net/http/httptest"
 	"systemburo/internal/apperr"
 	mw "systemburo/internal/middleware"
@@ -26,7 +26,7 @@ func TestSessionAccess_FileCookieRevocationAndBearerPriority(t *testing.T) {
 	raw, _ := loginForRefreshTests(t, e, db, "photo_owner")
 	files := echo.New()
 	files.HTTPErrorHandler = e.HTTPErrorHandler
-	files.GET("/api/uploads*", func(c echo.Context) error {
+	files.GET("/api/uploads*", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "synthetic photo")
 	}, mw.FileAccess([]byte(testutil.TestJWTSecret), services.NewSessionAccessService(db, testutil.TestJWTRefreshSecret), nil))
 	read := func(bearer string) *httptest.ResponseRecorder {

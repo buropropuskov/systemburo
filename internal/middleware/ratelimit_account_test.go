@@ -11,7 +11,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,8 +30,8 @@ func TestAccountRateLimit_SharedIdentity(t *testing.T) {
 		c := e.NewContext(r, rec)
 		// A loose context field is not a verified session identity.
 		c.Set("user_id", 123)
-		if err := limiter(func(c echo.Context) error { return c.NoContent(http.StatusOK) })(c); err != nil {
-			e.HTTPErrorHandler(err, c)
+		if err := limiter(func(c *echo.Context) error { return c.NoContent(http.StatusOK) })(c); err != nil {
+			e.HTTPErrorHandler(c, err)
 		}
 		return rec.Code
 	}

@@ -9,7 +9,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ForwardMessageItem - одна пересылка заявки в "ветке заявки" (#967).

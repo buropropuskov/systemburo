@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AuditHandler - generic endpoint журнала аудита (#870).
@@ -37,7 +37,7 @@ func NewAuditHandler(reader services.AuditReader) *AuditHandler {
 // @Param        per_page      query  int     false  "Размер страницы (<=100)"
 // @Success      200  {object}  Response
 // @Router       /audit [get]
-func (h *AuditHandler) GetAuditLog(c echo.Context) error {
+func (h *AuditHandler) GetAuditLog(c *echo.Context) error {
 	q := services.AuditQuery{
 		EntityType: c.QueryParam("entity_type"),
 		Action:     c.QueryParam("action"),

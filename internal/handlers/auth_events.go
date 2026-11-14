@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AuthEventHandler - чтение истории входов пользователя (auth_events).
@@ -38,7 +38,7 @@ func NewAuthEventHandler(reader *services.AuthEventReader) *AuthEventHandler {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/auth-events [get]
-func (h *AuthEventHandler) ListForUser(c echo.Context) error {
+func (h *AuthEventHandler) ListForUser(c *echo.Context) error {
 	ctx := c.Request().Context()
 	username := c.Param("username")
 

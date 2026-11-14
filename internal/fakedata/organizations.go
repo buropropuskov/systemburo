@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // createNameRetries -- сколько раз пробуем подобрать организацию/компанию со
@@ -117,6 +117,6 @@ func isDuplicateNameConflict(err error) bool {
 	if !errors.As(err, &httpErr) || httpErr.Code != http.StatusBadRequest {
 		return false
 	}
-	msg, ok := httpErr.Message.(string)
-	return ok && (msg == "Организация с таким названием уже существует" || msg == "Компания с таким названием уже существует")
+	msg := httpErr.Message
+	return (msg == "Организация с таким названием уже существует" || msg == "Компания с таким названием уже существует")
 }

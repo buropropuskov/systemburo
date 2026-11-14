@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/download"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // GuideHandler -- разделы руководства: read-only API + скачивание PDF (B1) и
@@ -45,7 +45,7 @@ type updateGuideContentRequest struct {
 // @Success 200 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /guide/sections [get]
-func (h *GuideHandler) ListSections(c echo.Context) error {
+func (h *GuideHandler) ListSections(c *echo.Context) error {
 	userID := GetUserID(c)
 	sections, err := h.service.ListForUser(c.Request().Context(), userID)
 	if err != nil {
@@ -67,7 +67,7 @@ func (h *GuideHandler) ListSections(c echo.Context) error {
 // @Failure 404 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /guide/sections/{role}/download [get]
-func (h *GuideHandler) Download(c echo.Context) error {
+func (h *GuideHandler) Download(c *echo.Context) error {
 	userID := GetUserID(c)
 	role := c.Param("role")
 	if !services.IsGuideRole(role) {
@@ -105,7 +105,7 @@ func (h *GuideHandler) Download(c echo.Context) error {
 // @Success 200 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /guide/admin/sections [get]
-func (h *GuideHandler) AdminListSections(c echo.Context) error {
+func (h *GuideHandler) AdminListSections(c *echo.Context) error {
 	sections, err := h.service.ListAll(c.Request().Context())
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load guide sections")
@@ -124,7 +124,7 @@ func (h *GuideHandler) AdminListSections(c echo.Context) error {
 // @Failure 404 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /guide/admin/sections/{role} [put]
-func (h *GuideHandler) UpdateSection(c echo.Context) error {
+func (h *GuideHandler) UpdateSection(c *echo.Context) error {
 	role := c.Param("role")
 	if !services.IsGuideRole(role) {
 		return echo.NewHTTPError(http.StatusNotFound, "guide section not found")
@@ -161,7 +161,7 @@ func (h *GuideHandler) UpdateSection(c echo.Context) error {
 // @Failure 404 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /guide/admin/sections/{role}/file [put]
-func (h *GuideHandler) UploadFile(c echo.Context) error {
+func (h *GuideHandler) UploadFile(c *echo.Context) error {
 	role := c.Param("role")
 	if !services.IsGuideRole(role) {
 		return echo.NewHTTPError(http.StatusNotFound, "guide section not found")
@@ -208,7 +208,7 @@ func (h *GuideHandler) UploadFile(c echo.Context) error {
 // @Failure 404 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /guide/admin/sections/{role}/file [delete]
-func (h *GuideHandler) DeleteFile(c echo.Context) error {
+func (h *GuideHandler) DeleteFile(c *echo.Context) error {
 	role := c.Param("role")
 	if !services.IsGuideRole(role) {
 		return echo.NewHTTPError(http.StatusNotFound, "guide section not found")

@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +33,7 @@ func NewConsentHandler(
 }
 
 // Grant обрабатывает запрос на предоставление согласия на обработку ПД.
-func (h *ConsentHandler) Grant(c echo.Context) error {
+func (h *ConsentHandler) Grant(c *echo.Context) error {
 	var req models.GrantConsentRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -58,7 +58,7 @@ func (h *ConsentHandler) Grant(c echo.Context) error {
 }
 
 // Revoke обрабатывает запрос на отзыв согласия.
-func (h *ConsentHandler) Revoke(c echo.Context) error {
+func (h *ConsentHandler) Revoke(c *echo.Context) error {
 	consentType := c.Param("type")
 	if !allowedConsentTypes[consentType] {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid consent type")
@@ -82,7 +82,7 @@ func (h *ConsentHandler) Revoke(c echo.Context) error {
 // Отзыв закрывает человеку доступ: до нового подтверждения система будет
 // показывать ему окно согласия. Это и есть содержание просьбы, но администратор
 // должен понимать последствие - о нём предупреждает интерфейс.
-func (h *ConsentHandler) RevokeForUser(c echo.Context) error {
+func (h *ConsentHandler) RevokeForUser(c *echo.Context) error {
 	username := c.Param("username")
 	if username == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не указан работник")
@@ -104,7 +104,7 @@ func (h *ConsentHandler) RevokeForUser(c echo.Context) error {
 }
 
 // List возвращает список согласий текущего пользователя.
-func (h *ConsentHandler) List(c echo.Context) error {
+func (h *ConsentHandler) List(c *echo.Context) error {
 	userID, err := h.resolveUserID(c)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (h *ConsentHandler) List(c echo.Context) error {
 }
 
 // Check проверяет наличие активного согласия указанного типа.
-func (h *ConsentHandler) Check(c echo.Context) error {
+func (h *ConsentHandler) Check(c *echo.Context) error {
 	consentType := c.Param("type")
 	if !allowedConsentTypes[consentType] {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid consent type")
@@ -133,7 +133,7 @@ func (h *ConsentHandler) Check(c echo.Context) error {
 	return RespondSuccess(c, map[string]bool{"active": active})
 }
 
-func (h *ConsentHandler) resolveUserID(c echo.Context) (int, error) {
+func (h *ConsentHandler) resolveUserID(c *echo.Context) (int, error) {
 	username := GetUsername(c)
 	var user models.User
 	if err := h.db.Where("username = ?", username).First(&user).Error; err != nil {

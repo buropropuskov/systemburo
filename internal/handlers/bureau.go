@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // BureauHandler -- HTTP-обработчики расписания работы Бюро (single-owner).
@@ -29,7 +29,7 @@ func NewBureauHandler(service services.BureauService) *BureauHandler {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /bureau/time-slots [get]
-func (h *BureauHandler) GetTimeSlots(c echo.Context) error {
+func (h *BureauHandler) GetTimeSlots(c *echo.Context) error {
 	slots, err := h.service.GetTimeSlots(c.Request().Context())
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (h *BureauHandler) GetTimeSlots(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /bureau/time-slots [post]
-func (h *BureauHandler) AddTimeSlot(c echo.Context) error {
+func (h *BureauHandler) AddTimeSlot(c *echo.Context) error {
 	var req services.CreateTimeSlotRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -82,7 +82,7 @@ func (h *BureauHandler) AddTimeSlot(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /bureau/time-slots/{slot_id} [put]
-func (h *BureauHandler) UpdateTimeSlot(c echo.Context) error {
+func (h *BureauHandler) UpdateTimeSlot(c *echo.Context) error {
 	slotID, err := strconv.Atoi(c.Param("slot_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid slot_id")
@@ -110,7 +110,7 @@ func (h *BureauHandler) UpdateTimeSlot(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /bureau/time-slots/{slot_id} [delete]
-func (h *BureauHandler) DeleteTimeSlot(c echo.Context) error {
+func (h *BureauHandler) DeleteTimeSlot(c *echo.Context) error {
 	slotID, err := strconv.Atoi(c.Param("slot_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid slot_id")

@@ -27,7 +27,7 @@ type ApplicationBlacklistFlag struct {
 	// раунда, а новый - показывал бы давно согласованный состав как заблокированный.
 	SupplementID *int   `gorm:"index" json:"supplement_id"`
 	ElementType  string `gorm:"size:20;index:idx_app_blacklist_flag_element,priority:1" json:"element_type"`
-	ElementID     int    `gorm:"index:idx_app_blacklist_flag_element,priority:2" json:"element_id"`
+	ElementID    int    `gorm:"index:idx_app_blacklist_flag_element,priority:2" json:"element_id"`
 	// ElementNormalized - нормализованная форма самого элемента (normalize.Plate / normalize.Name),
 	// не записи ЧС. Стабильный ключ "этой машины/человека" между сабмитами (ElementID меняется,
 	// т.к. cars/employees создаются заново). По нему + MatchedBlacklistID гасим повторные

@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"net/http"
 	"systemburo/internal/services"
 	"time"
 )
 
-func (h *CarHandler) enrichCarPassages(c echo.Context, tableID int, rows []services.TableCarResponse) ([]services.TableCarResponse, error) {
+func (h *CarHandler) enrichCarPassages(c *echo.Context, tableID int, rows []services.TableCarResponse) ([]services.TableCarResponse, error) {
 	if h.passageDB == nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Сервис учёта недоступен")
 	}
@@ -38,7 +38,7 @@ func (h *CarHandler) enrichCarPassages(c echo.Context, tableID int, rows []servi
 	}
 	return out, nil
 }
-func (h *EmployeeHandler) enrichEmployeePassages(c echo.Context, tableID int, rows []services.TableEmployeeResponse) ([]services.TableEmployeeResponse, error) {
+func (h *EmployeeHandler) enrichEmployeePassages(c *echo.Context, tableID int, rows []services.TableEmployeeResponse) ([]services.TableEmployeeResponse, error) {
 	if h.passageDB == nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Сервис учёта недоступен")
 	}

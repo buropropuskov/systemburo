@@ -6,24 +6,24 @@ import (
 	"systemburo/internal/httpx"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 const (
 	// HeaderRequestID is the HTTP header used for request tracing.
 	HeaderRequestID = "X-Request-ID"
 
-	// ContextKeyRequestID is the echo.Context key for the request ID.
+	// ContextKeyRequestID is the *echo.Context key for the request ID.
 	ContextKeyRequestID = "request_id"
 )
 
 // RequestID returns middleware that ensures every request has a unique ID.
 // A UUID supplied by the proxy is reused. Other values are replaced.
 // The ID is stored in the
-// echo.Context and set as a response header.
+// *echo.Context and set as a response header.
 func RequestID() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			reqID := c.Request().Header.Get(HeaderRequestID)
 			if !validRequestID(reqID) {
 				reqID = uuid.New().String()
@@ -47,9 +47,9 @@ func validRequestID(value string) bool {
 	return err == nil
 }
 
-// GetRequestID extracts the request ID from the echo.Context.
+// GetRequestID extracts the request ID from the *echo.Context.
 // Returns an empty string if no request ID is set.
-func GetRequestID(c echo.Context) string {
+func GetRequestID(c *echo.Context) string {
 	if id, ok := c.Get(ContextKeyRequestID).(string); ok {
 		return id
 	}

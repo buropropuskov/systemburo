@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // UniqueEmployeeHandler -- HTTP-обработчики уникальных сотрудников.
@@ -37,7 +37,7 @@ func NewUniqueEmployeeHandler(service services.UniqueEmployeeService, resolver *
 // @Success      200 {array} services.UniqueEmployeeWithRelations
 // @Failure      401 {object} models.HTTPError
 // @Router       /unique-employees [get]
-func (h *UniqueEmployeeHandler) GetAll(c echo.Context) error {
+func (h *UniqueEmployeeHandler) GetAll(c *echo.Context) error {
 	username := c.Get("username").(string)
 	filterType := c.QueryParam("filter_type")
 	if filterType == "" {
@@ -82,7 +82,7 @@ func (h *UniqueEmployeeHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError "Чужая организация или компания без права"
 // @Router       /unique-employees [post]
-func (h *UniqueEmployeeHandler) Create(c echo.Context) error {
+func (h *UniqueEmployeeHandler) Create(c *echo.Context) error {
 	username := c.Get("username").(string)
 	var req services.NewUniqueEmployeeRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -115,7 +115,7 @@ func (h *UniqueEmployeeHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError "Нет прав"
 // @Failure      404 {object} models.HTTPError "Не найден"
 // @Router       /unique-employees/{id} [put]
-func (h *UniqueEmployeeHandler) Update(c echo.Context) error {
+func (h *UniqueEmployeeHandler) Update(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -150,7 +150,7 @@ func (h *UniqueEmployeeHandler) Update(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError "Нет прав"
 // @Failure      404 {object} models.HTTPError "Не найден"
 // @Router       /unique-employees/{id} [delete]
-func (h *UniqueEmployeeHandler) Delete(c echo.Context) error {
+func (h *UniqueEmployeeHandler) Delete(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -183,7 +183,7 @@ type SetObjectionRequest struct {
 // @Success      200  {object}  map[string]string
 // @Failure      409  {object}  map[string]string  "Возражение уже отмечено"
 // @Router       /unique-employees/{id}/objection [post]
-func (h *UniqueEmployeeHandler) SetObjection(c echo.Context) error {
+func (h *UniqueEmployeeHandler) SetObjection(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -211,7 +211,7 @@ func (h *UniqueEmployeeHandler) SetObjection(c echo.Context) error {
 // @Success      200  {object}  map[string]string
 // @Failure      404  {object}  map[string]string  "Возражение не отмечено"
 // @Router       /unique-employees/{id}/objection [delete]
-func (h *UniqueEmployeeHandler) ClearObjection(c echo.Context) error {
+func (h *UniqueEmployeeHandler) ClearObjection(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -235,7 +235,7 @@ func (h *UniqueEmployeeHandler) ClearObjection(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError "Нет прав"
 // @Failure      404 {object} models.HTTPError "Не найден"
 // @Router       /unique-employees/{id}/history [get]
-func (h *UniqueEmployeeHandler) GetHistory(c echo.Context) error {
+func (h *UniqueEmployeeHandler) GetHistory(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -262,7 +262,7 @@ func (h *UniqueEmployeeHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError "Не администратор"
 // @Router       /unique-employees/history [get]
-func (h *UniqueEmployeeHandler) GetRegistryLog(c echo.Context) error {
+func (h *UniqueEmployeeHandler) GetRegistryLog(c *echo.Context) error {
 	username := c.Get("username").(string)
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 
@@ -286,7 +286,7 @@ func (h *UniqueEmployeeHandler) GetRegistryLog(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /unique-employees/lookup [get]
-func (h *UniqueEmployeeHandler) Lookup(c echo.Context) error {
+func (h *UniqueEmployeeHandler) Lookup(c *echo.Context) error {
 	lastName := c.QueryParam("last_name")
 	firstName := c.QueryParam("first_name")
 	if lastName == "" || firstName == "" {
@@ -311,7 +311,7 @@ func (h *UniqueEmployeeHandler) Lookup(c echo.Context) error {
 // @Success      200 {object} services.EmployeeOwnerInfo
 // @Failure      401 {object} models.HTTPError
 // @Router       /unique-employees/ownership-info [get]
-func (h *UniqueEmployeeHandler) GetOwnershipInfo(c echo.Context) error {
+func (h *UniqueEmployeeHandler) GetOwnershipInfo(c *echo.Context) error {
 	username := c.Get("username").(string)
 	info, err := h.service.GetOwnerInfo(c.Request().Context(), username)
 	if err != nil {

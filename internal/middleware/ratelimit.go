@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 const (
@@ -40,7 +40,7 @@ type rateLimitResult struct {
 // RateLimit limits requests by the address selected by Echo.IPExtractor.
 // Unverified request headers never select a separate account budget.
 func RateLimit(limit int, windowSeconds int64) echo.MiddlewareFunc {
-	return newRateLimit(limit, windowSeconds, time.Now, func(c echo.Context) (string, error) {
+	return newRateLimit(limit, windowSeconds, time.Now, func(c *echo.Context) (string, error) {
 		return "ip:" + c.RealIP(), nil
 	}, "Вы отправляете слишком много запросов. Подождите %d секунд.")
 }
@@ -52,7 +52,7 @@ func AccountRateLimit(limit int, windowSeconds int64) echo.MiddlewareFunc {
 		"Вы отправляете слишком много запросов. Подождите %d секунд.")
 }
 
-func accountRateLimitKey(c echo.Context) (string, error) {
+func accountRateLimitKey(c *echo.Context) (string, error) {
 	identity, ok := services.SessionIdentityFromContext(c.Request().Context())
 	if !ok || identity.OwnerUserID <= 0 {
 		return "", echo.NewHTTPError(http.StatusUnauthorized, "Сессия завершена. Войдите снова.")
@@ -61,15 +61,15 @@ func accountRateLimitKey(c echo.Context) (string, error) {
 }
 
 func newRateLimit(limit int, windowSeconds int64, now func() time.Time,
-	key func(echo.Context) (string, error), message string,
+	key func(*echo.Context) (string, error), message string,
 ) echo.MiddlewareFunc {
 	rl := &rateLimiter{requests: make(map[string][]int64), limit: limit, window: windowSeconds, now: now}
 	return rl.middleware(key, message)
 }
 
-func (rl *rateLimiter) middleware(key func(echo.Context) (string, error), message string) echo.MiddlewareFunc {
+func (rl *rateLimiter) middleware(key func(*echo.Context) (string, error), message string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			identifier, err := key(c)
 			if err != nil {
 				return err
@@ -198,6 +198,6 @@ func pruneRateTimestamps(timestamps []int64, cutoff int64) []int64 {
 // LoginRateLimit preserves the independent per-IP login budget.
 func LoginRateLimit(maxAttempts int, window time.Duration) echo.MiddlewareFunc {
 	return newRateLimit(maxAttempts, int64(window.Seconds()), time.Now,
-		func(c echo.Context) (string, error) { return "login:" + c.RealIP(), nil },
+		func(c *echo.Context) (string, error) { return "login:" + c.RealIP(), nil },
 		"Слишком много попыток входа. Повторите через %d секунд.")
 }

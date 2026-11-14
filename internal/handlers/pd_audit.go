@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PDAuditHandler -- чтение журнала доступа к персональным данным (152-ФЗ, #1472).
@@ -29,7 +29,7 @@ func NewPDAuditHandler(s *services.PDAuditService) *PDAuditHandler {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /pd-audit [get]
-func (h *PDAuditHandler) List(c echo.Context) error {
+func (h *PDAuditHandler) List(c *echo.Context) error {
 	var f models.PDAuditFilter
 	if err := c.Bind(&f); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid filter: "+err.Error())

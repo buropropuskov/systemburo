@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/labstack/echo/v4"
-	echomw "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echomw "github.com/labstack/echo/v5/middleware"
 )
 
 // CORS returns CORS middleware configured with the given allowed origins.

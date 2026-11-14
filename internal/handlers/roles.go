@@ -4,7 +4,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // RoleHandler -- HTTP-обработчики для управления ролями.
@@ -18,7 +18,7 @@ func NewRoleHandler(service *services.RoleService) *RoleHandler {
 }
 
 // List -- GET /roles.
-func (h *RoleHandler) List(c echo.Context) error {
+func (h *RoleHandler) List(c *echo.Context) error {
 	roles, err := h.service.List(c.Request().Context())
 	if err != nil {
 		return err
@@ -27,7 +27,7 @@ func (h *RoleHandler) List(c echo.Context) error {
 }
 
 // Create -- POST /roles.
-func (h *RoleHandler) Create(c echo.Context) error {
+func (h *RoleHandler) Create(c *echo.Context) error {
 	var req models.CreateRoleRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -40,7 +40,7 @@ func (h *RoleHandler) Create(c echo.Context) error {
 }
 
 // Update -- PUT /roles/:id.
-func (h *RoleHandler) Update(c echo.Context) error {
+func (h *RoleHandler) Update(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -56,7 +56,7 @@ func (h *RoleHandler) Update(c echo.Context) error {
 }
 
 // Delete -- DELETE /roles/:id.
-func (h *RoleHandler) Delete(c echo.Context) error {
+func (h *RoleHandler) Delete(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (h *RoleHandler) Delete(c echo.Context) error {
 }
 
 // SetDefaultGroups -- PUT /roles/:id/default-groups.
-func (h *RoleHandler) SetDefaultGroups(c echo.Context) error {
+func (h *RoleHandler) SetDefaultGroups(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (h *RoleHandler) SetDefaultGroups(c echo.Context) error {
 }
 
 // SetPermissions -- PUT /roles/:id/permissions. Полная замена прямых грантов роли.
-func (h *RoleHandler) SetPermissions(c echo.Context) error {
+func (h *RoleHandler) SetPermissions(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err

@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // StatisticsHandler — HTTP-обработчики статистики дашборда.
@@ -27,7 +27,7 @@ func NewStatisticsHandler(service services.StatisticsService) *StatisticsHandler
 // бакетинг аналитики), иначе "сегодня"/"неделя" съезжают на 3 часа: from -> начало
 // дня 00:00 МСК, to -> начало следующего дня МСК. Инстанты сравниваются с timestamptz
 // корректно вне зависимости от хранения в UTC.
-func parseDateRange(c echo.Context) (from, to time.Time) {
+func parseDateRange(c *echo.Context) (from, to time.Time) {
 	loc := services.AnalyticsLocation()
 	now := time.Now().In(loc)
 	toDefault := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
@@ -68,7 +68,7 @@ func parseDateRange(c echo.Context) (from, to time.Time) {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/summary [get]
-func (h *StatisticsHandler) GetSummary(c echo.Context) error {
+func (h *StatisticsHandler) GetSummary(c *echo.Context) error {
 	from, to := parseDateRange(c)
 	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
@@ -93,7 +93,7 @@ func (h *StatisticsHandler) GetSummary(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/processing-summary [get]
-func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
+func (h *StatisticsHandler) GetProcessingSummary(c *echo.Context) error {
 	from, to := parseDateRange(c)
 	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
@@ -122,7 +122,7 @@ func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/processing-journal [get]
-func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
+func (h *StatisticsHandler) GetProcessingJournal(c *echo.Context) error {
 	from, to := parseDateRange(c)
 	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
@@ -176,7 +176,7 @@ func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/online-peaks [get]
-func (h *StatisticsHandler) GetOnlinePeaks(c echo.Context) error {
+func (h *StatisticsHandler) GetOnlinePeaks(c *echo.Context) error {
 	from, to := parseDateRange(c)
 	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
@@ -198,7 +198,7 @@ func (h *StatisticsHandler) GetOnlinePeaks(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/online-users [get]
-func (h *StatisticsHandler) GetOnlineUsers(c echo.Context) error {
+func (h *StatisticsHandler) GetOnlineUsers(c *echo.Context) error {
 	users, err := h.service.GetOnlineUsers(c.Request().Context())
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func (h *StatisticsHandler) GetOnlineUsers(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/timeline [get]
-func (h *StatisticsHandler) GetTimeline(c echo.Context) error {
+func (h *StatisticsHandler) GetTimeline(c *echo.Context) error {
 	from, to := parseDateRange(c)
 	if !from.Before(to) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
@@ -253,7 +253,7 @@ func (h *StatisticsHandler) GetTimeline(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/recent-passages [get]
-func (h *StatisticsHandler) GetRecentPassages(c echo.Context) error {
+func (h *StatisticsHandler) GetRecentPassages(c *echo.Context) error {
 	limit := 0
 	if v := c.QueryParam("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -277,7 +277,7 @@ func (h *StatisticsHandler) GetRecentPassages(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/metrics [get]
-func (h *StatisticsHandler) GetMetrics(c echo.Context) error {
+func (h *StatisticsHandler) GetMetrics(c *echo.Context) error {
 	catalog, err := h.service.GetReportCatalog(c.Request().Context())
 	if err != nil {
 		return err
@@ -298,7 +298,7 @@ func (h *StatisticsHandler) GetMetrics(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/report [post]
-func (h *StatisticsHandler) RunReport(c echo.Context) error {
+func (h *StatisticsHandler) RunReport(c *echo.Context) error {
 	var req models.ReportRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
@@ -346,7 +346,7 @@ func (h *StatisticsHandler) RunReport(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/report/period [get]
-func (h *StatisticsHandler) ReportDataPeriod(c echo.Context) error {
+func (h *StatisticsHandler) ReportDataPeriod(c *echo.Context) error {
 	req := models.ReportRequest{
 		Mode:   c.QueryParam("mode"),
 		Metric: c.QueryParam("metric"),

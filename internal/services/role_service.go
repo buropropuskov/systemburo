@@ -11,7 +11,7 @@ import (
 	inputvalidator "systemburo/internal/validator"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 

@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"systemburo/internal/apperr"
 	"systemburo/internal/download"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // blankAccessService - гейты доступа, нужные для скачивания бланка. Узкий интерфейс
@@ -58,7 +60,7 @@ func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAc
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/blank [get]
-func (h *AttachmentBlankHandler) Download(c echo.Context) error {
+func (h *AttachmentBlankHandler) Download(c *echo.Context) error {
 	download.NoStore(c)
 	appID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -114,7 +116,7 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /attachments/{id}/blank-template [get]
-func (h *AttachmentBlankHandler) DownloadTemplate(c echo.Context) error {
+func (h *AttachmentBlankHandler) DownloadTemplate(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -136,7 +138,7 @@ func (h *AttachmentBlankHandler) DownloadTemplate(c echo.Context) error {
 // downloadArchived отдаёт файл с диска по записи реестра файлового архива - доступ к
 // самому вложению уже проверен в Download до вызова. Документы участников внутри файла
 // закрыты отдельно: сохранённая копия собрана с ними (#1615, C6).
-func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID int, withDocuments bool) error {
+func (h *AttachmentBlankHandler) downloadArchived(c *echo.Context, appID, attID int, withDocuments bool) error {
 	download.NoStore(c)
 	if err := requireArchiveOriginal(c, h.resolver); err != nil {
 		return err
@@ -173,7 +175,7 @@ func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID i
 	c.Response().Header().Set("Content-Disposition",
 		`attachment; filename="blank.xlsx"; filename*=UTF-8''`+encoded)
 	if file.Open == nil {
-		return c.File(file.Path)
+		return c.FileFS(filepath.Base(file.Path), os.DirFS(filepath.Dir(file.Path)))
 	}
 	reader, err := file.Open()
 	if err != nil {
@@ -188,7 +190,7 @@ func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID i
 // документов: осознанным действием должен быть вынос персональных данных, а не отказ
 // от него. Старый клиент, не знающий параметра, по этой же причине получает бланк с
 // прочерками, а не молча уносит паспорта.
-func documentsRequested(c echo.Context) bool {
+func documentsRequested(c *echo.Context) bool {
 	switch c.QueryParam("documents") {
 	case "1", "true", "yes":
 		return true
@@ -215,7 +217,7 @@ func documentsRequested(c echo.Context) bool {
 //
 // Гейт доступа к бланку проверяется отдельно (canDownloadBlank) и раньше: сюда попадают
 // уже те, кому файл положен, вопрос лишь в его наполнении.
-func canExportBlankDocuments(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) (bool, error) {
+func canExportBlankDocuments(c *echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) (bool, error) {
 	userID := GetUserID(c)
 	policy, err := services.ResolveDocumentAccess(c.Request().Context(), resolver, userID)
 	if err != nil {
@@ -234,7 +236,7 @@ func canExportBlankDocuments(c echo.Context, access blankAccessService, resolver
 // canDownload повторяет обе точки, откуда бланк запрашивают: деталь заявки (DownloadBlanksModal)
 // и вкладка "Доступные мне" (AccessibleAttachmentsView). Охранник заявку не видит вовсе, поэтому
 // одного CanAccessApplication мало - у него свой гейт по конкретному вложению.
-func (h *AttachmentBlankHandler) canDownload(c echo.Context, appID, attID int) (bool, error) {
+func (h *AttachmentBlankHandler) canDownload(c *echo.Context, appID, attID int) (bool, error) {
 	return canDownloadBlank(c, h.access, h.resolver, appID, attID)
 }
 
@@ -243,7 +245,7 @@ func (h *AttachmentBlankHandler) canDownload(c echo.Context, appID, attID int) (
 // из файлового архива (ArchiveDownloadHandler, #1615 B3): оба места обязаны видеть
 // один и тот же набор вложений, иначе серверный ZIP молча показал бы больше или
 // меньше, чем ручное скачивание файлов по одному.
-func canDownloadBlank(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID, attID int) (bool, error) {
+func canDownloadBlank(c *echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID, attID int) (bool, error) {
 	ctx := c.Request().Context()
 	if username, ok := c.Get("username").(string); ok && username != "" {
 		if access.CanAccessApplication(ctx, appID, username, IsSuperAdmin(c)) {

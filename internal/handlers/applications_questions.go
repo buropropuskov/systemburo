@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // GetApplicationQuestions godoc
@@ -20,7 +20,7 @@ import (
 // @Failure      400 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /applications/{id}/questions [get]
-func (h *ApplicationHandler) GetApplicationQuestions(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationQuestions(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -60,7 +60,7 @@ func (h *ApplicationHandler) GetApplicationQuestions(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /applications/{id}/questions [post]
-func (h *ApplicationHandler) CreateApplicationQuestion(c echo.Context) error {
+func (h *ApplicationHandler) CreateApplicationQuestion(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -99,7 +99,7 @@ func (h *ApplicationHandler) CreateApplicationQuestion(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/questions/{questionId}/answers [post]
-func (h *ApplicationHandler) CreateApplicationAnswer(c echo.Context) error {
+func (h *ApplicationHandler) CreateApplicationAnswer(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -138,7 +138,7 @@ func (h *ApplicationHandler) CreateApplicationAnswer(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /applications/{id}/questions/seen [post]
-func (h *ApplicationHandler) MarkQuestionsSeen(c echo.Context) error {
+func (h *ApplicationHandler) MarkQuestionsSeen(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -170,7 +170,7 @@ func (h *ApplicationHandler) MarkQuestionsSeen(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/questions/{questionId}/read [post]
-func (h *ApplicationHandler) MarkQuestionRead(c echo.Context) error {
+func (h *ApplicationHandler) MarkQuestionRead(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")

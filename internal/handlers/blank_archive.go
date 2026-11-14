@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // BlankArchiveHandler - показ настроек файлового архива, ручное пересоздание файлов
@@ -29,7 +29,7 @@ func NewBlankArchiveHandler(settings services.SettingsService, exports *services
 
 // GetSettings отдаёт настройки файлового архива. На базе, где их ни разу не сохраняли,
 // возвращаются значения по умолчанию - раздел должен открываться до первой настройки.
-func (h *BlankArchiveHandler) GetSettings(c echo.Context) error {
+func (h *BlankArchiveHandler) GetSettings(c *echo.Context) error {
 	settings, err := h.settings.GetArchiveSettings(c.Request().Context())
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (h *BlankArchiveHandler) GetSettings(c echo.Context) error {
 // шаблон раскладки или починил бланк и должен увидеть результат на этой же заявке.
 // Право то же, что на настройки: пересоздание переписывает файлы на диске и по весу
 // ближе к настройке, чем к просмотру.
-func (h *BlankArchiveHandler) Reexport(c echo.Context) error {
+func (h *BlankArchiveHandler) Reexport(c *echo.Context) error {
 	if h.exports == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
 	}
@@ -75,7 +75,7 @@ func (h *BlankArchiveHandler) Reexport(c echo.Context) error {
 // маппингов шаблона (unique_attachment_id без сужения периода до нужного дня):
 // auto-enqueue на каждую правку поставил бы в очередь десятки тысяч файлов, поэтому
 // пересборка - осознанное действие администратора, а не следствие сохранения формы.
-func (h *BlankArchiveHandler) Backfill(c echo.Context) error {
+func (h *BlankArchiveHandler) Backfill(c *echo.Context) error {
 	if h.exports == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
 	}

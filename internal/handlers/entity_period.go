@@ -7,7 +7,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // EntityPeriodCommands is the narrow interface of the dedicated command service.
@@ -27,23 +27,23 @@ func NewEntityPeriodHandler(commands EntityPeriodCommands) *EntityPeriodHandler 
 
 // Routes are intentionally not registered by this file. The integration owner
 // must first update expiry/read consumers and preserve authenticated middleware.
-func (h *EntityPeriodHandler) GetEmployeePeriod(c echo.Context) error {
+func (h *EntityPeriodHandler) GetEmployeePeriod(c *echo.Context) error {
 	return h.inspect(c, services.ElementEmployee)
 }
 
-func (h *EntityPeriodHandler) GetCarPeriod(c echo.Context) error {
+func (h *EntityPeriodHandler) GetCarPeriod(c *echo.Context) error {
 	return h.inspect(c, services.ElementCar)
 }
 
-func (h *EntityPeriodHandler) ChangeEmployeePeriod(c echo.Context) error {
+func (h *EntityPeriodHandler) ChangeEmployeePeriod(c *echo.Context) error {
 	return h.change(c, services.ElementEmployee)
 }
 
-func (h *EntityPeriodHandler) ChangeCarPeriod(c echo.Context) error {
+func (h *EntityPeriodHandler) ChangeCarPeriod(c *echo.Context) error {
 	return h.change(c, services.ElementCar)
 }
 
-func (h *EntityPeriodHandler) inspect(c echo.Context, kind services.ElementKind) error {
+func (h *EntityPeriodHandler) inspect(c *echo.Context, kind services.ElementKind) error {
 	actorID, entityID, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (h *EntityPeriodHandler) inspect(c echo.Context, kind services.ElementKind)
 	return RespondSuccess(c, result)
 }
 
-func (h *EntityPeriodHandler) change(c echo.Context, kind services.ElementKind) error {
+func (h *EntityPeriodHandler) change(c *echo.Context, kind services.ElementKind) error {
 	actorID, entityID, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func (h *EntityPeriodHandler) change(c echo.Context, kind services.ElementKind) 
 	return RespondSuccess(c, result)
 }
 
-func entityPeriodRequestIdentity(c echo.Context) (int, int, error) {
+func entityPeriodRequestIdentity(c *echo.Context) (int, int, error) {
 	actorID := GetUserID(c)
 	if actorID <= 0 {
 		return 0, 0, echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")

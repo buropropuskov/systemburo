@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // RequestLogsHandler -- HTTP-обработчики логов запросов.
@@ -43,7 +43,7 @@ func NewRequestLogsHandler(service services.RequestLogsService, recorder service
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs [get]
-func (h *RequestLogsHandler) GetLogs(c echo.Context) error {
+func (h *RequestLogsHandler) GetLogs(c *echo.Context) error {
 	var q models.RequestLogsQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
@@ -72,7 +72,7 @@ func (h *RequestLogsHandler) GetLogs(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/users [get]
-func (h *RequestLogsHandler) GetUsers(c echo.Context) error {
+func (h *RequestLogsHandler) GetUsers(c *echo.Context) error {
 	users, err := h.service.GetUsers(c.Request().Context())
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (h *RequestLogsHandler) GetUsers(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/stats [get]
-func (h *RequestLogsHandler) GetStats(c echo.Context) error {
+func (h *RequestLogsHandler) GetStats(c *echo.Context) error {
 	stats, err := h.service.GetStats(c.Request().Context())
 	if err != nil {
 		return err
@@ -106,7 +106,7 @@ func (h *RequestLogsHandler) GetStats(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/realtime [get]
-func (h *RequestLogsHandler) GetRealtime(c echo.Context) error {
+func (h *RequestLogsHandler) GetRealtime(c *echo.Context) error {
 	stats, err := h.service.GetRealtime(c.Request().Context())
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func (h *RequestLogsHandler) GetRealtime(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/timeline [get]
-func (h *RequestLogsHandler) GetTimeline(c echo.Context) error {
+func (h *RequestLogsHandler) GetTimeline(c *echo.Context) error {
 	var q models.TimelineQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
@@ -150,7 +150,7 @@ func (h *RequestLogsHandler) GetTimeline(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/history [get]
-func (h *RequestLogsHandler) GetHistory(c echo.Context) error {
+func (h *RequestLogsHandler) GetHistory(c *echo.Context) error {
 	var q models.RequestLogsHistoryQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")

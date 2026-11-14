@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // SearchHandler -- сквозной поиск по разделам системы.
@@ -40,7 +40,7 @@ func NewSearchHandler(service services.SearchService) *SearchHandler {
 // @Failure      403   {object} models.HTTPError "Учётная запись заблокирована"
 // @Failure      503   {object} models.HTTPError "Ни один раздел не ответил"
 // @Router       /search [get]
-func (h *SearchHandler) Search(c echo.Context) error {
+func (h *SearchHandler) Search(c *echo.Context) error {
 	userID := GetUserID(c)
 	if userID == 0 {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")

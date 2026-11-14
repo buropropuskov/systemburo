@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/download"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PrivateAPICache prevents caches from retaining API responses, including public
@@ -15,7 +15,7 @@ import (
 // Assets and HTML outside /api retain their existing cache policy.
 func PrivateAPICache() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			path := c.Request().URL.Path
 			if path == "/api" || strings.HasPrefix(path, "/api/") {
 				download.NoStore(c)

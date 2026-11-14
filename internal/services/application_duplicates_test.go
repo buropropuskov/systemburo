@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func strPtr(v string) *string { return &v }
@@ -122,7 +122,7 @@ func TestValidateNoDuplicates(t *testing.T) {
 			if httpErr.Code != http.StatusBadRequest {
 				t.Errorf("код ответа = %d, ожидался %d", httpErr.Code, http.StatusBadRequest)
 			}
-			message, _ := httpErr.Message.(string)
+			message := httpErr.Message
 			if !strings.Contains(message, tt.wantIn) {
 				t.Errorf("сообщение %q не содержит %q", message, tt.wantIn)
 			}

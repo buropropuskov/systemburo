@@ -7,13 +7,13 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // JWTAuth creates middleware that validates Bearer tokens.
 func JWTAuth(jwtSecret []byte, sessions services.SessionAccess) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			auth := c.Request().Header.Get("Authorization")
 			if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Missing or invalid authorization header")
@@ -46,7 +46,7 @@ func JWTAuth(jwtSecret []byte, sessions services.SessionAccess) echo.MiddlewareF
 
 // SetSessionIdentity installs a verified identity for the existing request gates
 // and audit recorder. Callers must resolve or revalidate it before installation.
-func SetSessionIdentity(c echo.Context, identity models.SessionIdentity) {
+func SetSessionIdentity(c *echo.Context, identity models.SessionIdentity) {
 	c.Set("username", identity.Username)
 	c.Set("user_id", identity.EffectiveUserID)
 	c.Set("is_super_admin", identity.IsSuperAdmin)

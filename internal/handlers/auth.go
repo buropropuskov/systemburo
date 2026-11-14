@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // refreshCookiePath - под /api, потому что читают cookie только продление
@@ -45,7 +45,7 @@ func NewAuthHandler(service services.AuthService, maintenance services.Maintenan
 }
 
 // setRefreshCookie выставляет HttpOnly refresh cookie.
-func (h *AuthHandler) setRefreshCookie(c echo.Context, token string) {
+func (h *AuthHandler) setRefreshCookie(c *echo.Context, token string) {
 	c.SetCookie(&http.Cookie{
 		Name:     services.RefreshCookieName,
 		Value:    token,
@@ -59,7 +59,7 @@ func (h *AuthHandler) setRefreshCookie(c echo.Context, token string) {
 
 // clearRefreshCookie удаляет refresh cookie (MaxAge: -1) по текущему и прежнему
 // пути: браузер различает cookie с разным Path и сам старую не удалит.
-func (h *AuthHandler) clearRefreshCookie(c echo.Context) {
+func (h *AuthHandler) clearRefreshCookie(c *echo.Context) {
 	for _, path := range []string{refreshCookiePath, legacyRefreshCookiePath} {
 		c.SetCookie(&http.Cookie{
 			Name:     services.RefreshCookieName,
@@ -89,7 +89,7 @@ func (h *AuthHandler) clearRefreshCookie(c echo.Context) {
 // @Failure      500 {object} Response "Не удалось проверить состояние учётной записи"
 // @Failure      503 {object} Response "Технические работы"
 // @Router       /login [post]
-func (h *AuthHandler) Login(c echo.Context) error {
+func (h *AuthHandler) Login(c *echo.Context) error {
 	var req models.LoginRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -132,7 +132,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 // @Failure      401 {object} Response "Недействительный или отсутствующий сеанс"
 // @Failure      500 {object} Response "Не удалось проверить или продлить сеанс"
 // @Router       /refresh-token [post]
-func (h *AuthHandler) RefreshToken(c echo.Context) error {
+func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 	// Только HttpOnly cookie: тела запроса здесь больше нет. Приём маркера из
 	// тела оставался с тех пор, как он ещё отдавался клиенту в JSON; фронт им не
 	// пользуется, а лишний путь в обновлении сеанса приходится держать в голове
@@ -162,7 +162,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 // @Success      200 {string} string "Logged out successfully"
 // @Failure      401 {object} models.HTTPError
 // @Router       /logout [post]
-func (h *AuthHandler) Logout(c echo.Context) error {
+func (h *AuthHandler) Logout(c *echo.Context) error {
 	username := c.Get("username").(string)
 	// Маркер берётся только из cookie. Её отсутствие выходу не мешает: cookie
 	// всё равно чистится, а сеанс без маркера отзывать нечего.
@@ -188,7 +188,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 // @Success      200 {object} map[string]int "количество отозванных сессий в поле revoked"
 // @Failure      401 {object} models.HTTPError
 // @Router       /logout-all [post]
-func (h *AuthHandler) LogoutAll(c echo.Context) error {
+func (h *AuthHandler) LogoutAll(c *echo.Context) error {
 	username := c.Get("username").(string)
 	revoked, err := h.service.LogoutAll(c.Request().Context(), username)
 	if err != nil {
@@ -211,7 +211,7 @@ func (h *AuthHandler) LogoutAll(c echo.Context) error {
 //
 // ResetLockout -- POST /users/:username/reset-lockout. Права проверяет
 // middleware (page.admin.users) -- тот же гейт, что у смены пароля.
-func (h *AuthHandler) ResetLockout(c echo.Context) error {
+func (h *AuthHandler) ResetLockout(c *echo.Context) error {
 	username := c.Param("username")
 	if username == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не указан пользователь")
@@ -223,8 +223,8 @@ func (h *AuthHandler) ResetLockout(c echo.Context) error {
 	return RespondSuccess(c, map[string]bool{"reset": reset})
 }
 
-// requestMeta - helper для сбора IP/UA из echo.Context в services.RequestMeta.
-func requestMeta(c echo.Context) *services.RequestMeta {
+// requestMeta - helper для сбора IP/UA из *echo.Context в services.RequestMeta.
+func requestMeta(c *echo.Context) *services.RequestMeta {
 	return &services.RequestMeta{
 		IPAddress: c.RealIP(),
 		UserAgent: c.Request().UserAgent(),
@@ -240,7 +240,7 @@ func requestMeta(c echo.Context) *services.RequestMeta {
 // @Success      200 {object} models.UserDataResponse
 // @Failure      401 {object} models.HTTPError
 // @Router       /user-data [get]
-func (h *AuthHandler) GetUserData(c echo.Context) error {
+func (h *AuthHandler) GetUserData(c *echo.Context) error {
 	username := c.Get("username").(string)
 	resp, err := h.service.GetUserData(c.Request().Context(), username)
 	if err != nil {
@@ -258,7 +258,7 @@ func (h *AuthHandler) GetUserData(c echo.Context) error {
 // @Success      200 {object} models.CurrentUserResponse
 // @Failure      401 {object} models.HTTPError
 // @Router       /users/me [get]
-func (h *AuthHandler) GetCurrentUser(c echo.Context) error {
+func (h *AuthHandler) GetCurrentUser(c *echo.Context) error {
 	username := c.Get("username").(string)
 	resp, err := h.service.GetCurrentUser(c.Request().Context(), username)
 	if err != nil {
@@ -274,7 +274,7 @@ func (h *AuthHandler) GetCurrentUser(c echo.Context) error {
 // @Produce      json
 // @Success      200 {array} models.UserType
 // @Router       /user-types [get]
-func (h *AuthHandler) GetUserTypes(c echo.Context) error {
+func (h *AuthHandler) GetUserTypes(c *echo.Context) error {
 	types, err := h.service.GetUserTypes(c.Request().Context())
 	if err != nil {
 		return err

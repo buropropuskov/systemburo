@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -35,9 +35,9 @@ func TestSecurityS2_BanCheckDBErrorAndLogout(t *testing.T) {
 			e := echo.New()
 			called := false
 			inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-				return func(c echo.Context) error { c.Set("user_id", 42); return next(c) }
+				return func(c *echo.Context) error { c.Set("user_id", 42); return next(c) }
 			}
-			e.Add(tc.method, tc.path, func(c echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) }, inject,
+			e.Add(tc.method, tc.path, func(c *echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) }, inject,
 				mw.BanCheck(services.NewBanCheckService(brokenDB, time.Hour)))
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))

@@ -7,11 +7,11 @@ import (
 
 	"systemburo/internal/download"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func archivePreparationError(err error) error {
-	return echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось подготовить файлы архива").SetInternal(err)
+	return echo.NewHTTPError(http.StatusServiceUnavailable, "Не удалось подготовить файлы архива").Wrap(err)
 }
 
 // Validate every selected file before committing the ZIP response. Only one file

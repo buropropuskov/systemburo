@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Режимы групповой привязки набора (места разгрузки, таблицы, ответственные).
@@ -181,9 +181,7 @@ func unionInts(a, b []int) []int {
 func bulkErrMsg(err error) string {
 	var he *echo.HTTPError
 	if errors.As(err, &he) {
-		if msg, ok := he.Message.(string); ok {
-			return msg
-		}
+		return he.Message
 	}
 	return "Ошибка обработки"
 }

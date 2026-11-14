@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // GetInsights godoc
@@ -17,7 +17,7 @@ import (
 // @Failure      403 {object} models.HTTPError
 // @Security     BearerAuth
 // @Router       /statistics/insights [get]
-func (h *StatisticsHandler) GetInsights(c echo.Context) error {
+func (h *StatisticsHandler) GetInsights(c *echo.Context) error {
 	from, to := parseDateRange(c)
 	res, err := h.service.GetInsights(
 		c.Request().Context(),
