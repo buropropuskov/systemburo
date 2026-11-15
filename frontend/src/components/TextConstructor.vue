@@ -498,6 +498,8 @@ const sanitizedContent = computed(() => sanitizeHtml(props.modelValue));
 const editor = useEditor({
   content: props.modelValue || '',
   editable: !props.disabled,
+  // Служебные правила ProseMirror входят в CSS компонента вместо вставки <style>.
+  injectCSS: false,
   extensions: [
     // heading свой (ClassHeading рендерит класс heading-hN), link выключен намеренно:
     // третья ветка включила его в набор, и набранный URL стал бы ссылкой, которой нет в
@@ -905,13 +907,56 @@ defineExpose({ editor });
 }
 
 .editor-content :deep(.ProseMirror) {
+  position: relative;
   outline: none;
   min-height: inherit;
   line-height: 150%;
+  overflow-wrap: break-word;
   word-break: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
   /* Дефолтный размер вводимого текста (без выбранного font-size-класса). */
   font-size: 14px;
 }
+
+.editor-content :deep(.ProseMirror [contenteditable='false']) { white-space: normal; }
+.editor-content :deep(.ProseMirror [contenteditable='false'] [contenteditable='true']),
+.editor-content :deep(.ProseMirror pre) { white-space: pre-wrap; }
+
+.editor-content :deep(img.ProseMirror-separator) {
+  display: inline !important;
+  border: none !important;
+  margin: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.editor-content :deep(.ProseMirror-gapcursor) {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  margin: 0;
+}
+
+.editor-content :deep(.ProseMirror-gapcursor)::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid currentColor;
+  animation: editor-gapcursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes editor-gapcursor-blink {
+  to { visibility: hidden; }
+}
+
+.editor-content :deep(.ProseMirror-focused .ProseMirror-gapcursor) { display: block; }
+.editor-content :deep(.ProseMirror-hideselection *)::selection { background: transparent; }
+.editor-content :deep(.ProseMirror-hideselection *) { caret-color: transparent; }
 
 /* Чтобы плавающие (float) картинки не вылезали за пределы редактора. */
 .editor-content :deep(.ProseMirror)::after {
