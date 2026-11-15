@@ -421,6 +421,8 @@ import { usePermissionsStore } from '@/stores/permissions'
 import { downloadBlankTemplate as fetchBlankTemplate, uploadImportList } from '@/api/blankImport'
 import { saveBlobAs } from '@/api/attachment-templates'
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
+import { formatPublicUserName } from '@/utils/formatName';
+import { recipientReferences } from './recipientReferences';
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
@@ -1382,7 +1384,7 @@ export default {
                     const users = await r.json();
                     (users || []).forEach(u => {
                         if (u.required_approval && !byId.has(u.id)) {
-                            byId.set(u.id, { user_id: u.id, name: this.userDisplayName(u) });
+                            byId.set(u.id, { user_id: u.id, name: formatPublicUserName(u) });
                         }
                     });
                 } catch (error) {
@@ -1410,11 +1412,6 @@ export default {
             }
 
             this.defaultApprovers = Array.from(byId.values());
-        },
-
-        userDisplayName(u) {
-            const names = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-            return u.display_label || (names.length ? names.join(' ') : 'Пользователь');
         },
 
         handleFormatPhoneNumber() {
@@ -3020,7 +3017,7 @@ export default {
                     companyId: this.companyId,
                     responsiblePerson: this.responsiblePerson,
                     phoneNumber: this.phoneNumber,
-                    readers: this.readers.map(r => ({ user_id: r.user_id })),
+                    readers: recipientReferences(this.readers),
                     applicationFileIds: [...this.applicationFileIds],
 
                     // attachments - источник истины для UI. Без них vehiclesByAttachment
@@ -3086,10 +3083,7 @@ export default {
                     if (parsedData.responsiblePerson) this.responsiblePerson = parsedData.responsiblePerson;
                     if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
                     this.consentGiven = null;
-                    this.readers = Array.isArray(parsedData.readers)
-                        ? parsedData.readers.filter(r => Number.isSafeInteger(r?.user_id) && r.user_id > 0)
-                            .map(r => ({ user_id: r.user_id }))
-                        : [];
+                    this.readers = recipientReferences(parsedData.readers);
                     this.applicationFileIds = (parsedData.applicationFileIds || []).filter(id => Number.isInteger(id) && id > 0);
 
                     this.attachments = parsedData.attachments || [];
