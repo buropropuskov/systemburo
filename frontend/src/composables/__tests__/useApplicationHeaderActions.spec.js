@@ -7,9 +7,15 @@ let wrapper;
 afterEach(() => { wrapper?.unmount(); wrapper = null; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const nextFrame = () => new Promise(resolve => window.requestAnimationFrame(resolve));
 
-async function fixture({ manual = false } = {}) {
+async function fixture({ manual = false, phone = false } = {}) {
   let resize;
+  let changeViewport;
   let width = 768;
+  vi.stubGlobal('matchMedia', () => ({
+    matches: phone,
+    addEventListener: (_, callback) => { changeViewport = callback; },
+    removeEventListener() {},
+  }));
   vi.stubGlobal('ResizeObserver', class {
     constructor(callback) { resize = callback; }
     observe() {}
@@ -31,7 +37,7 @@ async function fixture({ manual = false } = {}) {
   } }));
   await nextTick();
   function notifyResize(value) { width = value; resize(); }
-  return { ui, tour, menu, getTour, actions, notifyResize,
+  return { ui, tour, menu, getTour, actions, notifyResize, changeViewport,
     async resize(value) {
       notifyResize(value);
       await nextFrame();
@@ -40,6 +46,17 @@ async function fixture({ manual = false } = {}) {
 }
 
 describe('application header action ownership', () => {
+  it('keeps the actions visible on a phone and updates after rotation', async () => {
+    const f = await fixture({ phone: true });
+    await f.resize(390);
+    expect(f.actions.headerActionsInline.value).toBe(true);
+    f.changeViewport({ matches: false });
+    await f.resize(840);
+    expect(f.actions.headerActionsInline.value).toBe(false);
+    f.changeViewport({ matches: true });
+    await f.resize(390);
+    expect(f.actions.headerActionsInline.value).toBe(true);
+  });
   it('does not load the onboarding store for ordinary card use', async () => {
     const f = await fixture();
     expect(f.getTour).not.toHaveBeenCalled();

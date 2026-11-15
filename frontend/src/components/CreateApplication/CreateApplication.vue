@@ -3516,6 +3516,7 @@ export default {
         pointer-events: auto;
         box-shadow: 0 2px 8px var(--shadow-drop);
         white-space: normal;
+        text-align: start;
     }
 
     .submit-tooltip::before {
@@ -3548,7 +3549,6 @@ export default {
     .tooltip-attachment-title {
         font-weight: 600;
         margin-bottom: 6px;
-        color: var(--border);
     }
 
     .attachment-clickable {
@@ -3774,9 +3774,7 @@ export default {
         .create__blank-sticky--stuck {
             /* Поверхность темы, а не белый литерал: в тёмной теме закреплённая
                плашка светилась белым поверх тёмной формы. */
-            background: color-mix(in srgb, var(--surface) 82%, transparent);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
+            background: var(--surface);
             border-bottom-color: var(--border);
         }
 
@@ -3924,7 +3922,7 @@ export default {
             top: 100%;
             left: 24px;
             border-color: transparent;
-            border-top-color: var(--text);
+            border-top-color: var(--hint-bg);
         }
 
         .form__textarea {

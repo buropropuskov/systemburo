@@ -1,6 +1,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useUiStore } from '@/stores/ui';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 
 export const APPLICATION_ACTIONS_REVEAL = 'application-actions';
 const INLINE_MIN_WIDTH = 1100;
@@ -8,13 +9,14 @@ const INLINE_MIN_WIDTH = 1100;
 /** One persistent action group; the tour only restores a menu it opened itself. */
 export function useApplicationHeaderActions({ ui = useUiStore(), getTour = useOnboardingStore } = {}) {
   const headerRef = ref(null), headerActionsMenu = ref(null), headerActionsInline = ref(true);
+  const { isNarrow } = useNarrowScreen();
   let observer, tourWatch, owned = false;
   let resizeFrame = null;
   const restore = () => { if (owned) headerActionsMenu.value?.close(); owned = false; };
   const releaseHeaderMenu = () => { owned = false; };
   const measure = () => {
     const width = headerRef.value?.clientWidth;
-    if (width > 0) headerActionsInline.value = width >= INLINE_MIN_WIDTH;
+    if (width > 0) headerActionsInline.value = isNarrow.value || width >= INLINE_MIN_WIDTH;
   };
   const scheduleMeasure = () => {
     if (resizeFrame !== null) return;
@@ -24,6 +26,7 @@ export function useApplicationHeaderActions({ ui = useUiStore(), getTour = useOn
       measure();
     });
   };
+  watch(isNarrow, scheduleMeasure);
   const stopActive = watch(() => ui.tourActive, active => {
     tourWatch?.(); tourWatch = null;
     if (!active) { restore(); return; }

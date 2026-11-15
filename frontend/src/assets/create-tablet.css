@@ -3,11 +3,6 @@
 }
 @media (min-width:768px) and (max-width:1366px) {
   .form-placeholder {min-height:0;padding:24px;}
-  .create__header-top {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,45%);gap:12px 20px;align-items:center;}
-  .create__header-left {display:contents;}
-  .create__title {grid-column:1;grid-row:1;min-width:0;}
-  .create__blank-title--header {grid-column:2;grid-row:1;max-width:100%;justify-self:end;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(17px,1.8vw,22px);}
-  .create__header-left :deep(.recipients-row) {grid-column:1/-1;grid-row:2;min-width:0;max-width:100%;flex-wrap:nowrap;}
   .create__container {flex-direction:column;gap:var(--gutter);}
   .create__form .form__header {display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,.45fr);gap:var(--gutter);}
   .create__form .form__message-tc {min-width:0;width:100%;}
