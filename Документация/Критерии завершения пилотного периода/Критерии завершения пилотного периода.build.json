@@ -1,10 +1,10 @@
 {
   "document": "pilot",
-  "version": "1.11",
+  "version": "1.12",
   "pages": 17,
-  "code_revision": "6804492912cb86d09bca63e502ac36c4ec3123ac",
-  "source_sha256": "bf594a24685ba31542f8bd92954540dda474f0c1cc89abee6c26579eb1fd408a",
-  "builder_sha256": "dd6811557d59e1f02bba8cf4e11785cf1cf7cf19fb95bc8af30e6384d3e360ea",
-  "docx_sha256": "fe3cabfc350c8181cb5f8cd4362e1fe814bc2ec52dd49cda879a265356c0d161",
-  "pdf_sha256": "9cffac8b849225a48dd6845c28c32d20483aaf1d9ca0a689b1c073ee681d860a"
+  "code_revision": "bb1cbad49f2b2ce9f03bd4d7da1aef10e5a44a6a",
+  "source_sha256": "4ba9d8475ad38e9c0a019a04796e0e30024811f1474c680e5eddbcf5e5062282",
+  "builder_sha256": "7a685efcdee1846f33651fc6c9bcc95378658d244b6df27a93471a43cacd224f",
+  "docx_sha256": "cd8f75e9d507fc52d318dd2b1dbb6a51379d1ccc512b3e36e535575cd74fde78",
+  "pdf_sha256": "e8ff394fc17fa0a864f3609b966c47c0724a66d62c916abb023cf465d9a4d615"
 }
