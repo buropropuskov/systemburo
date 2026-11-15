@@ -3,7 +3,7 @@ package handlers
 import (
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ThemeHandler — self-service эндпоинты темы оформления (#1415). Каждый
@@ -34,7 +34,7 @@ type setThemeRequest struct {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/me/theme [get]
-func (h *ThemeHandler) GetTheme(c echo.Context) error {
+func (h *ThemeHandler) GetTheme(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	theme, err := h.service.Get(c.Request().Context(), userID)
 	if err != nil {
@@ -56,7 +56,7 @@ func (h *ThemeHandler) GetTheme(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/me/theme [put]
-func (h *ThemeHandler) SetTheme(c echo.Context) error {
+func (h *ThemeHandler) SetTheme(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	var req setThemeRequest
 	if err := BindAndValidate(c, &req); err != nil {

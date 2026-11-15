@@ -11,7 +11,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ApplicationScanGuard решает, открыт ли вошедшему пользователю скан заявки,
@@ -32,7 +32,7 @@ type ApplicationScanGuard interface {
 // чтения и не продлевается. Невалидный Bearer не заменяется личностью из cookie.
 func FileAccess(accessSecret []byte, sessions services.SessionAccess, scans ApplicationScanGuard) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			identity, err := fileRequester(c, accessSecret, sessions)
 			if err != nil {
 				return err
@@ -52,7 +52,7 @@ func FileAccess(accessSecret []byte, sessions services.SessionAccess, scans Appl
 // fileRequester опознаёт запросившего файл: заголовком Authorization либо cookie
 // продления сеанса. У маркера продления в полезной нагрузке только subject, поэтому
 // наружу отдаются сами разобранные права доступа, а не поля маркера.
-func fileRequester(c echo.Context, accessSecret []byte, sessions services.SessionAccess) (models.SessionIdentity, error) {
+func fileRequester(c *echo.Context, accessSecret []byte, sessions services.SessionAccess) (models.SessionIdentity, error) {
 	if sessions == nil {
 		return models.SessionIdentity{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка сессии временно недоступна")
 	}
@@ -103,7 +103,7 @@ var staticUploadDirs = map[string]bool{
 // guardUploadDir отсекает каталоги, не предназначенные для раздачи по адресу файла.
 // Ответ тот же, что у несуществующего файла: перечень каталогов - не секрет, но и
 // подсказывать, какие из них существуют, ни к чему.
-func guardUploadDir(c echo.Context) error {
+func guardUploadDir(c *echo.Context) error {
 	name, ok := staticFileName(c)
 	if !ok {
 		return nil
@@ -121,7 +121,7 @@ func guardUploadDir(c echo.Context) error {
 //
 // Чужой и несуществующий файл отвечают одинаково: 403 подтверждал бы, что файл с
 // таким именем есть, и превращал бы раздачу в оракул подбора имён.
-func guardApplicationScan(c echo.Context, username string, scans ApplicationScanGuard) error {
+func guardApplicationScan(c *echo.Context, username string, scans ApplicationScanGuard) error {
 	name, ok := staticFileName(c)
 	if !ok {
 		return nil
@@ -156,7 +156,7 @@ func guardApplicationScan(c echo.Context, username string, scans ApplicationScan
 // после выбора маршрута. Разбирать путь иначе - значит проверять не тот файл,
 // который потом откроется с диска: %2f и %2e%2e доехали бы до раздачи мимо гейта
 // (GHSA-vfp3-v2gw-7wfq).
-func staticFileName(c echo.Context) (string, bool) {
+func staticFileName(c *echo.Context) (string, bool) {
 	p, err := url.PathUnescape(c.Param("*"))
 	if err != nil {
 		// Раздача споткнётся о ту же ошибку и файла не отдаст.

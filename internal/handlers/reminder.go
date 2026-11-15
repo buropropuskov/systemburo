@@ -3,7 +3,7 @@ package handlers
 import (
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ReminderHandler -- HTTP-обработчики отчётов по напоминаниям согласующим (#1315).
@@ -26,7 +26,7 @@ func NewReminderHandler(service services.ReminderService) *ReminderHandler {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /statistics/stuck-approvals [get]
-func (h *ReminderHandler) GetStuckApprovals(c echo.Context) error {
+func (h *ReminderHandler) GetStuckApprovals(c *echo.Context) error {
 	rows, err := h.service.ListStuckApprovals(c.Request().Context())
 	if err != nil {
 		return err

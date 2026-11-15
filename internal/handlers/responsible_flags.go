@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -27,7 +27,7 @@ type callerOwnDirectoryIDs struct {
 //     согласования произвольной организации, зная только её id.
 //
 // own выбирает нужное поле (OrganizationID для /organizations, CompanyID для /companies).
-func canSeeRequiredApproval(c echo.Context, db *gorm.DB, resolver *services.PermissionResolver, targetID int, own func(callerOwnDirectoryIDs) *int) bool {
+func canSeeRequiredApproval(c *echo.Context, db *gorm.DB, resolver *services.PermissionResolver, targetID int, own func(callerOwnDirectoryIDs) *int) bool {
 	ctx := c.Request().Context()
 	userID, _ := c.Get("user_id").(int)
 

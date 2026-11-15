@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // UsersHandler — HTTP-обработчики управления пользователями (admin-only).
@@ -41,7 +41,7 @@ func NewUsersHandler(service services.UserService) *UsersHandler {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users [post]
-func (h *UsersHandler) Create(c echo.Context) error {
+func (h *UsersHandler) Create(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	var req models.RegisterRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -64,7 +64,7 @@ func (h *UsersHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/all [get]
-func (h *UsersHandler) GetAll(c echo.Context) error {
+func (h *UsersHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	result, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -83,7 +83,7 @@ func (h *UsersHandler) GetAll(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/recipient-candidates [get]
-func (h *UsersHandler) GetRecipientCandidates(c echo.Context) error {
+func (h *UsersHandler) GetRecipientCandidates(c *echo.Context) error {
 	username, _ := c.Get("username").(string)
 	result, err := h.service.GetRecipientCandidates(c.Request().Context(), username)
 	if err != nil {
@@ -106,7 +106,7 @@ func (h *UsersHandler) GetRecipientCandidates(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/type [put]
-func (h *UsersHandler) UpdateType(c echo.Context) error {
+func (h *UsersHandler) UpdateType(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserTypeRequest
@@ -132,7 +132,7 @@ func (h *UsersHandler) UpdateType(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/password [put]
-func (h *UsersHandler) UpdatePassword(c echo.Context) error {
+func (h *UsersHandler) UpdatePassword(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdatePasswordRequest
@@ -159,7 +159,7 @@ func (h *UsersHandler) UpdatePassword(c echo.Context) error {
 // @Failure      429 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/me/password [put]
-func (h *UsersHandler) ChangeOwnPassword(c echo.Context) error {
+func (h *UsersHandler) ChangeOwnPassword(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	if userID == 0 {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Пользователь не авторизован")
@@ -194,7 +194,7 @@ func (h *UsersHandler) ChangeOwnPassword(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/info [put]
-func (h *UsersHandler) UpdateInfo(c echo.Context) error {
+func (h *UsersHandler) UpdateInfo(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserInfoRequest
@@ -220,7 +220,7 @@ func (h *UsersHandler) UpdateInfo(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/organization [put]
-func (h *UsersHandler) UpdateOrganization(c echo.Context) error {
+func (h *UsersHandler) UpdateOrganization(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserOrganizationRequest
@@ -246,7 +246,7 @@ func (h *UsersHandler) UpdateOrganization(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/company [put]
-func (h *UsersHandler) UpdateCompany(c echo.Context) error {
+func (h *UsersHandler) UpdateCompany(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserCompanyRequest
@@ -271,7 +271,7 @@ func (h *UsersHandler) UpdateCompany(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username} [delete]
-func (h *UsersHandler) Delete(c echo.Context) error {
+func (h *UsersHandler) Delete(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	if err := h.service.Delete(c.Request().Context(), userID, username); err != nil {
@@ -292,7 +292,7 @@ func (h *UsersHandler) Delete(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/restore [post]
-func (h *UsersHandler) Restore(c echo.Context) error {
+func (h *UsersHandler) Restore(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	if err := h.service.Restore(c.Request().Context(), userID, username); err != nil {
@@ -312,7 +312,7 @@ func (h *UsersHandler) Restore(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /users/bulk/archive [post]
-func (h *UsersHandler) BulkArchive(c echo.Context) error {
+func (h *UsersHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkUsernamesRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -339,7 +339,7 @@ func (h *UsersHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /users/bulk/restore [post]
-func (h *UsersHandler) BulkRestore(c echo.Context) error {
+func (h *UsersHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkUsernamesRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -366,7 +366,7 @@ func (h *UsersHandler) BulkRestore(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /users/bulk/type [post]
-func (h *UsersHandler) BulkUpdateType(c echo.Context) error {
+func (h *UsersHandler) BulkUpdateType(c *echo.Context) error {
 	var req services.BulkUserTypeRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -393,7 +393,7 @@ func (h *UsersHandler) BulkUpdateType(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /users/bulk/organization [post]
-func (h *UsersHandler) BulkAssignOrganization(c echo.Context) error {
+func (h *UsersHandler) BulkAssignOrganization(c *echo.Context) error {
 	var req services.BulkUserOrganizationRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -420,7 +420,7 @@ func (h *UsersHandler) BulkAssignOrganization(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /users/bulk/company [post]
-func (h *UsersHandler) BulkAssignCompany(c echo.Context) error {
+func (h *UsersHandler) BulkAssignCompany(c *echo.Context) error {
 	var req services.BulkUserCompanyRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -447,7 +447,7 @@ func (h *UsersHandler) BulkAssignCompany(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/history [get]
-func (h *UsersHandler) GetHistory(c echo.Context) error {
+func (h *UsersHandler) GetHistory(c *echo.Context) error {
 	username := c.Param("username")
 	items, err := h.service.GetHistory(c.Request().Context(), username)
 	if err != nil {
@@ -467,7 +467,7 @@ func (h *UsersHandler) GetHistory(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/unload-places [get]
-func (h *UsersHandler) GetUserUnloadPlaces(c echo.Context) error {
+func (h *UsersHandler) GetUserUnloadPlaces(c *echo.Context) error {
 	username := c.Param("username")
 	places, err := h.service.GetUserUnloadPlaces(c.Request().Context(), username)
 	if err != nil {
@@ -490,7 +490,7 @@ func (h *UsersHandler) GetUserUnloadPlaces(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/unload-places [put]
-func (h *UsersHandler) SetUserUnloadPlaces(c echo.Context) error {
+func (h *UsersHandler) SetUserUnloadPlaces(c *echo.Context) error {
 	username := c.Param("username")
 	var req models.SetUserUnloadPlacesRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -513,7 +513,7 @@ func (h *UsersHandler) SetUserUnloadPlaces(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/tables [get]
-func (h *UsersHandler) GetUserTables(c echo.Context) error {
+func (h *UsersHandler) GetUserTables(c *echo.Context) error {
 	username := c.Param("username")
 	tables, err := h.service.GetUserTables(c.Request().Context(), username)
 	if err != nil {
@@ -536,7 +536,7 @@ func (h *UsersHandler) GetUserTables(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/tables [put]
-func (h *UsersHandler) SetUserTables(c echo.Context) error {
+func (h *UsersHandler) SetUserTables(c *echo.Context) error {
 	username := c.Param("username")
 	var req models.SetUserTablesRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -564,7 +564,7 @@ func (h *UsersHandler) SetUserTables(c echo.Context) error {
 // RotatePassword меняет пароль работнику и отправляет его письмом. Закрывает
 // случай «работник потерял пароль»: до этого пароль придумывали руками и
 // диктовали по телефону, то есть он проходил через третьи уши.
-func (h *UsersHandler) RotatePassword(c echo.Context) error {
+func (h *UsersHandler) RotatePassword(c *echo.Context) error {
 	if h.rotation == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "Смена пароля с отправкой письмом недоступна")
 	}

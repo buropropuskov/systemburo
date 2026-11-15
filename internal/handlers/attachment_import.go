@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AttachmentImportHandler - HTTP API приёма заполненного Excel-бланка для массового
@@ -35,7 +35,7 @@ func NewAttachmentImportHandler(s services.AttachmentImportService) *AttachmentI
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /attachments/{id}/import-list [post]
-func (h *AttachmentImportHandler) ImportList(c echo.Context) error {
+func (h *AttachmentImportHandler) ImportList(c *echo.Context) error {
 	uaID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")

@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // TableSnapshotHandler обслуживает версии (слепки) состояния системных таблиц.
@@ -38,7 +38,7 @@ func NewTableSnapshotHandler(service services.TableSnapshotService) *TableSnapsh
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/snapshots [post]
-func (h *TableSnapshotHandler) Create(c echo.Context) error {
+func (h *TableSnapshotHandler) Create(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -74,7 +74,7 @@ func (h *TableSnapshotHandler) Create(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /system-tables/{id}/snapshots [get]
-func (h *TableSnapshotHandler) List(c echo.Context) error {
+func (h *TableSnapshotHandler) List(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (h *TableSnapshotHandler) List(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/snapshots/{sid} [get]
-func (h *TableSnapshotHandler) Get(c echo.Context) error {
+func (h *TableSnapshotHandler) Get(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (h *TableSnapshotHandler) Get(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/snapshots/{sid}/export [get]
-func (h *TableSnapshotHandler) Export(c echo.Context) error {
+func (h *TableSnapshotHandler) Export(c *echo.Context) error {
 	download.NoStore(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -237,7 +237,7 @@ func (h *TableSnapshotHandler) Export(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /system-tables/{id}/snapshots [delete]
-func (h *TableSnapshotHandler) Cleanup(c echo.Context) error {
+func (h *TableSnapshotHandler) Cleanup(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err

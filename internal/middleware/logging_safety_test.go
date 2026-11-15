@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +27,7 @@ func TestRequestLogWriterUsesFinalErrorStatusAndRoute(t *testing.T) {
 			if strings.Contains(path, "/users/") {
 				route = "/api/users/:username"
 			}
-			e.GET(route, func(c echo.Context) error {
+			e.GET(route, func(c *echo.Context) error {
 				return echo.NewHTTPError(http.StatusForbidden, "synthetic refusal")
 			})
 			rec := httptest.NewRecorder()
@@ -61,7 +61,7 @@ func TestDiagnosticLoggerExcludesRequestValues(t *testing.T) {
 	defer slog.SetDefault(old)
 	e := echo.New()
 	e.Use(RequestID(), DiagnosticLogger())
-	e.GET("/api/users/:username", func(c echo.Context) error {
+	e.GET("/api/users/:username", func(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "synthetic-error-marker")
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/users/synthetic-name-marker?ticket=synthetic-query-marker", nil)
@@ -82,7 +82,7 @@ func TestRequestIDBoundsUntrustedInput(t *testing.T) {
 	for _, value := range []string{id, strings.ReplaceAll(id, "-", ""), "synthetic-request-secret", strings.Repeat("a", 1000), ""} {
 		e := echo.New()
 		e.Use(RequestID())
-		e.GET("/", func(c echo.Context) error { return c.NoContent(http.StatusOK) })
+		e.GET("/", func(c *echo.Context) error { return c.NoContent(http.StatusOK) })
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set(HeaderRequestID, value)
 		rec := httptest.NewRecorder()

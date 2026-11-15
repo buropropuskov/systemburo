@@ -25,7 +25,7 @@ import (
 	"systemburo/internal/services"
 	appvalidator "systemburo/internal/validator"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -567,7 +567,6 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
-	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
 	// Журнал доступа к персональным данным (152-ФЗ) висит глобально и в проде, и здесь:
@@ -579,7 +578,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 	// goroutine or a synchronous product-only fallback. Worker tests drive it
 	// themselves and cover pending/restart/failure states separately.
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			err := next(c)
 			if c.Request().Method == http.MethodPost &&
 				(c.Path() == "/api/applications/submit-complete-application" || c.Path() == "/api/applications/:id/supplements") {

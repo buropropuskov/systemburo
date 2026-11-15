@@ -12,7 +12,7 @@ import (
 	"systemburo/internal/logmask"
 	mw "systemburo/internal/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +24,7 @@ func TestSafeLoggingPipelineRecoversWithoutPrivateValues(t *testing.T) {
 	e := echo.New()
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Use(mw.PrivateAPICache(), mw.RequestID(), mw.DiagnosticLogger(), mw.SafeRecover())
-	e.GET("/api/synthetic/:name", func(c echo.Context) error {
+	e.GET("/api/synthetic/:name", func(c *echo.Context) error {
 		require.Equal(t, c.Response().Header().Get("X-Request-ID"), httpx.RequestID(c.Request().Context()))
 		panic("PRIVATE_PANIC_MARKER")
 	})

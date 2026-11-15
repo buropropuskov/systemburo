@@ -6,11 +6,11 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func (h *AttachmentTemplateHandler) DocumentAtPost(resolver *services.PermissionResolver) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		templateID, err := strconv.Atoi(c.Param("id"))
 		if err != nil || templateID <= 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "Некорректный вид заявки")
@@ -22,7 +22,7 @@ func (h *AttachmentTemplateHandler) DocumentAtPost(resolver *services.Permission
 			return err
 		}
 		if set.IsBanned() || set.IsInactive() {
-			return echo.NewHTTPError(http.StatusForbidden)
+			return echo.NewHTTPError(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 		}
 		allowed, err := h.fieldConfig.DocumentAtPostAllowed(ctx, templateID, userID)
 		if err != nil {
@@ -33,14 +33,14 @@ func (h *AttachmentTemplateHandler) DocumentAtPost(resolver *services.Permission
 }
 
 func (h *AttachmentTemplateHandler) DocumentRule(resolver *services.PermissionResolver) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		set, err := resolver.ResolveFresh(ctx, GetUserID(c))
 		if err != nil {
 			return err
 		}
 		if set.IsBanned() || set.IsInactive() || (!set.IsAdmin() && !set.IsSuperAdmin()) {
-			return echo.NewHTTPError(http.StatusForbidden)
+			return echo.NewHTTPError(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 		}
 		templateID, err := strconv.Atoi(c.Param("template_id"))
 		if err != nil || templateID <= 0 {

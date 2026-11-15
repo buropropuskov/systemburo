@@ -49,17 +49,17 @@ type UpdateNewsRequest struct {
 
 // NewsWithUser -- новость с именами создателя и обновившего.
 type NewsWithUser struct {
-	ID            int        `json:"id"`
-	Title         string     `json:"title"`
-	Description   *string    `json:"description"`
-	FullText      *string    `json:"full_text"`
-	IsActive      bool       `json:"is_active"`
-	CreatedBy     *int       `json:"created_by"`
-	CreatedByName *string    `json:"created_by_name"`
-	UpdatedBy     *int       `json:"updated_by"`
-	UpdatedByName *string    `json:"updated_by_name"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            int       `json:"id"`
+	Title         string    `json:"title"`
+	Description   *string   `json:"description"`
+	FullText      *string   `json:"full_text"`
+	IsActive      bool      `json:"is_active"`
+	CreatedBy     *int      `json:"created_by"`
+	CreatedByName *string   `json:"created_by_name"`
+	UpdatedBy     *int      `json:"updated_by"`
+	UpdatedByName *string   `json:"updated_by_name"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // CreateAnnouncementRequest -- запрос на создание объявления.

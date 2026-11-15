@@ -18,7 +18,7 @@ import (
 
 	"systemburo/internal/admission"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Opt-in disposable fixture only. Run this test in a container listening on
@@ -41,12 +41,12 @@ func TestBodyAdmissionNginxHTTP2(t *testing.T) {
 	e := echo.New()
 	e.HTTPErrorHandler = bodyTestErrorHandler
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Response().Header().Set("X-Fixture-Upstream-Proto", c.Request().Proto)
 			return next(c)
 		}
 	}, bodyAdmissionWithGate(gate))
-	e.DELETE("/api/body-fixture/hold", func(c echo.Context) error {
+	e.DELETE("/api/body-fixture/hold", func(c *echo.Context) error {
 		if c.Request().ContentLength != -1 {
 			return echo.NewHTTPError(599, "unknown length was not preserved")
 		}
@@ -66,19 +66,19 @@ func TestBodyAdmissionNginxHTTP2(t *testing.T) {
 		}
 		return c.NoContent(http.StatusNoContent)
 	})
-	e.GET("/api/body-fixture/read", func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
-	stream := func(c echo.Context) error {
+	e.GET("/api/body-fixture/read", func(c *echo.Context) error { return c.NoContent(http.StatusNoContent) })
+	stream := func(c *echo.Context) error {
 		c.Response().Header().Set("Content-Type", "text/event-stream")
 		if _, err := io.WriteString(c.Response(), "data: synthetic\n\n"); err != nil {
 			return err
 		}
-		c.Response().Flush()
+		_ = http.NewResponseController(c.Response()).Flush()
 		<-c.Request().Context().Done()
 		return nil
 	}
 	e.GET("/api/events", stream)
 	e.GET("/api/file-archive/download", stream)
-	e.POST("/api/documents", func(c echo.Context) error {
+	e.POST("/api/documents", func(c *echo.Context) error {
 		if err := c.Request().ParseMultipartForm(32 << 10); err != nil {
 			return echo.ErrBadRequest
 		}
@@ -89,7 +89,7 @@ func TestBodyAdmissionNginxHTTP2(t *testing.T) {
 		c.Response().Header().Set("X-Fixture-Upload-Bytes", fmt.Sprint(file.Size))
 		return c.NoContent(http.StatusNoContent)
 	})
-	e.POST("/api/login", func(c echo.Context) error {
+	e.POST("/api/login", func(c *echo.Context) error {
 		if _, err := io.Copy(io.Discard, c.Request().Body); err != nil {
 			return echo.ErrBadRequest
 		}

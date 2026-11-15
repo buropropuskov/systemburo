@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // BlankArchiveStatsHandler отдаёт сводку файлового архива: занятое место, состав
@@ -20,7 +20,7 @@ func NewBlankArchiveStatsHandler(quota *services.BlankExportQuotaService) *Blank
 }
 
 // GetStats отдаёт сводку файлового архива (кэш 5 минут - см. BlankExportQuotaService.Stats).
-func (h *BlankArchiveStatsHandler) GetStats(c echo.Context) error {
+func (h *BlankArchiveStatsHandler) GetStats(c *echo.Context) error {
 	if h.quota == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
 	}

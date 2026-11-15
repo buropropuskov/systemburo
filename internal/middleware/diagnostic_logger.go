@@ -6,13 +6,13 @@ import (
 
 	"systemburo/internal/httpx"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // DiagnosticLogger records only routing metadata, never request values.
 func DiagnosticLogger() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			start := time.Now()
 			err := next(c)
 			route := c.Path()

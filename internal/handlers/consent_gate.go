@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // GetGate отдаёт состояние согласия для текущего пользователя (#1567): нужно ли его
@@ -15,7 +15,7 @@ import (
 // должен быть один источник правды, иначе фронт и сервер разойдутся в том, кого
 // закрывать. Супер-администратор -- аварийная дверь: если запрос согласия включён с
 // битой настройкой, систему всё равно можно чинить через интерфейс.
-func (h *ConsentHandler) GetGate(c echo.Context) error {
+func (h *ConsentHandler) GetGate(c *echo.Context) error {
 	ctx := c.Request().Context()
 	req, err := h.gate.CurrentRequirement(ctx)
 	if err != nil {
@@ -49,7 +49,7 @@ func (h *ConsentHandler) GetGate(c echo.Context) error {
 }
 
 // Accept подтверждает редакцию, которую пользователь видел до отправки формы.
-func (h *ConsentHandler) Accept(c echo.Context) error {
+func (h *ConsentHandler) Accept(c *echo.Context) error {
 	var shown models.PDConsentRevision
 	if err := BindAndValidate(c, &shown); err != nil {
 		return err

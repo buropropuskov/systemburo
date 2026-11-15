@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type LicensePlateFormatHandler struct {
@@ -30,7 +30,7 @@ func NewLicensePlateFormatHandler(service services.LicensePlateFormatService) *L
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /license-plate-formats [get]
-func (h *LicensePlateFormatHandler) GetAll(c echo.Context) error {
+func (h *LicensePlateFormatHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	formats, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -51,7 +51,7 @@ func (h *LicensePlateFormatHandler) GetAll(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /license-plate-formats [post]
-func (h *LicensePlateFormatHandler) Create(c echo.Context) error {
+func (h *LicensePlateFormatHandler) Create(c *echo.Context) error {
 	var req models.CreateLicensePlateFormatRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -82,7 +82,7 @@ func (h *LicensePlateFormatHandler) Create(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /license-plate-formats/{id} [put]
-func (h *LicensePlateFormatHandler) Update(c echo.Context) error {
+func (h *LicensePlateFormatHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -115,7 +115,7 @@ func (h *LicensePlateFormatHandler) Update(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      409 {object} models.HTTPError
 // @Router       /license-plate-formats/{id} [delete]
-func (h *LicensePlateFormatHandler) Delete(c echo.Context) error {
+func (h *LicensePlateFormatHandler) Delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -143,7 +143,7 @@ func (h *LicensePlateFormatHandler) Delete(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /license-plate-formats/{id}/restore [post]
-func (h *LicensePlateFormatHandler) Restore(c echo.Context) error {
+func (h *LicensePlateFormatHandler) Restore(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -168,7 +168,7 @@ func (h *LicensePlateFormatHandler) Restore(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /license-plate-formats/bulk/archive [post]
-func (h *LicensePlateFormatHandler) BulkArchive(c echo.Context) error {
+func (h *LicensePlateFormatHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -195,7 +195,7 @@ func (h *LicensePlateFormatHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /license-plate-formats/bulk/restore [post]
-func (h *LicensePlateFormatHandler) BulkRestore(c echo.Context) error {
+func (h *LicensePlateFormatHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -223,7 +223,7 @@ func (h *LicensePlateFormatHandler) BulkRestore(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /license-plate-formats/{id}/history [get]
-func (h *LicensePlateFormatHandler) GetHistory(c echo.Context) error {
+func (h *LicensePlateFormatHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")

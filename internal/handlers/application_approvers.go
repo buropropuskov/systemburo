@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type ApproverHandler struct {
@@ -26,7 +26,7 @@ func NewApproverHandler(service services.ApproverService) *ApproverHandler {
 // @Success      200 {array} models.ApplicationApproverWithUser
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers [get]
-func (h *ApproverHandler) GetAll(c echo.Context) error {
+func (h *ApproverHandler) GetAll(c *echo.Context) error {
 	result, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (h *ApproverHandler) GetAll(c echo.Context) error {
 // @Security     BearerAuth
 // @Success      200 {array} models.ApplicationRecipient
 // @Router       /application-approvers/recipients [get]
-func (h *ApproverHandler) GetRecipients(c echo.Context) error {
+func (h *ApproverHandler) GetRecipients(c *echo.Context) error {
 	result, err := h.service.GetRecipients(c.Request().Context())
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (h *ApproverHandler) GetRecipients(c echo.Context) error {
 // @Success      200 {array} models.AvailableApproverUser
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/available-users [get]
-func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
+func (h *ApproverHandler) GetAvailableUsers(c *echo.Context) error {
 	result, err := h.service.GetAvailableUsers(c.Request().Context())
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers [post]
-func (h *ApproverHandler) Create(c echo.Context) error {
+func (h *ApproverHandler) Create(c *echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req models.CreateApproverRequest
@@ -106,7 +106,7 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/{id} [patch]
-func (h *ApproverHandler) Update(c echo.Context) error {
+func (h *ApproverHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -134,7 +134,7 @@ func (h *ApproverHandler) Update(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/{id} [delete]
-func (h *ApproverHandler) Delete(c echo.Context) error {
+func (h *ApproverHandler) Delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -157,7 +157,7 @@ func (h *ApproverHandler) Delete(c echo.Context) error {
 // @Success      200 {array} models.ApplicationApproverHistoryItem
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/history [get]
-func (h *ApproverHandler) GetHistory(c echo.Context) error {
+func (h *ApproverHandler) GetHistory(c *echo.Context) error {
 	history, err := h.service.GetHistory(c.Request().Context())
 	if err != nil {
 		return err
@@ -176,7 +176,7 @@ func (h *ApproverHandler) GetHistory(c echo.Context) error {
 // @Security     BearerAuth
 // @Success      200 {object} map[string]bool
 // @Router       /application-approvers/me [get]
-func (h *ApproverHandler) IsApprover(c echo.Context) error {
+func (h *ApproverHandler) IsApprover(c *echo.Context) error {
 	username := GetUsername(c)
 	ctx := c.Request().Context()
 	isApprover, err := h.service.IsApprover(ctx, username)

@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -492,7 +492,7 @@ func parseSizeArg(raw string) (int64, error) {
 func archiveErrorText(err error) string {
 	var he *echo.HTTPError
 	if errors.As(err, &he) {
-		if msg, ok := he.Message.(string); ok && msg != "" {
+		if msg := he.Message; msg != "" {
 			return msg
 		}
 	}

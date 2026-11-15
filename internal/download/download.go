@@ -11,13 +11,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"systemburo/internal/crypto"
 	"systemburo/internal/httpx"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // allowLongResponse снимает с соединения общий срок записи.
@@ -27,7 +28,7 @@ import (
 // 8 ГБ) и отводит на них час. Значит, скорость мобильного интернета на той стороне
 // напрямую решает, уложится ли запись в HTTP_WRITE_TIMEOUT, а обрыв на середине
 // выглядит как испорченный файл, а не как отказ.
-func allowLongResponse(c echo.Context, what string) {
+func allowLongResponse(c *echo.Context, what string) {
 	if err := httpx.AllowLongResponse(c); err != nil {
 		slog.Warn("download: не удалось снять срок записи, отдача оборвётся по HTTP_WRITE_TIMEOUT",
 			"what", what, "path", c.Path(), "error", err)
@@ -67,7 +68,7 @@ type Encrypted struct {
 // ServeEncrypted расшифровывает файл на лету и отдаёт потоком. Целиком в память
 // он не читается: расшифровка идёт чанками, поэтому десяток одновременных
 // скачиваний не выносит процесс.
-func ServeEncrypted(c echo.Context, f Encrypted) error {
+func ServeEncrypted(c *echo.Context, f Encrypted) error {
 	NoStore(c)
 	if f.Path == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
@@ -104,7 +105,7 @@ func ServeEncrypted(c echo.Context, f Encrypted) error {
 
 // Serve отдаёт файл с корректными заголовками. Возвращает 404, если путь пуст
 // или файла нет на диске. Доступ должен быть проверен вызывающим до Serve.
-func Serve(c echo.Context, f File) error {
+func Serve(c *echo.Context, f File) error {
 	NoStore(c)
 	if f.Path == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
@@ -127,7 +128,7 @@ func Serve(c echo.Context, f File) error {
 	}
 
 	if f.Open == nil {
-		return c.File(f.Path)
+		return c.FileFS(filepath.Base(f.Path), os.DirFS(filepath.Dir(f.Path)))
 	}
 
 	reader, err := f.Open()
@@ -183,7 +184,7 @@ const zipErrorSuffix = "_ОШИБКА.txt"
 // Файл, который не удалось открыть, не прерывает архив целиком: вместо него
 // кладётся текстовая заметка "<имя>_ОШИБКА.txt" с причиной - молчаливый пропуск
 // неотличим от "файла никогда не было", а администратор должен увидеть пробел.
-func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
+func StreamZip(c *echo.Context, archiveName string, entries []ZipEntry) error {
 	NoStore(c)
 	allowLongResponse(c, "zip stream")
 
@@ -201,13 +202,13 @@ func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
 			// запись ещё не начата и дублирования имени в архиве не возникает.
 			writeZipErrorNote(zw, entry.Name, err)
 		}
-		res.Flush()
+		_ = http.NewResponseController(res).Flush()
 	}
 	return zw.Close()
 }
 
 // NoStore prevents shared and browser caches from retaining protected downloads.
-func NoStore(c echo.Context) {
+func NoStore(c *echo.Context) {
 	c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
 }
 

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +63,7 @@ func ooxmlIntegrationOPC(t *testing.T, extension string) []byte {
 		ooxmlIntegrationPart{main, xml})
 }
 
-func ooxmlIntegrationForm(t *testing.T, files ...ooxmlIntegrationFile) echo.Context {
+func ooxmlIntegrationForm(t *testing.T, files ...ooxmlIntegrationFile) *echo.Context {
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)

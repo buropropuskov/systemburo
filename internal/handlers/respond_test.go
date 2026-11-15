@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/handlers"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +48,7 @@ func TestCustomHTTPErrorHandler_AppErr(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
 
-			handlers.CustomHTTPErrorHandler(tc.err, c)
+			handlers.CustomHTTPErrorHandler(c, tc.err)
 
 			require.Equal(t, tc.wantCode, rec.Code)
 			var body map[string]any
@@ -88,7 +88,7 @@ func TestCustomHTTPErrorHandler_LogsServerErrors(t *testing.T) {
 			c.SetPath("/api/:id")
 			rec.Header().Set(echo.HeaderXRequestID, "generated-request-id")
 
-			handlers.CustomHTTPErrorHandler(tc.err, c)
+			handlers.CustomHTTPErrorHandler(c, tc.err)
 
 			logged := strings.Contains(buf.String(), "internal error")
 			require.Equal(t, tc.wantLog, logged, "лог: %q", buf.String())
@@ -108,14 +108,14 @@ func TestCustomHTTPErrorHandler_DomainHeadersAndCommittedResponse(t *testing.T) 
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	handlers.CustomHTTPErrorHandler(fmt.Errorf("private wrapper: %w",
-		apperr.New(503, "Сервис временно занят").WithHeader("Retry-After", "2")), c)
+	handlers.CustomHTTPErrorHandler(c, fmt.Errorf("private wrapper: %w",
+		apperr.New(503, "Сервис временно занят").WithHeader("Retry-After", "2")))
 	require.Equal(t, 503, rec.Code)
 	require.Equal(t, "2", rec.Header().Get("Retry-After"))
 	require.NotContains(t, rec.Body.String(), "private wrapper")
 
 	before := rec.Body.String()
-	handlers.CustomHTTPErrorHandler(echo.ErrInternalServerError, c)
+	handlers.CustomHTTPErrorHandler(c, echo.ErrInternalServerError)
 	require.Equal(t, 503, rec.Code)
 	require.Equal(t, before, rec.Body.String())
 }

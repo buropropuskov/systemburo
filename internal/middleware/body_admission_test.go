@@ -20,7 +20,7 @@ import (
 	"systemburo/internal/admission"
 	"systemburo/internal/apperr"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func TestBodyAdmissionSocketCancellationInterruptsRead(t *testing.T) {
@@ -28,7 +28,7 @@ func TestBodyAdmissionSocketCancellationInterruptsRead(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	reading, finished := make(chan struct{}), make(chan struct{})
-	e := bodyTestApp(gate, func(c echo.Context) error {
+	e := bodyTestApp(gate, func(c *echo.Context) error {
 		close(reading)
 		_, err := io.Copy(io.Discard, c.Request().Body)
 		return err
@@ -60,7 +60,7 @@ func TestBodyAdmissionSocketCancellationInterruptsRead(t *testing.T) {
 
 func TestBodyAdmissionSocketFullyReadKeepsConnection(t *testing.T) {
 	gate := admission.New(1, 0, 0)
-	e := bodyTestApp(gate, func(c echo.Context) error {
+	e := bodyTestApp(gate, func(c *echo.Context) error {
 		if _, err := io.Copy(io.Discard, c.Request().Body); err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func TestBodyAdmissionSocketFullyReadKeepsConnection(t *testing.T) {
 func TestBodyAdmissionHTTP2UnknownLengthAndRejectKeepsSession(t *testing.T) {
 	gate := admission.New(1, 0, 0)
 	var consumed atomic.Int64
-	e := bodyTestApp(gate, func(c echo.Context) error {
+	e := bodyTestApp(gate, func(c *echo.Context) error {
 		if c.Request().ProtoMajor != 2 {
 			return echo.NewHTTPError(599, "not HTTP/2")
 		}
@@ -143,17 +143,17 @@ func TestBodyAdmissionHTTP2UnknownLengthAndRejectKeepsSession(t *testing.T) {
 	makeRequest(io.LimitReader(strings.NewReader("body"), 4), http.StatusNoContent)
 }
 
-func bodyTestErrorHandler(err error, c echo.Context) {
+func bodyTestErrorHandler(c *echo.Context, err error) {
 	status := http.StatusInternalServerError
 	var app *apperr.Error
-	var he *echo.HTTPError
+	var he interface{ StatusCode() int }
 	if errors.As(err, &app) {
 		status = app.Code
 		for k, v := range app.Headers {
 			c.Response().Header().Set(k, v)
 		}
 	} else if errors.As(err, &he) {
-		status = he.Code
+		status = he.StatusCode()
 	}
 	_ = c.NoContent(status)
 }
@@ -185,7 +185,7 @@ func TestBodyAdmissionEveryMethodAndBodylessReads(t *testing.T) {
 			}
 			defer release()
 			called := false
-			e := bodyTestApp(gate, func(c echo.Context) error {
+			e := bodyTestApp(gate, func(c *echo.Context) error {
 				called = true
 				return c.NoContent(http.StatusNoContent)
 			})
@@ -221,7 +221,7 @@ func TestBodyAdmissionRetainsLeaseThroughEOFReplacementErrorAndPanic(t *testing.
 		t.Run(outcome, func(t *testing.T) {
 			gate := admission.New(1, 0, 0)
 			raw := &bodyTrackingReader{Reader: strings.NewReader("payload")}
-			e := bodyTestApp(gate, func(c echo.Context) error {
+			e := bodyTestApp(gate, func(c *echo.Context) error {
 				data, err := io.ReadAll(c.Request().Body)
 				if err != nil {
 					t.Fatal(err)
@@ -271,7 +271,7 @@ func (b *bodyDelayedRead) Close() error {
 func TestBodyAdmissionCloseDoesNotReleaseBeforeReadReturns(t *testing.T) {
 	gate := admission.New(1, 0, 0)
 	raw := &bodyDelayedRead{started: make(chan struct{}), interrupted: make(chan struct{}), finish: make(chan struct{})}
-	e := bodyTestApp(gate, func(c echo.Context) error {
+	e := bodyTestApp(gate, func(c *echo.Context) error {
 		// Defensively cover an accidental reader outliving its handler as well.
 		body := c.Request().Body
 		go func() { _, _ = body.Read(make([]byte, 1)) }()
@@ -324,7 +324,7 @@ func TestBodyAdmissionExactLimitAndMasked413(t *testing.T) {
 	for _, length := range []int64{apiBodyBytes, apiBodyBytes + 1} {
 		t.Run(fmt.Sprint(length), func(t *testing.T) {
 			gate := admission.New(1, 0, 0)
-			e := bodyTestApp(gate, func(c echo.Context) error {
+			e := bodyTestApp(gate, func(c *echo.Context) error {
 				if _, err := io.Copy(io.Discard, c.Request().Body); err != nil {
 					return echo.ErrBadRequest // handlers commonly mask Bind/FormFile errors
 				}
@@ -349,7 +349,7 @@ func TestBodyAdmissionExactLimitAndMasked413(t *testing.T) {
 
 func TestBodyAdmissionBindErrorStillReturns413(t *testing.T) {
 	gate := admission.New(1, 0, 0)
-	e := bodyTestApp(gate, func(c echo.Context) error {
+	e := bodyTestApp(gate, func(c *echo.Context) error {
 		var value map[string]any
 		if err := c.Bind(&value); err != nil {
 			return echo.ErrBadRequest
@@ -371,7 +371,7 @@ func TestBodyAdmissionBindErrorStillReturns413(t *testing.T) {
 func TestBodyAdmissionMultipartCleanupBeforeRelease(t *testing.T) {
 	gate := admission.New(1, 0, 0)
 	var filename string
-	e := bodyTestApp(gate, func(c echo.Context) error {
+	e := bodyTestApp(gate, func(c *echo.Context) error {
 		if err := c.Request().ParseMultipartForm(1); err != nil {
 			return err
 		}
@@ -418,7 +418,7 @@ func TestBodyAdmissionSocketUnreadRejectExpectAndPartial(t *testing.T) {
 					defer release()
 				}
 				var calls atomic.Int32
-				e := bodyTestApp(gate, func(c echo.Context) error {
+				e := bodyTestApp(gate, func(c *echo.Context) error {
 					calls.Add(1)
 					if mode == "partial" {
 						var one [1]byte
@@ -429,7 +429,7 @@ func TestBodyAdmissionSocketUnreadRejectExpectAndPartial(t *testing.T) {
 					}
 					if mode == "early-flush" {
 						c.Response().WriteHeader(http.StatusAccepted)
-						c.Response().Flush()
+						_ = http.NewResponseController(c.Response()).Flush()
 						return nil
 					}
 					if mode == "panic" {

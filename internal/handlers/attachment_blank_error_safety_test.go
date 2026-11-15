@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +57,7 @@ func TestAttachmentBlank_OpenErrorsKeepPrivateCause(t *testing.T) {
 				rec := httptest.NewRecorder()
 				c := e.NewContext(httptest.NewRequest(http.MethodGet, "/blank", nil), rec)
 				c.SetPath("/applications/:id/blank")
-				handlers.CustomHTTPErrorHandler(err, c)
+				handlers.CustomHTTPErrorHandler(c, err)
 				require.Equal(t, http.StatusInternalServerError, rec.Code)
 				require.Contains(t, rec.Body.String(), "Не удалось открыть шаблон")
 				require.NotContains(t, rec.Body.String(), "private-template-marker")

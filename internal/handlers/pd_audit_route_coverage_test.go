@@ -103,7 +103,7 @@ func TestPDAudit_NoUntriagedGetRoute(t *testing.T) {
 	_ = db
 
 	checked := 0
-	for _, r := range e.Routes() {
+	for _, r := range e.Router().Routes() {
 		if r.Method != http.MethodGet {
 			continue
 		}

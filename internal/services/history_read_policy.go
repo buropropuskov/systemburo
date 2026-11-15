@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // HistoryReadPolicy разделяет изменения полей и события проходов в карточке.

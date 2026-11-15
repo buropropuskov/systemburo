@@ -9,7 +9,7 @@ import (
 	"systemburo/internal/httpx"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,7 +43,7 @@ func callMW(t *testing.T, enabled bool, isSuperAdmin bool) int {
 	ctx.Set("is_super_admin", isSuperAdmin)
 
 	mw := MaintenanceBlock(&stubMaintenanceService{enabled: enabled})
-	h := mw(func(c echo.Context) error {
+	h := mw(func(c *echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	})
 	if err := h(ctx); err != nil {

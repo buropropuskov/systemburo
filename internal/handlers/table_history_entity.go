@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"net/http"
 	"strconv"
 )
 
-func historyEntityParams(c echo.Context) (int, int, error) {
+func historyEntityParams(c *echo.Context) (int, int, error) {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil || tableID <= 0 {
 		return 0, 0, echo.NewHTTPError(http.StatusBadRequest, "Некорректная таблица")
@@ -17,7 +17,7 @@ func historyEntityParams(c echo.Context) (int, int, error) {
 	}
 	return tableID, entityID, nil
 }
-func (h *CarHandler) GetHistoryCarForTable(c echo.Context) error {
+func (h *CarHandler) GetHistoryCarForTable(c *echo.Context) error {
 	tableID, id, err := historyEntityParams(c)
 	if err != nil {
 		return err
@@ -28,7 +28,7 @@ func (h *CarHandler) GetHistoryCarForTable(c echo.Context) error {
 	}
 	return RespondSuccess(c, row)
 }
-func (h *EmployeeHandler) GetHistoryEmployeeForTable(c echo.Context) error {
+func (h *EmployeeHandler) GetHistoryEmployeeForTable(c *echo.Context) error {
 	tableID, id, err := historyEntityParams(c)
 	if err != nil {
 		return err

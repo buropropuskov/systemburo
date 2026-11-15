@@ -12,7 +12,7 @@ import (
 
 	"systemburo/internal/apperr"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -214,7 +214,7 @@ func TestRateLimitStateBudget_HTTPBusyIsSafeAndNot429(t *testing.T) {
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/private", nil), rec)
 	called := false
 	key := "private-identifier"
-	h := rl.middleware(func(echo.Context) (string, error) { return key, nil }, "frequency %d")(func(echo.Context) error {
+	h := rl.middleware(func(*echo.Context) (string, error) { return key, nil }, "frequency %d")(func(*echo.Context) error {
 		called = true
 		return nil
 	})

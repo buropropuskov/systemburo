@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PassReportHandler - суточный отчёт охранника по проходам таблицы. Роуты
@@ -24,7 +24,7 @@ func NewPassReportHandler(service services.DailyPassReportService, resolver *ser
 }
 
 // scopeFor решает видимость строк по правам вызывающего.
-func (h *PassReportHandler) scopeFor(c echo.Context) (services.PassReportScope, error) {
+func (h *PassReportHandler) scopeFor(c *echo.Context) (services.PassReportScope, error) {
 	userID := GetUserID(c)
 	if userID == 0 {
 		return services.PassReportScope{}, echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
@@ -52,7 +52,7 @@ func (h *PassReportHandler) scopeFor(c echo.Context) (services.PassReportScope, 
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/pass-report/live [get]
-func (h *PassReportHandler) Live(c echo.Context) error {
+func (h *PassReportHandler) Live(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (h *PassReportHandler) Live(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/{id}/pass-reports [get]
-func (h *PassReportHandler) List(c echo.Context) error {
+func (h *PassReportHandler) List(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err

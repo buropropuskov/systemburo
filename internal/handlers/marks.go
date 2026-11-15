@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // MarkHandler - HTTP-обработчики справочника марок автомобилей.
@@ -28,7 +28,7 @@ func NewMarkHandler(service services.MarkService) *MarkHandler {
 // @Param        include_archived query bool false "Включать архивные марки"
 // @Success      200 {array} models.Mark
 // @Router       /marks [get]
-func (h *MarkHandler) GetAll(c echo.Context) error {
+func (h *MarkHandler) GetAll(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	marks, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -46,7 +46,7 @@ func (h *MarkHandler) GetAll(c echo.Context) error {
 // @Param        request body models.CreateMarkRequest true "Данные марки"
 // @Success      201 {object} models.Mark
 // @Router       /marks [post]
-func (h *MarkHandler) Create(c echo.Context) error {
+func (h *MarkHandler) Create(c *echo.Context) error {
 	var req models.CreateMarkRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -69,7 +69,7 @@ func (h *MarkHandler) Create(c echo.Context) error {
 // @Param        request body models.UpdateMarkRequest true "Новое имя"
 // @Success      200 {string} string "Марка обновлена"
 // @Router       /marks/{id} [put]
-func (h *MarkHandler) Update(c echo.Context) error {
+func (h *MarkHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -93,7 +93,7 @@ func (h *MarkHandler) Update(c echo.Context) error {
 // @Param        id path int true "ID марки"
 // @Success      200 {string} string "Марка архивирована"
 // @Router       /marks/{id}/archive [post]
-func (h *MarkHandler) Archive(c echo.Context) error {
+func (h *MarkHandler) Archive(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -113,7 +113,7 @@ func (h *MarkHandler) Archive(c echo.Context) error {
 // @Param        id path int true "ID марки"
 // @Success      200 {string} string "Марка восстановлена"
 // @Router       /marks/{id}/restore [post]
-func (h *MarkHandler) Restore(c echo.Context) error {
+func (h *MarkHandler) Restore(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -133,7 +133,7 @@ func (h *MarkHandler) Restore(c echo.Context) error {
 // @Param        id path int true "ID марки"
 // @Success      200 {array} models.MarkHistoryItem
 // @Router       /marks/{id}/history [get]
-func (h *MarkHandler) GetHistory(c echo.Context) error {
+func (h *MarkHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -156,7 +156,7 @@ func (h *MarkHandler) GetHistory(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /marks/bulk/archive [post]
-func (h *MarkHandler) BulkArchive(c echo.Context) error {
+func (h *MarkHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -183,7 +183,7 @@ func (h *MarkHandler) BulkArchive(c echo.Context) error {
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError
 // @Router       /marks/bulk/restore [post]
-func (h *MarkHandler) BulkRestore(c echo.Context) error {
+func (h *MarkHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")

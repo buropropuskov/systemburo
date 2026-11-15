@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // TrashHandler - HTTP API корзины таблиц (#186).
@@ -40,7 +40,7 @@ func NewTrashHandler(s services.TrashService, dbRef DBRef) *TrashHandler {
 // @Param        date_to query string false "Дата удаления по (YYYY-MM-DD)"
 // @Success      200 {array} models.TrashItem
 // @Router       /system-tables/{id}/trash [get]
-func (h *TrashHandler) List(c echo.Context) error {
+func (h *TrashHandler) List(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")
@@ -86,7 +86,7 @@ func (h *TrashHandler) List(c echo.Context) error {
 // @Param        request body models.RestoreTrashRequest true "IDs"
 // @Success      200 {object} map[string]int
 // @Router       /system-tables/{id}/trash/restore [post]
-func (h *TrashHandler) Restore(c echo.Context) error {
+func (h *TrashHandler) Restore(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")
@@ -127,7 +127,7 @@ func (h *TrashHandler) Restore(c echo.Context) error {
 // @Param        item_id path int true "ID элемента"
 // @Success      200 {string} string "Удалено безвозвратно"
 // @Router       /system-tables/{id}/trash/{item_id} [delete]
-func (h *TrashHandler) PurgeOne(c echo.Context) error {
+func (h *TrashHandler) PurgeOne(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")
@@ -163,7 +163,7 @@ func (h *TrashHandler) PurgeOne(c echo.Context) error {
 // @Param        id path int true "ID SystemTable"
 // @Success      200 {array} models.TrashHistoryItem
 // @Router       /system-tables/{id}/trash/history [get]
-func (h *TrashHandler) History(c echo.Context) error {
+func (h *TrashHandler) History(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")
@@ -183,7 +183,7 @@ func (h *TrashHandler) History(c echo.Context) error {
 // @Param        id path int true "ID SystemTable"
 // @Success      200 {object} map[string]int
 // @Router       /system-tables/{id}/trash [delete]
-func (h *TrashHandler) ClearAll(c echo.Context) error {
+func (h *TrashHandler) ClearAll(c *echo.Context) error {
 	tableID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")

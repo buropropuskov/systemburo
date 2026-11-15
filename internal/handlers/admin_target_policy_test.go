@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -227,8 +227,7 @@ func TestAdminTargetPolicy_HandlerForbiddenBeforeAccepted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodPost, "/users/s1_handler_super/rotate-password", nil), rec)
 	c.Set("user_id", actor.ID)
-	c.SetParamNames("username")
-	c.SetParamValues(target.Username)
+	c.SetPathValues(echo.PathValues{{Name: "username", Value: target.Username}})
 	users := handlers.NewUsersHandler(nil)
 	users.SetRotationService(rotation)
 	s1Status(t, users.RotatePassword(c), http.StatusForbidden)

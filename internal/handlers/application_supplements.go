@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // CreateSupplement godoc
@@ -29,7 +29,7 @@ import (
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/supplements [post]
-func (h *ApplicationHandler) CreateSupplement(c echo.Context) error {
+func (h *ApplicationHandler) CreateSupplement(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -60,7 +60,7 @@ func (h *ApplicationHandler) CreateSupplement(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/supplements [get]
-func (h *ApplicationHandler) GetApplicationSupplements(c echo.Context) error {
+func (h *ApplicationHandler) GetApplicationSupplements(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -104,7 +104,7 @@ func (h *ApplicationHandler) GetApplicationSupplements(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/supplements/{sid}/approve [post]
-func (h *ApplicationHandler) ApproveSupplement(c echo.Context) error {
+func (h *ApplicationHandler) ApproveSupplement(c *echo.Context) error {
 	id, sid, err := supplementPathIDs(c)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (h *ApplicationHandler) ApproveSupplement(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/supplements/{sid}/revoke-approval [post]
-func (h *ApplicationHandler) RevokeSupplementApproval(c echo.Context) error {
+func (h *ApplicationHandler) RevokeSupplementApproval(c *echo.Context) error {
 	id, sid, err := supplementPathIDs(c)
 	if err != nil {
 		return err
@@ -185,7 +185,7 @@ func (h *ApplicationHandler) RevokeSupplementApproval(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/supplements/{sid}/take-to-work [post]
-func (h *ApplicationHandler) DecideSupplement(c echo.Context) error {
+func (h *ApplicationHandler) DecideSupplement(c *echo.Context) error {
 	id, sid, err := supplementPathIDs(c)
 	if err != nil {
 		return err
@@ -223,7 +223,7 @@ func (h *ApplicationHandler) DecideSupplement(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/supplements/{sid}/cancel [post]
-func (h *ApplicationHandler) CancelSupplement(c echo.Context) error {
+func (h *ApplicationHandler) CancelSupplement(c *echo.Context) error {
 	id, sid, err := supplementPathIDs(c)
 	if err != nil {
 		return err
@@ -244,7 +244,7 @@ func (h *ApplicationHandler) CancelSupplement(c echo.Context) error {
 }
 
 // supplementPathIDs разбирает пару «заявка + дополнение» из пути.
-func supplementPathIDs(c echo.Context) (int, int, error) {
+func supplementPathIDs(c *echo.Context) (int, int, error) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return 0, 0, echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")

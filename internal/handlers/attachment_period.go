@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type AttachmentPeriodCommands interface {
@@ -24,15 +24,15 @@ func NewAttachmentPeriodHandler(commands AttachmentPeriodCommands) *AttachmentPe
 
 // The integration owner registers these authenticated routes after DB review.
 // Actor identity is read exclusively from the authenticated request context.
-func (h *AttachmentPeriodHandler) Preview(c echo.Context) error {
+func (h *AttachmentPeriodHandler) Preview(c *echo.Context) error {
 	return h.run(c, false)
 }
 
-func (h *AttachmentPeriodHandler) Change(c echo.Context) error {
+func (h *AttachmentPeriodHandler) Change(c *echo.Context) error {
 	return h.run(c, true)
 }
 
-func (h *AttachmentPeriodHandler) run(c echo.Context, change bool) error {
+func (h *AttachmentPeriodHandler) run(c *echo.Context, change bool) error {
 	actorID, applicationID, err := entityPeriodRequestIdentity(c)
 	if err != nil {
 		return err

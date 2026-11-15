@@ -4,7 +4,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // NewsHandler -- HTTP-обработчики новостей и объявлений.
@@ -27,7 +27,7 @@ func NewNewsHandler(service services.NewsService) *NewsHandler {
 // @Success      200 {array} models.NewsWithUser
 // @Failure      401 {object} models.HTTPError
 // @Router       /news [get]
-func (h *NewsHandler) GetActiveNews(c echo.Context) error {
+func (h *NewsHandler) GetActiveNews(c *echo.Context) error {
 	news, err := h.service.GetActiveNews(c.Request().Context())
 	if err != nil {
 		return err
@@ -44,7 +44,7 @@ func (h *NewsHandler) GetActiveNews(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /news/all [get]
-func (h *NewsHandler) GetAllNews(c echo.Context) error {
+func (h *NewsHandler) GetAllNews(c *echo.Context) error {
 	news, err := h.service.GetAllNews(c.Request().Context())
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (h *NewsHandler) GetAllNews(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /news [post]
-func (h *NewsHandler) CreateNews(c echo.Context) error {
+func (h *NewsHandler) CreateNews(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.CreateNewsRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -91,7 +91,7 @@ func (h *NewsHandler) CreateNews(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /news/{id} [put]
-func (h *NewsHandler) UpdateNews(c echo.Context) error {
+func (h *NewsHandler) UpdateNews(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -119,7 +119,7 @@ func (h *NewsHandler) UpdateNews(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /news/{id} [delete]
-func (h *NewsHandler) DeleteNews(c echo.Context) error {
+func (h *NewsHandler) DeleteNews(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (h *NewsHandler) DeleteNews(c echo.Context) error {
 // @Success      200 {object} models.AnnouncementWithUser
 // @Failure      401 {object} models.HTTPError
 // @Router       /announcements/active [get]
-func (h *NewsHandler) GetActiveAnnouncement(c echo.Context) error {
+func (h *NewsHandler) GetActiveAnnouncement(c *echo.Context) error {
 	announcement, err := h.service.GetActiveAnnouncement(c.Request().Context())
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (h *NewsHandler) GetActiveAnnouncement(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /announcements/all [get]
-func (h *NewsHandler) GetAllAnnouncements(c echo.Context) error {
+func (h *NewsHandler) GetAllAnnouncements(c *echo.Context) error {
 	announcements, err := h.service.GetAllAnnouncements(c.Request().Context())
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func (h *NewsHandler) GetAllAnnouncements(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /announcements [post]
-func (h *NewsHandler) CreateAnnouncement(c echo.Context) error {
+func (h *NewsHandler) CreateAnnouncement(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.CreateAnnouncementRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -204,7 +204,7 @@ func (h *NewsHandler) CreateAnnouncement(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/set-active [post]
-func (h *NewsHandler) SetActiveAnnouncement(c echo.Context) error {
+func (h *NewsHandler) SetActiveAnnouncement(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.SetActiveAnnouncementRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -228,7 +228,7 @@ func (h *NewsHandler) SetActiveAnnouncement(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/{id}/hide [post]
-func (h *NewsHandler) HideAnnouncement(c echo.Context) error {
+func (h *NewsHandler) HideAnnouncement(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -253,7 +253,7 @@ func (h *NewsHandler) HideAnnouncement(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/{id} [put]
-func (h *NewsHandler) UpdateAnnouncement(c echo.Context) error {
+func (h *NewsHandler) UpdateAnnouncement(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -281,7 +281,7 @@ func (h *NewsHandler) UpdateAnnouncement(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/{id} [delete]
-func (h *NewsHandler) DeleteAnnouncement(c echo.Context) error {
+func (h *NewsHandler) DeleteAnnouncement(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err

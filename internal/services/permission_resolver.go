@@ -12,7 +12,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/realtime"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -180,7 +180,7 @@ func (r *PermissionResolver) Resolve(ctx context.Context, userID int) (Permissio
 func (r *PermissionResolver) ResolveFresh(ctx context.Context, userID int) (PermissionSet, error) {
 	set, err := r.computeSet(ctx, userID)
 	if err != nil {
-		return PermissionSet{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+		return PermissionSet{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 	}
 	return set, nil
 }

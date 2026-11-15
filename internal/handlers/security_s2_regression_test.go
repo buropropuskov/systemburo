@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -56,9 +56,9 @@ func TestSecurityS2_BanCheckCurrentState(t *testing.T) {
 			e := echo.New()
 			called := false
 			inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-				return func(c echo.Context) error { c.Set("user_id", tc.actor); return next(c) }
+				return func(c *echo.Context) error { c.Set("user_id", tc.actor); return next(c) }
 			}
-			e.Add(tc.method, tc.route, func(c echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) }, inject, middleware.BanCheck(svc))
+			e.Add(tc.method, tc.route, func(c *echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) }, inject, middleware.BanCheck(svc))
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.request, nil))
 			require.Equal(t, tc.want, rec.Code, rec.Body.String())
@@ -136,7 +136,7 @@ func TestSecurityS2_BannedOwnApplicationsOnly(t *testing.T) {
 	// Exercise both actual HTTP detail handlers, including their incidental write hooks.
 	e := echo.New()
 	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set("username", "sender1")
 			c.Set("user_id", w.senderID)
 			c.Set("is_super_admin", true)
@@ -195,9 +195,9 @@ func TestSecurityS2_FreshPermissionAfterPeerRevocation(t *testing.T) {
 	e := echo.New()
 	called := false
 	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error { c.Set("user_id", userID); return next(c) }
+		return func(c *echo.Context) error { c.Set("user_id", userID); return next(c) }
 	}
-	e.GET("/protected", func(c echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) }, inject,
+	e.GET("/protected", func(c *echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) }, inject,
 		middleware.RequirePermissionV2(peer, services.NewAccessDenialService(db), "page.center"))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/protected", nil))
@@ -252,10 +252,10 @@ func TestSecurityS2_ProtectiveDBErrorsAfterBanCheck(t *testing.T) {
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	passedBan := 0
 	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error { c.Set("user_id", w.senderID); return next(c) }
+		return func(c *echo.Context) error { c.Set("user_id", w.senderID); return next(c) }
 	}
 	observed := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error { passedBan++; return next(c) }
+		return func(c *echo.Context) error { passedBan++; return next(c) }
 	}
 	e.GET("/api/guide/sections", guides.ListSections, inject, middleware.BanCheck(services.NewBanCheckService(w.db, time.Hour)), observed)
 	e.GET("/api/guide/sections/:role/download", guides.Download, inject, middleware.BanCheck(services.NewBanCheckService(w.db, time.Hour)), observed)
@@ -301,7 +301,7 @@ func TestSecurityS2_AvailableScopeRejectsRevokedJWTSuper(t *testing.T) {
 	require.True(t, set.IsSuperAdmin(), "warm the old peer cache")
 	e := echo.New()
 	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set("user_id", w.senderID)
 			c.Set("username", "sender1")
 			c.Set("is_super_admin", true)

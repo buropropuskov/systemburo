@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -30,7 +30,7 @@ type tablePassBody struct {
 // раздаётся охранникам - здесь лишь требуем его на бэке (фронт-кнопку F12 обходит).
 func RequireTablePassVerb(db *gorm.DB, resolver *services.PermissionResolver, denialLog *services.AccessDenialService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userID, ok := c.Get("user_id").(int)
 			if !ok || userID == 0 {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
@@ -56,7 +56,7 @@ func RequireTablePassVerb(db *gorm.DB, resolver *services.PermissionResolver, de
 				Select("name").
 				Where("id = ?", *body.TableID).
 				Scan(&name).Error; err != nil {
-				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 			}
 			if name == "" {
 				return echo.NewHTTPError(http.StatusNotFound, "Таблица не найдена")

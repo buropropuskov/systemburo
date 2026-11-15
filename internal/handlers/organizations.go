@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +33,7 @@ func NewOrganizationHandler(service services.OrganizationService, db *gorm.DB, r
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations [get]
-func (h *OrganizationHandler) GetAll(c echo.Context) error {
+func (h *OrganizationHandler) GetAll(c *echo.Context) error {
 	orgs, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
@@ -54,7 +54,7 @@ func (h *OrganizationHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/suggest [get]
-func (h *OrganizationHandler) Suggest(c echo.Context) error {
+func (h *OrganizationHandler) Suggest(c *echo.Context) error {
 	suggestions, err := h.service.Suggest(c.Request().Context(), c.QueryParam("q"))
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (h *OrganizationHandler) Suggest(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /organizations/{id}/moderation/approve [post]
-func (h *OrganizationHandler) ApproveModeration(c echo.Context) error {
+func (h *OrganizationHandler) ApproveModeration(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -101,7 +101,7 @@ func (h *OrganizationHandler) ApproveModeration(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /organizations/{id}/moderation/rename [patch]
-func (h *OrganizationHandler) RenameModeration(c echo.Context) error {
+func (h *OrganizationHandler) RenameModeration(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -132,7 +132,7 @@ func (h *OrganizationHandler) RenameModeration(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /organizations/{id}/moderation/merge [post]
-func (h *OrganizationHandler) MergeModeration(c echo.Context) error {
+func (h *OrganizationHandler) MergeModeration(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -162,7 +162,7 @@ func (h *OrganizationHandler) MergeModeration(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations [post]
-func (h *OrganizationHandler) Create(c echo.Context) error {
+func (h *OrganizationHandler) Create(c *echo.Context) error {
 	var req services.CreateOrganizationRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -190,7 +190,7 @@ func (h *OrganizationHandler) Create(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id} [put]
-func (h *OrganizationHandler) Update(c echo.Context) error {
+func (h *OrganizationHandler) Update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -223,7 +223,7 @@ func (h *OrganizationHandler) Update(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      409 {object} models.HTTPError
 // @Router       /organizations/{id} [delete]
-func (h *OrganizationHandler) Delete(c echo.Context) error {
+func (h *OrganizationHandler) Delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -247,7 +247,7 @@ func (h *OrganizationHandler) Delete(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id}/restore [post]
-func (h *OrganizationHandler) Restore(c echo.Context) error {
+func (h *OrganizationHandler) Restore(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -269,7 +269,7 @@ func (h *OrganizationHandler) Restore(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/{id}/history [get]
-func (h *OrganizationHandler) GetHistory(c echo.Context) error {
+func (h *OrganizationHandler) GetHistory(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -292,7 +292,7 @@ func (h *OrganizationHandler) GetHistory(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/with-users [get]
-func (h *OrganizationHandler) GetWithUsers(c echo.Context) error {
+func (h *OrganizationHandler) GetWithUsers(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	orgs, err := h.service.GetWithUsers(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -312,7 +312,7 @@ func (h *OrganizationHandler) GetWithUsers(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/with-users-extended [get]
-func (h *OrganizationHandler) GetWithUsersExtended(c echo.Context) error {
+func (h *OrganizationHandler) GetWithUsersExtended(c *echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	orgs, err := h.service.GetWithUsersExtended(c.Request().Context(), includeArchived)
 	if err != nil {
@@ -332,7 +332,7 @@ func (h *OrganizationHandler) GetWithUsersExtended(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /get-organization [get]
-func (h *OrganizationHandler) GetMyOrganization(c echo.Context) error {
+func (h *OrganizationHandler) GetMyOrganization(c *echo.Context) error {
 	username := c.Get("username").(string)
 	resp, err := h.service.GetMyOrganization(c.Request().Context(), username)
 	if err != nil {
@@ -353,7 +353,7 @@ func (h *OrganizationHandler) GetMyOrganization(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /organizations/{id}/users [get]
-func (h *OrganizationHandler) GetOrganizationUsers(c echo.Context) error {
+func (h *OrganizationHandler) GetOrganizationUsers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -383,7 +383,7 @@ func (h *OrganizationHandler) GetOrganizationUsers(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /organizations/{id}/members [get]
-func (h *OrganizationHandler) GetMembers(c echo.Context) error {
+func (h *OrganizationHandler) GetMembers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -412,7 +412,7 @@ func (h *OrganizationHandler) GetMembers(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /organizations/{id}/reassign-users [post]
-func (h *OrganizationHandler) ReassignUsers(c echo.Context) error {
+func (h *OrganizationHandler) ReassignUsers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -445,7 +445,7 @@ func (h *OrganizationHandler) ReassignUsers(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /organizations/{id}/users [put]
-func (h *OrganizationHandler) UpdateOrganizationUsers(c echo.Context) error {
+func (h *OrganizationHandler) UpdateOrganizationUsers(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -475,7 +475,7 @@ func (h *OrganizationHandler) UpdateOrganizationUsers(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /organizations/{id}/tables [get]
-func (h *OrganizationHandler) GetOrganizationTables(c echo.Context) error {
+func (h *OrganizationHandler) GetOrganizationTables(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -502,7 +502,7 @@ func (h *OrganizationHandler) GetOrganizationTables(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id}/tables [put]
-func (h *OrganizationHandler) UpdateOrganizationTables(c echo.Context) error {
+func (h *OrganizationHandler) UpdateOrganizationTables(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -532,7 +532,7 @@ func (h *OrganizationHandler) UpdateOrganizationTables(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /organizations/{id}/unload-places [get]
-func (h *OrganizationHandler) GetOrganizationUnloadPlaces(c echo.Context) error {
+func (h *OrganizationHandler) GetOrganizationUnloadPlaces(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -559,7 +559,7 @@ func (h *OrganizationHandler) GetOrganizationUnloadPlaces(c echo.Context) error 
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id}/unload-places [put]
-func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) error {
+func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -579,7 +579,7 @@ func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) err
 
 // respondBulk отдаёт результат групповой операции: 200 при полном успехе, 207
 // при частичном (envelope success=true, data=BulkOpResult - как batch машин).
-func respondBulk(c echo.Context, res *services.BulkOpResult) error {
+func respondBulk(c *echo.Context, res *services.BulkOpResult) error {
 	return c.JSON(res.HTTPStatus(), Response{Success: true, Data: res})
 }
 
@@ -597,7 +597,7 @@ func respondBulk(c echo.Context, res *services.BulkOpResult) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/bulk/type [post]
-func (h *OrganizationHandler) BulkUpdateType(c echo.Context) error {
+func (h *OrganizationHandler) BulkUpdateType(c *echo.Context) error {
 	var req services.BulkTypeRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -627,7 +627,7 @@ func (h *OrganizationHandler) BulkUpdateType(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/bulk/unload-places [post]
-func (h *OrganizationHandler) BulkAssignUnloadPlaces(c echo.Context) error {
+func (h *OrganizationHandler) BulkAssignUnloadPlaces(c *echo.Context) error {
 	var req services.BulkUnloadPlacesRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -657,7 +657,7 @@ func (h *OrganizationHandler) BulkAssignUnloadPlaces(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/bulk/tables [post]
-func (h *OrganizationHandler) BulkAssignTables(c echo.Context) error {
+func (h *OrganizationHandler) BulkAssignTables(c *echo.Context) error {
 	var req services.BulkTablesRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -687,7 +687,7 @@ func (h *OrganizationHandler) BulkAssignTables(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/bulk/users [post]
-func (h *OrganizationHandler) BulkAssignUsers(c echo.Context) error {
+func (h *OrganizationHandler) BulkAssignUsers(c *echo.Context) error {
 	var req services.BulkUsersRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -717,7 +717,7 @@ func (h *OrganizationHandler) BulkAssignUsers(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/bulk/archive [post]
-func (h *OrganizationHandler) BulkArchive(c echo.Context) error {
+func (h *OrganizationHandler) BulkArchive(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
@@ -747,7 +747,7 @@ func (h *OrganizationHandler) BulkArchive(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/bulk/restore [post]
-func (h *OrganizationHandler) BulkRestore(c echo.Context) error {
+func (h *OrganizationHandler) BulkRestore(c *echo.Context) error {
 	var req services.BulkIDsRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
