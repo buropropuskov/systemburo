@@ -22,8 +22,8 @@ import "systemburo/internal/models"
 // остальных метрик обработки, чтобы плитки вкладки считались по одному набору
 // заявок и были сопоставимы.
 
-// acceptorNameExpr — подпись принимающего: ФИО, а при пустых частях — логин.
-const acceptorNameExpr = "COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), ''), u.username)"
+// acceptorNameExpr — подпись принимающего: ФИО или нейтральная подпись.
+const acceptorNameExpr = "COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), ''), 'Пользователь')"
 
 // acceptorBase — первое принятие каждой заявки из audit_log. DISTINCT ON по заявке
 // с сортировкой по времени берёт самое раннее take_to_work; actor_user_id — кто

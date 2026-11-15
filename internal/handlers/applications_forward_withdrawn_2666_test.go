@@ -155,15 +155,15 @@ func TestForwardWithdrawn2666_RecipientCircleAndHistoryMasksRemainEnforced(t *te
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, before, forward2666Snapshot(t, f), "ordinary sender cannot expand the permitted recipient circle")
 	setUserName(t, f.db, "forward2666_foreign", "SyntheticHidden", "Recipient", "")
-	enableConsent(t, f.e, f.actors["super"], "<p>Synthetic consent text</p>")
 	rec = testutil.POST(t, f.e, fmt.Sprintf("/applications/%d/forward", f.appID), forwardBody(foreignID, false, true), testutil.AuthHeader(f.actors["super"]))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.True(t, viewerIDsOf(t, f.e, f.actors["super"], f.appID)[foreignID], "super administrator keeps the existing broad recipient circle")
+	enableConsent(t, f.e, f.actors["super"], "<p>Synthetic consent text</p>")
 	for _, surface := range forward2664Surfaces(t, f.e, f.actors["super"], f.appID) {
 		details := forward2664Details(t, surface)
 		require.Contains(t, details, foreignID)
 		assert.Equal(t, "view", details[foreignID]["purpose"])
-		assert.Equal(t, "@forward2666_foreign", details[foreignID]["display_name"])
+		assert.Equal(t, "Имя скрыто", details[foreignID]["display_name"])
 		assert.NotContains(t, fmt.Sprint(surface["recipients"]), "SyntheticHidden")
 	}
 }

@@ -505,7 +505,7 @@ func (s *personBlacklistService) GetAllHistory(ctx context.Context) ([]models.Pe
 	return s.queryHistory(ctx, nil)
 }
 
-const personBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+const personBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 
 func (s *personBlacklistService) queryHistory(ctx context.Context, entityID *int) ([]models.PersonBlacklistHistoryItem, error) {
 	where := "a.entity_type = ?"

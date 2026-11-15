@@ -94,7 +94,10 @@ func TestGetReads_Success(t *testing.T) {
 
 	reads := testutil.ParseResponse[[]models.ApplicationReadResponse](t, rec)
 	assert.Len(t, reads, 1)
-	assert.Equal(t, "testadmin", reads[0].Username)
+	assert.Equal(t, getUserID(t, db, "testadmin"), reads[0].UserID)
+	assert.NotEmpty(t, reads[0].DisplayLabel)
+	assert.NotContains(t, rec.Body.String(), "testadmin")
+	assert.NotContains(t, rec.Body.String(), `"username"`)
 }
 
 func TestGetReads_Empty(t *testing.T) {

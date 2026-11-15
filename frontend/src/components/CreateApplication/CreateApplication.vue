@@ -421,6 +421,8 @@ import { usePermissionsStore } from '@/stores/permissions'
 import { downloadBlankTemplate as fetchBlankTemplate, uploadImportList } from '@/api/blankImport'
 import { saveBlobAs } from '@/api/attachment-templates'
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
+import { formatPublicUserName } from '@/utils/formatName';
+import { recipientReferences } from './recipientReferences';
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
@@ -1382,7 +1384,7 @@ export default {
                     const users = await r.json();
                     (users || []).forEach(u => {
                         if (u.required_approval && !byId.has(u.id)) {
-                            byId.set(u.id, { user_id: u.id, name: this.userDisplayName(u) });
+                            byId.set(u.id, { user_id: u.id, name: formatPublicUserName(u) });
                         }
                     });
                 } catch (error) {
@@ -1410,11 +1412,6 @@ export default {
             }
 
             this.defaultApprovers = Array.from(byId.values());
-        },
-
-        userDisplayName(u) {
-            const names = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-            return names.length ? names.join(' ') : (u.username || '');
         },
 
         handleFormatPhoneNumber() {
@@ -3020,7 +3017,7 @@ export default {
                     companyId: this.companyId,
                     responsiblePerson: this.responsiblePerson,
                     phoneNumber: this.phoneNumber,
-                    readers: this.readers,
+                    readers: recipientReferences(this.readers),
                     applicationFileIds: [...this.applicationFileIds],
 
                     // attachments - источник истины для UI. Без них vehiclesByAttachment
@@ -3086,7 +3083,7 @@ export default {
                     if (parsedData.responsiblePerson) this.responsiblePerson = parsedData.responsiblePerson;
                     if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
                     this.consentGiven = null;
-                    this.readers = parsedData.readers || [];
+                    this.readers = recipientReferences(parsedData.readers);
                     this.applicationFileIds = (parsedData.applicationFileIds || []).filter(id => Number.isInteger(id) && id > 0);
 
                     this.attachments = parsedData.attachments || [];

@@ -379,6 +379,8 @@ func TestOrganizations_GetOrganizationUsers_RequiredApprovalGated(t *testing.T) 
 	require.Equal(t, http.StatusOK, recOwn.Code)
 	usersOwn := testutil.ParseSlice(t, recOwn)
 	require.Len(t, usersOwn, 1)
+	assert.NotContains(t, usersOwn[0], "username")
+	assert.NotEmpty(t, usersOwn[0]["display_label"])
 	assert.Equal(t, true, usersOwn[0]["required_approval"], "заявитель должен видеть признак для своей организации")
 
 	// Заявитель из ЧУЖОЙ организации: маршрут отдаёт 200 (форма не ломается), но
@@ -414,7 +416,7 @@ func TestOrganizations_UpdateOrganizationUsers(t *testing.T) {
 
 	isPrimary := true
 	_ = isPrimary
-	body := fmt.Sprintf(`{"users":[{"username":"orguser1","is_primary":true,"required_approval":false}]}`)
+	body := fmt.Sprintf(`{"users":[{"user_id":%d,"is_primary":true,"required_approval":false}]}`, getUserID(t, db, "orguser1"))
 	rec := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -426,7 +428,8 @@ func TestOrganizations_UpdateOrganizationUsers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getRec.Code)
 	users := testutil.ParseSlice(t, getRec)
 	assert.Len(t, users, 1)
-	assert.Equal(t, "orguser1", users[0]["username"])
+	assert.Equal(t, float64(getUserID(t, db, "orguser1")), users[0]["id"])
+	assert.NotContains(t, users[0], "username")
 	assert.Equal(t, true, users[0]["is_primary"])
 
 	// #1046: /members возвращает привязанных по organization_id (участники), а не
@@ -721,20 +724,20 @@ func TestOrganizations_BulkOperations(t *testing.T) {
 		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
 		usersA := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", a), h))
 		require.Len(t, usersA, 1)
-		assert.Equal(t, "bulkresp1", usersA[0]["username"])
+		assert.Equal(t, float64(getUserID(t, db, "bulkresp1")), usersA[0]["id"])
 		assert.Equal(t, true, usersA[0]["required_approval"])
 		assert.Equal(t, false, usersA[0]["is_primary"])
 
 		// add: resp2 обеим -> {resp1(required_approval сохранён true), resp2(false)}.
 		rec2 := testutil.POST(t, e, "/organizations/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"users":[{"username":"bulkresp2","required_approval":false}],"mode":"add"}`, a, b), h)
 		require.Equal(t, http.StatusOK, rec2.Code)
-		byName := map[string]map[string]interface{}{}
+		byName := map[int]map[string]interface{}{}
 		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", a), h)) {
-			byName[u["username"].(string)] = u
+			byName[int(u["id"].(float64))] = u
 		}
 		require.Len(t, byName, 2)
-		assert.Equal(t, true, byName["bulkresp1"]["required_approval"], "add сохраняет флаги существующего")
-		assert.Equal(t, false, byName["bulkresp2"]["required_approval"])
+		assert.Equal(t, true, byName[getUserID(t, db, "bulkresp1")]["required_approval"], "add сохраняет флаги существующего")
+		assert.Equal(t, false, byName[getUserID(t, db, "bulkresp2")]["required_approval"])
 
 		// primary сохраняется в replace + required_approval ИНДИВИДУАЛЕН на каждого:
 		// назначим resp1 primary напрямую, затем bulk-replace [resp1:approval=true, resp2:approval=false].
@@ -742,14 +745,14 @@ func TestOrganizations_BulkOperations(t *testing.T) {
 			`{"users":[{"username":"bulkresp1","is_primary":true},{"username":"bulkresp2"}]}`, h).Code)
 		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations/bulk/users",
 			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"bulkresp1","required_approval":true},{"username":"bulkresp2","required_approval":false}],"mode":"replace"}`, a), h).Code)
-		byName2 := map[string]map[string]interface{}{}
+		byName2 := map[int]map[string]interface{}{}
 		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", a), h)) {
-			byName2[u["username"].(string)] = u
+			byName2[int(u["id"].(float64))] = u
 		}
-		assert.Equal(t, true, byName2["bulkresp1"]["is_primary"], "primary оставшегося сохраняется при replace")
-		assert.Equal(t, false, byName2["bulkresp2"]["is_primary"])
-		assert.Equal(t, true, byName2["bulkresp1"]["required_approval"], "required_approval индивидуален: resp1=true")
-		assert.Equal(t, false, byName2["bulkresp2"]["required_approval"], "required_approval индивидуален: resp2=false")
+		assert.Equal(t, true, byName2[getUserID(t, db, "bulkresp1")]["is_primary"], "primary оставшегося сохраняется при replace")
+		assert.Equal(t, false, byName2[getUserID(t, db, "bulkresp2")]["is_primary"])
+		assert.Equal(t, true, byName2[getUserID(t, db, "bulkresp1")]["required_approval"], "required_approval индивидуален: resp1=true")
+		assert.Equal(t, false, byName2[getUserID(t, db, "bulkresp2")]["required_approval"], "required_approval индивидуален: resp2=false")
 	})
 
 	t.Run("archive-restore", func(t *testing.T) {

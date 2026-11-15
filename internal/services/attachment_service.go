@@ -270,7 +270,7 @@ func (s *attachmentService) Restore(ctx context.Context, userID, id int) error {
 // audit_log. Замороженная unique_attachment_histories дропнута в дроп-sweep (F.8).
 // Форму стережёт TestAttachments_History_*.
 func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.UniqueAttachmentHistoryItem, error) {
-	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 	sql := `
 		SELECT a.id AS id, a.action AS action_type, a.details AS details,
 			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at

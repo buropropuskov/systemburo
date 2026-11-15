@@ -107,7 +107,7 @@ func (s *applicationService) loadOpenSupplement(ctx context.Context, application
 			s.created_by_user_id,
 			-- NULLIF обязателен: format_full_name на пустых ФИО возвращает '', а не NULL,
 			-- и без него COALESCE останавливается на пустой строке, не дойдя до логина.
-			COALESCE(NULLIF(format_full_name(u.last_name, u.first_name, u.middle_name), ''), u.username, '') AS created_by_name,
+			COALESCE(NULLIF(format_full_name(u.last_name, u.first_name, u.middle_name), ''), 'Пользователь') AS created_by_name,
 			s.created_at,
 			(SELECT COUNT(*) FROM cars c WHERE c.supplement_id = s.id) AS vehicles,
 			(SELECT COUNT(*) FROM employees e WHERE e.supplement_id = s.id) AS employees,

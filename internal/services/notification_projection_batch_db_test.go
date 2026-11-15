@@ -337,7 +337,8 @@ func TestNotificationProjectionBatchNeverSelectsRevokedOrMaskedActorNames(t *tes
 		body, err := json.Marshal(feed)
 		require.NoError(t, err)
 		require.NotContains(t, string(body), revokedName)
-		require.Contains(t, string(body), "@"+f.author.Username)
+		require.Contains(t, string(body), "Имя скрыто")
+		require.NotContains(t, string(body), f.author.Username)
 		require.Contains(t, string(body), allowedName)
 		if super {
 			require.Contains(t, string(body), maskedName)
@@ -368,7 +369,8 @@ func TestNotificationProjectionBatchNeverSelectsRevokedOrMaskedActorNames(t *tes
 	require.NotContains(t, string(body), revokedName)
 	require.NotContains(t, string(body), maskedName)
 	require.NotContains(t, string(body), allowedName)
-	require.Contains(t, string(body), "@"+allowed.Username)
+	require.Contains(t, string(body), "Имя скрыто")
+	require.NotContains(t, string(body), allowed.Username)
 	require.Equal(t, before, nameReads, "all actors are masked/revoked before any raw-name SELECT")
 	require.Equal(t, displaysBefore, displayReads, "consent-masked actors never enter a display-name source SELECT")
 }

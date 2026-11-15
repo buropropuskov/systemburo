@@ -1351,7 +1351,7 @@ type SystemTableHistoryMeta struct {
 	NameMaskRevision string `json:"name_mask_revision"`
 }
 
-const systemTableHistoryActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+const systemTableHistoryActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 
 // Search includes the visible Russian action/field/value labels, not just the
 // stored English action code. Names are replaced by nameMaskQuery before SQL.

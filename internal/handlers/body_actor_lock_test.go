@@ -33,6 +33,8 @@ var bodyActorFields = map[string]string{
 	"ApplicationFilter.sender_user_id": "AND поверх фильтра доступа к заявкам, видимость не расширяет",
 
 	// Другой человек: адресат действия, а не его автор.
+	"CompanyUserRequest.user_id":                    "назначаемый ответственный компании, право page.admin.directories",
+	"OrganizationUserRequest.user_id":               "назначаемый ответственный организации, право page.admin.directories",
 	"ForwardUser.user_id":                           "получатель пересылки заявки",
 	"RequiredUserInput.user_id":                     "согласующий, назначаемый при подаче заявки",
 	"CreateApproverRequest.user_id":                 "назначаемый принимающий, право page.admin.directories",

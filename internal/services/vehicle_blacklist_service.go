@@ -543,7 +543,7 @@ func (s *vehicleBlacklistService) GetAllHistory(ctx context.Context) ([]models.V
 	return s.queryHistory(ctx, nil)
 }
 
-const vehicleBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+const vehicleBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 
 func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *int) ([]models.VehicleBlacklistHistoryItem, error) {
 	where := "a.entity_type = ?"

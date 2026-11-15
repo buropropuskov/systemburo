@@ -199,16 +199,15 @@ func (w *NotificationIntentWorker) buildSubmitNotificationDrafts(ctx context.Con
 	sender, masked := consentMasks[intent.ActorUserID]
 	if !masked {
 		var author struct {
-			Username                        string
 			LastName, FirstName, MiddleName *string
 		}
-		err = tx.WithContext(ctx).Table("users").Select("username,last_name,first_name,middle_name").Where("id = ?", intent.ActorUserID).Take(&author).Error
+		err = tx.WithContext(ctx).Table("users").Select("last_name,first_name,middle_name").Where("id = ?", intent.ActorUserID).Take(&author).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
 		sender = formatFullName(author.LastName, author.FirstName, author.MiddleName)
 		if strings.TrimSpace(sender) == "" {
-			sender = author.Username
+			sender = unnamedUserLabel
 		}
 	}
 	payload := map[string]any{"application_id": app.ID, "application_number": number}

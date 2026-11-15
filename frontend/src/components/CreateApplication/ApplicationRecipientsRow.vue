@@ -123,6 +123,7 @@
                 :key="u.userId"
                 class="recipients-add-item"
                 type="button"
+                :disabled="u.canSelect === false"
                 @click="addReader(u)"
               >
                 <span class="recipients-add-item__name">{{ u.name }}</span>
@@ -133,7 +134,7 @@
                 <span
                   v-if="u.pdHidden"
                   class="recipients-add-item__masked"
-                >ФИО скрыто до согласия на обработку данных</span>
+                >Выбор недоступен — имя скрыто</span>
               </button>
               <div
                 v-if="!availableCandidates.length"
@@ -160,7 +161,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { formatShortName } from '@/utils/formatName'
+import { formatShortName, formatPublicUserName } from '@/utils/formatName'
 import { getViewportZoom } from '@/utils/viewportScale'
 
 const BUREAU_RECIPIENT_NAME = 'Бюро пропусков'
@@ -206,10 +207,11 @@ export default {
         isApprover: true,
         removable: false
       }))
+      const candidates = new Map(this.candidateUsers.map(user => [user.userId, user.name]))
       const readerChips = this.readers.map(r => ({
         key: `r-${r.user_id}`,
         userId: r.user_id,
-        name: this.recipientLabel(r.name),
+        name: candidates.get(r.user_id) || "Пользователь",
         isApprover: false,
         removable: true
       }))
@@ -350,7 +352,7 @@ export default {
         this.candidateUsers = (users || []).map(u => ({
           userId: u.id,
           name: this.recipientLabel(this.displayName(u)),
-          username: u.username,
+          canSelect: u.can_select !== false && !u.pd_hidden,
           position: u.position || '',
           pdHidden: !!u.pd_hidden
         }))
@@ -360,8 +362,7 @@ export default {
     },
 
     displayName(u) {
-      const names = [u.last_name, u.first_name, u.middle_name].filter(Boolean)
-      return names.length ? names.join(' ') : u.username
+      return formatPublicUserName(u)
     },
 
     recipientLabel(name) {
@@ -372,7 +373,7 @@ export default {
     // Имена в чипах приходят строкой, поэтому разбираем на части перед сокращением.
     shortName(full) {
       const parts = String(full || '').trim().split(/\s+/)
-      if (full === BUREAU_RECIPIENT_NAME || parts.length < 2) return full || ''
+      if (full === BUREAU_RECIPIENT_NAME || full === 'Имя скрыто' || parts.length < 2) return full || ''
       return formatShortName({
         last_name: parts[0],
         first_name: parts[1],
@@ -381,10 +382,10 @@ export default {
     },
 
     addReader(user) {
-      if (this.readers.some(r => r.user_id === user.userId)) return
+      if (user.canSelect === false || this.readers.some(r => r.user_id === user.userId)) return
       this.$emit('update:readers', [
         ...this.readers,
-        { user_id: user.userId, name: user.name, username: user.username }
+        { user_id: user.userId, name: user.name }
       ])
       this.search = ''
       this.showAdd = false

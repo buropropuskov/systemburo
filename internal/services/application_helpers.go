@@ -971,7 +971,7 @@ func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm
 		FROM application_responsible_users aru
 		JOIN users u ON aru.user_id = u.id
 		WHERE aru.application_id = ?
-		ORDER BY aru.is_primary DESC, u.last_name, u.first_name
+		ORDER BY aru.is_primary DESC, u.id
 	`, applicationID).Scan(&responsibles).Error
 
 	if err != nil {
@@ -992,16 +992,19 @@ func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm
 			responsibles[i].CanApprove = &allowed
 		}
 	}
-	masks, maskErr := loadNameMasks(ctx, db)
-	if maskErr != nil {
-		return nil, maskErr
+	policy, err := loadUserDisplayPolicy(ctx, db)
+	if err != nil {
+		return nil, err
 	}
-	if len(masks) > 0 {
-		for i := range responsibles {
-			maskUserParts(masks, responsibles[i].ID,
-				&responsibles[i].LastName, &responsibles[i].FirstName, &responsibles[i].MiddleName)
+	for i := range responsibles {
+		r := &responsibles[i]
+		r.DisplayLabel = policy.label(r.ID, r.LastName, r.FirstName, r.MiddleName)
+		maskUserParts(policy.names, r.ID, &r.LastName, &r.FirstName, &r.MiddleName)
+		if isMasked(policy.names, r.ID) {
+			r.Position = nil
 		}
 	}
+
 	return responsibles, nil
 }
 

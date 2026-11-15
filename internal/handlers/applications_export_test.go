@@ -109,7 +109,8 @@ func TestApplicationsExport_MasksSenderWithoutConsent(t *testing.T) {
 
 	after := exportRegistry(t, e, admin, "")
 	assert.NotContains(t, after, "Заявкин", "ФИО без согласия не уезжает в файл")
-	assert.Contains(t, after, "@exp_masked", "вместо ФИО в файле логин, как на экране")
+	assert.Contains(t, after, "Имя скрыто")
+	assert.NotContains(t, after, "exp_masked")
 }
 
 // Видимость у выгрузки та же, что у списка: заявитель забирает только свои заявки,

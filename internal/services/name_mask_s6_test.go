@@ -112,7 +112,7 @@ func TestS6History_ActorMaskDisplaySearchAndRole(t *testing.T) {
 				}
 				raw, err := json.Marshal(rows)
 				require.NoError(t, err)
-				require.Contains(t, string(raw), "@passage2667_actor")
+				require.Contains(t, string(raw), "Имя скрыто")
 				require.NotContains(t, string(raw), last)
 			}
 		})

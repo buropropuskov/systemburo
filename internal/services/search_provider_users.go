@@ -56,7 +56,7 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	}
 	cols := []string{
 		nameCols[0], nameCols[1], nameCols[2],
-		"u.username", `u."position"`, "actor_masks.names ->> u.id::text",
+		"u.username", `u."position"`, "NULLIF(actor_masks.names ->> u.id::text, '" + hiddenUserLabel + "')",
 	}
 	cond, args := searchCondition(cols, req.Raw)
 
@@ -92,8 +92,7 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	}
 
 	// У учётной записи может не быть ФИО -- тогда показываем логин, иначе строка
-	// приедет с пустым заголовком и подсказка будет выглядеть сломанной. Скрытое до
-	// согласия ФИО подменяем тем же логином.
+	// приедет с пустым заголовком. При ограничении согласия заголовок нейтральный.
 	items := rowsToItems(SearchTypeUsers, "user", rows)
 	for i := range items {
 		if mask, hidden := masks[items[i].ID]; hidden {

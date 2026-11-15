@@ -42,7 +42,7 @@ func TestConsentVisibilityCrossSurface(t *testing.T) {
 		rows := testutil.ParseResponse[[]models.ApplicationApproverWithUser](t, r)
 		require.Len(t, rows, 1)
 		require.Nil(t, rows[0].LastName)
-		require.Equal(t, "@"+username, *rows[0].DisplayName)
+		require.Equal(t, "Имя скрыто", *rows[0].DisplayName)
 	}
 	t.Run("active", check)
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, "/users/"+username, testutil.AuthHeader(admin)).Code)

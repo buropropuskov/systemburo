@@ -280,9 +280,10 @@ type UserInfoResponse struct {
 // Узкий срез полей: форме нужно показать человека и отличить однофамильцев по должности,
 // остальное (контакты, роль, признаки администратора) к выбору получателя отношения не имеет.
 type RecipientCandidate struct {
+	CanSelect    bool    `gorm:"-" json:"can_select"`
 	DisplayLabel *string `gorm:"-" json:"display_label,omitempty"`
 	ID           int     `json:"id"`
-	Username     string  `json:"username"`
+	Username     string  `json:"-"`
 	LastName     *string `json:"last_name"`
 	FirstName    *string `json:"first_name"`
 	MiddleName   *string `json:"middle_name"`
@@ -293,9 +294,7 @@ type RecipientCandidate struct {
 	// того же поля потребовало бы развилки в каждом месте, где окно его читает.
 	Organization *string `json:"organization"`
 	Company      *string `json:"company"`
-	// PDHidden -- ФИО скрыто политикой согласия или отображения принимающего.
-	// Организацию и компанию согласие не закрывает: это данные работодателя, а не
-	// работника, и в администраторском списке они видны у скрытого работника тоже.
+	// PDHidden marks restricted identity fields, independently of receiver aliases.
 	PDHidden bool `json:"pd_hidden"`
 }
 

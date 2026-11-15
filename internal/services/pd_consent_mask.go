@@ -3,30 +3,15 @@ package services
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
-// Скрытие персональных данных работника, не давшего согласия на их обработку
-// (#1567). Пока согласия нет, другим работникам вместо фамилии, имени и отчества
-// показывается логин учётной записи.
-//
-// Логин, а не «Данные скрыты»: из трёх одинаковых строк «Данные скрыты» нельзя
-// выбрать нужного согласующего, и работа встала бы. Интерфейс уже умеет этот случай -
-// когда ФИО в учётной записи не заполнено, он и так печатает логин.
-//
-// Признак - отсутствие действующего согласия, а НЕ неподтверждённая новая редакция.
-// Второе связало бы видимость имён с повышением редакции: администратор правит
-// запятую в тексте, и вся система разом теряет имена до тех пор, пока каждый
-// работник не перезайдёт.
-//
-// Для никогда не соглашавшихся маскировка работает, когда запрос работает - тем же
-// условием, что и гейт (тумблер включён И текст непустой). На установке, где
-// согласия не спрашивают вовсе, ни у кого его нет, и без этого условия имена
-// сменились бы логинами у всех сразу. Уже записанный отзыв от этого режима не зависит.
+// Consent restrictions take precedence over receiver aliases. Authentication
+// identifiers are never substitutes for a restricted display name.
+// Existing prompt scope and unconditional withdrawal semantics are preserved.
 
 // nameMaskUnavailable не позволяет спутать сбой проверки с отсутствием масок.
 func nameMaskUnavailable(err error) error {
@@ -62,7 +47,7 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) (bool, error) {
 	return required && hasVisibleText(text), nil
 }
 
-// loadConsentMasks возвращает карту user_id -> логин для работников, не давших
+// loadConsentMasks возвращает карту user_id -> нейтральная подпись для работников, не давших
 // согласия на обработку персональных данных. nil означает «маскировать некого» -
 // вызывающая сторона тогда работает как раньше, без накладных расходов.
 //
@@ -82,13 +67,12 @@ func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bo
 		return nil, false, err
 	}
 	type row struct {
-		ID       int
-		Username string
+		ID int
 	}
 	var rows []row
 	query := db.WithContext(ctx).
 		Table("users").
-		Select("users.id, users.username").
+		Select("users.id").
 		Where(`NOT EXISTS (
 			SELECT 1 FROM pd_consents c
 			WHERE c.user_id = users.id
@@ -109,9 +93,7 @@ func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bo
 	}
 	masks := make(map[int]string, len(rows))
 	for _, r := range rows {
-		// С собачкой, как логины показываются во всём интерфейсе: иначе подставленный
-		// вместо фамилии логин читается как фамилия.
-		masks[r.ID] = "@" + r.Username
+		masks[r.ID] = hiddenUserLabel
 	}
 	return masks, active, nil
 }
@@ -206,33 +188,11 @@ func loadConsentGrants(ctx context.Context, db *gorm.DB) map[int]string {
 	return grants
 }
 
-// ownerDisplayName собирает «за кем закреплена запись» для реестров сотрудников и
-// машин: ФИО владельца, а у не давшего согласия на обработку своих данных - его логин
-// с собачкой (та же маска, что применяется к именам во всём интерфейсе).
-//
-// Логин остаётся и запасным вариантом: у части учётных записей ФИО не заполнено вовсе,
-// и пустая строка в карточке читалась бы как «ничей».
-func ownerDisplayName(masks map[int]string, userID *int, username, last, first, middle *string) *string {
+// ownerDisplayName projects a record owner without using an authentication login.
+func ownerDisplayName(masks map[int]string, userID *int, _ *string, last, first, middle *string) *string {
 	if userID == nil {
 		return nil
 	}
-	if mask, ok := masks[*userID]; ok {
-		v := mask
-		return &v
-	}
-	parts := make([]string, 0, 3)
-	for _, p := range []*string{last, first, middle} {
-		if p != nil && strings.TrimSpace(*p) != "" {
-			parts = append(parts, strings.TrimSpace(*p))
-		}
-	}
-	if len(parts) == 0 {
-		if username == nil || strings.TrimSpace(*username) == "" {
-			return nil
-		}
-		v := "@" + strings.TrimSpace(*username)
-		return &v
-	}
-	v := strings.Join(parts, " ")
+	v := (userDisplayPolicy{names: masks}).label(*userID, last, first, middle)
 	return &v
 }

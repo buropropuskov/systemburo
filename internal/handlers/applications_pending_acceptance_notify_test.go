@@ -101,7 +101,8 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 	require.NotNil(t, projected.Message)
 	assert.Equal(t, "Новая заявка", *projected.Title)
 	assert.Contains(t, *projected.Message, *app.ApplicationNumber)
-	assert.Contains(t, *projected.Message, author.Username, "текущий отправитель доступен через проекцию")
+	assert.Contains(t, *projected.Message, "Пользователь")
+	assert.NotContains(t, *projected.Message, author.Username)
 	require.NotNil(t, projected.Data, "проекция сохраняет переход к доступной заявке")
 	var projectedData map[string]any
 	require.NoError(t, json.Unmarshal([]byte(*projected.Data), &projectedData))

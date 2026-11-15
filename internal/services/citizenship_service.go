@@ -253,7 +253,7 @@ func (s *citizenshipService) BulkRestore(ctx context.Context, ids []int, userID 
 // audit_log. Замороженная citizenship_histories дропнута в дроп-sweep (F.8).
 // Форму ответа стережёт TestCitizenships_History.
 func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.CitizenshipHistoryItem, error) {
-	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 	sql := `
 		SELECT a.id AS id, a.action AS action_type, a.details AS details,
 			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at

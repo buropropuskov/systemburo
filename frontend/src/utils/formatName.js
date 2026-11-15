@@ -67,12 +67,8 @@ export function formatLogin(username) {
 }
 
 /**
- * Подпись учётной записи: разрешённая сервером маска, сокращённое ФИО или логин.
- *
- * Пустое ФИО у работника означает одно из двух: его не заполнили при заведении
- * учётной записи либо сервер скрыл его, пока работник не дал согласия на обработку
- * персональных данных (#1567). В обоих случаях логин - единственное, чем строку
- * можно опознать, и он всяко лучше прочерка.
+ * Подпись учётной записи: разрешённое сервером имя или нейтральная подпись.
+ * Логин используется отдельно только там, где разрешено управление аккаунтом.
  *
  * @param {NameParts & {username?: string, display_label?: string}} user
  * @returns {string}
@@ -80,7 +76,17 @@ export function formatLogin(username) {
 export function formatUserLabel(user) {
   if (!user) return ''
   // Серверная подпись не подставляется в редактируемые части настоящего ФИО.
+  if (user.pd_hidden) return 'Имя скрыто'
   const displayLabel = trim(user.display_label)
   if (displayLabel) return displayLabel
-  return formatShortName(user) || formatLogin(user.username)
+  return formatShortName(user) || 'Пользователь'
+}
+
+/** Full public identity; authentication logins are never a display fallback. */
+export function formatPublicUserName(user) {
+  if (!user) return 'Пользователь'
+  if (user.pd_hidden) return 'Имя скрыто'
+  const label = trim(user.display_label)
+  if (label) return label
+  return formatFullName(user) || 'Пользователь'
 }

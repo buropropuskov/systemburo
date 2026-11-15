@@ -76,13 +76,12 @@ func sanitizeForwardRecipientMetadata(ctx context.Context, db *gorm.DB, original
 	if len(ids) > 0 {
 		type recipientRow struct {
 			ID         int
-			Username   string
 			LastName   *string
 			FirstName  *string
 			MiddleName *string
 		}
 		var rows []recipientRow
-		if err := db.WithContext(ctx).Table("users").Select("id, username, last_name, first_name, middle_name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		if err := db.WithContext(ctx).Table("users").Select("id, last_name, first_name, middle_name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 		masks, err := loadForwardNameMasks(ctx, db, ids)
@@ -92,7 +91,7 @@ func sanitizeForwardRecipientMetadata(ctx context.Context, db *gorm.DB, original
 		for _, row := range rows {
 			name := strings.TrimSpace(formatFullName(row.LastName, row.FirstName, row.MiddleName))
 			if name == "" {
-				name = "@" + row.Username
+				name = unnamedUserLabel
 			}
 			names[row.ID] = maskName(masks, &row.ID, name)
 		}

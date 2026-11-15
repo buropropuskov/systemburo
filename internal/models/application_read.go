@@ -12,11 +12,12 @@ type ApplicationRead struct {
 
 // ApplicationReadResponse ответ с информацией о прочтении.
 type ApplicationReadResponse struct {
-	UserID    int       `json:"user_id"`
-	Username  string    `json:"username"`
-	LastName  *string   `json:"last_name"`
-	FirstName *string   `json:"first_name"`
-	ReadAt    time.Time `json:"read_at"`
+	DisplayLabel string    `gorm:"-" json:"display_label"`
+	UserID       int       `json:"user_id"`
+	Username     string    `json:"-"`
+	LastName     *string   `json:"last_name"`
+	FirstName    *string   `json:"first_name"`
+	ReadAt       time.Time `json:"read_at"`
 }
 
 // UnreadCountResponse количество непрочитанных заявок и заявок с обновлённым статусом

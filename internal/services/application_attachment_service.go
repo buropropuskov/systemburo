@@ -29,7 +29,7 @@ func (s *applicationService) GetApplicationViewers(ctx context.Context, applicat
 		FROM application_viewers av
 		JOIN users u ON av.user_id = u.id
 		WHERE av.application_id = ?
-		ORDER BY u.last_name, u.first_name
+		ORDER BY u.id
 	`, applicationID).Scan(&viewers).Error
 
 	if err != nil {
@@ -37,15 +37,19 @@ func (s *applicationService) GetApplicationViewers(ctx context.Context, applicat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching viewers")
 	}
 
-	masks, maskErr := loadNameMasks(ctx, s.db)
-	if maskErr != nil {
-		return nil, maskErr
+	policy, err := loadUserDisplayPolicy(ctx, s.db)
+	if err != nil {
+		return nil, err
 	}
-	if len(masks) > 0 {
-		for i := range viewers {
-			maskUserParts(masks, viewers[i].UserID, &viewers[i].LastName, &viewers[i].FirstName, &viewers[i].MiddleName)
+	for i := range viewers {
+		v := &viewers[i]
+		v.DisplayLabel = policy.label(v.UserID, v.LastName, v.FirstName, v.MiddleName)
+		maskUserParts(policy.names, v.UserID, &v.LastName, &v.FirstName, &v.MiddleName)
+		if isMasked(policy.names, v.UserID) {
+			v.Position = nil
 		}
 	}
+
 	return viewers, nil
 }
 

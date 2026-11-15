@@ -683,6 +683,7 @@
 </template>
 
 <script>
+import { formatPublicUserName } from '@/utils/formatName'
 import { useApplicationHeaderActions } from '@/composables/useApplicationHeaderActions';
 import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { applicationPeriodDetails } from '@/components/entityPeriodParentMixins';
@@ -1967,8 +1968,7 @@ export default {
         weekdayName,
 
         getUserDisplayName(user) {
-            const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
-            return names.length > 0 ? names.join(' ') : user.username;
+            return formatPublicUserName(user);
         },
 
         toggleLeftColumn() {

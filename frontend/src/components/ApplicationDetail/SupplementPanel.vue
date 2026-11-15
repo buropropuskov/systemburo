@@ -113,7 +113,7 @@
                     :class="{ 'is-me': approval.user_id === currentUserId }"
                   >
                     <div class="user-name-block">
-                      {{ approval.full_name || approval.username }}
+                      {{ approval.full_name || 'Пользователь' }}
                       <span
                         v-if="approval.user_id === currentUserId"
                         class="user-self"

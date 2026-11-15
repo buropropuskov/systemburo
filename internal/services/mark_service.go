@@ -187,7 +187,7 @@ func (s *markService) setActive(ctx context.Context, id int, active bool, userID
 // Плоская схема mark_histories (old_value/new_value) маппится в детали аудит-лога
 // при записи; обратно из audit_log извлекаем через ->> оператор jsonb.
 func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHistoryItem, error) {
-	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 	// Read-switch #870 (F.3): до-cutover строки mark_histories подняты в audit_log
 	// разовым backfill'ом (old_value/new_value свёрнуты в details), читаем только
 	// audit_log. comment приложением никогда не писался (плоская колонка всегда NULL) -

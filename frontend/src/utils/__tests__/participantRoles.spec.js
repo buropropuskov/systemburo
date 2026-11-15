@@ -45,9 +45,9 @@ describe('utils/participantRoles', () => {
     expect(name).not.toContain('ivanov')
   })
 
-  it('без ФИО показывается логин, без обоих - явная заглушка', () => {
-    expect(participantDisplayName({ full_name: '', username: 'pt_reader' })).toBe('pt_reader')
-    expect(participantDisplayName({})).toBe('Без имени')
+  it('без ФИО показывается нейтральная подпись без логина', () => {
+    expect(participantDisplayName({ full_name: '', username: 'pt_reader' })).toBe('Пользователь')
+    expect(participantDisplayName({})).toBe('Пользователь')
   })
 
   it('вторые роли перечисляются без старшей - она уже на бейдже', () => {

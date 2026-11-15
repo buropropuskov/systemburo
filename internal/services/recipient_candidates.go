@@ -11,6 +11,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // managerUserTypeCode - код типа «Руководитель» в user_types. Резолвится по code, а не
@@ -52,7 +53,7 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 	err := recipientCandidateScope(db.WithContext(ctx), me).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
-		Select(`u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position,
+		Select(`u.id, u.last_name, u.first_name, u.middle_name, u.position,
 			o.name as organization, c.name as company`).
 		Scan(&result).Error
 	if err != nil {
@@ -60,25 +61,31 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipient candidates")
 	}
 
-	masks, maskErr := loadNameMasks(ctx, db)
-	if maskErr != nil {
-		return nil, maskErr
+	policy, err := loadUserDisplayPolicy(ctx, db)
+	if err != nil {
+		return nil, err
 	}
 	for i := range result {
-		label, hidden := masks[result[i].ID]
-		if !hidden {
-			continue
+		c := &result[i]
+		label := policy.label(c.ID, c.LastName, c.FirstName, c.MiddleName)
+		c.DisplayLabel = &label
+		c.CanSelect = !policy.restricted(c.ID)
+		maskUserParts(policy.names, c.ID, &c.LastName, &c.FirstName, &c.MiddleName)
+		c.PDHidden = policy.restricted(c.ID)
+		if isMasked(policy.names, c.ID) {
+			c.Position, c.Organization, c.Company = nil, nil, nil
 		}
-		result[i].DisplayLabel = &label
-		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
-		result[i].PDHidden = true
 	}
 
 	// Сортируем после маскировки и по тому, что видит клиент. Порядок по настоящей
 	// фамилии выдал бы её первую букву: скрытый работник встал бы на своё алфавитное
 	// место между видимыми однофамильцами - ровно то, что маскировка #1567 прячет.
 	sort.SliceStable(result, func(i, j int) bool {
-		return recipientSortKey(result[i]) < recipientSortKey(result[j])
+		a, b := recipientSortKey(result[i]), recipientSortKey(result[j])
+		if a != b {
+			return a < b
+		}
+		return result[i].ID < result[j].ID
 	})
 	return result, nil
 }
@@ -87,9 +94,6 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 // видимое ФИО, а у скрытого работника - его заглушка, уехавшая в конец алфавита.
 func recipientSortKey(c models.RecipientCandidate) string {
 	if c.DisplayLabel != nil {
-		if strings.HasPrefix(*c.DisplayLabel, "@") {
-			return "￿" + c.Username
-		}
 		return *c.DisplayLabel
 	}
 	parts := make([]string, 0, 3)
@@ -99,7 +103,7 @@ func recipientSortKey(c models.RecipientCandidate) string {
 		}
 	}
 	if len(parts) == 0 {
-		return "￿" + c.Username
+		return unnamedUserLabel
 	}
 	return strings.Join(parts, " ")
 }
@@ -118,4 +122,27 @@ func recipientCandidateIDs(ctx context.Context, db *gorm.DB, me models.User) (ma
 		allowed[id] = struct{}{}
 	}
 	return allowed, nil
+}
+
+// Check explicitly selected accounts in the writer transaction. Consent changes
+// take an exclusive lock on the same user row. Mandatory routing is separate.
+func validateManualRecipients(ctx context.Context, tx *gorm.DB, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	var locked []int
+	if err := tx.WithContext(ctx).Table("users").Where("id IN ?", ids).
+		Order("id").Clauses(clause.Locking{Strength: "SHARE"}).Pluck("id", &locked).Error; err != nil {
+		return nameMaskUnavailable(err)
+	}
+	masks, err := loadConsentMasks(ctx, tx)
+	if err != nil {
+		return err
+	}
+	for _, id := range locked {
+		if isMasked(masks, id) {
+			return echo.NewHTTPError(http.StatusConflict, "Получатель больше недоступен. Обновите список и выберите получателя заново")
+		}
+	}
+	return nil
 }

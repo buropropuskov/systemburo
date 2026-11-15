@@ -399,6 +399,8 @@ func TestCompanies_GetUsers_RequiredApprovalGated(t *testing.T) {
 	require.Equal(t, http.StatusOK, recOwn.Code)
 	usersOwn := testutil.ParseSlice(t, recOwn)
 	require.Len(t, usersOwn, 1)
+	assert.NotContains(t, usersOwn[0], "username")
+	assert.NotEmpty(t, usersOwn[0]["display_label"])
 	assert.Equal(t, true, usersOwn[0]["required_approval"], "заявитель должен видеть признак для своей компании")
 
 	foreignToken := testutil.RegisterAndLogin(t, e, "compapplicant_foreign", "pass123", 1, td.OrgID, foreignCompanyID)
@@ -426,7 +428,7 @@ func TestCompanies_UpdateUsers(t *testing.T) {
 
 	testutil.RegisterUser(t, e, "compuser1", "pass123", 1, td.OrgID, td.CompanyID)
 
-	body := `{"users":[{"username":"compuser1","is_primary":true,"required_approval":true}]}`
+	body := fmt.Sprintf(`{"users":[{"user_id":%d,"is_primary":true,"required_approval":true}]}`, getUserID(t, db, "compuser1"))
 	rec := testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -438,7 +440,8 @@ func TestCompanies_UpdateUsers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getRec.Code)
 	users := testutil.ParseSlice(t, getRec)
 	assert.Len(t, users, 1)
-	assert.Equal(t, "compuser1", users[0]["username"])
+	assert.Equal(t, float64(getUserID(t, db, "compuser1")), users[0]["id"])
+	assert.NotContains(t, users[0], "username")
 	assert.Equal(t, true, users[0]["is_primary"])
 	assert.Equal(t, true, users[0]["required_approval"])
 
@@ -527,7 +530,8 @@ func TestCompanies_UpdateUsers_ReplaceStrategy(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getRec.Code)
 	users := testutil.ParseSlice(t, getRec)
 	assert.Len(t, users, 1)
-	assert.Equal(t, "cu2", users[0]["username"])
+	assert.Equal(t, float64(getUserID(t, db, "cu2")), users[0]["id"])
+	assert.NotContains(t, users[0], "username")
 }
 
 func TestCompanies_GetTables(t *testing.T) {
@@ -783,34 +787,34 @@ func TestCompanies_BulkOperations(t *testing.T) {
 		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
 		usersA := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h))
 		require.Len(t, usersA, 1)
-		assert.Equal(t, "bulkcresp1", usersA[0]["username"])
+		assert.Equal(t, float64(getUserID(t, db, "bulkcresp1")), usersA[0]["id"])
 		assert.Equal(t, true, usersA[0]["required_approval"])
 		assert.Equal(t, false, usersA[0]["is_primary"])
 
 		// add: resp2 обеим -> {resp1(required_approval сохранён true), resp2(false)}.
 		rec2 := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"users":[{"username":"bulkcresp2","required_approval":false}],"mode":"add"}`, a, b), h)
 		require.Equal(t, http.StatusOK, rec2.Code)
-		byName := map[string]map[string]interface{}{}
+		byName := map[int]map[string]interface{}{}
 		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h)) {
-			byName[u["username"].(string)] = u
+			byName[int(u["id"].(float64))] = u
 		}
 		require.Len(t, byName, 2)
-		assert.Equal(t, true, byName["bulkcresp1"]["required_approval"], "add сохраняет флаги существующего")
-		assert.Equal(t, false, byName["bulkcresp2"]["required_approval"])
+		assert.Equal(t, true, byName[getUserID(t, db, "bulkcresp1")]["required_approval"], "add сохраняет флаги существующего")
+		assert.Equal(t, false, byName[getUserID(t, db, "bulkcresp2")]["required_approval"])
 
 		// primary сохраняется в replace + required_approval ИНДИВИДУАЛЕН на каждого.
 		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", a),
 			`{"users":[{"username":"bulkcresp1","is_primary":true},{"username":"bulkcresp2"}]}`, h).Code)
 		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/users",
 			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"bulkcresp1","required_approval":true},{"username":"bulkcresp2","required_approval":false}],"mode":"replace"}`, a), h).Code)
-		byName2 := map[string]map[string]interface{}{}
+		byName2 := map[int]map[string]interface{}{}
 		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h)) {
-			byName2[u["username"].(string)] = u
+			byName2[int(u["id"].(float64))] = u
 		}
-		assert.Equal(t, true, byName2["bulkcresp1"]["is_primary"], "primary оставшегося сохраняется при replace")
-		assert.Equal(t, false, byName2["bulkcresp2"]["is_primary"])
-		assert.Equal(t, true, byName2["bulkcresp1"]["required_approval"], "required_approval индивидуален: resp1=true")
-		assert.Equal(t, false, byName2["bulkcresp2"]["required_approval"], "required_approval индивидуален: resp2=false")
+		assert.Equal(t, true, byName2[getUserID(t, db, "bulkcresp1")]["is_primary"], "primary оставшегося сохраняется при replace")
+		assert.Equal(t, false, byName2[getUserID(t, db, "bulkcresp2")]["is_primary"])
+		assert.Equal(t, true, byName2[getUserID(t, db, "bulkcresp1")]["required_approval"], "required_approval индивидуален: resp1=true")
+		assert.Equal(t, false, byName2[getUserID(t, db, "bulkcresp2")]["required_approval"], "required_approval индивидуален: resp2=false")
 	})
 
 	t.Run("archive-restore", func(t *testing.T) {
