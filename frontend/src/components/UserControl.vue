@@ -1905,8 +1905,8 @@ export default {
     formatLogin,
 
     formatUserName(user) {
-      // Логин вместо прочерка: ФИО пусто и когда его не заполнили, и когда сервер
-      // скрыл его до согласия на обработку данных - опознать строку надо в обоих случаях.
+      // В таблице управления pd_hidden также отмечает скрытие полей псевдонимом.
+      if (user?.consent_granted && user.display_label) return user.display_label;
       return formatUserLabel(user) || '-';
     },
 

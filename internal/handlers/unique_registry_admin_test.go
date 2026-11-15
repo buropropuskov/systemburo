@@ -189,8 +189,8 @@ func TestUniqueRegistry_OwnerNameVisibleToAdminOnly(t *testing.T) {
 	adminEmployees := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
 	require.NotEmpty(t, adminEmployees)
 	require.NotNil(t, adminEmployees[0].UserName, "администратор видит, за кем закреплена запись")
-	assert.Equal(t, "Имя скрыто", *adminEmployees[0].UserName,
-		"ФИО у владельца не заполнено - остаётся логин с собачкой")
+	assert.Equal(t, "Пользователь", *adminEmployees[0].UserName,
+		"ФИО у владельца не заполнено")
 
 	rec = testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50", ownerHeader)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

@@ -87,7 +87,7 @@ func TestSystemTableHistoryBoundedSnapshotFiltersAndConsent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, masked)
 	require.NotContains(t, masked[0].UserName, privateName)
-	require.Contains(t, masked[0].UserName, actor.Username)
+	require.Equal(t, "Имя скрыто", masked[0].UserName)
 	require.NotEqual(t, first.Meta.NameMaskRevision, maskedMeta.NameMaskRevision)
 	q.Search = privateName
 	_, searchMeta, err := svc.GetHistoryPage(ctx, tableID, q)
@@ -96,7 +96,8 @@ func TestSystemTableHistoryBoundedSnapshotFiltersAndConsent(t *testing.T) {
 	q.Search = actor.Username
 	_, searchMeta, err = svc.GetHistoryPage(ctx, tableID, q)
 	require.NoError(t, err)
-	require.EqualValues(t, 205, searchMeta.Total)
+	require.Zero(t, searchMeta.Total, "login is not a public history search key")
+	q.Search = ""
 	options, optionMeta, err := svc.GetHistoryUsers(ctx, tableID, q)
 	require.NoError(t, err)
 	require.Len(t, options, 1)
