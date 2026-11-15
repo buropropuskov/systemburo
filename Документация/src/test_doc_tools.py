@@ -171,6 +171,10 @@ class PdfChecks(unittest.TestCase):
                           subprocess.CompletedProcess([], 0, text, '')):
             self.assertEqual(build_docs.find_first_unsplit_break({}, metadata, set()),
                              ('14.1', [3]))
+            self.assertEqual(build_docs.find_first_unsplit_break({}, metadata, set(), [3]),
+                             (None, None))
+            self.assertEqual(build_docs.find_first_unsplit_break({}, metadata, set(), [2]),
+                             ('14.1', [3]))
 
     def test_tail_uses_earliest_alternative_before_real_next_break(self):
         text, metadata = self.transfer_table_fixture()
