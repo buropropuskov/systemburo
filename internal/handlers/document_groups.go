@@ -4,7 +4,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // DocumentGroupHandler -- HTTP-обработчики групп документов.
@@ -25,7 +25,7 @@ func NewDocumentGroupHandler(service services.DocumentGroupService) *DocumentGro
 // @Success      200 {array} models.DocumentGroupWithCount
 // @Failure      401 {object} models.HTTPError
 // @Router       /document-groups [get]
-func (h *DocumentGroupHandler) List(c echo.Context) error {
+func (h *DocumentGroupHandler) List(c *echo.Context) error {
 	groups, err := h.service.List(c.Request().Context())
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func (h *DocumentGroupHandler) List(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      409 {object} models.HTTPError
 // @Router       /document-groups [post]
-func (h *DocumentGroupHandler) Create(c echo.Context) error {
+func (h *DocumentGroupHandler) Create(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.CreateDocumentGroupRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -72,7 +72,7 @@ func (h *DocumentGroupHandler) Create(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      409 {object} models.HTTPError
 // @Router       /document-groups/{id} [put]
-func (h *DocumentGroupHandler) Update(c echo.Context) error {
+func (h *DocumentGroupHandler) Update(c *echo.Context) error {
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -100,7 +100,7 @@ func (h *DocumentGroupHandler) Update(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /document-groups/{id} [delete]
-func (h *DocumentGroupHandler) Delete(c echo.Context) error {
+func (h *DocumentGroupHandler) Delete(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func (h *DocumentGroupHandler) Delete(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /document-groups/reorder [put]
-func (h *DocumentGroupHandler) Reorder(c echo.Context) error {
+func (h *DocumentGroupHandler) Reorder(c *echo.Context) error {
 	var req models.ReorderDocumentGroupsRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err

@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // MaintenanceHandler обслуживает три endpoint'а:
@@ -24,7 +24,7 @@ func NewMaintenanceHandler(service services.MaintenanceService) *MaintenanceHand
 // GetPublicStatus возвращает публичный статус режима техработ (без auth).
 // Используется страницей /maintenance для авто-рефреша и формой /login для
 // проверки, стоит ли давать возможность логиниться.
-func (h *MaintenanceHandler) GetPublicStatus(c echo.Context) error {
+func (h *MaintenanceHandler) GetPublicStatus(c *echo.Context) error {
 	st, err := h.service.GetStatus(c.Request().Context())
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func (h *MaintenanceHandler) GetPublicStatus(c echo.Context) error {
 // GetAdminStatus возвращает тот же статус для админского экрана SystemControl.
 // Оставлен как отдельный метод - если позже понадобятся доп. поля только для
 // админа (например, кто включил и когда), их можно добавить только сюда.
-func (h *MaintenanceHandler) GetAdminStatus(c echo.Context) error {
+func (h *MaintenanceHandler) GetAdminStatus(c *echo.Context) error {
 	if !IsSuperAdmin(c) {
 		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}
@@ -87,7 +87,7 @@ func parseWindow(req MaintenanceToggleRequest) (start, end string, err error) {
 // ToggleMaintenance включает или выключает режим обслуживания.
 // При Enable=true дополнительно revoke non-admin refresh_tokens
 // (см. MaintenanceService.Enable).
-func (h *MaintenanceHandler) ToggleMaintenance(c echo.Context) error {
+func (h *MaintenanceHandler) ToggleMaintenance(c *echo.Context) error {
 	if !IsSuperAdmin(c) {
 		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}

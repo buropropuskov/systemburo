@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ListTemplates godoc
@@ -19,7 +19,7 @@ import (
 // @Success      200 {object} map[string]interface{}
 // @Security     BearerAuth
 // @Router       /statistics/templates [get]
-func (h *StatisticsHandler) ListTemplates(c echo.Context) error {
+func (h *StatisticsHandler) ListTemplates(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	templates, err := h.service.ListReportTemplates(c.Request().Context(), userID)
 	if err != nil {
@@ -37,7 +37,7 @@ func (h *StatisticsHandler) ListTemplates(c echo.Context) error {
 // @Success      201 {object} models.ReportTemplate
 // @Security     BearerAuth
 // @Router       /statistics/templates [post]
-func (h *StatisticsHandler) CreateTemplate(c echo.Context) error {
+func (h *StatisticsHandler) CreateTemplate(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	var req models.SaveReportTemplateRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -60,7 +60,7 @@ func (h *StatisticsHandler) CreateTemplate(c echo.Context) error {
 // @Success      200 {object} models.ReportTemplate
 // @Security     BearerAuth
 // @Router       /statistics/templates/{id} [put]
-func (h *StatisticsHandler) UpdateTemplate(c echo.Context) error {
+func (h *StatisticsHandler) UpdateTemplate(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -85,7 +85,7 @@ func (h *StatisticsHandler) UpdateTemplate(c echo.Context) error {
 // @Success      200 {object} map[string]interface{}
 // @Security     BearerAuth
 // @Router       /statistics/templates/{id} [delete]
-func (h *StatisticsHandler) DeleteTemplate(c echo.Context) error {
+func (h *StatisticsHandler) DeleteTemplate(c *echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

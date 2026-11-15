@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,7 +125,7 @@ func TestRouteAccess_Registry(t *testing.T) {
 	noKeys := tokenWith(nil)
 	probes := roleProbes(seedRoleFixture(t, db, td, userIDs[""]))
 
-	routes := registeredRoutes(e.Routes())
+	routes := registeredRoutes(e.Router().Routes())
 
 	for key := range routes {
 		if _, ok := routeAccessRegistry[key]; !ok {
@@ -281,7 +281,7 @@ func registryPostKeys() []string {
 
 // registeredRoutes - методы приложения в нотации "METHOD путь-шаблон". Служебный
 // обработчик echo для несуществующих путей в реестр не входит.
-func registeredRoutes(all []*echo.Route) map[string]bool {
+func registeredRoutes(all echo.Routes) map[string]bool {
 	out := map[string]bool{}
 	for _, r := range all {
 		if r.Method == "echo_route_not_found" {

@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -535,8 +535,8 @@ func isDuplicateUsernameConflict(err error) bool {
 	if !errors.As(err, &httpErr) || httpErr.Code != http.StatusBadRequest {
 		return false
 	}
-	msg, ok := httpErr.Message.(string)
-	return ok && msg == "Username already exists"
+	msg := httpErr.Message
+	return msg == "Username already exists"
 }
 
 // boolPtr -- маленький хелпер для полей запросов OrganizationUserRequest/CompanyUserRequest

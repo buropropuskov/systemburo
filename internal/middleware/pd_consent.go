@@ -7,7 +7,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PDConsentWhitelist -- protected-роуты, доступные пользователю, у которого ещё нет
@@ -15,7 +15,7 @@ import (
 // совпадает с зарегистрированным в роутере (вместе с префиксом /api), потому что
 // сверяется с c.Path().
 //
-// Список экспортирован ради гвард-теста: он сверяет каждый ключ с e.Routes(), иначе
+// Список экспортирован ради гвард-теста: он сверяет каждый ключ с e.Router().Routes(), иначе
 // переименованный роут молча выпадет из исключений и запрёт сам механизм согласия.
 //
 // Обязательные: без них пользователь не сможет ни увидеть текст, ни согласиться,
@@ -61,7 +61,7 @@ func PDConsentGate(svc *services.PDConsentGateService) echo.MiddlewareFunc {
 	var misconfigured atomic.Bool
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userID, _ := c.Get("user_id").(int)
 			if userID == 0 {
 				return next(c)

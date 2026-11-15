@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/httpx"
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -149,7 +149,7 @@ func (w *RequestLogWriter) Enqueue(entry models.RequestLogs) {
 // Middleware записывает HTTP-запросы в таблицу request_logs.
 func (w *RequestLogWriter) Middleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			start := time.Now().UTC()
 
 			err := next(c)

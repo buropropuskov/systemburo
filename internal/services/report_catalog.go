@@ -112,9 +112,9 @@ var reportMetricRegistry = map[string]metricDef{
 		dimensions: []string{"period", "hour_of_day", "organization"},
 	},
 	"avg_cars_per_day": {
-		label:      "Среднее машин в день",
-		unit:       "шт/день",
-		group:      metricGroupCars,
+		label: "Среднее машин в день",
+		unit:  "шт/день",
+		group: metricGroupCars,
 		// Только period (среднее в день имеет смысл только по времени) и none
 		// (общее среднее за весь период) — последний валидируется универсально.
 		dimensions: []string{"period"},

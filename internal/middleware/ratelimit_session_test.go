@@ -11,7 +11,7 @@ import (
 	"systemburo/internal/services"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +41,7 @@ func TestAccountRateLimit_AuthAndFileShareBudget(t *testing.T) {
 	secret := []byte("synthetic-limiter-test-signing-key")
 	sessions := &rateLimitSessionStub{}
 	limiter := AccountRateLimit(2, 60)
-	ok := func(c echo.Context) error { return c.NoContent(http.StatusOK) }
+	ok := func(c *echo.Context) error { return c.NoContent(http.StatusOK) }
 	e.GET("/api/x", ok, JWTAuth(secret, sessions), limiter)
 	e.GET("/api/uploads*", ok, FileAccess(secret, sessions, nil), limiter)
 	sign := func(id string, expired bool) string {

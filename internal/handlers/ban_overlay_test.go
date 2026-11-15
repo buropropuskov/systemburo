@@ -10,7 +10,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,12 +24,12 @@ func TestBanCheck_ReadOnlyForBanned(t *testing.T) {
 
 	banCheck := middleware.BanCheck(services.NewBanCheckService(db, time.Minute))
 	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set("user_id", userID)
 			return next(c)
 		}
 	}
-	ok := func(c echo.Context) error { return c.String(http.StatusOK, "ok") }
+	ok := func(c *echo.Context) error { return c.String(http.StatusOK, "ok") }
 
 	e := echo.New()
 	e.GET("/api/permissions/my", ok, inject, banCheck)

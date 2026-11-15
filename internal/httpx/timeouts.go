@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ServerTimeouts - сроки жизни HTTP-соединения. Нулевое поле означает "без
@@ -52,7 +52,7 @@ func ApplyServerTimeouts(srv *http.Server, t ServerTimeouts) {
 // действовать. Ошибку возвращает, а не глушит: если снять срок не удалось, длинный
 // ответ оборвётся посреди потока по HTTP_WRITE_TIMEOUT, и выглядеть это будет как
 // испорченный файл, а не как отказ, - такое обязано попасть в лог.
-func AllowLongResponse(c echo.Context) error {
+func AllowLongResponse(c *echo.Context) error {
 	if err := http.NewResponseController(c.Response()).SetWriteDeadline(time.Time{}); err != nil {
 		return fmt.Errorf("clear write deadline: %w", err)
 	}

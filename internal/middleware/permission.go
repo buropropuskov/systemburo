@@ -8,7 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +20,7 @@ import (
 // отказы в access_denials.
 func RequirePermission(db *gorm.DB, permService services.PermissionService, key string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			username, _ := c.Get("username").(string)
 			if username == "" {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
@@ -62,7 +62,7 @@ func RequirePermission(db *gorm.DB, permService services.PermissionService, key 
 // Если юзер не аутентифицирован -- 401 без логирования (это auth, а не denial).
 func RequirePermissionV2(resolver *services.PermissionResolver, denialLog *services.AccessDenialService, key string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userIDAny := c.Get("user_id")
 			userID, ok := userIDAny.(int)
 			if !ok || userID == 0 {
@@ -115,7 +115,7 @@ func RequirePermissionV2(resolver *services.PermissionResolver, denialLog *servi
 // через allowAll/adminAll в set.Has).
 func RequireTableVerb(db *gorm.DB, resolver *services.PermissionResolver, denialLog *services.AccessDenialService, verb string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userID, ok := c.Get("user_id").(int)
 			if !ok || userID == 0 {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Требуется авторизация")
@@ -131,7 +131,7 @@ func RequireTableVerb(db *gorm.DB, resolver *services.PermissionResolver, denial
 				Select("name").
 				Where("id = ?", tableID).
 				Scan(&name).Error; err != nil {
-				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 			}
 			if name == "" {
 				return echo.NewHTTPError(http.StatusNotFound, "Таблица не найдена")

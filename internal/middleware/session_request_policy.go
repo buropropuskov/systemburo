@@ -7,7 +7,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // SessionRequestPolicy reuses the normal request gates without writing their
@@ -59,7 +59,7 @@ func (p *SessionRequestPolicy) Check(ctx context.Context, identity models.Sessio
 	c.SetPath(route)
 	SetSessionIdentity(c, identity)
 	passed := false
-	next := echo.HandlerFunc(func(echo.Context) error { passed = true; return nil })
+	next := echo.HandlerFunc(func(*echo.Context) error { passed = true; return nil })
 	for i := len(p.gates) - 1; i >= 0; i-- {
 		next = p.gates[i](next)
 	}

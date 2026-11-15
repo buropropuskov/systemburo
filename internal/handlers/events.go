@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/realtime"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // eventsHeartbeatInterval - период heartbeat-комментария в SSE-поток. Держит
@@ -77,7 +77,7 @@ func (h *EventsHandler) RunCleanup(ctx context.Context) {
 	}
 }
 
-func eventsAdmissionError(c echo.Context, err error) error {
+func eventsAdmissionError(c *echo.Context, err error) error {
 	if errors.Is(err, realtime.ErrOwnerLimit) || errors.Is(err, realtime.ErrSystemLimit) || errors.Is(err, realtime.ErrClosed) {
 		c.Response().Header().Set("Retry-After", "5")
 		status := http.StatusServiceUnavailable
@@ -130,7 +130,7 @@ func (h *EventsHandler) live(ctx context.Context, identity models.SessionIdentit
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /events/ticket [post]
-func (h *EventsHandler) IssueTicket(c echo.Context) error {
+func (h *EventsHandler) IssueTicket(c *echo.Context) error {
 	userID := GetUserID(c)
 	if userID == 0 {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
@@ -168,7 +168,7 @@ func (h *EventsHandler) IssueTicket(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      503 {object} models.HTTPError
 // @Router       /events [get]
-func (h *EventsHandler) Stream(c echo.Context) error {
+func (h *EventsHandler) Stream(c *echo.Context) error {
 	if h.lifecycle.Err() != nil {
 		return eventsAdmissionError(c, realtime.ErrClosed)
 	}
@@ -203,7 +203,11 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 	res := c.Response()
 	// Echo.Response.Flush has no error result and discards writer timeouts.
 	// Control the wrapped writer directly so a failed flush releases the slot.
-	controller := http.NewResponseController(res.Writer)
+	response, responseErr := echo.UnwrapResponse(res)
+	if responseErr != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Обновление данных временно недоступно")
+	}
+	controller := http.NewResponseController(response.Unwrap())
 	setDeadline := func() error {
 		end := time.Now().Add(h.writeTimeout)
 		if limit, ok := ctx.Deadline(); ok && limit.Before(end) {

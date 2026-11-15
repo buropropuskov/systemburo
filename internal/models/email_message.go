@@ -32,8 +32,8 @@ type EmailMessage struct {
 	// UserID - кому предназначалось письмо. Нужен для отчёта администратору
 	// «кому не доставлено». Пустой у писем, не связанных с учётной записью
 	// (проверочное письмо при настройке почты).
-	UserID *int `gorm:"index" json:"user_id,omitempty"`
-	User    *User `gorm:"foreignKey:UserID;constraint:OnDelete:SET NULL" json:"-"`
+	UserID *int  `gorm:"index" json:"user_id,omitempty"`
+	User   *User `gorm:"foreignKey:UserID;constraint:OnDelete:SET NULL" json:"-"`
 	// TemplateCode - какой текст отправляли. По нему собирается статистика и
 	// отбираются письма для повторной отправки одного вида.
 	TemplateCode string `gorm:"size:64;index" json:"template_code"`

@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type BugReportHandler struct {
@@ -35,7 +35,7 @@ func NewBugReportHandler(service services.BugReportService) *BugReportHandler {
 // @Failure      409 {object} models.HTTPError "Already reported"
 // @Failure      429 {object} models.HTTPError "Rate limit exceeded"
 // @Router       /bug-report [post]
-func (h *BugReportHandler) Submit(c echo.Context) error {
+func (h *BugReportHandler) Submit(c *echo.Context) error {
 	var req models.BugReportRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err

@@ -17,7 +17,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	echomw "github.com/labstack/echo/v4/middleware"
+	echomw "github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )

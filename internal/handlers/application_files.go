@@ -17,7 +17,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ApplicationFileHandler -- файлы, приложенные к заявке (#1721).
@@ -58,7 +58,7 @@ func NewApplicationFileHandler(
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /applications/files [post]
-func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
+func (h *ApplicationFileHandler) UploadDraft(c *echo.Context) error {
 	userID := GetUserID(c)
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Minute)
 	defer cancel()
@@ -145,7 +145,7 @@ func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
-func (h *ApplicationFileHandler) ListDrafts(c echo.Context) error {
+func (h *ApplicationFileHandler) ListDrafts(c *echo.Context) error {
 	if _, ok := services.ImpersonatorFromContext(c.Request().Context()); ok {
 		return echo.NewHTTPError(http.StatusForbidden, "Список файлов недоступен в этом режиме")
 	}
@@ -171,7 +171,7 @@ func (h *ApplicationFileHandler) ListDrafts(c echo.Context) error {
 // @Success      200 {object} map[string]string
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/files/{id} [delete]
-func (h *ApplicationFileHandler) DeleteDraft(c echo.Context) error {
+func (h *ApplicationFileHandler) DeleteDraft(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid file ID")
@@ -192,7 +192,7 @@ func (h *ApplicationFileHandler) DeleteDraft(c echo.Context) error {
 // @Success      200 {array} models.ApplicationFileItem
 // @Failure      403 {object} models.HTTPError
 // @Router       /applications/{id}/files [get]
-func (h *ApplicationFileHandler) List(c echo.Context) error {
+func (h *ApplicationFileHandler) List(c *echo.Context) error {
 	appID, err := h.accessibleApplicationID(c)
 	if err != nil {
 		return err
@@ -216,7 +216,7 @@ func (h *ApplicationFileHandler) List(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/files/{file_id} [get]
-func (h *ApplicationFileHandler) Download(c echo.Context) error {
+func (h *ApplicationFileHandler) Download(c *echo.Context) error {
 	appID, err := h.accessibleApplicationID(c)
 	if err != nil {
 		return err
@@ -257,7 +257,7 @@ func (h *ApplicationFileHandler) Download(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /applications/{id}/files/{file_id} [delete]
-func (h *ApplicationFileHandler) DeleteAttached(c echo.Context) error {
+func (h *ApplicationFileHandler) DeleteAttached(c *echo.Context) error {
 	appID, err := h.accessibleApplicationID(c)
 	if err != nil {
 		return err
@@ -275,7 +275,7 @@ func (h *ApplicationFileHandler) DeleteAttached(c echo.Context) error {
 
 // accessibleApplicationID разбирает id заявки из пути и проверяет доступ к ней.
 // Отдельного права у файлов нет намеренно: они видны ровно тем, кому видна заявка.
-func (h *ApplicationFileHandler) accessibleApplicationID(c echo.Context) (int, error) {
+func (h *ApplicationFileHandler) accessibleApplicationID(c *echo.Context) (int, error) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return 0, echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")

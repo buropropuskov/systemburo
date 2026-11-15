@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"net/http"
 	"strings"
 	"systemburo/internal/models"

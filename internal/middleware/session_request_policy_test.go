@@ -8,13 +8,13 @@ import (
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSessionRequestPolicy_UsesFreshIdentityAndRoute(t *testing.T) {
 	policy := mw.NewSessionRequestPolicy(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			require.Equal(t, "/api/events", c.Path())
 			require.Equal(t, "GET", c.Request().Method)
 			require.Equal(t, 42, c.Get("user_id"))
@@ -28,7 +28,7 @@ func TestSessionRequestPolicy_UsesFreshIdentityAndRoute(t *testing.T) {
 func TestSessionRequestPolicy_JSONDenialIsNotSuccess(t *testing.T) {
 	for _, status := range []int{403, 503} {
 		policy := mw.NewSessionRequestPolicy(func(echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error { return c.JSON(status, map[string]bool{"success": false}) }
+			return func(c *echo.Context) error { return c.JSON(status, map[string]bool{"success": false}) }
 		})
 		var failure *echo.HTTPError
 		require.ErrorAs(t, policy.Check(context.Background(), models.SessionIdentity{}, "GET", "/api/events"), &failure)
@@ -41,7 +41,7 @@ func TestSessionRequestPolicy_PreservesAuditMetadataWithoutTicketQuery(t *testin
 	request.RemoteAddr = "192.0.2.10:1234"
 	request.Header.Set("User-Agent", "synthetic-agent")
 	policy := mw.NewSessionRequestPolicy(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			require.Equal(t, "192.0.2.10", c.RealIP())
 			require.Equal(t, "synthetic-agent", c.Request().UserAgent())
 			require.Empty(t, c.Request().URL.RawQuery)

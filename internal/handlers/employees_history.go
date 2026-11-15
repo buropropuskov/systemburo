@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // EmployeesHistoryHandler -- HTTP-обработчики истории сотрудников.
@@ -30,7 +30,7 @@ func NewEmployeesHistoryHandler(service services.EmployeesHistoryService, scopes
 // @Param id path int true "ID сотрудника"
 // @Success 200 {array} services.EmployeeHistoryItem
 // @Router /employees/{id}/history [get]
-func (h *EmployeesHistoryHandler) GetByEmployee(c echo.Context) error {
+func (h *EmployeesHistoryHandler) GetByEmployee(c *echo.Context) error {
 	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (h *EmployeesHistoryHandler) GetByEmployee(c echo.Context) error {
 // @Param middle_name query string false "Отчество"
 // @Success 200 {array} services.EmployeeHistoryItem
 // @Router /employees/history/unified [get]
-func (h *EmployeesHistoryHandler) GetUnified(c echo.Context) error {
+func (h *EmployeesHistoryHandler) GetUnified(c *echo.Context) error {
 	policy, err := services.ResolveHistoryReadPolicy(c.Request().Context(), h.resolver, GetUserID(c))
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (h *EmployeesHistoryHandler) GetUnified(c echo.Context) error {
 // @Param per_page    query int    false "Записей на странице (максимум 200)" default(50)
 // @Success 200 {object} Response
 // @Router /employees/history/all [get]
-func (h *EmployeesHistoryHandler) GetAll(c echo.Context) error {
+func (h *EmployeesHistoryHandler) GetAll(c *echo.Context) error {
 	q, err := bindPassageHistoryQuery(c)
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func (h *EmployeesHistoryHandler) GetAll(c echo.Context) error {
 // @Param table_id query int false "Сузить до таблицы проходной"
 // @Success 200 {object} Response
 // @Router /employees/history/filter-options [get]
-func (h *EmployeesHistoryHandler) GetFilterOptions(c echo.Context) error {
+func (h *EmployeesHistoryHandler) GetFilterOptions(c *echo.Context) error {
 	tableID, err := passageFilterTableID(c)
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func (h *EmployeesHistoryHandler) GetFilterOptions(c echo.Context) error {
 // @Produce json
 // @Success 200 {array} services.EmployeeCurrentStatus
 // @Router /employees/history/current-status [get]
-func (h *EmployeesHistoryHandler) GetCurrentStatus(c echo.Context) error {
+func (h *EmployeesHistoryHandler) GetCurrentStatus(c *echo.Context) error {
 	scope, err := h.scopes.Resolve(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (h *EmployeesHistoryHandler) GetCurrentStatus(c echo.Context) error {
 // @Param per_page    query int    false "Записей на странице (максимум 200)" default(50)
 // @Success 200 {object} Response
 // @Router /employees/history/table/{id} [get]
-func (h *EmployeesHistoryHandler) GetByTable(c echo.Context) error {
+func (h *EmployeesHistoryHandler) GetByTable(c *echo.Context) error {
 	tableID, err := ParseID(c, "id")
 	if err != nil {
 		return err

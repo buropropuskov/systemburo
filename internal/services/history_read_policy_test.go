@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"

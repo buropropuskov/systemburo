@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"systemburo/internal/download"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 
 	"systemburo/internal/pdsubject"
 )
@@ -35,7 +35,7 @@ func NewPDSubjectHandler(s *pdsubject.Service) *PDSubjectHandler {
 // @Param        document query string false "Номер паспорта или патента"
 // @Success      200 {array} pdsubject.Candidate
 // @Router       /pd-subject/candidates [get]
-func (h *PDSubjectHandler) Find(c echo.Context) error {
+func (h *PDSubjectHandler) Find(c *echo.Context) error {
 	found, err := h.service.Find(c.Request().Context(), c.QueryParam("fio"), c.QueryParam("document"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -52,7 +52,7 @@ func (h *PDSubjectHandler) Find(c echo.Context) error {
 // @Param        registry_id query int true "Идентификатор записи реестра"
 // @Success      200 {object} pdsubject.ReportResponse
 // @Router       /pd-subject/report [get]
-func (h *PDSubjectHandler) Report(c echo.Context) error {
+func (h *PDSubjectHandler) Report(c *echo.Context) error {
 	registryID, _ := strconv.Atoi(c.QueryParam("registry_id"))
 	employeeID, _ := strconv.Atoi(c.QueryParam("employee_id"))
 	if registryID <= 0 && employeeID <= 0 {
@@ -75,7 +75,7 @@ func (h *PDSubjectHandler) Report(c echo.Context) error {
 // @Param        request body pdsubject.ExportRequest true "Кому и по какому запросу"
 // @Success      200 {file} binary
 // @Router       /pd-subject/export [post]
-func (h *PDSubjectHandler) Export(c echo.Context) error {
+func (h *PDSubjectHandler) Export(c *echo.Context) error {
 	download.NoStore(c)
 	var req pdsubject.ExportRequest
 	if err := c.Bind(&req); err != nil {
@@ -108,7 +108,7 @@ func (h *PDSubjectHandler) Export(c echo.Context) error {
 // @Param        registry_id query int false "Только по одному человеку"
 // @Success      200 {array} models.PDDisclosure
 // @Router       /pd-subject/disclosures [get]
-func (h *PDSubjectHandler) Disclosures(c echo.Context) error {
+func (h *PDSubjectHandler) Disclosures(c *echo.Context) error {
 	registryID, _ := strconv.Atoi(c.QueryParam("registry_id"))
 	employeeID, _ := strconv.Atoi(c.QueryParam("employee_id"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))

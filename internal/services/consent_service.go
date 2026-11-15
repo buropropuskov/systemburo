@@ -7,7 +7,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -45,7 +45,7 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 	var consent *models.PDConsent
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockConsentSubject(tx, userID); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent").SetInternal(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent").Wrap(err)
 		}
 		var err error
 		consent, err = insertConsent(tx, userID, req.ConsentType, ip, ua, version, hash)
@@ -78,7 +78,7 @@ func (s *consentService) AcceptProcessing(ctx context.Context, userID int, shown
 			return echo.NewHTTPError(http.StatusConflict, "Обновите страницу и прочитайте актуальную редакцию согласия.")
 		}
 		if err := lockConsentSubject(tx, userID); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent").SetInternal(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent").Wrap(err)
 		}
 		consent, err = insertConsent(tx, userID, ConsentTypePDProcessing, ip, ua, req.Version, req.Hash)
 		return err
@@ -136,13 +136,13 @@ func (s *consentService) logGrant(ctx context.Context, consent *models.PDConsent
 func (s *consentService) Revoke(ctx context.Context, userID int, consentType string, actorID int) error {
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockConsentSubject(tx, userID); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent").SetInternal(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent").Wrap(err)
 		}
 		result := tx.Model(&models.PDConsent{}).
 			Where("user_id = ? AND consent_type = ? AND revoked_at IS NULL", userID, consentType).
 			Updates(map[string]interface{}{"granted": false, "revoked_at": time.Now().UTC()})
 		if result.Error != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent").SetInternal(result.Error)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking consent").Wrap(result.Error)
 		}
 		if result.RowsAffected == 0 {
 			return echo.NewHTTPError(http.StatusNotFound, "Active consent not found")

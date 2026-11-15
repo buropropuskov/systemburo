@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PermissionGroupHandler -- HTTP-обработчики для управления группами прав.
@@ -20,7 +20,7 @@ func NewPermissionGroupHandler(service *services.PermissionGroupService) *Permis
 }
 
 // List -- GET /permission-groups.
-func (h *PermissionGroupHandler) List(c echo.Context) error {
+func (h *PermissionGroupHandler) List(c *echo.Context) error {
 	groups, err := h.service.List(c.Request().Context())
 	if err != nil {
 		return err
@@ -29,7 +29,7 @@ func (h *PermissionGroupHandler) List(c echo.Context) error {
 }
 
 // Get -- GET /permission-groups/:id.
-func (h *PermissionGroupHandler) Get(c echo.Context) error {
+func (h *PermissionGroupHandler) Get(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (h *PermissionGroupHandler) Get(c echo.Context) error {
 }
 
 // Create -- POST /permission-groups.
-func (h *PermissionGroupHandler) Create(c echo.Context) error {
+func (h *PermissionGroupHandler) Create(c *echo.Context) error {
 	var req models.CreatePermissionGroupRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -55,7 +55,7 @@ func (h *PermissionGroupHandler) Create(c echo.Context) error {
 }
 
 // Update -- PUT /permission-groups/:id.
-func (h *PermissionGroupHandler) Update(c echo.Context) error {
+func (h *PermissionGroupHandler) Update(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func (h *PermissionGroupHandler) Update(c echo.Context) error {
 }
 
 // Delete -- DELETE /permission-groups/:id.
-func (h *PermissionGroupHandler) Delete(c echo.Context) error {
+func (h *PermissionGroupHandler) Delete(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (h *PermissionGroupHandler) Delete(c echo.Context) error {
 }
 
 // Merge -- POST /permission-groups/merge.
-func (h *PermissionGroupHandler) Merge(c echo.Context) error {
+func (h *PermissionGroupHandler) Merge(c *echo.Context) error {
 	var req models.MergePermissionGroupsRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -98,7 +98,7 @@ func (h *PermissionGroupHandler) Merge(c echo.Context) error {
 
 // ListForUser -- GET /users/:user_id/permission-groups.
 // Возвращает группы прав, явно назначенные пользователю (без дефолтных групп роли).
-func (h *PermissionGroupHandler) ListForUser(c echo.Context) error {
+func (h *PermissionGroupHandler) ListForUser(c *echo.Context) error {
 	userID, err := ParseID(c, "user_id")
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (h *PermissionGroupHandler) ListForUser(c echo.Context) error {
 }
 
 // SetUserRole -- PUT /users/:id/role.
-func (h *PermissionGroupHandler) SetUserRole(c echo.Context) error {
+func (h *PermissionGroupHandler) SetUserRole(c *echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func (h *PermissionGroupHandler) SetUserRole(c echo.Context) error {
 }
 
 // SetUserAdmin -- PUT /users/:id/admin (super-only через middleware action.grant.admin).
-func (h *PermissionGroupHandler) SetUserAdmin(c echo.Context) error {
+func (h *PermissionGroupHandler) SetUserAdmin(c *echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func (h *PermissionGroupHandler) SetUserAdmin(c echo.Context) error {
 }
 
 // AssignToUser -- POST /users/:user_id/permission-groups/:group_id.
-func (h *PermissionGroupHandler) AssignToUser(c echo.Context) error {
+func (h *PermissionGroupHandler) AssignToUser(c *echo.Context) error {
 	userID, err := ParseID(c, "user_id")
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func (h *PermissionGroupHandler) AssignToUser(c echo.Context) error {
 }
 
 // UnassignFromUser -- DELETE /users/:user_id/permission-groups/:group_id.
-func (h *PermissionGroupHandler) UnassignFromUser(c echo.Context) error {
+func (h *PermissionGroupHandler) UnassignFromUser(c *echo.Context) error {
 	userID, err := ParseID(c, "user_id")
 	if err != nil {
 		return err

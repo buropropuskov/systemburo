@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 )
@@ -105,7 +105,7 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 	}
 	if len(book.GetSheetList()) == 0 {
 		closeErr := book.Close()
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "В шаблоне XLSX нет листов").SetInternal(closeErr)
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "В шаблоне XLSX нет листов").Wrap(closeErr)
 	}
 	if err := book.Close(); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось закрыть шаблон")
@@ -614,7 +614,7 @@ func readTemplate(file *multipart.FileHeader, maxSize int64) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(src, maxSize+1))
 	err = errors.Join(readErr, src.Close())
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось прочитать шаблон").SetInternal(err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось прочитать шаблон").Wrap(err)
 	}
 	if int64(len(data)) > maxSize {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Файл слишком большой")

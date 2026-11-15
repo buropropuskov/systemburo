@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Apply the same identity policy to workbook cells and the download filename.

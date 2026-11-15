@@ -5,7 +5,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ManualAttachHandler -- HTTP-обработчик привязки ручного вложения-сироты к заявке (#1049 режим-2).
@@ -33,7 +33,7 @@ func NewManualAttachHandler(service services.ManualAttachService) *ManualAttachH
 // @Failure 404 {object} models.HTTPError
 // @Failure 422 {object} models.HTTPError
 // @Router /attachments/{id}/attach-to-application [post]
-func (h *ManualAttachHandler) AttachToApplication(c echo.Context) error {
+func (h *ManualAttachHandler) AttachToApplication(c *echo.Context) error {
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err

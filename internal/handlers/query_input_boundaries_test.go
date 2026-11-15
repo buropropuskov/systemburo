@@ -13,7 +13,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,11 +34,10 @@ func TestQueryInput_ApplicationAndTrashInvalidDatesBeforeSQL(t *testing.T) {
 	app := handlers.NewApplicationHandler(nil, nil)
 	trash := handlers.NewTrashHandler(nil, nil)
 	for _, query := range []string{"date_from=2026-02-29", "date_to=bad", "date_from=2026-10-08&date_to=2026-10-07"} {
-		for _, action := range []func(echo.Context) error{app.GetApplications, app.GetUserApplications, app.GetAttachableApplications, trash.List} {
+		for _, action := range []func(*echo.Context) error{app.GetApplications, app.GetUserApplications, app.GetAttachableApplications, trash.List} {
 			c := echo.New().NewContext(httptest.NewRequest(http.MethodGet, "/?"+query, nil), httptest.NewRecorder())
 			c.Set("username", "synthetic")
-			c.SetParamNames("id")
-			c.SetParamValues("1")
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: "1"}})
 			requireInput400(t, action(c))
 		}
 	}

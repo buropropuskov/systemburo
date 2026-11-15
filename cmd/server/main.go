@@ -32,9 +32,9 @@ import (
 	"systemburo/internal/services"
 	appvalidator "systemburo/internal/validator"
 
-	"github.com/labstack/echo/v4"
-	echomw "github.com/labstack/echo/v4/middleware"
-	echoSwagger "github.com/swaggo/echo-swagger"
+	"github.com/labstack/echo/v5"
+	echomw "github.com/labstack/echo/v5/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger/v2"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -211,13 +211,14 @@ func main() {
 		slog.Error("invalid client IP configuration", "error", err)
 		os.Exit(1)
 	}
-	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
 
 	// Сроки жизни соединения. Длинные обработчики (SSE-поток, потоковые выгрузки
 	// файлового архива) снимают срок записи с себя сами - см. httpx.AllowLongResponse.
-	httpx.ApplyServerTimeouts(e.Server, httpx.ServerTimeouts{
+	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.BindPort)
+	server := &http.Server{Addr: addr, Handler: e}
+	httpx.ApplyServerTimeouts(server, httpx.ServerTimeouts{
 		ReadHeader: cfg.HTTPReadHeaderTimeout,
 		Read:       cfg.HTTPReadTimeout,
 		Write:      cfg.HTTPWriteTimeout,
@@ -255,7 +256,7 @@ func main() {
 	ipLimiter := mw.RateLimit(cfg.RateLimitIPPerMinute, cfg.RateLimitIPWindowSec)
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		limited := ipLimiter(next)
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if c.Request().Method == http.MethodGet && c.Request().URL.Path == "/health" {
 				return next(c)
 			}
@@ -832,8 +833,8 @@ func main() {
 	// и завершается без цикла.
 	go startFileArchiveWorker(ctxSig, blankExportService, cfg.ArchiveWorkerTick, cfg.ArchiveSweepInterval, resetLoc)
 
-	// Graceful shutdown. О завершении сообщаем каналом: e.Start возвращает
-	// ErrServerClosed сразу после e.Shutdown, и без ожидания main выходил, пока
+	// Graceful shutdown. О завершении сообщаем каналом: ListenAndServe возвращает
+	// ErrServerClosed сразу после Shutdown, и без ожидания main выходил, пока
 	// эта горутина только принималась дожимать фоновые отправки.
 	eventsCleanupDone := make(chan struct{})
 	go func() { defer close(eventsCleanupDone); eventsHandler.RunCleanup(ctxSig) }()
@@ -846,7 +847,7 @@ func main() {
 		<-eventsCleanupDone
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := e.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(ctx); err != nil {
 			slog.Error("server shutdown error", "error", err)
 		}
 		<-notificationIntentsDone
@@ -867,9 +868,8 @@ func main() {
 	}()
 
 	// Start server
-	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.BindPort)
 	slog.Info("starting server", "addr", addr)
-	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}

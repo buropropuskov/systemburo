@@ -9,7 +9,7 @@ import (
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -64,7 +64,7 @@ func TestMustChangePassword_WhitelistMatchesRouter(t *testing.T) {
 	defer cleanup()
 
 	registered := make(map[string]bool)
-	for _, r := range e.Routes() {
+	for _, r := range e.Router().Routes() {
 		registered[r.Method+" "+r.Path] = true
 	}
 	for key := range mw.MustChangePasswordWhitelist {

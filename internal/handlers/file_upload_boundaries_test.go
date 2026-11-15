@@ -17,7 +17,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
@@ -172,7 +172,7 @@ func photoBatchRollback(t *testing.T, system bool) {
 	dir := filepath.Join(uploadRoot, parentTable)
 	require.NoError(t, os.MkdirAll(dir, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "existing.png"), pngBytes, 0600))
-	var handle func(echo.Context) error
+	var handle func(*echo.Context) error
 	if system {
 		svc := services.NewSystemTableService(db, t.TempDir(), 1024, nil)
 		handle = handlers.NewSystemTableHandler(svc, nil, 1024, uploadRoot).UploadPhoto
@@ -193,8 +193,7 @@ func photoBatchRollback(t *testing.T, system bool) {
 		r := httptest.NewRequest("POST", "/", &data)
 		r.Header.Set("Content-Type", w.FormDataContentType())
 		c := echo.New().NewContext(r, httptest.NewRecorder())
-		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(parentID))
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: strconv.Itoa(parentID)}})
 		c.Set("username", username)
 		return handle(c)
 	}

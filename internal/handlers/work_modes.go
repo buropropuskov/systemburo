@@ -3,7 +3,7 @@ package handlers
 import (
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // WorkModesHandler -- HTTP-обработчик агрегатора режимов работы (read-only).
@@ -27,7 +27,7 @@ func NewWorkModesHandler(service services.WorkModesService) *WorkModesHandler {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /work-modes [get]
-func (h *WorkModesHandler) GetWorkModes(c echo.Context) error {
+func (h *WorkModesHandler) GetWorkModes(c *echo.Context) error {
 	modes, err := h.service.GetWorkModes(c.Request().Context())
 	if err != nil {
 		return err

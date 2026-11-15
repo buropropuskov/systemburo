@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -270,8 +270,7 @@ func TestDocumentPolicy_BlankOwnerLookupFailure(t *testing.T) {
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/applications/1/blank?attachment_id=1&documents=1", nil), rec)
-	c.SetParamNames("id")
-	c.SetParamValues("1")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "1"}})
 	c.Set("user_id", actor.ID)
 	c.Set("username", actor.Username)
 	err := handler.Download(c)

@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PasswordChangeRequiredCode - машинный код отказа. По нему интерфейс отличает
@@ -74,7 +74,7 @@ var MustChangePasswordWhitelist = map[string]bool{
 // обработчик ошибок не пролезет, а фронту нужен маркер именно в теле ответа.
 func MustChangePassword(svc *services.PasswordChangeGateService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userID, _ := c.Get("user_id").(int)
 			if userID == 0 {
 				return next(c)

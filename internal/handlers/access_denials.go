@@ -7,7 +7,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AccessDenialHandler -- HTTP-обработчики журнала отказов в доступе.
@@ -22,7 +22,7 @@ func NewAccessDenialHandler(s *services.AccessDenialService) *AccessDenialHandle
 
 // List -- GET /access-denials.
 // Фильтры через query: user_id, resource (substring), reason, from, to, page, limit.
-func (h *AccessDenialHandler) List(c echo.Context) error {
+func (h *AccessDenialHandler) List(c *echo.Context) error {
 	f, err := h.parseFilter(c)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func (h *AccessDenialHandler) List(c echo.Context) error {
 }
 
 // ListArchive -- GET /access-denials/archive.
-func (h *AccessDenialHandler) ListArchive(c echo.Context) error {
+func (h *AccessDenialHandler) ListArchive(c *echo.Context) error {
 	f, err := h.parseFilter(c)
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func (h *AccessDenialHandler) ListArchive(c echo.Context) error {
 
 // DeleteByFilter -- DELETE /access-denials.
 // Удаляет записи активной таблицы по фильтрам. Архив не трогается.
-func (h *AccessDenialHandler) DeleteByFilter(c echo.Context) error {
+func (h *AccessDenialHandler) DeleteByFilter(c *echo.Context) error {
 	f, err := h.parseFilter(c)
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func (h *AccessDenialHandler) DeleteByFilter(c echo.Context) error {
 
 // ArchiveOlderThan -- POST /access-denials/archive?cutoff=2026-01-01T00:00:00Z.
 // Переносит записи старше cutoff в архив. Без cutoff используется now-3m.
-func (h *AccessDenialHandler) ArchiveOlderThan(c echo.Context) error {
+func (h *AccessDenialHandler) ArchiveOlderThan(c *echo.Context) error {
 	cutoffStr := c.QueryParam("cutoff")
 	cutoff := time.Now().AddDate(0, -3, 0)
 	if cutoffStr != "" {
@@ -80,7 +80,7 @@ func (h *AccessDenialHandler) ArchiveOlderThan(c echo.Context) error {
 	return RespondSuccess(c, map[string]any{"archived": count})
 }
 
-func (h *AccessDenialHandler) parseFilter(c echo.Context) (models.AccessDenialFilter, error) {
+func (h *AccessDenialHandler) parseFilter(c *echo.Context) (models.AccessDenialFilter, error) {
 	var f models.AccessDenialFilter
 	if err := c.Bind(&f); err != nil {
 		return models.AccessDenialFilter{}, echo.NewHTTPError(http.StatusBadRequest, "invalid filter: "+err.Error())

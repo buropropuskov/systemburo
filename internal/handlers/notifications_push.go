@@ -6,7 +6,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PushHandler -- HTTP-обработчики Web Push подписок (#974): доставка уведомлений в
@@ -31,7 +31,7 @@ func NewPushHandler(service services.PushService) *PushHandler {
 // @Success      200 {object} models.PushStatusResponse
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications/push/status [get]
-func (h *PushHandler) GetStatus(c echo.Context) error {
+func (h *PushHandler) GetStatus(c *echo.Context) error {
 	userID := GetUserID(c)
 	devices, err := h.service.ListDevices(c.Request().Context(), userID)
 	if err != nil {
@@ -58,7 +58,7 @@ func (h *PushHandler) GetStatus(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications/push/subscribe [post]
-func (h *PushHandler) Subscribe(c echo.Context) error {
+func (h *PushHandler) Subscribe(c *echo.Context) error {
 	userID := GetUserID(c)
 	var req models.PushSubscribeRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -83,7 +83,7 @@ func (h *PushHandler) Subscribe(c echo.Context) error {
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Router       /notifications/push/subscribe [delete]
-func (h *PushHandler) Unsubscribe(c echo.Context) error {
+func (h *PushHandler) Unsubscribe(c *echo.Context) error {
 	userID := GetUserID(c)
 	endpoint := c.QueryParam("endpoint")
 	if endpoint == "" {

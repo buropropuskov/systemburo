@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
@@ -65,8 +65,7 @@ func TestOpenPassages2667HandlerList(t *testing.T) {
 			e := echo.New()
 			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/"+tc.query, nil), httptest.NewRecorder())
 			c.Set("user_id", 7)
-			c.SetParamNames("table_id")
-			c.SetParamValues("2")
+			c.SetPathValues(echo.PathValues{{Name: "table_id", Value: "2"}})
 			reader := &passageReader2667{}
 			h := NewOpenPassagesHandler(reader, nil)
 			err := h.list(c, services.ElementEmployee, tc.summary)
@@ -93,8 +92,7 @@ func TestOpenPassages2667HandlerActorComesFromContext(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	c := e.NewContext(req, httptest.NewRecorder())
 	c.Set("user_id", 7)
-	c.SetParamNames("id")
-	c.SetParamValues("3")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "3"}})
 	commands := &passageCommands2667{}
 	h := NewOpenPassagesHandler(nil, commands)
 	require.NoError(t, h.CloseCar(c))

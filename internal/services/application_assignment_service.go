@@ -10,7 +10,7 @@ import (
 
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Источник привязки, созданной принимающим при разборе заявки (#1393). Рядом

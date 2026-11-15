@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +45,7 @@ func TestConsentGate_ConflictReloadsPublishedTextWithWarmMiddlewareCache(t *test
 	handler := handlers.NewConsentHandler(records, gate, reader, db)
 	replica := echo.New()
 	replica.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set("username", username)
 			return next(c)
 		}

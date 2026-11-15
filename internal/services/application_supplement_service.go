@@ -14,7 +14,7 @@ import (
 	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -768,7 +768,7 @@ func sameStringPtr(a, b *string) bool {
 func (s *applicationService) snapshotSupplementApprovers(ctx context.Context, tx *gorm.DB, applicationID, supplementID int, now time.Time) error {
 	var users []applicationAssignee
 	if err := tx.WithContext(ctx).Raw("SELECT user_id, COALESCE(required_approval, false) AS required_approval FROM application_responsible_users WHERE application_id = ?", applicationID).Scan(&users).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось загрузить участников заявки").SetInternal(err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось загрузить участников заявки").Wrap(err)
 	}
 	if len(users) == 0 {
 		return nil

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -67,7 +67,7 @@ func NewElementScopeResolver(db *gorm.DB, resolver *PermissionResolver) *Element
 func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys ...string) (ElementScope, error) {
 	set, err := r.resolver.ResolveFresh(ctx, userID)
 	if err != nil {
-		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 	}
 	if set.IsBanned() || set.IsInactive() {
 		return ElementScope{}, nil
@@ -91,7 +91,7 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 		Select("organization_id, company_id").
 		Where("id = ?", userID).
 		Scan(&owner).Error; err != nil {
-		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 	}
 	if owner.OrganizationID != nil {
 		scope.OwnOrgID = *owner.OrganizationID
@@ -109,7 +109,7 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 	var approvers int64
 	if err := r.db.WithContext(ctx).Table("application_approvers").
 		Where("user_id = ?", userID).Count(&approvers).Error; err != nil {
-		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 	}
 	scope.Approver = approvers > 0
 
@@ -119,7 +119,7 @@ func (r *ElementScopeResolver) Resolve(ctx context.Context, userID int, allKeys 
 	}
 	if err := r.db.WithContext(ctx).Table("system_tables").
 		Select("id, name").Scan(&tables).Error; err != nil {
-		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").SetInternal(err)
+		return ElementScope{}, echo.NewHTTPError(http.StatusServiceUnavailable, "Проверка доступа временно недоступна").Wrap(err)
 	}
 	for _, t := range tables {
 		if set.Has(fmt.Sprintf("table.%s.view", t.Name)) || set.Has(fmt.Sprintf("table.%s.trash", t.Name)) {

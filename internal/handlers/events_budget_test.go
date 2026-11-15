@@ -15,7 +15,7 @@ import (
 	"systemburo/internal/realtime"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +49,7 @@ func TestEventsBudgetRejectsBeforeLive(t *testing.T) {
 			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/events?ticket="+ticket, nil), rec)
 			err = h.Stream(c)
 			require.Error(t, err)
-			e.HTTPErrorHandler(err, c)
+			e.HTTPErrorHandler(c, err)
 			require.Equal(t, want, rec.Code)
 			require.Equal(t, "5", rec.Header().Get("Retry-After"))
 			require.NotContains(t, rec.Body.String(), ": connected")
@@ -73,7 +73,7 @@ func TestEventsTicketCapacityIsRetryable(t *testing.T) {
 	c.Set("user_id", 42)
 	err = h.IssueTicket(c)
 	require.Error(t, err)
-	e.HTTPErrorHandler(err, c)
+	e.HTTPErrorHandler(c, err)
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 	require.Equal(t, "5", rec.Header().Get("Retry-After"))
 }
@@ -87,7 +87,7 @@ func TestEventsUnsupportedDeadlineReleasesReservation(t *testing.T) {
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/events?ticket="+ticket, nil), rec)
 	err = h.Stream(c)
 	require.Error(t, err)
-	e.HTTPErrorHandler(err, c)
+	e.HTTPErrorHandler(c, err)
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.NotContains(t, rec.Body.String(), ": connected")
 	// All owner slots must be available after the failed writer setup.

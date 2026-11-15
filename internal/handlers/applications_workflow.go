@@ -6,7 +6,7 @@ import (
 
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ForwardApplication godoc
@@ -25,7 +25,7 @@ import (
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/forward [post]
-func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
+func (h *ApplicationHandler) ForwardApplication(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -56,7 +56,7 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/forward-messages [get]
-func (h *ApplicationHandler) GetForwardMessages(c echo.Context) error {
+func (h *ApplicationHandler) GetForwardMessages(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -93,7 +93,7 @@ func (h *ApplicationHandler) GetForwardMessages(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/approve [post]
-func (h *ApplicationHandler) ApproveApplicationByUser(c echo.Context) error {
+func (h *ApplicationHandler) ApproveApplicationByUser(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -126,7 +126,7 @@ func (h *ApplicationHandler) ApproveApplicationByUser(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/blacklist-overrides [post]
-func (h *ApplicationHandler) OverrideBlacklistFlag(c echo.Context) error {
+func (h *ApplicationHandler) OverrideBlacklistFlag(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -158,7 +158,7 @@ func (h *ApplicationHandler) OverrideBlacklistFlag(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/blacklist-overrides [delete]
-func (h *ApplicationHandler) DeleteBlacklistOverride(c echo.Context) error {
+func (h *ApplicationHandler) DeleteBlacklistOverride(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -188,7 +188,7 @@ func (h *ApplicationHandler) DeleteBlacklistOverride(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/check-approval-status [get]
-func (h *ApplicationHandler) CheckApprovalStatus(c echo.Context) error {
+func (h *ApplicationHandler) CheckApprovalStatus(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -226,7 +226,7 @@ func (h *ApplicationHandler) CheckApprovalStatus(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/take-to-work [post]
-func (h *ApplicationHandler) TakeApplicationToWork(c echo.Context) error {
+func (h *ApplicationHandler) TakeApplicationToWork(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -264,7 +264,7 @@ func (h *ApplicationHandler) TakeApplicationToWork(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/revoke-from-work [post]
-func (h *ApplicationHandler) RevokeApplicationFromWork(c echo.Context) error {
+func (h *ApplicationHandler) RevokeApplicationFromWork(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -297,7 +297,7 @@ func (h *ApplicationHandler) RevokeApplicationFromWork(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/restore-to-work [post]
-func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
+func (h *ApplicationHandler) RestoreApplicationToWork(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -330,7 +330,7 @@ func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/withdraw [post]
-func (h *ApplicationHandler) WithdrawApplication(c echo.Context) error {
+func (h *ApplicationHandler) WithdrawApplication(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -358,7 +358,7 @@ func (h *ApplicationHandler) WithdrawApplication(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/revoke-approval [post]
-func (h *ApplicationHandler) RevokeApproval(c echo.Context) error {
+func (h *ApplicationHandler) RevokeApproval(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -393,7 +393,7 @@ func (h *ApplicationHandler) RevokeApproval(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/elements/tables [put]
-func (h *ApplicationHandler) AssignElementTables(c echo.Context) error {
+func (h *ApplicationHandler) AssignElementTables(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -427,7 +427,7 @@ func (h *ApplicationHandler) AssignElementTables(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/elements [delete]
-func (h *ApplicationHandler) RemoveApplicationElements(c echo.Context) error {
+func (h *ApplicationHandler) RemoveApplicationElements(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -462,7 +462,7 @@ func (h *ApplicationHandler) RemoveApplicationElements(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/dates [put]
-func (h *ApplicationHandler) ChangeApplicationDates(c echo.Context) error {
+func (h *ApplicationHandler) ChangeApplicationDates(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -497,7 +497,7 @@ func (h *ApplicationHandler) ChangeApplicationDates(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/{id}/elements/unload-places [put]
-func (h *ApplicationHandler) AssignCarUnloadPlaces(c echo.Context) error {
+func (h *ApplicationHandler) AssignCarUnloadPlaces(c *echo.Context) error {
 	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

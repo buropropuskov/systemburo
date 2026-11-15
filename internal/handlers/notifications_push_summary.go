@@ -1,6 +1,6 @@
 package handlers
 
-import "github.com/labstack/echo/v4"
+import "github.com/labstack/echo/v5"
 
 // GetSummary godoc
 // @Summary      Сводка использования Web Push (админ)
@@ -15,7 +15,7 @@ import "github.com/labstack/echo/v4"
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Router       /notifications/push/summary [get]
-func (h *PushHandler) GetSummary(c echo.Context) error {
+func (h *PushHandler) GetSummary(c *echo.Context) error {
 	summary, err := h.service.GetSummary(c.Request().Context())
 	if err != nil {
 		return err

@@ -6,12 +6,12 @@ import (
 	"systemburo/internal/apperr"
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Original files preserve historical data. Resolve the effective user's current
 // state instead of trusting a role recorded in a token or download ticket.
-func requireArchiveOriginal(c echo.Context, resolver *services.PermissionResolver) error {
+func requireArchiveOriginal(c *echo.Context, resolver *services.PermissionResolver) error {
 	if resolver == nil {
 		return apperr.New(http.StatusServiceUnavailable, "Не удалось проверить доступ к архивному оригиналу")
 	}

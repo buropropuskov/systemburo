@@ -3,7 +3,7 @@ package handlers
 import (
 	"systemburo/internal/services"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // OnboardingHandler — self-service эндпоинты per-user прогресса онбординг-туров.
@@ -43,7 +43,7 @@ type resetRequest struct {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /onboarding [get]
-func (h *OnboardingHandler) GetStatus(c echo.Context) error {
+func (h *OnboardingHandler) GetStatus(c *echo.Context) error {
 	completed, finished, err := h.service.GetCompleted(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (h *OnboardingHandler) GetStatus(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /onboarding/complete [post]
-func (h *OnboardingHandler) MarkComplete(c echo.Context) error {
+func (h *OnboardingHandler) MarkComplete(c *echo.Context) error {
 	var req markCompleteRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -93,7 +93,7 @@ func (h *OnboardingHandler) MarkComplete(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/onboarding/reset [post]
-func (h *OnboardingHandler) ResetForUser(c echo.Context) error {
+func (h *OnboardingHandler) ResetForUser(c *echo.Context) error {
 	var req resetRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
