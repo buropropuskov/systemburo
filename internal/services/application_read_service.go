@@ -130,16 +130,17 @@ func (s *applicationService) GetReads(ctx context.Context, applicationID int) ([
 		slog.Error("Ошибка получения прочтений", "error", err, "application_id", applicationID)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
-	masks, maskErr := loadNameMasks(ctx, s.db)
-	if maskErr != nil {
-		return nil, maskErr
+	policy, err := loadUserDisplayPolicy(ctx, s.db)
+	if err != nil {
+		return nil, err
 	}
-	if len(masks) > 0 {
-		for i := range reads {
-			var middle *string
-			maskUserParts(masks, reads[i].UserID, &reads[i].LastName, &reads[i].FirstName, &middle)
-		}
+	for i := range reads {
+		r := &reads[i]
+		r.DisplayLabel = policy.label(r.UserID, r.LastName, r.FirstName, nil)
+		var middle *string
+		maskUserParts(policy.names, r.UserID, &r.LastName, &r.FirstName, &middle)
 	}
+
 	return reads, nil
 }
 

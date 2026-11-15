@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatShortName, formatFullName, formatUserLabel, formatLogin } from '../formatName'
+import { formatShortName, formatFullName, formatUserLabel, formatLogin, formatPublicUserName } from '../formatName'
 
 describe('formatShortName', () => {
   it('полное ФИО -> Фамилия И.О.', () => {
@@ -63,14 +63,14 @@ describe('formatUserLabel', () => {
       .toBe('Иванов И.И.');
   });
 
-  it('падает на логин с собачкой, когда ФИО скрыто до согласия на обработку данных', () => {
+  it('не подставляет логин вместо отсутствующего имени', () => {
     expect(formatUserLabel({ last_name: null, first_name: null, middle_name: null, username: 'ivanov' }))
-      .toBe('@ivanov');
+      .toBe('Пользователь');
   });
 
   it('пустого пользователя не превращает в мусор', () => {
     expect(formatUserLabel(null)).toBe('');
-    expect(formatUserLabel({})).toBe('');
+    expect(formatUserLabel({})).toBe('Пользователь');
   });
 
   it('показывает серверную маску отдельно от редактируемого ФИО', () => {
@@ -94,3 +94,17 @@ describe('formatLogin', () => {
     expect(formatLogin(null)).toBe('');
   });
 });
+
+ describe('public identity privacy', () => {
+  for (const format of [formatUserLabel, formatPublicUserName]) {
+    it(format.name + ': restriction wins over stale names and alias', () => {
+      const user = { pd_hidden: true, display_label: 'Оператор', last_name: 'Скрытое', username: 'private-login' }
+      expect(format(user)).toBe('Имя скрыто')
+      expect(user.display_label).toBe('Оператор')
+    })
+    it(format.name + ': explicit alias is preserved; raw login is not', () => {
+      expect(format({ display_label: '@Alias', username: 'private-login' })).toBe('@Alias')
+      expect(format({ username: 'private-login' })).toBe('Пользователь')
+    })
+  }
+})

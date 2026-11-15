@@ -35,10 +35,9 @@ func (s *attachmentBlankService) applyBlankNamePolicy(ctx context.Context, bctx 
 	}
 	if len(ids) > 0 {
 		var withdrawn []struct {
-			ID       int
-			Username string
+			ID int
 		}
-		err = s.db.WithContext(ctx).Table("users").Select("users.id, users.username").
+		err = s.db.WithContext(ctx).Table("users").Select("users.id").
 			Where("users.id IN ?", ids).
 			Where(`EXISTS (SELECT 1 FROM pd_consents r WHERE r.user_id = users.id
 			AND r.consent_type = ? AND r.revoked_at IS NOT NULL)
@@ -52,7 +51,7 @@ func (s *attachmentBlankService) applyBlankNamePolicy(ctx context.Context, bctx 
 			masks = make(map[int]string)
 		}
 		for _, subject := range withdrawn {
-			masks[subject.ID] = "@" + subject.Username
+			masks[subject.ID] = hiddenUserLabel
 		}
 	}
 	applyBlankNameMasks(bctx, masks)

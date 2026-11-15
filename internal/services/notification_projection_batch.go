@@ -377,20 +377,17 @@ func (s *notificationService) preloadNotificationActors(ctx context.Context, p *
 	}
 	var rows []struct {
 		ID                     int
-		Username               string
 		Revoked, ConsentMasked bool
 	}
-	if err := s.db.WithContext(ctx).Table("users").Select("id,username,("+notificationActorRevokedSQL+") AS revoked,("+notificationActorConsentMaskedSQL+") AS consent_masked", p.consentMaskingActive).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Table("users").Select("id,("+notificationActorRevokedSQL+") AS revoked,("+notificationActorConsentMaskedSQL+") AS consent_masked", p.consentMaskingActive).Where("id IN ?", ids).Find(&rows).Error; err != nil {
 		return nameMaskUnavailable(err)
 	}
 	allowed := make([]int, 0, len(rows))
-	usernames := make(map[int]string, len(rows))
 	for _, row := range rows {
 		if row.Revoked || row.ConsentMasked {
-			p.names[row.ID] = "@" + row.Username
+			p.names[row.ID] = hiddenUserLabel
 		} else {
 			allowed = append(allowed, row.ID)
-			usernames[row.ID] = row.Username
 		}
 	}
 	if len(allowed) == 0 {
@@ -438,7 +435,7 @@ func (s *notificationService) preloadNotificationActors(ctx context.Context, p *
 	for _, row := range names {
 		name := formatFullName(row.LastName, row.FirstName, row.MiddleName)
 		if strings.TrimSpace(name) == "" {
-			name = "@" + usernames[row.ID]
+			name = unnamedUserLabel
 		}
 		p.names[row.ID] = name
 	}

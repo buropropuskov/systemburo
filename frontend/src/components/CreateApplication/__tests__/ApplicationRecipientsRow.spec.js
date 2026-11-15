@@ -49,7 +49,7 @@ describe('ApplicationRecipientsRow (#884)', () => {
     w.vm.addReader({ userId: 2, name: 'Петров Пётр', username: 'man2' });
     const ev = w.emitted('update:readers');
     expect(ev).toBeTruthy();
-    expect(ev[0][0]).toEqual([{ user_id: 2, name: 'Петров Пётр', username: 'man2' }]);
+    expect(ev[0][0]).toEqual([{ user_id: 2, name: 'Петров Пётр' }]);
   });
 
   it('removeReader эмитит список без удалённого', async () => {
@@ -163,14 +163,16 @@ describe('ApplicationRecipientsRow - доработка отображения',
     expect(chip.classes()).toContain('is-approver');
   });
 
-  it('скрытые ПД: вместо ФИО логин и подпись, почему имени нет', async () => {
+  it('скрытые ПД: нейтральная подпись, выбор недоступен', async () => {
     apiRequest.mockResolvedValue(okJson([
       { id: 7, username: 'hidden7', last_name: null, first_name: null, middle_name: null, position: '', pd_hidden: true },
     ]));
     const w = await mountRow();
     await w.setData({ showAdd: true });
-    expect(w.find('.recipients-add-item__name').text()).toBe('hidden7');
-    expect(w.find('.recipients-add-item__masked').text()).toContain('скрыто до согласия');
+    expect(w.find('.recipients-add-item__name').text()).toBe('Имя скрыто');
+    expect(w.find('.recipients-add-item__masked').text()).toContain('Выбор недоступен');
+    expect(w.find('.recipients-add-item').attributes('disabled')).toBeDefined();
+    expect(w.text()).not.toContain('hidden7');
   });
 
   it('клик вне "+ получатель" закрывает дропдаун', async () => {

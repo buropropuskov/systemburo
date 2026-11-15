@@ -111,6 +111,7 @@
 </template>
 
 <script>
+import { formatPublicUserName } from '@/utils/formatName'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { isAwaitingApproval, approverSilenceDays, approverSilenceLabel } from '@/utils/pendingApproval'
 import { useApprovalStatus } from '@/composables/useApprovalStatus'
@@ -183,8 +184,7 @@ export default {
         },
         
         getUserDisplayName(user) {
-            const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
-            return names.length > 0 ? names.join(' ') : user.username;
+            return formatPublicUserName(user);
         },
         
         formatDateTime,

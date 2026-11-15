@@ -19,9 +19,9 @@ import "systemburo/internal/models"
 // как у остальных метрик обработки: тогда плитки curated-вкладки (B4) считаются
 // по одному набору заявок и сопоставимы между собой.
 
-// approverNameExpr — подпись согласующего: ФИО, а при пустых частях — логин
+// approverNameExpr — подпись согласующего: ФИО или нейтральная подпись
 // (пользователь без заполненного ФИО не должен схлопываться в пустую группу).
-const approverNameExpr = "COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), ''), u.username)"
+const approverNameExpr = "COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), ''), 'Пользователь')"
 
 // approverJoinBlock — 1:1 join'ы голоса: заявка (окно и разрезы заявки),
 // пользователь (подпись), организация/компания. Ни один не размножает голоса.

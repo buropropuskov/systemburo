@@ -54,7 +54,7 @@ var participantRoleRank = map[string]int{
 type ApplicationParticipant struct {
 	CanApprove *bool   `json:"can_approve,omitempty"`
 	UserID     int     `json:"user_id"`
-	Username   string  `json:"username"`
+	Username   string  `json:"-"`
 	LastName   *string `json:"last_name"`
 	FirstName  *string `json:"first_name"`
 	MiddleName *string `json:"middle_name"`
@@ -296,13 +296,17 @@ func maskParticipants(ctx context.Context, db *gorm.DB, participants []Applicati
 		if isMasked(consentMasks, p.UserID) {
 			maskUserParts(consentMasks, p.UserID, &p.LastName, &p.FirstName, &p.MiddleName)
 			maskUserContacts(consentMasks, p.UserID, &p.Email, &p.Phone)
-			p.FullName = ""
+			p.FullName = hiddenUserLabel
+			p.Position, p.OrganizationName, p.CompanyName = nil, nil, nil
+			p.OrganizationID, p.CompanyID = nil, nil
 			p.PDHidden = true
 		}
 		if display, ok := approverMasks[p.UserID]; ok && !isMasked(consentMasks, p.UserID) {
 			p.LastName, p.FirstName, p.MiddleName = nil, nil, nil
 			p.Email, p.Phone = nil, nil
 			p.FullName = display
+			p.Position, p.OrganizationName, p.CompanyName = nil, nil, nil
+			p.OrganizationID, p.CompanyID = nil, nil
 		}
 	}
 	return nil
@@ -329,7 +333,7 @@ func sortParticipants(participants []ApplicationParticipant) {
 // её первую букву - скрытый работник встал бы на своё алфавитное место между однофамильцами.
 func participantSortKey(p ApplicationParticipant) string {
 	if p.FullName == "" {
-		return "￿" + p.Username
+		return unnamedUserLabel
 	}
 	return p.FullName
 }

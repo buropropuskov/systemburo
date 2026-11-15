@@ -92,25 +92,22 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 // GetRecipients возвращает принимающих для строки получателей заявки: заявителю нужно
 // видеть, кому уйдёт заявка, а полный состав с организациями и должностями закрыт правом
 // администратора. Имя берётся из маски, если она задана, иначе собирается из ФИО; когда
-// работник не дал согласия на обработку персональных данных, вместо ФИО идёт логин - тем
-// же правилом, что и в остальных местах.
+// имя закрыто по согласию, возвращается нейтральная подпись.
 func (s *approverService) GetRecipients(ctx context.Context) ([]models.ApplicationRecipient, error) {
 	var rows []struct {
-		UserID      int
-		Username    string
-		LastName    *string
-		FirstName   *string
-		MiddleName  *string
-		DisplayName *string
+		UserID     int
+		LastName   *string
+		FirstName  *string
+		MiddleName *string
 	}
 	err := s.db.WithContext(ctx).
 		Table("application_approvers aa").
-		Select(`aa.user_id, u.username, u.last_name, u.first_name, u.middle_name, aa.display_name`).
+		Select(`aa.user_id, u.last_name, u.first_name, u.middle_name`).
 		Joins("JOIN users u ON u.id = aa.user_id").
 		// Супер-администратор в получателях не нужен: он числится принимающим ради
 		// доступа, а не как адресат заявки, и в списке только сбивал бы заявителя.
 		Where("u.is_active AND NOT u.is_banned AND NOT u.is_super_admin").
-		Order("u.last_name, u.first_name").
+		Order("aa.user_id").
 		Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipients")
@@ -136,7 +133,7 @@ func (s *approverService) GetRecipients(ctx context.Context) ([]models.Applicati
 		}
 		name := strings.Join(parts, " ")
 		if name == "" {
-			name = r.Username
+			name = unnamedUserLabel
 		}
 		result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: name})
 	}

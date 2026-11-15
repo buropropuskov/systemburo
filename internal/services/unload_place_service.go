@@ -622,7 +622,7 @@ func (s *unloadPlaceService) BulkRestore(ctx context.Context, callerUserID int, 
 // audit_log. Замороженная unload_place_histories дропнута в дроп-sweep (F.8).
 // Форму стережёт TestUnloadPlaces_History.
 func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error) {
-	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 	sql := `
 		SELECT a.id AS id, a.action AS action_type, a.details AS details,
 			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at

@@ -82,7 +82,7 @@ export function approvalBadgeVariant(status) {
  */
 export function participantDisplayName(participant) {
   if (participant?.pd_hidden) return 'Имя скрыто';
-  return participant?.full_name || participant?.username || 'Без имени';
+  return participant?.full_name || 'Пользователь';
 }
 
 /**

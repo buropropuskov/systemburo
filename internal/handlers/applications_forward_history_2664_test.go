@@ -217,8 +217,8 @@ func TestForwardHistory2664_ConsentAndApproverMasksOnBothSurfaces(t *testing.T) 
 	for _, metadata := range forward2664Surfaces(t, e, admin, appID) {
 		details := forward2664Details(t, metadata)
 		require.Len(t, details, 3)
-		assert.Equal(t, "@fh2664_hidden", details[ids[0]]["display_name"])
-		assert.Equal(t, "@fh2664_approver", details[ids[1]]["display_name"], "administrator ignores the display alias but cannot bypass consent")
+		assert.Equal(t, "Имя скрыто", details[ids[0]]["display_name"])
+		assert.Equal(t, "Имя скрыто", details[ids[1]]["display_name"], "administrator ignores the display alias but cannot bypass consent")
 		assert.Equal(t, "SyntheticName2 Recipient", details[ids[2]]["display_name"])
 		encoded, err := json.Marshal(metadata["recipients"])
 		require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestForwardHistory2664_ConsentAndApproverMasksOnBothSurfaces(t *testing.T) 
 	}
 	// Consent also dominates an arbitrary receiver label for ordinary viewers.
 	for _, metadata := range forward2664Surfaces(t, e, tokens[2], appID) {
-		assert.Equal(t, "@fh2664_approver", forward2664Details(t, metadata)[ids[1]]["display_name"])
+		assert.Equal(t, "Имя скрыто", forward2664Details(t, metadata)[ids[1]]["display_name"])
 		encoded, err := json.Marshal(metadata)
 		require.NoError(t, err)
 		assert.NotContains(t, string(encoded), "SyntheticName1")
@@ -351,9 +351,9 @@ func TestForwardHistory2664_MaskQueryFailuresDoNotExposeRecipients(t *testing.T)
 			return
 		}
 		selection := strings.Join(tx.Statement.Selects, ",")
-		matches := target == "users" && tx.Statement.Table == "users" && selection == "id, username, last_name, first_name, middle_name" ||
+		matches := target == "users" && tx.Statement.Table == "users" && selection == "id, last_name, first_name, middle_name" ||
 			target == "settings" && tx.Statement.Table == "system_settings" && selection == "key, value" ||
-			target == "consent" && tx.Statement.Table == "users" && selection == "users.id, users.username" ||
+			target == "consent" && tx.Statement.Table == "users" && selection == "users.id" ||
 			target == "approver" && tx.Statement.Table == "application_approvers" && selection == "user_id, display_name"
 		if matches {
 			injected.Add(1)
@@ -380,13 +380,13 @@ func TestForwardHistory2664_MaskQueryFailuresDoNotExposeRecipients(t *testing.T)
 				}
 				assert.Equal(t, wantStatus, response.Code, response.Body.String())
 				assert.NotContains(t, response.Body.String(), "PrivateFaultName")
-				assert.NotContains(t, response.Body.String(), "@fh2664_fault_target")
+				assert.NotContains(t, response.Body.String(), "Имя скрыто")
 			})
 		}
 	}
 	// A request without the test context still succeeds with the callback installed.
 	for _, surface := range forward2664Surfaces(t, e, admin, appID) {
-		assert.Equal(t, "@fh2664_fault_target", forward2664Details(t, surface)[targetID]["display_name"])
+		assert.Equal(t, "Имя скрыто", forward2664Details(t, surface)[targetID]["display_name"])
 	}
 	_, after := forward2664StoredEvent(t, db, appID)
 	assert.Equal(t, before, after)

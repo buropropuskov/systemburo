@@ -135,6 +135,7 @@ type UpdateOrganizationUsersRequest struct {
 
 // OrganizationUserRequest — один пользователь в запросе обновления ответственных.
 type OrganizationUserRequest struct {
+	UserID           int    `json:"user_id"`
 	Username         string `json:"username"`
 	IsPrimary        *bool  `json:"is_primary"`
 	RequiredApproval *bool  `json:"required_approval"`
@@ -201,8 +202,9 @@ type ReassignUsersRequest struct {
 
 // OrganizationUserResponse — ответственный пользователь организации.
 type OrganizationUserResponse struct {
+	DisplayLabel     string  `json:"display_label"`
 	ID               int     `json:"id"`
-	Username         string  `json:"username"`
+	Username         string  `json:"-"`
 	LastName         *string `json:"last_name"`
 	FirstName        *string `json:"first_name"`
 	MiddleName       *string `json:"middle_name"`
@@ -538,7 +540,7 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 // Форму ответа стережёт TestOrganizations_History.
 // Действия created/renamed хранят {name,type} (тип с #1046) - details как есть.
 func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.OrganizationHistoryItem, error) {
-	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), 'Пользователь')`
 	sql := `
 		SELECT a.id AS id, a.action AS action_type, a.details AS details,
 			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
@@ -661,22 +663,25 @@ func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID in
 	users := make([]OrganizationUserResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("users u").
-		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position, ou.is_primary, ou.required_approval").
+		Select("u.id, u.last_name, u.first_name, u.middle_name, u.position, ou.is_primary, ou.required_approval").
 		Joins("INNER JOIN organization_users ou ON u.id = ou.user_id").
 		Where("ou.organization_id = ? AND u.is_active = ?", orgID, true).
-		Order("ou.is_primary DESC, u.last_name, u.first_name").
+		Order("ou.is_primary DESC, u.id").
 		Scan(&users).Error
 	if err != nil {
 		slog.Error("Не удалось получить пользователей организации", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization users")
 	}
-	masks, maskErr := loadNameMasks(ctx, s.db)
-	if maskErr != nil {
-		return nil, maskErr
+	policy, err := loadUserDisplayPolicy(ctx, s.db)
+	if err != nil {
+		return nil, err
 	}
-	if len(masks) > 0 {
-		for i := range users {
-			maskUserParts(masks, users[i].ID, &users[i].LastName, &users[i].FirstName, &users[i].MiddleName)
+	for i := range users {
+		u := &users[i]
+		u.DisplayLabel = policy.label(u.ID, u.LastName, u.FirstName, u.MiddleName)
+		maskUserParts(policy.names, u.ID, &u.LastName, &u.FirstName, &u.MiddleName)
+		if isMasked(policy.names, u.ID) {
+			u.Position = nil
 		}
 	}
 	return users, nil
@@ -806,7 +811,13 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, calle
 		// Добавляем новых пользователей
 		for _, userReq := range req.Users {
 			var user models.User
-			if err := tx.Where("username = ?", userReq.Username).First(&user).Error; err != nil {
+			query := tx
+			if userReq.UserID > 0 {
+				query = tx.Where("id = ?", userReq.UserID)
+			} else {
+				query = tx.Where("username = ?", userReq.Username)
+			}
+			if err := query.First(&user).Error; err != nil {
 				slog.Warn("Пользователь не найден", "username", userReq.Username)
 				continue
 			}

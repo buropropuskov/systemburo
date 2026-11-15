@@ -136,7 +136,7 @@ func TestPDConsentMask_SuperAdmin_NotMasked(t *testing.T) {
 }
 
 // Заявка показывает подавшего: пока он не дал согласия, вместо ФИО стоит логин.
-func TestPDConsentMask_ApplicationSender_MaskedByLogin(t *testing.T) {
+func TestPDConsentMask_ApplicationSender_ShowsNeutralLabel(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -156,7 +156,8 @@ func TestPDConsentMask_ApplicationSender_MaskedByLogin(t *testing.T) {
 
 	after := applicationSenderNames(t, e, admin)
 	assert.NotContains(t, after, "Заявкин", "ФИО подавшего скрыто")
-	assert.Contains(t, after, "@mask_sender", "вместо ФИО показывается логин с собачкой")
+	assert.Contains(t, after, "Имя скрыто")
+	assert.NotContains(t, after, "mask_sender")
 }
 
 // applicationSenderNames собирает имена подавших из списка Центра заявок одной строкой.
@@ -255,7 +256,7 @@ func userPDHidden(t *testing.T, e *echo.Echo, token, username string) bool {
 
 // Журналы справочников: актор без согласия подписан логином. Проверяем на истории
 // марки - она читает audit_log тем же путём, что и остальные справочники.
-func TestPDConsentMask_DirectoryHistory_ActorMaskedByLogin(t *testing.T) {
+func TestPDConsentMask_DirectoryHistory_ActorShowsNeutralLabel(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -279,7 +280,8 @@ func TestPDConsentMask_DirectoryHistory_ActorMaskedByLogin(t *testing.T) {
 
 	after := markHistoryBody(t, e, admin, markID)
 	assert.NotContains(t, after, "Справочников", "ФИО актора скрыто")
-	assert.Contains(t, after, "mask_dir", "вместо ФИО подставлен логин")
+	assert.Contains(t, after, "Имя скрыто")
+	assert.NotContains(t, after, "mask_dir")
 }
 
 // seedMarkForMask заводит марку прямо в базе и возвращает её id.
@@ -344,7 +346,8 @@ func TestPDConsentMask_ApproverHistory_HidesBothNames(t *testing.T) {
 	after := testutil.GET(t, e, "/application-approvers/history", testutil.AuthHeader(admin))
 	require.Equal(t, http.StatusOK, after.Code)
 	assert.NotContains(t, after.Body.String(), "Назначенов", "ФИО назначенного принимающего скрыто")
-	assert.Contains(t, after.Body.String(), "mask_subject", "вместо ФИО подставлен логин")
+	assert.Contains(t, after.Body.String(), "Имя скрыто")
+	assert.NotContains(t, after.Body.String(), "mask_subject")
 }
 
 // Признак согласия в списке работников: администратор должен видеть, дал ли человек
@@ -592,7 +595,7 @@ func TestPDConsentMask_Search_HidesPD(t *testing.T) {
 		"по скрытой почте больше не находится")
 	assert.Empty(t, searchTitles(t, e, admin, "Поисков"),
 		"скрытое ФИО не участвует в поиске")
-	assert.Equal(t, []string{"@mask_search"}, searchTitles(t, e, admin, "mask_search"),
+	assert.Equal(t, []string{"Имя скрыто"}, searchTitles(t, e, admin, "mask_search"),
 		"по открытому логину учётка доступна без скрытого ФИО")
 }
 

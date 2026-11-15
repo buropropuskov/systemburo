@@ -69,7 +69,7 @@ func TestConsentVisibilityPolicy(t *testing.T) {
 								found = true
 								if hidden {
 									require.Nil(t, user.LastName)
-									require.Equal(t, "@passage2667_actor", *user.DisplayLabel)
+									require.Equal(t, "Имя скрыто", *user.DisplayLabel)
 								}
 								if !hidden && role != "ordinary" {
 									require.Equal(t, name, *user.LastName)
@@ -82,7 +82,7 @@ func TestConsentVisibilityPolicy(t *testing.T) {
 						require.Len(t, approvers, 1)
 						if hidden {
 							require.Nil(t, approvers[0].LastName)
-							require.Equal(t, "@passage2667_actor", *approvers[0].DisplayName)
+							require.Equal(t, "Имя скрыто", *approvers[0].DisplayName)
 						} else {
 							require.Equal(t, alias, *approvers[0].DisplayName)
 						}
@@ -93,7 +93,7 @@ func TestConsentVisibilityPolicy(t *testing.T) {
 						require.Len(t, list.Rows, 1)
 						require.Equal(t, 1, list.Total)
 						if hidden {
-							require.Equal(t, "@passage2667_actor", list.Rows[0]["responsible"])
+							require.Equal(t, "Имя скрыто", list.Rows[0]["responsible"])
 						} else if role == "ordinary" {
 							require.Equal(t, alias, list.Rows[0]["responsible"])
 						} else {

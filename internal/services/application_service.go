@@ -654,9 +654,10 @@ type ApprovalStatusResponse struct {
 
 // ResponsibleUserInfo информация об ответственном пользователе с данными согласования.
 type ResponsibleUserInfo struct {
+	DisplayLabel     string     `gorm:"-" json:"display_label"`
 	CanApprove       *bool      `json:"can_approve,omitempty"`
 	ID               int        `json:"id"`
-	Username         string     `json:"username"`
+	Username         string     `json:"-"`
 	LastName         *string    `json:"last_name"`
 	FirstName        *string    `json:"first_name"`
 	MiddleName       *string    `json:"middle_name"`
@@ -701,14 +702,15 @@ type RevokeApprovalResponse struct {
 
 // ViewerWithUser просматривающий заявки с информацией о пользователе.
 type ViewerWithUser struct {
-	ID         int        `json:"id"`
-	UserID     int        `json:"user_id"`
-	Username   string     `json:"username"`
-	LastName   *string    `json:"last_name"`
-	FirstName  *string    `json:"first_name"`
-	MiddleName *string    `json:"middle_name"`
-	Position   *string    `json:"position"`
-	CreatedAt  *time.Time `json:"created_at"`
+	DisplayLabel string     `gorm:"-" json:"display_label"`
+	ID           int        `json:"id"`
+	UserID       int        `json:"user_id"`
+	Username     string     `json:"-"`
+	LastName     *string    `json:"last_name"`
+	FirstName    *string    `json:"first_name"`
+	MiddleName   *string    `json:"middle_name"`
+	Position     *string    `json:"position"`
+	CreatedAt    *time.Time `json:"created_at"`
 }
 
 // AttachmentInfo информация о вложении заявки.
@@ -2601,6 +2603,15 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			seenViewer := make(map[int]bool, len(responsibleUsers))
 			for _, ru := range responsibleUsers {
 				seenViewer[ru.UserID] = true
+			}
+			manual := make([]int, 0, len(*req.Readers))
+			for _, id := range *req.Readers {
+				if _, allowed := allowedReaders[id]; allowed && !seenViewer[id] {
+					manual = append(manual, id)
+				}
+			}
+			if err := validateManualRecipients(ctx, tx, manual); err != nil {
+				return err
 			}
 			for _, readerID := range *req.Readers {
 				if readerID <= 0 || seenViewer[readerID] {

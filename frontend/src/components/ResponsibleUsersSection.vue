@@ -47,7 +47,7 @@
           <div class="user-dropdown-content">
             <div
               v-for="user in sortedAvailableUsers"
-              :key="user.username"
+              :key="user.id || user.username"
               class="user-dropdown-item"
               @mousedown="addResponsibleUser(user)"
             >
@@ -87,7 +87,7 @@
       <!-- Список ответственных -->
       <div
         v-for="user in sortedUsers"
-        :key="user.username"
+        :key="user.id || user.username"
         class="resp-item"
         :class="{ primary: user.is_primary }"
       >
@@ -215,12 +215,12 @@ export default {
   computed: {
     hasSelectedUsers() {
       return JSON.stringify(this.selectedUsers.map(u => ({
-        username: u.username,
+        id: this.selectionMode ? u.username : u.id,
         is_primary: u.is_primary,
         required_approval: u.required_approval
       })).sort()) !==
              JSON.stringify(this.originalSelectedUsers.map(u => ({
-               username: u.username,
+               id: this.selectionMode ? u.username : u.id,
                is_primary: u.is_primary,
                required_approval: u.required_approval
              })).sort());
@@ -258,7 +258,7 @@ export default {
 
     filteredAvailableUsers() {
       return this.filteredUsers.filter(user =>
-        !this.selectedUsers.some(selected => selected.username === user.username)
+        !this.selectedUsers.some(selected => (this.selectionMode ? selected.username === user.username : selected.id === user.id))
       );
     },
 
@@ -349,11 +349,12 @@ export default {
           const users = await response.json();
 
           this.selectedUsers = users.map(entityUser => {
-            const fullUserData = this.allUsers.find(u => u.username === entityUser.username);
+            const fullUserData = this.allUsers.find(u => u.id === entityUser.id);
 
             if (fullUserData) {
               return {
                 ...entityUser,
+                username: fullUserData.username,
                 is_primary: entityUser.is_primary || false,
                 required_approval: entityUser.required_approval || false,
                 position: entityUser.position || fullUserData.position || '',
@@ -401,7 +402,7 @@ export default {
           : `/companies/${this.entity.id}/users`;
 
         const usersData = this.selectedUsers.map(user => ({
-          username: user.username,
+          user_id: user.id,
           is_primary: user.is_primary || false,
           required_approval: user.required_approval || false
         }));
@@ -436,7 +437,7 @@ export default {
     },
 
     addResponsibleUser(user) {
-      const isAlreadySelected = this.selectedUsers.some(u => u.username === user.username);
+      const isAlreadySelected = this.selectedUsers.some(u => (this.selectionMode ? u.username === user.username : u.id === user.id));
       if (!isAlreadySelected) {
         const userWithDetails = {
           ...user,
@@ -454,7 +455,7 @@ export default {
     },
 
     removeResponsibleUser(user) {
-      this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
+      this.selectedUsers = this.selectedUsers.filter(u => (this.selectionMode ? u.username !== user.username : u.id !== user.id));
       if (this.selectionMode) this.emitSelection();
     },
 
@@ -497,7 +498,7 @@ export default {
     },
 
     updateUserRequiredApproval(user) {
-      const selectedUser = this.selectedUsers.find(u => u.username === user.username);
+      const selectedUser = this.selectedUsers.find(u => (this.selectionMode ? u.username === user.username : u.id === user.id));
       if (selectedUser) {
         selectedUser.required_approval = user.required_approval;
       }
@@ -520,7 +521,7 @@ export default {
 
     getUserDisplayName(user) {
       const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
-      return names.length > 0 ? names.join(' ') : user.username;
+      return user.display_label || (names.length > 0 ? names.join(' ') : user.username || 'Пользователь');
     },
 
     getInitials(user) {

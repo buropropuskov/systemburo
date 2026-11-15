@@ -14,27 +14,27 @@ import (
 	"gorm.io/gorm"
 )
 
-// usernamesOf собирает логины из ответа списка кандидатов.
-func usernamesOf(list []map[string]any) map[string]bool {
-	found := make(map[string]bool, len(list))
+func candidateIDs(t *testing.T, list []map[string]any) map[int]bool {
+	t.Helper()
+	found := make(map[int]bool, len(list))
 	for _, item := range list {
-		if login, ok := item["username"].(string); ok {
-			found[login] = true
+		assert.NotContains(t, item, "username")
+		if id, ok := item["id"].(float64); ok {
+			found[int(id)] = true
 		}
 	}
 	return found
 }
 
-// candidateBy достаёт кандидата по логину: порядок в ответе задаёт сортировка по
-// видимому ФИО, и опираться на позицию в списке нельзя.
-func candidateBy(t *testing.T, list []map[string]any, username string) map[string]any {
+func candidateBy(t *testing.T, list []map[string]any, id int) map[string]any {
 	t.Helper()
 	for _, item := range list {
-		if login, _ := item["username"].(string); login == username {
+		if item["id"] == float64(id) {
+			assert.NotContains(t, item, "username")
 			return item
 		}
 	}
-	t.Fatalf("кандидат %s не найден в ответе", username)
+	t.Fatalf("кандидат %d не найден в ответе", id)
 	return nil
 }
 
@@ -65,11 +65,11 @@ func TestRecipientCandidates_NoAdminRightsNeeded(t *testing.T) {
 	rec := testutil.GET(t, e, "/users/recipient-candidates", testutil.AuthHeader(tenantToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	found := usernamesOf(testutil.ParseSlice(t, rec))
-	assert.True(t, found["rc_colleague"], "коллега по организации доступен получателем")
-	assert.True(t, found["rc_boss"], "руководитель доступен получателем и из чужой организации")
-	assert.False(t, found["rc_stranger"], "рядовой пользователь чужой организации не показывается")
-	assert.False(t, found["rc_tenant"], "себя в получателях не предлагаем")
+	found := candidateIDs(t, testutil.ParseSlice(t, rec))
+	assert.True(t, found[getUserID(t, db, "rc_colleague")], "коллега по организации доступен получателем")
+	assert.True(t, found[getUserID(t, db, "rc_boss")], "руководитель доступен получателем и из чужой организации")
+	assert.False(t, found[getUserID(t, db, "rc_stranger")], "рядовой пользователь чужой организации не показывается")
+	assert.False(t, found[getUserID(t, db, "rc_tenant")], "себя в получателях не предлагаем")
 }
 
 // TestRecipientCandidates_SkipsArchivedAndBanned: архивным и заблокированным заявку не
@@ -93,10 +93,10 @@ func TestRecipientCandidates_SkipsArchivedAndBanned(t *testing.T) {
 	rec := testutil.GET(t, e, "/users/recipient-candidates", testutil.AuthHeader(tenantToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	found := usernamesOf(testutil.ParseSlice(t, rec))
-	assert.True(t, found["rc2_active"], "активный коллега на месте")
-	assert.False(t, found["rc2_archived"], "архивный не предлагается")
-	assert.False(t, found["rc2_banned"], "заблокированный не предлагается")
+	found := candidateIDs(t, testutil.ParseSlice(t, rec))
+	assert.True(t, found[getUserID(t, db, "rc2_active")], "активный коллега на месте")
+	assert.False(t, found[getUserID(t, db, "rc2_archived")], "архивный не предлагается")
+	assert.False(t, found[getUserID(t, db, "rc2_banned")], "заблокированный не предлагается")
 }
 
 // TestRecipientCandidates_CarryOrganization: кандидат приезжает с названием организации
@@ -118,18 +118,15 @@ func TestRecipientCandidates_CarryOrganization(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	list := testutil.ParseSlice(t, rec)
 
-	colleague := candidateBy(t, list, "rc4_colleague")
+	colleague := candidateBy(t, list, getUserID(t, db, "rc4_colleague"))
 	assert.Equal(t, "Test Organization", colleague["organization"], "организация коллеги приезжает вместе с ним")
 	assert.Equal(t, "Test Company", colleague["company"], "компания коллеги - тоже")
 
-	boss := candidateBy(t, list, "rc4_boss")
+	boss := candidateBy(t, list, getUserID(t, db, "rc4_boss"))
 	assert.Equal(t, "Manager Org", boss["organization"], "у руководителя показывается его собственная организация")
 }
 
-// TestRecipientCandidates_MaskedKeepsOrganization: у работника без согласия на обработку
-// ПД скрыто ФИО, но не организация - её маскировка #1567 не закрывает ни здесь, ни в
-// администраторском списке, и без неё «@логин» в выборе получателя не с чем сопоставить.
-func TestRecipientCandidates_MaskedKeepsOrganization(t *testing.T) {
+func TestRecipientCandidates_HidesRestrictedProfile(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -146,10 +143,13 @@ func TestRecipientCandidates_MaskedKeepsOrganization(t *testing.T) {
 	rec := testutil.GET(t, e, "/users/recipient-candidates", testutil.AuthHeader(tenantToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	silent := candidateBy(t, testutil.ParseSlice(t, rec), "rc5_silent")
+	silent := candidateBy(t, testutil.ParseSlice(t, rec), getUserID(t, db, "rc5_silent"))
 	assert.Nil(t, silent["last_name"], "ФИО работника без согласия по-прежнему скрыто")
 	assert.Equal(t, true, silent["pd_hidden"], "признак скрытых данных на месте")
-	assert.Equal(t, "Test Organization", silent["organization"], "организация видна и у скрытого работника")
+	assert.Empty(t, silent["organization"])
+	assert.Empty(t, silent["company"])
+	assert.Equal(t, false, silent["can_select"])
+	assert.Equal(t, "Имя скрыто", silent["display_label"])
 }
 
 // TestSubmitCompleteApplication_DropsForeignReader: подделанный readers не открывает
@@ -214,4 +214,21 @@ func TestSubmitCompleteApplication_DropsForeignReader(t *testing.T) {
 	// И заявку он по-прежнему не видит.
 	arec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(strangerToken))
 	assert.Equal(t, http.StatusForbidden, arec.Code, "посторонний не получает доступ к заявке")
+
+	// A choice made before the consent policy changed must fail atomically.
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, displayedConsentBody(t, e, senderToken), testutil.AuthHeader(senderToken)).Code)
+	var before, after int64
+	require.NoError(t, db.Table("applications").Count(&before).Error)
+	stale := testutil.POST(t, e, "/applications/submit-complete-application", withApplicationConfirmation(t, db, body), testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusConflict, stale.Code, stale.Body.String())
+	require.NoError(t, db.Table("applications").Count(&after).Error)
+	assert.Equal(t, before, after)
+
+	staleForward := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), forwardBody(strangerID, false, true), testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusConflict, staleForward.Code, staleForward.Body.String())
+	var assigned int64
+	require.NoError(t, db.Table("application_viewers").Where("application_id = ? AND user_id = ?", appID, strangerID).Count(&assigned).Error)
+	assert.Zero(t, assigned)
 }

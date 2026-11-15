@@ -216,7 +216,7 @@ func TestArchiveOriginal_CurrentRoleAndPreflight(t *testing.T) {
 		withdrawal := models.PDConsent{UserID: id, ConsentType: services.ConsentTypePDProcessing,
 			Granted: false, GrantedAt: at, RevokedAt: &at}
 		require.NoError(t, w.db.Create(&withdrawal).Error)
-		require.Equal(t, "@s6_archive_fixture", blankActor(w.adminH), "withdrawal overrides superadmin and display alias")
+		require.Equal(t, "Имя скрыто", blankActor(w.adminH), "withdrawal overrides superadmin and display alias")
 		for _, endpoint := range originalURLs {
 			rec := testutil.GET(t, w.e, endpoint, w.adminH)
 			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())

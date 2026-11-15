@@ -85,7 +85,8 @@ func TestNotificationProjectionCurrentViewerMasksAndRevocation(t *testing.T) {
 			require.NotContains(t, body, actorName)
 			require.NotContains(t, body, display)
 			require.NotContains(t, body, "PrivateSnapshot")
-			require.Contains(t, body, "@"+f.author.Username)
+			require.Contains(t, body, "Имя скрыто")
+			require.NotContains(t, body, f.author.Username)
 		}
 		require.Equal(t, 3, read.Count)
 		require.Equal(t, &group, read.GroupKey)

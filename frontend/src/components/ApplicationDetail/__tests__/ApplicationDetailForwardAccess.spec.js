@@ -267,8 +267,10 @@ describe('ForwardModal - получатели и роль (#1948)', () => {
     expect(named).toContain('Кладовщик');
     // Организация - вторая строка под именем; кандидаты её отдают наравне с /users/all.
     expect(named).toContain('ООО Ромашка');
-    // ФИО скрытого работника бэк уже заменил - фронт показывает то, что пришло.
-    expect(texts.some((t) => t.includes('hidden'))).toBe(true);
+    // Скрытый получатель остаётся в списке с нейтральной подписью.
+    const hidden = options.find(o => o.text().includes('Имя скрыто'));
+    expect(hidden?.attributes('aria-disabled')).toBe('true');
+    expect(texts.join(' ')).not.toContain('hidden');
   });
 
   it('поиск находит получателя по названию организации', async () => {

@@ -97,7 +97,10 @@ func TestS6History_ReportAliasesPreserveAggregateTotals(t *testing.T) {
 	require.Equal(t, label, result.Rows[0].Label)
 	require.EqualValues(t, 2, result.Rows[0].Value)
 	require.EqualValues(t, 2, result.Total)
-	// Switching the viewer role restores per-account labels without changing totals.
+	// Switching the viewer role restores permitted names without changing totals.
+	for id, name := range map[int]string{w.actor: "First operator", actor2.ID: "Second operator"} {
+		require.NoError(t, w.db.Model(&models.User{}).Where("id = ?", id).Update("last_name", name).Error)
+	}
 	require.NoError(t, w.db.Model(&models.User{}).Where("id=?", viewer.ID).Update("is_admin", true).Error)
 	result, err = stats.RunReport(ctx, models.ReportRequest{Metric: "approver_votes_count", Dimension: "by_approver"})
 	require.NoError(t, err)

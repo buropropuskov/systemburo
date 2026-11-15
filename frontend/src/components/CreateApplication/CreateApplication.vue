@@ -1414,7 +1414,7 @@ export default {
 
         userDisplayName(u) {
             const names = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-            return names.length ? names.join(' ') : (u.username || '');
+            return u.display_label || (names.length ? names.join(' ') : 'Пользователь');
         },
 
         handleFormatPhoneNumber() {
@@ -3020,7 +3020,7 @@ export default {
                     companyId: this.companyId,
                     responsiblePerson: this.responsiblePerson,
                     phoneNumber: this.phoneNumber,
-                    readers: this.readers,
+                    readers: this.readers.map(r => ({ user_id: r.user_id })),
                     applicationFileIds: [...this.applicationFileIds],
 
                     // attachments - источник истины для UI. Без них vehiclesByAttachment
@@ -3086,7 +3086,10 @@ export default {
                     if (parsedData.responsiblePerson) this.responsiblePerson = parsedData.responsiblePerson;
                     if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
                     this.consentGiven = null;
-                    this.readers = parsedData.readers || [];
+                    this.readers = Array.isArray(parsedData.readers)
+                        ? parsedData.readers.filter(r => Number.isSafeInteger(r?.user_id) && r.user_id > 0)
+                            .map(r => ({ user_id: r.user_id }))
+                        : [];
                     this.applicationFileIds = (parsedData.applicationFileIds || []).filter(id => Number.isInteger(id) && id > 0);
 
                     this.attachments = parsedData.attachments || [];

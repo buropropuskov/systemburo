@@ -185,6 +185,16 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 		recipientDetails := make([]forwardRecipientDetail, 0, len(req.Users))
 
+		manual := make([]int, 0, len(req.Users))
+		for _, fu := range req.Users {
+			if authority.allowsRecipient(fu.UserID) && !(fu.RequiredApproval && fu.CanView) {
+				manual = append(manual, fu.UserID)
+			}
+		}
+		if err := validateManualRecipients(ctx, tx, manual); err != nil {
+			return err
+		}
+
 		for _, fu := range req.Users {
 			// Проверяем существование пользователя
 			var userExists bool

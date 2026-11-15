@@ -68,21 +68,23 @@ describe('Пересылка #2666', () => {
   it('использует три общих dropdown, сочетает фильтры с поиском и исключением доступных', async () => {
     const wrapper = await open({ existingViewers: [{ user_id: 3 }] });
     expect(wrapper.findAllComponents(BaseDropdown)).toHaveLength(3);
-    await wrapper.setData({ filters: { organization: 'Org A', company: 'Company B', position: 'Role B' }, searchQuery: 'candidate_two' });
+    await wrapper.setData({ filters: { organization: 'Org A', company: 'Company B', position: 'Role B' }, searchQuery: 'Второй' });
     expect(wrapper.vm.filteredUsers.map(user => user.id)).toEqual([2]);
-    await wrapper.setData({ searchQuery: 'candidate_one' });
+    await wrapper.setData({ searchQuery: 'Первый' });
     expect(wrapper.vm.filteredUsers).toEqual([]);
     await wrapper.find('.reset-filters-btn').trigger('click');
     expect(wrapper.vm.filters).toEqual({ organization: '', company: '', position: '' });
-    expect(wrapper.vm.searchQuery).toBe('candidate_one');
+    expect(wrapper.vm.searchQuery).toBe('Первый');
     expect(wrapper.vm.filteredUsers.map(user => user.id)).toEqual([1]);
   });
 
   it('не придумывает ФИО скрытому пользователю, сбрасывает фильтры при переоткрытии', async () => {
     const wrapper = await open();
     await wrapper.setData({ searchQuery: 'masked_candidate' });
-    expect(wrapper.vm.filteredUsers.map(user => user.id)).toEqual([3]);
-    expect(wrapper.vm.getUserDisplayName(users[2])).toBe('masked_candidate');
+    expect(wrapper.vm.filteredUsers).toEqual([]);
+    wrapper.vm.addUser(users[2]);
+    expect(wrapper.vm.selectedUsers).toEqual([]);
+    expect(wrapper.vm.getUserDisplayName(users[2])).toBe('Имя скрыто');
     await wrapper.setData({ filters: { organization: 'Org A', company: '', position: '' } });
     await wrapper.setProps({ show: false });
     await wrapper.setProps({ show: true });
@@ -118,4 +120,15 @@ describe('Пересылка #2666', () => {
     expect(wrapper.emitted('send')[0][0].users).toEqual([{ user_id: 1, required_approval: false, can_view: true }]);
     expect(wrapper.find('[data-testid="forward-modal-warning"]').text()).not.toContain('(принимающие)');
   });
+});
+
+it('keeps equal public labels distinct by ID without authentication logins', async () => {
+ const people = [{id: 81, display_label: 'Оператор'}, {id: 82, display_label: 'Оператор'}];
+ const wrapper = await open({allUsers: people});
+ wrapper.vm.addUser(people[0]);
+ expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([82]);
+ wrapper.vm.addUser(people[1]);
+ expect(wrapper.vm.selectedUsers.map(u => u.id)).toEqual([81,82]);
+ wrapper.vm.removeUser(people[0]);
+ expect(wrapper.vm.selectedUsers.map(u => u.id)).toEqual([82]);
 });

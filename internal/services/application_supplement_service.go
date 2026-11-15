@@ -68,7 +68,7 @@ type CreateSupplementResponse struct {
 type SupplementApprovalInfo struct {
 	SupplementID     int        `json:"-"`
 	UserID           int        `json:"user_id"`
-	Username         string     `json:"username"`
+	Username         string     `json:"-"`
 	FullName         string     `json:"full_name"`
 	RequiredApproval bool       `json:"required_approval"`
 	ApprovalStatus   *string    `json:"approval_status"`
@@ -876,7 +876,7 @@ func (s *applicationService) GetApplicationSupplements(ctx context.Context, appl
 		SELECT
 			s.id, s.application_id, s.number, s.status, s.comment,
 			s.created_by_user_id,
-			COALESCE(format_full_name(u.last_name, u.first_name, u.middle_name), u.username, '') AS created_by_name,
+			COALESCE(NULLIF(format_full_name(u.last_name, u.first_name, u.middle_name), ''), 'Пользователь') AS created_by_name,
 			s.created_at, s.confirmation_datetime,
 			s.decided_by_user_id, s.decision_comment, s.decided_at,
 			(SELECT COUNT(*) FROM cars c WHERE c.supplement_id = s.id) AS vehicles,
@@ -920,14 +920,14 @@ func (s *applicationService) GetApplicationSupplements(ctx context.Context, appl
 	var approvals []SupplementApprovalInfo
 	err = s.db.WithContext(ctx).Raw(`
 		SELECT
-			sa.supplement_id, sa.user_id, u.username,
+			sa.supplement_id, sa.user_id,
 			COALESCE(format_full_name(u.last_name, u.first_name, u.middle_name), '') AS full_name,
 			COALESCE(sa.required_approval, false) AS required_approval,
 			sa.approval_status, sa.approval_comment, sa.approval_datetime
 		FROM application_supplement_approvals sa
 		JOIN users u ON u.id = sa.user_id
 		WHERE sa.supplement_id IN ?
-		ORDER BY sa.required_approval DESC, u.last_name, u.first_name
+		ORDER BY sa.required_approval DESC, sa.user_id
 	`, ids).Scan(&approvals).Error
 	if err != nil {
 		slog.Error("дополнение: не удалось получить голоса", "application_id", applicationID, "error", err)

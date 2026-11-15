@@ -65,19 +65,20 @@
           <div class="forward-user-dropdown-content">
             <div
               v-for="user in filteredUsers"
-              :key="user.username"
+              :key="user.id"
               class="forward-user-item"
               data-testid="forward-modal-user-option"
               role="button"
-              tabindex="0"
+              :tabindex="(user.can_select === false || user.pd_hidden) ? -1 : 0"
+              :aria-disabled="(user.can_select === false || user.pd_hidden)"
               @keydown.enter.prevent="addUser(user)"
               @keydown.space.prevent="addUser(user)"
               @mousedown.prevent="addUser(user)"
             >
               <div class="forward-user-info">
                 <div class="forward-user-main">
+                  <span v-if="(user.can_select === false || user.pd_hidden)">Выбор недоступен — имя скрыто</span>
                   <span class="forward-user-name">{{ getUserDisplayName(user) }}</span>
-                  <span class="forward-user-username">@{{ user.username }}</span>
                 </div>
                 <div class="forward-user-details">
                   <span
@@ -118,13 +119,12 @@
           <div class="forward-users-list"><p v-if="selectedUsers.length === 0" class="forward-empty">Выберите пользователей для пересылки заявки</p>
             <div
               v-for="user in selectedUsers"
-              :key="user.username"
+              :key="user.id"
               class="forward-selected-user"
             >
               <div class="forward-selected-user-info">
                 <div class="forward-selected-user-main">
                   <span class="forward-selected-user-name">{{ getUserDisplayName(user) }}</span>
-                  <span class="forward-selected-user-username">@{{ user.username }}</span>
                 </div>
                 <div class="forward-selected-user-details">
                   <span
@@ -290,6 +290,7 @@
 </template>
 
 <script>
+import { formatPublicUserName } from '@/utils/formatName'
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
@@ -393,7 +394,7 @@ export default {
         filteredUsers() {
             // Исключаем уже выбранных пользователей
             let availableUsers = this.sortedAllUsers.filter(user =>
-                !this.selectedUsers.some(selected => selected.username === user.username)
+                !this.selectedUsers.some(selected => selected.id === user.id)
             );
 
             // Если есть поисковый запрос, фильтруем по нему
@@ -402,7 +403,6 @@ export default {
                 availableUsers = availableUsers.filter(user => {
                     const haystack = [
                         this.getUserDisplayName(user),
-                        user.username,
                         user.position || '',
                         user.organization || '',
                     ].join(' ');
@@ -459,8 +459,7 @@ export default {
     methods: {
         resetFilters() { this.filters = { organization: '', company: '', position: '' }; },
         getUserDisplayName(user) {
-            const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
-            return names.length > 0 ? names.join(' ') : user.username;
+            return formatPublicUserName(user);
         },
 
         searchUsers() {
@@ -473,6 +472,7 @@ export default {
         },
 
         addUser(user) {
+            if ((user.can_select === false || user.pd_hidden)) return;
             const userWithSettings = {
                 ...user,
                 requires_approval: false,  // По умолчанию только просмотр
@@ -496,7 +496,7 @@ export default {
         },
 
         removeUser(user) {
-            this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
+            this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id);
             this.$emit('update:selected-users', this.selectedUsers);
         },
 
