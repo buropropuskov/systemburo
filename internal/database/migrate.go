@@ -34,6 +34,8 @@ func AllModels() []interface{} {
 
 		// Users (depends on UserType, Organization, Company)
 		&models.User{},
+		&models.AccountOwnerConfirmation{},
+		&models.AccountOwnerVerification{},
 		&models.UserBanHistory{},
 		&models.RefreshToken{},
 		&models.AuthEvent{},
