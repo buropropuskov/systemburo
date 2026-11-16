@@ -231,6 +231,14 @@
                       >
                         {{ item.comment }}
                       </div>
+                      <button
+                        v-if="canVerifyOwner && item.action_type === 'approve' && item.user_id"
+                        type="button"
+                        class="lk-button lk-button--secondary lk-button--sm"
+                        @click="ownerApproval = item"
+                      >
+                        Проверить владельца
+                      </button>
                     </div>
                   </div>
                 </template>
@@ -240,16 +248,24 @@
         </div>
       </transition>
     </Teleport>
+    <AccountOwnerLookup
+      v-if="ownerApproval"
+      :application-id="applicationId"
+      :application-number="applicationNumber"
+      :event="ownerApproval"
+      @close="ownerApproval = null"
+    />
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getAccountOwnerAccess } from '@/api/accountOwner'
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadExcelSheet } from '@/utils/excelSheet';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import { ref } from 'vue';
+import { defineAsyncComponent, ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useOnboardingStore } from '@/stores/onboarding';
@@ -260,7 +276,8 @@ import ForwardHistoryDetails from './ForwardHistoryDetails.vue';
 
 export default {
     name: 'ApplicationHistory',
-    components: { LoaderSpinner, AppIcon, ForwardHistoryDetails },
+    components: { LoaderSpinner, AppIcon, ForwardHistoryDetails,
+        AccountOwnerLookup: defineAsyncComponent(() => import('./AccountOwnerLookup.vue')) },
     props: {
         applicationId: {
             type: Number,
@@ -310,6 +327,8 @@ export default {
     data() {
         return {
             // Журнал открыл тур - только такое окно он и закрывает за собой.
+            canVerifyOwner: false,
+            ownerApproval: null,
             historyOpenedByTour: false,
             loading: false,
             history: [],
@@ -453,11 +472,16 @@ export default {
         openModal() {
             this.showModal = true;
             this.loadHistory();
+            void getAccountOwnerAccess().then(access => {
+                this.canVerifyOwner = this.showModal && !!access.verify;
+            });
         },
 
         closeModal() {
             this.showModal = false;
             this.userDropdownOpen = false;
+            this.canVerifyOwner = false;
+            this.ownerApproval = null;
         },
 
         toggleSortOrder() {

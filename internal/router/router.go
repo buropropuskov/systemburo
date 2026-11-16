@@ -24,6 +24,7 @@ const applicationsBodyLimit = int64(50 << 20)
 // добавлении handler-а становятся одной строкой, тесты могут не заполнять
 // неиспользуемые поля.
 type Dependencies struct {
+	AccountOwner *handlers.AccountOwnerHandler
 	// Handlers
 	Auth                *handlers.AuthHandler
 	UserTypes           *handlers.UserTypesHandler
@@ -711,6 +712,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Управление пользователями - page.admin.users (Ф5, ранее service checkAdmin
 	// по type-коду manager/buropropuskov). Тот же ключ, что и у FE-роута раздела.
 	requireUsers := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminUsers)
+	protected.GET("/account-owner/access", d.AccountOwner.Access)
+	protected.GET("/account-owner/users/:id", d.AccountOwner.Confirmation)
+	protected.POST("/account-owner/users/:id", d.AccountOwner.Confirm, mw.SmallAuthBodyBudget)
 	protected.POST("/users", users.Create, requireUsers)
 	protected.GET("/users/all", users.GetAll, requireUsers)
 	protected.PUT("/users/:username/type", users.UpdateType, requireUsers)
@@ -1018,6 +1022,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/supplements/:sid/take-to-work", operationBudget(app.DecideSupplement))
 	apg.POST("/:id/supplements/:sid/cancel", operationBudget(app.CancelSupplement))
 	apg.GET("/:id/history", app.GetApplicationHistory)
+	apg.POST("/:id/history/:event_id/account-owner", d.AccountOwner.Verify, mw.SmallAuthBodyBudget)
 	apg.POST("/:id/revoke-approval", operationBudget(app.RevokeApproval))
 	apg.GET("/:id/viewers", app.GetApplicationViewers)
 	apg.POST("/:id/read", app.MarkAsRead)

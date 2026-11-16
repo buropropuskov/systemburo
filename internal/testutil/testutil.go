@@ -51,6 +51,7 @@ var tables = []string{
 	"application_operations",
 	"notification_intents",
 	"audit_log",
+	"account_owner_verifications", "account_owner_confirmations",
 	// blank_exports живёт без внешних ключей, поэтому чистка заявок её строк не
 	// снимает: прошлый прогон оставлял заявку с тем же идентификатором уже
 	// выгруженной и замороженной, и следующий видел чужое состояние (#1615).

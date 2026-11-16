@@ -25,10 +25,11 @@ type roleAction struct {
 
 // roleNotInMatrix - изменяющие методы заявки вне матрицы и почему.
 var roleNotInMatrix = map[string]string{
-	"POST /api/applications/:id/read":                       "отметка прочтения своей строкой, чужой организации - замок IDOR",
-	"POST /api/applications/:id/questions/seen":             "отметка просмотра своей строкой, чужой организации - замок IDOR",
-	"POST /api/applications/:id/questions/:questionId/read": "отметка прочтения своей строкой, чужой организации - замок IDOR",
-	"DELETE /api/applications/:id/files/:file_id":           "под правом page.admin, роль в заявке не участвует",
+	"POST /api/applications/:id/history/:event_id/account-owner": "служебное чтение с записью аудита, отдельное полномочие проверяет TestAccountOwnerLookupHTTP",
+	"POST /api/applications/:id/read":                            "отметка прочтения своей строкой, чужой организации - замок IDOR",
+	"POST /api/applications/:id/questions/seen":                  "отметка просмотра своей строкой, чужой организации - замок IDOR",
+	"POST /api/applications/:id/questions/:questionId/read":      "отметка прочтения своей строкой, чужой организации - замок IDOR",
+	"DELETE /api/applications/:id/files/:file_id":                "под правом page.admin, роль в заявке не участвует",
 }
 
 var (

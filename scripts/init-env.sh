@@ -202,6 +202,7 @@ DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
 # пустыми ключами архива. Так проверяется, что данные не легли открытым текстом
 # из-за незаполненной строки.
 REQUIRE_ENCRYPTION=${REQUIRE_ENCRYPTION}
+ACCOUNT_OWNER_VERIFICATION_ENABLED=false
 
 # === Ограничение частоты запросов ===
 RATE_LIMIT_PER_MINUTE=200

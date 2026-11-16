@@ -56,7 +56,8 @@ type Config struct {
 	ApplicationFileImageMaxSide int `env:"APPLICATION_FILE_IMAGE_MAX_SIDE" envDefault:"2000"`
 	ApplicationFileJPEGQuality  int `env:"APPLICATION_FILE_JPEG_QUALITY" envDefault:"82"`
 
-	DataEncryptionKey string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
+	DataEncryptionKey               string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
+	AccountOwnerVerificationEnabled bool   `env:"ACCOUNT_OWNER_VERIFICATION_ENABLED" envDefault:"false"`
 	// RequireEncryption - запрет работать с персональными данными открытым текстом.
 	// Включено по умолчанию: прежнее умолчание означало, что установка, поднятая мимо
 	// scripts/init-env.sh, штатно работает и хранит паспорта читаемыми, а узнать об
@@ -358,6 +359,9 @@ func (c *Config) Validate() error {
 	}
 	if c.ApplicationFileJPEGQuality < 1 || c.ApplicationFileJPEGQuality > 100 {
 		return fmt.Errorf("APPLICATION_FILE_JPEG_QUALITY must be within 1..100 (got %d)", c.ApplicationFileJPEGQuality)
+	}
+	if c.AccountOwnerVerificationEnabled && c.DataEncryptionKey == "" {
+		return fmt.Errorf("ACCOUNT_OWNER_VERIFICATION_ENABLED requires DATA_ENCRYPTION_KEY")
 	}
 	if c.RequireEncryption && c.DataEncryptionKey == "" {
 		return fmt.Errorf("DATA_ENCRYPTION_KEY не задан, а шифрование персональных данных обязательно.\n" +

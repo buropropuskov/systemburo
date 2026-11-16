@@ -39,8 +39,9 @@ type encryptedColumn struct {
 
 // encryptedTable - таблица, хранящая шифрованные поля.
 type encryptedTable struct {
-	name    string
-	columns []encryptedColumn
+	name       string
+	columns    []encryptedColumn
+	requireKey bool
 }
 
 // encryptedTables - перечень того, что переводится. Держится рядом с самой
@@ -65,6 +66,8 @@ var encryptedTables = []encryptedTable{
 		{value: "email", hmac: "email_hmac", normalize: models.NormalizeEmailForHMAC},
 		{value: "phone", hmac: "phone_hmac", normalize: models.NormalizePhoneForHMAC},
 	}},
+	{name: "account_owner_confirmations", columns: []encryptedColumn{{value: "evidence"}}, requireKey: true},
+	{name: "account_owner_verifications", columns: []encryptedColumn{{value: "reason"}}, requireKey: true},
 }
 
 func passportColumns() []encryptedColumn {
@@ -146,6 +149,15 @@ func Reencrypt(ctx context.Context, db *gorm.DB, opts ReencryptOptions) ([]Reenc
 
 	run := func(tx *gorm.DB) error {
 		for _, table := range encryptedTables {
+			if table.requireKey {
+				var exists bool
+				if err := tx.WithContext(ctx).Raw("SELECT to_regclass(?) IS NOT NULL", table.name).Scan(&exists).Error; err != nil {
+					return fmt.Errorf("проверка таблицы %s: %w", table.name, err)
+				}
+				if !exists {
+					continue
+				}
+			}
 			res, err := reencryptTable(ctx, tx, table, opts)
 			if err != nil {
 				return err
@@ -222,6 +234,9 @@ func reencryptTable(ctx context.Context, tx *gorm.DB, table encryptedTable, opts
 		}
 
 		res.Values += int64(len(rows))
+		if table.requireKey && len(rows) > 0 && (len(opts.OldKey) != 32 || len(opts.NewKey) != 32) {
+			return res, fmt.Errorf("для перевода %s требуются прежний и новый ключи", table.name)
+		}
 		if !opts.Apply {
 			continue
 		}

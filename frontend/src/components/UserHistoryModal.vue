@@ -44,6 +44,11 @@
             </div>
           </div>
 
+          <AccountOwnerConfirmation
+            v-if="user.id"
+            :key="user.id"
+            :user="user"
+          />
           <div class="history-filters">
             <div class="filter-row">
               <div class="search-filter">
@@ -196,7 +201,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { defineAsyncComponent, ref } from 'vue';
 import { formatLogin } from '@/utils/formatName';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -255,7 +260,7 @@ const FIELD_LABELS = {
 
 export default {
   name: 'UserHistoryModal',
-  components: { LoaderSpinner, AppIcon },
+  components: { LoaderSpinner, AppIcon, AccountOwnerConfirmation: defineAsyncComponent(() => import('./admin/AccountOwnerConfirmation.vue')) },
   props: {
     user: { type: Object, required: true },
     organizations: { type: Array, default: () => [] },

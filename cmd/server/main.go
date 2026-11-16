@@ -654,7 +654,12 @@ func main() {
 	}
 	searchHandler := handlers.NewSearchHandler(searchService)
 
+	var accountOwnerHandler *handlers.AccountOwnerHandler
+	if cfg.AccountOwnerVerificationEnabled {
+		accountOwnerHandler = handlers.NewAccountOwnerHandler(services.NewAccountOwnerStore(db, encKey), applicationService)
+	}
 	router.Setup(e, router.Dependencies{
+		AccountOwner:        accountOwnerHandler,
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
 		Attachments:         attachmentHandler,
