@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	"systemburo/internal/middleware"
 	"systemburo/internal/models"
@@ -20,6 +21,40 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestAccountOwnerEncryptionKeyRotation(t *testing.T) {
+	f := setupIntentFixture(t)
+	ctx := context.Background()
+	oldKey := bytes.Repeat([]byte{0x72}, 32)
+	newKey := bytes.Repeat([]byte{0x73}, 32)
+	evidence, err := crypto.Encrypt("Учебное подтверждение", oldKey)
+	require.NoError(t, err)
+	reason, err := crypto.Encrypt("Учебное основание", oldKey)
+	require.NoError(t, err)
+	confirmation := models.AccountOwnerConfirmation{
+		UserID: f.approver.ID, ConfirmedByID: f.author.ID,
+		EffectiveFrom: time.Date(2021, 11, 15, 7, 42, 0, 0, time.UTC), Evidence: evidence,
+	}
+	require.NoError(t, f.db.Create(&confirmation).Error)
+	lookup := models.AccountOwnerVerification{
+		ApprovalEventID: 1, ActorUserID: f.author.ID, ConfirmationID: &confirmation.ID, Reason: reason,
+	}
+	require.NoError(t, f.db.Create(&lookup).Error)
+
+	_, err = database.Reencrypt(ctx, f.db, database.ReencryptOptions{OldKey: oldKey, Apply: true})
+	require.ErrorContains(t, err, "для перевода account_owner_confirmations требуются прежний и новый ключи")
+	_, err = database.Reencrypt(ctx, f.db, database.ReencryptOptions{OldKey: oldKey, NewKey: newKey, Apply: true})
+	require.NoError(t, err)
+	require.NoError(t, f.db.First(&confirmation, confirmation.ID).Error)
+	require.NoError(t, f.db.First(&lookup, lookup.ID).Error)
+	for ciphertext, expected := range map[string]string{confirmation.Evidence: "Учебное подтверждение", lookup.Reason: "Учебное основание"} {
+		actual, err := crypto.Decrypt(ciphertext, newKey)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+		_, err = crypto.Decrypt(ciphertext, oldKey)
+		require.Error(t, err)
+	}
+}
 
 func TestAccountOwnerLookupHTTP(t *testing.T) {
 	f := setupIntentFixture(t)
