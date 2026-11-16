@@ -39,9 +39,12 @@ type idorSwap struct {
 // проверен отдельным тестом (имя теста сверяется с исходниками пакета), либо объект
 // не принадлежит организации.
 var idorCoveredElsewhere = map[string]string{
-	"GET /api/attachments/:id/document-at-post":   "TestDocumentAtPostRuleAndSubmission: общий шаблон, настройка берётся по аккаунту из токена",
-	"GET /api/employees/open-for-table/:table_id": "TestOpenPassages2667TableScope: таблица разрешённого поста 200, чужой пользователь и отсутствующая таблица 403",
-	"GET /api/cars/open-for-table/:table_id":      "TestOpenPassages2667TableScope: таблица разрешённого поста 200, чужой пользователь и отсутствующая таблица 403",
+	"GET /api/account-owner/users/:id":                           "доступ к статусу требует прямого полномочия (internal/services, TestAccountOwnerLookupHTTP)",
+	"POST /api/account-owner/users/:id":                          "требует прямого полномочия и не даёт подтвердить себя (internal/services, TestAccountOwnerLookupHTTP)",
+	"POST /api/applications/:id/history/:event_id/account-owner": "событие привязано к заявке, отдельное право проверено в internal/services (TestAccountOwnerLookupHTTP и TestAccountOwnerConfirmationForApproval)",
+	"GET /api/attachments/:id/document-at-post":                  "TestDocumentAtPostRuleAndSubmission: общий шаблон, настройка берётся по аккаунту из токена",
+	"GET /api/employees/open-for-table/:table_id":                "TestOpenPassages2667TableScope: таблица разрешённого поста 200, чужой пользователь и отсутствующая таблица 403",
+	"GET /api/cars/open-for-table/:table_id":                     "TestOpenPassages2667TableScope: таблица разрешённого поста 200, чужой пользователь и отсутствующая таблица 403",
 	"GET /api/applications/:id/archive": "TestFileArchiveDownload_Application: посторонний и отправитель 403, super 200; " +
 		"нужен слепок архива на диске",
 	"GET /api/cars/check-active": "TestCheckActiveCar_ForeignOrganization: организация в query, чужая - " +

@@ -37,9 +37,10 @@ const (
 	// Выгрузка справки о человеке файлом (#2356). Парное к разделу, не замена:
 	// увиденное на экране остаётся в системе, а выданный файл живёт дальше сам по
 	// себе и попадает третьему лицу. Тот же принцип, что у выгрузки бланков (#2187).
-	KeyActionExportPDSubject = "action.pd_subject.export"
-	KeyPageAdminDirectories  = "page.admin.directories"
-	KeyPageAdminTablesCtor   = "page.admin.tables_constructor"
+	KeyActionExportPDSubject    = "action.pd_subject.export"
+	KeyActionVerifyAccountOwner = "action.account_owner.verify"
+	KeyPageAdminDirectories     = "page.admin.directories"
+	KeyPageAdminTablesCtor      = "page.admin.tables_constructor"
 	// Раздел «Файловый архив» (#1615): состояние выгрузки бланков на диск, её
 	// настройки и выгрузка файлов. Слово «архив» отдельно уже занято архивными
 	// заявками, поэтому раздел называется файловым и в ключе, и в интерфейсе.
@@ -249,6 +250,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageAdminPDAudit, DisplayName: "Журнал доступа к персональным данным", Category: CatAdmin},
 		{Key: KeyPageAdminPDSubject, DisplayName: "Сведения о субъекте персональных данных", Category: CatAdmin},
 		{Key: KeyActionExportPDSubject, DisplayName: "Сведения о субъекте: выгрузка справки", Category: CatAdmin},
+		{Key: KeyActionVerifyAccountOwner, DisplayName: "Проверка владельца учётной записи", Category: CatAdmin},
 		{Key: KeyPageAdminFeedback, DisplayName: "Раздел «Обратная связь»", Category: CatAdmin},
 		{Key: KeyPageBlacklist, DisplayName: "Раздел «Чёрный список»", Category: CatAdmin},
 		{Key: KeyPageAdminDirectories, DisplayName: "Раздел «Справочники»", Category: CatAdmin},

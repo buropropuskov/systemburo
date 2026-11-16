@@ -113,7 +113,7 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAd
 	// раздавать только супер-админ - иначе admin поднял бы себе/другим super-права.
 	if !isSuperAdmin {
 		for _, p := range req.Permissions {
-			if IsSuperOnly(p.Key) {
+			if IsSuperOnly(p.Key) || p.Key == KeyActionVerifyAccountOwner {
 				return echo.NewHTTPError(http.StatusForbidden, "Эти права может выдавать только супер-администратор")
 			}
 		}

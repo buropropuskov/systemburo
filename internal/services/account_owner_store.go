@@ -12,13 +12,13 @@ import (
 	"systemburo/internal/models"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 var (
 	ErrInvalidAccountOwnerConfirmation = errors.New("invalid account owner confirmation")
 	ErrAccountOwnerStorageUnavailable  = errors.New("account owner confirmation storage is unavailable")
 	ErrAccountOwnerConfirmationChanged = errors.New("account owner confirmation has changed")
+	ErrAccountOwnerConfirmationDenied  = errors.New("account owner confirmation is denied")
 )
 
 type AccountOwnerEvidence struct {
@@ -70,10 +70,12 @@ func (s *AccountOwnerStore) Confirm(ctx context.Context, userID, actorID int, in
 		Evidence: ciphertext, CreatedAt: now,
 	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var user models.User
-		if err := tx.Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).
-			Take(&user, "id = ?", userID).Error; err != nil {
+		actor, user, err := lockAdminTarget(ctx, tx, actorID, userID)
+		if err != nil {
 			return err
+		}
+		if actor.ID == user.ID || (user.IsAdmin || user.IsSuperAdmin) && !actor.IsSuperAdmin {
+			return ErrAccountOwnerConfirmationDenied
 		}
 		previous, err := latestAccountOwnerConfirmation(tx, userID)
 		if err != nil {
@@ -91,9 +93,10 @@ func (s *AccountOwnerStore) Confirm(ctx context.Context, userID, actorID int, in
 }
 
 type AccountOwnerApprovalResult struct {
-	UserID   int                   `json:"user_id"`
-	Approved time.Time             `json:"approved_at"`
-	Evidence *AccountOwnerEvidence `json:"evidence,omitempty"`
+	UserID     int                   `json:"user_id"`
+	OnBehalfOf *int                  `json:"on_behalf_of,omitempty"`
+	Approved   time.Time             `json:"approved_at"`
+	Evidence   *AccountOwnerEvidence `json:"evidence,omitempty"`
 }
 
 // VerifyApproval must be called only after authorizing this specific request.
@@ -114,12 +117,27 @@ func (s *AccountOwnerStore) VerifyApproval(ctx context.Context, applicationID, e
 	var result AccountOwnerApprovalResult
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var event models.AuditLog
-		if err := tx.Select("actor_user_id", "created_at").
+		if err := tx.Select("actor_user_id", "created_at", "details").
 			Take(&event, "id = ? AND entity_type = ? AND entity_id = ? AND action = ? AND actor_user_id > 0",
 				eventID, models.AuditEntityApplication, applicationID, "approve").Error; err != nil {
 			return err
 		}
 		result.UserID, result.Approved = *event.ActorUserID, event.CreatedAt
+		var details struct {
+			ImpersonatedBy *int `json:"impersonated_by"`
+		}
+		if len(event.Details) > 0 {
+			if err := json.Unmarshal(event.Details, &details); err != nil {
+				return err
+			}
+		}
+		if details.ImpersonatedBy != nil {
+			if *details.ImpersonatedBy <= 0 {
+				return ErrAccountOwnerStorageUnavailable
+			}
+			result.OnBehalfOf = event.ActorUserID
+			result.UserID = *details.ImpersonatedBy
+		}
 		record, err := latestAccountOwnerConfirmation(tx, result.UserID)
 		if err != nil {
 			return err
