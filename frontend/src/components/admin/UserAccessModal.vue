@@ -278,6 +278,7 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 
 // Ключ, которым бэкенд закрывает PUT /users/:id/admin (services.KeyActionGrantAdmin).
 const GRANT_ADMIN_KEY = 'action.grant.admin';
+const VERIFY_ACCOUNT_OWNER_KEY = 'action.account_owner.verify';
 
 /**
  * Модалка «Права доступа» в две колонки: слева источники прав (флаг Администратор,
@@ -523,6 +524,14 @@ export default {
     },
     computeState(node) {
       const key = node.key;
+      if (key === VERIFY_ACCOUNT_OWNER_KEY) {
+        const override = this.overrideMap[key];
+        return {
+          on: !this.isBanned && override === 'allow',
+          source: override ? 'override' : null,
+          locked: this.isBanned || !useAuthStore().isSuperAdmin,
+        };
+      }
       if (node.super_only) {
         return { on: this.isSuper, source: this.isSuper ? 'admin' : null, locked: true };
       }

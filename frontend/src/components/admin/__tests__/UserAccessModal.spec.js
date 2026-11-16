@@ -19,6 +19,7 @@ const CATALOG = [
   { key: 'page.cars', display_name: 'Автомобили', category: 'Навигация' },
   { key: 'page.statistics', display_name: 'Аналитика', category: 'Навигация' },
   { key: 'action.grant.admin', display_name: 'Выдача прав администратора', category: 'Администрирование', super_only: true },
+  { key: 'action.account_owner.verify', display_name: 'Проверка владельца', category: 'Администрирование' },
   { key: 'table.kpp_4.view', display_name: 'КПП №4: Доступ к таблице', category: 'Таблицы' },
   { key: 'table.kpp_4.entry', display_name: 'КПП №4: Отметка въезда/входа', category: 'Таблицы' },
   { key: 'table.kpp_4.export', display_name: 'КПП №4: Экспорт', category: 'Таблицы' },
@@ -178,6 +179,18 @@ describe('UserAccessModal (#187 Фаза 3, две колонки)', () => {
     await wrapper.find('[data-testid="save-button"]').trigger('click');
     await flushPromises();
     expect(updateUserPermissions).toHaveBeenCalledWith(42, { permissions: [{ key: 'page.cars', value: 'allow' }] });
+  });
+
+  it('проверка владельца требует явного разрешения системного администратора', async () => {
+    const key = 'action.account_owner.verify';
+    const wrapper = await mountModal({ ...USER, is_admin: true });
+    expect(wrapper.vm.stateByKey[key]).toMatchObject({ on: false, locked: false });
+    wrapper.vm.onToggleKey(key);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.stateByKey[key]).toMatchObject({ on: true, source: 'override' });
+    openedBy();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.stateByKey[key]).toMatchObject({ on: true, locked: true });
   });
 
   it('смена роли и добавление группы уходят в setUserRole и assignGroupToUser', async () => {
