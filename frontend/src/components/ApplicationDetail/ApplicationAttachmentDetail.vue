@@ -1,28 +1,7 @@
 <template>
   <div class="attachment-details">
     <div class="attachment-header-section">
-      <div class="attachment-title-row">
-        <h4>{{ attachment.attachment_display_name }}</h4>
-        <div
-          v-if="attachment.roof_access || attachment.free_parking"
-          class="attachment-tags"
-        >
-          <Badge
-            v-if="attachment.roof_access"
-            variant="primary"
-            size="lg"
-          >
-            Крыша
-          </Badge>
-          <Badge
-            v-if="attachment.free_parking"
-            variant="warning"
-            size="lg"
-          >
-            Парковка
-          </Badge>
-        </div>
-      </div>
+      <ApplicationAttachmentHeading :attachment="attachment" />
 
       <!-- Даты действия -->
       <div
@@ -438,6 +417,7 @@
 import Badge from '@/components/ui/Badge.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import ApplicationAssignModal from './ApplicationAssignModal.vue'
+import ApplicationAttachmentHeading from './ApplicationAttachmentHeading.vue'
 import SearchComponent from '@/components/SearchComponent.vue'
 import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
 import { apiRequest } from '@/api/client'
@@ -447,7 +427,6 @@ import { passageChipHint } from '@/constants/passageSource'
 import { formatNumberForDisplay } from '@/composables/useNumberFormat'
 import { useAnchoredMenu } from '@/composables/useAnchoredMenu'
 import { SUPPLEMENT_ACCEPTED, SUPPLEMENT_APPROVED, SUPPLEMENT_PENDING, SUPPLEMENT_CLOSED_STATUSES } from '@/utils/supplementStatuses'
-
 /** Ширины служебных частей строки: порядковый номер, колонка действий, отступы. */
 const NUM_COLUMN_WIDTH = 22;
 const STATE_COLUMN_WIDTH = 112;
@@ -543,7 +522,7 @@ function supplementRowMark(row) {
 
 export default {
     name: 'ApplicationAttachmentDetail',
-    components: { ApplicationAssignModal, BaseModal, Badge, SearchComponent },
+    components: { ApplicationAssignModal, ApplicationAttachmentHeading, BaseModal, Badge, SearchComponent },
     props: {
         attachment: {
             type: Object,
@@ -1387,34 +1366,11 @@ export default {
     gap: 12px 24px;
 }
 
-.attachment-details h4 {
-    font-size: 18px;
-    color: var(--accent-text);
-    font-weight: 700;
-    margin: 0;
-    grid-column: 1 / -1;
-}
-
 .date-range, .time-range {
     display: flex;
     flex-direction: column;
     gap: 0px;
     font-size: 14px;
-}
-
-.attachment-title-row {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.attachment-tags {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    flex-shrink: 0;
 }
 
 .date-range:last-child, .time-range:last-child {
