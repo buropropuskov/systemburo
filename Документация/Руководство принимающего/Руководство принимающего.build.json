@@ -1,10 +1,10 @@
 {
   "document": "acceptor",
-  "version": "1.15",
+  "version": "1.16",
   "pages": 26,
-  "code_revision": "bb1cbad49f2b2ce9f03bd4d7da1aef10e5a44a6a",
-  "source_sha256": "75e0d535846ec25a4557d07e5e05ed1990602df324de854d674bbde591e6d51f",
-  "builder_sha256": "7a685efcdee1846f33651fc6c9bcc95378658d244b6df27a93471a43cacd224f",
-  "docx_sha256": "e0e50f2f6404ce77fa8eb46ed0255f561ef352e72ff62b2e8dbb7af57429a4c9",
-  "pdf_sha256": "e745cb6d04f93922339725f285998744e7647037e0272be36c0a43056047431e"
+  "code_revision": "e0a060e06b4d9a1ea14d7db336e7c6a25e6ab60f",
+  "source_sha256": "2e6446020f9da95d771c8208d066f2c6bf7d0f1bdb7ad4932397a2361b62d408",
+  "builder_sha256": "692529afeaca9787096ac3a774a64fd021711fc807d1c03bc7c4be771691acf2",
+  "docx_sha256": "bd00b19c3c4db21292501c73c5fd6bec0f2663811a067efc576daee3a9a8fac4",
+  "pdf_sha256": "4b1e645244b14bea082c17eaadff159772cbb92da4dbff65dc275b170758a168"
 }
