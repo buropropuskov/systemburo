@@ -239,6 +239,15 @@ func (s *notificationService) projectReferencedNotification(ctx context.Context,
 			return n, nil
 		}
 		data["status"] = ref.Facts.Outcome
+	case NotificationTypeApplicationElementsChanged:
+		var err error
+		message, err = s.projectApplicationChanges(ctx, p, ref, data)
+		if err != nil {
+			return n, err
+		}
+		if message == "" {
+			return n, nil
+		}
 	case NotificationTypeApplicationDatesChanged:
 		message = fmt.Sprintf("Изменён срок заявки %s.", number)
 		if ref.Variant == "entity" {

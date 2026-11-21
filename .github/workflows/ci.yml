@@ -291,6 +291,7 @@ jobs:
         with:
           context: ./postgres
           target: production
+          no-cache-filters: production
           tags: |
             systemburo-postgres:ci
             ghcr.io/${{ steps.repo.outputs.lower }}-postgres:${{ github.sha }}

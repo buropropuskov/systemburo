@@ -28,7 +28,8 @@ type Notification struct {
 
 // MarkNotificationReadRequest -- тело запроса на изменение статуса прочтения уведомления.
 type MarkNotificationReadRequest struct {
-	IsRead bool `json:"is_read"`
+	IsRead             bool `json:"is_read"`
+	AcknowledgedChange *int `json:"acknowledged_change,omitempty" validate:"omitempty,min=0"`
 }
 
 // MarkAllReadResponse -- ответ PUT /notifications/read-all: сколько уведомлений отметили

@@ -55,6 +55,8 @@ func (s *applicationService) RemoveApplicationElements(ctx context.Context, user
 		return 0, err
 	}
 
+	var changes []applicationFieldChange
+	var changeDispatches []NotificationDispatch
 	removed := 0
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, elementID := range elementIDs {
@@ -76,6 +78,7 @@ func (s *applicationService) RemoveApplicationElements(ctx context.Context, user
 				continue
 			}
 			removed++
+			changes = append(changes, applicationFieldChange{Kind: elementTable, EntityID: elementID, Field: "removed"})
 
 			// Род зависит от того, что убрали: «Машина ... убрана», «Иванов ... убран».
 			removedWord := "убран(а)"
@@ -94,7 +97,9 @@ func (s *applicationService) RemoveApplicationElements(ctx context.Context, user
 				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи в историю заявки")
 			}
 		}
-		return nil
+		var eventErr error
+		changeDispatches, eventErr = s.recordApplicationChanges(ctx, tx, applicationID, actx.userID, changes)
+		return eventErr
 	})
 	if err != nil {
 		return 0, err
@@ -112,6 +117,10 @@ func (s *applicationService) RemoveApplicationElements(ctx context.Context, user
 		}
 	}
 
+	if len(changes) > 0 {
+		s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
+	}
+	s.notifyApplicationChanges(ctx, changeDispatches)
 	return removed, nil
 }
 

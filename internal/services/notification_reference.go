@@ -33,27 +33,30 @@ type notificationReference struct {
 }
 
 type notificationEventFacts struct {
-	Outcome        string    `json:"outcome,omitempty"`
-	At             time.Time `json:"at,omitempty"`
-	Until          time.Time `json:"until,omitempty"`
-	WaitingDays    int       `json:"waiting_days,omitempty"`
-	DaysLeft       int       `json:"days_left,omitempty"`
-	Attempts       int       `json:"attempts,omitempty"`
-	WindowMinutes  int       `json:"window_minutes,omitempty"`
-	Errors         int64     `json:"errors,omitempty"`
-	Requests       int64     `json:"requests,omitempty"`
-	UsedPercent    float64   `json:"used_percent,omitempty"`
-	WarnPercent    int       `json:"warn_percent,omitempty"`
-	FreeBytes      int64     `json:"free_bytes,omitempty"`
-	Marked         int       `json:"marked,omitempty"`
-	Failed         int       `json:"failed,omitempty"`
-	Changed        int       `json:"changed,omitempty"`
-	SkippedNoMail  int       `json:"skipped_no_mail,omitempty"`
-	OldPeriod      string    `json:"old_period,omitempty"`
-	NewPeriod      string    `json:"new_period,omitempty"`
-	ApprovalsReset bool      `json:"approvals_reset,omitempty"`
-	SelfChange     bool      `json:"self_change,omitempty"`
-	InWork         bool      `json:"in_work,omitempty"`
+	HiddenFromFeed         bool      `json:"hidden_from_feed,omitempty"`
+	AllChangesAcknowledged bool      `json:"all_changes_acknowledged,omitempty"`
+	AcknowledgedChanges    []int     `json:"acknowledged_changes,omitempty"`
+	Outcome                string    `json:"outcome,omitempty"`
+	At                     time.Time `json:"at,omitempty"`
+	Until                  time.Time `json:"until,omitempty"`
+	WaitingDays            int       `json:"waiting_days,omitempty"`
+	DaysLeft               int       `json:"days_left,omitempty"`
+	Attempts               int       `json:"attempts,omitempty"`
+	WindowMinutes          int       `json:"window_minutes,omitempty"`
+	Errors                 int64     `json:"errors,omitempty"`
+	Requests               int64     `json:"requests,omitempty"`
+	UsedPercent            float64   `json:"used_percent,omitempty"`
+	WarnPercent            int       `json:"warn_percent,omitempty"`
+	FreeBytes              int64     `json:"free_bytes,omitempty"`
+	Marked                 int       `json:"marked,omitempty"`
+	Failed                 int       `json:"failed,omitempty"`
+	Changed                int       `json:"changed,omitempty"`
+	SkippedNoMail          int       `json:"skipped_no_mail,omitempty"`
+	OldPeriod              string    `json:"old_period,omitempty"`
+	NewPeriod              string    `json:"new_period,omitempty"`
+	ApprovalsReset         bool      `json:"approvals_reset,omitempty"`
+	SelfChange             bool      `json:"self_change,omitempty"`
+	InWork                 bool      `json:"in_work,omitempty"`
 }
 
 type notificationReferenceKey struct{}
@@ -127,7 +130,7 @@ func notificationStoredData(rawRef *string) *string {
 
 func decodeNotificationReference(raw *string, kind *string) (notificationReference, bool) {
 	var ref notificationReference
-	if raw == nil || kind == nil || len(*raw) > 4096 {
+	if raw == nil || kind == nil || len(*raw) > 65536 || len(*raw) > 4096 && *kind != NotificationTypeApplicationElementsChanged {
 		return ref, false
 	}
 	decoder := json.NewDecoder(bytes.NewBufferString(*raw))
@@ -173,7 +176,25 @@ func validNotificationReference(ref notificationReference) bool {
 	if f.WaitingDays < 0 || f.DaysLeft < 0 || f.Attempts < 0 || f.Errors < 0 || f.Requests < 0 || f.FreeBytes < 0 || f.Marked < 0 || f.Failed < 0 || f.Changed < 0 || f.SkippedNoMail < 0 || math.IsNaN(f.UsedPercent) || math.IsInf(f.UsedPercent, 0) || !safeNotificationPeriod(f.OldPeriod) || !safeNotificationPeriod(f.NewPeriod) {
 		return false
 	}
+	for _, index := range f.AcknowledgedChanges {
+		if index < 0 || index >= 10000 {
+			return false
+		}
+	}
+	if len(f.AcknowledgedChanges) > 10000 {
+		return false
+	}
 	switch ref.Type {
+	case NotificationTypeApplicationElementsChanged:
+		if ref.ApplicationID <= 0 || ref.ActorID <= 0 || len(ref.EventKey) != 32 {
+			return false
+		}
+		for _, r := range ref.EventKey {
+			if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
+				return false
+			}
+		}
+		return true
 	case NotificationTypeApplicationCreated, NotificationTypeApplicationPendingAcceptance, NotificationTypeApplicationForwarded, NotificationTypeApplicationWithdrawn:
 		return ref.ApplicationID > 0 && ref.ActorID > 0 && ref.Variant == ""
 	case NotificationTypeApplicationApprovalRequired:

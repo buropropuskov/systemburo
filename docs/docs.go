@@ -12466,6 +12466,12 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
+                        "description": "Только изменения указанной заявки для её инициатора",
+                        "name": "application_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
                         "description": "Размер страницы (\u003c=100); наличие включает пагинацию",
                         "name": "limit",
                         "in": "query"
@@ -25936,6 +25942,10 @@ const docTemplate = `{
         "models.MarkNotificationReadRequest": {
             "type": "object",
             "properties": {
+                "acknowledged_change": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "is_read": {
                     "type": "boolean"
                 }

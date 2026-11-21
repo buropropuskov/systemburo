@@ -26,6 +26,7 @@ const notificationAggregationWindow = 30 * time.Minute
 
 // NotificationService -- интерфейс бизнес-логики уведомлений.
 type NotificationService interface {
+	GetApplicationChanges(ctx context.Context, userID, applicationID int) ([]models.Notification, error)
 	GetByUserID(ctx context.Context, userID int) ([]models.Notification, error)
 	// GetByUserIDPaginated -- страница ленты (limit/offset, filter=all|unread) плюс
 	// общее количество непрочитанных, не зависящее от страницы/фильтра (#1748).
@@ -114,7 +115,7 @@ func (s *notificationService) GetByUserID(ctx context.Context, userID int) ([]mo
 // GetApplicationsPaginated): переиспользование одного *gorm.DB между двумя выполнениями
 // не гарантирует независимость условий между вызовами.
 func (s *notificationService) notificationListQuery(ctx context.Context, userID int, filter string) *gorm.DB {
-	q := s.db.WithContext(ctx).Model(&models.Notification{}).Where("user_id = ?", userID)
+	q := s.db.WithContext(ctx).Model(&models.Notification{}).Where("user_id = ?", userID).Where("COALESCE(projection_ref->'facts'->>'hidden_from_feed','false') <> 'true'")
 	if filter == "unread" {
 		q = q.Where("is_read = ?", false)
 	}
@@ -139,9 +140,7 @@ func (s *notificationService) GetByUserIDPaginated(ctx context.Context, userID, 
 	// unread_count игнорирует и фильтр, и страницу -- бейдж колокольчика должен
 	// показывать общее непрочитанное количество, а не то, что попало в текущую выборку.
 	var unread int64
-	if err := s.db.WithContext(ctx).Model(&models.Notification{}).
-		Where("user_id = ? AND is_read = ?", userID, false).
-		Count(&unread).Error; err != nil {
+	if err := s.notificationListQuery(ctx, userID, "unread").Count(&unread).Error; err != nil {
 		return nil, 0, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting unread notifications")
 	}
 
@@ -165,6 +164,9 @@ func (s *notificationService) findOwned(ctx context.Context, userID int, id int)
 }
 
 func (s *notificationService) MarkRead(ctx context.Context, userID int, id int, req models.MarkNotificationReadRequest) (*models.Notification, error) {
+	if req.AcknowledgedChange != nil {
+		return s.acknowledgeApplicationChange(ctx, userID, id, *req.AcknowledgedChange)
+	}
 	n, err := s.findOwned(ctx, userID, id)
 	if err != nil {
 		return nil, err
@@ -188,9 +190,7 @@ func (s *notificationService) MarkRead(ctx context.Context, userID int, id int, 
 
 // MarkAllRead -- один UPDATE по user_id AND is_read=false, без выборки в память.
 func (s *notificationService) MarkAllRead(ctx context.Context, userID int) (int64, error) {
-	result := s.db.WithContext(ctx).Model(&models.Notification{}).
-		Where("user_id = ? AND is_read = ?", userID, false).
-		Update("is_read", true)
+	result := s.notificationListQuery(ctx, userID, "unread").Update("is_read", true)
 	if result.Error != nil {
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error marking notifications read")
 	}
@@ -198,11 +198,14 @@ func (s *notificationService) MarkAllRead(ctx context.Context, userID int) (int6
 }
 
 func (s *notificationService) Delete(ctx context.Context, userID int, id int) error {
-	_, err := s.findOwned(ctx, userID, id)
+	n, err := s.findOwned(ctx, userID, id)
 	if err != nil {
 		return err
 	}
 
+	if n.Type != nil && *n.Type == NotificationTypeApplicationElementsChanged && n.ProjectionRef != nil {
+		return s.db.WithContext(ctx).Model(n).Where("user_id = ?", userID).Update("projection_ref", gorm.Expr("jsonb_set(projection_ref,'{facts,hidden_from_feed}','true'::jsonb,true)")).Error
+	}
 	result := s.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.Notification{}, id)
 	if result.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting notification")
@@ -214,10 +217,12 @@ func (s *notificationService) Delete(ctx context.Context, userID int, id int) er
 }
 
 func (s *notificationService) DeleteAll(ctx context.Context, userID int) error {
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.Notification{}).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting notifications")
-	}
-	return nil
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Notification{}).Where("user_id = ? AND type = ? AND projection_ref IS NOT NULL", userID, NotificationTypeApplicationElementsChanged).Update("projection_ref", gorm.Expr("jsonb_set(projection_ref,'{facts,hidden_from_feed}','true'::jsonb,true)")).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ? AND (type IS DISTINCT FROM ? OR projection_ref IS NULL)", userID, NotificationTypeApplicationElementsChanged).Delete(&models.Notification{}).Error
+	})
 }
 
 // Create создаёт уведомление (admin endpoint + внутренние триггеры). В отличие от

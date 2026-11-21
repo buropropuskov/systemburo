@@ -32,6 +32,7 @@ func NewNotificationHandler(service services.NotificationService) *NotificationH
 // @Tags         notifications
 // @Produce      json
 // @Security     BearerAuth
+// @Param        application_id query int false "Только изменения указанной заявки для её инициатора"
 // @Param        limit  query int    false "Размер страницы (<=100); наличие включает пагинацию"
 // @Param        offset query int    false "Смещение страницы"
 // @Param        filter query string false "all|unread, по умолчанию all"
@@ -41,6 +42,17 @@ func NewNotificationHandler(service services.NotificationService) *NotificationH
 // @Router       /notifications [get]
 func (h *NotificationHandler) GetNotifications(c *echo.Context) error {
 	userID := GetUserID(c)
+	if raw := c.QueryParam("application_id"); raw != "" {
+		id, err := strconv.Atoi(raw)
+		if err != nil || id <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Некорректная заявка")
+		}
+		rows, err := h.service.GetApplicationChanges(c.Request().Context(), userID, id)
+		if err != nil {
+			return err
+		}
+		return RespondSuccess(c, rows)
+	}
 
 	// Legacy mode: без limit отдаём полный массив, как раньше - фронт колокольчика
 	// дёргает этот путь без пагинации, и так должно оставаться до среза S7 (#1748).

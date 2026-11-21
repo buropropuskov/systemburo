@@ -76,12 +76,26 @@ var AllRetentionTargets = []RetentionTarget{
 const auditRetentionWhere = `
 	created_at < ?
 	AND action <> 'delete'
+	AND NOT (action = 'assignments_changed' AND EXISTS (
+		SELECT 1 FROM notifications WHERE ` + pendingApplicationChangeNotice + `
+		AND projection_ref->>'event_key' = audit_log.details->>'event_key'
+	))
 	AND id NOT IN (
 		SELECT DISTINCT ON (entity_type, entity_id, action) id
 		FROM audit_log
 		WHERE action IN ('entry', 'exit')
 		ORDER BY entity_type, entity_id, action, created_at DESC, id DESC
 	)`
+
+// The unread field marker is application state, independent of bell read state.
+// Once acknowledged (or its application/owner disappears), normal retention applies.
+const pendingApplicationChangeNotice = `
+	COALESCE(type, '') = 'application_elements_changed'
+	AND projection_ref->>'type' = 'application_elements_changed'
+	AND COALESCE(projection_ref->'facts'->>'all_changes_acknowledged', 'false') <> 'true'
+	AND EXISTS (SELECT 1 FROM applications a
+		WHERE a.id::text = notifications.projection_ref->>'application_id'
+		AND a.sender_user_id = notifications.user_id)`
 
 // retentionRule описывает, что и по какому условию удаляется. cutoffArgs задаёт,
 // сколько раз граничная дата подставляется в условие.
@@ -114,7 +128,7 @@ var retentionRules = map[RetentionTarget]retentionRule{
 	},
 	TargetNotifications: {
 		table:       "notifications",
-		where:       "is_read AND created_at < ?",
+		where:       "is_read AND created_at < ? AND NOT (" + pendingApplicationChangeNotice + ")",
 		cutoffArgs:  1,
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -30) },
@@ -127,7 +141,7 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		// одну таблицу), и счётчик удалённого в логе задваивался бы. Прочитанные
 		// уходят по своему, более короткому сроку (TargetNotifications выше по файлу);
 		// здесь - только то, что человек ещё не видел.
-		where:       "NOT is_read AND created_at < ?",
+		where:       "NOT is_read AND created_at < ? AND NOT (" + pendingApplicationChangeNotice + ")",
 		cutoffArgs:  1,
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -90) },
