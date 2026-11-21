@@ -31,7 +31,7 @@ function schedule() { if (!props.change || !props.active) return; cancelAnimatio
 function observe() {
   if (observing || !props.change || !props.active) return;
   observing = true;
-  anchor.value?.firstElementChild?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  anchor.value?.firstElementChild?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'smooth' });
   if (typeof ResizeObserver !== 'undefined') {
     observer = new ResizeObserver(schedule);
     if (anchor.value?.parentElement) observer.observe(anchor.value.parentElement);
