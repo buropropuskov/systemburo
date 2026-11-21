@@ -1,30 +1,13 @@
 <template>
   <div class="attachment-details">
-    <div class="attachment-header-section">
-      <ApplicationAttachmentHeading :attachment="attachment" />
-
-      <!-- Даты действия -->
-      <div
-        v-if="attachment.entry_date_from || attachment.entry_date_to"
-        class="date-range"
-      >
-        <span class="date-label">Срок действия:</span>
-        <span class="date-value">
-          {{ formatDateRange(attachment.entry_date_from, attachment.entry_date_to) }}
-        </span>
-      </div>
-
-      <!-- Время действия -->
-      <div
-        v-if="attachment.entry_time_from || attachment.entry_time_to"
-        class="time-range"
-      >
-        <span class="time-label">Время:</span>
-        <span class="time-value">
-          {{ formatTimeRange(attachment.entry_time_from, attachment.entry_time_to) }}
-        </span>
-      </div>
-    </div>
+    <ApplicationAttachmentHeader
+      :attachment="attachment" :changes="changes"
+      :date-range="formatDateRange(attachment.entry_date_from, attachment.entry_date_to)"
+      :time-range="formatTimeRange(attachment.entry_time_from, attachment.entry_time_to)"
+      :active-key="activeAttentionKey" :busy="acknowledgingChange"
+      @acknowledge="$emit('acknowledge-change', $event)"
+      @focus-change="focusedAttentionKey = $event.key"
+    />
 
     <div
       v-if="attachment.custom_values && attachment.custom_values.length"
@@ -146,6 +129,7 @@
                   :data-label="col.label"
                 >
                   <template v-if="col.type === 'chips'">
+                    <ApplicationChangeAttention :change="fieldChange(row, col)" :active="Boolean(fieldChange(row, col) && activeAttentionKey === fieldChange(row, col).key)" :busy="acknowledgingChange" @focus-change="focusedAttentionKey = $event.key" :text="changeHint(col)" @acknowledge="$emit('acknowledge-change', $event)">
                     <div class="cell-chips">
                       <div class="chips">
                         <span
@@ -177,6 +161,7 @@
                         {{ chipItems(row, col).length ? '+' : 'Добавить' }}
                       </button>
                     </div>
+                    </ApplicationChangeAttention>
                   </template>
 
                   <template v-else-if="col.type === 'qty'">
@@ -414,10 +399,12 @@
 </template>
 
 <script>
+import ApplicationChangeAttention from './ApplicationChangeAttention.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import ApplicationAssignModal from './ApplicationAssignModal.vue'
-import ApplicationAttachmentHeading from './ApplicationAttachmentHeading.vue'
+import ApplicationAttachmentHeader from './ApplicationAttachmentHeader.vue'
+import attachmentFieldPresentation from '@/utils/attachmentFieldPresentation'
 import SearchComponent from '@/components/SearchComponent.vue'
 import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
 import { apiRequest } from '@/api/client'
@@ -522,8 +509,10 @@ function supplementRowMark(row) {
 
 export default {
     name: 'ApplicationAttachmentDetail',
-    components: { ApplicationAssignModal, ApplicationAttachmentHeading, BaseModal, Badge, SearchComponent },
+    components: { ApplicationChangeAttention, ApplicationAssignModal, ApplicationAttachmentHeader, BaseModal, Badge, SearchComponent },
     props: {
+        changes: { type: Array, default: () => [] },
+        acknowledgingChange: { type: Boolean, default: false },
         attachment: {
             type: Object,
             required: true
@@ -571,7 +560,7 @@ export default {
             default: null
         }
     },
-    emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed'],
+    emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed', 'acknowledge-change'],
     setup() {
         // Одно меню на таблицу: два открытых сразу не нужны, и место считается от той
         // кнопки, по которой нажали.
@@ -597,6 +586,7 @@ export default {
             // Ширина колонок с чипами: по ней считаем, сколько названий влезает
             // целиком. Пусто до первого замера - тогда работает запасной расчёт.
             chipColumnWidths: {},
+            focusedAttentionKey: null,
             textMeasureContext: null,
             searchQuery: '',
             searchVariants: [],
@@ -611,6 +601,7 @@ export default {
         };
     },
     computed: {
+        activeAttentionKey() { return this.changes.some(change => change.key === this.focusedAttentionKey) ? this.focusedAttentionKey : (this.changes[0]?.key || null); },
         type() {
             return this.attachment.attachment_type;
         },
@@ -929,6 +920,8 @@ export default {
         }
     },
     methods: {
+        fieldChange(row, col) { return this.changes.find(change => change.entity_id === row.id && change.entity_kind === (this.type === 'people' ? 'employees' : 'cars') && change.field === col.assignKind) || null; },
+        changeHint(col) { return col.assignKind === 'places' ? 'Место разгрузки изменено' : (this.type === 'people' ? 'Пост прохода изменён' : 'Пост проезда изменён'); },
         /** Canvas меряет ширину текста точнее прикидки по числу символов. */
         initTextMeasure() {
             if (typeof document === 'undefined') return;
@@ -1304,47 +1297,7 @@ export default {
             });
         },
 
-        formatDateRange(dateFrom, dateTo) {
-            if (!dateFrom && !dateTo) return '';
-            const from = dateFrom ? this.formatDate(dateFrom) : '';
-            const to = dateTo ? this.formatDate(dateTo) : '';
-            if (from && to) {
-                const fromDate = new Date(dateFrom);
-                const toDate = new Date(dateTo);
-                if (fromDate.toDateString() === toDate.toDateString()) {
-                    return from;
-                }
-                return `${from} - ${to}`;
-            } else if (from) {
-                return `с ${from}`;
-            } else if (to) {
-                return `по ${to}`;
-            }
-            return '';
-        },
-
-        formatTime(time) {
-            if (!time) return '';
-            const timeParts = time.split(':');
-            if (timeParts.length >= 2) {
-                return `${timeParts[0]}:${timeParts[1]}`;
-            }
-            return time;
-        },
-
-        formatTimeRange(timeFrom, timeTo) {
-            if (!timeFrom && !timeTo) return '';
-            const from = timeFrom ? this.formatTime(timeFrom) : '';
-            const to = timeTo ? this.formatTime(timeTo) : '';
-            if (from && to) {
-                return `${from} - ${to}`;
-            } else if (from) {
-                return `с ${from}`;
-            } else if (to) {
-                return `до ${to}`;
-            }
-            return '';
-        }
+        ...attachmentFieldPresentation
     }
 }
 </script>

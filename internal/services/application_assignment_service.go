@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"systemburo/internal/models"
 
@@ -192,7 +193,13 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 		return err
 	}
 
+	var changes []applicationFieldChange
+	var changeDispatches []NotificationDispatch
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var locked []int
+		if err := tx.Table(elementTable).Where("id IN ?", elementIDs).Order("id").Clauses(clause.Locking{Strength: "UPDATE"}).Pluck("id", &locked).Error; err != nil {
+			return err
+		}
 		changed := false
 		for _, elementID := range elementIDs {
 			var current []int
@@ -206,6 +213,9 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 				target = unionInts(current, tableIDs)
 			}
 
+			if !equalIntSets(current, target) {
+				changes = append(changes, applicationFieldChange{Kind: elementTable, EntityID: elementID, Field: "tables", Before: current, After: target})
+			}
 			for _, tableID := range diffInts(target, current) {
 				changed = true
 				if err := tx.Exec(
@@ -233,6 +243,11 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 			}
 		}
 		if changed {
+			var eventErr error
+			changeDispatches, eventErr = s.recordApplicationChanges(ctx, tx, applicationID, actx.userID, changes)
+			if eventErr != nil {
+				return eventErr
+			}
 			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 		}
 		return nil
@@ -243,7 +258,12 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 
 	// Слепок заявки хранит посты каждой машины/сотрудника (#1615, B1): назначение
 	// постов их меняет и на диске должно обновиться.
-	s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	if len(changes) > 0 {
+		s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
+	} else {
+		s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	}
+	s.notifyApplicationChanges(ctx, changeDispatches)
 	return nil
 }
 
@@ -269,7 +289,13 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 		return err
 	}
 
+	var changes []applicationFieldChange
+	var changeDispatches []NotificationDispatch
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var locked []int
+		if err := tx.Table("cars").Where("id IN ?", carIDs).Order("id").Clauses(clause.Locking{Strength: "UPDATE"}).Pluck("id", &locked).Error; err != nil {
+			return err
+		}
 		changed := false
 		for _, carID := range carIDs {
 			var current []int
@@ -287,6 +313,7 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 			}
 
 			changed = true
+			changes = append(changes, applicationFieldChange{Kind: "cars", EntityID: carID, Field: "places", Before: current, After: target})
 			if err := tx.Exec("DELETE FROM car_unload_places WHERE car_id = ?", carID).Error; err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось обновить места разгрузки")
 			}
@@ -306,6 +333,11 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 			}
 		}
 		if changed {
+			var eventErr error
+			changeDispatches, eventErr = s.recordApplicationChanges(ctx, tx, applicationID, actx.userID, changes)
+			if eventErr != nil {
+				return eventErr
+			}
 			return enqueueArchiveExportTx(ctx, tx, []int{applicationID}, BlankExportReasonUpdate)
 		}
 		return nil
@@ -315,7 +347,12 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 	}
 
 	// Слепок заявки хранит места разгрузки каждой машины (#1615, B1).
-	s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	if len(changes) > 0 {
+		s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
+	} else {
+		s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	}
+	s.notifyApplicationChanges(ctx, changeDispatches)
 	return nil
 }
 

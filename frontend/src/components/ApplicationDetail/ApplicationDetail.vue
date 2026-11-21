@@ -417,7 +417,7 @@
               :can-override="canOverrideBlacklist"
               :can-remove="canRemoveElements"
               :can-assign="canAssignPlaces"
-              :application-id="applicationData.id"
+              :application-id="applicationData.id" :attachments="attachments" :focus-attachment="selectAttachment"
               @open-vehicle="openVehicleModal"
               @open-employee="openEmployeeModal"
               @override-element="openOverrideModal"
@@ -704,7 +704,7 @@ import ForwardMessages from './ForwardMessages.vue'
 import ApplicationBureauNote from './ApplicationBureauNote.vue'
 import ApplicationQuestions from './ApplicationQuestions.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
-import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
+import ApplicationAttachmentDetail from './ApplicationAttachmentWithChanges.vue'
 import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
 import ElementRemovalModal from './ElementRemovalModal.vue'
 import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'

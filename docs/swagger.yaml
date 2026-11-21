@@ -1276,6 +1276,9 @@ definitions:
     type: object
   models.MarkNotificationReadRequest:
     properties:
+      acknowledged_change:
+        minimum: 0
+        type: integer
       is_read:
         type: boolean
     type: object
@@ -14447,6 +14450,10 @@ paths:
         С limit - страница (+offset, +filter=all|unread), meta несёт total и
         unread_count по всем уведомлениям пользователя (#1748).
       parameters:
+      - description: Только изменения указанной заявки для её инициатора
+        in: query
+        name: application_id
+        type: integer
       - description: Размер страницы (<=100); наличие включает пагинацию
         in: query
         name: limit
