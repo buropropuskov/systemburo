@@ -1,10 +1,10 @@
 {
   "document": "user",
-  "version": "1.19",
-  "pages": 84,
-  "code_revision": "bb1cbad49f2b2ce9f03bd4d7da1aef10e5a44a6a",
-  "source_sha256": "95126b55ab9358dcbcef4136c6091ccafbd537755474f516bcf561cac3a2579c",
-  "builder_sha256": "7a685efcdee1846f33651fc6c9bcc95378658d244b6df27a93471a43cacd224f",
-  "docx_sha256": "e1f610f575410b7ff1f110e3ed8460ec19bc12f25fe94c7ea29baa68dcf1c65b",
-  "pdf_sha256": "154347ae9518a2cdd045b7e257bfe3f4f48258fbd2cd3e9d9d6bc9bda774c11e"
+  "version": "1.20",
+  "pages": 85,
+  "code_revision": "f1306088a388b79c12bede0b99bdd57baf0d5a99",
+  "source_sha256": "36a1b4352c54a1c1d41eadaf5d39a3408c4e213ef3a20fcc731f46de4adb98e8",
+  "builder_sha256": "77ddeded714c5d630dd336160ef51b4fe63a8e235b7cb739d60a4badd0860f80",
+  "docx_sha256": "c05e64bed4aca1198d3a027cf65a40f220721b1ba9ea93bb8e15aca886d5e50d",
+  "pdf_sha256": "11b663999a8dac8e753ae3bdf43012751ab539d6754faf35ecc3578d59d8400d"
 }
