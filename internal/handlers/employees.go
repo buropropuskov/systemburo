@@ -127,7 +127,7 @@ func (h *EmployeeHandler) GetActiveEmployeesForTable(c *echo.Context) error {
 }
 
 // DeactivateEmployee обрабатывает PUT /employees/:id/deactivate.
-// @Summary Деактивация сотрудника
+// @Summary Общая деактивация сотрудника (администратор)
 // @Tags employees
 // @Security BearerAuth
 // @Accept json
@@ -269,7 +269,7 @@ func (h *EmployeeHandler) BulkAddTable(c *echo.Context) error {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        request body services.EmployeeBulkUnbindTableRequest true "ID сотрудников и таблица"
+// @Param        request body services.EmployeeBulkUnbindTableRequest true "ID сотрудников и один table_id либо набор table_ids; all_tables проверяет полный набор привязок"
 // @Success      200 {object} services.BulkOpResult
 // @Success      207 {object} services.BulkOpResult "Частичный успех"
 // @Failure      400 {object} models.HTTPError

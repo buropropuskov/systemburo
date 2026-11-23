@@ -11,6 +11,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // --- DTO групповых операций над car_target_tables (#1194, S1) ---
@@ -32,11 +33,13 @@ type BulkAddCarsTableRequest struct {
 }
 
 // BulkUnbindCarsTableRequest -- тело POST /cars/bulk/unbind-table: снимает у
-// набора машин привязку к TableID. Если это последняя привязка машины - машина
+// набора машин привязки к TableID либо TableIDs. Если это последняя привязка машины - машина
 // деактивируется (как единичный DeactivateCar).
 type BulkUnbindCarsTableRequest struct {
-	IDs     []int `json:"ids"`
-	TableID int   `json:"table_id"`
+	IDs       []int `json:"ids"`
+	TableID   int   `json:"table_id"`
+	TableIDs  []int `json:"table_ids,omitempty"`
+	AllTables bool  `json:"all_tables,omitempty"`
 }
 
 // BulkMoveTable переносит набор машин из одной таблицы «Проезд» в другие (#1194).
@@ -99,24 +102,25 @@ func (s *carService) BulkAddTable(ctx context.Context, req BulkAddCarsTableReque
 // Пустой итоговый набор целевых таблиц машины -> деактивация (как единичный
 // DeactivateCar).
 func (s *carService) BulkUnbindTable(ctx context.Context, req BulkUnbindCarsTableRequest, actorID int) (*BulkOpResult, error) {
-	if req.TableID <= 0 {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана таблица")
+	tableIDs, err := TableRemovalTargets(req.TableID, req.TableIDs)
+	if err != nil {
+		return nil, err
 	}
-	if err := s.validateCarsTargetTables(ctx, []int{req.TableID}); err != nil {
+	if err := s.validateCarsTargetTables(ctx, tableIDs); err != nil {
 		return nil, err
 	}
 	carNumbers := s.carNumbersByIDs(ctx, req.IDs)
 
 	res := newBulkResult()
 	for _, carID := range uniqueInts(req.IDs) {
-		if err := s.unbindCarTable(ctx, carID, req.TableID, &actorID); err != nil {
+		if err := s.unbindCarTables(ctx, carID, tableIDs, req.AllTables, &actorID); err != nil {
 			res.addError(carID, carNumbers[carID], bulkErrMsg(err))
 			continue
 		}
 		res.SuccessCount++
 	}
 
-	s.tablesProducer.NotifyTables(ctx, []int{req.TableID})
+	s.tablesProducer.NotifyTables(ctx, tableIDs)
 	s.enqueueArchiveExportForCars(ctx, req.IDs)
 	return res.finalize(), nil
 }
@@ -226,22 +230,33 @@ func (s *carService) addCarTables(ctx context.Context, carID int, tableIDs []int
 }
 
 // unbindCarTable - одна машина операции BulkUnbindTable, своя транзакция.
-func (s *carService) unbindCarTable(ctx context.Context, carID, tableID int, actorID *int) error {
+func (s *carService) unbindCarTables(ctx context.Context, carID int, tableIDs []int, all bool, actorID *int) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := loadActiveCarForBulk(tx, carID); err != nil {
+		if _, err := loadActiveCarForBulk(tx.Clauses(clause.Locking{Strength: "UPDATE"}), carID); err != nil {
 			return err
 		}
+		if all {
+			var count int64
+			if err := tx.Model(&models.CarTargetTable{}).Where("car_id = ?", carID).Count(&count).Error; err != nil {
+				return err
+			}
+			if count != int64(len(tableIDs)) {
+				return echo.NewHTTPError(http.StatusConflict, "Набор постов изменился. Обновите список")
+			}
+		}
 
-		del := tx.Where("car_id = ? AND table_id = ?", carID, tableID).Delete(&models.CarTargetTable{})
+		del := tx.Where("car_id = ? AND table_id IN ?", carID, tableIDs).Delete(&models.CarTargetTable{})
 		if del.Error != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error unbinding car table")
 		}
-		if del.RowsAffected == 0 {
-			return echo.NewHTTPError(http.StatusBadRequest, "Машина не привязана к этой таблице")
+		if del.RowsAffected != int64(len(tableIDs)) {
+			return echo.NewHTTPError(http.StatusConflict, "Привязки машины изменились. Обновите список")
 		}
 
-		if err := recordUnboundFromTable(ctx, s.recorder, tx, models.AuditEntityCar, carID, tableID, actorID); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car table history")
+		for _, tableID := range tableIDs {
+			if err := recordUnboundFromTable(ctx, s.recorder, tx, models.AuditEntityCar, carID, tableID, actorID); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car table history")
+			}
 		}
 
 		var remaining int64

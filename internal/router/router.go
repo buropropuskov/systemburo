@@ -144,8 +144,10 @@ type Dependencies struct {
 	// CarDeleteGate/EmployeeDeleteGate - RequireTableElementVerb(..., "delete"): снятие,
 	// возврат и восстановление элемента поста правом table.<name>.delete на его пост
 	// (#2600). main и testutil обязаны заполнять.
-	CarDeleteGate      echo.MiddlewareFunc
-	EmployeeDeleteGate echo.MiddlewareFunc
+	CarDeleteGate       echo.MiddlewareFunc
+	EmployeeDeleteGate  echo.MiddlewareFunc
+	CarRemovalGate      echo.MiddlewareFunc
+	EmployeeRemovalGate echo.MiddlewareFunc
 
 	// Misc
 	JWTSecret []byte
@@ -788,10 +790,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.GET("/history/unified", cars.GetUnifiedCarHistory)
 	carsGroup.PUT("/:id/restore", cars.RestoreCar, d.CarDeleteGate)
 	// Групповые операции над строками таблицы проходной (#1194): перенос/добавление/
-	// снятие набора машин с таблиц «Проезд». Права admin - как остальные bulk-операции.
+	// снятие с одного поста требует его delete; несколько постов — администратора.
 	carsGroup.POST("/bulk/move-table", cars.BulkMoveTable, requireAdmin)
 	carsGroup.POST("/bulk/add-table", cars.BulkAddTable, requireAdmin)
-	carsGroup.POST("/bulk/unbind-table", cars.BulkUnbindTable, requireAdmin)
+	carsGroup.POST("/bulk/unbind-table", cars.BulkUnbindTable, d.CarRemovalGate)
 
 	// Сотрудники (в заявках)
 	empGroup := protected.Group("/employees")
@@ -820,7 +822,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// сегменты bulk/* приоритетнее /:id в роутинге Echo.
 	empGroup.POST("/bulk/move-table", employees.BulkMoveTable, requireAdmin)
 	empGroup.POST("/bulk/add-table", employees.BulkAddTable, requireAdmin)
-	empGroup.POST("/bulk/unbind-table", employees.BulkUnbindTable, requireAdmin)
+	empGroup.POST("/bulk/unbind-table", employees.BulkUnbindTable, d.EmployeeRemovalGate)
 	empGroup.GET("/:id/history", employeesHistory.GetByEmployee)
 	empGroup.GET("/history/unified", employeesHistory.GetUnified)
 	empGroup.GET("/history/all", employeesHistory.GetAll, requireAdmin, mw.RequirePermissionV2(permResolver, denialLog, services.KeyDetailEntryExitHistory))

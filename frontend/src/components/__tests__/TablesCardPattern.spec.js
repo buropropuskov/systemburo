@@ -358,12 +358,12 @@ describe.each(WITH_CHEVRON)('Кнопка «Подробнее» в карточ
   });
 
   it('шеврон и корзина - пилюли с подписью, а не квадраты 44px', () => {
-    // Владелец про прежний вид: «огромный квадрат со стрелочкой на пару вместе с
-    // микроскопической иконкой корзины». Пилюля приходит классом из
-    // responsive-tables.css, поэтому собственных квадратов в карточке быть не должно.
+    // Общий компонент сохраняет классы пилюли из responsive-tables.css.
     expect(src).toMatch(/class="expand-btn rt-pass__act"/);
-    expect(src).toMatch(/class="delete-btn rt-pass__act rt-pass__act--danger"/);
-
+    expect(src).toMatch(/<PostRemovalAction\b/);
+    const action = source('PostRemovalAction.vue');
+    expect(action).toMatch(/class="delete-btn rt-pass__act rt-pass__act--danger"/);
+    expect(action).toContain('rt-pass__act-label">Убрать</span>');
     const squares = selectorsWith(mobile, 'height: 44px');
     expect(squares).not.toContain(`${card} .expand-btn`);
     expect(squares).not.toContain('.delete-btn');

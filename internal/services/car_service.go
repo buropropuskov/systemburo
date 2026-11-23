@@ -261,8 +261,8 @@ type TableCarResponse struct {
 	TerritoryStatus    *int     `json:"territory_status"`
 	TerritoryEntryTime *string  `json:"territory_entry_time"`
 	// TargetTablesCount - число таблиц «Проезд», к которым привязана машина (#1194):
-	// FE показывает per-row «Убрать» без подменю при 1 (снятие с единственной =
-	// деактивация) и с подменю «из этой/из всех» при >1.
+	// Снятие с последнего поста деактивирует запись. Выбор постов использует
+	// явный TargetTables, а не только количество привязок.
 	TargetTablesCount int `json:"target_tables_count"`
 	// TargetTables - сами привязки «Проезд» с источником (#1227): карточка машины из
 	// контекста проходной различает «из заявки» (application) и «добавлено» (manual).

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -19,10 +20,9 @@ var tableElementBindings = map[string]struct{ table, column string }{
 	"employees": {"employee_target_tables", "employee_id"},
 }
 
-// RequireTableElementVerb пускает действие над машиной или сотрудником поста (снятие,
-// возврат, восстановление), только если у пользователя есть table.<name>.<verb> хотя бы
-// на одну таблицу поста, к которой элемент привязан. Элемент без постов доступен лишь
-// администратору (page.admin).
+// RequireTableElementVerb проверяет возврат и восстановление по праву поста.
+// Legacy deactivate меняет запись на всех постах и требует page.admin.
+// Для адресного снятия используется отдельный RequireTableRemoval.
 //
 // Без этого гейта методы выполнял любой вошедший, в том числе для чужих элементов (#2600).
 // Таблица берётся из привязок элемента, а не из тела запроса: FactTable шлёт снятие без
@@ -46,6 +46,11 @@ func RequireTableElementVerb(db *gorm.DB, resolver *services.PermissionResolver,
 				return echo.NewHTTPError(http.StatusBadRequest, "Invalid ID")
 			}
 
+			// Deactivation affects every post. A post-scoped delete permission must
+			// use unbind-table instead; the body cannot narrow this legacy operation.
+			if verb == "delete" && strings.HasSuffix(c.Path(), "/deactivate") {
+				return RequirePermissionV2(resolver, denialLog, services.KeyPageAdmin)(next)(c)
+			}
 			set, err := resolver.ResolveFresh(c.Request().Context(), userID)
 			if err != nil {
 				return err

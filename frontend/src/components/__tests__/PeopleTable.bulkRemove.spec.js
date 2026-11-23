@@ -3,6 +3,7 @@ import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useUiStore } from '@/stores/ui';
 
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
@@ -45,6 +46,7 @@ function baseItem(overrides) {
     entry_date_to: '2026-06-05',
     pass_time: '08:00',
     target_tables_count: 1,
+    target_tables: [{ id: 7, name: 'КПП текущий' }, ...(overrides?.target_tables_count > 1 ? [{ id: 99, name: 'КПП другой' }] : [])],
     ...overrides,
   };
 }
@@ -65,6 +67,7 @@ describe('PeopleTable - групповое "Убрать" (#1194 S5)', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
     usePermissionsStore().mode = 'super';
     apiRequest.mockReset();
     employeesBulkApi.bulkMoveEmployeesTable.mockReset();
@@ -171,6 +174,7 @@ describe('PeopleTable - групповое "Убрать" (#1194 S5)', () => {
 describe('PeopleTable - per-row корзина "из этой/из всех" (#1194 S5)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
     usePermissionsStore().mode = 'super';
     apiRequest.mockReset();
     employeesBulkApi.bulkMoveEmployeesTable.mockReset();
@@ -207,7 +211,7 @@ describe('PeopleTable - per-row корзина "из этой/из всех" (#1
     expect(wrapper.find('[data-testid="row-remove-trigger"]').exists()).toBe(false);
   });
 
-  it('target_tables_count > 1 - показывает подменю с двумя пунктами', async () => {
+  it('target_tables_count > 1 - показывает меню текущего, выбранных и всех постов', async () => {
     const wrapper = await mountWithItem({ target_tables_count: 2 });
 
     expect(wrapper.find('[data-testid="row-remove-trigger"]').exists()).toBe(true);
@@ -217,7 +221,7 @@ describe('PeopleTable - per-row корзина "из этой/из всех" (#1
     expect(wrapper.find('[data-testid="row-remove-all"]').exists()).toBe(true);
   });
 
-  it('не-админ + count > 1 - подменю "из этой/из всех" скрыто (unbind гейтится page.admin)', async () => {
+  it('не-админ + count > 1 - подменю "из этой/из всех" скрыто (выбор нескольких постов требует page.admin)', async () => {
     usePermissionsStore().mode = 'normal';
     const wrapper = await mountWithItem({ target_tables_count: 2 });
 
@@ -233,28 +237,30 @@ describe('PeopleTable - per-row корзина "из этой/из всех" (#1
 
     await wrapper.find('[data-testid="row-remove-trigger"]').trigger('click');
     await wrapper.find('[data-testid="row-remove-current"]').trigger('click');
+    await flushPromises();
 
     expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Сотрудник ' }));
     const { onConfirm } = enqueue.mock.calls[0][0];
     await onConfirm();
     await flushPromises();
 
-    expect(employeesBulkApi.bulkUnbindEmployeesTable).toHaveBeenCalledWith([9], 7);
+    expect(employeesBulkApi.bulkUnbindEmployeesTable).toHaveBeenCalledWith([9], [7], { all: false });
   });
 
-  it('"Убрать из всех таблиц" -> существующий deactivate-флоу не изменился', async () => {
+  it('"Все посты" -> подтверждённый набор без общей деактивации', async () => {
     const wrapper = await mountWithItem({ id: 10, last_name: 'Кузнецов', target_tables_count: 2 });
     const enqueue = vi.spyOn(useDeletionsStore(), 'enqueue');
 
     await wrapper.find('[data-testid="row-remove-trigger"]').trigger('click');
     await wrapper.find('[data-testid="row-remove-all"]').trigger('click');
+    await flushPromises();
 
-    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Сотрудник ', suffix: ' удалён' }));
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Сотрудник ', suffix: ' убран с выбранных постов' }));
     const { onConfirm } = enqueue.mock.calls[0][0];
     await onConfirm();
     await flushPromises();
 
-    expect(apiRequest).toHaveBeenCalledWith('/employees/10/deactivate', expect.objectContaining({ method: 'PUT' }));
-    expect(employeesBulkApi.bulkUnbindEmployeesTable).not.toHaveBeenCalled();
+    expect(apiRequest).not.toHaveBeenCalledWith('/employees/10/deactivate', expect.anything());
+    expect(employeesBulkApi.bulkUnbindEmployeesTable).toHaveBeenCalledWith([10], [7, 99], { all: true });
   });
 });

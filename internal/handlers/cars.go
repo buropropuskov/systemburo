@@ -407,7 +407,7 @@ func (h *CarHandler) RevertCarPassage(c *echo.Context) error {
 }
 
 // DeactivateCar обрабатывает PUT /cars/:id/deactivate.
-// @Summary Деактивация автомобиля
+// @Summary Общая деактивация автомобиля (администратор)
 // @Tags cars
 // @Security BearerAuth
 // @Accept json
@@ -544,7 +544,7 @@ func (h *CarHandler) BulkAddTable(c *echo.Context) error {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param body body services.BulkUnbindCarsTableRequest true "ID машин и таблица"
+// @Param body body services.BulkUnbindCarsTableRequest true "ID машин и один пост table_id либо выбранные посты table_ids"
 // @Success 200 {object} services.BulkOpResult
 // @Success 207 {object} services.BulkOpResult "Частичный успех"
 // @Failure 400 {object} models.HTTPError

@@ -126,11 +126,16 @@ func TestPostElementGate_TableVerb(t *testing.T) {
 
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", fx.carID), `{}`, testutil.AuthHeader(strangerToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code, "право на чужой пост: %s", rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "table."+fx.tableName+".delete", "отказ называет нужное право")
+	assert.Contains(t, rec.Body.String(), "page.admin", "общая деактивация требует административного права")
 	assert.Equal(t, 1, elementStatus(t, db, "cars", fx.carID))
 
 	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", fx.carID), `{}`, testutil.AuthHeader(guardToken))
-	require.Equal(t, http.StatusOK, rec.Code, "охранник своего поста: %s", rec.Body.String())
+	require.Equal(t, http.StatusForbidden, rec.Code, "право поста не разрешает общую деактивацию")
+	assert.Equal(t, 1, elementStatus(t, db, "cars", fx.carID))
+	var tableID int
+	require.NoError(t, db.Table("system_tables").Select("id").Where("name = ?", fx.tableName).Scan(&tableID).Error)
+	rec = testutil.POST(t, e, "/cars/bulk/unbind-table", fmt.Sprintf(`{"ids":[%d],"table_id":%d}`, fx.carID, tableID), testutil.AuthHeader(guardToken))
+	require.Equal(t, http.StatusOK, rec.Code, "охранник снимает только со своего поста: %s", rec.Body.String())
 	assert.Equal(t, 0, elementStatus(t, db, "cars", fx.carID), "машина снята")
 
 	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", fx.unboundCarID), `{}`, testutil.AuthHeader(guardToken))

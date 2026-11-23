@@ -100,10 +100,10 @@ export async function bulkAddEmployeesTable(ids, tableIds) {
  * @param {number[]} ids
  * @param {number} tableId
  */
-export async function bulkUnbindEmployeesTable(ids, tableId) {
+export async function bulkUnbindEmployeesTable(ids, tableId, { all = false } = {}) {
   const res = await apiRequest('/employees/bulk/unbind-table', {
     method: 'POST',
-    body: JSON.stringify({ ids, table_id: tableId }),
+    body: JSON.stringify({ ids, ...(Array.isArray(tableId) ? { table_ids: tableId } : { table_id: tableId }), ...(all ? { all_tables: true } : {}) }),
   });
   return res.json();
 }

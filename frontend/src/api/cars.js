@@ -141,10 +141,10 @@ export async function bulkAddCarsTable(ids, tableIds) {
  * @param {number[]} ids
  * @param {number} tableId
  */
-export async function bulkUnbindCarsTable(ids, tableId) {
+export async function bulkUnbindCarsTable(ids, tableId, { all = false } = {}) {
   const res = await apiRequest('/cars/bulk/unbind-table', {
     method: 'POST',
-    body: JSON.stringify({ ids, table_id: tableId }),
+    body: JSON.stringify({ ids, ...(Array.isArray(tableId) ? { table_ids: tableId } : { table_id: tableId }), ...(all ? { all_tables: true } : {}) }),
   });
   return res.json();
 }

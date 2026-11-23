@@ -3713,12 +3713,18 @@ definitions:
     type: object
   services.BulkUnbindCarsTableRequest:
     properties:
+      all_tables:
+        type: boolean
       ids:
         items:
           type: integer
         type: array
       table_id:
         type: integer
+      table_ids:
+        items:
+          type: integer
+        type: array
     type: object
   services.BulkUnloadPlacesRequest:
     properties:
@@ -4434,12 +4440,18 @@ definitions:
     type: object
   services.EmployeeBulkUnbindTableRequest:
     properties:
+      all_tables:
+        type: boolean
       ids:
         items:
           type: integer
         type: array
       table_id:
         type: integer
+      table_ids:
+        items:
+          type: integer
+        type: array
     type: object
   services.EmployeeCurrentStatus:
     properties:
@@ -10306,7 +10318,7 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Деактивация автомобиля
+      summary: Общая деактивация автомобиля (администратор)
       tags:
       - cars
   /cars/{id}/history:
@@ -10543,7 +10555,7 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: ID машин и таблица
+      - description: ID машин и один пост table_id либо выбранные посты table_ids
         in: body
         name: body
         required: true
@@ -12618,7 +12630,7 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Деактивация сотрудника
+      summary: Общая деактивация сотрудника (администратор)
       tags:
       - employees
   /employees/{id}/history:
@@ -12841,7 +12853,8 @@ paths:
       description: Снимает у выбранных сотрудников привязку к одной таблице; при снятии
         последней привязки сотрудник деактивируется. Требует права admin.
       parameters:
-      - description: ID сотрудников и таблица
+      - description: ID сотрудников и один table_id либо набор table_ids; all_tables
+          проверяет полный набор привязок
         in: body
         name: request
         required: true

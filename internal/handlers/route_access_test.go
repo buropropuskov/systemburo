@@ -88,12 +88,14 @@ func TestRouteAccess_Registry(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	// Гейты постов берут имя поста из базы по id из пути или тела: без поста они
-	// отвечают 404 раньше проверки права, и ключ не виден.
+	// Пост должен существовать для проверки гейтов; его общий ID не должен
+	// совпадать с пользователями, чьи сессии могут завершить другие пробы.
 	post := "route_access_post"
 	dn := "Пост замка реестра"
-	table := models.SystemTable{Name: post, DisplayName: &dn, TableType: "cars", IsActive: true}
+	table := models.SystemTable{ID: 1_000_000_000, Name: post, DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&table).Error)
+	peopleTable := models.SystemTable{Name: post + "_people", TableType: "people", IsActive: true}
+	require.NoError(t, db.Create(&peopleTable).Error)
 
 	tokens := map[string]string{}
 	userIDs := map[string]int{}
@@ -189,8 +191,13 @@ func TestRouteAccess_Registry(t *testing.T) {
 		}
 		method, path, _ := strings.Cut(key, " ")
 		target := concreteRoutePath(path, table.ID)
+		probePost, probeBody := post, body
+		if key == "POST /api/employees/bulk/unbind-table" {
+			probePost = peopleTable.Name
+			probeBody = fmt.Sprintf(`{"table_id":%d}`, peopleTable.ID)
+		}
 
-		anon := probeRoute(t, e, method, target, body, "")
+		anon := probeRoute(t, e, method, target, probeBody, "")
 		if ra.class == accessPublic {
 			if anon.status == http.StatusUnauthorized && strings.Contains(anon.body, jwtMissingHeaderError) {
 				t.Errorf("%s: в реестре public, а роут стоит за JWT", key)
@@ -202,8 +209,8 @@ func TestRouteAccess_Registry(t *testing.T) {
 		}
 
 		if ra.class == accessPerm {
-			checkPermChain(t, key, ra.keys, post, postKeys, func(granted []string) accessProbe {
-				return probeRoute(t, e, method, target, body, tokenWith(granted))
+			checkPermChain(t, key, ra.keys, probePost, postKeys, func(granted []string) accessProbe {
+				return probeRoute(t, e, method, target, probeBody, tokenWith(granted))
 			})
 			continue
 		}

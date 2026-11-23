@@ -743,6 +743,8 @@ func main() {
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		CarDeleteGate:       mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "cars", "delete"),
 		EmployeeDeleteGate:  mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "employees", "delete"),
+		CarRemovalGate:      mw.RequireTableRemoval(db, permissionResolver, accessDenialService, "cars"),
+		EmployeeRemovalGate: mw.RequireTableRemoval(db, permissionResolver, accessDenialService, "people"),
 		Impersonation:       impersonationHandler,
 		JWTSecret:           []byte(cfg.JWTSecret),
 		SessionAccess:       services.NewSessionAccessService(db, cfg.JWTRefreshSecret),
