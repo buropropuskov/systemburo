@@ -689,6 +689,8 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool, gates *S
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		CarDeleteGate:       mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "cars", "delete"),
 		EmployeeDeleteGate:  mw.RequireTableElementVerb(db, permissionResolver, accessDenialService, "employees", "delete"),
+		CarRemovalGate:      mw.RequireTableRemoval(db, permissionResolver, accessDenialService, "cars"),
+		EmployeeRemovalGate: mw.RequireTableRemoval(db, permissionResolver, accessDenialService, "people"),
 		Impersonation:       handlers.NewImpersonationHandler(services.NewImpersonationService(db, TestJWTSecret, permissionResolver, auditRecorder)),
 		JWTSecret:           []byte(TestJWTSecret),
 		SessionAccess:       services.NewSessionAccessService(db, TestJWTRefreshSecret),

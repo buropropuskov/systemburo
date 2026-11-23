@@ -420,30 +420,13 @@
                   style="order: 9999;"
                   @click.stop
                 >
-                  <!-- Машина привязана к нескольким таблицам (#1194 S5) - выбор
-                       между "убрать только отсюда" и глобальной деактивацией.
-                       Единственная привязка ИЛИ не-админ - корзина работает как
-                       раньше (unbind-table гейтится page.admin на бэке, иначе
-                       "видно, но 403"). -->
-                  <TableRowRemoveMenu
-                    v-if="(item.target_tables_count || 0) > 1 && can('page.admin')"
-                    :disabled="preview || isLoading"
-                    @remove-current="removeFromCurrentTableWithNotification(item)"
-                    @remove-all="removeItemWithNotification(item)"
+                  <!-- Снятие только с явно подтверждённых постов. -->
+                  <PostRemovalAction
+                    :table-id="tableId" :table-title="tableTitle"
+                    :label="item.car_number" :tables="item.target_tables || []"
+                    :admin="can('page.admin')" :disabled="preview || isLoading"
+                    @remove="removeFromPostsWithNotification(item, $event)"
                   />
-                  <button
-                    v-else
-                    class="delete-btn rt-pass__act rt-pass__act--danger"
-                    title="Удалить"
-                    :disabled="preview || isLoading"
-                    @click="preview ? null : removeItemWithNotification(item)"
-                  >
-                    <AppIcon
-                      name="trashcan"
-                      class="delete-icon rt-pass__act-icon"
-                    />
-                    <span class="rt-pass__act-label">Удалить</span>
-                  </button>
                 </div>
               </div>
               <div
@@ -552,7 +535,7 @@ import PassageTableHeader from './PassageTableHeader.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
 import TableBulkTargetModal from './TableBulkTargetModal.vue';
-import TableRowRemoveMenu from './TableRowRemoveMenu.vue';
+import PostRemovalAction from './PostRemovalAction.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import { LoaderSpinner, RegistrySortButton } from '@/components/ui';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -561,7 +544,7 @@ import AnimatedCounter from '@/components/ui/AnimatedCounter.vue';
 import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
-import AppIcon from '@/components/icons/AppIcon.vue';
+
 import { formatMoscowDateTime } from '@/utils/serverTime';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
@@ -599,13 +582,13 @@ export default {
     VehicleDetailsModal,
     CarsTableHistoryModal,
     TableBulkTargetModal,
-    TableRowRemoveMenu,
+    PostRemovalAction,
     ConfirmationModal,
     LoaderSpinner,
     StatusBadge,
     SwitchToggle,
     AnimatedCounter,
-    AppIcon,
+
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -1191,43 +1174,33 @@ export default {
       }
     },
 
-    removeItemWithNotification(item) {
-      if (this.isLoading) return;
-      if (this.pendingDeleteIds.includes(item.id)) return;
-      const carId = item.id;
-      const tableId = this.tableId;
-      const userId = this.currentUserId;
-      // Прячем строку через displayItems-фильтр (устойчиво к polling), пока идёт окно отмены.
-      this.pendingDeleteIds.push(carId);
-      useDeletionsStore().enqueue({
-        prefix: 'Машина ',
-        bold: item.car_number,
-        suffix: ' удалена',
-        onConfirm: () => this.commitDelete(carId, tableId, userId),
-        onUndo: () => this.unhidePending(carId),
-      });
-    },
-
     unhidePending(carId) {
       this.pendingDeleteIds = this.pendingDeleteIds.filter(id => id !== carId);
     },
 
-    async commitDelete(carId, tableId, userId) {
+    removeFromPostsWithNotification(item, { tableIds, all = false }) {
+      if (this.isLoading || this.pendingDeleteIds.includes(item.id)) return;
+      const id = item.id;
+      this.pendingDeleteIds.push(id);
+      useDeletionsStore().enqueue({
+        prefix: 'Машина ', bold: item.car_number, suffix: ' убрана с выбранных постов',
+        onConfirm: () => this.commitUnbindFromPosts(id, tableIds, all),
+        onUndo: () => this.unhidePending(id),
+      });
+    },
+
+    async commitUnbindFromPosts(id, tableIds, all = false) {
       try {
-        const response = await apiRequest(`/cars/${carId}/deactivate`, {
-          method: "PUT",
-          body: JSON.stringify({ status: 0, user_id: userId, table_id: tableId })
-        });
-        if (!response.ok) {
-          console.error("Ошибка при удалении");
-          this.unhidePending(carId);
-          return;
+        const result = await bulkUnbindCarsTable([id], tableIds, { all });
+        if (!result || typeof result.success_count !== 'number' || result.error_count > 0) {
+          const message = result?.errors?.[0]?.error || result?.error?.message || result?.error || result?.message || 'Обновите список и повторите действие';
+          useDeletionsStore().notify({ prefix: 'Не удалось убрать машину: ', bold: message, type: 'error' });
         }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось убрать машину: ', bold: 'ошибка сети', type: 'error' });
+      } finally {
         await this._loadData(true);
-        this.unhidePending(carId);
-      } catch (error) {
-        console.error("Ошибка сети при удалении:", error);
-        this.unhidePending(carId);
+        this.unhidePending(id);
       }
     },
 

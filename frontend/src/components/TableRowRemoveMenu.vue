@@ -12,6 +12,8 @@
       ref="button"
       class="delete-btn rt-pass__act rt-pass__act--danger"
       title="Убрать"
+      :aria-expanded="isOpen"
+      aria-haspopup="menu"
       :disabled="disabled"
       data-testid="row-remove-trigger"
       @click="toggle"
@@ -29,6 +31,7 @@
           v-if="isOpen"
           ref="menu"
           class="row-remove-menu__list"
+          role="menu"
           :style="menuStyle"
         >
           <button
@@ -37,7 +40,10 @@
             data-testid="row-remove-current"
             @click="choose('current')"
           >
-            Убрать из этой таблицы
+            Этот пост
+          </button>
+          <button type="button" class="row-remove-menu__item" data-testid="row-remove-selected" @click="choose('selected')">
+            Выбрать посты
           </button>
           <button
             type="button"
@@ -45,7 +51,7 @@
             data-testid="row-remove-all"
             @click="choose('all')"
           >
-            Убрать из всех таблиц
+            Все посты
           </button>
         </div>
       </transition>
@@ -57,8 +63,7 @@
 /**
  * Per-row подменю корзины (#1194 S5): показывается вместо обычной кнопки
  * удаления, когда сущность привязана к нескольким таблицам «Проезд»/«Проход»
- * (target_tables_count > 1) - выбор между снятием ТОЛЬКО с текущей таблицы и
- * глобальной деактивацией. Позиционирование - teleport + fixed-координаты по
+ * - выбор текущего, выбранных или всех постов с явным подтверждением. Позиционирование - teleport + fixed-координаты по
  * getBoundingClientRect с флипом вверх/вниз, 1:1 с паттерном BaseDropdown
  * (тот же класс задачи: триггер живёт внутри rt-table с overflow:hidden).
  */
@@ -71,7 +76,7 @@ export default {
   props: {
     disabled: { type: Boolean, default: false },
   },
-  emits: ['remove-current', 'remove-all'],
+  emits: ['remove-current', 'remove-selected', 'remove-all'],
   data() {
     return {
       isOpen: false,
@@ -79,6 +84,7 @@ export default {
     };
   },
   beforeUnmount() {
+    document.removeEventListener('keydown', this.handleKeydown, true);
     document.removeEventListener('click', this.handleClickOutside, true);
     this.removeRepositionListeners();
   },
@@ -87,6 +93,7 @@ export default {
       if (this.disabled) return;
       this.isOpen = !this.isOpen;
       if (this.isOpen) {
+        document.addEventListener('keydown', this.handleKeydown, true);
         this.updateMenuPosition();
         this.addRepositionListeners();
         document.addEventListener('click', this.handleClickOutside, true);
@@ -96,9 +103,10 @@ export default {
     },
     choose(kind) {
       this.teardownOpenState();
-      this.$emit(kind === 'current' ? 'remove-current' : 'remove-all');
+      this.$emit({ current: 'remove-current', selected: 'remove-selected', all: 'remove-all' }[kind]);
     },
     teardownOpenState() {
+      document.removeEventListener('keydown', this.handleKeydown, true);
       this.isOpen = false;
       this.removeRepositionListeners();
       document.removeEventListener('click', this.handleClickOutside, true);
@@ -110,6 +118,13 @@ export default {
       const inTrigger = this.$refs.trigger && this.$refs.trigger.contains(e.target);
       const inMenu = this.$refs.menu && this.$refs.menu.contains(e.target);
       if (!inTrigger && !inMenu) this.teardownOpenState();
+    },
+    handleKeydown(event) {
+      if (event.key !== 'Escape' || !this.isOpen) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.teardownOpenState();
+      this.$refs.button?.focus();
     },
     updateMenuPosition() {
       // .row-remove-menu (wrapper) - display:contents, не генерирует бокс -
@@ -127,7 +142,7 @@ export default {
       const gap = 5;
       const margin = 8;
       const menuWidth = 210;
-      const estimatedHeight = 84;
+      const estimatedHeight = 120;
       const spaceBelow = vh - r.bottom - gap - margin;
       const spaceAbove = r.top - gap - margin;
       const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;

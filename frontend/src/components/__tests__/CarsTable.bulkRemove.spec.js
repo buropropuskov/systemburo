@@ -3,6 +3,7 @@ import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useUiStore } from '@/stores/ui';
 
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({
@@ -44,6 +45,7 @@ function baseItem(overrides) {
     unloadPlaces: [],
     organization_name: 'ООО',
     target_tables_count: 1,
+    target_tables: [{ id: 42, name: 'КПП текущий' }, ...(overrides?.target_tables_count > 1 ? [{ id: 99, name: 'КПП другой' }] : [])],
     ...overrides,
   };
 }
@@ -67,6 +69,7 @@ describe('CarsTable - групповое "Убрать" (#1194 S5)', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
     usePermissionsStore().mode = 'super';
     apiRequest.mockReset();
     carsBulkApi.bulkMoveCarsTable.mockReset();
@@ -175,6 +178,7 @@ describe('CarsTable - групповое "Убрать" (#1194 S5)', () => {
 describe('CarsTable - per-row корзина "из этой/из всех" (#1194 S5)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
     usePermissionsStore().mode = 'super';
     apiRequest.mockReset();
     carsBulkApi.bulkMoveCarsTable.mockReset();
@@ -213,7 +217,7 @@ describe('CarsTable - per-row корзина "из этой/из всех" (#119
     expect(wrapper.find('[data-testid="row-remove-trigger"]').exists()).toBe(false);
   });
 
-  it('target_tables_count > 1 - показывает подменю с двумя пунктами', async () => {
+  it('target_tables_count > 1 - показывает меню текущего, выбранных и всех постов', async () => {
     const wrapper = await mountWithItem({ target_tables_count: 2 });
 
     expect(wrapper.find('[data-testid="row-remove-trigger"]').exists()).toBe(true);
@@ -223,7 +227,7 @@ describe('CarsTable - per-row корзина "из этой/из всех" (#119
     expect(wrapper.find('[data-testid="row-remove-all"]').exists()).toBe(true);
   });
 
-  it('не-админ + count > 1 - подменю "из этой/из всех" скрыто (unbind гейтится page.admin)', async () => {
+  it('не-админ + count > 1 - подменю "из этой/из всех" скрыто (выбор нескольких постов требует page.admin)', async () => {
     usePermissionsStore().mode = 'normal';
     const wrapper = await mountWithItem({ target_tables_count: 2 });
 
@@ -239,28 +243,30 @@ describe('CarsTable - per-row корзина "из этой/из всех" (#119
 
     await wrapper.find('[data-testid="row-remove-trigger"]').trigger('click');
     await wrapper.find('[data-testid="row-remove-current"]').trigger('click');
+    await flushPromises();
 
     expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Машина ', bold: 'В5' }));
     const { onConfirm } = enqueue.mock.calls[0][0];
     await onConfirm();
     await flushPromises();
 
-    expect(carsBulkApi.bulkUnbindCarsTable).toHaveBeenCalledWith([5], 42);
+    expect(carsBulkApi.bulkUnbindCarsTable).toHaveBeenCalledWith([5], [42], { all: false });
   });
 
-  it('"Убрать из всех таблиц" -> существующий deactivate-флоу не изменился', async () => {
+  it('"Все посты" -> подтверждённый набор без общей деактивации', async () => {
     const wrapper = await mountWithItem({ id: 6, car_number: 'В6', target_tables_count: 2 });
     const enqueue = vi.spyOn(useDeletionsStore(), 'enqueue');
 
     await wrapper.find('[data-testid="row-remove-trigger"]').trigger('click');
     await wrapper.find('[data-testid="row-remove-all"]').trigger('click');
+    await flushPromises();
 
-    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Машина ', bold: 'В6', suffix: ' удалена' }));
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Машина ', bold: 'В6', suffix: ' убрана с выбранных постов' }));
     const { onConfirm } = enqueue.mock.calls[0][0];
     await onConfirm();
     await flushPromises();
 
-    expect(apiRequest).toHaveBeenCalledWith('/cars/6/deactivate', expect.objectContaining({ method: 'PUT' }));
-    expect(carsBulkApi.bulkUnbindCarsTable).not.toHaveBeenCalled();
+    expect(apiRequest).not.toHaveBeenCalledWith('/cars/6/deactivate', expect.anything());
+    expect(carsBulkApi.bulkUnbindCarsTable).toHaveBeenCalledWith([6], [42, 99], { all: true });
   });
 });

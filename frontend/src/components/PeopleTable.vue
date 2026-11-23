@@ -448,29 +448,13 @@
                   style="order: 9999;"
                   @click.stop
                 >
-                  <!-- Сотрудник привязан к нескольким таблицам (#1194 S5) -
-                       выбор между "убрать только отсюда" и глобальной
-                       деактивацией. Единственная привязка ИЛИ не-админ - как
-                       раньше (unbind-table гейтится page.admin на бэке). -->
-                  <TableRowRemoveMenu
-                    v-if="(item.target_tables_count || 0) > 1 && can('page.admin')"
-                    :disabled="preview || isLoading"
-                    @remove-current="removeFromCurrentTableWithNotification(item)"
-                    @remove-all="removeItemWithNotification(item)"
+                  <!-- Снятие только с явно подтверждённых постов. -->
+                  <PostRemovalAction
+                    :table-id="currentTableId" :table-title="tableTitle"
+                    :label="[item.last_name,item.first_name,item.middle_name].filter(Boolean).join(' ')" :tables="item.target_tables || []"
+                    :admin="can('page.admin')" :disabled="preview || isLoading"
+                    @remove="removeFromPostsWithNotification(item, $event)"
                   />
-                  <button
-                    v-else
-                    class="delete-btn rt-pass__act rt-pass__act--danger"
-                    title="Удалить"
-                    :disabled="preview || isLoading"
-                    @click="preview ? null : removeItemWithNotification(item)"
-                  >
-                    <AppIcon
-                      name="trashcan"
-                      class="delete-icon rt-pass__act-icon"
-                    />
-                    <span class="rt-pass__act-label">Удалить</span>
-                  </button>
                 </div>
               </div>
               <div
@@ -567,7 +551,7 @@ import PassageTableHeader from './PassageTableHeader.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 import TableBulkTargetModal from './TableBulkTargetModal.vue';
-import TableRowRemoveMenu from './TableRowRemoveMenu.vue';
+import PostRemovalAction from './PostRemovalAction.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import { StatusBadge, RegistrySortButton } from '@/components/ui';
 import SwitchToggle from './ui/SwitchToggle.vue';
@@ -576,7 +560,7 @@ import AnimatedCounter from './ui/AnimatedCounter.vue';
 import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable } from '@/api/employees';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
-import AppIcon from '@/components/icons/AppIcon.vue';
+
 import PeopleTableDocumentCheck from './PeopleTableDocumentCheck.vue';
 import { formatMoscowDateTime } from '@/utils/serverTime';
 
@@ -609,13 +593,13 @@ export default {
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
     TableBulkTargetModal,
-    TableRowRemoveMenu,
+    PostRemovalAction,
     ConfirmationModal,
     StatusBadge,
     SwitchToggle,
     LoaderSpinner,
     AnimatedCounter,
-    AppIcon,
+
     PeopleTableDocumentCheck,
   },
   setup() {
@@ -1200,43 +1184,33 @@ export default {
       return lastMarkDirection(item) === type && canQuickRevertMark(item, this.currentTableId, this.passageNow);
     },
 
-    removeItemWithNotification(item) {
-      if (this.isLoading) return;
-      if (this.pendingDeleteIds.includes(item.id)) return;
-      const empId = item.id;
-      const tableId = this.currentTableId;
-      const userId = this.currentUserId;
-      const fullName = [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ') || String(item.last_name || '');
-      this.pendingDeleteIds.push(empId);
-      useDeletionsStore().enqueue({
-        prefix: 'Сотрудник ',
-        bold: fullName,
-        suffix: ' удалён',
-        onConfirm: () => this.commitDelete(empId, tableId, userId),
-        onUndo: () => this.unhidePending(empId),
-      });
-    },
-
     unhidePending(empId) {
       this.pendingDeleteIds = this.pendingDeleteIds.filter(id => id !== empId);
     },
 
-    async commitDelete(empId, tableId, userId) {
+    removeFromPostsWithNotification(item, { tableIds, all = false }) {
+      if (this.isLoading || this.pendingDeleteIds.includes(item.id)) return;
+      const id = item.id;
+      this.pendingDeleteIds.push(id);
+      useDeletionsStore().enqueue({
+        prefix: 'Сотрудник ', bold: [item.last_name,item.first_name,item.middle_name].filter(Boolean).join(' '), suffix: ' убран с выбранных постов',
+        onConfirm: () => this.commitUnbindFromPosts(id, tableIds, all),
+        onUndo: () => this.unhidePending(id),
+      });
+    },
+
+    async commitUnbindFromPosts(id, tableIds, all = false) {
       try {
-        const response = await apiRequest(`/employees/${empId}/deactivate`, {
-          method: "PUT",
-          body: JSON.stringify({ status: 0, user_id: userId, table_id: tableId })
-        });
-        if (!response.ok) {
-          console.error("Ошибка при удалении");
-          this.unhidePending(empId);
-          return;
+        const result = await bulkUnbindEmployeesTable([id], tableIds, { all });
+        if (!result || typeof result.success_count !== 'number' || result.error_count > 0) {
+          const message = result?.errors?.[0]?.error || result?.error?.message || result?.error || result?.message || 'Обновите список и повторите действие';
+          useDeletionsStore().notify({ prefix: 'Не удалось убрать сотрудника: ', bold: message, type: 'error' });
         }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось убрать сотрудника: ', bold: 'ошибка сети', type: 'error' });
+      } finally {
         await this._loadData(true);
-        this.unhidePending(empId);
-      } catch (error) {
-        console.error("Ошибка сети при удалении:", error);
-        this.unhidePending(empId);
+        this.unhidePending(id);
       }
     },
 

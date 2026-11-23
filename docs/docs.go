@@ -6068,7 +6068,7 @@ const docTemplate = `{
                 "summary": "Групповое снятие машин с таблицы «Проезд» (#1194)",
                 "parameters": [
                     {
-                        "description": "ID машин и таблица",
+                        "description": "ID машин и один пост table_id либо выбранные посты table_ids",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -6642,7 +6642,7 @@ const docTemplate = `{
                 "tags": [
                     "cars"
                 ],
-                "summary": "Деактивация автомобиля",
+                "summary": "Общая деактивация автомобиля (администратор)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -9697,7 +9697,7 @@ const docTemplate = `{
                 "summary": "Групповая отвязка сотрудников от таблицы",
                 "parameters": [
                     {
-                        "description": "ID сотрудников и таблица",
+                        "description": "ID сотрудников и один table_id либо набор table_ids; all_tables проверяет полный набор привязок",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10129,7 +10129,7 @@ const docTemplate = `{
                 "tags": [
                     "employees"
                 ],
-                "summary": "Деактивация сотрудника",
+                "summary": "Общая деактивация сотрудника (администратор)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -29385,6 +29385,9 @@ const docTemplate = `{
         "services.BulkUnbindCarsTableRequest": {
             "type": "object",
             "properties": {
+                "all_tables": {
+                    "type": "boolean"
+                },
                 "ids": {
                     "type": "array",
                     "items": {
@@ -29393,6 +29396,12 @@ const docTemplate = `{
                 },
                 "table_id": {
                     "type": "integer"
+                },
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -30429,6 +30438,9 @@ const docTemplate = `{
         "services.EmployeeBulkUnbindTableRequest": {
             "type": "object",
             "properties": {
+                "all_tables": {
+                    "type": "boolean"
+                },
                 "ids": {
                     "type": "array",
                     "items": {
@@ -30437,6 +30449,12 @@ const docTemplate = `{
                 },
                 "table_id": {
                     "type": "integer"
+                },
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

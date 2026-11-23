@@ -351,14 +351,14 @@
                   <button
                     v-if="permissionsStore.hasPermission(`table.${tableData?.table?.name}.delete`)"
                     class="delete-btn rt-pass__act rt-pass__act--danger"
-                    title="Удалить"
+                    title="Убрать"
                     @click="deleteItem(item)"
                   >
                     <AppIcon
                       name="trashcan"
                       class="delete-icon rt-pass__act-icon"
                     />
-                    <span class="rt-pass__act-label">Удалить</span>
+                    <span class="rt-pass__act-label">Убрать</span>
                   </button>
                 </div>
               </div>
@@ -398,7 +398,8 @@
 import { factTableDetails } from './entityPeriodParentMixins';
 import passageTableIntegration from './passageTableIntegration';
 import { apiRequest } from '@/api/client'
-import { useUiStore } from '@/stores/ui';
+
+import { removeFactPostRecord } from '@/utils/removeFactPostRecord';
 import eventStream from '@/services/eventStream';
 import PassageTableHeader from './PassageTableHeader.vue';
 import { LoaderSpinner, RegistrySortButton } from '@/components/ui';
@@ -1025,27 +1026,8 @@ export default {
     },
 
     async deleteItem(item) {
-      const ok = await useUiStore().confirm({
-        title: 'Удаление записи',
-        message: 'Удалить запись?',
-        confirmText: 'Удалить',
-        danger: true,
-      });
-      if (!ok) return;
-      try {
-        if (this.tableType === 'cars') {
-          const response = await apiRequest(`/cars/${item.id}/deactivate`, {
-            method: "PUT",
-            body: JSON.stringify({ status: 0, user_id: this.currentUserId })
-          });
-          if (!response.ok) return;
-        }
-        this.factData = this.factData.filter(i => i.id !== item.id);
-      } catch (error) {
-        console.error("Ошибка при удалении:", error);
-      }
+      return removeFactPostRecord({ kind: this.tableType === 'cars' ? 'cars' : 'employees', id: item.id, tableId: this.tableId, onRefresh: () => this._loadData(true) });
     },
-    
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';

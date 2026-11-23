@@ -14,6 +14,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // EmployeeService -- интерфейс бизнес-логики сотрудников в заявках.
@@ -68,11 +69,13 @@ type EmployeeBulkAddTableRequest struct {
 }
 
 // EmployeeBulkUnbindTableRequest -- тело POST /employees/bulk/unbind-table: снимает
-// у набора сотрудников привязку к одной TableID. Если привязка была последней -
+// у набора сотрудников привязки к TableID либо TableIDs. Если привязка была последней -
 // сотрудник деактивируется (зеркало одиночного DeactivateEmployee, status=0).
 type EmployeeBulkUnbindTableRequest struct {
-	IDs     []int `json:"ids"`
-	TableID int   `json:"table_id"`
+	IDs       []int `json:"ids"`
+	TableID   int   `json:"table_id"`
+	TableIDs  []int `json:"table_ids,omitempty"`
+	AllTables bool  `json:"all_tables,omitempty"`
 }
 
 // DeactivateEmployeeRequest -- тело запроса деактивации сотрудника.
@@ -167,8 +170,8 @@ type TableEmployeeResponse struct {
 	// «никто не отмечен» до ответа второго запроса.
 	TerritoryStatus *int `json:"territory_status"`
 	// TargetTablesCount - число таблиц проходной, к которым привязан сотрудник
-	// (employee_target_tables). Используется FE (#1194) для решения, показывать ли
-	// per-row выбор «из этой/из всех» при отвязке (>1) или сразу деактивировать (=1).
+	// (employee_target_tables). Конкретные посты для снятия передаются явно
+	// из TargetTables; число не выбирает глобальную деактивацию.
 	TargetTablesCount int `json:"target_tables_count"`
 	// TargetTables - список привязок сотрудника к таблицам проходной с источником
 	// (#1227): application/manual. Карточка сотрудника из контекста проходной раньше
@@ -939,18 +942,18 @@ func (s *employeeService) BulkAddTable(ctx context.Context, req EmployeeBulkAddT
 // Если это была последняя привязка сотрудника - он деактивируется (status=0, зеркало
 // одиночного commitDelete из PeopleTable.vue), с отдельной записью "delete" в истории.
 func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkUnbindTableRequest, actorID int) (*BulkOpResult, error) {
-	if req.TableID <= 0 {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана таблица")
-	}
-	if err := s.validatePeopleTables(ctx, []int{req.TableID}); err != nil {
-		return nil, err
-	}
-	names, err := s.loadTableNames(ctx, []int{req.TableID})
+	tableIDs, err := TableRemovalTargets(req.TableID, req.TableIDs)
 	if err != nil {
 		return nil, err
 	}
-	tableName := names[req.TableID]
-	tableID := req.TableID
+	if err := s.validatePeopleTables(ctx, tableIDs); err != nil {
+		return nil, err
+	}
+	names, err := s.loadTableNames(ctx, tableIDs)
+	if err != nil {
+		return nil, err
+	}
+	tableID := tableIDs[0]
 
 	res := newBulkResult()
 	for _, id := range uniqueInts(req.IDs) {
@@ -965,17 +968,35 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 			continue
 		}
 		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			del := tx.Where("employee_id = ? AND table_id = ?", id, tableID).Delete(&models.EmployeeTargetTable{})
+			var locked models.Employee
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "status").First(&locked, id).Error; err != nil {
+				return err
+			}
+			if locked.Status == nil || *locked.Status != 1 {
+				return echo.NewHTTPError(http.StatusConflict, "Сотрудник не активен")
+			}
+			if req.AllTables {
+				var count int64
+				if err := tx.Model(&models.EmployeeTargetTable{}).Where("employee_id = ?", id).Count(&count).Error; err != nil {
+					return err
+				}
+				if count != int64(len(tableIDs)) {
+					return echo.NewHTTPError(http.StatusConflict, "Набор постов изменился. Обновите список")
+				}
+			}
+			del := tx.Where("employee_id = ? AND table_id IN ?", id, tableIDs).Delete(&models.EmployeeTargetTable{})
 			if del.Error != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отвязки от таблицы")
 			}
-			if del.RowsAffected == 0 {
-				return echo.NewHTTPError(http.StatusBadRequest, "Сотрудник не привязан к этой таблице")
+			if del.RowsAffected != int64(len(tableIDs)) {
+				return echo.NewHTTPError(http.StatusConflict, "Привязки сотрудника изменились. Обновите список")
 			}
 
-			comment := fmt.Sprintf("Сотрудник %s отвязан от таблицы «%s»", fullName, tableName)
-			if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, models.AuditActionUnboundFromTable, &actorID, carAuditDetails{Comment: &comment, TableID: &tableID}); err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+			for _, selectedID := range tableIDs {
+				comment := fmt.Sprintf("Сотрудник %s отвязан от таблицы «%s»", fullName, names[selectedID])
+				if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, models.AuditActionUnboundFromTable, &actorID, carAuditDetails{Comment: &comment, TableID: &selectedID}); err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+				}
 			}
 
 			var remaining int64
@@ -1008,7 +1029,7 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 	// привязки таблица уже не содержит сотрудника, NotifyEmployeesChangedBatch её
 	// аудиторию не увидела бы (см. TablesRefreshPublisher.NotifyTables) - её зрителям
 	// нужен сигнал, чтобы строка live исчезла. Зеркало carService.BulkUnbindTable.
-	s.tablesProducer.NotifyTables(ctx, []int{tableID})
+	s.tablesProducer.NotifyTables(ctx, tableIDs)
 	s.enqueueArchiveExportForEmployees(ctx, req.IDs)
 	return res.finalize(), nil
 }
