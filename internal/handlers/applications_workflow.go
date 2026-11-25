@@ -18,7 +18,7 @@ import (
 // @Security     BearerAuth
 // @Param        id      path int                              true "ID заявки"
 // @Param        request body services.ForwardApplicationRequest true "Список пользователей"
-// @Success      200 {object} map[string]interface{} "success + message"
+// @Success      200 {object} services.ForwardResult
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -37,10 +37,32 @@ func (h *ApplicationHandler) ForwardApplication(c *echo.Context) error {
 		return err
 	}
 
-	if err := h.service.ForwardApplication(c.Request().Context(), username, id, IsSuperAdmin(c), req); err != nil {
+	result, err := h.service.ForwardApplication(c.Request().Context(), username, id, req)
+	if err != nil {
 		return err
 	}
-	return RespondMessage(c, "Application forwarded successfully")
+	return RespondSuccess(c, result)
+}
+
+// ForwardRecipients godoc
+// @Summary      Доступные получатели пересылки заявки
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {array} models.RecipientCandidate
+// @Failure      403 {object} models.HTTPError
+// @Router       /applications/{id}/forward-recipients [get]
+func (h *ApplicationHandler) ForwardRecipients(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+	recipients, err := h.service.ForwardRecipients(c.Request().Context(), c.Get("username").(string), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, recipients)
 }
 
 // GetForwardMessages godoc

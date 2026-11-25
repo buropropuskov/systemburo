@@ -20,20 +20,8 @@ import (
 type forwardAuthority struct {
 	// readerOnly - доступ к заявке есть только как у просматривающего
 	// (application_viewers): передать дальше можно, но лишь на просмотр.
-	readerOnly bool
-	// allowedRecipients - круг, кому этот пользователь вправе переслать заявку.
-	// nil означает "без ограничения": кому и почему, разобрано в комментарии к
-	// методу forwardAuthority ниже.
-	allowedRecipients map[int]struct{}
-}
-
-// allowsRecipient - можно ли назначать получателем этого пользователя.
-func (a forwardAuthority) allowsRecipient(userID int) bool {
-	if a.allowedRecipients == nil {
-		return true
-	}
-	_, ok := a.allowedRecipients[userID]
-	return ok
+	readerOnly   bool
+	unrestricted bool
 }
 
 // forwardAuthority определяет роль пересылающего на заявке и круг его получателей.
@@ -49,14 +37,14 @@ func (a forwardAuthority) allowsRecipient(userID int) bool {
 // открыть заявку кому угодно, и для рядового он работает.
 func (s *applicationService) forwardAuthority(ctx context.Context, applicationID int, user *models.User, isSuperAdmin bool) (forwardAuthority, error) {
 	if isSuperAdmin {
-		return forwardAuthority{}, nil
+		return forwardAuthority{unrestricted: true}, nil
 	}
 	isApprover, err := s.isApprover(ctx, user.ID)
 	if err != nil {
 		return forwardAuthority{}, err
 	}
 	if isApprover {
-		return forwardAuthority{}, nil
+		return forwardAuthority{unrestricted: true}, nil
 	}
 
 	var role struct {
@@ -72,14 +60,47 @@ func (s *applicationService) forwardAuthority(ctx context.Context, applicationID
 		return forwardAuthority{}, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	allowed, err := recipientCandidateIDs(ctx, s.db, *user)
+	return forwardAuthority{readerOnly: !role.IsSender && !role.IsResponsible}, nil
+}
+
+func (s *applicationService) forwardContext(ctx context.Context, username string, applicationID int) (*models.User, forwardAuthority, error) {
+	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
-		return forwardAuthority{}, err
+		return nil, forwardAuthority{}, err
 	}
-	return forwardAuthority{
-		readerOnly:        !role.IsSender && !role.IsResponsible,
-		allowedRecipients: allowed,
-	}, nil
+	if user.IsBanned {
+		return nil, forwardAuthority{}, echo.NewHTTPError(http.StatusForbidden, "Нет доступа к пересылке заявки")
+	}
+	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionForwardApplication); err != nil {
+		return nil, forwardAuthority{}, err
+	}
+	allowed, err := s.CanAccessApplicationChecked(ctx, applicationID, username, user.IsSuperAdmin)
+	if err != nil {
+		return nil, forwardAuthority{}, err
+	}
+	if !allowed {
+		return nil, forwardAuthority{}, echo.NewHTTPError(http.StatusForbidden, "Нет доступа к пересылке заявки")
+	}
+	authority, err := s.forwardAuthority(ctx, applicationID, user, user.IsSuperAdmin)
+	return user, authority, err
+}
+
+func (s *applicationService) ForwardRecipients(ctx context.Context, username string, applicationID int) ([]models.RecipientCandidate, error) {
+	user, authority, err := s.forwardContext(ctx, username, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	if user.IsSuperAdmin {
+		var exists bool
+		if err := s.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM applications WHERE id = ?)", applicationID).Scan(&exists).Error; err != nil {
+			return nil, apperr.Internal("Не удалось проверить заявку", err)
+		}
+		if !exists {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Заявка не найдена")
+		}
+	}
+	scope := recipientCandidateScope(s.db.WithContext(ctx), *user, authority.unrestricted)
+	return projectRecipientCandidates(ctx, s.db, scope)
 }
 
 // ForwardApplication пересылает заявку указанным ответственным и просматривающим.
@@ -88,49 +109,10 @@ func (s *applicationService) forwardAuthority(ctx context.Context, applicationID
 // добавляет получателей), а не изменение статуса. Read-only архива оставлен только
 // на статус-меняющих действиях (взять в работу, согласование) - они зовут
 // checkNotArchived сами.
-func (s *applicationService) ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error {
-	user, err := s.getUserByUsername(ctx, username)
-	if err != nil {
-		return err
-	}
-	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionForwardApplication); err != nil {
-		return err
-	}
-	currentUserName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
-
-	var exists bool
-	if err := s.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM applications WHERE id = ?)", applicationID).Scan(&exists).Error; err != nil {
-		slog.Error("не удалось проверить существование заявки при пересылке", "application_id", applicationID, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-	if !exists {
-		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
-	}
-
-	// Гейт пересылки = гейт доступа к заявке. Свой SQL (отправитель ИЛИ строка в
-	// application_responsible_users) не пускал ни супер-админа, ни принимающего, ни
-	// читателя: заявку они видели, а переслать её не могли. Второй набор ролей рядом
-	// с CanAccessApplication неизбежно разъезжается с ним - держим один.
-	if !s.CanAccessApplication(ctx, applicationID, username, isSuperAdmin) {
-		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to forward this application")
-	}
-
-	authority, err := s.forwardAuthority(ctx, applicationID, user, isSuperAdmin)
-	if err != nil {
-		return err
-	}
-	// Просматривающий передаёт заявку дальше только для просмотра. Ответственный и
-	// согласующий - назначения от имени заявки (согласующий её ещё и голосует), и
-	// раздавать их вправе тот, кто за заявку отвечает, а не тот, кому её показали.
-	if authority.readerOnly {
-		for _, fu := range req.Users {
-			if fu.RequiredApproval || !fu.CanView {
-				return echo.NewHTTPError(http.StatusForbidden,
-					"Заявка доступна вам только для просмотра: переслать её можно тоже для просмотра, назначать ответственных и согласующих вправе отправитель")
-			}
-		}
-	}
-
+func (s *applicationService) ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) (*ForwardResult, error) {
+	var user *models.User
+	var currentUserName string
+	var outcome ForwardResult
 	type addedResp struct {
 		UserID           int
 		RequiredApproval bool
@@ -140,7 +122,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	var newConfirmation *string
 	var confirmationChanged bool
 	var forwardAttachmentIDs []int
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// WithdrawApplication блокирует эту же строку. Проверяем статус под тем же
 		// FOR UPDATE до назначений: отзыв не может проскочить между проверкой и INSERT.
 		var lockedApplication struct {
@@ -154,6 +136,21 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		if result.RowsAffected == 0 {
 			return echo.NewHTTPError(http.StatusNotFound, "Application not found")
 		}
+		txService := *s
+		txService.db = tx
+		actor, authority, err := txService.forwardContext(ctx, username, applicationID)
+		if err != nil {
+			return err
+		}
+		user = actor
+		currentUserName = formatFullName(user.LastName, user.FirstName, user.MiddleName)
+		if authority.readerOnly {
+			for _, fu := range req.Users {
+				if fu.RequiredApproval || !fu.CanView {
+					return echo.NewHTTPError(http.StatusForbidden, "Заявка доступна вам только для просмотра: переслать её можно тоже для просмотра")
+				}
+			}
+		}
 		if lockedApplication.Status != nil && *lockedApplication.Status == models.StatusWithdrawn {
 			for _, recipient := range req.Users {
 				if recipient.RequiredApproval || !recipient.CanView {
@@ -165,7 +162,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		archiveChanged := false
 		oldConfirmation := lockedApplication.Confirmation
 		actorID := user.ID
-		if isSuperAdmin {
+		if user.IsSuperAdmin {
 			actorID = 0
 		}
 		selected, scopeErr := resolveForwardSelection(ctx, tx, applicationID, actorID, req.AttachmentIDs)
@@ -185,11 +182,25 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 		recipientDetails := make([]forwardRecipientDetail, 0, len(req.Users))
 
-		manual := make([]int, 0, len(req.Users))
+		requested := make(map[int]bool, len(req.Users))
+		var ids []int
 		for _, fu := range req.Users {
-			if authority.allowsRecipient(fu.UserID) && !(fu.RequiredApproval && fu.CanView) {
-				manual = append(manual, fu.UserID)
+			if !requested[fu.UserID] {
+				ids = append(ids, fu.UserID)
+				requested[fu.UserID] = true
 			}
+		}
+		outcome.Skipped = len(ids)
+		var manual []int
+		if len(ids) > 0 {
+			if err := recipientCandidateScope(tx.WithContext(ctx), *user, authority.unrestricted).
+				Where("u.id IN ?", ids).Pluck("u.id", &manual).Error; err != nil {
+				return apperr.Internal("Не удалось проверить получателей заявки", err)
+			}
+		}
+		eligible := make(map[int]bool, len(manual))
+		for _, id := range manual {
+			eligible[id] = true
 		}
 		if err := validateManualRecipients(ctx, tx, manual); err != nil {
 			return err
@@ -198,7 +209,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		for _, fu := range req.Users {
 			// Проверяем существование пользователя
 			var userExists bool
-			if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", fu.UserID).Scan(&userExists).Error; err != nil {
+			if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND is_active AND NOT is_banned)", fu.UserID).Scan(&userExists).Error; err != nil {
 				return apperr.Internal("Не удалось проверить получателей заявки", err)
 			}
 			if !userExists {
@@ -208,8 +219,8 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			// Получателем можно назначить только того, кого форма и предлагала выбрать -
 			// иначе подделанный запрос открывает заявку любому пользователю системы тем же
 			// INSERT в application_viewers, который закрыт на подаче. Чужой идентификатор
-			// отбрасываем молча, как и там: запрос остаётся валидным, пересылка проходит.
-			if !authority.allowsRecipient(fu.UserID) {
+			// учитываем в числе пропущенных адресатов.
+			if !eligible[fu.UserID] {
 				slog.Warn("получатель пересылки отброшен: вне списка доступных получателей",
 					"application_id", applicationID, "recipient_id", fu.UserID, "actor_id", user.ID)
 				continue
@@ -274,6 +285,12 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 					UserID: fu.UserID, Purpose: "view", AccessGranted: !alreadyAdded,
 				})
 			}
+		}
+
+		outcome.Accepted = len(recipientDetails)
+		outcome.Skipped -= outcome.Accepted
+		if outcome.Accepted == 0 {
+			return nil
 		}
 
 		// Пер-вложенный пересыл (#680): фиксируем, какие вложения видит каждый получатель.
@@ -442,7 +459,10 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if outcome.Accepted == 0 {
+		return &outcome, nil
 	}
 
 	// Автоматически выдаём права tab.applications.view ответственным пользователям
@@ -507,7 +527,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			})
 		}
 	}
-	return nil
+	return &outcome, nil
 }
 
 // ApproveApplicationByUser фиксирует согласование или отказ заявки пользователем.

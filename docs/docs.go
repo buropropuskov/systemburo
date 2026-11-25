@@ -2756,10 +2756,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "success + message",
+                        "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/services.ForwardResult"
                         }
                     },
                     "400": {
@@ -2849,6 +2848,48 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/forward-recipients": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Доступные получатели пересылки заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.RecipientCandidate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -26578,6 +26619,9 @@ const docTemplate = `{
         "models.RecipientCandidate": {
             "type": "object",
             "properties": {
+                "can_select": {
+                    "type": "boolean"
+                },
                 "company": {
                     "type": "string"
                 },
@@ -26597,17 +26641,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "organization": {
-                    "description": "Organization и Company названы как в UserInfoResponse, а не organization_name\nсоседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers\n(носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя\nтого же поля потребовало бы развилки в каждом месте, где окно его читает.",
+                    "description": "Organization and Company are display fields of selectable recipients.",
                     "type": "string"
                 },
                 "pd_hidden": {
-                    "description": "PDHidden -- ФИО скрыто политикой согласия или отображения принимающего.\nОрганизацию и компанию согласие не закрывает: это данные работодателя, а не\nработника, и в администраторском списке они видны у скрытого работника тоже.",
+                    "description": "PDHidden marks restricted identity fields, independently of receiver aliases.",
                     "type": "boolean"
                 },
                 "position": {
-                    "type": "string"
-                },
-                "username": {
                     "type": "string"
                 }
             }
@@ -30866,6 +30907,17 @@ const docTemplate = `{
                 },
                 "whole": {
                     "type": "boolean"
+                }
+            }
+        },
+        "services.ForwardResult": {
+            "type": "object",
+            "properties": {
+                "accepted": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "integer"
                 }
             }
         },

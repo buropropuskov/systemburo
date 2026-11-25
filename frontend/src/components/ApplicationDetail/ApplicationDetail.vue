@@ -3,7 +3,7 @@
        без своей transition она пропадала мгновенно, тогда как окна проекта уезжают
        плавно. Родителю о закрытии сообщаем после leave - тогда unmount не обрывает
        анимацию на середине. -->
-  <transition name="detail-close">
+  <transition v-if="!detailUnavailable" name="detail-close">
     <div
       v-if="visible"
       class="application-detail-overlay"
@@ -724,6 +724,7 @@ const DETAIL_STACK_LAYER = 10002
  * где браузерных переходов нет (jsdom), и панель осталась бы висеть.
  */
 const DETAIL_CLOSE_MS = 200
+const DETAIL_ACCESS_REFRESH_MS = 60_000
 import ApplicationBasicInfo from './ApplicationBasicInfo.vue'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
@@ -817,6 +818,11 @@ export default {
             // Панель открыта. Гасим флаг при закрытии - это запускает leave, а
             // родителю о закрытии сообщаем уже после него.
             visible: true,
+            detailUnavailable: false,
+            accessReadSeq: 0,
+            lastDetailRead: 0,
+            accessCheckTimer: null,
+            accessProbeId: null,
             closeTimer: null,
             applicationData: { ...this.application },
             eventStreamOff: null,
@@ -1181,12 +1187,19 @@ export default {
             immediate: true,
             handler(newApplication, oldApplication) {
                 if (newApplication && newApplication.id) {
+                    if (this.detailUnavailable) {
+                        if (oldApplication?.id === newApplication.id) return;
+                        this.detailUnavailable = false;
+                        this.visible = true;
+                    }
                     this.applicationData = { ...newApplication };
                     this.showMessageModal = false;
                     this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
                     this.loadCommentFromLocalStorage();
                     this.loadApplicationDetails(newApplication);
                     if (!oldApplication || oldApplication.id !== newApplication.id) {
+                        this.allUsers = [];
+                        this.showForwardModal = false;
                         markAsRead(newApplication.id).catch(() => {});
                         this.subscribeToApplication(newApplication.id);
                     }
@@ -1209,12 +1222,24 @@ export default {
         // пересылка), Escape закрывает его, а до панели доходит, когда она верхняя.
         setModalOpen(this, true, DETAIL_STACK_LAYER);
         document.addEventListener('keydown', this.handleDetailEscape);
+        document.addEventListener('visibilitychange', this.recheckOpenApplication);
+        window.addEventListener('online', this.recheckOpenApplication);
+        // Участник, которого убрали из заявки, может уже не входить в аудиторию SSE.
+        this.accessCheckTimer = setInterval(() => {
+            if (Date.now() - this.lastDetailRead >= DETAIL_ACCESS_REFRESH_MS) this.recheckOpenApplication();
+        }, DETAIL_ACCESS_REFRESH_MS);
         // Панель заявки - полноэкранное окно на мобилке (bottom-sheet), и фон под
         // ней (Центр/кабинет) должен стоять на месте, как под любым другим окном
         // проекта - через общий замок (владелец по стопке, не голое присвоение).
         setBodyScrollLock(this, true);
     },
     beforeUnmount() {
+        this.visible = false;
+        this.loadDetailSeq++;
+        this.loadAttachmentSeq++;
+        clearInterval(this.accessCheckTimer);
+        document.removeEventListener('visibilitychange', this.recheckOpenApplication);
+        window.removeEventListener('online', this.recheckOpenApplication);
         if (this.eventStreamOff) {
             this.eventStreamOff();
             this.eventStreamOff = null;
@@ -1493,6 +1518,38 @@ export default {
             this.applicationData = { ...this.applicationData, bureau_note: note };
         },
 
+        async readOpenApplication(id) {
+            const seq = ++this.accessReadSeq;
+            this.lastDetailRead = Date.now();
+            const response = await apiRequest(`/applications/${id}/details`, { method: 'GET', silent403: true });
+            if (!this.visible || id !== this.applicationData.id) return null;
+            if (response.status !== 403 && response.status !== 404) return response;
+            if (seq === this.accessReadSeq) {
+                this.detailUnavailable = true;
+                this.visible = false;
+                this.loadDetailSeq++;
+                this.applicationData = {};
+                this.attachments = [];
+                this.clearAttachmentSelection();
+                useDeletionsStore().notify({ bold: 'Заявка больше недоступна', type: 'warning' });
+                this.$emit('close');
+            }
+            return null;
+        },
+
+        async recheckOpenApplication() {
+            const id = this.applicationData.id;
+            if (!this.visible || !id || document.hidden || this.accessProbeId === id) return;
+            this.accessProbeId = id;
+            try {
+                await this.readOpenApplication(id);
+            } catch {
+                // Временная ошибка соединения не меняет право на открытую заявку.
+            } finally {
+                if (this.accessProbeId === id) this.accessProbeId = null;
+            }
+        },
+
         async loadApplicationDetails(application, { preserveSelection = false } = {}) {
             const seq = ++this.loadDetailSeq;
             let supplementsRequest;
@@ -1500,9 +1557,7 @@ export default {
             if (!preserveSelection) this.actionsReady = false;
             try {
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
-                    apiRequest(`/applications/${application.id}/details`, {
-                        method: "GET",
-                    }),
+                    this.readOpenApplication(application.id),
                     apiRequest(`/applications/${application.id}/attachments`, {
                         method: "GET",
                     }),
@@ -1511,6 +1566,7 @@ export default {
                     })
                 ]);
 
+                if (!appResponse || seq !== this.loadDetailSeq) return;
                 if (appResponse.ok) {
                     const appData = await appResponse.json();
                     // seq-guard (#632/#840): при подряд идущих live-сигналах устаревший
@@ -1555,16 +1611,16 @@ export default {
                     }
                 }
 
-                if (attachmentsResponse.ok) {
+                if (attachmentsResponse.ok || attachmentsResponse.status === 403 || attachmentsResponse.status === 404) {
                     // При live-рефетче сохраняем выбранное вложение по id (не сбрасываем
                     // на первое) - иначе фоновое обновление перекинет чужую вкладку.
-                    const prevSelectedId = preserveSelection && this.selectedAttachment ? this.selectedAttachment.id : null;
-                    const newAttachments = await attachmentsResponse.json();
+                    const newAttachments = attachmentsResponse.ok ? await attachmentsResponse.json() : [];
                     if (seq !== this.loadDetailSeq) return;
+                    const previous = this.selectedAttachment && newAttachments.find(a => a.id === this.selectedAttachment.id);
+                    if (this.selectedAttachment && !previous) this.clearAttachmentSelection();
                     this.attachments = newAttachments;
                     if (this.attachments.length > 0) {
-                        const keep = prevSelectedId ? this.attachments.find(a => a.id === prevSelectedId) : null;
-                        this.selectedAttachment = keep || this.attachments[0];
+                        this.selectedAttachment = (preserveSelection && previous) || this.attachments[0];
                         await this.loadAttachmentDetails(this.selectedAttachment.id);
                     }
                 }
@@ -1579,7 +1635,7 @@ export default {
                 // только в "Центре заявок". В личном кабинете кнопки пересылки нет,
                 // поэтому и запросов не делаем.
                 if (this.mode === 'center') {
-                    await this.fetchForwardRecipients();
+                    await this.fetchForwardRecipients(application.id, seq);
                     await this.fetchApprovers();
                 }
 
@@ -1592,32 +1648,21 @@ export default {
             } finally {
                 // П.46: кнопки действий показываем только после загрузки ролей/согласующих,
                 // иначе мигают не те кнопки пока responsibleUsers/approvers пустые.
-                this.actionsReady = true;
+                if (seq === this.loadDetailSeq) this.actionsReady = true;
                 await supplementsRequest;
             }
         },
 
-        /**
-         * Получатели для окна пересылки - из двух источников, по праву на список
-         * пользователей.
-         *
-         * Узкий круг кандидатов (коллеги по организации и компании плюс руководители) -
-         * это ограничение бэка для рядового участника заявки, а не общее правило:
-         * forwardAuthority не сужает получателей ни супер-админу, ни принимающему -
-         * маршрутизация заявок по чужим организациям и есть работа оператора бюро.
-         * Поэтому носителю page.admin.users оставляем полный /users/all, как было, а
-         * остальным даём неадминских кандидатов: на /users/all они получали 403 и
-         * пустой выбор в окне.
-         *
-         * silent403 на обеих ветках: окно деградирует до пустого списка молча - тост
-         * "Недостаточно прав" здесь лишний, запроса пользователь не делал.
-         */
-        async fetchForwardRecipients() {
-            const path = this.can('page.admin.users') ? "/users/all" : "/users/recipient-candidates";
+        async fetchForwardRecipients(applicationId = this.applicationData.id, seq = this.loadDetailSeq) {
+            if (seq !== this.loadDetailSeq || applicationId !== this.applicationData.id) return;
+            this.allUsers = [];
             try {
-                const response = await apiRequest(path, { silent403: true });
+                const response = await apiRequest(`/applications/${applicationId}/forward-recipients`, { silent403: true });
                 if (response.ok) {
-                    this.allUsers = (await response.json()) || [];
+                    const users = await response.json();
+                    if (seq === this.loadDetailSeq && applicationId === this.applicationData.id) {
+                        this.allUsers = users;
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching forward recipients:", error);
@@ -1656,6 +1701,21 @@ export default {
             } catch (error) {
                 console.error("Error checking approver role:", error);
             }
+        },
+
+        clearAttachmentSelection() {
+            this.loadAttachmentSeq++;
+            this.loadingAttachmentDetails = false;
+            this.selectedAttachment = null;
+            this.attachmentCars = [];
+            this.attachmentEmployees = [];
+            this.attachmentItems = [];
+            this.showVehicleModal = false;
+            this.showEmployeeModal = false;
+            this.selectedVehicle = null;
+            this.selectedEmployee = null;
+            this.showRemovalModal = false;
+            this.showOverrideModal = false;
         },
 
         async loadAttachmentDetails(attachmentId) {
@@ -1755,7 +1815,21 @@ export default {
                 });
 
                 if (response.ok) {
-                    useDeletionsStore().notify({ bold: 'Заявка переслана', type: 'success' });
+                    const result = await response.json();
+                    const total = new Set(usersToSend.map(user => user.user_id)).size;
+                    if (!Number.isInteger(result?.accepted) || !Number.isInteger(result?.skipped) ||
+                        result.accepted < 0 || result.skipped < 0 || result.accepted + result.skipped !== total) {
+                        useDeletionsStore().notify({ bold: 'Не удалось подтвердить результат пересылки', type: 'warning' });
+                        return;
+                    }
+                    if (result.accepted === 0) {
+                        useDeletionsStore().notify({ bold: 'Заявка никому не переслана. Проверьте получателей', type: 'warning' });
+                        await this.fetchForwardRecipients();
+                        return;
+                    }
+                    useDeletionsStore().notify(result.skipped > 0
+                        ? { bold: `Заявка переслана ${result.accepted} из ${total} получателей`, type: 'warning' }
+                        : { bold: 'Заявка переслана', type: 'success' });
                     this.closeForwardModal();
 
                     await this.loadApplicationDetails(this.applicationData);
@@ -2118,10 +2192,14 @@ export default {
         // После override обновляем только заявочные поля (в т.ч. гейт
         // has_unoverridden_blacklist_flags), не сбрасывая выбранное вложение.
         async refreshApplicationGate() {
+            const id = this.applicationData.id;
+            const seq = this.loadDetailSeq;
             try {
-                const response = await apiRequest(`/applications/${this.applicationData.id}/details`, { method: 'GET' });
+                const response = await this.readOpenApplication(id);
+                if (!response || seq !== this.loadDetailSeq) return;
                 if (response.ok) {
                     const appData = await response.json();
+                    if (!this.visible || id !== this.applicationData.id || seq !== this.loadDetailSeq) return;
                     this.applicationData = { ...this.applicationData, ...appData };
                     return;
                 }

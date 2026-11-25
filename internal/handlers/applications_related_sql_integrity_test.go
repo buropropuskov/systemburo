@@ -156,7 +156,7 @@ func TestRelatedSQLIntegrity_EighteenRequiredStatements(t *testing.T) {
 					services.ApplicationCreateRequest{ApplicationConfirmationInput: seedApplicationConfirmation(t, db), OrganizationID: &td.OrgID, CompanyID: &td.CompanyID, DataApproval: true}, false)
 				require.Nil(t, response)
 			case "forward":
-				err = svc.ForwardApplication(context.Background(), sender, appID, false, services.ForwardApplicationRequest{
+				_, err = svc.ForwardApplication(context.Background(), sender, appID, services.ForwardApplicationRequest{
 					Users: []services.ForwardUser{{UserID: resp1, RequiredApproval: true}, {UserID: resp2, RequiredApproval: true},
 						{UserID: view1, CanView: true}, {UserID: view2, CanView: true}}, AttachmentIDs: []int{att1, att2}})
 			case "approve":

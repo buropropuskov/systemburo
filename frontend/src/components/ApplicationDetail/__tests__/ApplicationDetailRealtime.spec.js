@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { shallowMount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { shallowMount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 // #840 V4: открытая деталь заявки подписывается на application:<id> и по сигналу
@@ -19,6 +19,9 @@ vi.mock('@/services/eventStream', () => ({
 
 import ApplicationDetail from '../ApplicationDetail.vue';
 import eventStream from '@/services/eventStream';
+import { useDeletionsStore } from '@/stores/deletions';
+
+enableAutoUnmount(afterEach);
 
 function mountDetail(app = { id: 7, application_number: 'A-7', status: 'В работе', sender_user_id: 1 }) {
   return shallowMount(ApplicationDetail, {
@@ -158,6 +161,122 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
     await pending;
     expect(done).toBe(true);
     wrapper.unmount();
+  });
+
+  it.each([403, 404])('закрывает карточку сразу после ответа детали %i, пока ещё грузятся вложения', async (status) => {
+    const wrapper = mountDetail({ id: 7, message: 'Учебное сообщение' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Учебное сообщение');
+    const notify = vi.spyOn(useDeletionsStore(), 'notify');
+    let finishAttachments;
+    apiRequest.mockImplementation((url) => {
+      if (url.endsWith('/details')) return Promise.resolve({ ok: false, status });
+      if (url.endsWith('/attachments')) return new Promise((resolve) => { finishAttachments = resolve; });
+      return Promise.resolve({ ok: true, json: async () => [] });
+    });
+    const update = eventStream.subscribe.mock.calls.find(([scope]) => scope === 'application:7')[1];
+    const pending = update();
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Учебное сообщение');
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ bold: 'Заявка больше недоступна' }));
+    finishAttachments({ ok: true, json: async () => [{ id: 52 }] });
+    await pending;
+    expect(wrapper.vm.applicationData).toEqual({});
+  });
+
+  it('сохраняет карточку при ошибке сервера и при отказе только по вложениям', async () => {
+    const wrapper = mountDetail({ id: 7, message: 'Учебное сообщение' });
+    await flushPromises();
+    wrapper.vm.attachments = [{ id: 12, attachment_name: 'Прежнее вложение' }];
+    wrapper.vm.selectedAttachment = wrapper.vm.attachments[0];
+    wrapper.vm.attachmentCars = [{ id: 33 }];
+    wrapper.vm.selectedVehicle = wrapper.vm.attachmentCars[0];
+    wrapper.vm.showVehicleModal = true;
+    apiRequest.mockImplementation((url) => Promise.resolve(url.endsWith('/attachments')
+      ? { ok: false, status: 403 }
+      : { ok: true, json: async () => ({}) }));
+    await wrapper.vm.refreshLiveDetail();
+    expect(wrapper.vm.selectedAttachment).toBeNull();
+    expect(wrapper.vm.attachmentCars).toEqual([]);
+    expect(wrapper.vm.showVehicleModal).toBe(false);
+    apiRequest.mockResolvedValue({ ok: false, status: 503 });
+    await wrapper.vm.refreshLiveDetail();
+    expect(wrapper.text()).toContain('Учебное сообщение');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+
+  it('игнорирует поздний отказ для предыдущей заявки', async () => {
+    const wrapper = mountDetail({ id: 7, message: 'Прежнее сообщение' });
+    await flushPromises();
+    let finish;
+    apiRequest.mockImplementation((url) => url === '/applications/7/details'
+      ? new Promise((resolve) => { finish = resolve; })
+      : Promise.resolve({ ok: true, json: async () => [] }));
+    const pending = wrapper.vm.refreshLiveDetail();
+    await wrapper.setProps({ application: { id: 8, message: 'Новое сообщение' } });
+    await flushPromises();
+    finish({ ok: false, status: 403 });
+    await pending;
+    expect(wrapper.emitted('close')).toBeUndefined();
+    expect(wrapper.text()).toContain('Новое сообщение');
+  });
+
+  it.each([[403, 200], [200, 403]])('ответ %i не отменяет более новое решение %i по той же заявке', async (oldStatus, status) => {
+    const wrapper = mountDetail({ id: 7, message: 'Учебное сообщение' });
+    await flushPromises();
+    let finish, delay = true;
+    const result = (code) => ({ ok: code === 200, status: code, json: async () => ({ message: 'Свежая заявка' }) });
+    apiRequest.mockImplementation((url) => {
+      if (!url.endsWith('/details')) return Promise.resolve({ ok: true, json: async () => [] });
+      if (!delay) return Promise.resolve(result(status));
+      delay = false;
+      return new Promise((resolve) => { finish = resolve; });
+    });
+    const earlier = wrapper.vm.refreshLiveDetail();
+    await wrapper.vm.refreshLiveDetail();
+    finish(result(oldStatus));
+    await earlier;
+    if (status === 200) {
+      expect(wrapper.emitted('close')).toBeUndefined();
+      expect(wrapper.text()).toContain('Свежая заявка');
+    } else {
+      expect(wrapper.emitted('close')).toHaveLength(1);
+      expect(wrapper.text()).not.toContain('Свежая заявка');
+    }
+  });
+
+  it('проверяет открытую видимую заявку даже без SSE и после возврата во вкладку', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    try {
+      const wrapper = mountDetail({ id: 7, message: 'Учебное сообщение' });
+      await flushPromises();
+      apiRequest.mockClear();
+      hidden.mockReturnValue(true);
+      vi.advanceTimersByTime(60_000);
+      expect(apiRequest).not.toHaveBeenCalled();
+      hidden.mockReturnValue(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushPromises();
+      expect(apiRequest.mock.calls.map(([path]) => path)).toEqual(['/applications/7/details']);
+      apiRequest.mockRejectedValueOnce(new Error('offline'));
+      window.dispatchEvent(new Event('online'));
+      await flushPromises();
+      expect(wrapper.emitted('close')).toBeUndefined();
+      apiRequest.mockResolvedValue({ ok: false, status: 403 });
+      vi.advanceTimersByTime(60_000);
+      await flushPromises();
+      expect(wrapper.emitted('close')).toHaveLength(1);
+      const timer = wrapper.vm.accessCheckTimer;
+      const clear = vi.spyOn(globalThis, 'clearInterval');
+      wrapper.unmount();
+      expect(clear).toHaveBeenCalledWith(timer);
+      clear.mockRestore();
+    } finally {
+      hidden.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
 });

@@ -5,11 +5,11 @@ import { createPinia, setActivePinia } from 'pinia';
 // #1948: переслать заявку вправе любой, у кого есть к ней доступ - супер-админ,
 // принимающий, отправитель, ответственный, согласующий и читатель. Читатель при этом
 // передаёт заявку ТОЛЬКО на просмотр: назначение роли сервер отбивает 403.
-// Получатели приезжают из двух источников: носителю page.admin.users - полный
-// /users/all, остальным - неадминские кандидаты (на /users/all у них 403).
+// Кандидатов для пересылки определяет сервер по роли на этой заявке.
 
 import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
+import { useDeletionsStore } from '@/stores/deletions';
 
 const okJson = (data) => ({ ok: true, json: async () => data });
 
@@ -25,8 +25,7 @@ import ForwardModal from '../ForwardModal.vue';
 
 const FORWARD = '[data-testid="app-detail-button-forward"]';
 
-// Ответ эндпоинта кандидатов - поля из models.RecipientCandidate. Организация названа
-// как в /users/all: оба ответа приезжают в один и тот же проп allUsers.
+// Ответ эндпоинта пересылки содержит публичные поля models.RecipientCandidate.
 const CANDIDATES = [
   {
     id: 21,
@@ -50,20 +49,6 @@ const CANDIDATES = [
     organization: 'ООО Ромашка',
     company: 'Ромашка-Сервис',
     pd_hidden: true,
-  },
-];
-
-// Ответ /users/all шире по составу людей: администратору доступны и чужие организации.
-const ALL_USERS = [
-  ...CANDIDATES,
-  {
-    id: 33,
-    username: 'sidorov',
-    last_name: 'Сидоров',
-    first_name: 'Сидор',
-    middle_name: null,
-    position: 'Логист',
-    organization: 'Чужая организация',
   },
 ];
 
@@ -203,8 +188,7 @@ describe('ApplicationDetail - источник получателей (#1948)', 
     usePermissionsStore().loaded = true;
     apiRequest.mockReset();
     apiRequest.mockImplementation((path) => {
-      if (path === '/users/recipient-candidates') return Promise.resolve(okJson(CANDIDATES));
-      if (path === '/users/all') return Promise.resolve(okJson(ALL_USERS));
+      if (path === '/applications/7/forward-recipients') return Promise.resolve(okJson(CANDIDATES));
       return Promise.resolve(okJson([]));
     });
   });
@@ -212,22 +196,21 @@ describe('ApplicationDetail - источник получателей (#1948)', 
   it('без права на список пользователей - неадминские кандидаты, уходят в окно пересылки', async () => {
     const wrapper = await mountDetail({ data: { responsibleUsers: [{ id: 1 }] } });
 
-    expect(paths()).toContain('/users/recipient-candidates');
+    expect(paths()).toContain('/applications/7/forward-recipients');
     expect(paths()).not.toContain('/users/all');
     expect(wrapper.vm.allUsers).toEqual(CANDIDATES);
     expect(wrapper.findComponent(ForwardModal).props('allUsers')).toEqual(CANDIDATES);
   });
 
-  it('с page.admin.users - полный список пользователей, отказ по-прежнему молчит', async () => {
+  it('право на каталог не меняет источник адресатов заявки', async () => {
     const wrapper = await mountDetail({
       allow: ['page.admin.users'],
       data: { responsibleUsers: [{ id: 1 }] },
     });
 
-    expect(paths()).toContain('/users/all');
-    expect(paths()).not.toContain('/users/recipient-candidates');
-    expect(callFor('/users/all')[1]).toMatchObject({ silent403: true });
-    expect(wrapper.vm.allUsers).toEqual(ALL_USERS);
+    expect(paths()).not.toContain('/users/all');
+    expect(callFor('/applications/7/forward-recipients')[1]).toMatchObject({ silent403: true });
+    expect(wrapper.vm.allUsers).toEqual(CANDIDATES);
   });
 
   it('в личном кабинете получателей не запрашиваем - окна пересылки там нет', async () => {
@@ -237,8 +220,28 @@ describe('ApplicationDetail - источник получателей (#1948)', 
       data: { responsibleUsers: [{ id: 1 }] },
     });
 
-    expect(paths()).not.toContain('/users/recipient-candidates');
+    expect(paths()).not.toContain('/applications/7/forward-recipients');
     expect(paths()).not.toContain('/users/all');
+  });
+});
+
+describe('ApplicationDetail - результат пересылки', () => {
+  it.each([
+    [{ accepted: 2, skipped: 0 }, 'success', 'Заявка переслана', true],
+    [{ accepted: 1, skipped: 1 }, 'warning', 'Заявка переслана 1 из 2 получателей', true],
+    [{ accepted: 0, skipped: 2 }, 'warning', 'Заявка никому не переслана. Проверьте получателей', false],
+    [{}, 'warning', 'Не удалось подтвердить результат пересылки', false],
+  ])('сообщает результат сервера %j', async (result, type, bold, close) => {
+    setActivePinia(createPinia());
+    const notify = vi.spyOn(useDeletionsStore(), 'notify').mockImplementation(() => {});
+    apiRequest.mockReset().mockResolvedValue(okJson(result));
+    const context = {
+      canForwardApplication: true, applicationData: { id: 7 }, $refs: {}, $emit: vi.fn(),
+      closeForwardModal: vi.fn(), loadApplicationDetails: vi.fn(), fetchForwardRecipients: vi.fn(),
+    };
+    await ApplicationDetail.methods.sendForwardRequest.call(context, { users: [{ user_id: 21 }, { user_id: 22 }] });
+    expect(notify).toHaveBeenCalledWith({ bold, type });
+    expect(context.closeForwardModal).toHaveBeenCalledTimes(close ? 1 : 0);
   });
 });
 
@@ -265,7 +268,7 @@ describe('ForwardModal - получатели и роль (#1948)', () => {
     const named = texts.find((t) => t.includes('Петров Пётр Петрович'));
     expect(named, `в списке нет получателя по ФИО: ${texts.join(' | ')}`).toBeTruthy();
     expect(named).toContain('Кладовщик');
-    // Организация - вторая строка под именем; кандидаты её отдают наравне с /users/all.
+    // Организация видимого получателя показана под именем.
     expect(named).toContain('ООО Ромашка');
     // Скрытый получатель остаётся в списке с нейтральной подписью.
     const hidden = options.find(o => o.text().includes('Имя скрыто'));
