@@ -408,6 +408,7 @@ type ApplicationCreateRequest struct {
 
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
+	generatedSendingTime *time.Time
 	ApplicationConfirmationInput
 	RequestIdempotencyKey string  `json:"request_idempotency_key,omitempty"`
 	Message               *string `json:"message"`
@@ -2306,6 +2307,13 @@ func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateF
 	return carIDs, nil
 }
 
+// SubmitGeneratedApplication задаёт время подачи только для внутреннего генератора.
+// Обычная подача через HTTP получает время сервера.
+func SubmitGeneratedApplication(ctx context.Context, svc ApplicationService, username string, req CompleteApplicationRequest, sentAt time.Time) (*CompleteApplicationResponse, error) {
+	req.generatedSendingTime = &sentAt
+	return svc.SubmitCompleteApplication(ctx, username, req, false)
+}
+
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
 func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
@@ -2440,6 +2448,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 
 		baseTime := time.Now().UTC()
+		if req.generatedSendingTime != nil {
+			baseTime = req.generatedSendingTime.UTC()
+		}
 		applicationNumber, err = nextApplicationNumber(tx, baseTime)
 		if err != nil {
 			return err

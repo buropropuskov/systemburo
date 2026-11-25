@@ -168,7 +168,7 @@ func TestFakeApplications_RunCreatesApplicationsWithAttachments(t *testing.T) {
 	rows := readApplicationSnapshots(t, db, appIDs)
 	require.Len(t, rows, profile.Applications)
 	for _, r := range rows {
-		wantPrefix := fmt.Sprintf("№ %s/", r.Sending.UTC().Format("20060102"))
+		wantPrefix := fmt.Sprintf("№ %s/", r.Sending.In(time.FixedZone("MSK", 3*60*60)).Format("20060102"))
 		require.True(t, strings.HasPrefix(r.Number, wantPrefix),
 			"номер заявки %d (%q) должен начинаться с даты отправки после сдвига (%q)", r.ID, r.Number, wantPrefix)
 	}
@@ -353,9 +353,7 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 	}
 }
 
-// Повторная наливка не должна выдать заявке номер, уже занятый прошлой партией: номер
-// пересчитывается при переносе даты, и если бы он считался только по своей партии,
-// вторая партия начала бы нумерацию тех же дней заново.
+// Новая партия использует ту же суточную нумерацию, что прошлая партия и обычные заявки.
 func TestFakeApplications_RepeatedRunKeepsNumbersUnique(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	ctx := context.Background()
@@ -374,6 +372,13 @@ func TestFakeApplications_RepeatedRunKeepsNumbersUnique(t *testing.T) {
 	require.NoError(t, runFakeDataWithDocument(t, ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 22}))
 
 	var duplicates int64
+	var inconsistent int64
+	require.NoError(t, db.Raw(`
+		SELECT COUNT(*) FROM applications a WHERE NOT EXISTS (
+			SELECT 1 FROM audit_log l WHERE l.entity_type = 'application' AND l.entity_id = a.id
+			AND l.action = 'create' AND l.details->>'new_value' = a.application_number
+		)`).Scan(&inconsistent).Error)
+	require.Zero(t, inconsistent, "журнал подачи и карточка должны содержать один номер")
 	require.NoError(t, db.Raw(`
 		SELECT COUNT(*) FROM (
 			SELECT application_number FROM applications

@@ -309,7 +309,7 @@ func nextStageMoment(s *Stream, prev, now time.Time) time.Time {
 }
 
 // --- сдвиг дат стадий (сырой SQL -- то же исключение из "сервисный слой, а не SQL",
-// что shiftApplicationDates/shiftApplicationChildren в applications.go): сервисные
+// что shiftApplicationChildren в applications.go): сервисные
 // методы стадий пишут NOW() реального времени, и без переноса переход по заявке
 // месячной давности выглядел бы совершённым сегодня) ---
 
