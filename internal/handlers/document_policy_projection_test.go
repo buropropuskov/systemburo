@@ -248,8 +248,12 @@ type documentOwnerLookupFailure struct {
 	calls int
 }
 
-func (s *documentOwnerLookupFailure) CanAccessApplication(context.Context, int, string, bool) bool {
-	return true
+func (s *documentOwnerLookupFailure) CanAccessApplicationChecked(context.Context, int, string, bool) (bool, error) {
+	return true, nil
+}
+
+func (s *documentOwnerLookupFailure) ForwardAttachmentScope(context.Context, int, int) (map[int]bool, error) {
+	return nil, nil
 }
 
 func (s *documentOwnerLookupFailure) IsApplicationSender(context.Context, int, int) (bool, error) {

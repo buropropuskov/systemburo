@@ -1017,7 +1017,9 @@ func (s *applicationService) CanAccessApplication(ctx context.Context, applicati
 
 // CheckApplicationAccess не расширяет legacy ApplicationService и его адаптеры.
 // Production implementation поддерживает error-контракт; неизвестный адаптер закрыт.
-func CheckApplicationAccess(ctx context.Context, svc ApplicationService, applicationID int, username string, isSuperAdmin bool) (bool, error) {
+func CheckApplicationAccess(ctx context.Context, svc interface {
+	CanAccessApplication(context.Context, int, string, bool) bool
+}, applicationID int, username string, isSuperAdmin bool) (bool, error) {
 	checked, ok := svc.(interface {
 		CanAccessApplicationChecked(context.Context, int, string, bool) (bool, error)
 	})

@@ -106,7 +106,7 @@ func (h *ApplicationHandler) GetApplicationHistory(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	history, err := h.service.GetApplicationHistory(c.Request().Context(), id, username)
+	history, err := h.service.GetApplicationHistory(c.Request().Context(), id, username, viewerUserID(c))
 	if err != nil {
 		return err
 	}

@@ -71,7 +71,7 @@ func (h *ApplicationHandler) GetForwardMessages(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	messages, err := h.service.GetForwardMessages(c.Request().Context(), id)
+	messages, err := h.service.GetForwardMessages(c.Request().Context(), id, viewerUserID(c))
 	if err != nil {
 		return err
 	}

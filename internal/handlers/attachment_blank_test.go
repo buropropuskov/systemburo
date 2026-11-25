@@ -88,6 +88,77 @@ func setupBlankWorld(t *testing.T) blankWorld {
 
 // Гейты и параметры шаблона живут секциями на одном поднятом приложении: отдельные
 // SetupTestApp с CleanDB перебивали границу go test -timeout у пакета handlers.
+func TestForwardedBlankScopeAndHistory(t *testing.T) {
+	w := setupBlankWorld(t)
+	db, e := w.h.w.db, w.h.e
+	var visible models.Attachment
+	require.NoError(t, db.First(&visible, w.attID).Error)
+	var tpl models.AttachmentTemplate
+	require.NoError(t, db.Where("unique_attachment_id = ?", visible.UniqueAttachmentID).First(&tpl).Error)
+	fields := []string{"app_cars.numbers", "app_items.names", "app_cars.sources", "app_items.sources"}
+	for i, field := range fields {
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{TemplateID: tpl.ID, CellRef: fmt.Sprintf("D%d", i+1), FieldPath: field}).Error)
+	}
+	goodsTitle, carTitle := "Synthetic goods attachment", "Synthetic car attachment"
+	goods := models.Attachment{ApplicationID: &w.appID, AttachmentType: "items", AttachmentDisplayName: &goodsTitle}
+	car := models.Attachment{ApplicationID: &w.appID, AttachmentType: "cars", AttachmentDisplayName: &carTitle}
+	require.NoError(t, db.Create(&goods).Error)
+	require.NoError(t, db.Create(&car).Error)
+	goodsName, plate := "Synthetic cargo", "T123TEST"
+	require.NoError(t, db.Create(&models.Item{AttachmentID: goods.ID, Name: &goodsName}).Error)
+	require.NoError(t, db.Create(&models.Car{AttachmentID: car.ID, CarNumber: &plate}).Error)
+	role := secUserTypeIDByCode(t, db, "user")
+	forward := func(login string, id int) string {
+		token := testutil.RegisterAndLogin(t, e, login, blankTestPassword, role, w.h.w.orgID, 0)
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"can_view":true}],"attachment_ids":[%d]}`, getUserID(t, db, login), id)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", w.appID), body, testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return token
+	}
+	first := forward("scope_first", w.attID)
+	second := forward("scope_second", car.ID)
+	for _, tc := range []struct {
+		token string
+		names []string
+	}{
+		{first, []string{}}, {second, []string{carTitle}}, {w.h.userToken, []string{carTitle}},
+	} {
+		for _, surface := range forward2664Surfaces(t, e, tc.token, w.appID) {
+			require.ElementsMatch(t, tc.names, surface["attachments"])
+		}
+	}
+	eventID, _ := forward2664StoredEvent(t, db, w.appID)
+	require.NoError(t, db.Exec("UPDATE audit_log SET details = details::jsonb #- '{metadata,attachment_details}' WHERE id = ?", eventID).Error)
+	for _, surface := range forward2664Surfaces(t, e, second, w.appID) {
+		require.Empty(t, surface["attachments"])
+	}
+	for _, surface := range forward2664Surfaces(t, e, w.h.userToken, w.appID) {
+		require.ElementsMatch(t, []string{carTitle}, surface["attachments"])
+	}
+	// A forwarded attachment and an assignment to a post are independent grants.
+	require.NoError(t, db.Create(&models.ApplicationViewer{ApplicationID: w.appID, UserID: w.h.w.guardID}).Error)
+	require.NoError(t, db.Create(&models.ForwardAttachment{ApplicationID: w.appID, RecipientUserID: w.h.w.guardID, AttachmentID: car.ID}).Error)
+	require.Equal(t, http.StatusForbidden, testutil.GET(t, e, w.url, testutil.AuthHeader(w.h.guardToken)).Code)
+	w.h.w.assignTable(t, w.tableID)
+	require.Equal(t, http.StatusOK, testutil.GET(t, e, w.url, testutil.AuthHeader(w.h.guardToken)).Code)
+	denied := testutil.GET(t, e, w.url, testutil.AuthHeader(second))
+	require.Equal(t, http.StatusForbidden, denied.Code)
+	for _, tc := range []struct{ token, carSource, itemSource string }{
+		{first, "", ""}, {w.h.userToken, carTitle, goodsTitle},
+	} {
+		rec := testutil.GET(t, e, w.url, testutil.AuthHeader(tc.token))
+		require.Equal(t, http.StatusOK, rec.Code)
+		book, err := excelize.OpenReader(rec.Body)
+		require.NoError(t, err)
+		for idx, expected := range []string{plate, goodsName, tc.carSource, tc.itemSource} {
+			actual, err := book.GetCellValue(book.GetSheetName(0), fmt.Sprintf("D%d", idx+1))
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		}
+		require.NoError(t, book.Close())
+	}
+}
+
 func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	w := setupBlankWorld(t)
 	t.Run("скачивание бланка", func(t *testing.T) { blankDownloadGateSection(t, w) })

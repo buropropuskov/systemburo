@@ -219,11 +219,11 @@ type ApplicationService interface {
 
 	// GetApplicationHistory возвращает историю заявки. username - смотрящий: записи о
 	// заметке бюро выдаются только принимающему, остальным лента приходит без них.
-	GetApplicationHistory(ctx context.Context, applicationID int, username string) ([]ApplicationHistoryItem, error)
+	GetApplicationHistory(ctx context.Context, applicationID int, username string, viewerID int) ([]ApplicationHistoryItem, error)
 
 	// GetForwardMessages возвращает ветку заявки (#967) - все пересылки с получателями
 	// и сопроводительным текстом (если был), хронологически (старые сверху).
-	GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error)
+	GetForwardMessages(ctx context.Context, applicationID, viewerID int) ([]ForwardMessageItem, error)
 
 	// RevokeApproval отзывает ранее данное согласование.
 	RevokeApproval(ctx context.Context, username string, applicationID int, req RevokeApprovalRequest) (*RevokeApprovalResponse, error)
@@ -235,6 +235,8 @@ type ApplicationService interface {
 	// (viewerUserID; 0 - супер-админ, без фильтра).
 	GetApplicationAttachments(ctx context.Context, applicationID, viewerUserID int) ([]AttachmentInfo, error)
 
+	ForwardAttachmentScope(ctx context.Context, applicationID, viewerUserID int) (map[int]bool, error)
+	SecurityBlankAttachmentIDs(ctx context.Context, applicationID, userID int, unrestricted bool) (map[int]bool, error)
 	// CanViewAttachment сообщает, доступно ли вложение просматривающему с учётом пересыла.
 	CanViewAttachment(ctx context.Context, applicationID, attachmentID, viewerUserID int) (bool, error)
 
