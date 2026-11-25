@@ -409,11 +409,13 @@ export default {
 }
 
 .role-pill {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding-inline: 16px;
+  white-space: nowrap;
   height: 42px;
   border: 1px solid var(--color-border);
   background: var(--surface);
@@ -438,6 +440,7 @@ export default {
 }
 
 .role-pill__dot {
+  flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -620,6 +623,18 @@ export default {
   display: none;
 }
 
+@media (min-width: 561px) {
+  .guide:has(.role-pill:nth-child(5)) {
+    width: min(840px, 100%);
+  }
+}
+
+@media (min-width: 561px) and (max-width: 879px) {
+  .guide__roles:has(.role-pill:nth-child(5)) .role-pill {
+    flex-basis: calc((100% - 16px) / 3);
+  }
+}
+
 @media (max-width: 560px) {
   /* На телефоне модалка почти во всю ширину, боковые отступы ужаты - иначе
      заголовок и текст не помещались. Высота по dvh (учитывает адрес-бар). */
@@ -674,10 +689,6 @@ export default {
   .role-pill {
     flex: 1 1 auto;
     padding: 0 14px;
-    white-space: nowrap;
-  }
-  .role-pill__dot {
-    flex-shrink: 0;
   }
   .guide__body {
     padding: 16px 16px 8px;
