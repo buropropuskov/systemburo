@@ -77,7 +77,7 @@ const auditRetentionWhere = `
 	created_at < ?
 	AND action <> 'delete'
 	AND NOT (action = 'assignments_changed' AND EXISTS (
-		SELECT 1 FROM notifications WHERE ` + pendingApplicationChangeNotice + `
+		SELECT 1 FROM notifications WHERE ` + PendingApplicationChangeNotice + `
 		AND projection_ref->>'event_key' = audit_log.details->>'event_key'
 	))
 	AND id NOT IN (
@@ -87,15 +87,38 @@ const auditRetentionWhere = `
 		ORDER BY entity_type, entity_id, action, created_at DESC, id DESC
 	)`
 
-// The unread field marker is application state, independent of bell read state.
-// Once acknowledged (or its application/owner disappears), normal retention applies.
-const pendingApplicationChangeNotice = `
+// PendingApplicationChangeNotice identifies notifications with at least one field
+// the sender can still acknowledge. Use it for both the in-card list and retention
+// so historical notifications also expire when their last entity is purged.
+const PendingApplicationChangeNotice = `
 	COALESCE(type, '') = 'application_elements_changed'
 	AND projection_ref->>'type' = 'application_elements_changed'
 	AND COALESCE(projection_ref->'facts'->>'all_changes_acknowledged', 'false') <> 'true'
-	AND EXISTS (SELECT 1 FROM applications a
+	AND EXISTS (
+		SELECT 1 FROM applications a
+		JOIN audit_log event ON event.entity_id = a.id AND event.entity_type = 'application'
+			AND event.action = 'assignments_changed'
+			AND event.details->>'event_key' = notifications.projection_ref->>'event_key'
+			AND event.actor_user_id::text = notifications.projection_ref->>'actor_id'
+		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(event.details->'changes') = 'array'
+			THEN event.details->'changes' ELSE '[]'::jsonb END) WITH ORDINALITY AS row_change(item, pos)
 		WHERE a.id::text = notifications.projection_ref->>'application_id'
-		AND a.sender_user_id = notifications.user_id)`
+			AND a.sender_user_id = notifications.user_id
+			AND NOT (COALESCE(notifications.projection_ref->'facts'->'acknowledged_changes', '[]'::jsonb)
+				@> jsonb_build_array(row_change.pos - 1))
+			AND row_change.item->>'field' IN ('tables', 'places', 'removed')
+			AND EXISTS (
+				SELECT 1 FROM attachments att
+				JOIN cars c ON c.attachment_id = att.id
+				WHERE row_change.item->>'kind' = 'cars' AND att.application_id = a.id
+					AND c.id::text = row_change.item->>'entity_id' AND NOT c.is_purged
+				UNION ALL
+				SELECT 1 FROM attachments att
+				JOIN employees e ON e.attachment_id = att.id
+				WHERE row_change.item->>'kind' = 'employees' AND att.application_id = a.id
+					AND e.id::text = row_change.item->>'entity_id' AND NOT e.is_purged
+			)
+	)`
 
 // retentionRule описывает, что и по какому условию удаляется. cutoffArgs задаёт,
 // сколько раз граничная дата подставляется в условие.
@@ -128,7 +151,7 @@ var retentionRules = map[RetentionTarget]retentionRule{
 	},
 	TargetNotifications: {
 		table:       "notifications",
-		where:       "is_read AND created_at < ? AND NOT (" + pendingApplicationChangeNotice + ")",
+		where:       "is_read AND created_at < ? AND NOT (" + PendingApplicationChangeNotice + ")",
 		cutoffArgs:  1,
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -30) },
@@ -141,7 +164,7 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		// одну таблицу), и счётчик удалённого в логе задваивался бы. Прочитанные
 		// уходят по своему, более короткому сроку (TargetNotifications выше по файлу);
 		// здесь - только то, что человек ещё не видел.
-		where:       "NOT is_read AND created_at < ? AND NOT (" + pendingApplicationChangeNotice + ")",
+		where:       "NOT is_read AND created_at < ? AND NOT (" + PendingApplicationChangeNotice + ")",
 		cutoffArgs:  1,
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -90) },

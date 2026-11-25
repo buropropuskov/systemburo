@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 )
 
@@ -18,7 +20,9 @@ const applicationChangesAction = "assignments_changed"
 
 func (s *notificationService) GetApplicationChanges(ctx context.Context, userID, applicationID int) ([]models.Notification, error) {
 	rows := make([]models.Notification, 0)
-	err := s.db.WithContext(ctx).Model(&models.Notification{}).Select(notificationMetadataColumns).Where("user_id = ?", userID).Where("COALESCE(projection_ref->'facts'->>'all_changes_acknowledged','false') <> 'true'").Where("type = ? AND projection_ref->>'application_id' = ?", NotificationTypeApplicationElementsChanged, fmt.Sprint(applicationID)).Order("id DESC").Find(&rows).Error
+	err := s.db.WithContext(ctx).Model(&models.Notification{}).Select(notificationMetadataColumns).
+		Where("user_id = ? AND projection_ref->>'application_id' = ?", userID, fmt.Sprint(applicationID)).
+		Where(database.PendingApplicationChangeNotice).Order("id DESC").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -186,17 +190,20 @@ func (s *notificationService) acknowledgeApplicationChange(ctx context.Context, 
 		if err != nil {
 			return err
 		}
-		allowed := false
+		allowed, allAcknowledged := false, true
 		if projected[0].Data != nil {
 			var payload struct {
 				Changes []struct {
-					Index int `json:"index"`
+					Index        int  `json:"index"`
+					Acknowledged bool `json:"acknowledged"`
 				} `json:"changes"`
 			}
 			if json.Unmarshal([]byte(*projected[0].Data), &payload) == nil {
 				for _, change := range payload.Changes {
 					if change.Index == index {
 						allowed = true
+					} else if !change.Acknowledged {
+						allAcknowledged = false
 					}
 				}
 			}
@@ -204,20 +211,10 @@ func (s *notificationService) acknowledgeApplicationChange(ctx context.Context, 
 		if !allowed {
 			return echo.NewHTTPError(404, "Изменение недоступно")
 		}
-		found := false
-		for _, value := range ref.Facts.AcknowledgedChanges {
-			if value == index {
-				found = true
-			}
-		}
-		if !found {
+		if !slices.Contains(ref.Facts.AcknowledgedChanges, index) {
 			ref.Facts.AcknowledgedChanges = append(ref.Facts.AcknowledgedChanges, index)
 		}
-		event, eventErr := projector.applicationChangeEvent(ctx, ref)
-		if eventErr != nil {
-			return eventErr
-		}
-		ref.Facts.AllChangesAcknowledged = len(ref.Facts.AcknowledgedChanges) == len(event.Changes)
+		ref.Facts.AllChangesAcknowledged = allAcknowledged
 		encoded := encodeNotificationReference(&ref)
 		if encoded == nil {
 			return echo.NewHTTPError(400, "Некорректное подтверждение")

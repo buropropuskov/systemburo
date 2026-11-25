@@ -11,8 +11,118 @@ import (
 	"github.com/stretchr/testify/require"
 	"systemburo/internal/database"
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 )
+
+func TestApplicationChanges_PurgedElementsFinishMarkers(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	actor := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+	actorID := getUserID(t, db, "testadmin")
+	token := testutil.RegisterAndLogin(t, e, "changes-purge", "pass123", 1, td.OrgID, td.CompanyID)
+	senderID := getUserID(t, db, "changes-purge")
+	post := seedCarsTable(t, db, "changes-purge-post", "Учебный пост")
+	trash := services.NewTrashService(db, services.NewAuditRecorder(db))
+	ctx := context.Background()
+	old := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, kind         string
+		ackFirst, purgeAll bool
+	}{
+		{"car_purged_before_ack", "cars", false, false},
+		{"employee_purged_after_ack", "people", true, false},
+		{"all_employees_purged", "people", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			appID, first := seedAssignApp(t, db, td.OrgID, senderID, models.StatusInWork, tc.name)
+			var second int
+			purge := trash.PurgeCar
+			if tc.kind == "people" {
+				first = seedAssignEmployee(t, db, appID, "Первый")
+				second = seedAssignEmployee(t, db, appID, "Второй")
+				purge = trash.PurgeEmployee
+			} else {
+				var original models.Car
+				require.NoError(t, db.First(&original, first).Error)
+				number := "A110AA777"
+				car := models.Car{AttachmentID: original.AttachmentID, CarNumber: &number, Status: original.Status}
+				require.NoError(t, db.Create(&car).Error)
+				second = car.ID
+			}
+			body := fmt.Sprintf(`{"element_type":%q,"element_ids":[%d,%d],"reason":"Учебная проверка"}`, tc.kind, first, second)
+			r := testutil.DELETEWithBody(t, e, fmt.Sprintf("/applications/%d/elements", appID), body, testutil.AuthHeader(actor))
+			require.Equal(t, 200, r.Code, r.Body.String())
+			var note models.Notification
+			require.NoError(t, db.Where("user_id = ? AND type = ? AND projection_ref->>'application_id' = ?", senderID, "application_elements_changed", fmt.Sprint(appID)).Take(&note).Error)
+			history := db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appID, "assignments_changed")
+			require.NoError(t, history.Update("created_at", old).Error)
+			notes := db.Model(&models.Notification{}).Where("id = ?", note.ID)
+			require.NoError(t, notes.Update("created_at", old).Error)
+			read := func() []models.Notification {
+				t.Helper()
+				r := testutil.GET(t, e, fmt.Sprintf("/notifications?application_id=%d", appID), testutil.AuthHeader(token))
+				require.Equal(t, 200, r.Code, r.Body.String())
+				var result struct{ Data []models.Notification }
+				require.NoError(t, json.Unmarshal(r.Body.Bytes(), &result))
+				return result.Data
+			}
+			markers := read()
+			require.Len(t, markers, 1)
+			require.NotNil(t, markers[0].Data)
+			var initial struct {
+				Changes []struct {
+					Index    int `json:"index"`
+					EntityID int `json:"entity_id"`
+				} `json:"changes"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(*markers[0].Data), &initial))
+			indexByID := make(map[int]int)
+			for _, change := range initial.Changes {
+				indexByID[change.EntityID] = change.Index
+			}
+			require.Contains(t, indexByID, first)
+			require.Contains(t, indexByID, second)
+			ack := func(index, status int) {
+				t.Helper()
+				r := testutil.PUT(t, e, fmt.Sprintf("/notifications/%d/read", note.ID), fmt.Sprintf(`{"acknowledged_change":%d}`, index), testutil.AuthHeader(token))
+				require.Equal(t, status, r.Code, r.Body.String())
+			}
+			check := func(want int) {
+				t.Helper()
+				require.Len(t, read(), want)
+				// Run audit first: its outcome must not depend on the notification sweep.
+				for _, target := range []database.RetentionTarget{database.TargetAudit, database.TargetUnreadNotifications, database.TargetNotifications} {
+					_, err := database.SweepRetention(ctx, db, target, database.SweepOptions{Cutoff: old.AddDate(1, 0, 0), Apply: true})
+					require.NoError(t, err)
+				}
+				var count int64
+				require.NoError(t, notes.Count(&count).Error)
+				require.EqualValues(t, want, count)
+				require.NoError(t, history.Count(&count).Error)
+				require.EqualValues(t, want, count)
+			}
+			if tc.ackFirst {
+				ack(indexByID[second], 200)
+			}
+			check(1)
+			require.NoError(t, purge(ctx, post, first, actorID))
+			ack(indexByID[first], 404)
+			if !tc.ackFirst {
+				check(1)
+				if tc.purgeAll {
+					require.NoError(t, purge(ctx, post, second, actorID))
+				} else {
+					ack(indexByID[second], 200)
+				}
+			}
+			check(0)
+		})
+	}
+}
 
 func TestApplicationChanges_SummaryOwnershipAndAcknowledgement(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
