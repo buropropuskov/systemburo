@@ -244,6 +244,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(AllModels()...); err != nil {
 		return err
 	}
+	if err := InitializeApplicationNumberCounters(db); err != nil {
+		return err
+	}
 	if err := BackfillEntityPeriodModes(db); err != nil {
 		return err
 	}

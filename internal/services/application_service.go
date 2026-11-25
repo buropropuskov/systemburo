@@ -410,6 +410,7 @@ type ApplicationCreateRequest struct {
 
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
+	generatedSendingTime *time.Time
 	ApplicationConfirmationInput
 	RequestIdempotencyKey string  `json:"request_idempotency_key,omitempty"`
 	Message               *string `json:"message"`
@@ -1671,12 +1672,14 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 		}
 	}
 
-	now := time.Now().UTC()
-	applicationNumber := nextApplicationNumber(s.db.WithContext(ctx))
-
 	var app models.Application
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		applicationNumber, err := nextApplicationNumber(tx, now)
 		if err != nil {
 			return err
 		}
@@ -1782,7 +1785,7 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 		Success:           true,
 		Message:           "Application created successfully",
 		ApplicationID:     app.ID,
-		ApplicationNumber: applicationNumber,
+		ApplicationNumber: *app.ApplicationNumber,
 	}, nil
 }
 
@@ -2306,6 +2309,13 @@ func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateF
 	return carIDs, nil
 }
 
+// SubmitGeneratedApplication задаёт время подачи только для внутреннего генератора.
+// Обычная подача через HTTP получает время сервера.
+func SubmitGeneratedApplication(ctx context.Context, svc ApplicationService, username string, req CompleteApplicationRequest, sentAt time.Time) (*CompleteApplicationResponse, error) {
+	req.generatedSendingTime = &sentAt
+	return svc.SubmitCompleteApplication(ctx, username, req, false)
+}
+
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
 func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
@@ -2392,9 +2402,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			return err
 		}
 
-		baseTime := time.Now().UTC()
-		applicationNumber = nextApplicationNumber(tx)
-
 		// Организация и компания заявки: выбранная по id либо найденная по ключу
 		// дедупликации наименования, а незнакомое наименование заводит запись «на
 		// проверке» (#1437). NULL остаётся только там, где сущность не указана вовсе.
@@ -2439,6 +2446,15 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 
 		if err := s.ensureNoActiveByFactApplication(tx, organizationID, hasByFactVehicle(req)); err != nil {
+			return err
+		}
+
+		baseTime := time.Now().UTC()
+		if req.generatedSendingTime != nil {
+			baseTime = req.generatedSendingTime.UTC()
+		}
+		applicationNumber, err = nextApplicationNumber(tx, baseTime)
+		if err != nil {
 			return err
 		}
 

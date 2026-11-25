@@ -27,7 +27,7 @@ const appAttachmentMaxItems = 3
 
 // appValidityMinDays, appValidityMaxDays -- на сколько дней вперёд от даты подачи
 // действует пропуск (entry_date_to - entry_date_from). Часть заявок с таким окном,
-// сдвинутым в прошлое (см. shiftApplicationDates), окажется просроченной уже сегодня --
+// начавшимся в прошлом, окажется просроченной уже сегодня --
 // это тоже честная картина: на живом стенде старые пропуска именно так и выглядят.
 const (
 	appValidityMinDays = 7
@@ -197,7 +197,6 @@ func (applicationsStep) Run(ctx context.Context, env *Env) error {
 	}
 	streams := newApplicationStreams(env.Seed)
 	now := time.Now().UTC()
-	created := make([]shiftedApplication, 0, env.Profile.Applications)
 
 	for i := 0; i < env.Profile.Applications; i++ {
 		applicant := Pick(streams.applicant, applicants)
@@ -207,7 +206,7 @@ func (applicationsStep) Run(ctx context.Context, env *Env) error {
 		// canOverrideOrganization=false: заявка всегда идёт от организации/компании самого
 		// заявителя (drawAffiliation уже гарантировал ему хотя бы одну) -- так подаёт
 		// заявку обычный пользователь, без права application.organization.override.
-		resp, err := appSvc.SubmitCompleteApplication(ctx, applicant.Username, req, false)
+		resp, err := services.SubmitGeneratedApplication(ctx, appSvc, applicant.Username, req, sentAt)
 		if err != nil {
 			return fmt.Errorf("заявка %d/%d (пользователь %s): %w", i+1, env.Profile.Applications, applicant.Username, err)
 		}
@@ -216,10 +215,14 @@ func (applicationsStep) Run(ctx context.Context, env *Env) error {
 		if err := env.Batch.Add(ctx, models.AuditEntityApplication, resp.ApplicationID); err != nil {
 			return fmt.Errorf("регистрация заявки %d в партии: %w", resp.ApplicationID, err)
 		}
-		created = append(created, shiftedApplication{id: resp.ApplicationID, sentAt: sentAt})
+		if err := env.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			return shiftApplicationChildren(tx, resp.ApplicationID, sentAt)
+		}); err != nil {
+			return err
+		}
 	}
 
-	return shiftApplicationDates(ctx, env, created)
+	return nil
 }
 
 // ensureAttachmentTemplates заводит недостающие шаблоны вложений (см. appTemplateSpecs),
@@ -495,14 +498,7 @@ func otherAppTypes(base string) []string {
 	return out
 }
 
-// buildApplication собирает запрос на подачу одной заявки и дату, на которую её потом
-// сдвинет shiftApplicationDates.
-//
-// Дата вычисляется ЗДЕСЬ, до вызова SubmitCompleteApplication, а не только в
-// shiftApplicationDates: окно вложения (entry_date_from/entry_date_to) строится от той же
-// даты, что дальше станет sending_datetime. Посчитай их порознь -- получилась бы заявка
-// "отправлена год назад" с окном допуска, начинающимся сегодня, и это было бы первое, что
-// бросается в глаза на стенде.
+// buildApplication выбирает единый момент для даты подачи и периода вложений.
 //
 // seqIndex -- порядковый номер заявки в партии (0-based): по нему appAttachmentTypeOrder
 // ротируется так, что база вложения перебирает cars/people/items по кругу, и при
@@ -671,72 +667,6 @@ func buildItemAttachment(templateID int, placeIDs []int, entryFrom, entryTo, tim
 	}
 }
 
-// shiftedApplication -- заявка, ждущая сдвига даты: id и дата/время, на которые её нужно
-// переставить (та же, что уже легла в окно вложений при создании, см. buildApplication).
-type shiftedApplication struct {
-	id     int
-	sentAt time.Time
-}
-
-// shiftApplicationDates переносит sending_datetime только что созданных заявок на дату,
-// выбранную для них в buildApplication, и пересчитывает application_number под новую дату.
-//
-// SubmitCompleteApplication умеет писать только "сейчас": sending_datetime = time.Now(), а
-// номер -- COUNT(*) заявок за СЕГОДНЯ плюс один (см. докстринг Step в generator.go про
-// отсутствие блокировки и уникального индекса на номере). Без этого прохода партия легла бы
-// сплошным слоем на сегодняшний день, а Profile.DaysBack остался бы обещанием без результата.
-// Без пересчёта номера вместо этого получилась бы заявка "№ 20260805/003" с датой в прошлом
-// году -- расхождение номера и даты, которое заметят первым.
-//
-// Считает NNN сам, без блокировки: подсчёт существующих (чужих) заявок на дату идёт один
-// раз на дату и наращивается по ходу распределения партии -- обычный count+increment,
-// потому что этот проход, в отличие от самого создания, строго последовательный и заведомо
-// не гонится ни с чем (заявки уже вставлены, конкурентных писателей на этот же id нет).
-//
-// Трогает СТРОГО заявки apps (свою партию, по id): счётчик существующих исключает записи
-// партии через fake_batch_items -- иначе заявки партии, ещё не дошедшие до переноса,
-// посчитались бы "чужими" на исходной (сегодняшней) дате и задвоили бы номер.
-func shiftApplicationDates(ctx context.Context, env *Env, apps []shiftedApplication) error {
-	if len(apps) == 0 {
-		return nil
-	}
-	dateCounts := make(map[string]int, len(apps))
-	for _, app := range apps {
-		dateKey := app.sentAt.Format("20060102")
-		count, seen := dateCounts[dateKey]
-		if !seen {
-			var existing int64
-			err := env.DB.WithContext(ctx).Raw(`
-				SELECT COUNT(*) FROM applications a
-				WHERE DATE(a.sending_datetime AT TIME ZONE 'UTC') = ?
-				AND NOT EXISTS (
-					SELECT 1 FROM fake_batch_items fbi
-					WHERE fbi.batch_id = ? AND fbi.entity = ? AND fbi.entity_id = a.id
-				)`, app.sentAt.Format("2006-01-02"), env.Batch.ID(), models.AuditEntityApplication,
-			).Scan(&existing).Error
-			if err != nil {
-				return fmt.Errorf("подсчёт существующих заявок за %s перед сдвигом дат: %w", dateKey, err)
-			}
-			count = int(existing)
-		}
-		count++
-		dateCounts[dateKey] = count
-
-		newNumber := fmt.Sprintf("№ %s/%03d", dateKey, count)
-		if err := env.DB.WithContext(ctx).Exec(
-			`UPDATE applications SET sending_datetime = ?, application_number = ? WHERE id = ?`,
-			app.sentAt, newNumber, app.id,
-		).Error; err != nil {
-			return fmt.Errorf("сдвиг даты заявки %d: %w", app.id, err)
-		}
-
-		if err := shiftApplicationChildren(ctx, env, app); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // shiftApplicationChildren переносит на дату заявки всё, что создано вместе с ней:
 // вложения, машины, сотрудников, имущество, состав согласующих и записи истории.
 //
@@ -744,40 +674,40 @@ func shiftApplicationDates(ctx context.Context, env *Env, apps []shiftedApplicat
 // а модалка истории показывает «создана сегодня», и у машин в ней сегодняшняя дата
 // добавления. Дочерние строки время подачи не хранят -- они берут его из значения по
 // умолчанию или из time.Now() в момент вставки, поэтому переносить их приходится следом.
-func shiftApplicationChildren(ctx context.Context, env *Env, app shiftedApplication) error {
-	day := app.sentAt.Format("2006-01-02")
+func shiftApplicationChildren(tx *gorm.DB, appID int, sentAt time.Time) error {
+	day := sentAt.Format("2006-01-02")
 	statements := []struct {
 		what  string
 		query string
 		args  []interface{}
 	}{
 		{"вложения", `UPDATE attachments SET created_at = ?, updated_at = ? WHERE application_id = ?`,
-			[]interface{}{app.sentAt, app.sentAt, app.id}},
+			[]interface{}{sentAt, sentAt, appID}},
 		{"машины", `UPDATE cars SET created_at = ?, updated_at = ?, date_added = ?
 			WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)`,
-			[]interface{}{app.sentAt, app.sentAt, app.sentAt, app.id}},
+			[]interface{}{sentAt, sentAt, sentAt, appID}},
 		{"сотрудников", `UPDATE employees SET created_at = ?, updated_at = ?, date_created = ?
 			WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)`,
-			[]interface{}{app.sentAt, app.sentAt, app.sentAt, app.id}},
+			[]interface{}{sentAt, sentAt, sentAt, appID}},
 		{"имущество", `UPDATE items SET created_at = ?, updated_at = ?, date_created = ?
 			WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)`,
-			[]interface{}{app.sentAt, app.sentAt, day, app.id}},
+			[]interface{}{sentAt, sentAt, day, appID}},
 		{"состав согласующих", `UPDATE application_responsible_users SET created_at = ? WHERE application_id = ?`,
-			[]interface{}{app.sentAt, app.id}},
+			[]interface{}{sentAt, appID}},
 		{"читателей заявки", `UPDATE application_viewers SET created_at = ? WHERE application_id = ?`,
-			[]interface{}{app.sentAt, app.id}},
+			[]interface{}{sentAt, appID}},
 		{"историю заявки", `UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id = ?`,
-			[]interface{}{app.sentAt, models.AuditEntityApplication, app.id}},
+			[]interface{}{sentAt, models.AuditEntityApplication, appID}},
 		{"историю машин", `UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id IN (
 			SELECT c.id FROM cars c JOIN attachments a ON a.id = c.attachment_id WHERE a.application_id = ?)`,
-			[]interface{}{app.sentAt, models.AuditEntityCar, app.id}},
+			[]interface{}{sentAt, models.AuditEntityCar, appID}},
 		{"историю сотрудников", `UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id IN (
 			SELECT e.id FROM employees e JOIN attachments a ON a.id = e.attachment_id WHERE a.application_id = ?)`,
-			[]interface{}{app.sentAt, models.AuditEntityEmployee, app.id}},
+			[]interface{}{sentAt, models.AuditEntityEmployee, appID}},
 	}
 	for _, st := range statements {
-		if err := env.DB.WithContext(ctx).Exec(st.query, st.args...).Error; err != nil {
-			return fmt.Errorf("сдвиг даты (%s) заявки %d: %w", st.what, app.id, err)
+		if err := tx.Exec(st.query, st.args...).Error; err != nil {
+			return fmt.Errorf("сдвиг даты (%s) заявки %d: %w", st.what, appID, err)
 		}
 	}
 	return nil
