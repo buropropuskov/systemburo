@@ -132,6 +132,10 @@ func TestForwardWithdrawn2666_AccessBeforeStatus(t *testing.T) {
 	candidates := testutil.GET(t, f.e, fmt.Sprintf("/applications/%d/forward-recipients", f.appID), testutil.AuthHeader(f.actors["stranger"]))
 	require.Equal(t, http.StatusForbidden, candidates.Code, candidates.Body.String())
 	assert.JSONEq(t, rec.Body.String(), candidates.Body.String())
+	entry := waitPDAuditRecord(t, f.db, fmt.Sprintf("/api/applications/%d/forward-recipients", f.appID))
+	assert.Equal(t, "forward2666_stranger", entry.Username)
+	assert.Equal(t, "application", entry.Resource)
+	assert.Equal(t, http.StatusForbidden, entry.StatusCode)
 	assert.Equal(t, before, forward2666Snapshot(t, f))
 }
 

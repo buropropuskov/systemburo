@@ -175,7 +175,7 @@ func isApplicationDetailPath(path string) bool {
 // человек, что виден в участниках (закрыто в #1472), только с другой стороны формы.
 var applicationCardSuffixes = []string{
 	"/history", "/responsible-users", "/forward-messages", "/viewers", "/reads",
-	"/questions", "/supplements", "/details",
+	"/questions", "/supplements", "/details", "/forward-recipients",
 }
 
 // isApplicationCardSubPath - .../applications/{id}/{суффикс из applicationCardSuffixes}.

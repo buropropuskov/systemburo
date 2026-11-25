@@ -38,6 +38,7 @@ func TestPDPaths(t *testing.T) {
 		{"/api/applications/42/history", true, "application"},
 		{"/api/applications/42/responsible-users", true, "application"},
 		{"/api/applications/42/forward-messages", true, "application"},
+		{"/api/applications/42/forward-recipients", true, "application"},
 		{"/api/applications/42/viewers", true, "application"},
 		{"/api/applications/42/reads", true, "application"},
 		{"/api/applications/42/questions", true, "application"},

@@ -98,6 +98,11 @@ func TestForwardGate_ApproverForwardsOutsideOwnCircle(t *testing.T) {
 	candidates := testutil.GET(t, e, fmt.Sprintf("/applications/%d/forward-recipients", appID), testutil.AuthHeader(approverToken))
 	require.Equal(t, http.StatusOK, candidates.Code, candidates.Body.String())
 	assert.True(t, candidateIDs(t, testutil.ParseSlice(t, candidates))[targetID])
+	entry := waitPDAuditRecord(t, db, fmt.Sprintf("/api/applications/%d/forward-recipients", appID))
+	assert.Equal(t, "fwdgate_appr", entry.Username)
+	assert.Equal(t, "application", entry.Resource)
+	assert.Equal(t, "view", entry.Action)
+	assert.Equal(t, http.StatusOK, entry.StatusCode)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID),
 		forwardBody(targetID, false, true), testutil.AuthHeader(approverToken))
 	require.Equal(t, http.StatusOK, rec.Code, "принимающий должен пересылать любую заявку: %s", rec.Body.String())
