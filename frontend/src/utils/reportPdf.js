@@ -68,7 +68,7 @@ function nowrapText(text) {
 function cellText(value, width, tight = false) {
   const text = pdfCellText(value);
   const pieces = text.split(/(\s+)/u);
-  const mayOverflow = word => word.length * (/^[A-ZА-ЯЁ0-9]+$/u.test(word) ? 9 : 6.5) > width && word.trim();
+  const mayOverflow = word => word.length * (/^[A-ZА-ЯЁ0-9]+$/u.test(word) ? 9 : 6.2) > width && word.trim();
   if (pieces.some(mayOverflow)) {
     return pieces.map(word => mayOverflow(word) ? { text: word, wordBreak: 'break-all' } : word);
   }
@@ -100,8 +100,7 @@ function reportTableNode(table, orientation) {
   const scale = Math.min(1, 12 / table.header.length);
   const { widths, space } = pdfColumnWidths(table, allRows, tight, orientation, scale);
   const headerCells = table.header.map((text, i) => ({
-    text: pdfCellText(text),
-    wordBreak: Array.isArray(cellText(text, space[i])) ? 'break-all' : 'normal',
+    text: cellText(text, space[i]),
     bold: true, color: '#FFFFFF', fillColor: PDF_PRIMARY, alignment: 'center',
   }));
 
