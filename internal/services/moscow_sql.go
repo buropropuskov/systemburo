@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"systemburo/internal/apperr"
+
 	"gorm.io/gorm"
 )
 
@@ -46,25 +48,18 @@ func passValidNowSQL(alias string) string {
 		   > ` + moscowNowSQL + `)`
 }
 
-// nextApplicationNumber выдаёт номер вида «№ 20260904/003»: московская дата плюс
-// порядковый номер заявки в этих сутках.
-//
-// Дата и счётчик считаются по Москве, а не по UTC (#2327). Раньше и то и другое
-// брали в UTC, и заявка, поданная между полуночью и 03:00 МСК, получала номер со
-// вчерашним числом - на стенде таких три из шестидесяти шести. Номер это то, по
-// чему заявку ищут и называют в переписке, поэтому расхождение с календарём в нём
-// заметнее, чем где-либо ещё.
-//
-// Счётчик не защищён от гонки (две одновременные подачи получат один номер) -
-// это поведение существовало и раньше, здесь оно не меняется.
-func nextApplicationNumber(db *gorm.DB) string {
-	msk := time.Now().In(moscowWorkModeLoc)
-
-	var count int64
-	db.Raw(
-		`SELECT COUNT(*) FROM applications WHERE (sending_datetime AT TIME ZONE 'Europe/Moscow')::date = ?`,
-		msk.Format("2006-01-02"),
-	).Scan(&count)
-
-	return fmt.Sprintf("№ %s/%03d", msk.Format("20060102"), count+1)
+// nextApplicationNumber резервирует порядковый номер в транзакции подачи.
+// Ключ счётчика и дата на бланке берутся из одного момента отправки.
+func nextApplicationNumber(tx *gorm.DB, sentAt time.Time) (string, error) {
+	day := sentAt.In(moscowWorkModeLoc).Format("20060102")
+	var sequence string
+	err := tx.Raw(`
+		INSERT INTO application_number_counters (day_key, last_number) VALUES (?, 1)
+		ON CONFLICT (day_key) DO UPDATE SET last_number = application_number_counters.last_number + 1
+		RETURNING last_number::text
+	`, day).Row().Scan(&sequence)
+	if err != nil {
+		return "", apperr.Internal("Не удалось выделить номер заявки", err)
+	}
+	return fmt.Sprintf("№ %s/%03s", day, sequence), nil
 }

@@ -116,7 +116,7 @@ var tables = []string{
 	// application_files чистится явно, а не каскадом от applications: черновики
 	// лежат с application_id NULL и каскад их не достаёт.
 	"application_files",
-	"application_status_history", "applications",
+	"application_status_history", "applications", "application_number_counters",
 	"bureau_time_slots",
 	"companies_unload_places", "organization_unload_places",
 	"unload_place_time_slots", "unload_place_photos", "unload_places",

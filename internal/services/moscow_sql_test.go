@@ -2,16 +2,14 @@ package services
 
 import (
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 )
 
-// Сроки заявок и номер заявки считаются по московским часам, а не по UTC (#2327).
+// Сроки заявок считаются по московским часам (#2327).
 //
-// Проверка идёт по исходникам, а не по результату: расхождение UTC и Москвы видно
-// в запросе только между полуночью и 03:00 МСК, поэтому интеграционный тест днём
-// зелёный при любом из двух вариантов. Такой замок ловит возврат в любой час.
+// Предикаты срока используют текущее время БД, поэтому проверяем выражение
+// независимо от часа запуска. Нумерацию проверяет TestApplicationNumberCountedInMoscow.
 
 // sourceOf читает файл пакета целиком.
 func sourceOf(t *testing.T, name string) string {
@@ -84,27 +82,5 @@ func TestPassValidNowSQLShape(t *testing.T) {
 	}
 }
 
-func TestApplicationNumberCountedInMoscow(t *testing.T) {
-	src := sourceOf(t, "moscow_sql.go")
-
-	body := regexp.MustCompile(`(?s)func nextApplicationNumber\(.*?\n}`).FindString(src)
-	if body == "" {
-		t.Fatal("nextApplicationNumber не найдена")
-	}
-
-	// Номер заявки - московская дата плюс счётчик за московские сутки. Пока и то и
-	// другое брали в UTC, заявка, поданная между полуночью и 03:00 МСК, получала
-	// номер со вчерашним числом: на стенде таких три из шестидесяти шести.
-	if strings.Contains(body, "time.Now().UTC()") {
-		t.Error("дата номера берётся в UTC - ночная заявка получит вчерашнее число")
-	}
-	if !strings.Contains(body, "moscowWorkModeLoc") {
-		t.Error("дата номера должна считаться в московской зоне")
-	}
-	if strings.Contains(body, "AT TIME ZONE 'UTC'") {
-		t.Error("счётчик заявок за сутки считается по UTC-суткам, а нумерация - по московским")
-	}
-	if !strings.Contains(body, "AT TIME ZONE 'Europe/Moscow'") {
-		t.Error("счётчик заявок за сутки должен резаться по московским суткам")
-	}
-}
+// Доступ только из внешнего тестового пакета с учебным PostgreSQL.
+var NextApplicationNumberForTest = nextApplicationNumber

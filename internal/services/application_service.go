@@ -1669,12 +1669,14 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 		}
 	}
 
-	now := time.Now().UTC()
-	applicationNumber := nextApplicationNumber(s.db.WithContext(ctx))
-
 	var app models.Application
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		document, err := loadApplicationConfirmationDocument(tx, req.DataApproval, req.DocumentRevision)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		applicationNumber, err := nextApplicationNumber(tx, now)
 		if err != nil {
 			return err
 		}
@@ -1780,7 +1782,7 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 		Success:           true,
 		Message:           "Application created successfully",
 		ApplicationID:     app.ID,
-		ApplicationNumber: applicationNumber,
+		ApplicationNumber: *app.ApplicationNumber,
 	}, nil
 }
 
@@ -2390,9 +2392,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			return err
 		}
 
-		baseTime := time.Now().UTC()
-		applicationNumber = nextApplicationNumber(tx)
-
 		// Организация и компания заявки: выбранная по id либо найденная по ключу
 		// дедупликации наименования, а незнакомое наименование заводит запись «на
 		// проверке» (#1437). NULL остаётся только там, где сущность не указана вовсе.
@@ -2437,6 +2436,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 
 		if err := s.ensureNoActiveByFactApplication(tx, organizationID, hasByFactVehicle(req)); err != nil {
+			return err
+		}
+
+		baseTime := time.Now().UTC()
+		applicationNumber, err = nextApplicationNumber(tx, baseTime)
+		if err != nil {
 			return err
 		}
 
