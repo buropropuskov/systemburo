@@ -85,6 +85,7 @@ var routeAccessRegistry = map[string]routeAccess{
 	"GET /api/applications/:id/files/:file_id":                       scoped("accessibleApplicationID: CanAccessApplication"),
 	"POST /api/applications/:id/forward":                             scoped("CanAccessApplication и круг получателей по роли пересылающего"),
 	"GET /api/applications/:id/forward-messages":                     scoped("CanAccessApplication в обработчике"),
+	"GET /api/applications/:id/forward-recipients":                   scoped("Право action.forward.application, доступ к заявке и круг получателей по роли"),
 	"GET /api/applications/:id/history":                              scoped("CanAccessApplication в обработчике"),
 	"GET /api/applications/:id/participants":                         scoped("CanAccessApplication в обработчике"),
 	"GET /api/applications/:id/questions":                            scoped("CanAccessApplication в обработчике"),

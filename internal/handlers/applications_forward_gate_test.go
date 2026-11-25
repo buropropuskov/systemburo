@@ -201,6 +201,7 @@ func TestForwardGate_DropsForeignRecipient(t *testing.T) {
 
 	grantPermission(t, db, "fwdgate_df_sender", "page.admin.users")
 	candidatesPath := fmt.Sprintf("/applications/%d/forward-recipients", appID)
+	require.Equal(t, http.StatusUnauthorized, testutil.GET(t, e, candidatesPath, nil).Code)
 	candidates := testutil.GET(t, e, candidatesPath, testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, candidates.Code, candidates.Body.String())
 	ids := candidateIDs(t, testutil.ParseSlice(t, candidates))
@@ -228,6 +229,10 @@ func TestForwardGate_DropsForeignRecipient(t *testing.T) {
 
 	arec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(strangerToken))
 	assert.Equal(t, http.StatusForbidden, arec.Code, "посторонний не получает доступ к заявке через пересылку")
+
+	testutil.DenyPermission(t, getUserID(t, db, "fwdgate_df_sender"), services.KeyActionForwardApplication)
+	require.Equal(t, http.StatusOK, testutil.GET(t, e, fmt.Sprintf("/applications/%d/details", appID), testutil.AuthHeader(senderToken)).Code)
+	require.Equal(t, http.StatusForbidden, testutil.GET(t, e, candidatesPath, testutil.AuthHeader(senderToken)).Code)
 }
 
 func TestForwardRecipients_HidesRestrictedProfileForDirectoryAdmin(t *testing.T) {
