@@ -42,7 +42,7 @@ export async function exportExcel(table, opts) {
     totalsRow: table.totalsRow,
     info: [
       ['Отчёт:', opts.title || 'Отчёт по аналитике'],
-      ['Период:', periodLabel(opts, table)],
+      opts.workSnapshot ? ['Выборка:', opts.workSnapshot] : ['Период:', periodLabel(opts, table)],
       ['Сформировал:', opts.author || 'Пользователь'],
       ['Строк:', table.rows.length],
       ['Дата формирования:', formatMoscowDateTime()],
