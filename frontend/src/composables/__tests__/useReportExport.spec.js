@@ -330,6 +330,23 @@ describe('useReportExport — выгрузка строк и период (#2332
     clickSpy.mockRestore();
   });
 
+  it('pdf: длинное слово переносится внутри ячейки семиколоночного отчёта', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const token = 'ABCDEF'.repeat(20);
+    const columns = ['Номер заявки', 'Организация', 'Работы', 'Ответственный', 'Период', 'Время', 'Людей']
+      .map((label, index) => ({ key: String(index), label }));
+    await useReportExport().exportReport({
+      mode: 'list', columns, rows: [{ 0: '№ 1', 1: 'Организация', 2: 'Обслуживание', 3: token, 4: '01.06 - 02.06', 5: '08:00', 6: 42 }],
+    }, { title: 'Проведение работ' }, 'pdf');
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    const { body } = findTableNode(doc.content).table;
+    expect(body[1][3].text).toContainEqual({ text: token, wordBreak: 'break-all' });
+    expect(body[1][6].text).toBe('42');
+    click.mockRestore();
+  });
+
   it('pdf: строка итогов узкой колонки не рвётся по пробелу наравне со строками', async () => {
     const pdfMake = (await import('pdfmake/build/pdfmake')).default;
     pdfMake.createPdf.mockClear();
