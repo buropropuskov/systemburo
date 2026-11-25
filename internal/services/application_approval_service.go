@@ -206,7 +206,14 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			return err
 		}
 
+		// An account can be both viewer and approver. Deliver each choice once
+		// in this request, including when the viewer already has access.
+		seenChoices := make(map[ForwardUser]bool, len(req.Users))
 		for _, fu := range req.Users {
+			if seenChoices[fu] {
+				continue
+			}
+			seenChoices[fu] = true
 			// Проверяем существование пользователя
 			var userExists bool
 			if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND is_active AND NOT is_banned)", fu.UserID).Scan(&userExists).Error; err != nil {

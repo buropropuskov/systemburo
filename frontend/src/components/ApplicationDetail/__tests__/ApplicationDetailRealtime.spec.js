@@ -222,14 +222,15 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
     expect(wrapper.text()).toContain('Новое сообщение');
   });
 
-  it.each([[403, 200], [200, 403]])('ответ %i не отменяет более новое решение %i по той же заявке', async (oldStatus, status) => {
+  it.each([[403, 200], [200, 403], [403, 503], [403, 'offline']])(
+    'поздний ответ %s после %s учитывает только подтверждённое право на заявку', async (oldStatus, status) => {
     const wrapper = mountDetail({ id: 7, message: 'Учебное сообщение' });
     await flushPromises();
     let finish, delay = true;
     const result = (code) => ({ ok: code === 200, status: code, json: async () => ({ message: 'Свежая заявка' }) });
     apiRequest.mockImplementation((url) => {
       if (!url.endsWith('/details')) return Promise.resolve({ ok: true, json: async () => [] });
-      if (!delay) return Promise.resolve(result(status));
+      if (!delay) return status === 'offline' ? Promise.reject(new Error('offline')) : Promise.resolve(result(status));
       delay = false;
       return new Promise((resolve) => { finish = resolve; });
     });

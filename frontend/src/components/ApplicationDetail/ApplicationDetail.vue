@@ -687,6 +687,7 @@ import { formatPublicUserName } from '@/utils/formatName'
 import { useApplicationHeaderActions } from '@/composables/useApplicationHeaderActions';
 import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { applicationPeriodDetails } from '@/components/entityPeriodParentMixins';
+import applicationDetailAccess from './applicationDetailAccess';
 import { apiRequest } from '@/api/client'
 import { markAsRead, getApplicationSupplements, getApplicationParticipants } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
@@ -724,13 +725,11 @@ const DETAIL_STACK_LAYER = 10002
  * где браузерных переходов нет (jsdom), и панель осталась бы висеть.
  */
 const DETAIL_CLOSE_MS = 200
-const DETAIL_ACCESS_REFRESH_MS = 60_000
 import ApplicationBasicInfo from './ApplicationBasicInfo.vue'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
 import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
-import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import SupplementModal from '../CreateApplication/SupplementModal.vue'
@@ -742,7 +741,7 @@ import { removeApplicationElements } from '@/api/applicationAssignments'
 const SUPPLEMENT_ALLOWED_STATUSES = ['Непрочитано', 'В обработке', 'В работе']
 
 export default {
-    mixins: [applicationPeriodDetails],
+    mixins: [applicationPeriodDetails, applicationDetailAccess],
     name: 'ApplicationDetail',
     components: {
         ApplicationAttachments,
@@ -818,15 +817,8 @@ export default {
             // Панель открыта. Гасим флаг при закрытии - это запускает leave, а
             // родителю о закрытии сообщаем уже после него.
             visible: true,
-            detailUnavailable: false,
-            accessReadSeq: 0,
-            lastDetailRead: 0,
-            accessCheckTimer: null,
-            accessProbeId: null,
             closeTimer: null,
             applicationData: { ...this.application },
-            eventStreamOff: null,
-            eventStreamAppId: null,
             loadDetailSeq: 0,
             loadAttachmentSeq: 0,
             showMessageModal: false,
@@ -1187,11 +1179,7 @@ export default {
             immediate: true,
             handler(newApplication, oldApplication) {
                 if (newApplication && newApplication.id) {
-                    if (this.detailUnavailable) {
-                        if (oldApplication?.id === newApplication.id) return;
-                        this.detailUnavailable = false;
-                        this.visible = true;
-                    }
+                    if (!this.activateDetail(newApplication.id, oldApplication?.id)) return;
                     this.applicationData = { ...newApplication };
                     this.showMessageModal = false;
                     this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
@@ -1214,37 +1202,17 @@ export default {
     mounted() {
         this.loadCommonData();
         this.$nextTick(() => this.updateMessageClamp());
-        // Real-time (#840 V4): подписка на изменения открытой заявки (сам scope
-        // ставится в watch application по её id). connect - refcount'ный.
-        eventStream.connect();
         // Панель заявки закрывается по Escape наравне с окнами. В общей стопке она
         // стоит своим слоем: пока поверх открыто окно (получатели, карточка участника,
         // пересылка), Escape закрывает его, а до панели доходит, когда она верхняя.
         setModalOpen(this, true, DETAIL_STACK_LAYER);
         document.addEventListener('keydown', this.handleDetailEscape);
-        document.addEventListener('visibilitychange', this.recheckOpenApplication);
-        window.addEventListener('online', this.recheckOpenApplication);
-        // Участник, которого убрали из заявки, может уже не входить в аудиторию SSE.
-        this.accessCheckTimer = setInterval(() => {
-            if (Date.now() - this.lastDetailRead >= DETAIL_ACCESS_REFRESH_MS) this.recheckOpenApplication();
-        }, DETAIL_ACCESS_REFRESH_MS);
         // Панель заявки - полноэкранное окно на мобилке (bottom-sheet), и фон под
         // ней (Центр/кабинет) должен стоять на месте, как под любым другим окном
         // проекта - через общий замок (владелец по стопке, не голое присвоение).
         setBodyScrollLock(this, true);
     },
     beforeUnmount() {
-        this.visible = false;
-        this.loadDetailSeq++;
-        this.loadAttachmentSeq++;
-        clearInterval(this.accessCheckTimer);
-        document.removeEventListener('visibilitychange', this.recheckOpenApplication);
-        window.removeEventListener('online', this.recheckOpenApplication);
-        if (this.eventStreamOff) {
-            this.eventStreamOff();
-            this.eventStreamOff = null;
-        }
-        eventStream.disconnect();
         document.removeEventListener('keydown', this.handleDetailEscape);
         releaseModal(this);
         releaseBodyScrollLock(this);
@@ -1287,17 +1255,6 @@ export default {
             }
             this.applicationData = { ...this.applicationData, ...patch };
             this.$emit('application-changed', this.applicationData);
-        },
-        // Подписка на real-time обновления конкретной заявки (#840 V4): снимает
-        // старую подписку, подписывается на scope application:<id>.
-        subscribeToApplication(appId) {
-            if (this.eventStreamOff) {
-                this.eventStreamOff();
-                this.eventStreamOff = null;
-            }
-            if (!appId) return;
-            this.eventStreamAppId = appId;
-            this.eventStreamOff = eventStream.subscribe(`application:${appId}`, () => this.refreshLiveDetail(), { fallback: true });
         },
         // Тихий рефетч открытой детали по сигналу application.updated: статус/
         // согласующие/вложения (loadApplicationDetails) + история + вопросы. Обновляет
@@ -1518,38 +1475,6 @@ export default {
             this.applicationData = { ...this.applicationData, bureau_note: note };
         },
 
-        async readOpenApplication(id) {
-            const seq = ++this.accessReadSeq;
-            this.lastDetailRead = Date.now();
-            const response = await apiRequest(`/applications/${id}/details`, { method: 'GET', silent403: true });
-            if (!this.visible || id !== this.applicationData.id) return null;
-            if (response.status !== 403 && response.status !== 404) return response;
-            if (seq === this.accessReadSeq) {
-                this.detailUnavailable = true;
-                this.visible = false;
-                this.loadDetailSeq++;
-                this.applicationData = {};
-                this.attachments = [];
-                this.clearAttachmentSelection();
-                useDeletionsStore().notify({ bold: 'Заявка больше недоступна', type: 'warning' });
-                this.$emit('close');
-            }
-            return null;
-        },
-
-        async recheckOpenApplication() {
-            const id = this.applicationData.id;
-            if (!this.visible || !id || document.hidden || this.accessProbeId === id) return;
-            this.accessProbeId = id;
-            try {
-                await this.readOpenApplication(id);
-            } catch {
-                // Временная ошибка соединения не меняет право на открытую заявку.
-            } finally {
-                if (this.accessProbeId === id) this.accessProbeId = null;
-            }
-        },
-
         async loadApplicationDetails(application, { preserveSelection = false } = {}) {
             const seq = ++this.loadDetailSeq;
             let supplementsRequest;
@@ -1701,21 +1626,6 @@ export default {
             } catch (error) {
                 console.error("Error checking approver role:", error);
             }
-        },
-
-        clearAttachmentSelection() {
-            this.loadAttachmentSeq++;
-            this.loadingAttachmentDetails = false;
-            this.selectedAttachment = null;
-            this.attachmentCars = [];
-            this.attachmentEmployees = [];
-            this.attachmentItems = [];
-            this.showVehicleModal = false;
-            this.showEmployeeModal = false;
-            this.selectedVehicle = null;
-            this.selectedEmployee = null;
-            this.showRemovalModal = false;
-            this.showOverrideModal = false;
         },
 
         async loadAttachmentDetails(attachmentId) {

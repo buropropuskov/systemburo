@@ -254,3 +254,30 @@ func TestForwardRecipients_HidesRestrictedProfileForDirectoryAdmin(t *testing.T)
 		assert.Empty(t, hidden[field], field)
 	}
 }
+
+func TestForwardGate_RepeatedViewerInSingleRequest(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seed := testutil.SeedTestData(t, db)
+	author := testutil.RegisterAndLogin(t, e, "forward_repeat_author", "pass123", 1, seed.OrgID, seed.CompanyID)
+	testutil.RegisterUser(t, e, "forward_repeat_reader", "pass123", 1, seed.OrgID, seed.CompanyID)
+	reader := getUserID(t, db, "forward_repeat_reader")
+	appID := createSimpleApplication(t, db, e, author, seed.OrgID)
+	path := fmt.Sprintf("/applications/%d/forward", appID)
+	body := fmt.Sprintf(`{"users":[{"user_id":%d,"can_view":true},{"user_id":%d,"can_view":true}]}`, reader, reader)
+
+	for send := int64(1); send <= 2; send++ {
+		rec := testutil.POST(t, e, path, body, testutil.AuthHeader(author))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Equal(t, services.ForwardResult{Accepted: 1}, testutil.ParseResponse[services.ForwardResult](t, rec))
+
+		var assignments, events, notices int64
+		require.NoError(t, db.Table("application_viewers").Where("application_id = ? AND user_id = ?", appID, reader).Count(&assignments).Error)
+		assert.EqualValues(t, 1, assignments)
+		require.NoError(t, db.Table("audit_log").Where("entity_type = 'application' AND entity_id = ? AND actor_user_id = ? AND action = 'assigned_viewer'", appID, reader).Count(&events).Error)
+		assert.Equal(t, send, events)
+		require.NoError(t, db.Table("notifications").Where("user_id = ? AND type = ?", reader, services.NotificationTypeApplicationForwarded).Select("COALESCE(SUM(count), 0)").Scan(&notices).Error)
+		assert.Equal(t, send, notices)
+	}
+}
