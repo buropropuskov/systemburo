@@ -942,19 +942,26 @@ func (s *statisticsService) RunReportList(ctx context.Context, req models.Report
 		tx = tx.Where(w.expr, w.args...)
 	}
 
+	var asOf string
+	if req.WorkScope != "" {
+		now := s.db.NowFunc().In(MoscowLocation())
+		asOf = now.Format(time.RFC3339)
+		tx = applyWorkScope(tx, req.WorkScope, now)
+	} else {
+		tx = tx.Limit(plan.limit)
+	}
 	rows := make([]map[string]any, 0)
-	if err := tx.
-		Order(plan.orderStr).
-		Limit(plan.limit).
-		Find(&rows).Error; err != nil {
+	if err := tx.Order(plan.orderStr).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("statistics: run report list: %w", err)
 	}
 
 	return &models.ReportListResponse{
-		Mode:    "list",
-		Entity:  req.Entity,
-		Columns: plan.columns,
-		Rows:    rows,
-		Total:   len(rows),
+		WorkScope: req.WorkScope,
+		AsOf:      asOf,
+		Mode:      "list",
+		Entity:    req.Entity,
+		Columns:   plan.columns,
+		Rows:      rows,
+		Total:     len(rows),
 	}, nil
 }

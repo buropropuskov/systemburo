@@ -264,6 +264,7 @@
     <!-- Выгрузка строк (list) -->
     <template v-else>
       <div class="rr__toolbar rr__toolbar--end">
+        <span v-if="result.work_scope">{{ workSnapshotLabel(result) }}</span>
         <ReportExportButton
           class="rr__export"
           :disabled="!canExport"
@@ -296,7 +297,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="(row, i) in sortedListRows"
+              v-for="(row, i) in visibleListRows"
               :key="i"
             >
               <td
@@ -312,7 +313,10 @@
                 :colspan="(result.columns || []).length || 1"
                 class="rr__norows"
               >
-                <template v-if="emptyPeriodLabel">
+                <template v-if="result.work_scope">
+                  Действующих работ по выбранным условиям нет.
+                </template>
+                <template v-else-if="emptyPeriodLabel">
                   За {{ emptyPeriodLabel }} данных нет.
                   <button
                     type="button"
@@ -335,7 +339,8 @@
         class="rr__footer"
       >
         Всего: <b>{{ result.total }}</b>
-        <span class="rr__footer-sep">·</span> показано строк: {{ result.rows.length }}
+        <span class="rr__footer-sep">·</span> показано строк: {{ visibleListRows.length }}
+        <span v-if="visibleListRows.length < result.rows.length"> · В файл войдут все строки.</span>
         <span
           v-if="truncated"
           class="rr__truncated"
@@ -357,6 +362,7 @@ import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport, exportChartPng } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
 import { isDurationColumn, metricValue, isTightColumnValues, formatPhonesInText } from '@/utils/reportColumns';
+import { workSnapshotLabel } from '@/utils/workReportScope';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -468,6 +474,7 @@ const sortedListRows = computed(() => {
 // Строк ровно столько, сколько разрешал лимит -> движок почти наверняка отрезал
 // хвост (точного признака в ответе нет). Ложное срабатывание «данных ровно
 // столько» безобидно: подпись лишь предлагает сузить период.
+const visibleListRows = computed(() => props.result?.work_scope ? sortedListRows.value.slice(0, 100) : sortedListRows.value);
 const truncated = computed(() => {
   const r = props.result;
   if (!r || props.limit <= 0) return false;

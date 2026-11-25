@@ -25,6 +25,7 @@ type ReportRequest struct {
 	Granularity string   `json:"granularity"`
 	Pivot       string   `json:"pivot,omitempty"`
 	Entity      string   `json:"entity"`
+	WorkScope   string   `json:"work_scope,omitempty"`
 	// Columns (опц., только Mode=list) — какие столбцы сущности отдавать. Пусто —
 	// все столбцы каталога. Порядок берётся из каталога, а не из запроса: он же
 	// определяет порядок колонок в выгрузке.
@@ -106,11 +107,13 @@ type ReportResponse struct {
 // строк парами ключ->значение (ключи совпадают с Columns[].Key). Total — число
 // возвращённых строк (с учётом лимита).
 type ReportListResponse struct {
-	Mode    string             `json:"mode"`
-	Entity  string             `json:"entity"`
-	Columns []ReportColumnInfo `json:"columns"`
-	Rows    []map[string]any   `json:"rows"`
-	Total   int                `json:"total"`
+	WorkScope string             `json:"work_scope,omitempty"`
+	AsOf      string             `json:"as_of,omitempty"`
+	Mode      string             `json:"mode"`
+	Entity    string             `json:"entity"`
+	Columns   []ReportColumnInfo `json:"columns"`
+	Rows      []map[string]any   `json:"rows"`
+	Total     int                `json:"total"`
 }
 
 // ReportDataPeriod — границы дат, доступные отчёту по его оси времени (той же, по

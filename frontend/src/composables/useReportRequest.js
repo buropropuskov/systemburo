@@ -45,10 +45,11 @@ export function defaultReportLimit(state) {
 export function buildReportRequest(state, period = {}, applicableFilters = []) {
   const allowed = new Set(applicableFilters);
   const filters = [];
+  const activeWork = state.mode === 'list' && state.entity === 'work_applications' && ['now', 'today'].includes(state.workScope);
 
   const from = period.from || '';
   const to = period.to || '';
-  if (allowed.has('date_range') && (from || to)) {
+  if (!activeWork && allowed.has('date_range') && (from || to)) {
     filters.push({ key: 'date_range', from, to });
   }
 
@@ -62,6 +63,7 @@ export function buildReportRequest(state, period = {}, applicableFilters = []) {
 
   if (state.mode === 'list') {
     const req = { mode: 'list', entity: state.entity || '', filters, limit };
+    if (activeWork) req.work_scope = state.workScope;
     // Пустой список движок понимает как «все столбцы» - так и шлём, когда выбраны все.
     const columns = (state.columns || []).filter(Boolean);
     if (columns.length) req.columns = columns;

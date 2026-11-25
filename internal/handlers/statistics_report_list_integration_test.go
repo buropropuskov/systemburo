@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // toInt64 приводит числовое значение из []map (pgx отдаёт COUNT как int64) к int64.
@@ -107,6 +109,61 @@ func TestRunReportList_AllEntitiesExecute(t *testing.T) {
 			assert.Equal(t, entity, res.Entity)
 			assert.NotEmpty(t, res.Columns)
 			assert.NotNil(t, res.Rows)
+		})
+	}
+}
+
+func TestRunReportList_WorkScopes(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	// 01:30 Moscow, after the calendar year boundary. The report clock is fixed.
+	at := time.Date(2027, 12, 31, 22, 30, 0, 0, time.UTC)
+	db = db.Session(&gorm.Session{NowFunc: func() time.Time { return at }})
+	org := models.Organization{Name: "Тест смен", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	owner := models.User{Username: "work_scope_fixture", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&owner).Error)
+	display := "Заявка на работы"
+	kind := models.UniqueAttachment{AttachmentType: "people", DisplayName: &display, IsActive: true}
+	require.NoError(t, db.Create(&kind).Error)
+	const yesterday, today = "2027-12-31", "2028-01-01"
+	add := func(number, day, from, to, status, confirmation string, accepted int) {
+		t.Helper()
+		app := models.Application{ApplicationNumber: &number, OrganizationID: org.ID,
+			SenderUserID: owner.ID, Status: &status, Confirmation: &confirmation}
+		require.NoError(t, db.Create(&app).Error)
+		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people", UniqueAttachmentID: &kind.ID,
+			EntryDateFrom: &day, EntryDateTo: &day, EntryTimeFrom: &from, EntryTimeTo: &to, Status: &accepted}
+		require.NoError(t, db.Create(&att).Error)
+	}
+	approved, inWork := models.ConfirmationApproved, models.StatusInWork
+	add("overnight", yesterday, "23:00", "02:00", inWork, approved, 1)
+	add("starts-now", today, "01:30", "02:00", inWork, approved, 1)
+	add("ends-now", today, "00:30", "01:30", inWork, approved, 1)
+	add("later", today, "20:00", "23:00", inWork, approved, 1)
+	add("midnight-end", yesterday, "21:00", "00:00", inWork, approved, 1)
+	add("withdrawn", today, "", "", models.StatusWithdrawn, approved, 1)
+	add("pending", today, "", "", inWork, models.ConfirmationPending, 1)
+	add("unaccepted", today, "", "", inWork, approved, 0)
+	svc := services.NewStatisticsService(db, 0)
+	for scope, want := range map[string][]string{
+		"now":   {"overnight", "starts-now"},
+		"today": {"overnight", "starts-now", "ends-now", "later"},
+	} {
+		t.Run(scope, func(t *testing.T) {
+			result, err := svc.RunReportList(context.Background(), models.ReportRequest{
+				Mode: "list", Entity: "work_applications", Columns: []string{"number"}, WorkScope: scope, Limit: 1,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "2028-01-01T01:30:00+03:00", result.AsOf)
+			assert.Equal(t, scope, result.WorkScope)
+			var got []string
+			for _, row := range result.Rows {
+				got = append(got, row["number"].(string))
+			}
+			assert.ElementsMatch(t, want, got)
 		})
 	}
 }

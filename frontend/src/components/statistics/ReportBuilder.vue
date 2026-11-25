@@ -100,6 +100,14 @@
           value-key="key"
         />
       </label>
+      <FilterTabs
+        v-if="isWorkReport"
+        class="rb__work-scopes"
+        :model-value="form.workScope"
+        :tabs="workScopes"
+        testid-prefix="work-scope-"
+        @update:model-value="changeWorkScope"
+      />
       <div
         v-if="entityColumns.length"
         class="rb__cols"
@@ -299,7 +307,7 @@
 
     <!-- Действия -->
     <div class="rb__footer">
-      <label class="rb__limit">
+      <label v-if="!isActiveWork" class="rb__limit">
         <span>Строк</span>
         <input
           v-model="form.limit"
@@ -329,6 +337,7 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import ReportMetricPicker from './ReportMetricPicker.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import { buildReportRequest, defaultReportLimit, MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
+import { workScopes } from '@/utils/workReportScope';
 import { formatDateRu } from '@/utils/datetime';
 import { computePeriodRange, dateToIso, isoToDate, fetchReportPeriodBounds } from '@/utils/reportPeriod';
 
@@ -351,6 +360,7 @@ const modeTabs = [
 ];
 
 const form = reactive({
+  workScope: 'now',
   mode: 'aggregate',
   metrics: props.catalog.metrics?.[0]?.key ? [props.catalog.metrics[0].key] : [],
   dimension: '',
@@ -524,7 +534,9 @@ watch(entityColumns, (cols) => {
   form.columns = cols.map((c) => c.key);
 }, { immediate: true });
 
-const periodApplicable = computed(() => applicableFilters.value.includes('date_range'));
+const isWorkReport = computed(() => form.mode === 'list' && form.entity === 'work_applications');
+const isActiveWork = computed(() => isWorkReport.value && form.workScope !== 'submitted');
+const periodApplicable = computed(() => !isActiveWork.value && applicableFilters.value.includes('date_range'));
 
 const granularityTabs = computed(
   () => (props.catalog.granularities || []).map((g) => ({ key: g.value, label: g.label })),
@@ -644,6 +656,10 @@ watch(() => props.preset, (p) => {
   form.mode = p.mode || 'aggregate';
   if (p.mode === 'list') {
     form.entity = p.entity || form.entity;
+    if (form.entity === 'work_applications') {
+      form.workScope = p.work_scope || (p.period || p.period_preset ? 'submitted' : 'now');
+      periodOpen.value = form.workScope === 'submitted';
+    }
     // Столбцы из шаблона применяем после watch entityColumns, иначе он затрёт их
     // полным набором сущности.
     if (Array.isArray(p.columns) && p.columns.length) {
@@ -755,6 +771,7 @@ const limitPlaceholder = computed(
 // preset-watch при применении шаблона. period_preset сохраняем, чтобы при
 // восстановлении подсветить ту же кнопку периода. Бэк хранит config как непрозрачный.
 const reportConfig = computed(() => ({
+  ...(isWorkReport.value ? { work_scope: form.workScope } : {}),
   mode: form.mode,
   metrics: [...form.metrics],
   dimension: form.dimension,
@@ -781,6 +798,12 @@ watch(
   (snapshot) => emit('change', snapshot),
   { immediate: true, deep: true },
 );
+
+function changeWorkScope(scope) {
+  form.workScope = scope;
+  periodOpen.value = scope === 'submitted';
+  run();
+}
 
 function run() {
   // Защита инварианта: run() зовётся не только кнопкой (ещё из watch пресета),
@@ -979,6 +1002,11 @@ defineExpose({ expandPeriodToAll, setPeriod });
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
+}
+
+.rb__work-scopes {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .rb__field {

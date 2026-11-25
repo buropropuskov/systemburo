@@ -3,6 +3,7 @@ import { reportToTable } from '@/utils/reportTable';
 import { downloadBlob, downloadFileName } from '@/utils/reportDownload';
 import { exportExcel } from '@/utils/reportExcel';
 import { exportPdf } from '@/utils/reportPdf';
+import { workSnapshotLabel } from '@/utils/workReportScope';
 
 /**
  * Сохранение графика картинкой. Графики рисуются на canvas, поэтому кадр берётся
@@ -47,9 +48,9 @@ export function useReportExport() {
     exporting.value = true;
     try {
       if (format === 'pdf') {
-        await exportPdf(table, opts);
+        await exportPdf(table, opts, result);
       } else {
-        await exportExcel(table, opts);
+        await exportExcel(table, result.work_scope ? { ...opts, workSnapshot: workSnapshotLabel(result) } : opts);
       }
     } finally {
       exporting.value = false;

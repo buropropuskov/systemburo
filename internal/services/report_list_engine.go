@@ -173,6 +173,9 @@ type listPlan struct {
 // SQL-выражения — из listExecRegistry. Неизвестная сущность/фильтр или столбец
 // каталога без выражения -> ErrInvalidReportRequest.
 func buildListPlan(req models.ReportRequest) (*listPlan, error) {
+	if req.WorkScope != "" && (req.Entity != "work_applications" || (req.WorkScope != workScopeNow && req.WorkScope != workScopeToday)) {
+		return nil, errInvalidReport("work_scope")
+	}
 	exec, ok := listExecRegistry[req.Entity]
 	if !ok {
 		return nil, errInvalidReport("entity")
@@ -233,6 +236,9 @@ func buildListPlan(req models.ReportRequest) (*listPlan, error) {
 		allowed[f] = true
 	}
 	for _, f := range req.Filters {
+		if req.WorkScope != "" && f.Key == "date_range" {
+			return nil, errInvalidReport("date_range")
+		}
 		if !allowed[f.Key] {
 			return nil, errInvalidReport("filter")
 		}

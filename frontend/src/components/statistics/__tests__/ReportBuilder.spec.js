@@ -265,7 +265,13 @@ describe('ReportBuilder', () => {
     expect(req.mode).toBe('list');
     expect(req.entity).toBe('work_applications');
     expect(req.filters).toContainEqual({ key: 'organization', values: ['ООО А'] });
-    expect(req.filters).toContainEqual({ key: 'date_range', from: '2026-06-01', to: '2026-06-07' });
+    expect(req.work_scope).toBe('now');
+    expect(req.filters.some(f => f.key === 'date_range')).toBe(false);
+    await wrapper.get('[data-testid="work-scope-today"]').trigger('click');
+    expect(lastRun(wrapper).work_scope).toBe('today');
+    await wrapper.get('[data-testid="work-scope-submitted"]').trigger('click');
+    expect(lastRun(wrapper).work_scope).toBeUndefined();
+    expect(lastRun(wrapper).filters).toContainEqual({ key: 'date_range', from: '2026-06-01', to: '2026-06-07' });
   });
 
   it('сбрасывает выбранные фильтры при смене выгружаемой сущности', async () => {

@@ -391,12 +391,12 @@ async function onRun(request) {
     const r = await runReport(request);
     if (seq !== runSeq) return;
     result.value = r;
-    resultLimit.value = Number(request.limit) || 0;
+    resultLimit.value = request.work_scope ? 0 : Number(request.limit) || 0;
     const dr = (request.filters || []).find((f) => f.key === 'date_range');
     const { from = '', to = '' } = dr || {};
     // Отчёт за весь период разворачиваем в конкретные даты: границы известны только
     // из ответа, а пустые поля мастера читались как «выбор не применился» (#2338).
-    const period = from || to ? { from, to } : resultDataPeriod(r);
+    const period = request.work_scope ? null : (from || to ? { from, to } : resultDataPeriod(r));
     if (!dr && period) builderRef.value?.setPeriod(period.from, period.to);
     exportMeta.value = {
       title: buildExportTitle(request),

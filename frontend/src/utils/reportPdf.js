@@ -3,6 +3,7 @@ import { formatMoscowDateTime } from '@/utils/serverTime';
 import { isTightColumnValues } from '@/utils/reportColumns';
 import { periodLabel } from '@/utils/reportTable';
 import { downloadBlob, downloadFileName } from '@/utils/reportDownload';
+import { workReportColors, workReportDocument } from './workReportPdf';
 
 const PDF_PRIMARY = '#4F5BDF';
 const PDF_ROW_EVEN = '#F0F5FF';
@@ -36,7 +37,7 @@ const PDF_TIGHT_BUDGET = 0.75;
  * остальным - долю остатка.
  * Когда все колонки узкие, вызывающий центрирует таблицу на листе.
  */
-function pdfColumnWidths(table, rows, tight, orientation, scale) {
+function pdfColumnWidths(table, rows, tight, orientation, scale, work) {
   const fixed = table.header.map((label, i) => {
     if (!tight[i]) return 0;
     const valueLen = rows.reduce((max, row) => Math.max(max, String(row[i] ?? '').length), 0);
@@ -44,11 +45,11 @@ function pdfColumnWidths(table, rows, tight, orientation, scale) {
     return Math.ceil(Math.max(valueLen, wordLen) * PDF_CHAR_WIDTH) + PDF_CELL_PADDING;
   });
   // pdfmake прибавляет боковые отступы и линии к ширине содержимого каждой ячейки.
-  const available = PDF_CONTENT_WIDTH[orientation] / scale - 12.5 * fixed.length - 1;
+  const available = PDF_CONTENT_WIDTH[orientation] / scale - 12.5 * fixed.length - (work ? 2 : 1);
   const total = fixed.reduce((sum, w) => sum + w, 0);
   const flexible = tight.filter(value => !value).length;
   const budget = flexible ? available * PDF_TIGHT_BUDGET : available;
-  const shrink = total > budget ? budget / total : 1;
+  const shrink = total > budget || (work && !flexible && total > 0) ? budget / total : 1;
   const widths = fixed.map(w => w ? Math.floor(w * shrink) : '*');
   const occupied = widths.reduce((sum, w) => sum + (w === '*' ? 0 : w), 0);
   const space = widths.map(w => w === '*' ? (available - occupied) / flexible : w);
@@ -89,25 +90,28 @@ function pdfDocToBlob(pdfDoc) {
   });
 }
 
-function reportTableNode(table, orientation) {
+function reportTableNode(table, orientation, work = false) {
   // Строка итогов идёт тем же столбцом, что и тело, поэтому меряется и не рвётся
   // наравне с ним: «2 ч 15 мин» в итоге иначе переносился там, где строки выше нет.
   const allRows = table.totalsRow ? [...table.rows, table.totalsRow] : table.rows;
   const tight = table.header.map((_, i) => isTightColumnValues(allRows.map((row) => row[i])));
   const allTight = tight.every(Boolean);
+  const headerColor = work ? workReportColors.header : PDF_PRIMARY;
+  const stripe = work ? workReportColors.stripe : PDF_ROW_EVEN;
+  const shadedRow = work ? 1 : 0;
   // Очень широкий разрез целиком остаётся на одном листе по горизонтали.
   // Масштабируем только таблицу, сохраняя размер заголовка документа.
   const scale = Math.min(1, 12 / table.header.length);
-  const { widths, space } = pdfColumnWidths(table, allRows, tight, orientation, scale);
+  const { widths, space } = pdfColumnWidths(table, allRows, tight, orientation, scale, work);
   const headerCells = table.header.map((text, i) => ({
     text: cellText(text, space[i]),
-    bold: true, color: '#FFFFFF', fillColor: PDF_PRIMARY, alignment: 'center',
+    bold: true, color: work ? workReportColors.ink : '#FFFFFF', fillColor: headerColor, alignment: work ? 'left' : 'center',
   }));
 
   const bodyRows = table.rows.map((cells, index) => cells.map((value, i) => ({
     text: cellText(value, space[i], tight[i]),
     alignment: pdfAlign(i, table.numericColumns),
-    fillColor: index % 2 === 0 ? PDF_ROW_EVEN : '#FFFFFF',
+    fillColor: index % 2 === shadedRow ? stripe : '#FFFFFF',
   })));
   const body = [headerCells, ...bodyRows];
   if (table.totalsRow) {
@@ -123,10 +127,10 @@ function reportTableNode(table, orientation) {
     fontSize: 9 * scale,
     table: { headerRows: 1, widths, body },
     layout: {
-      hLineWidth: () => 0.5 * scale,
-      vLineWidth: () => 0.5 * scale,
-      hLineColor: () => PDF_BORDER,
-      vLineColor: () => PDF_BORDER,
+      hLineWidth: (i, node) => (work && (i <= 1 || i === node.table.body.length) ? 0.9 : 0.5) * scale,
+      vLineWidth: (i, node) => (work && (i === 0 || i === node.table.widths.length) ? 0.9 : 0.5) * scale,
+      hLineColor: (i, node) => work ? (i <= 1 || i === node.table.body.length ? workReportColors.frame : workReportColors.line) : PDF_BORDER,
+      vLineColor: (i, node) => work ? (i === 0 || i === node.table.widths.length ? workReportColors.frame : workReportColors.line) : PDF_BORDER,
       paddingTop: () => 4 * scale,
       paddingBottom: () => 4 * scale,
       paddingLeft: () => 6 * scale,
@@ -134,18 +138,19 @@ function reportTableNode(table, orientation) {
     },
   };
 
-  return allTight
+  return allTight && !work
     ? { columns: [{ width: '*', text: '' }, { ...tableNode, width: 'auto' }, { width: '*', text: '' }] }
     : tableNode;
 }
 
-export async function exportPdf(table, opts) {
+export async function exportPdf(table, opts, result) {
   const pdfMake = (await import('pdfmake/build/pdfmake')).default;
   const vfs = (await import('pdfmake/build/vfs_fonts')).default;
   pdfMake.addVirtualFileSystem(vfs);
 
   const orientation = table.header.length > 4 ? 'landscape' : 'portrait';
-  const docDefinition = {
+  const isWork = result?.mode === 'list' && result.entity === 'work_applications';
+  const docDefinition = isWork ? workReportDocument(result, table, opts, reportTableNode(table, 'landscape', true)) : {
     pageOrientation: orientation,
     pageMargins: [24, 28, 24, 28],
     defaultStyle: { font: 'Roboto', fontSize: 9, color: '#333333' },
