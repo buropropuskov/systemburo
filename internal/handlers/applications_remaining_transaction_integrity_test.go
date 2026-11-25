@@ -206,7 +206,8 @@ func TestRemainingTransactionIntegrity_EightCallbacksAndHTTPRecovery(t *testing.
 					_, err := svc.CreateApplication(context.Background(), sender, createReq, false)
 					return err
 				case "forward":
-					return svc.ForwardApplication(context.Background(), sender, appID, false, forwardReq)
+					_, err := svc.ForwardApplication(context.Background(), sender, appID, forwardReq)
+					return err
 				case "approve":
 					return svc.ApproveApplicationByUser(context.Background(), voter, appID, services.UserApprovalRequest{Status: "approved"})
 				case "revoke":

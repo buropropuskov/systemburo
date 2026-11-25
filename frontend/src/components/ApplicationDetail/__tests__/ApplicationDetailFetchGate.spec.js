@@ -5,10 +5,7 @@ import { createPinia, setActivePinia } from 'pinia';
 // Данные окна пересылки (кандидаты в получатели и состав принимающих) нужны только в
 // "Центре": в ЛК окна нет, а /application-approvers закрыт правом администратора -
 // рядовой отправитель получил бы 403 и generic-тост при открытии своей же заявки.
-// Источник получателей зависит от права (#1948): без page.admin.users идут неадминские
-// кандидаты - на /users/all такой участник получал 403 и пустой список. Права в этой
-// спеке никому не выданы, поэтому в "Центре" ждём именно кандидатов; выбор источника по
-// праву разобран в ApplicationDetailForwardAccess.spec.js.
+// Окно получает круг адресатов для конкретной заявки.
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({ apiRequest: (...a) => apiRequest(...a) }));
 vi.mock('@/api/applications', () => ({ markAsRead: vi.fn().mockResolvedValue(undefined) }));
@@ -38,7 +35,7 @@ describe('ApplicationDetail - гейт админ-фетчей по режиму
     mountDetail('user');
     await flushPromises();
     const paths = apiRequest.mock.calls.map(c => c[0]);
-    expect(paths).not.toContain('/users/recipient-candidates');
+    expect(paths).not.toContain('/applications/7/forward-recipients');
     expect(paths).not.toContain('/users/all');
     expect(paths).not.toContain('/application-approvers');
     expect(paths).not.toContain('/application-approvers/recipients');
@@ -47,7 +44,7 @@ describe('ApplicationDetail - гейт админ-фетчей по режиму
   it('mode=center: получает доступные составы без административного запроса', async () => {
     mountDetail('center');
     await flushPromises();
-    const users = apiRequest.mock.calls.find(c => c[0] === '/users/recipient-candidates');
+    const users = apiRequest.mock.calls.find(c => c[0] === '/applications/7/forward-recipients');
     const approvers = apiRequest.mock.calls.find(c => c[0] === '/application-approvers/recipients');
     expect(users).toBeTruthy();
     expect(approvers).toBeTruthy();

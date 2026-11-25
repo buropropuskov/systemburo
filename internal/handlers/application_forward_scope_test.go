@@ -204,7 +204,7 @@ func TestForwardScope_LookupFailureRollsBack(t *testing.T) {
 			}))
 			t.Cleanup(func() { require.NoError(t, db.Callback().Row().Remove(name)) })
 			pub := &fakePublisher{}
-			err = transactionIntegrityService(db, pub).ForwardApplication(context.Background(), "scope_fault_author", app, false, services.ForwardApplicationRequest{
+			_, err = transactionIntegrityService(db, pub).ForwardApplication(context.Background(), "scope_fault_author", app, services.ForwardApplicationRequest{
 				Users: []services.ForwardUser{{UserID: targetID, CanView: true}}, AttachmentIDs: []int{att},
 			})
 			require.True(t, hit)

@@ -3,7 +3,7 @@
        без своей transition она пропадала мгновенно, тогда как окна проекта уезжают
        плавно. Родителю о закрытии сообщаем после leave - тогда unmount не обрывает
        анимацию на середине. -->
-  <transition name="detail-close">
+  <transition v-if="!detailUnavailable" name="detail-close">
     <div
       v-if="visible"
       class="application-detail-overlay"
@@ -687,6 +687,7 @@ import { formatPublicUserName } from '@/utils/formatName'
 import { useApplicationHeaderActions } from '@/composables/useApplicationHeaderActions';
 import { employeeDocumentFields } from '@/utils/employeeDocuments';
 import { applicationPeriodDetails } from '@/components/entityPeriodParentMixins';
+import applicationDetailAccess from './applicationDetailAccess';
 import { apiRequest } from '@/api/client'
 import { markAsRead, getApplicationSupplements, getApplicationParticipants } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
@@ -729,7 +730,6 @@ import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
 import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
-import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import SupplementModal from '../CreateApplication/SupplementModal.vue'
@@ -741,7 +741,7 @@ import { removeApplicationElements } from '@/api/applicationAssignments'
 const SUPPLEMENT_ALLOWED_STATUSES = ['Непрочитано', 'В обработке', 'В работе']
 
 export default {
-    mixins: [applicationPeriodDetails],
+    mixins: [applicationPeriodDetails, applicationDetailAccess],
     name: 'ApplicationDetail',
     components: {
         ApplicationAttachments,
@@ -819,8 +819,6 @@ export default {
             visible: true,
             closeTimer: null,
             applicationData: { ...this.application },
-            eventStreamOff: null,
-            eventStreamAppId: null,
             loadDetailSeq: 0,
             loadAttachmentSeq: 0,
             showMessageModal: false,
@@ -1181,12 +1179,15 @@ export default {
             immediate: true,
             handler(newApplication, oldApplication) {
                 if (newApplication && newApplication.id) {
+                    if (!this.activateDetail(newApplication.id, oldApplication?.id)) return;
                     this.applicationData = { ...newApplication };
                     this.showMessageModal = false;
                     this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
                     this.loadCommentFromLocalStorage();
                     this.loadApplicationDetails(newApplication);
                     if (!oldApplication || oldApplication.id !== newApplication.id) {
+                        this.allUsers = [];
+                        this.showForwardModal = false;
                         markAsRead(newApplication.id).catch(() => {});
                         this.subscribeToApplication(newApplication.id);
                     }
@@ -1201,9 +1202,6 @@ export default {
     mounted() {
         this.loadCommonData();
         this.$nextTick(() => this.updateMessageClamp());
-        // Real-time (#840 V4): подписка на изменения открытой заявки (сам scope
-        // ставится в watch application по её id). connect - refcount'ный.
-        eventStream.connect();
         // Панель заявки закрывается по Escape наравне с окнами. В общей стопке она
         // стоит своим слоем: пока поверх открыто окно (получатели, карточка участника,
         // пересылка), Escape закрывает его, а до панели доходит, когда она верхняя.
@@ -1215,11 +1213,6 @@ export default {
         setBodyScrollLock(this, true);
     },
     beforeUnmount() {
-        if (this.eventStreamOff) {
-            this.eventStreamOff();
-            this.eventStreamOff = null;
-        }
-        eventStream.disconnect();
         document.removeEventListener('keydown', this.handleDetailEscape);
         releaseModal(this);
         releaseBodyScrollLock(this);
@@ -1262,17 +1255,6 @@ export default {
             }
             this.applicationData = { ...this.applicationData, ...patch };
             this.$emit('application-changed', this.applicationData);
-        },
-        // Подписка на real-time обновления конкретной заявки (#840 V4): снимает
-        // старую подписку, подписывается на scope application:<id>.
-        subscribeToApplication(appId) {
-            if (this.eventStreamOff) {
-                this.eventStreamOff();
-                this.eventStreamOff = null;
-            }
-            if (!appId) return;
-            this.eventStreamAppId = appId;
-            this.eventStreamOff = eventStream.subscribe(`application:${appId}`, () => this.refreshLiveDetail(), { fallback: true });
         },
         // Тихий рефетч открытой детали по сигналу application.updated: статус/
         // согласующие/вложения (loadApplicationDetails) + история + вопросы. Обновляет
@@ -1500,9 +1482,7 @@ export default {
             if (!preserveSelection) this.actionsReady = false;
             try {
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
-                    apiRequest(`/applications/${application.id}/details`, {
-                        method: "GET",
-                    }),
+                    this.readOpenApplication(application.id),
                     apiRequest(`/applications/${application.id}/attachments`, {
                         method: "GET",
                     }),
@@ -1511,6 +1491,7 @@ export default {
                     })
                 ]);
 
+                if (!appResponse || seq !== this.loadDetailSeq) return;
                 if (appResponse.ok) {
                     const appData = await appResponse.json();
                     // seq-guard (#632/#840): при подряд идущих live-сигналах устаревший
@@ -1555,16 +1536,16 @@ export default {
                     }
                 }
 
-                if (attachmentsResponse.ok) {
+                if (attachmentsResponse.ok || attachmentsResponse.status === 403 || attachmentsResponse.status === 404) {
                     // При live-рефетче сохраняем выбранное вложение по id (не сбрасываем
                     // на первое) - иначе фоновое обновление перекинет чужую вкладку.
-                    const prevSelectedId = preserveSelection && this.selectedAttachment ? this.selectedAttachment.id : null;
-                    const newAttachments = await attachmentsResponse.json();
+                    const newAttachments = attachmentsResponse.ok ? await attachmentsResponse.json() : [];
                     if (seq !== this.loadDetailSeq) return;
+                    const previous = this.selectedAttachment && newAttachments.find(a => a.id === this.selectedAttachment.id);
+                    if (this.selectedAttachment && !previous) this.clearAttachmentSelection();
                     this.attachments = newAttachments;
                     if (this.attachments.length > 0) {
-                        const keep = prevSelectedId ? this.attachments.find(a => a.id === prevSelectedId) : null;
-                        this.selectedAttachment = keep || this.attachments[0];
+                        this.selectedAttachment = (preserveSelection && previous) || this.attachments[0];
                         await this.loadAttachmentDetails(this.selectedAttachment.id);
                     }
                 }
@@ -1579,7 +1560,7 @@ export default {
                 // только в "Центре заявок". В личном кабинете кнопки пересылки нет,
                 // поэтому и запросов не делаем.
                 if (this.mode === 'center') {
-                    await this.fetchForwardRecipients();
+                    await this.fetchForwardRecipients(application.id, seq);
                     await this.fetchApprovers();
                 }
 
@@ -1592,32 +1573,21 @@ export default {
             } finally {
                 // П.46: кнопки действий показываем только после загрузки ролей/согласующих,
                 // иначе мигают не те кнопки пока responsibleUsers/approvers пустые.
-                this.actionsReady = true;
+                if (seq === this.loadDetailSeq) this.actionsReady = true;
                 await supplementsRequest;
             }
         },
 
-        /**
-         * Получатели для окна пересылки - из двух источников, по праву на список
-         * пользователей.
-         *
-         * Узкий круг кандидатов (коллеги по организации и компании плюс руководители) -
-         * это ограничение бэка для рядового участника заявки, а не общее правило:
-         * forwardAuthority не сужает получателей ни супер-админу, ни принимающему -
-         * маршрутизация заявок по чужим организациям и есть работа оператора бюро.
-         * Поэтому носителю page.admin.users оставляем полный /users/all, как было, а
-         * остальным даём неадминских кандидатов: на /users/all они получали 403 и
-         * пустой выбор в окне.
-         *
-         * silent403 на обеих ветках: окно деградирует до пустого списка молча - тост
-         * "Недостаточно прав" здесь лишний, запроса пользователь не делал.
-         */
-        async fetchForwardRecipients() {
-            const path = this.can('page.admin.users') ? "/users/all" : "/users/recipient-candidates";
+        async fetchForwardRecipients(applicationId = this.applicationData.id, seq = this.loadDetailSeq) {
+            if (seq !== this.loadDetailSeq || applicationId !== this.applicationData.id) return;
+            this.allUsers = [];
             try {
-                const response = await apiRequest(path, { silent403: true });
+                const response = await apiRequest(`/applications/${applicationId}/forward-recipients`, { silent403: true });
                 if (response.ok) {
-                    this.allUsers = (await response.json()) || [];
+                    const users = await response.json();
+                    if (seq === this.loadDetailSeq && applicationId === this.applicationData.id) {
+                        this.allUsers = users;
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching forward recipients:", error);
@@ -1755,7 +1725,21 @@ export default {
                 });
 
                 if (response.ok) {
-                    useDeletionsStore().notify({ bold: 'Заявка переслана', type: 'success' });
+                    const result = await response.json();
+                    const total = new Set(usersToSend.map(user => user.user_id)).size;
+                    if (!Number.isInteger(result?.accepted) || !Number.isInteger(result?.skipped) ||
+                        result.accepted < 0 || result.skipped < 0 || result.accepted + result.skipped !== total) {
+                        useDeletionsStore().notify({ bold: 'Не удалось подтвердить результат пересылки', type: 'warning' });
+                        return;
+                    }
+                    if (result.accepted === 0) {
+                        useDeletionsStore().notify({ bold: 'Заявка никому не переслана. Проверьте получателей', type: 'warning' });
+                        await this.fetchForwardRecipients();
+                        return;
+                    }
+                    useDeletionsStore().notify(result.skipped > 0
+                        ? { bold: `Заявка переслана ${result.accepted} из ${total} получателей`, type: 'warning' }
+                        : { bold: 'Заявка переслана', type: 'success' });
                     this.closeForwardModal();
 
                     await this.loadApplicationDetails(this.applicationData);
@@ -2118,10 +2102,14 @@ export default {
         // После override обновляем только заявочные поля (в т.ч. гейт
         // has_unoverridden_blacklist_flags), не сбрасывая выбранное вложение.
         async refreshApplicationGate() {
+            const id = this.applicationData.id;
+            const seq = this.loadDetailSeq;
             try {
-                const response = await apiRequest(`/applications/${this.applicationData.id}/details`, { method: 'GET' });
+                const response = await this.readOpenApplication(id);
+                if (!response || seq !== this.loadDetailSeq) return;
                 if (response.ok) {
                     const appData = await response.json();
+                    if (!this.visible || id !== this.applicationData.id || seq !== this.loadDetailSeq) return;
                     this.applicationData = { ...this.applicationData, ...appData };
                     return;
                 }

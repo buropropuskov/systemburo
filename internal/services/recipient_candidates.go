@@ -24,7 +24,15 @@ const managerUserTypeCode = "manager"
 //
 // Единый источник для эндпоинта выбора и для валидации readers при подаче: разъедься
 // они, форма предлагала бы людей, которых бэк потом молча выбрасывает.
-func recipientCandidateScope(db *gorm.DB, me models.User) *gorm.DB {
+func recipientCandidateScope(db *gorm.DB, me models.User, unrestricted bool) *gorm.DB {
+	query := db.Table("users u").
+		Joins("LEFT JOIN user_types ut ON u.type_id = ut.id").
+		Where("u.is_active = ?", true).
+		Where("u.is_banned = ?", false).
+		Where("u.id <> ?", me.ID)
+	if unrestricted {
+		return query
+	}
 	audience := db.Where("ut.code = ?", managerUserTypeCode)
 	if me.OrganizationID != nil {
 		audience = audience.Or("u.organization_id = ?", *me.OrganizationID)
@@ -33,12 +41,7 @@ func recipientCandidateScope(db *gorm.DB, me models.User) *gorm.DB {
 		audience = audience.Or("u.company_id = ?", *me.CompanyID)
 	}
 
-	return db.Table("users u").
-		Joins("LEFT JOIN user_types ut ON u.type_id = ut.id").
-		Where("u.is_active = ?", true).
-		Where("u.is_banned = ?", false).
-		Where("u.id <> ?", me.ID).
-		Where(audience)
+	return query.Where(audience)
 }
 
 // loadRecipientCandidates отдаёт кандидатов с маскировкой персональных данных: работник
@@ -49,15 +52,19 @@ func recipientCandidateScope(db *gorm.DB, me models.User) *gorm.DB {
 // были бы работой впустую. Отбор кандидатов от них не зависит - джойны левые, человек
 // без организации из списка не пропадает.
 func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) ([]models.RecipientCandidate, error) {
+	return projectRecipientCandidates(ctx, db, recipientCandidateScope(db.WithContext(ctx), me, false))
+}
+
+func projectRecipientCandidates(ctx context.Context, db, scope *gorm.DB) ([]models.RecipientCandidate, error) {
 	result := make([]models.RecipientCandidate, 0)
-	err := recipientCandidateScope(db.WithContext(ctx), me).
+	err := scope.
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
 		Select(`u.id, u.last_name, u.first_name, u.middle_name, u.position,
 			o.name as organization, c.name as company`).
 		Scan(&result).Error
 	if err != nil {
-		slog.Error("не удалось получить кандидатов в получатели заявки", "error", err, "user_id", me.ID)
+		slog.Error("не удалось получить кандидатов в получатели заявки", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipient candidates")
 	}
 
@@ -112,7 +119,7 @@ func recipientSortKey(c models.RecipientCandidate) string {
 // присланного клиентом списка читателей.
 func recipientCandidateIDs(ctx context.Context, db *gorm.DB, me models.User) (map[int]struct{}, error) {
 	var ids []int
-	if err := recipientCandidateScope(db.WithContext(ctx), me).Pluck("u.id", &ids).Error; err != nil {
+	if err := recipientCandidateScope(db.WithContext(ctx), me, false).Pluck("u.id", &ids).Error; err != nil {
 		slog.Error("не удалось получить идентификаторы кандидатов в получатели", "error", err, "user_id", me.ID)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error validating recipients")
 	}

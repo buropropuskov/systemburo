@@ -102,6 +102,7 @@ func idorProbes() map[string]idorProbe {
 		"GET /api/applications/:id/details":               owner("/details"),
 		"GET /api/applications/:id/files":                 owner("/files"),
 		"GET /api/applications/:id/forward-messages":      owner("/forward-messages"),
+		"GET /api/applications/:id/forward-recipients":    owner("/forward-recipients"),
 		"GET /api/applications/:id/history":               owner("/history"),
 		"GET /api/applications/:id/participants":          owner("/participants"),
 		"GET /api/applications/:id/questions":             owner("/questions"),

@@ -159,7 +159,8 @@ type ApplicationService interface {
 	SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error)
 
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
-	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
+	ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) (*ForwardResult, error)
+	ForwardRecipients(ctx context.Context, username string, applicationID int) ([]models.RecipientCandidate, error)
 
 	// ApproveApplicationByUser согласование/отказ заявки пользователем.
 	ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error
@@ -543,6 +544,12 @@ type ForwardApplicationRequest struct {
 	Users         []ForwardUser `json:"users"`
 	AttachmentIDs []int         `json:"attachment_ids"`
 	Message       string        `json:"message" validate:"max=2000"`
+}
+
+// ForwardResult counts distinct requested accounts after the transaction commits.
+type ForwardResult struct {
+	Accepted int `json:"accepted"`
+	Skipped  int `json:"skipped"`
 }
 
 // ForwardUser пользователь для пересылки. required_approval и can_view не могут быть оба true.

@@ -288,10 +288,7 @@ type RecipientCandidate struct {
 	FirstName    *string `json:"first_name"`
 	MiddleName   *string `json:"middle_name"`
 	Position     *string `json:"position"`
-	// Organization и Company названы как в UserInfoResponse, а не organization_name
-	// соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
-	// (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
-	// того же поля потребовало бы развилки в каждом месте, где окно его читает.
+	// Organization and Company are display fields of selectable recipients.
 	Organization *string `json:"organization"`
 	Company      *string `json:"company"`
 	// PDHidden marks restricted identity fields, independently of receiver aliases.

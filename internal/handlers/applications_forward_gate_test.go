@@ -95,10 +95,19 @@ func TestForwardGate_ApproverForwardsOutsideOwnCircle(t *testing.T) {
 	testutil.RegisterUser(t, e, "fwdgate_appr_target", "pass123", 1, foreignOrgID, foreignCompanyID)
 	targetID := getUserID(t, db, "fwdgate_appr_target")
 
+	candidates := testutil.GET(t, e, fmt.Sprintf("/applications/%d/forward-recipients", appID), testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, candidates.Code, candidates.Body.String())
+	assert.True(t, candidateIDs(t, testutil.ParseSlice(t, candidates))[targetID])
+	entry := waitPDAuditRecord(t, db, fmt.Sprintf("/api/applications/%d/forward-recipients", appID))
+	assert.Equal(t, "fwdgate_appr", entry.Username)
+	assert.Equal(t, "application", entry.Resource)
+	assert.Equal(t, "view", entry.Action)
+	assert.Equal(t, http.StatusOK, entry.StatusCode)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID),
 		forwardBody(targetID, false, true), testutil.AuthHeader(approverToken))
 	require.Equal(t, http.StatusOK, rec.Code, "принимающий должен пересылать любую заявку: %s", rec.Body.String())
 
+	assert.Equal(t, services.ForwardResult{Accepted: 1}, testutil.ParseResponse[services.ForwardResult](t, rec))
 	assert.True(t, viewerIDsOf(t, e, senderToken, appID)[targetID],
 		"получатель принимающего должен попасть в просматривающие независимо от его организации")
 }
@@ -179,7 +188,7 @@ func TestForwardGate_ReaderCannotAssignResponsible(t *testing.T) {
 // TestForwardGate_DropsForeignRecipient: подделанный получатель не открывает заявку
 // постороннему. Тот же INSERT в application_viewers закрыт на подаче (#1928), и через
 // пересылку он обязан быть закрыт тем же кругом. Чужой идентификатор отбрасывается
-// молча - запрос остаётся валидным, свой получатель из того же запроса проходит.
+// с указанием количества пропущенных, свой получатель из того же запроса проходит.
 func TestForwardGate_DropsForeignRecipient(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -195,13 +204,27 @@ func TestForwardGate_DropsForeignRecipient(t *testing.T) {
 	strangerToken := testutil.RegisterAndLogin(t, e, "fwdgate_df_stranger", "pass123", 1, foreignOrgID, foreignCompanyID)
 	strangerID := getUserID(t, db, "fwdgate_df_stranger")
 
+	grantPermission(t, db, "fwdgate_df_sender", "page.admin.users")
+	candidatesPath := fmt.Sprintf("/applications/%d/forward-recipients", appID)
+	require.Equal(t, http.StatusUnauthorized, testutil.GET(t, e, candidatesPath, nil).Code)
+	candidates := testutil.GET(t, e, candidatesPath, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, candidates.Code, candidates.Body.String())
+	ids := candidateIDs(t, testutil.ParseSlice(t, candidates))
+	assert.True(t, ids[colleagueID])
+	assert.False(t, ids[strangerID])
+	require.Equal(t, http.StatusForbidden, testutil.GET(t, e, candidatesPath, testutil.AuthHeader(strangerToken)).Code)
+
 	body := fmt.Sprintf(`{"users":[
 		{"user_id":%d,"required_approval":false,"can_view":true},
 		{"user_id":%d,"required_approval":false,"can_view":true},
 		{"user_id":%d,"required_approval":true,"can_view":false}
 	]}`, colleagueID, strangerID, strangerID)
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
-	require.Equal(t, http.StatusOK, rec.Code, "чужой получатель отбрасывается молча: %s", rec.Body.String())
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, services.ForwardResult{Accepted: 1, Skipped: 1}, testutil.ParseResponse[services.ForwardResult](t, rec))
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), forwardBody(strangerID, false, true), testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, services.ForwardResult{Skipped: 1}, testutil.ParseResponse[services.ForwardResult](t, rec))
 
 	viewers := viewerIDsOf(t, e, senderToken, appID)
 	assert.True(t, viewers[colleagueID], "свой коллега остаётся получателем")
@@ -211,4 +234,60 @@ func TestForwardGate_DropsForeignRecipient(t *testing.T) {
 
 	arec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(strangerToken))
 	assert.Equal(t, http.StatusForbidden, arec.Code, "посторонний не получает доступ к заявке через пересылку")
+
+	testutil.DenyPermission(t, getUserID(t, db, "fwdgate_df_sender"), services.KeyActionForwardApplication)
+	require.Equal(t, http.StatusOK, testutil.GET(t, e, fmt.Sprintf("/applications/%d/details", appID), testutil.AuthHeader(senderToken)).Code)
+	require.Equal(t, http.StatusForbidden, testutil.GET(t, e, candidatesPath, testutil.AuthHeader(senderToken)).Code)
+}
+
+func TestForwardRecipients_HidesRestrictedProfileForDirectoryAdmin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	author := testutil.RegisterAndLogin(t, e, "fwd_mask_author", "pass123", 1, td.OrgID, td.CompanyID)
+	appID := createSimpleApplication(t, db, e, author, td.OrgID)
+	testutil.RegisterUser(t, e, "fwd_mask_hidden", "pass123", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "fwd_mask_hidden", "Скрытый", "Пример", "Тестовый")
+	id := getUserID(t, db, "fwd_mask_hidden")
+	require.NoError(t, db.Exec("UPDATE users SET position = ? WHERE id = ?", "Учебная должность", id).Error)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	response := testutil.GET(t, e, fmt.Sprintf("/applications/%d/forward-recipients", appID), testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	hidden := candidateBy(t, testutil.ParseSlice(t, response), id)
+	assert.Equal(t, true, hidden["pd_hidden"])
+	assert.Equal(t, false, hidden["can_select"])
+	assert.Equal(t, "Имя скрыто", hidden["display_label"])
+	for _, field := range []string{"first_name", "middle_name", "last_name", "position", "organization", "company"} {
+		assert.Empty(t, hidden[field], field)
+	}
+}
+
+func TestForwardGate_RepeatedViewerInSingleRequest(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seed := testutil.SeedTestData(t, db)
+	author := testutil.RegisterAndLogin(t, e, "forward_repeat_author", "pass123", 1, seed.OrgID, seed.CompanyID)
+	testutil.RegisterUser(t, e, "forward_repeat_reader", "pass123", 1, seed.OrgID, seed.CompanyID)
+	reader := getUserID(t, db, "forward_repeat_reader")
+	appID := createSimpleApplication(t, db, e, author, seed.OrgID)
+	path := fmt.Sprintf("/applications/%d/forward", appID)
+	body := fmt.Sprintf(`{"users":[{"user_id":%d,"can_view":true},{"user_id":%d,"can_view":true}]}`, reader, reader)
+
+	for send := int64(1); send <= 2; send++ {
+		rec := testutil.POST(t, e, path, body, testutil.AuthHeader(author))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Equal(t, services.ForwardResult{Accepted: 1}, testutil.ParseResponse[services.ForwardResult](t, rec))
+
+		var assignments, events, notices int64
+		require.NoError(t, db.Table("application_viewers").Where("application_id = ? AND user_id = ?", appID, reader).Count(&assignments).Error)
+		assert.EqualValues(t, 1, assignments)
+		require.NoError(t, db.Table("audit_log").Where("entity_type = 'application' AND entity_id = ? AND actor_user_id = ? AND action = 'assigned_viewer'", appID, reader).Count(&events).Error)
+		assert.Equal(t, send, events)
+		require.NoError(t, db.Table("notifications").Where("user_id = ? AND type = ?", reader, services.NotificationTypeApplicationForwarded).Select("COALESCE(SUM(count), 0)").Scan(&notices).Error)
+		assert.Equal(t, send, notices)
+	}
 }

@@ -1723,6 +1723,8 @@ definitions:
     type: object
   models.RecipientCandidate:
     properties:
+      can_select:
+        type: boolean
       company:
         type: string
       display_label:
@@ -1736,21 +1738,13 @@ definitions:
       middle_name:
         type: string
       organization:
-        description: |-
-          Organization и Company названы как в UserInfoResponse, а не organization_name
-          соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
-          (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
-          того же поля потребовало бы развилки в каждом месте, где окно его читает.
+        description: Organization and Company are display fields of selectable recipients.
         type: string
       pd_hidden:
-        description: |-
-          PDHidden -- ФИО скрыто политикой согласия или отображения принимающего.
-          Организацию и компанию согласие не закрывает: это данные работодателя, а не
-          работника, и в администраторском списке они видны у скрытого работника тоже.
+        description: PDHidden marks restricted identity fields, independently of receiver
+          aliases.
         type: boolean
       position:
-        type: string
-      username:
         type: string
     type: object
   models.RegisterRequest:
@@ -4751,6 +4745,13 @@ definitions:
       whole:
         type: boolean
     type: object
+  services.ForwardResult:
+    properties:
+      accepted:
+        type: integer
+      skipped:
+        type: integer
+    type: object
   services.ForwardUser:
     properties:
       can_view:
@@ -7718,10 +7719,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: success + message
+          description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/services.ForwardResult'
         "400":
           description: Bad Request
           schema:
@@ -7786,6 +7786,32 @@ paths:
       security:
       - BearerAuth: []
       summary: Ветка заявки (пересылки)
+      tags:
+      - applications
+  /applications/{id}/forward-recipients:
+    get:
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.RecipientCandidate'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Доступные получатели пересылки заявки
       tags:
       - applications
   /applications/{id}/history:
