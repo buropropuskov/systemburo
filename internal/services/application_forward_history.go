@@ -52,10 +52,41 @@ func decodeForwardRecipientDetails(meta map[string]json.RawMessage) []forwardRec
 	return result
 }
 
+// projectForwardMetadata applies the same attachment scope to history and the thread.
+func (s *applicationService) projectForwardMetadata(ctx context.Context, applicationID, viewerID int, originals []json.RawMessage) ([]json.RawMessage, error) {
+	if len(originals) == 0 {
+		return nil, nil
+	}
+	scope, err := s.ForwardAttachmentScope(ctx, applicationID, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	return sanitizeForwardRecipientMetadata(ctx, s.db, originals, scope)
+}
+
+func scopeForwardAttachmentMetadata(meta map[string]json.RawMessage, allowed map[int]bool) {
+	if allowed == nil {
+		return
+	}
+	var rows []forwardAttachmentDetail
+	visible := []forwardAttachmentDetail{}
+	names := []string{}
+	if json.Unmarshal(meta["attachment_details"], &rows) == nil {
+		for _, row := range rows {
+			if allowed[row.ID] {
+				visible = append(visible, row)
+				names = append(names, row.Name)
+			}
+		}
+	}
+	meta["attachments"], _ = json.Marshal(names)
+	meta["attachment_details"], _ = json.Marshal(visible)
+}
+
 // sanitizeForwardRecipientMetadata only changes response copies. Legacy names
 // without stable IDs cannot safely be matched to a consent or display-name mask.
 // They remain in storage, but are omitted from both history read surfaces.
-func sanitizeForwardRecipientMetadata(ctx context.Context, db *gorm.DB, originals []json.RawMessage) ([]json.RawMessage, error) {
+func sanitizeForwardRecipientMetadata(ctx context.Context, db *gorm.DB, originals []json.RawMessage, scope map[int]bool) ([]json.RawMessage, error) {
 	metadata := make([]map[string]json.RawMessage, len(originals))
 	details := make([][]forwardRecipientDetail, len(originals))
 	ids := make([]int, 0)
@@ -98,6 +129,7 @@ func sanitizeForwardRecipientMetadata(ctx context.Context, db *gorm.DB, original
 	}
 	result := make([]json.RawMessage, len(metadata))
 	for i, meta := range metadata {
+		scopeForwardAttachmentMetadata(meta, scope)
 		resolved := make([]forwardRecipientDisplay, 0, len(details[i]))
 		displayNames := make([]string, 0, len(details[i]))
 		for _, detail := range details[i] {

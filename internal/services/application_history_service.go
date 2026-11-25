@@ -68,7 +68,7 @@ func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context,
 // Порядок created_at DESC, id DESC - id-тайбрейкер делает
 // детерминированным порядок записей одного действия (recorder проставляет created_at
 // временем вставки - монотонно растущим, как и id).
-func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int, username string) ([]ApplicationHistoryItem, error) {
+func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int, username string, viewerID int) ([]ApplicationHistoryItem, error) {
 	// Записи о заметке бюро видит только тот, кто видит саму заметку. Иначе заявитель
 	// прочитал бы в ленте своей заявки, что бюро что-то про неё писало, - а заметку от
 	// него прячут целиком, включая сам факт (см. application_bureau_note.go).
@@ -153,7 +153,7 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 			}
 		}
 	}
-	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, forwardMetadata)
+	sanitized, err := s.projectForwardMetadata(ctx, applicationID, viewerID, forwardMetadata)
 	if err != nil {
 		slog.Error("не удалось подготовить получателей истории", "application_id", applicationID, "error", err)
 		if typed, ok := err.(*echo.HTTPError); ok && typed.Code == http.StatusServiceUnavailable {
@@ -172,7 +172,7 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 // actor_user_id - пересылающий, JOIN users даёт его ФИО (как в GetApplicationHistory).
 // Пересылки без сопроводительного текста тоже входят в ветку (message пустой) - показывается
 // только "кто -> кому". Получатели берутся из metadata.recipients.
-func (s *applicationService) GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error) {
+func (s *applicationService) GetForwardMessages(ctx context.Context, applicationID, viewerID int) ([]ForwardMessageItem, error) {
 	const authorName = `CONCAT(COALESCE(u.last_name, ''),
 		CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
 		CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
@@ -183,10 +183,8 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			a.actor_user_id AS author_id,
 			` + authorName + ` AS author_name,
 			COALESCE(a.details->>'comment', '') AS message,
-			COALESCE(a.details->'metadata'->>'recipients', '[]') AS recipients_json,
 			a.details->'metadata' AS metadata_json,
 			COALESCE((a.details->'metadata'->>'whole')::boolean, true) AS whole,
-			COALESCE(a.details->'metadata'->>'attachments', '[]') AS attachments_json,
 			a.created_at
 		FROM audit_log a
 		JOIN users u ON a.actor_user_id = u.id
@@ -195,15 +193,13 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 	`
 
 	type forwardMessageRow struct {
-		ID              int
-		AuthorID        int
-		AuthorName      string
-		Message         string
-		MetadataJSON    json.RawMessage
-		RecipientsJSON  string
-		Whole           bool
-		AttachmentsJSON string
-		CreatedAt       time.Time
+		ID           int
+		AuthorID     int
+		AuthorName   string
+		Message      string
+		MetadataJSON json.RawMessage
+		Whole        bool
+		CreatedAt    time.Time
 	}
 	var rows []forwardMessageRow
 	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID, models.AuditActionForwarded).Scan(&rows).Error; err != nil {
@@ -211,25 +207,11 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
 	}
 
-	// Битый JSON-массив в metadata не роняет ветку: деградируем к пустому списку
-	// (запись всё равно показывает автора/действие/текст), но логируем аномалию.
-	parseStrings := func(raw, field string, auditID int) []string {
-		out := []string{}
-		if raw == "" {
-			return out
-		}
-		if err := json.Unmarshal([]byte(raw), &out); err != nil {
-			slog.Warn("не удалось разобрать массив пересылки", "field", field, "audit_id", auditID, "error", err)
-			return []string{}
-		}
-		return out
-	}
-
 	metadata := make([]json.RawMessage, len(rows))
 	for i := range rows {
 		metadata[i] = rows[i].MetadataJSON
 	}
-	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, metadata)
+	sanitized, err := s.projectForwardMetadata(ctx, applicationID, viewerID, metadata)
 	if err != nil {
 		if typed, ok := err.(*echo.HTTPError); ok && typed.Code == http.StatusServiceUnavailable {
 			return nil, typed
@@ -244,12 +226,17 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 	items := make([]ForwardMessageItem, 0, len(rows))
 	for i, r := range rows {
 		var safe struct {
-			Recipients []string                  `json:"recipients"`
-			Details    []forwardRecipientDisplay `json:"recipient_details"`
-			Available  bool                      `json:"recipient_details_available"`
+			Attachments json.RawMessage           `json:"attachments"`
+			Recipients  []string                  `json:"recipients"`
+			Details     []forwardRecipientDisplay `json:"recipient_details"`
+			Available   bool                      `json:"recipient_details_available"`
 		}
 		if err := json.Unmarshal(sanitized[i], &safe); err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
+		}
+		attachmentNames := []string{}
+		if len(safe.Attachments) > 0 && json.Unmarshal(safe.Attachments, &attachmentNames) != nil {
+			attachmentNames = []string{}
 		}
 		items = append(items, ForwardMessageItem{
 			ID:                        r.ID,
@@ -260,7 +247,7 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			RecipientDetails:          safe.Details,
 			RecipientDetailsAvailable: safe.Available,
 			Whole:                     r.Whole,
-			Attachments:               parseStrings(r.AttachmentsJSON, "attachments", r.ID),
+			Attachments:               attachmentNames,
 			CreatedAt:                 r.CreatedAt,
 		})
 	}

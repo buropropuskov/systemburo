@@ -22,7 +22,8 @@ import (
 // как в детали вкладки "Доступные мне".
 type blankAccessService interface {
 	CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool
-	CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error)
+	ForwardAttachmentScope(ctx context.Context, applicationID, viewerUserID int) (map[int]bool, error)
+	SecurityBlankAttachmentIDs(ctx context.Context, applicationID, userID int, unrestricted bool) (map[int]bool, error)
 	IsSecurityUser(ctx context.Context, userID int) (bool, error)
 	// IsApplicationSender нужен гейту документов: инициатор заявки сам вводил
 	// паспорта и патенты участников в форму, и права на их выгрузку не требует.
@@ -71,11 +72,11 @@ func (h *AttachmentBlankHandler) Download(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "attachment_id required")
 	}
 
-	allowed, err := h.canDownload(c, appID, attID)
+	allowed, err := blankAttachmentScope(c, h.access, h.resolver, appID)
 	if err != nil {
 		return err
 	}
-	if !allowed {
+	if allowed != nil && !allowed[attID] {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -92,7 +93,7 @@ func (h *AttachmentBlankHandler) Download(c *echo.Context) error {
 	}
 
 	reader, filename, err := h.service.GenerateBlank(c.Request().Context(), appID, attID,
-		services.BlankOptions{IncludeDocuments: mayExportDocuments && documentsRequested(c)})
+		services.BlankOptions{VisibleSourceIDs: allowed, IncludeDocuments: mayExportDocuments && documentsRequested(c)})
 	if err != nil {
 		return err
 	}
@@ -233,34 +234,28 @@ func canExportBlankDocuments(c *echo.Context, access blankAccessService, resolve
 	return policy.ExportAllowed(own), nil
 }
 
-// canDownload повторяет обе точки, откуда бланк запрашивают: деталь заявки (DownloadBlanksModal)
-// и вкладка "Доступные мне" (AccessibleAttachmentsView). Охранник заявку не видит вовсе, поэтому
-// одного CanAccessApplication мало - у него свой гейт по конкретному вложению.
-func (h *AttachmentBlankHandler) canDownload(c *echo.Context, appID, attID int) (bool, error) {
-	return canDownloadBlank(c, h.access, h.resolver, appID, attID)
-}
-
-// canDownloadBlank - гейт доступа к заполненному бланку одного вложения, общий для
-// прямого скачивания (AttachmentBlankHandler.canDownload) и потокового ZIP заявки
-// из файлового архива (ArchiveDownloadHandler, #1615 B3): оба места обязаны видеть
-// один и тот же набор вложений, иначе серверный ZIP молча показал бы больше или
-// меньше, чем ручное скачивание файлов по одному.
-func canDownloadBlank(c *echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID, attID int) (bool, error) {
+// A nil scope denotes full application access.
+func blankAttachmentScope(c *echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) (map[int]bool, error) {
 	ctx := c.Request().Context()
+	if GetUserID(c) <= 0 {
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized")
+	}
 	if username, ok := c.Get("username").(string); ok && username != "" {
-		if access.CanAccessApplication(ctx, appID, username, IsSuperAdmin(c)) {
-			return true, nil
+		member, err := services.CheckApplicationAccess(ctx, access, appID, username, IsSuperAdmin(c))
+		if err != nil {
+			return nil, err
+		}
+		if member {
+			return access.ForwardAttachmentScope(ctx, appID, viewerUserID(c))
 		}
 	}
-
 	userID, unrestricted, err := securityScope(c, access, resolver)
 	if err != nil {
 		var he *echo.HTTPError
 		if errors.As(err, &he) && he.Code == http.StatusForbidden {
-			// Не участник и не охрана - обычный отказ, а не сбой резолвера.
-			return false, nil
+			return map[int]bool{}, nil
 		}
-		return false, err
+		return nil, err
 	}
-	return access.CanSecurityViewAttachment(ctx, userID, unrestricted, attID)
+	return access.SecurityBlankAttachmentIDs(ctx, appID, userID, unrestricted)
 }

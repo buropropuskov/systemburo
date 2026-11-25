@@ -213,13 +213,12 @@ func (h *ArchiveDownloadHandler) Archive(c *echo.Context) error {
 	}
 
 	ctx := c.Request().Context()
-	fullAccess := false
-	if username, ok := c.Get("username").(string); ok && username != "" {
-		fullAccess = h.access.CanAccessApplication(ctx, appID, username, IsSuperAdmin(c))
+	allowed, err := blankAttachmentScope(c, h.access, h.resolver, appID)
+	if err != nil {
+		return err
 	}
-
-	entries, err := h.downloads.ArchiveApplicationEntries(ctx, appID, fullAccess, func(attID int) (bool, error) {
-		return canDownloadBlank(c, h.access, h.resolver, appID, attID)
+	entries, err := h.downloads.ArchiveApplicationEntries(ctx, appID, allowed == nil, func(attID int) (bool, error) {
+		return allowed[attID], nil
 	})
 	if err != nil {
 		return err

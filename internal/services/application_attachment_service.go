@@ -100,6 +100,12 @@ func resolveForwardFilterWithDB(ctx context.Context, db *gorm.DB, applicationID,
 	return allowed, true, nil
 }
 
+// ForwardAttachmentScope returns nil for the full application audience.
+func (s *applicationService) ForwardAttachmentScope(ctx context.Context, applicationID, viewerUserID int) (map[int]bool, error) {
+	allowed, _, err := s.resolveForwardFilter(ctx, applicationID, viewerUserID)
+	return allowed, err
+}
+
 // CanViewAttachment сообщает, доступно ли конкретное вложение просматривающему с учётом
 // пер-вложенного пересыла (#680). viewerUserID==0 (супер-админ) и отправитель видят любое
 // вложение заявки; получатель с ограничением - только перечисленные.

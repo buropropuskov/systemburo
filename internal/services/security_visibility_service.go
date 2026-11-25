@@ -468,6 +468,21 @@ func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, user
 	return canView, nil
 }
 
+// SecurityBlankAttachmentIDs applies post visibility to the requested application.
+func (s *applicationService) SecurityBlankAttachmentIDs(ctx context.Context, applicationID, userID int, unrestricted bool) (map[int]bool, error) {
+	where, args := securityVisibilityWhere(userID, unrestricted)
+	query := "SELECT a.id FROM attachments a JOIN applications app ON app.id = a.application_id WHERE app.id = ? AND " + where
+	var ids []int
+	if err := s.db.WithContext(ctx).Raw(query, append([]interface{}{applicationID}, args...)...).Scan(&ids).Error; err != nil {
+		return nil, err
+	}
+	allowed := make(map[int]bool, len(ids))
+	for _, id := range ids {
+		allowed[id] = true
+	}
+	return allowed, nil
+}
+
 // GetAvailableAttachmentByID возвращает заголовок одного вложения с краткой инфо родительской
 // заявки для детального экрана "Доступные мне" (#706). Проекция совпадает с листингом
 // (availableAttachmentSelect), без предиката доступа: вызывающий хендлер уже проверил видимость

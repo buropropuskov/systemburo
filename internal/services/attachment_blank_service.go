@@ -94,6 +94,8 @@ type ApplicationItemRow struct {
 // осознанно. Умолчание «как было» означало бы, что новый путь генерации молча уносит
 // паспорта, и заметят это уже в скачанном файле.
 type BlankOptions struct {
+	// VisibleSourceIDs restricts source labels while retaining admitted summary rows.
+	VisibleSourceIDs map[int]bool
 	// IncludeDocuments - подставлять паспорт, патент и иное разрешение как есть.
 	// false ставит в эти ячейки прочерк.
 	IncludeDocuments bool
@@ -205,7 +207,7 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	}
 
 	// 2. Собрать контекст.
-	bctx, err := s.buildContext(ctx, applicationID, &att)
+	bctx, err := s.buildContext(ctx, applicationID, &att, opts.VisibleSourceIDs)
 	if err != nil {
 		return nil, "", err
 	}
@@ -614,7 +616,7 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 	return inserted
 }
 
-func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, att *models.Attachment) (*BlankContext, error) {
+func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, att *models.Attachment, visibleSourceIDs map[int]bool) (*BlankContext, error) {
 	bctx := &BlankContext{
 		Attachment:       att,
 		UniqueAttachment: att.UniqueAttachment,
@@ -734,10 +736,10 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	// ТМЦ соседних вложений заявки: бланк одного вложения перечисляет ввозимый товар
 	// из «Заявок на ввоз» той же заявки. Своё вложение тоже попадает сюда - для бланка
 	// самого ввоза это краткая сводка рядом с построчной таблицей.
-	bctx.ApplicationItems = loadApplicationItems(ctx, s.db, appID)
+	bctx.ApplicationItems = loadApplicationItems(ctx, s.db, appID, visibleSourceIDs)
 
 	// Машины соседних вложений заявки: бланк ввоза печатает транспорт из «Автозаявки».
-	bctx.ApplicationCars = loadApplicationCars(ctx, s.db, appID)
+	bctx.ApplicationCars = loadApplicationCars(ctx, s.db, appID, visibleSourceIDs)
 
 	// Custom values для этого attachment.
 	var values []models.AttachmentCustomValue
@@ -786,22 +788,30 @@ func applyWrapIfMultiline(f *excelize.File, sheet, ref, value string) {
 	}
 }
 
+func visibleBlankSourceName(id int, name string, allowed map[int]bool) string {
+	if allowed != nil && !allowed[id] {
+		return ""
+	}
+	return strings.TrimSpace(name)
+}
+
 // loadApplicationItems собирает ТМЦ всех вложений заявки типа items. Ручные вложения
 // (application_id NULL) сюда не попадают - они не принадлежат заявке. Позиции непринятого
 // дополнения тоже: перечень печатается второй секцией того же бланка допуска, что и
 // собственный список вложения (#1685).
 // Поля приёмника перечислены плоско: у анонимно встроенной структуры gorm молча не
 // маппит поля, и весь перечень пришёл бы пустым.
-func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []ApplicationItemRow {
+func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int, visibleSourceIDs map[int]bool) []ApplicationItemRow {
 	var rows []struct {
 		Name       *string `gorm:"column:name"`
 		Count      *int    `gorm:"column:count"`
 		SourceName string  `gorm:"column:source_name"`
+		SourceID   int     `gorm:"column:source_id"`
 	}
 	err := db.WithContext(ctx).Raw(`
 		SELECT i.name AS name,
 		       i.count AS count,
-		       COALESCE(NULLIF(a.attachment_display_name, ''), NULLIF(a.attachment_name, ''), '') AS source_name
+		       a.id AS source_id, COALESCE(NULLIF(a.attachment_display_name, ''), NULLIF(a.attachment_name, ''), '') AS source_name
 		FROM items i
 		JOIN attachments a ON i.attachment_id = a.id
 		WHERE a.application_id = ? AND a.attachment_type = 'items'
@@ -817,7 +827,7 @@ func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []Applica
 		out = append(out, ApplicationItemRow{
 			Name:       strings.TrimSpace(derefStr(r.Name)),
 			Count:      r.Count,
-			SourceName: strings.TrimSpace(r.SourceName),
+			SourceName: visibleBlankSourceName(r.SourceID, r.SourceName, visibleSourceIDs),
 		})
 	}
 	return out
@@ -829,18 +839,19 @@ func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []Applica
 // Строки непринятых дополнений отсекаются тем же условием, что и собственный состав
 // вложения: бланк несут на пост как документ допуска, и машина из неодобренного
 // дополнения означала бы в нём проход мимо согласования (#1685).
-func loadApplicationCars(ctx context.Context, db *gorm.DB, appID int) []ApplicationCarRow {
+func loadApplicationCars(ctx context.Context, db *gorm.DB, appID int, visibleSourceIDs map[int]bool) []ApplicationCarRow {
 	var rows []struct {
 		Number     *string `gorm:"column:number"`
 		Mark       *string `gorm:"column:mark"`
 		Brand      *string `gorm:"column:brand"`
 		SourceName string  `gorm:"column:source_name"`
+		SourceID   int     `gorm:"column:source_id"`
 	}
 	err := db.WithContext(ctx).Raw(`
 		SELECT c.car_number AS number,
 		       c.mark_name AS mark,
 		       c.car_brand AS brand,
-		       COALESCE(NULLIF(a.attachment_display_name, ''), NULLIF(a.attachment_name, ''), '') AS source_name
+		       a.id AS source_id, COALESCE(NULLIF(a.attachment_display_name, ''), NULLIF(a.attachment_name, ''), '') AS source_name
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
 		WHERE a.application_id = ? AND a.attachment_type = 'cars'
@@ -861,7 +872,7 @@ func loadApplicationCars(ctx context.Context, db *gorm.DB, appID int) []Applicat
 		out = append(out, ApplicationCarRow{
 			Number:     strings.TrimSpace(derefStr(r.Number)),
 			Mark:       mark,
-			SourceName: strings.TrimSpace(r.SourceName),
+			SourceName: visibleBlankSourceName(r.SourceID, r.SourceName, visibleSourceIDs),
 		})
 	}
 	return out
