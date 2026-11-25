@@ -63,13 +63,15 @@ func (s *applicationService) forwardAuthority(ctx context.Context, applicationID
 	return forwardAuthority{readerOnly: !role.IsSender && !role.IsResponsible}, nil
 }
 
+const forwardAccessDenied = "You don't have permission to forward this application"
+
 func (s *applicationService) forwardContext(ctx context.Context, username string, applicationID int) (*models.User, forwardAuthority, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, forwardAuthority{}, err
 	}
 	if user.IsBanned {
-		return nil, forwardAuthority{}, echo.NewHTTPError(http.StatusForbidden, "Нет доступа к пересылке заявки")
+		return nil, forwardAuthority{}, echo.NewHTTPError(http.StatusForbidden, forwardAccessDenied)
 	}
 	if err := requireApplicationAction(ctx, s.db, user.ID, KeyActionForwardApplication); err != nil {
 		return nil, forwardAuthority{}, err
@@ -79,7 +81,7 @@ func (s *applicationService) forwardContext(ctx context.Context, username string
 		return nil, forwardAuthority{}, err
 	}
 	if !allowed {
-		return nil, forwardAuthority{}, echo.NewHTTPError(http.StatusForbidden, "Нет доступа к пересылке заявки")
+		return nil, forwardAuthority{}, echo.NewHTTPError(http.StatusForbidden, forwardAccessDenied)
 	}
 	authority, err := s.forwardAuthority(ctx, applicationID, user, user.IsSuperAdmin)
 	return user, authority, err

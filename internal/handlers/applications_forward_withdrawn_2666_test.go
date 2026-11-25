@@ -129,6 +129,9 @@ func TestForwardWithdrawn2666_AccessBeforeStatus(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), models.StatusWithdrawn)
 	assert.Contains(t, rec.Body.String(), "permission to forward")
+	candidates := testutil.GET(t, f.e, fmt.Sprintf("/applications/%d/forward-recipients", f.appID), testutil.AuthHeader(f.actors["stranger"]))
+	require.Equal(t, http.StatusForbidden, candidates.Code, candidates.Body.String())
+	assert.JSONEq(t, rec.Body.String(), candidates.Body.String())
 	assert.Equal(t, before, forward2666Snapshot(t, f))
 }
 
