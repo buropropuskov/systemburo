@@ -47,7 +47,7 @@ func TestForwardMetadata_MalformedStructuredRecipientsAreUnavailable(t *testing.
 		`{"forward_schema_version":2,"recipient_details":[{"user_id":1,"purpose":"view","required_approval":false,"access_granted":true},{"user_id":1,"purpose":"approval","required_approval":true,"access_granted":true}]}`,
 	} {
 		original := json.RawMessage(raw)
-		result, err := sanitizeForwardRecipientMetadata(context.Background(), nil, []json.RawMessage{original})
+		result, err := sanitizeForwardRecipientMetadata(context.Background(), nil, []json.RawMessage{original}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,7 +84,7 @@ func TestForwardMetadata_SelectedScopeDoesNotBecomeAllForInvalidIDs(t *testing.T
 func TestForwardMetadata_LegacyNamesAreNotReturned(t *testing.T) {
 	input := json.RawMessage(`{"recipients":["Legacy recipient"],"whole":true,"attachments":[]}`)
 	before := string(input)
-	results, err := sanitizeForwardRecipientMetadata(context.Background(), nil, []json.RawMessage{input})
+	results, err := sanitizeForwardRecipientMetadata(context.Background(), nil, []json.RawMessage{input}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestForwardMetadata_LegacyNamesAreNotReturned(t *testing.T) {
 
 func TestForwardMetadata_MalformedLegacyDegradesSafely(t *testing.T) {
 	for _, input := range []json.RawMessage{nil, json.RawMessage(`null`), json.RawMessage(`{"recipient_details":"invalid","recipients":["Legacy"]}`)} {
-		results, err := sanitizeForwardRecipientMetadata(context.Background(), nil, []json.RawMessage{input})
+		results, err := sanitizeForwardRecipientMetadata(context.Background(), nil, []json.RawMessage{input}, nil)
 		if err != nil || len(results) != 1 || !json.Valid(results[0]) {
 			t.Fatalf("unsafe fallback: %v", err)
 		}
