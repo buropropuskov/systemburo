@@ -143,8 +143,14 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 
 	forwardIndexes := make([]int, 0)
 	forwardMetadata := make([]json.RawMessage, 0)
+	var questionIndexes []int
 	for i := range items {
-		if items[i].ActionType == models.AuditActionForwarded {
+		switch items[i].ActionType {
+		case "question_created":
+			if items[i].Metadata != nil {
+				questionIndexes = append(questionIndexes, i)
+			}
+		case models.AuditActionForwarded:
 			forwardIndexes = append(forwardIndexes, i)
 			if items[i].Metadata == nil {
 				forwardMetadata = append(forwardMetadata, nil)
@@ -153,7 +159,19 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 			}
 		}
 	}
-	sanitized, err := s.projectForwardMetadata(ctx, applicationID, viewerID, forwardMetadata)
+	if len(questionIndexes) == 0 && len(forwardIndexes) == 0 {
+		return items, nil
+	}
+	scope, err := s.ForwardAttachmentScope(ctx, applicationID, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	if scope != nil {
+		for _, index := range questionIndexes {
+			items[index].Metadata = scopeQuestionAttachmentIDs(*items[index].Metadata, scope)
+		}
+	}
+	sanitized, err := sanitizeForwardRecipientMetadata(ctx, s.db, forwardMetadata, scope)
 	if err != nil {
 		slog.Error("не удалось подготовить получателей истории", "application_id", applicationID, "error", err)
 		if typed, ok := err.(*echo.HTTPError); ok && typed.Code == http.StatusServiceUnavailable {

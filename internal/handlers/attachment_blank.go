@@ -240,22 +240,33 @@ func blankAttachmentScope(c *echo.Context, access blankAccessService, resolver *
 	if GetUserID(c) <= 0 {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized")
 	}
+	forwarded := map[int]bool{}
 	if username, ok := c.Get("username").(string); ok && username != "" {
 		member, err := services.CheckApplicationAccess(ctx, access, appID, username, IsSuperAdmin(c))
 		if err != nil {
 			return nil, err
 		}
 		if member {
-			return access.ForwardAttachmentScope(ctx, appID, viewerUserID(c))
+			forwarded, err = access.ForwardAttachmentScope(ctx, appID, viewerUserID(c))
+			if err != nil || forwarded == nil {
+				return forwarded, err
+			}
 		}
 	}
 	userID, unrestricted, err := securityScope(c, access, resolver)
 	if err != nil {
 		var he *echo.HTTPError
 		if errors.As(err, &he) && he.Code == http.StatusForbidden {
-			return map[int]bool{}, nil
+			return forwarded, nil
 		}
 		return nil, err
 	}
-	return access.SecurityBlankAttachmentIDs(ctx, appID, userID, unrestricted)
+	byPost, err := access.SecurityBlankAttachmentIDs(ctx, appID, userID, unrestricted)
+	if err != nil {
+		return nil, err
+	}
+	for id := range byPost {
+		forwarded[id] = true
+	}
+	return forwarded, nil
 }

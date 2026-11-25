@@ -135,6 +135,12 @@ func TestForwardedBlankScopeAndHistory(t *testing.T) {
 	for _, surface := range forward2664Surfaces(t, e, w.h.userToken, w.appID) {
 		require.ElementsMatch(t, []string{carTitle}, surface["attachments"])
 	}
+	// A forwarded attachment and an assignment to a post are independent grants.
+	require.NoError(t, db.Create(&models.ApplicationViewer{ApplicationID: w.appID, UserID: w.h.w.guardID}).Error)
+	require.NoError(t, db.Create(&models.ForwardAttachment{ApplicationID: w.appID, RecipientUserID: w.h.w.guardID, AttachmentID: car.ID}).Error)
+	require.Equal(t, http.StatusForbidden, testutil.GET(t, e, w.url, testutil.AuthHeader(w.h.guardToken)).Code)
+	w.h.w.assignTable(t, w.tableID)
+	require.Equal(t, http.StatusOK, testutil.GET(t, e, w.url, testutil.AuthHeader(w.h.guardToken)).Code)
 	denied := testutil.GET(t, e, w.url, testutil.AuthHeader(second))
 	require.Equal(t, http.StatusForbidden, denied.Code)
 	for _, tc := range []struct{ token, carSource, itemSource string }{

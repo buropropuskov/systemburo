@@ -391,3 +391,45 @@ func TestForwardHistory2664_MaskQueryFailuresDoNotExposeRecipients(t *testing.T)
 	_, after := forward2664StoredEvent(t, db, appID)
 	assert.Equal(t, before, after)
 }
+
+func TestForwardHistoryQuestionAttachmentIDs(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seed := testutil.SeedTestData(t, db)
+	author := testutil.RegisterAndLogin(t, e, "question_scope_author", "pass123", 1, seed.OrgID, seed.CompanyID)
+	appID := createSimpleApplication(t, db, e, author, seed.OrgID)
+	base := fmt.Sprintf("/applications/%d", appID)
+	var ids []int
+	var readers []string
+	for _, login := range []string{"question_scope_first", "question_scope_second"} {
+		attachment := models.Attachment{ApplicationID: &appID, AttachmentType: "cars"}
+		require.NoError(t, db.Create(&attachment).Error)
+		reader := testutil.RegisterAndLogin(t, e, login, "pass123", 1, seed.OrgID, seed.CompanyID)
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"can_view":true}],"attachment_ids":[%d]}`, getUserID(t, db, login), attachment.ID)
+		rec := testutil.POST(t, e, base+"/forward", body, testutil.AuthHeader(author))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		readers = append(readers, reader)
+		ids = append(ids, attachment.ID)
+	}
+	body := fmt.Sprintf(`{"subject":"Оба вложения","text":"Согласуйте состав","attachment_ids":[%d,%d]}`, ids[0], ids[1])
+	rec := testutil.POST(t, e, base+"/questions", body, testutil.AuthHeader(author))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	for _, tc := range []struct {
+		token string
+		want  []any
+	}{
+		{readers[0], []any{float64(ids[0])}},
+		{readers[1], []any{float64(ids[1])}},
+		{author, []any{float64(ids[0]), float64(ids[1])}},
+	} {
+		history := testutil.GET(t, e, base+"/history", testutil.AuthHeader(tc.token))
+		require.Equal(t, http.StatusOK, history.Code, history.Body.String())
+		item := findHistoryEntry(t, testutil.ParseSlice(t, history), "question_created")
+		meta := item["metadata"].(map[string]any)
+		assert.ElementsMatch(t, tc.want, meta["attachment_ids"])
+		assert.Equal(t, "Оба вложения", meta["subject"])
+		assert.Equal(t, "Согласуйте состав", item["comment"])
+	}
+}

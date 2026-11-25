@@ -64,6 +64,31 @@ func (s *applicationService) projectForwardMetadata(ctx context.Context, applica
 	return sanitizeForwardRecipientMetadata(ctx, s.db, originals, scope)
 }
 
+// The question subject and comment belong to every participant. Only linked
+// attachment IDs use the narrower material scope in an application history.
+func scopeQuestionAttachmentIDs(raw json.RawMessage, allowed map[int]bool) *json.RawMessage {
+	var meta map[string]json.RawMessage
+	if json.Unmarshal(raw, &meta) != nil || meta == nil {
+		return nil
+	}
+	links, ok := meta["attachment_ids"]
+	if !ok {
+		return &raw
+	}
+	var ids []int
+	visible := []int{}
+	if json.Unmarshal(links, &ids) == nil {
+		for _, id := range ids {
+			if allowed[id] {
+				visible = append(visible, id)
+			}
+		}
+	}
+	meta["attachment_ids"], _ = json.Marshal(visible)
+	raw, _ = json.Marshal(meta)
+	return &raw
+}
+
 func scopeForwardAttachmentMetadata(meta map[string]json.RawMessage, allowed map[int]bool) {
 	if allowed == nil {
 		return
