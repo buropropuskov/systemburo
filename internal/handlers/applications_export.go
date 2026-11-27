@@ -65,7 +65,7 @@ var registryHeaders = []string{
 // @Param        status            query string false "Статус заявки"
 // @Param        date_from         query string false "Дата от (YYYY-MM-DD)"
 // @Param        date_to           query string false "Дата до (YYYY-MM-DD)"
-// @Param        archive           query bool   false "Архивные заявки"
+// @Param        archive           query string false "Режим списка: true, false или all для поиска с правом просмотра архива"
 // @Success      200 {file}    file
 // @Failure      401 {object}  models.HTTPError
 // @Failure      403 {object}  models.HTTPError
@@ -78,7 +78,7 @@ func (h *ApplicationHandler) ExportApplications(c *echo.Context) error {
 		return apperr.Unauthorized("Необходима авторизация")
 	}
 
-	filter, err := bindApplicationListFilter(c)
+	filter, err := h.bindApplicationListFilter(c)
 	if err != nil {
 		return err
 	}

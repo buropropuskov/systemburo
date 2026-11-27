@@ -1826,8 +1826,9 @@ export default {
         buildApplicationsFilterParams() {
             const params = {};
 
-            if (this.searchQuery) {
-                params.search_query = this.searchQuery;
+            const search = this.searchQuery?.trim();
+            if (search) {
+                params.search_query = search;
             }
             // Справочники мультивыбором (#1398): бэк матчит IN по comma-списку id
             // (organization_ids/company_ids/unload_place_ids/passage_table_ids).
@@ -1864,7 +1865,9 @@ export default {
             }
 
             // Добавляем параметр архива
-            params.archive = this.archiveMode === 'archive' ? 'true' : 'false';
+            params.archive = this.canViewArchive && search
+                ? 'all'
+                : String(this.archiveMode === 'archive');
 
             if (this.activeToday) {
                 params.active_today = 'true';

@@ -389,11 +389,12 @@ type ApplicationFilter struct {
 	// requireRead различается по листингу (Центр требует прочтения, ЛК нет), поэтому фильтр
 	// применяется не в applyApplicationFilters, а в конкретном листинге через
 	// applyStatusUpdatedFilter.
-	StatusUpdated *bool   `query:"status_updated"`
-	DateFrom      *string `query:"date_from"`
-	DateTo        *string `query:"date_to"`
-	Archive       *bool   `query:"archive"`
-	ActiveToday   *bool   `query:"active_today"`
+	StatusUpdated  *bool   `query:"status_updated"`
+	DateFrom       *string `query:"date_from"`
+	DateTo         *string `query:"date_to"`
+	Archive        *bool   `json:"-" xml:"-"`
+	IncludeArchive bool    `json:"-" xml:"-"` // Set by the handler after checking the archive permission.
+	ActiveToday    *bool   `query:"active_today"`
 	// SenderUserID сужает список до заявок, отправленных конкретным пользователем (#1158,
 	// вкладка "Мои заявки" в ЛК). Опциональное AND-условие поверх access-фильтра - не
 	// расширяет видимость (Центр это поле не использует, для него нейтрально).

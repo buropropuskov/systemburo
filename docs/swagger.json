@@ -844,6 +844,12 @@
                         "description": "Дата до (YYYY-MM-DD)",
                         "name": "date_to",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Режим списка: true, false или all для поиска с правом просмотра архива",
+                        "name": "archive",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1275,8 +1281,8 @@
                         "in": "query"
                     },
                     {
-                        "type": "boolean",
-                        "description": "Архивные заявки",
+                        "type": "string",
+                        "description": "Режим списка: true, false или all для поиска с правом просмотра архива",
                         "name": "archive",
                         "in": "query"
                     }

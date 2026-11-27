@@ -690,6 +690,9 @@ func parseIDList(raw *string) []int {
 // нет. Пока срез сидел внутри общих фильтров, кабинет резал выдачу молча: у владельца
 // из 26 своих заявок было видно 5, остальные 21 закончились больше месяца назад.
 func applyArchiveScope(query *gorm.DB, filter ApplicationFilter) *gorm.DB {
+	if filter.IncludeArchive {
+		return query
+	}
 	if filter.Archive != nil && *filter.Archive {
 		cond, args := archivedApplicationCond("a")
 		return query.Where(cond, args...)
