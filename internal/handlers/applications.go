@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -42,14 +43,29 @@ func canOverrideOrganization(c *echo.Context, resolver *services.PermissionResol
 //
 // archive и active_today разбираются руками: Bind не кладёт "true"/"false" в
 // *bool, а отсутствие параметра должно означать «фильтр не задан», а не false.
-func bindApplicationListFilter(c *echo.Context) (services.ApplicationFilter, error) {
+func (h *ApplicationHandler) bindApplicationListFilter(c *echo.Context) (services.ApplicationFilter, error) {
 	var filter services.ApplicationFilter
 	if err := c.Bind(&filter); err != nil {
 		return filter, echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
-	if archiveStr := c.QueryParam("archive"); archiveStr != "" {
-		archive := archiveStr == "true"
+	if filter.SearchQuery != nil {
+		query := strings.TrimSpace(*filter.SearchQuery)
+		if query == "" {
+			filter.SearchQuery = nil
+		} else {
+			filter.SearchQuery = &query
+		}
+	}
+	if archiveScope := c.QueryParam("archive"); archiveScope != "" {
+		archive := archiveScope == "true"
 		filter.Archive = &archive
+		if archiveScope == "all" && filter.SearchQuery != nil && h.resolver != nil {
+			permissions, err := h.resolver.ResolveFresh(c.Request().Context(), GetUserID(c))
+			if err != nil {
+				return filter, err
+			}
+			filter.IncludeArchive = permissions.Has(services.KeyCenterArchive)
+		}
 	}
 	if activeTodayStr := c.QueryParam("active_today"); activeTodayStr != "" {
 		activeToday := activeTodayStr == "true"
@@ -76,6 +92,7 @@ func bindApplicationListFilter(c *echo.Context) (services.ApplicationFilter, err
 // @Param        status            query string false "Статус заявки"
 // @Param        date_from         query string false "Дата от (YYYY-MM-DD)"
 // @Param        date_to           query string false "Дата до (YYYY-MM-DD)"
+// @Param        archive           query string false "Режим списка: true, false или all для поиска с правом просмотра архива"
 // @Success      200 {array}  services.ApplicationWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
@@ -83,7 +100,7 @@ func bindApplicationListFilter(c *echo.Context) (services.ApplicationFilter, err
 func (h *ApplicationHandler) GetApplications(c *echo.Context) error {
 	username := c.Get("username").(string)
 
-	filter, err := bindApplicationListFilter(c)
+	filter, err := h.bindApplicationListFilter(c)
 	if err != nil {
 		return err
 	}

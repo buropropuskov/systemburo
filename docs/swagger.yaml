@@ -6932,6 +6932,10 @@ paths:
         in: query
         name: date_to
         type: string
+      - description: 'Режим списка: true, false или all для поиска с правом просмотра архива'
+        in: query
+        name: archive
+        type: string
       produces:
       - application/json
       responses:
@@ -9000,10 +9004,10 @@ paths:
         in: query
         name: date_to
         type: string
-      - description: Архивные заявки
+      - description: 'Режим списка: true, false или all для поиска с правом просмотра архива'
         in: query
         name: archive
-        type: boolean
+        type: string
       produces:
       - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       responses:

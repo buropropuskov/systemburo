@@ -87,6 +87,18 @@ describe('ApplicationsCenter - выгрузка реестра (#1832)', () => {
     expect(params.per_page).toBeUndefined();
   });
 
+  it('ищет в обеих вкладках при наличии права на архив', async () => {
+    seedPerms({ allow: ['page.center', 'center.archive'] });
+    const w = mountCenter();
+    w.vm.searchQuery = '20260505/002';
+    expect(w.vm.buildApplicationsFilterParams().archive).toBe('all');
+    w.vm.archiveMode = 'archive';
+    expect(w.vm.buildApplicationsFilterParams().archive).toBe('all');
+    w.vm.searchQuery = ' ';
+    expect(w.vm.buildApplicationsFilterParams().archive).toBe('true');
+    w.unmount();
+  });
+
   it('псевдо-статус «Непрочитано» уезжает флагом unread, как в списке', async () => {
     seedPerms({ allow: ['page.center', 'action.export.applications'] });
     const w = mountCenter();

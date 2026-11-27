@@ -257,6 +257,32 @@ func TestGetApplications_Archive_IncludesRefused_ExcludesInWork(t *testing.T) {
 	assert.Contains(t, active, float64(inWorkID))
 	assert.NotContains(t, active, float64(completedID))
 	assert.NotContains(t, active, float64(refusedID))
+
+	for id, number := range map[int]string{
+		completedID: "20260901/901",
+		refusedID:   "20260901/902",
+		inWorkID:    "20260901/903",
+	} {
+		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", id).
+			Update("application_number", number).Error)
+	}
+	recSearch := testutil.GET(t, e, "/applications?archive=all&search_query=20260901", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, recSearch.Code)
+	require.ElementsMatch(t, []float64{float64(completedID), float64(refusedID), float64(inWorkID)}, ids(testutil.ParseSlice(t, recSearch)))
+
+	recBlank := testutil.GET(t, e, "/applications?archive=all&search_query=%20", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, recBlank.Code)
+	require.ElementsMatch(t, active, ids(testutil.ParseSlice(t, recBlank)))
+
+	adminID := getUserID(t, db, "testadmin")
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", adminID).
+		Updates(map[string]any{"is_super_admin": false, "is_admin": true}).Error)
+	require.NoError(t, db.Create(&models.UserPermissionOverride{
+		UserID: adminID, PermissionKey: services.KeyCenterArchive, Value: "deny",
+	}).Error)
+	recRestricted := testutil.GET(t, e, "/applications?archive=all&search_query=20260901", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, recRestricted.Code)
+	require.ElementsMatch(t, []float64{float64(inWorkID)}, ids(testutil.ParseSlice(t, recRestricted)))
 }
 
 // Правила архива, завязанные на сроки вложений и момент отзыва (#1097 follow-up).
