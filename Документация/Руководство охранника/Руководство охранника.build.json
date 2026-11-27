@@ -1,10 +1,10 @@
 {
   "document": "guard",
-  "version": "2.7",
-  "pages": 22,
-  "code_revision": "614da8f35aed1a1eed3cb2f0bf6e884b008de74e",
+  "version": "2.8",
+  "pages": 21,
+  "code_revision": "d76535ef22b84b7fbad3ca8fb3c2619d1552535f",
   "source_sha256": "70869611a39dc2990b3ddcfc563e1841643f44124de9e6a33facfabe46061e72",
-  "builder_sha256": "73ab5b7c3a727147cee0ef8d2af50e511e85a794de6df09cdfcdafad4e9393ae",
-  "docx_sha256": "c918f74e0c33c772639b2f03d02b022957d879b11e662722c0133df4b82c43b8",
-  "pdf_sha256": "8d9f68764df4351d1a7916214a2d1aad9ae9b8861aa4885a562e7e378dcfd432"
+  "builder_sha256": "49e221f365da16e3fe451a7ad59cf14d10d4603c207a4f3a59265bc28d4e3092",
+  "docx_sha256": "71f8c22488772f7745cfda85bfc3ef729877404a725802aeb9fe656b99224b40",
+  "pdf_sha256": "787bcba9ac943db87991a7ff003294905ada0ed5841b6704c7e520076acd8247"
 }
