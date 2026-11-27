@@ -1827,9 +1827,7 @@ export default {
             const params = {};
 
             const search = this.searchQuery?.trim();
-            if (search) {
-                params.search_query = search;
-            }
+            if (search) params.search_query = search;
             // Справочники мультивыбором (#1398): бэк матчит IN по comma-списку id
             // (organization_ids/company_ids/unload_place_ids/passage_table_ids).
             if (this.selectedOrganizationIds.length > 0) {
@@ -1864,10 +1862,7 @@ export default {
                 }
             }
 
-            // Добавляем параметр архива
-            params.archive = this.canViewArchive && search
-                ? 'all'
-                : String(this.archiveMode === 'archive');
+            params.archive = this.canViewArchive && search ? 'all' : String(this.archiveMode === 'archive');
 
             if (this.activeToday) {
                 params.active_today = 'true';
