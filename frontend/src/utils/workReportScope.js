@@ -1,8 +1,8 @@
 import { formatMoscowDateTime } from './serverTime';
 
 export const workScopes = [
-  { key: 'now', label: 'Действуют сейчас' },
-  { key: 'today', label: 'Действуют сегодня' },
+  { key: 'now', label: 'Активно' },
+  { key: 'today', label: 'Сегодня' },
   { key: 'submitted', label: 'За период подачи' },
 ];
 

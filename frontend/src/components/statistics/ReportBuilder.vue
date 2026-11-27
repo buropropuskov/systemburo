@@ -1088,6 +1088,8 @@ defineExpose({ expandPeriodToAll, setPeriod });
 }
 
 .rb__cols {
+  grid-column: 1 / -1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1095,16 +1097,24 @@ defineExpose({ expandPeriodToAll, setPeriod });
 }
 .rb__cols-list {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 7px;
 }
 
 /* Столбец выгрузки - тот же чип, что и у фильтров, но с чекбоксом внутри. */
 .rb__col {
   display: inline-flex;
+  flex: 0 0 auto;
+  white-space: nowrap;
   align-items: center;
   cursor: pointer;
 }
+.rb__col:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .rb__col-input {
   position: absolute;
   opacity: 0;
