@@ -1,10 +1,10 @@
 {
   "document": "deploy",
-  "version": "1.82",
-  "pages": 204,
-  "code_revision": "e94bb7382f109484de1ee5f6346dd3cf2214f423",
+  "version": "1.83",
+  "pages": 203,
+  "code_revision": "d76535ef22b84b7fbad3ca8fb3c2619d1552535f",
   "source_sha256": "0a9079b884dc2cf4ed80c034d6c8c74706f591eb41f358bf6fccf56db0d8af61",
-  "builder_sha256": "9270f66f05a5bb427490196db08a902dbba6e9ebf80d9b57175ffc86c26823a0",
-  "docx_sha256": "937ba915463344f3e58ed63ae8b637ad12335cfb25ca962a07564a7fc7a2c233",
-  "pdf_sha256": "9aa102448cfa4099f7d7b12cd343b03851764f3d1916e6957a55f5605bfcf252"
+  "builder_sha256": "49e221f365da16e3fe451a7ad59cf14d10d4603c207a4f3a59265bc28d4e3092",
+  "docx_sha256": "8141452cd7855bee36258beddae3acdc31e54f0efbc4421c1ac8b3268b7a5af7",
+  "pdf_sha256": "4725e50e81846262cee2734b903c8472c9d8f2c72aa852a023d5b86d504ff865"
 }
