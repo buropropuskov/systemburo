@@ -2325,10 +2325,6 @@ export default {
   flex-wrap: wrap;
   gap: 6px 8px;
 }
-
-.user-action-items .lk-button {
-  white-space: nowrap;
-}
 .check-col {
   width: 6%;
   min-width: 34px;
