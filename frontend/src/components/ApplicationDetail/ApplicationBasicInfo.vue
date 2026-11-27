@@ -3,7 +3,7 @@
     class="info-grid"
     data-testid="ob-detail-basic"
   >
-    <div class="info-row">
+    <div class="info-row info-row--organization">
       <span class="info-label">Организация / Отдел:</span>
       <span class="info-value">{{ application.organization_name }}</span>
     </div>
@@ -80,6 +80,11 @@ export default {
     gap: 8px;
     font-size: 13px;
     line-height: 1.4;
+}
+
+.info-row--organization {
+    flex-direction: column;
+    gap: 2px;
 }
 
 .info-label {

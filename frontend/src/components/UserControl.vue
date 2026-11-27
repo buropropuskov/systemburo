@@ -2322,8 +2322,12 @@ export default {
 .user-action-items {
   display: flex;
   align-items: center;
-  flex-wrap: inherit;
-  gap: inherit;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.user-action-items .lk-button {
+  white-space: nowrap;
 }
 .check-col {
   width: 6%;
